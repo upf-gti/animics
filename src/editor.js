@@ -1421,8 +1421,52 @@ class ScriptEditor extends Editor{
         // ------------------------------------------------------
         this.mode = this.eModes.script;
         this.gui = new ScriptGui(this);  
+        // this.getDictionaries();
     }
-    
+
+    async getDictionaries() {
+        const fs = this.getApp().FS;
+        const session = fs.getSession();
+        this.dictionaries = []; 
+        const inner = async () => {
+
+            await fs.getFolders(async (units) => {
+            for(let i = 0; i < units.length; i++) {
+                    let data = {};
+                    if(units[i].folders.dictionaries) {
+
+                        const dictionaries = units[i].folders.dictionaries;
+                        for(let dictionary in dictionaries) {
+                            data[dictionary] = [];
+                            let assets = [];
+                            for(let folder in dictionaries[dictionary]) {
+                                await fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
+                                    
+                                    let files_data = [];
+                                    for(let f = 0; f < files.length; f++) {
+                                        files[f].id = files[f].filename;
+                                        files[f].folder = dictionary;
+                                        files[f].type = files[f].filename.split(".")[1];
+                                        if(files[f].type == "txt")
+                                            continue;
+                                        files_data.push(files[f]);
+                                    }
+                                    data[dictionary] = files_data;
+                                    assets.push({id: folder, type:"folder",  children: files_data});
+                                })
+                                // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                            }
+                            this.editor.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                        }
+                    }
+                }
+                }) 
+            }
+            if(!session)
+                await fs.login(null, null, inner);
+
+    }
+
     loadModel(clip) {
         // Load the target model (Eva) 
         UTILS.loadGLTF("models/EvaHandsEyesFixed.glb", (gltf) => {

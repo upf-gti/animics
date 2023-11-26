@@ -19,10 +19,19 @@ class App {
        
         // Create the fileSystem and log the user
         this.FS = new FileSystem("signon", "signon", () => console.log("Auto login of guest user"));
-
+        this.FS.login();
     	window.globals = {
             "app": this
         };
+    }
+
+    login(session, callback) {
+
+        this.FS.login(session.user, session.password, callback);
+    }
+
+    logout(callback) {
+        this.FS.logout(callback);
     }
 
     init( settings ) {

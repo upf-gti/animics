@@ -420,7 +420,7 @@
             if(options.input !== false)
                 p.addText(null, options.input || value, (v) => value = v, {placeholder: "..."} );
             p.sameLine(2);
-            p.addButton(null, "OK", () => { 
+            p.addButton(null, options.accept || "OK", () => { 
                 if(options.required && value === '') {
 
                     text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
@@ -3185,6 +3185,7 @@
             if( !this.disabled )
             {
                 wValue = document.createElement('input');
+                wValue.type = options.type || "";
                 wValue.value = wValue.iValue = value || "";
                 wValue.style.width = "100%";
                 wValue.style.textAlign = options.float ?? "";

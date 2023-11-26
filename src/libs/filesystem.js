@@ -25,17 +25,57 @@ class FileSystem{
         return this.session;
     }
 
-    updateSession(session, resolve) {
-        this.session = session;
-        resolve("DONE");
+    
+	setSession(session)
+	{
+		if(!session || !session.status)
+			session = null;
+
+		if(session && this.session && session.user.username === this.session.user.username)
+			return;
+
+		this.session = session;
+		this.user = session ? session.user : null;
+		//this.updateLoginArea();
+		// if( session && session.user && session.user.username == "guest" && this.preferences.show_guest_warning )
+		// 	this.showGuestWarning();
+	}
+
+    createAccount(user, password, email, on_complete, on_error, admin_token, userdata) {
+       LFS.createAccount( user, password, email, on_complete, on_error, admin_token, userdata )
     }
 
-    login() {
-        return new Promise(resolve => LFS.login(this.user, this.pass, (s) => this.updateSession(s, resolve)));
-    }
+	login(username, password, callback)
+	{
+        username = username || this.user;
+        password = password || this.pass;
+		if(!username || !password)
+			return;
 
-    logout() {
-        this.session.logout(()=> console.log("Logout done"));
+		const inner_success = (session, response, resolve) =>
+		{
+			this.setSession(session);
+            if(resolve)
+                resolve(session);
+			if(callback)
+				callback(this.session, response);
+		}
+
+		const inner_error = (err) =>
+		{
+			throw err;
+		}
+        return new Promise(resolve => LFS.login(username, password, (s,r) => inner_success(s,r,resolve), inner_error));
+
+	}
+
+    logout(callback) {
+        this.session.logout(()=> {
+            console.log("Logout done");
+            this.session = null;
+            if(callback)
+                callback();
+        });
     }
 
     onReady(u, p, callback) {

@@ -177,7 +177,123 @@ class Gui {
                 }
             }
         ]);
-        menubar.setButtonIcon("Github", "fa-brands fa-github", () => {window.open("https://github.com/upf-gti/SignON-editor")}, {float:"right"});
+       
+        menubar.add("Login", {callback: () => {
+            const session = this.editor.getApp().FS.getSession();
+
+            if(session && session.user.username != "signon")
+                this.showLogoutModal();
+            else
+                this.showLoginModal()
+            }
+        }, {float:"right"});
+        menubar.setButtonIcon("Github", "fa-brands fa-github", () => {window.open("https://github.com/upf-gti/animics")}, {float:"right"});
+    }
+
+    showLoginModal(session = {user: null, password: null}) {
+        this.prompt = new LX.Dialog("Login", (p) => {
+            const refresh = (p, msg) => {
+                p.clear();
+                if(msg) {
+                    p.addText(null, msg, null, {disabled: true});
+                }
+                p.addText("User", session.user, (v) => {
+                    session.user = v;
+                });
+                p.addText("Password", session.password, (v) => {
+                    session.password = v;
+                }, {type: "password"});
+                p.sameLine(2);
+                p.addButton(null, "Cancel", (v) => {
+                    this.prompt.close();
+                    this.prompt = null;
+                });
+    
+                p.addButton(null, "Login", (v) => {
+                    this.editor.getApp().login(session, (session, response) => {
+                        if(response.status == 1) {
+                            let el = document.querySelector("#Login");
+                            el.innerText = session.user.username;
+                            this.prompt.close();
+                        }
+                        else {
+                            refresh(p, response.msg);
+                        }
+                    });
+                });
+
+                p.addButton(null, "Sign up", (v) => {
+                    this.prompt.close();
+                    this.prompt = null;
+                    this.showCreateAccountDialog();
+                })
+            }
+            refresh(p);
+            
+        } )
+    }
+
+    showLogoutModal() {
+        this.prompt = LX.prompt( "Are you sure you want to logout?", "Logout", (v) => {
+            this.editor.getApp().logout(() => {
+                let el = document.querySelector("#Login");
+                el.innerText = "Login";
+                this.editor.getApp().FS.user = "signon";
+                this.editor.getApp().FS.pass = "signon";
+            }); 
+            this.prompt = null;
+        } , {input: false, accept: "Logout"})
+    }
+
+    showCreateAccountDialog()
+    {
+        let user = "", pass = "",
+        pass2 = "", email = "";
+        let errors = false;
+
+        this.prompt = new LX.Dialog("Create account", (p) => {
+        
+            const refresh = (p, msg) => {
+                p.clear();
+                if(msg)
+                    p.addText(null, msg, null, {disabled: true});
+                p.addText("Username", user, (v) => { user = v; });
+                p.addText("Email", email, (v) => { email = v; }, {type: "email"});
+                p.addText("Password", pass, (v) => { pass = v; }, {type: "password"});
+                p.addText("Confirm password",pass2, (v) => { pass2 = v; }, {type: "password"});
+                p.addButton(null, "Register",  () => {
+                    if(pass === pass2)
+                    {
+                        var req = this.editor.getApp().FS.createAccount(user, pass, email, (valid, request) => {
+                            if(valid)
+                            {
+                                this.editor.getApp().FS.getSession().setUserPrivileges("signon", user, "READ", function(status, resp){
+                                    console.log(resp);						
+
+                                    if(status)
+                                        console.log(resp);						
+                                    else
+                                        bootbox.alert( resp.msg );
+                                });
+                                
+                                this.showLoginModal( { user: user, password: pass});
+                            }else
+                            {
+                                refresh(p, "Server status: " + request.msg);
+                                console.error(request.msg);
+                            }
+                        });
+                    }
+                    else
+                    {
+                        refresh(p, "Please confirm password");
+                        console.error("Wrong pass confirmation");
+                    }
+                })
+            }
+            refresh(p);
+        });
+            
     }
 
     createSceneUI(area) {
@@ -363,7 +479,7 @@ class Gui {
             p.addText(null, "Be sure you have exported the animation. If you exit now, your data will be lost. How would you like to proceed?", null, {disabled: true});
             p.addButton(null, "Export", () => {
                 p.clear();
-                p.addString("File name", this.editor.clipName, (v) => this.editor.clipName = v);
+                p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
                 p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended", this.editor.clipName));
                 if(this.editor.mode == this.editor.eModes.script) {
                     p.addButton( null, "Export BML", () => this.editor.export("", this.editor.clipName ));
@@ -1602,7 +1718,7 @@ class ScriptGui extends Gui {
 
     init() {
         this.createSidePanel();
-        this.updateMenubar()
+        this.updateMenubar();
         if(!this.duration)
             this.showGuide();
         this.showTimeline();
@@ -2296,7 +2412,7 @@ class ScriptGui extends Gui {
                 }, { size: ["40%", "600px"], closable: true });
             }
             const loadData = () => {
-                asset_browser.load( this.dictionaries, e => {
+                asset_browser.load( this.editor.dictionaries, e => {
                     switch(e.type) {
                         case LX.AssetViewEvent.ASSET_SELECTED: 
                             //request data
@@ -2367,15 +2483,15 @@ class ScriptGui extends Gui {
             });
             
             p.attach( asset_browser );
-            if(!this.dictionaries) {
-                this.dictionaries = [];
+            if(!this.editor.dictionaries) {
+                this.editor.dictionaries = [];
                 const modal = this.createLoadingModal();
-
-                await fs.login();
+                if(!fs.getSession())
+                    await fs.login();
                 await fs.getFolders(async (units) => {
                    for(let i = 0; i < units.length; i++) {
                         let data = {};
-                        if(units[i].name == fs.user && units[i].folders.dictionaries) {
+                        if(units[i].folders.dictionaries) {
         
                             const dictionaries = units[i].folders.dictionaries;
                             for(let dictionary in dictionaries) {
@@ -2398,7 +2514,7 @@ class ScriptGui extends Gui {
                                     })
                                     // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
                                 }
-                                this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                                this.editor.dictionaries.push({id: dictionary, type:"folder",  children: assets});
                             }
                         }
                     }
