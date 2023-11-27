@@ -43,12 +43,12 @@
 		import { App } from "./src/app.js";
 		import { UTILS } from "./src/utils.js";
 	
-		const createApp = (settings) => {
+		const createApp = window.createApp = (settings) => {
 
 			$("#mainNav").remove();
 			$(".masthead").remove();
 			$("footer").remove();
-			const app = new App();
+			const app = window.app = new App();
 			app.init(settings);
 			// let gui = LX.init();
 			// const dialog = new LX.Dialog( "Select input", p => {
