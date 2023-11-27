@@ -69,7 +69,8 @@
             this.currentScroll = 0; //in percentage
             this.currentScrollInPixels = 0; //in pixels
             this.scrollableHeight = this.size[1]; //true height of the timeline content
-            this.secondsToPixels = 300;
+           
+            this.secondsToPixels = this.canvas.width/this.duration;
             this.pixelsToSeconds = 1 / this.secondsToPixels;
             this.selectedItems = options.selectedItems ?? null;
             this.animationClip = options.animationClip ?? null;
@@ -123,6 +124,7 @@
                     return;
                 this.resizeCanvas( [ bounding.width, bounding.height + this.header_offset ] );
             }
+
         }
 
         /**
@@ -707,11 +709,10 @@
             if( this.secondsToPixels * v < 100)
                 return;
 
-            var centerx = this.canvas.width * 0.5;
-            var x = this.xToTime( centerx );
+            const xCurrentTime = this.timeToX(this.currentTime);
             this.secondsToPixels *= v;
             this.pixelsToSeconds = 1 / this.secondsToPixels;
-            this.session.start_time += x - this.xToTime( centerx );
+            this.session.start_time += this.currentTime - this.xToTime(xCurrentTime);
             this.draw();
         }
         
@@ -1239,21 +1240,28 @@
             let w = size[0] - this.leftPanel.root.clientWidth - 8;
             this.resizeCanvas([w , size[1]]);
             
-            this.session.start_time = 0;
+            // this.session.start_time = 0;
+           
+
         }
 
         resizeCanvas( size ) {
             if( size[0] <= 0 && size[1] <=0 )
                 return;
-
+            if(Math.abs(this.canvas.width - size[0]) > 1) {
+                
+                var w = Math.max(300, size[0] );
+                this.secondsToPixels = ( w- this.session.left_margin ) / this.duration;
+                this.pixelsToSeconds = 1 / this.secondsToPixels;
+            }
             size[1] -= this.header_offset;
             this.canvasArea.setSize(size);
             this.canvas.width = size[0];
             this.canvas.height = size[1];
-            var w = Math.max(300, this.canvas.width);
-            this.secondsToPixels = ( w - this.session.left_margin ) / this.duration;
-            this.pixelsToSeconds = 1 / this.secondsToPixels;
 
+            // var centerx = this.canvas.width * 0.5;
+            // var x = this.xToTime( centerx );
+            // this.session.start_time += x - this.xToTime( centerx );
             this.draw(this.currentTime);
             
         }
@@ -2396,12 +2404,20 @@
                 return;
 
             size[1] -= this.header_offset;
+
+            if(Math.abs(this.canvas.width - size[0]) > 1) {
+                
+                var w = Math.max(300, size[0] );
+                this.secondsToPixels = ( w- this.session.left_margin ) / this.duration;
+                this.pixelsToSeconds = 1 / this.secondsToPixels;
+            }
+
             this.canvasArea.setSize(size);
             this.canvas.width = size[0];
             this.canvas.height = size[1];
             var w = Math.max(300, this.canvas.width);
-            this.secondsToPixels = ( w - this.session.left_margin ) / this.duration;
-            this.pixelsToSeconds = 1 / this.secondsToPixels;
+            // this.secondsToPixels = ( w - this.session.left_margin ) / this.duration;
+            // this.pixelsToSeconds = 1 / this.secondsToPixels;
             
             let timeline_height = this.topMargin;
             let line_height = this.trackHeight;

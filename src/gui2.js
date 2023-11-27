@@ -1480,7 +1480,7 @@ class ScriptGui extends Gui {
         let clips = [];
         let globalStart = 10000;
         let globalEnd = -10000;
-        if(clip && clip.duration) {
+        if(clip && clip.behaviours) {
             for(let i = 0; i < clip.behaviours.length; i++) {
                 let clipClass = null;
                 if(!clip.indices){
@@ -1570,7 +1570,7 @@ class ScriptGui extends Gui {
             this.clipsTimeline.addClips(clips);
         }
         this.clip = this.clipsTimeline.animationClip || clip ;
-        this.duration = this.clip.duration || 0;
+        this.duration = this.clip.duration || globalEnd - globalStart;
 
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.animation.duration - 0.001) );
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
