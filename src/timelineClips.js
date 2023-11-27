@@ -503,6 +503,9 @@ FaceLexemeClip.prototype.toJSON = function()
 	for(var i in this.properties)
 	{
 		json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
+
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
+			delete json[i];
 	}
 	return json;
 }
@@ -1227,7 +1230,8 @@ GazeClip.prototype.toJSON = function()
 	for(var i in this.properties)
 	{
 		json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
-		if(json[i] === "" || json[i] == null)
+		
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
 			delete json[i];
 	}
 	return json;
@@ -1396,6 +1400,9 @@ HeadClip.prototype.toJSON = function()
 	for(var i in this.properties)
 	{
 		json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
+
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
+			delete json[i];
 	}
 	return json;
 }
@@ -1529,6 +1536,9 @@ ElbowRaiseClip.prototype.toJSON = function()
 			json.elbowRaise = this.properties.amount;
 		else
 			json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
+
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
+			delete json[i];
 	}
 	return json;
 }
@@ -1664,6 +1674,9 @@ ShoulderClip.prototype.toJSON = function()
 	for(var i in this.properties)
 	{
 		json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
+		
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
+			delete json[i];
 	}
 	return json;
 }
@@ -1802,6 +1815,9 @@ BodyMovementClip.prototype.toJSON = function()
 	for(var i in this.properties)
 	{
 		json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
+
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
+			delete json[i];
 	}
 	return json;
 }
@@ -2014,7 +2030,7 @@ ArmLocationClip.prototype.toJSON = function()
 		else 
 			json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
 
-		if(json[i] === "" || json[i] == null)
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
 			delete json[i];
 	}
 	return json;
@@ -2293,7 +2309,7 @@ PalmOrientationClip.prototype.toJSON = function()
 		else 
 			json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
 
-		if(json[i] === "" || json[i] == null)
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
 			delete json[i];
 	}
 	return json;
@@ -2502,8 +2518,8 @@ HandOrientationClip.prototype.toJSON = function()
 			else 
 				json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
 
-			if(json[i] === "")
-				json[i] = null;
+			if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
+				delete json[i];
 		}
 	}
 	return json;
@@ -2690,8 +2706,8 @@ HandshapeClip.prototype.toJSON = function()
 			json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
 		}
 
-		if(json[i] === "")
-			json[i] = null;
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
+			delete json[i];
 	}
 
 	return json;
@@ -3042,7 +3058,7 @@ HandConstellationClip.prototype.toJSON = function()
 		else 
 			json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
 
-		if(json[i] === "" || json[i] == null)
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
 			delete json[i];
 	}
 	return json;
@@ -3403,7 +3419,7 @@ DirectedMotionClip.prototype.toJSON = function()
 		else 
 			json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
 
-		if(json[i] === "" || json[i] == null)
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
 			delete json[i];
 	}
 	return json;
@@ -3720,7 +3736,7 @@ CircularMotionClip.prototype.toJSON = function()
 		else 
 			json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
 
-		if(json[i] === "" || json[i] == null)
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
 			delete json[i];
 	}
 	return json;
@@ -4116,7 +4132,7 @@ FingerplayMotionClip.prototype.toJSON = function()
 		else 
 			json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
 
-		if(json[i] === "" || json[i] == null)
+		if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
 			delete json[i];
 	}
 	return json;
@@ -4251,6 +4267,8 @@ MouthingClip.prototype.toJSON = function()
 	for(let i in this.properties)
 	{
 		json[i] = this.properties[i];
+		if(json[i] == null || i == "shift" && !json[i])
+			delete json[i];
 	}
 	return json;
 }
