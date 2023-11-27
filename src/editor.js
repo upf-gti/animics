@@ -639,7 +639,7 @@ class Editor {
             let json = this.exportBML();
             if(!json) return;
             const sendData = () => {
-                if(this.appR && this.appR.ECAcontroller)
+                if(this.perfromsApp && this.perfromsApp.ECAcontroller)
                     this.realizer.postMessage(JSON.stringify([{type: "bml", data: json.behaviours}]));
                 else {
                     setTimeout(sendData, 1000)
@@ -649,7 +649,7 @@ class Editor {
             if(!this.realizer || this.realizer.closed) {
                 this.realizer = window.open(url, "Preview");
                 this.realizer.onload = (e, d) => {
-                    this.appR = e.currentTarget.global.app;
+                    this.perfromsApp = e.currentTarget.global.app;
                     sendData();
                 }
     
