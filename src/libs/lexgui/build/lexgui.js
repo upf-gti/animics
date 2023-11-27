@@ -6739,9 +6739,10 @@
             const options = { disabled: true };
 
             this.previewPanel.addText("Filename", file.id, null, options);
-            this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options);
+            (file._path || file.src ) ? this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options) : 0;
             this.previewPanel.addText("Path", this.path.join('/'), null, options);
             this.previewPanel.addText("Type", file.type, null, options);
+            file.type == "folder" ? this.previewPanel.addText("Files", file.children.length, null, options) : 0;
             file.bytesize ? this.previewPanel.addText("Size", (file.bytesize/1024).toPrecision(3) + " KBs", null, options) : 0;
             this.previewPanel.addSeparator();
             

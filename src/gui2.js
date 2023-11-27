@@ -2416,8 +2416,9 @@ class ScriptGui extends Gui {
                     switch(e.type) {
                         case LX.AssetViewEvent.ASSET_SELECTED: 
                             //request data
-                            if(e.item.type == "folder")
+                            if(e.item.type == "folder") {
                                 return;
+                            }
                             LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
                                 const bytesize = f => new Blob([f]).size;
                                 e.item.bytesize = bytesize();

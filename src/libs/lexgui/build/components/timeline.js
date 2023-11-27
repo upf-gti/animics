@@ -577,7 +577,7 @@
                 // ctx.moveTo(pos, 0); ctx.lineTo( pos, h );
                 // ctx.stroke();
 
-                ctx.strokeStyle = ctx.fillStyle = "#E77733";
+                ctx.strokeStyle = ctx.fillStyle =  LX.getThemeColor("global-selected-light");
                 ctx.globalAlpha = this.opacity;
                 ctx.beginPath();
                 ctx.moveTo(true_pos, 0); ctx.lineTo(true_pos, this.canvas.height);//line
@@ -589,11 +589,13 @@
             }
             
             // Selections
+            ctx.strokeStyle = ctx.fillStyle =  Timeline.FONT_COLOR;
             ctx.translate( this.position[0], this.position[1] + this.topMargin )
             if(this.boxSelection && this.boxSelectionStart && this.boxSelectionEnd) {
-                ctx.globalAlpha = 0.5;
+                ctx.globalAlpha = 0.15;
                 ctx.fillStyle = "#AAA";
                 ctx.strokeRect( this.boxSelectionStart[0], this.boxSelectionStart[1], this.boxSelectionEnd[0] - this.boxSelectionStart[0], this.boxSelectionEnd[1] - this.boxSelectionStart[1]);
+                ctx.fillRect( this.boxSelectionStart[0], this.boxSelectionStart[1], this.boxSelectionEnd[0] - this.boxSelectionStart[0], this.boxSelectionEnd[1] - this.boxSelectionStart[1]);
                 ctx.stroke();
                 ctx.globalAlpha = this.opacity;
             }
