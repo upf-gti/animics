@@ -143,7 +143,7 @@ class Gui {
         if(this.editor.mode == this.editor.eModes.script) {
             // menubar.add("Help/");
             menubar.add("Help/Tutorial", {callback: () => window.open("docs/script_animation.html", "_blank")});
-            menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/SignON-realizer/blob/SiGMLExperiments/docs/InstructionsBML.md", "_blank")});
+            menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank")});
         }
         else {
             menubar.add("Help/Tutorial", {callback: () => window.open("docs/keyframe_animation.html", "_blank")});
