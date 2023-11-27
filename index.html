@@ -48,7 +48,7 @@
 			$("#mainNav").remove();
 			$(".masthead").remove();
 			$("footer").remove();
-			const app = window.app = new App();
+			const app = window.global.app = new App();
 			app.init(settings);
 			// let gui = LX.init();
 			// const dialog = new LX.Dialog( "Select input", p => {
@@ -128,6 +128,7 @@
 			$("#import").click(onloadfile);
 		} );
 	
+	window.global = {createApp: createApp};
 	</script>
     <body id="page-top">
         <!-- Navigation-->
