@@ -646,19 +646,21 @@ class Editor {
                 }
             }
            
-            if(!this.realizer || this.realizer.closed)
+            if(!this.realizer || this.realizer.closed) {
                 this.realizer = window.open(url, "Preview");
+                this.realizer.onload = (e, d) => {
+                    this.appR = e.currentTarget.global.app;
+                    sendData();
+                }
+    
+                this.realizer.addEventListener("beforeunload", () => {
+                    this.realizer = null
+                });
+            }
             else 
                 sendData();
 
-            this.realizer.onload = (e, d) => {
-                this.appR = e.currentTarget.global.app;
-                sendData();
-            }
-
-            this.realizer.addEventListener("beforeunload", () => {
-                this.realizer = null
-            });
+           
         }
 
     }

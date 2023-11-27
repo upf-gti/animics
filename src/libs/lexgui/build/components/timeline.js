@@ -143,9 +143,7 @@
             LX.DEFAULT_NAME_WIDTH = "50%";
             header.sameLine();
             header.addTitle(this.name);
-               
-            header.addNumber("Duration", +this.duration.toFixed(3), (value, event) => {
-                this.setDuration(value, false)}, {step: 0.01, min: 0, signal: "@on_set_duration"});        
+                   
             header.addNumber("Current Time", this.currentTime, (value, event) => {
                 if(value > this.duration) {
                     value = this.duration;
@@ -159,7 +157,10 @@
                 
             }, {signal: "@on_current_time_" + this.constructor.name, step: 0.01, min: 0, precision: 3, skipSlider: true});        
 
-            
+            header.addNumber("Duration", +this.duration.toFixed(3), (value, event) => {
+                this.setDuration(value, false)}, {step: 0.01, min: 0, signal: "@on_set_duration"
+            });    
+
             for(let i = 0; i < this.buttonsDrawn.length; i++) {
                 let button = this.buttonsDrawn[i];
                 this.header.addButton( button.title || "", button.name, button.callback, button);
@@ -402,8 +403,8 @@
                     let x = this.timeToX( time );
                     if(x < this.session.left_margin)
                         continue;
-                    ctx.moveTo(Math.round(x) + 0.5, h * 0.75);
-                    ctx.lineTo(Math.round(x) + 0.5, h - 1);
+                    ctx.moveTo(Math.round(x) + 0.5, h * 0.8);
+                    ctx.lineTo(Math.round(x) + 0.5, h *0.95);
                 }
                 ctx.stroke();
                 ctx.globalAlpha = this.opacity;
@@ -425,8 +426,8 @@
                 if(is_tick ||  this.secondsToPixels > 70 ) {
 
                     times.push([x,time]);
-                    ctx.moveTo(Math.round(x) + 0.5, h * 0.5 + (is_tick ? 0 : h * 0.25) );
-                    ctx.lineTo(Math.round(x) + 0.5, h);
+                    ctx.moveTo(Math.round(x) + 0.5, h * 0.4 + (is_tick ? 0 : h * 0.3) );
+                    ctx.lineTo(Math.round(x) + 0.5, h *0.95 );
                 }
 
             }
@@ -435,7 +436,7 @@
             if(x < this.session.left_margin)
                 x = this.session.left_margin;
             ctx.moveTo( x, h - 0.5);
-            ctx.lineTo( endx, h - 0.5);
+            // ctx.lineTo( endx, h - 0.5);
             ctx.stroke();
             ctx.globalAlpha = this.opacity;
 
@@ -446,7 +447,7 @@
             for(var i = 0; i < times.length; ++i)
             {
                 let time = times[i][1];
-                ctx.fillText( time == (time|0) ? time : time.toFixed(1), times[i][0], 20);
+                ctx.fillText( time == (time|0) ? time : time.toFixed(1), times[i][0] +12, h*0.9);
             }
 
             ctx.restore();
@@ -576,13 +577,13 @@
                 // ctx.moveTo(pos, 0); ctx.lineTo( pos, h );
                 // ctx.stroke();
 
-                ctx.strokeStyle = ctx.fillStyle = "#ADF";
+                ctx.strokeStyle = ctx.fillStyle = "#E77733";
                 ctx.globalAlpha = this.opacity;
                 ctx.beginPath();
                 ctx.moveTo(true_pos, 0); ctx.lineTo(true_pos, this.canvas.height);//line
                 ctx.stroke();
                 ctx.beginPath();
-                ctx.moveTo(true_pos - 4, 0); ctx.lineTo(true_pos + 4, 0); ctx.lineTo(true_pos, 6);//triangle
+                ctx.moveTo(true_pos - 4, 0); ctx.lineTo(true_pos + 4, 0); ctx.lineTo(true_pos + 4, 10); ctx.lineTo(true_pos + 2, 12);ctx.lineTo(true_pos - 2, 12); ctx.lineTo(true_pos - 4, 10); //triangle
                 ctx.closePath();
                 ctx.fill();
             }
