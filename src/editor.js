@@ -3,7 +3,7 @@ import { OrbitControls } from "./controls/OrbitControls.js";
 import { BVHLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/BVHLoader.js';
 import { BVHExporter } from "./exporters/BVHExporter.js";
 import { createSkeleton, createAnimation, createAnimationFromRotations, updateThreeJSSkeleton, injectNewLandmarks, postProcessAnimation } from "./skeleton.js";
-import { KeyframesGui, ScriptGui } from "./gui2.js";
+import { KeyframesGui, ScriptGui } from "./gui.js";
 import { Gizmo } from "./gizmo.js";
 import { UTILS } from "./utils.js"
 import { NN } from "./ML.js"
