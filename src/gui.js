@@ -1676,6 +1676,44 @@ class ScriptGui extends Gui {
                         }
                     }
                 )
+
+                actions.push(
+                    {
+                        title: "Create sign/Local",
+                        callback: () => {
+                            this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                                if(a[0]<b[0]) 
+                                    return -1;
+                                return 1;
+                            });
+                            this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "local");
+                        }
+                    }
+                )
+
+                actions.push(
+                    {
+                        title: "Create sign/In server",
+                        callback: () => {
+                            const session = this.editor.getApp().FS.getSession();
+                            if(!session.user || session.user.username == "signon") {
+                                this.prompt = LX.prompt("You must be logged in to save data.", "Alert", () => {
+                                    
+                                    this.showLoginModal();
+                                }, { input: false, accept: "Login"})
+                            }
+                            else {
+                                this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                                    if(a[0]<b[0]) 
+                                        return -1;
+                                    return 1;
+                                });
+                                this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");
+                            }
+                            
+                        }
+                    }
+                )
             }
             else{
                 actions.push(
@@ -2067,16 +2105,60 @@ class ScriptGui extends Gui {
                presetInfo.clips.push(this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx]);
            }
            let preset = new ANIM.FacePresetClip(presetInfo);
-       },
-       {
-        onclose: (root) => {
-        
-            root.remove();
-            this.prompt = null;
-        }
-    } )
-
+        },
+        {
+            onclose: (root) => {
+            
+                root.remove();
+                this.prompt = null;
+            }
+        } )
    }
+
+   createNewSignDialog(clips, location) {
+        this.prompt = LX.prompt( "Sign name", "Create sign", (v) => {
+            let signInfo = {id: v, clips:[]};
+            let globalStart = 10000;
+            let globalEnd = -10000;
+            for(let i = 0; i < clips.length; i++){
+                const [trackIdx, clipIdx] = clips[i];
+                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                signInfo.clips.push(clip);
+                globalStart = Math.min(globalStart, clip.start || globalStart);
+                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+            }
+            signInfo.duration = globalEnd - globalStart;
+            let sign = new ANIM.SuperClip(signInfo);
+            if(location == "local") {
+                let idx = -1;
+                for(let i = 0; i < this.editor.dictionaries.length; i++) {
+                    if(this.editor.dictionaries[i].id == "Custom") {
+                        idx = i;
+                        break;
+                    }
+                }
+                if(idx == -1) {
+                    this.editor.dictionaries.push( {id: "Custom", type:"folder", children: []});
+                    idx = this.editor.dictionaries.length - 1;
+                }
+
+                let data = sign.toJSON();
+                delete data.id;
+                delete data.start;
+                delete data.end;
+                delete data.type;
+                this.editor.dictionaries[idx].children.push({filename: v + ".bml", id: v + ".bml", folder: "Custom", type: "bml", data: [data]})
+               
+            }
+        },
+        {
+            onclose: (root) => {
+            
+                root.remove();
+                this.prompt = null;
+            }
+        } )
+    }
 
     createClipsDialog() {
         // Create a new dialog
@@ -2393,12 +2475,33 @@ class ScriptGui extends Gui {
                         title: name,
                         disable_edition: true
                     });
-                    LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
-                        const bytesize = f => new Blob([f]).size;
-                        asset.bytesize = bytesize();
-                        asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                        asset.bml.behaviours = asset.bml.data;
-                        let text = f.replaceAll('\r', '').replaceAll('\t', '');
+                    if(e.item.fullpath) {
+                        LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
+                            const bytesize = f => new Blob([f]).size;
+                            asset.bytesize = bytesize();
+                            asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                            asset.bml.behaviours = asset.bml.data;
+                            let text = f.replaceAll('\r', '').replaceAll('\t', '');
+                            editor.code.lines = text.split('\n');
+                            editor.processLines();
+                            editor._refresh_code_info();
+                            if(asset.type == "sigml") {
+                                editor.addTab("bml", false, name);
+                                let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
+                                    // limit precision of floats
+                                    if (typeof value === 'number') {
+                                        return parseFloat(value.toFixed(3));
+                                    }
+                                    return value;
+                                });
+                                editor.openedTabs["bml"].lines = editor.toJSONFormat(t).split('\n');    
+                            }
+                            editor._change_language( "JSON" );
+                        } });
+                    } else {
+                        asset.bml = e.item.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
+                        asset.bml.behaviours = asset.bml.data;              
+                        let text = JSON.stringify(asset.bml.behaviours);
                         editor.code.lines = text.split('\n');
                         editor.processLines();
                         editor._refresh_code_info();
@@ -2414,10 +2517,12 @@ class ScriptGui extends Gui {
                             editor.openedTabs["bml"].lines = editor.toJSONFormat(t).split('\n');    
                         }
                         editor._change_language( "JSON" );
-                    } });
+                    }
+
                 }, { size: ["40%", "600px"], closable: true });
             }
             const loadData = () => {
+                
                 asset_browser.load( this.editor.dictionaries, e => {
                     switch(e.type) {
                         case LX.AssetViewEvent.ASSET_SELECTED: 
@@ -2425,12 +2530,18 @@ class ScriptGui extends Gui {
                             if(e.item.type == "folder") {
                                 return;
                             }
-                            LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
-                                const bytesize = f => new Blob([f]).size;
-                                e.item.bytesize = bytesize();
-                                e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                                e.item.bml.behaviours = e.item.bml.data;                        
-                            } });
+                            if(e.item.fullpath) {
+                                LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
+                                    const bytesize = f => new Blob([f]).size;
+                                    e.item.bytesize = bytesize();
+                                    e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                                    e.item.bml.behaviours = e.item.bml.data;                        
+                                } });
+                            } else {
+                                e.item.bml = e.item.type == "bml" ?  {data: (typeof e.item.data == "string") ? JSON.parse(e.item.data) : e.item.data } : sigmlStringToBML(e.item.data);
+                                e.item.bml.behaviours = e.item.bml.data;              
+                            }
+                            
                             if(e.multiple)
                                 console.log("Selected: ", e.item); 
                             else
@@ -2490,48 +2601,52 @@ class ScriptGui extends Gui {
             });
             
             p.attach( asset_browser );
+            const modal = null;
             if(!this.editor.dictionaries) {
-                this.editor.dictionaries = [];
-                const modal = this.createLoadingModal();
-                if(!fs.getSession())
-                    await fs.login();
-                await fs.getFolders(async (units) => {
-                   for(let i = 0; i < units.length; i++) {
-                        let data = {};
-                        if(units[i].folders.dictionaries) {
+                // this.editor.dictionaries = [];
+                modal = this.createLoadingModal();
+                // if(!fs.getSession())
+                //     await fs.login();
+                // await fs.getFolders(async (units) => {
+                //    for(let i = 0; i < units.length; i++) {
+                //         let data = {};
+                //         if(units[i].folders.dictionaries) {
         
-                            const dictionaries = units[i].folders.dictionaries;
-                            for(let dictionary in dictionaries) {
-                                data[dictionary] = [];
-                                let assets = [];
-                                for(let folder in dictionaries[dictionary]) {
-                                    await fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
+                //             const dictionaries = units[i].folders.dictionaries;
+                //             for(let dictionary in dictionaries) {
+                //                 data[dictionary] = [];
+                //                 let assets = [];
+                //                 for(let folder in dictionaries[dictionary]) {
+                //                     await fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
                                         
-                                        let files_data = [];
-                                        for(let f = 0; f < files.length; f++) {
-                                            files[f].id = files[f].filename;
-                                            files[f].folder = dictionary;
-                                            files[f].type = files[f].filename.split(".")[1];
-                                            if(files[f].type == "txt")
-                                                continue;
-                                            files_data.push(files[f]);
-                                        }
-                                        data[dictionary] = files_data;
-                                        assets.push({id: folder, type:"folder",  children: files_data});
-                                    })
-                                    // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
-                                }
-                                this.editor.dictionaries.push({id: dictionary, type:"folder",  children: assets});
-                            }
-                        }
-                    }
-                    await loadData();
-                    modal.close();
-                    }) 
+                //                         let files_data = [];
+                //                         for(let f = 0; f < files.length; f++) {
+                //                             files[f].id = files[f].filename;
+                //                             files[f].folder = dictionary;
+                //                             files[f].type = files[f].filename.split(".")[1];
+                //                             if(files[f].type == "txt")
+                //                                 continue;
+                //                             files_data.push(files[f]);
+                //                         }
+                //                         data[dictionary] = files_data;
+                //                         assets.push({id: folder, type:"folder",  children: files_data});
+                //                     })
+                //                     // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                //                 }
+                //                 this.editor.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                //             }
+                //         }
+                //     }
+                // await loadData();
+                // modal.close();
+                // }) 
+                setTimeout(loadData, 100)
                      
             }
             else {
-               loadData();
+                if(modal)
+                    modal.close();
+                loadData();
             }
            
         }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false, 
