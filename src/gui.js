@@ -2081,6 +2081,8 @@ class ScriptGui extends Gui {
     createClipsDialog() {
         // Create a new dialog
         let that = this;
+        if(this.prompt)
+            return;
         const innerSelect = (asset) => {
            
                 that.clipsTimeline.unSelectAllClips();
@@ -2300,6 +2302,9 @@ class ScriptGui extends Gui {
     createPresetsDialog() {
         
         let that = this;
+        if(this.prompt)
+            return;
+
         // Create a new dialog
         let dialog = this.prompt = new LX.Dialog('Available presets', (p) => {
 
@@ -2356,7 +2361,8 @@ class ScriptGui extends Gui {
         
         let that = this;
         let fs = this.editor.getApp().FS;
-        
+        if(this.prompt)
+            return;
         // Create a new dialog
         let dialog = this.prompt = new LX.Dialog('Available signs', async (p) => {
             const innerSelect = async (asset, action) => {
