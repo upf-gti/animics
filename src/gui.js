@@ -276,6 +276,7 @@ class Gui {
                                     else
                                         bootbox.alert( resp.msg );
                                 });
+                                this.prompt.close();
                                 this.prompt = null;
                                 this.showLoginModal( { user: user, password: pass});
                             }else
