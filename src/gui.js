@@ -2475,7 +2475,7 @@ class ScriptGui extends Gui {
                         title: name,
                         disable_edition: true
                     });
-                    if(e.item.fullpath) {
+                    if(asset.fullpath) {
                         LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
                             const bytesize = f => new Blob([f]).size;
                             asset.bytesize = bytesize();
@@ -2499,7 +2499,7 @@ class ScriptGui extends Gui {
                             editor._change_language( "JSON" );
                         } });
                     } else {
-                        asset.bml = e.item.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
+                        asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
                         asset.bml.behaviours = asset.bml.data;              
                         let text = JSON.stringify(asset.bml.behaviours);
                         editor.code.lines = text.split('\n');
