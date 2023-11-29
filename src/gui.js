@@ -215,6 +215,7 @@ class Gui {
                             let el = document.querySelector("#Login");
                             el.innerText = session.user.username;
                             this.prompt.close();
+                            this.prompt = null;
                         }
                         else {
                             refresh(p, response.msg);
@@ -275,7 +276,7 @@ class Gui {
                                     else
                                         bootbox.alert( resp.msg );
                                 });
-                                
+                                this.prompt = null;
                                 this.showLoginModal( { user: user, password: pass});
                             }else
                             {
