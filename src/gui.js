@@ -232,6 +232,7 @@ class Gui {
             refresh(p);
             
         } )
+  
     }
 
     showLogoutModal() {
@@ -2149,7 +2150,11 @@ class ScriptGui extends Gui {
                 delete data.start;
                 delete data.end;
                 delete data.type;
-                this.editor.dictionaries[idx].children.push({filename: v + ".bml", id: v + ".bml", folder: "Custom", type: "bml", data: [data]})
+                let bml = [];
+                for(let b in data) {
+                    bml = [...bml, ...data[b]];
+                }
+                this.editor.dictionaries[idx].children.push({filename: v + ".bml", id: v + ".bml", folder: "Custom", type: "bml", data: bml})
                
             }
         },
@@ -2165,7 +2170,7 @@ class ScriptGui extends Gui {
     createClipsDialog() {
         // Create a new dialog
         let that = this;
-        if(this.prompt)
+        if(this.prompt && this.prompt.root.checkVisibility())
             return;
         const innerSelect = (asset) => {
            
@@ -2386,7 +2391,7 @@ class ScriptGui extends Gui {
     createPresetsDialog() {
         
         let that = this;
-        if(this.prompt)
+        if(this.prompt && this.prompt.root.checkVisibility())
             return;
 
         // Create a new dialog
@@ -2445,10 +2450,11 @@ class ScriptGui extends Gui {
         
         let that = this;
         let fs = this.editor.getApp().FS;
-        if(this.prompt)
+        if(this.prompt && this.prompt.root.checkVisibility())
             return;
         // Create a new dialog
         let dialog = this.prompt = new LX.Dialog('Available signs', async (p) => {
+            
             const innerSelect = async (asset, action) => {
            
                 that.clipsTimeline.unSelectAllClips();
@@ -2529,6 +2535,8 @@ class ScriptGui extends Gui {
 
                 }, { size: ["40%", "600px"], closable: true });
             }
+
+           
             const loadData = (modal) => {
                 if(!this.editor.dictionaries.length) {
                     if(!modal)
