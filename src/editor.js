@@ -1423,16 +1423,16 @@ class ScriptEditor extends Editor{
         // ------------------------------------------------------
         this.mode = this.eModes.script;
         this.gui = new ScriptGui(this);  
-        // this.getDictionaries();
+        this.getDictionaries();
     }
 
-    async getDictionaries() {
+    getDictionaries() {
         const fs = this.getApp().FS;
         const session = fs.getSession();
         this.dictionaries = []; 
-        const inner = async () => {
+        const inner =  () => {
 
-            await fs.getFolders(async (units) => {
+            fs.getFolders( (units) => {
             for(let i = 0; i < units.length; i++) {
                     let data = {};
                     if(units[i].folders.dictionaries) {
@@ -1442,7 +1442,7 @@ class ScriptEditor extends Editor{
                             data[dictionary] = [];
                             let assets = [];
                             for(let folder in dictionaries[dictionary]) {
-                                await fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
+                                 fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
                                     
                                     let files_data = [];
                                     for(let f = 0; f < files.length; f++) {
@@ -1458,14 +1458,14 @@ class ScriptEditor extends Editor{
                                 })
                                 // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
                             }
-                            this.editor.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                            this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
                         }
                     }
                 }
                 }) 
             }
             if(!session)
-                await fs.login(null, null, inner);
+                 fs.login(null, null, inner);
 
     }
 
