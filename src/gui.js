@@ -2083,7 +2083,7 @@ class ScriptGui extends Gui {
     createClipsDialog() {
         // Create a new dialog
         let that = this;
-        if(this.prompt)
+        if(this.prompt && this.prompt.root.checkVisibility())
             return;
         const innerSelect = (asset) => {
            
@@ -2304,7 +2304,7 @@ class ScriptGui extends Gui {
     createPresetsDialog() {
         
         let that = this;
-        if(this.prompt)
+        if(this.prompt && this.prompt.root.checkVisibility())
             return;
 
         // Create a new dialog
@@ -2363,7 +2363,7 @@ class ScriptGui extends Gui {
         
         let that = this;
         let fs = this.editor.getApp().FS;
-        if(this.prompt)
+        if(this.prompt && this.prompt.root.checkVisibility())
             return;
         // Create a new dialog
         let dialog = this.prompt = new LX.Dialog('Available signs', async (p) => {
