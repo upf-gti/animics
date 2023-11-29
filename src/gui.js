@@ -2521,49 +2521,61 @@ class ScriptGui extends Gui {
 
                 }, { size: ["40%", "600px"], closable: true });
             }
-            const loadData = () => {
-                
-                asset_browser.load( this.editor.dictionaries, e => {
-                    switch(e.type) {
-                        case LX.AssetViewEvent.ASSET_SELECTED: 
-                            //request data
-                            if(e.item.type == "folder") {
-                                return;
-                            }
-                            if(e.item.fullpath) {
-                                LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
-                                    const bytesize = f => new Blob([f]).size;
-                                    e.item.bytesize = bytesize();
-                                    e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                                    e.item.bml.behaviours = e.item.bml.data;                        
-                                } });
-                            } else {
-                                e.item.bml = e.item.type == "bml" ?  {data: (typeof e.item.data == "string") ? JSON.parse(e.item.data) : e.item.data } : sigmlStringToBML(e.item.data);
-                                e.item.bml.behaviours = e.item.bml.data;              
-                            }
-                            
-                            if(e.multiple)
-                                console.log("Selected: ", e.item); 
-                            else
-                                console.log(e.item.id + " selected"); 
-                                
-                            break;
-                        case LX.AssetViewEvent.ASSET_DELETED: 
-                            console.log(e.item.id + " deleted"); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_CLONED: 
-                            console.log(e.item.id + " cloned"); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_RENAMED:
-                            console.log(e.item.id + " is now called " + e.value); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_DBLCLICK: 
-                            if(e.item.type == "folder")
-                                return;
-                            showSourceCode(e.item);
-                        break;
+            const loadData = (modal) => {
+                if(!this.editor.dictionaries.length) {
+                    if(!modal)
+                        modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+                    setTimeout(loadData.bind(this,modal), 100);
+                }
+                else {
+                    if(modal) {
+                        modal.panel.clear();
+                        modal.root.remove();
                     }
-                })
+                        
+                    asset_browser.load( this.editor.dictionaries, e => {
+                        switch(e.type) {
+                            case LX.AssetViewEvent.ASSET_SELECTED: 
+                                //request data
+                                if(e.item.type == "folder") {
+                                    return;
+                                }
+                                if(e.item.fullpath) {
+                                    LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
+                                        const bytesize = f => new Blob([f]).size;
+                                        e.item.bytesize = bytesize();
+                                        e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                                        e.item.bml.behaviours = e.item.bml.data;                        
+                                    } });
+                                } else {
+                                    e.item.bml = e.item.type == "bml" ?  {data: (typeof e.item.data == "string") ? JSON.parse(e.item.data) : e.item.data } : sigmlStringToBML(e.item.data);
+                                    e.item.bml.behaviours = e.item.bml.data;              
+                                }
+                                
+                                if(e.multiple)
+                                    console.log("Selected: ", e.item); 
+                                else
+                                    console.log(e.item.id + " selected"); 
+                                    
+                                break;
+                            case LX.AssetViewEvent.ASSET_DELETED: 
+                                console.log(e.item.id + " deleted"); 
+                                break;
+                            case LX.AssetViewEvent.ASSET_CLONED: 
+                                console.log(e.item.id + " cloned"); 
+                                break;
+                            case LX.AssetViewEvent.ASSET_RENAMED:
+                                console.log(e.item.id + " is now called " + e.value); 
+                                break;
+                            case LX.AssetViewEvent.ASSET_DBLCLICK: 
+                                if(e.item.type == "folder")
+                                    return;
+                                showSourceCode(e.item);
+                            break;
+                        }
+                    })
+                }
+                
             }
 
             let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"], preview_actions: [
@@ -2601,51 +2613,20 @@ class ScriptGui extends Gui {
             });
             
             p.attach( asset_browser );
-            const modal = null;
-            if(!this.editor.dictionaries) {
-                // this.editor.dictionaries = [];
-                modal = this.createLoadingModal();
-                // if(!fs.getSession())
-                //     await fs.login();
-                // await fs.getFolders(async (units) => {
-                //    for(let i = 0; i < units.length; i++) {
-                //         let data = {};
-                //         if(units[i].folders.dictionaries) {
-        
-                //             const dictionaries = units[i].folders.dictionaries;
-                //             for(let dictionary in dictionaries) {
-                //                 data[dictionary] = [];
-                //                 let assets = [];
-                //                 for(let folder in dictionaries[dictionary]) {
-                //                     await fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
-                                        
-                //                         let files_data = [];
-                //                         for(let f = 0; f < files.length; f++) {
-                //                             files[f].id = files[f].filename;
-                //                             files[f].folder = dictionary;
-                //                             files[f].type = files[f].filename.split(".")[1];
-                //                             if(files[f].type == "txt")
-                //                                 continue;
-                //                             files_data.push(files[f]);
-                //                         }
-                //                         data[dictionary] = files_data;
-                //                         assets.push({id: folder, type:"folder",  children: files_data});
-                //                     })
-                //                     // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
-                //                 }
-                //                 this.editor.dictionaries.push({id: dictionary, type:"folder",  children: assets});
-                //             }
-                //         }
-                //     }
-                // await loadData();
-                // modal.close();
-                // }) 
-                setTimeout(loadData, 100)
+       
+            let modal = null;
+            if(!this.editor.dictionaries.length) {
+                modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+         
+                loadData(modal)
+                return;
                      
             }
             else {
-                if(modal)
-                    modal.close();
+                if(modal) {
+                    modal.panel.clear();
+                    modal.root.remove();
+                }
                 loadData();
             }
            
