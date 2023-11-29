@@ -1426,6 +1426,30 @@ class ScriptEditor extends Editor{
         this.getDictionaries();
     }
 
+    getRepoFolders() {
+        const fs = this.getApp().FS;
+        const session = fs.getSession();
+        fs.getFolders( (units) => {
+            for(let i = 0; i < units.length; i++) {
+                if(units[i].folders.dictionaries) {
+                    const dictionaries = units[i].folders.dictionaries;          
+                    for(let dictionary in dictionaries) {
+                        let assets = [];
+                        for(let folder in dictionaries[dictionary]) {
+                            assets.push({id: folder, type:"folder",  children: []});
+                        }
+                        this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                    }
+                }
+            }
+        })
+    }
+
+    getFilesFromRepo(unit, path, callback) {
+        const fs = this.getApp().FS;
+        fs.getFiles(unit, path).then(callback) 
+    }
+
     getDictionaries() {
         const fs = this.getApp().FS;
         const session = fs.getSession();
@@ -1442,21 +1466,23 @@ class ScriptEditor extends Editor{
                             data[dictionary] = [];
                             let assets = [];
                             for(let folder in dictionaries[dictionary]) {
-                                 fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
+                                //  fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
                                     
-                                    let files_data = [];
-                                    for(let f = 0; f < files.length; f++) {
-                                        files[f].id = files[f].filename;
-                                        files[f].folder = dictionary;
-                                        files[f].type = files[f].filename.split(".")[1];
-                                        if(files[f].type == "txt")
-                                            continue;
-                                        files_data.push(files[f]);
-                                    }
-                                    data[dictionary] = files_data;
-                                    assets.push({id: folder, type:"folder",  children: files_data});
-                                })
+                                //     let files_data = [];
+                                //     for(let f = 0; f < files.length; f++) {
+                                //         files[f].id = files[f].filename;
+                                //         files[f].folder = dictionary;
+                                //         files[f].type = files[f].filename.split(".")[1];
+                                //         if(files[f].type == "txt")
+                                //             continue;
+                                //         files_data.push(files[f]);
+                                //     }
+                                //     data[dictionary] = files_data;
+                                // assets.push({id: folder, type:"folder",  children: files_data});
+                                // })
                                 // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                                assets.push({id: folder, type:"folder",  children: [], unit: units[i].name});
+
                             }
                             this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
                         }

@@ -2584,8 +2584,28 @@ class ScriptGui extends Gui {
                                 console.log(e.item.id + " is now called " + e.value); 
                                 break;
                             case LX.AssetViewEvent.ASSET_DBLCLICK: 
-                                if(e.item.type == "folder")
+                                if(e.item.type == "folder") {
+                                    if(!e.item.children.length) {
+                                        this.editor.getFilesFromRepo(e.item.unit, "dictionaries/"+ e.item.folder.id + "/" + e.item.id, (files, resp) => {
+                                            let files_data = [];
+                                            
+                                            for(let f = 0; f < files.length; f++) {
+                                                files[f].id = files[f].filename;
+                                                files[f].folder = e.item.folder.id;
+                                                files[f].type = files[f].filename.split(".")[1];
+                                                if(files[f].type == "txt")
+                                                    continue;
+                                                files_data.push(files[f]);
+                                            }
+                                            e.item.children = files_data;
+                                            asset_browser.current_data = files_data;
+                                            if(!asset_browser.skip_browser)
+                                                asset_browser._create_tree_panel();
+                                            asset_browser._refresh_content();
+                                        })
+                                    }
                                     return;
+                                }
                                 showSourceCode(e.item);
                             break;
                         }
