@@ -19,7 +19,6 @@ class App {
        
         // Create the fileSystem and log the user
         this.FS = new FileSystem("signon", "signon", () => console.log("Auto login of guest user"));
-        this.FS.login();
     	window.globals = {
             "app": this
         };
@@ -37,9 +36,9 @@ class App {
     uploadData(data, filename, type, callback = () => {}) {
         const session = this.FS.getSession();
         const username = session.user.username;
-        const folder = "dictionaries/"+ username+ "/" + type;
+        const folder = "animics/"+ type;
 
-        session.getFiles(username, username +"/" + folder, (files) => {
+        session.getFiles(username, username + "/" + folder, (files) => {
 
             if(files) {
                 files = files.filter(e => e.unit === username && e.filename === filename);

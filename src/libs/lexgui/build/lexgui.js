@@ -5453,7 +5453,7 @@
                     }
 
                     if(modal)
-                        LX.modal.toggle();
+                        LX.modal.toggle(true);
                 };
 
                 var closeButton = document.createElement('a');
@@ -6272,7 +6272,7 @@
             this.skip_browser = options.skip_browser ?? false;
             this.skip_preview = options.skip_preview ?? false;
             this.preview_actions = options.preview_actions ?? [];
-
+            this.only_parents = options.only_parents;
             if( !this.skip_browser )
             {
                 [left, right] = area.split({ type: "horizontal", sizes: ["15%", "85%"]});
@@ -6399,7 +6399,7 @@
             this.tree = this.leftPanel.addTree("Content Browser", tree_data, { 
                 // icons: tree_icons, 
                 filter: false,
-                only_parents: true,
+                only_parents: this.only_parents ?? true,
                 onevent: (event) => { 
 
                     let node = event.node;
@@ -6742,7 +6742,7 @@
             (file._path || file.src ) ? this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options) : 0;
             this.previewPanel.addText("Path", this.path.join('/'), null, options);
             this.previewPanel.addText("Type", file.type, null, options);
-            file.type == "folder" ? this.previewPanel.addText("Files", file.children.length, null, options) : 0;
+            file.type == "folder" ? this.previewPanel.addText("Files", file.children.length.toString(), null, options) : 0;
             file.bytesize ? this.previewPanel.addText("Size", (file.bytesize/1024).toPrecision(3) + " KBs", null, options) : 0;
             this.previewPanel.addSeparator();
             

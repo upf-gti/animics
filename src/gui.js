@@ -10,6 +10,7 @@ class Gui {
         this.editor = editor;
 
         this.create();
+
     }
 
     create() {
@@ -217,7 +218,7 @@ class Gui {
                         if(response.status == 1) {
                             let el = document.querySelector("#Login");
                             el.innerText = session.user.username;
-                            this.editor.getDictionaries();
+                            this.editor.getUnits();
                             this.prompt.close();
                             this.prompt = null;
                         }
@@ -249,9 +250,7 @@ class Gui {
             this.editor.getApp().logout(() => {
                 let el = document.querySelector("#Login");
                 el.innerText = "Login";
-                this.editor.getApp().FS.user = "signon";
-                this.editor.getApp().FS.pass = "signon";
-                this.editor.getDictionaries();
+                this.editor.getApp().FS.login("signon", "signon", this.editor.getUnits.bind(this.editor))
 
             }); 
             this.prompt = null;
@@ -531,7 +530,16 @@ class Gui {
         } );
     }
 
-    createLoadingModal(options) {
+    closeDialogs() {
+        if(!LX.modal.hidden)
+            LX.modal.toggle(true);
+        if(this.prompt) {
+            this.prompt.close();
+            this.prompt = null;
+            
+        }
+    }
+    createAnimation(options) {
         options = options || {size: ["80%", "70%"]};
 
         return new LX.Dialog(null, m => {
@@ -1551,13 +1559,13 @@ class ScriptGui extends Gui {
                                 clipClass = ANIM.HandOrientationClip;
                             else if(clip.behaviours[i].handshape)
                                 clipClass = ANIM.HandshapeClip;
-                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion == "directed")
+                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion.toLowerCase() == "directed")
                                 clipClass = ANIM.DirectedMotionClip;
-                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion == "circular")
+                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion.toLowerCase() == "circular")
                                 clipClass = ANIM.CircularMotionClip;
-                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion == "wrist")
+                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion.toLowerCase() == "wrist")
                                 clipClass = ANIM.WristMotionClip;
-                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion == "fingerplay")
+                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion.toLowerCase() == "fingerplay")
                                 clipClass = ANIM.FingerplayMotionClip;
 
                     }
@@ -2155,7 +2163,25 @@ class ScriptGui extends Gui {
             delete data.type;
             let bml = [];
             for(let b in data) {
-                bml = [...bml, ...data[b]];
+                if(b == "glossa") {
+
+                    delete data[b].id;
+                    delete data[b].start;
+                    delete data[b].end;
+                    delete data[b].type;
+                    for(let i = 0; i < data[b].length; i++) {
+                        delete data[b][i].id;
+                        delete data[b][i].start;
+                        delete data[b][i].end;
+                        delete data[b][i].type;
+                        for(let g in data[b][i]) {
+
+                            bml = [...bml, ...data[b][i][g]];
+                        }
+                    }
+                }
+                else
+                    bml = [...bml, ...data[b]];
             }
             this.editor.updateDictionaries(v + ".bml", bml, "signs", location);
         },
@@ -2450,17 +2476,20 @@ class ScriptGui extends Gui {
     createSignsDialog() {
         
         let that = this;
-        let fs = this.editor.getApp().FS;
+        const fs = this.editor.getApp().FS;
+        const session = fs.getSession();
+
         if(this.prompt && this.prompt.root.checkVisibility())
             return;
-        // Create a new dialog
+        
+            // Create a new dialog
         let dialog = this.prompt = new LX.Dialog('Available signs', async (p) => {
             
             const innerSelect = async (asset, action) => {
            
                 that.clipsTimeline.unSelectAllClips();
                 asset.bml.name = asset.id;
-                const modal = this.createLoadingModal();
+                const modal = this.createAnimation();
 
                 const loadClip = async  () => {
                     return new Promise((resolve) => {
@@ -2475,131 +2504,11 @@ class ScriptGui extends Gui {
                 dialog.close();
             }
 
-            const showSourceCode = (asset) => {
-                if(window.dialog) 
-                    window.dialog.destroy();
-                window.dialog = new LX.PocketDialog("Editor", p => {
-                    const area = new LX.Area();
-                    p.attach( area );
-                    const filename = asset.filename;
-                    const type = asset.type;
-                    const name = filename.replace("."+ type, "");
-                    let editor = new LX.CodeEditor(area, {
-                        allow_add_scripts: false,
-                        name: type,
-                        title: name,
-                        disable_edition: true
-                    });
-                    if(asset.fullpath) {
-                        LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
-                            const bytesize = f => new Blob([f]).size;
-                            asset.bytesize = bytesize();
-                            asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                            asset.bml.behaviours = asset.bml.data;
-                            let text = f.replaceAll('\r', '').replaceAll('\t', '');
-                            editor.code.lines = text.split('\n');
-                            editor.processLines();
-                            editor._refresh_code_info();
-                            if(asset.type == "sigml") {
-                                editor.addTab("bml", false, name);
-                                let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
-                                    // limit precision of floats
-                                    if (typeof value === 'number') {
-                                        return parseFloat(value.toFixed(3));
-                                    }
-                                    return value;
-                                });
-                                editor.openedTabs["bml"].lines = editor.toJSONFormat(t).split('\n');    
-                            }
-                            editor._change_language( "JSON" );
-                        } });
-                    } else {
-                        asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
-                        asset.bml.behaviours = asset.bml.data;              
-                        let text = JSON.stringify(asset.bml.behaviours);
-                        editor.code.lines = text.split('\n');
-                        editor.processLines();
-                        editor._refresh_code_info();
-                        if(asset.type == "sigml") {
-                            editor.addTab("bml", false, name);
-                            let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
-                                // limit precision of floats
-                                if (typeof value === 'number') {
-                                    return parseFloat(value.toFixed(3));
-                                }
-                                return value;
-                            });
-                            editor.openedTabs["bml"].lines = editor.toJSONFormat(t).split('\n');    
-                        }
-                        editor._change_language( "JSON" );
-                    }
-
-                }, { size: ["40%", "600px"], closable: true });
-            }
-
-           
-            const loadData = (modal) => {
-                if(!this.editor.dictionaries.length) {
-                    if(!modal)
-                        modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-                    setTimeout(loadData.bind(this,modal), 100);
-                }
-                else {
-                    if(modal) {
-                        modal.panel.clear();
-                        modal.root.remove();
-                    }
-                        
-                    asset_browser.load( this.editor.dictionaries, e => {
-                        switch(e.type) {
-                            case LX.AssetViewEvent.ASSET_SELECTED: 
-                                //request data
-                                if(e.item.type == "folder") {
-                                    return;
-                                }
-                                if(e.item.fullpath) {
-                                    LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
-                                        const bytesize = f => new Blob([f]).size;
-                                        e.item.bytesize = bytesize();
-                                        e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                                        e.item.bml.behaviours = e.item.bml.data;                        
-                                    } });
-                                } else {
-                                    e.item.bml = e.item.type == "bml" ?  {data: (typeof e.item.data == "string") ? JSON.parse(e.item.data) : e.item.data } : sigmlStringToBML(e.item.data);
-                                    e.item.bml.behaviours = e.item.bml.data;              
-                                }
-                                
-                                if(e.multiple)
-                                    console.log("Selected: ", e.item); 
-                                else
-                                    console.log(e.item.id + " selected"); 
-                                    
-                                break;
-                            case LX.AssetViewEvent.ASSET_DELETED: 
-                                console.log(e.item.id + " deleted"); 
-                                break;
-                            case LX.AssetViewEvent.ASSET_CLONED: 
-                                console.log(e.item.id + " cloned"); 
-                                break;
-                            case LX.AssetViewEvent.ASSET_RENAMED:
-                                console.log(e.item.id + " is now called " + e.value); 
-                                break;
-                            case LX.AssetViewEvent.ASSET_DBLCLICK: 
-                                if(e.item.type == "folder")
-                                    return;
-                                showSourceCode(e.item);
-                            break;
-                        }
-                    })
-                }
-                
-            }
-
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"], preview_actions: [
+            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"], only_parents: false, preview_actions: [
                 {
                     type: "sigml",
                     name: 'View source', 
-                    callback: showSourceCode
+                    callback: this.showSourceCode.bind(this)
                 },
                 {
                     type: "sigml",
@@ -2614,7 +2523,7 @@ class ScriptGui extends Gui {
                 {
                     type: "bml",
                     name: 'View source', 
-                    callback: showSourceCode
+                    callback: this.showSourceCode.bind(this)
                 },
                 {
                     type: "bml",
@@ -2630,31 +2539,206 @@ class ScriptGui extends Gui {
             });
             
             p.attach( asset_browser );
-       
-            let modal = null;
-            if(!this.editor.dictionaries.length) {
-                modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-         
-                loadData(modal)
-                return;
-                     
+            const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+            modal.root.id = "loading";
+            const closeModal = (modal ) => {
+                modal.panel.clear();
+                modal.root.remove();
+                loadData();
+
+                this.editor.refreshRepository = false;
+            }
+            //Get folders from each user unit
+            const getFolders = async (modal) => {
+                this.editor.repository = [];
+                const units_number = Object.keys(session.units).length;
+                let count = 0;
+                for(let unit in session.units) {
+                    await session.getFolders(unit, async (folders) =>  {
+                        const signsFolder = folders.animics.signs;
+                        let assets = [];
+                        if(signsFolder) {
+                            for(let folder in signsFolder) {
+                                assets.push({id: folder, type: "folder", folder: "signs", children: [], unit: unit})
+                            }
+                        }
+                        this.editor.repository.push({id: unit == "signon" ? "Public" : unit, type:"folder",  children: assets, unit: unit});
+                        count++;
+                        if(units_number == count) {
+                            this.editor.repository.push(this.editor.localStorage.signs);
+                            closeModal(modal);
+                        }
+                    })
+                }
+            }
+
+            const loadData = () => {
+                asset_browser.load( this.editor.repository, e => {
+                    switch(e.type) {
+                        case LX.AssetViewEvent.ASSET_SELECTED: 
+                            //request data
+                            if(e.item.type == "folder") {
+                                return;
+                            }
+                            if(e.item.fullpath) {
+                                LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
+                                    const bytesize = f => new Blob([f]).size;
+                                    e.item.bytesize = bytesize();
+                                    e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                                    e.item.bml.behaviours = e.item.bml.data;                        
+                                } });
+                            } else {
+                                e.item.bml = e.item.type == "bml" ?  {data: (typeof e.item.data == "string") ? JSON.parse(e.item.data) : e.item.data } : sigmlStringToBML(e.item.data);
+                                e.item.bml.behaviours = e.item.bml.data;              
+                            }
+                            
+                            if(e.multiple)
+                                console.log("Selected: ", e.item); 
+                            else
+                                console.log(e.item.id + " selected"); 
+                                
+                            break;
+                        case LX.AssetViewEvent.ASSET_DELETED: 
+                            console.log(e.item.id + " deleted"); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_CLONED: 
+                            console.log(e.item.id + " cloned"); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_RENAMED:
+                            console.log(e.item.id + " is now called " + e.value); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_DBLCLICK: 
+                            if(e.item.type == "folder") {
+                                if(!e.item.children.length) {
+                                    this.editor.getFilesFromRepo(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                                        let files_data = [];
+                                        if(files) {
+                                            
+                                            for(let f = 0; f < files.length; f++) {
+                                                files[f].id = files[f].filename;
+                                                files[f].folder = e.item.folder.id;
+                                                files[f].type = files[f].filename.split(".")[1];
+                                                if(files[f].type == "txt")
+                                                    continue;
+                                                files_data.push(files[f]);
+                                            }
+                                            e.item.children = files_data;
+                                            asset_browser.current_data = files_data;
+                                            if(!asset_browser.skip_browser)
+                                                asset_browser._create_tree_panel();
+                                            asset_browser._refresh_content();
+                                        }
+                                    })
+                                }
+                                return;
+                            }
+                            else {
+                                let choice = new LX.Dialog("Add sign", (p) => {
+                                    p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                                    p.sameLine(2);
+                                    p.addButton(null, "Add as single clip", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
+                                    p.addButton(null, "Breakdown into BML clips", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
+                                }, {modal:true, closable: true})
+                            }
+                        break;
+                    }
+                })
+
+                // if(!this.editor.dictionaries.length) {
+                //     if(!modal)
+                //         modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                //     setTimeout(loadData.bind(this,modal), 100);
+                // }
+                // else {
+                //     if(modal) {
+                //         modal.panel.clear();
+                //         modal.root.remove();
+                //     }
+                        
+                    
+                // }
+                
+            }
+
+            if(this.editor.refreshRepository) {
+                await getFolders(modal);
             }
             else {
-                if(modal) {
-                    modal.panel.clear();
-                    modal.root.remove();
-                }
-                loadData();
-            }
-           
-        }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false, 
+                closeModal(modal);
+            }   
+       
+        }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
             onclose: (root) => {
-                
+                let loadingmodal = document.getElementById("loading")
+                if(loadingmodal)
+                    loadingmodal.remove();
                 root.remove();
                 this.prompt = null;
+                if(!LX.modal.hidden)                 
+                    LX.modal.toggle(true);
+                if(this.choice) this.choice.close()
             }
         });
+    }
+
+
+    showSourceCode (asset) 
+    {
+        if(window.dialog) 
+            window.dialog.destroy();
+        window.dialog = new LX.PocketDialog("Editor", p => {
+            const area = new LX.Area();
+            p.attach( area );
+            const filename = asset.filename;
+            const type = asset.type;
+            const name = filename.replace("."+ type, "");
+           
+            const setText = (text) => {
+                let code_editor = new LX.CodeEditor(area, {
+                    allow_add_scripts: false,
+                    name: type,
+                    title: name,
+                    disable_edition: true
+                });
+                
+                code_editor.code.lines = text.split('\n');
+                code_editor.processLines();
+                code_editor._refresh_code_info();
+                if(asset.type == "sigml") {
+                    code_editor.addTab("bml", false, name);
+                    let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
+                        // limit precision of floats
+                        if (typeof value === 'number') {
+                            return parseFloat(value.toFixed(3));
+                        }
+                        return value;
+                    });
+                    code_editor.openedTabs["bml"].lines = code_editor.toJSONFormat(t).split('\n');    
+                }
+                code_editor._change_language( "JSON" );
+            }
+
+            //from server
+            if(asset.fullpath) {
+                const fs = this.editor.getApp().FS;
+                LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
+                    const bytesize = f => new Blob([f]).size;
+                    asset.bytesize = bytesize();
+                    asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                    asset.bml.behaviours = asset.bml.data;
+                    let text = f.replaceAll('\r', '').replaceAll('\t', '');
+                    setText(text)
+                } });
+            } else {
+                //from local
+                asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
+                asset.bml.behaviours = asset.bml.data;              
+                let text = JSON.stringify(asset.bml.behaviours);
+                setText(text);
+            }
+
+        }, { size: ["40%", "600px"], closable: true });
     }
 
 
