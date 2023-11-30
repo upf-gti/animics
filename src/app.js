@@ -33,6 +33,33 @@ class App {
     logout(callback) {
         this.FS.logout(callback);
     }
+    
+    uploadData(data, filename, type, callback = () => {}) {
+        const session = this.FS.getSession();
+        const username = session.user.username;
+        const folder = "dictionaries/"+ username+ "/" + type;
+
+        session.getFiles(username, username +"/" + folder, (files) => {
+
+            if(files) {
+                files = files.filter(e => e.unit === username && e.filename === filename);
+
+                if(files.length)
+                {
+                    LX.prompt("Overwrite file?", "File already exists", () => {
+                        this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(folder));
+                    } )
+                }
+                
+            }else
+            {
+                this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(folder));
+            }
+        },
+        () => {
+            //create folder
+        });
+    }
 
     init( settings ) {
 

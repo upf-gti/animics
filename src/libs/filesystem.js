@@ -155,8 +155,8 @@ class FileSystem{
             }
     
             function onFiles(f){
-                if(!f)
-                    return onError("Error: folder \""+folder+"\" not found.");
+                // if(!f)
+                //     return onError("Error: folder \""+folder+"\" not found.");
                 resolve(f);
             }
 
@@ -182,6 +182,17 @@ class FileSystem{
 
         session.getUnitsAndFolders(onFolders);
 
+    }
+
+    createFolder ( fullpath, on_complete, on_error )
+    {
+        if(!fullpath)
+            throw("no fullpath specified");
+
+        var session = this.session;
+
+        session.createFolder ( fullpath, on_complete, on_error );
+        
     }
 }
 

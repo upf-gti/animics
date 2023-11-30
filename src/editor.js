@@ -1426,47 +1426,111 @@ class ScriptEditor extends Editor{
         this.getDictionaries();
     }
 
-    getDictionaries() {
+    getDictionaries(folder) {
         const fs = this.getApp().FS;
-        const session = fs.getSession();
-        this.dictionaries = []; 
-        const inner =  () => {
-
-            fs.getFolders( (units) => {
-            for(let i = 0; i < units.length; i++) {
-                    let data = {};
-                    if(units[i].folders.dictionaries) {
-
-                        const dictionaries = units[i].folders.dictionaries;
-                        for(let dictionary in dictionaries) {
-                            data[dictionary] = [];
+        let session = fs.getSession();
+        if(folder) {
+            let folders = folder.split("/");
+            for(let i = 0; i < this.dictionaries.length; i++) {
+                if(this.dictionaries[i].id == folders[1]) {
+                    for(let j = 0; j < this.dictionaries[i].children.length; j++) {
+                        if(this.dictionaries[i].children[j].id == folders[2]) {
                             let assets = [];
-                            for(let folder in dictionaries[dictionary]) {
-                                 fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
-                                    
-                                    let files_data = [];
-                                    for(let f = 0; f < files.length; f++) {
-                                        files[f].id = files[f].filename;
-                                        files[f].folder = dictionary;
-                                        files[f].type = files[f].filename.split(".")[1];
-                                        if(files[f].type == "txt")
-                                            continue;
-                                        files_data.push(files[f]);
-                                    }
-                                    data[dictionary] = files_data;
-                                    assets.push({id: folder, type:"folder",  children: files_data});
-                                })
-                                // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                            fs.getFiles(session.user.username, folder).then(async (files, resp) => {
+                                            
+                                let files_data = [];
+                                for(let f = 0; f < files.length; f++) {
+                                    files[f].id = files[f].filename;
+                                    files[f].folder = session.user.username;
+                                    files[f].type = files[f].filename.split(".")[1];
+                                    if(files[f].type == "txt")
+                                        continue;
+                                    files_data.push(files[f]);
+                                }
+                                assets.push({id: folders[2], type:"folder",  children: files_data});
+                                this.dictionaries[i].children[j] = assets;
+                            })
+                            return;
+                        }
+                        
+                    }
+
+                }
+            }
+        }
+        else {
+            const inner =  async () => {
+                this.dictionaries = []; 
+                session = fs.getSession();
+                fs.getFolders( async (units) => {
+                    for(let i = 0; i < units.length; i++) {
+                        let data = {};
+                        if(units[i].folders.dictionaries) {
+    
+                            const dictionaries = units[i].folders.dictionaries;
+                            for(let dictionary in dictionaries) {
+                                data[dictionary] = [];
+                                let assets = [];
+                                for(let folder in dictionaries[dictionary]) {
+                                        await fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
+                                        
+                                        let files_data = [];
+                                        if(files) {
+                                            for(let f = 0; f < files.length; f++) {
+                                                files[f].id = files[f].filename;
+                                                files[f].folder = dictionary;
+                                                files[f].type = files[f].filename.split(".")[1];
+                                                if(files[f].type == "txt")
+                                                    continue;
+                                                files_data.push(files[f]);
+                                            }
+                                        }
+                                        
+                                        data[dictionary] = files_data;
+                                        assets.push({id: folder, type:"folder",  children: files_data});
+                                    })
+                                    // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
+                                }
+                                this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
                             }
-                            this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
                         }
                     }
+                    }) 
                 }
-                }) 
-            }
+             
             if(!session)
-                 fs.login(null, null, inner);
+                fs.login(null, null, inner);
+            else inner();
+        }
+        
+    }
 
+    updateDictionaries(filename, data, type, location) {
+        const extension = filename.split(".")[1];
+
+        if(location == "server") {
+            data = JSON.stringify(data, null, 4);
+    
+            this.getApp().uploadData(data, filename, "signs", this.getDictionaries.bind(this));
+            
+            
+        }
+        else {
+            let idx = -1;
+            for(let i = 0; i < this.dictionaries.length; i++) {
+                if(this.dictionaries[i].id == "Custom") {
+                    idx = i;
+                    break;
+                }
+            }
+            if(idx == -1) {
+                this.dictionaries.push( {id: "Custom", type:"folder", children: []});
+                idx = this.dictionaries.length - 1;
+            }
+            
+            this.dictionaries[idx].children.push({filename: filename, id: filename, folder: "Custom", type: extension, data: data})
+        }
+        
     }
 
     loadModel(clip) {

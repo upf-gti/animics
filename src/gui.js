@@ -180,11 +180,14 @@ class Gui {
        
         menubar.add("Login", {callback: () => {
             const session = this.editor.getApp().FS.getSession();
-
+            if(this.prompt && this.prompt.root.checkVisibility())
+                return;
             if(session && session.user.username != "signon")
                 this.showLogoutModal();
             else
                 this.showLoginModal()
+            
+            
             }
         }, {float:"right"});
         menubar.setButtonIcon("Github", "fa-brands fa-github", () => {window.open("https://github.com/upf-gti/animics")}, {float:"right"});
@@ -214,6 +217,7 @@ class Gui {
                         if(response.status == 1) {
                             let el = document.querySelector("#Login");
                             el.innerText = session.user.username;
+                            this.editor.getDictionaries();
                             this.prompt.close();
                             this.prompt = null;
                         }
@@ -232,6 +236,11 @@ class Gui {
             refresh(p);
             
         } )
+
+        this.prompt.onclose = () => {
+            this.editor.getDictionaries();
+            this.prompt = null;
+        }
   
     }
 
@@ -242,9 +251,14 @@ class Gui {
                 el.innerText = "Login";
                 this.editor.getApp().FS.user = "signon";
                 this.editor.getApp().FS.pass = "signon";
+                this.editor.getDictionaries();
+
             }); 
             this.prompt = null;
         } , {input: false, accept: "Logout"})
+        this.prompt.onclose = () => {
+            this.prompt = null;
+        }
     }
 
     showCreateAccountDialog()
@@ -1555,7 +1569,7 @@ class ScriptGui extends Gui {
                 if(!clipClass)
                     continue;
 
-                globalStart = Math.min(globalStart, clip.behaviours[i].start || globalStart);
+                globalStart = Math.min(globalStart, clip.behaviours[i].start >= 0 ? clip.behaviours[i].start : globalStart);
                 globalEnd = Math.max(globalEnd, clip.behaviours[i].end || globalEnd);
                 
                 if(breakdown)
@@ -2132,31 +2146,18 @@ class ScriptGui extends Gui {
             }
             signInfo.duration = globalEnd - globalStart;
             let sign = new ANIM.SuperClip(signInfo);
-            if(location == "local") {
-                let idx = -1;
-                for(let i = 0; i < this.editor.dictionaries.length; i++) {
-                    if(this.editor.dictionaries[i].id == "Custom") {
-                        idx = i;
-                        break;
-                    }
-                }
-                if(idx == -1) {
-                    this.editor.dictionaries.push( {id: "Custom", type:"folder", children: []});
-                    idx = this.editor.dictionaries.length - 1;
-                }
 
-                let data = sign.toJSON();
-                delete data.id;
-                delete data.start;
-                delete data.end;
-                delete data.type;
-                let bml = [];
-                for(let b in data) {
-                    bml = [...bml, ...data[b]];
-                }
-                this.editor.dictionaries[idx].children.push({filename: v + ".bml", id: v + ".bml", folder: "Custom", type: "bml", data: bml})
-               
+            //Convert data to bml file format
+            let data = sign.toJSON();
+            delete data.id;
+            delete data.start;
+            delete data.end;
+            delete data.type;
+            let bml = [];
+            for(let b in data) {
+                bml = [...bml, ...data[b]];
             }
+            this.editor.updateDictionaries(v + ".bml", bml, "signs", location);
         },
         {
             onclose: (root) => {
