@@ -2566,6 +2566,20 @@ class ScriptGui extends Gui {
                 }
             }
 
+            const stringToBML = (e) => {
+
+                if(e.item.fullpath) {
+                    LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
+                        const bytesize = f => new Blob([f]).size;
+                        e.item.bytesize = bytesize();
+                        e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                        e.item.bml.behaviours = e.item.bml.data;                        
+                    } });
+                } else {
+                    e.item.bml = e.item.type == "bml" ?  {data: (typeof e.item.data == "string") ? JSON.parse(e.item.data) : e.item.data } : sigmlStringToBML(e.item.data);
+                    e.item.bml.behaviours = e.item.bml.data;              
+                }
+            }
             const loadData = () => {
                 asset_browser.load( this.editor.repository, e => {
                     switch(e.type) {
@@ -2574,16 +2588,9 @@ class ScriptGui extends Gui {
                             if(e.item.type == "folder") {
                                 return;
                             }
-                            if(e.item.fullpath) {
-                                LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
-                                    const bytesize = f => new Blob([f]).size;
-                                    e.item.bytesize = bytesize();
-                                    e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                                    e.item.bml.behaviours = e.item.bml.data;                        
-                                } });
-                            } else {
-                                e.item.bml = e.item.type == "bml" ?  {data: (typeof e.item.data == "string") ? JSON.parse(e.item.data) : e.item.data } : sigmlStringToBML(e.item.data);
-                                e.item.bml.behaviours = e.item.bml.data;              
+                            
+                            if(!e.item.bml) {
+                                stringToBML();
                             }
                             
                             if(e.multiple)
@@ -2628,6 +2635,9 @@ class ScriptGui extends Gui {
                             }
                             else {
                                 let choice = new LX.Dialog("Add sign", (p) => {
+                                    if(!e.item.bml) {
+                                        stringToBML();
+                                    }
                                     p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
                                     p.sameLine(2);
                                     p.addButton(null, "Add as single clip", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
