@@ -33,6 +33,32 @@ class App {
         this.FS.logout(callback);
     }
     
+    createAccount(user,pass, email, on_complete, on_error) {
+        this.FS.createAccount(user, pass, email, (valid, request) => {
+            if(valid)
+            {
+                this.FS.getSession().setUserPrivileges("signon", user, "READ", function(status, resp){
+                    console.log(resp);						
+
+                    if(status)
+                        console.log(resp);						
+                });
+                this.FS.login(user, pass, () => {
+                    if(this.editor)
+                        this.editor.getUnits()
+                
+                    const session = this.FS.getSession();
+                    this.FS.createFolder( session.user.username + "/animics/presets/", (v, r) => {console.log(v)} );
+                    this.FS.createFolder( session.user.username + "/animics/signs/", (v, r) => {console.log(v)} );
+                    if(on_complete)
+                        on_complete(request);
+                });
+            }
+            else if(on_error)
+                on_error(request);
+        });
+    }
+
     uploadData(data, filename, type, callback = () => {}) {
         const session = this.FS.getSession();
         const username = session.user.username;

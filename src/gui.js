@@ -199,7 +199,7 @@ class Gui {
             const refresh = (p, msg) => {
                 p.clear();
                 if(msg) {
-                    p.addText(null, msg, null, {disabled: true});
+                    p.addText(null, msg, null, {disabled: true, warning: true});
                 }
                 p.addText("User", session.user, (v) => {
                     session.user = v;
@@ -231,7 +231,7 @@ class Gui {
                 p.addButton(null, "Sign up", (v) => {
                     this.prompt.close();
                     this.prompt = null;
-                    this.showCreateAccountDialog();
+                    this.showCreateAccountDialog(session);
                 })
             }
             refresh(p);
@@ -260,9 +260,9 @@ class Gui {
         }
     }
 
-    showCreateAccountDialog()
+    showCreateAccountDialog(session = {user: "", password: ""})
     {
-        let user = "", pass = "",
+        let user = session.user, pass = session.password,
         pass2 = "", email = "";
         let errors = false;
 
@@ -270,8 +270,10 @@ class Gui {
         
             const refresh = (p, msg) => {
                 p.clear();
-                if(msg)
-                    p.addText(null, msg, null, {disabled: true});
+                if(msg) {
+
+                    let w = p.addText(null, msg, null, {disabled: true, warning: true});
+                }
                 p.addText("Username", user, (v) => { user = v; });
                 p.addText("Email", email, (v) => { email = v; }, {type: "email"});
                 p.addText("Password", pass, (v) => { pass = v; }, {type: "password"});
@@ -279,26 +281,18 @@ class Gui {
                 p.addButton(null, "Register",  () => {
                     if(pass === pass2)
                     {
-                        var req = this.editor.getApp().FS.createAccount(user, pass, email, (valid, request) => {
-                            if(valid)
-                            {
-                                this.editor.getApp().FS.getSession().setUserPrivileges("signon", user, "READ", function(status, resp){
-                                    console.log(resp);						
-
-                                    if(status)
-                                        console.log(resp);						
-                                    else
-                                        bootbox.alert( resp.msg );
-                                });
+                        this.editor.getApp().createAccount(user, pass, email, (request) => {
+                            
                                 this.prompt.close();
                                 this.prompt = null;
-                                this.showLoginModal( { user: user, password: pass});
-                            }else
-                            {
+                                let el = document.querySelector("#Login");
+                                el.innerText = session.user;
+                                // this.showLoginModal( { user: user, password: pass});
+                            }, (request)  => {
                                 refresh(p, "Server status: " + request.msg);
                                 console.error(request.msg);
                             }
-                        });
+                        );
                     }
                     else
                     {

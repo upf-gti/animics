@@ -3175,7 +3175,7 @@
             // Add widget value
 
             let container = document.createElement('div');
-            container.className = "lextext";
+            container.className = "lextext" + (options.warning ? " lexwarning" : "");
             container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + " )";
             container.style.display = "flex";
 

@@ -54,7 +54,9 @@ class FileSystem{
 
 		const inner_success = (session, response, resolve) =>
 		{
-			this.setSession(session);
+            if(response.status == 1)
+			    this.setSession(session);
+            
             if(resolve)
                 resolve(session);
 			if(callback)
