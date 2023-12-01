@@ -2569,7 +2569,7 @@ class ScriptGui extends Gui {
             const stringToBML = (e) => {
 
                 if(e.item.fullpath) {
-                    LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
+                    LX.request({ url: fs.root + e.item.fullpath, dataType: 'text/plain', success: (f) => {
                         const bytesize = f => new Blob([f]).size;
                         e.item.bytesize = bytesize();
                         e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
@@ -2590,7 +2590,7 @@ class ScriptGui extends Gui {
                             }
                             
                             if(!e.item.bml) {
-                                stringToBML();
+                                stringToBML(e);
                             }
                             
                             if(e.multiple)
@@ -2636,7 +2636,7 @@ class ScriptGui extends Gui {
                             else {
                                 let choice = new LX.Dialog("Add sign", (p) => {
                                     if(!e.item.bml) {
-                                        stringToBML();
+                                        stringToBML(e);
                                     }
                                     p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
                                     p.sameLine(2);
