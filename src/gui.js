@@ -2090,7 +2090,7 @@ class ScriptGui extends Gui {
                 widgets.merge();
             }
 
-            widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[0], () => {
+            widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteContent(e, this.clipsTimeline.lastClipsSelected[0], () => {
                 clip = null;  
                 this.clipsTimeline.optimizeTracks(); 
                 updateTracks(); 
