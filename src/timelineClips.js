@@ -936,10 +936,10 @@ FacePresetClip.prototype.addPreset = function(preset){
 			break;
 
 		case "Anger":
-			clip = new FaceLexemeClip({lexeme: "BROW_LOWERER", start: this.start, duration: this.duration, properties: { amount: 1}});
+			clip = new FaceLexemeClip({lexeme: "BROW_LOWERER", start: this.start, duration: this.duration, properties: { amount: 0.8}});
 			this.clips.push(clip);
 
-			clip = new FaceLexemeClip({lexeme: "UPPER_LID_RAISER", start: this.start, duration: this.duration, properties: { amount: 1}});
+			clip = new FaceLexemeClip({lexeme: "UPPER_LID_RAISER", start: this.start, duration: this.duration, properties: { amount: 0.8}});
 			this.clips.push(clip);
 
 			clip = new FaceLexemeClip({lexeme: "LID_TIGHTENER", start: this.start, duration: this.duration, properties: { amount: 1}});
@@ -1046,11 +1046,15 @@ FacePresetClip.prototype.toJSON = function()
 		id: this.id,
 		start: this.start,
 		end: this.start + this.duration,
-
+		clips: []
 	}
 	for(var i in this.properties)
 	{		
 		json[i] = this.properties[i];
+	}
+
+	for(var i = 0; i < this.clips.length; i++) {
+		json.clips.push(this.clips[i].toJSON());
 	}
 	return json;
 }

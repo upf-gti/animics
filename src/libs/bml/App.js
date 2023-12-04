@@ -501,7 +501,7 @@ class App {
         this.scene.add(this.headTarget);
         this.scene.add(this.neckTarget);
 
-        let modelFilePath = './data/EvaHandsEyesFixed.glb'; let configFilePath = './data/EvaConfig.json'; let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), -Math.PI/2 ); 
+        let modelFilePath = 'https://webglstudio.org/3Dcharacters/Eva/Eva.glb'; let configFilePath = 'https://webglstudio.org/3Dcharacters/Eva/EvaConfig.json'; let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), -Math.PI/2 ); 
         this.loadAvatar(modelFilePath, configFilePath, modelRotation, "Eva", ()=>{
             this.changeAvatar( "Eva" );
             if ( typeof AppGUI != "undefined" ) { this.gui = new AppGUI( this ); }

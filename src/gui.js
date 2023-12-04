@@ -77,19 +77,29 @@ class Gui {
             }
         });
   
+        // Export animation
         menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
-        menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-            LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
-        }});
+       
         if(this.editor.mode == this.editor.eModes.script) {
             menubar.add("Project/Export animation/Export BML", {callback: () => 
                 LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", v), {input: this.editor.clipName, required: true} )     
             });
         }
+
+        menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
+            LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
+        }});
+
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
         menubar.add("Project/Export scene/Export GLB", {callback: () => 
             LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", v), {input: this.editor.clipName, required: true} )     
         });
+
+        // Save animation
+        menubar.add("Project/Save animation", {callback: () => 
+            this.createNewSignDialog(null, "server")
+        });
+
         // menubar.add("Project/Upload to server", {icon: "fa fa-upload", callback: () => this.editor.getApp().storeAnimation() }); --> NOT YET
         menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
 
@@ -1827,7 +1837,10 @@ class ScriptGui extends Gui {
     updateClipPanel(clip) {
         
         let widgets = this.clipPanel;
-        
+        if(this.clipsTimeline.lastClipsSelected.length > 1) {
+            clip = null;
+        }
+
         widgets.onRefresh = (clip) => {
 
             widgets.clear();
@@ -2118,35 +2131,128 @@ class ScriptGui extends Gui {
 
     }
 
-    createNewPresetDialog(clips) {
-        this.prompt = LX.prompt( "Preset name", "Create preset", (v) => {
-           let presetInfo = {preset: v, clips:[]};
-           for(let i = 0; i < clips.length; i++){
-               let [trackIdx, clipIdx] = clips[i];
-               presetInfo.clips.push(this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx]);
-           }
-           let preset = new ANIM.FacePresetClip(presetInfo);
-        },
-        {
-            onclose: (root) => {
+//     createNewPresetDialog(clips) {
+//         this.prompt = LX.prompt( "Preset name", "Create preset", (v) => {
+//            let presetInfo = {preset: v, clips:[]};
+//            for(let i = 0; i < clips.length; i++){
+//                let [trackIdx, clipIdx] = clips[i];
+//                presetInfo.clips.push(this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx]);
+//            }
+//            let preset = new ANIM.FacePresetClip(presetInfo);
+//         },
+//         {
+//             onclose: (root) => {
             
-                root.remove();
-                this.prompt = null;
-            }
-        } )
-   }
+//                 root.remove();
+//                 this.prompt = null;
+//             }
+//         } )
+//    }
+
+   createNewPresetDialog() {
+
+        const saveDialog = this.prompt = new LX.Dialog("Save animation", (p) => {
+            let presetInfo = { from: "Selected clips", type: "presets", server: false, clips:[] };
+
+            p.addComboButtons("Save from", [{value: "Selected clips", callback: (v) => {
+                presetInfo.from = v;
+
+            }}, {value: "All clips", callback: (v) => {
+                presetInfo.from = v;
+            }}], {selected: presetInfo.from});
+
+            p.addText("Name", "", (v) => {
+                presetInfo.preset = v;
+            })
+            p.sameLine(2);
+            p.addButton(null, "Cancel", () => this.prompt.close());
+            p.addButton(null, "Save", () => {
+                
+                let clips = null;
+                let globalStart = 10000;
+                let globalEnd = -10000;
+
+                if(presetInfo.from == "Selected clips") {
+                    this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                        if(a[0]<b[0]) 
+                            return -1;
+                        return 1;
+                    });
+                    
+                    clips = this.clipsTimeline.lastClipsSelected;
+                    for(let i = 0; i < clips.length; i++){
+                        const [trackIdx, clipIdx] = clips[i];
+                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        presetInfo.clips.push(clip);
+                        globalStart = Math.min(globalStart, clip.start || globalStart);
+                        globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                    }
+                } 
+                else {
+                    const tracks = this.clipsTimeline.animationClip.tracks;
+                    for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+                        for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                            presetInfo.clips.push(clip);
+                            globalStart = Math.min(globalStart, clip.start || globalStart);
+                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                        }
+                    }
+                }
+                
+                presetInfo.duration = globalEnd - globalStart;
+                let preset = new ANIM.FacePresetClip(presetInfo);
+
+                //Convert data to bml file format
+                let data = preset.toJSON();
+                
+                const session = this.editor.getApp().FS.getSession();
+                if(!session.user || session.user.username == "signon") {
+                    this.prompt = LX.prompt("The preset will be save locally. You must be logged in to save it into server.", "Alert", () => {
+                        
+                        this.showLoginModal();
+                        
+
+                    }, { input: false, accept: "Login", on_cancel: () => {
+                        this.editor.updateDictionaries(presetInfo.preset + ".bml", data.clips, presetInfo.type,  "local", (v) => {
+                            saveDialog.close()
+                            this.closeDialogs();
+                        });
+                        
+                    }})
+                }
+                else {
+                    this.editor.updateDictionaries(presetInfo.preset + ".bml", data.clips, presetInfo.type, "server", () => {
+                        saveDialog.close()
+                        this.closeDialogs();
+                    });
+                }
+
+            });
+        }, {modal: true, closable: true,  onclose: (root) => {
+                        
+            root.remove();
+            this.prompt = null;
+        } });
+
+       
+    }
 
    createNewSignDialog(clips, location) {
-        this.prompt = LX.prompt( "Sign name", "Create sign", (v) => {
-            let signInfo = {id: v, clips:[]};
+        
+        let saveDialog = this.prompt = LX.prompt( "Sign name", "Create sign", (v) => {
+            let signInfo = {id: v, clips:[], type: "signs"};
             let globalStart = 10000;
             let globalEnd = -10000;
-            for(let i = 0; i < clips.length; i++){
-                const [trackIdx, clipIdx] = clips[i];
-                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                signInfo.clips.push(clip);
-                globalStart = Math.min(globalStart, clip.start || globalStart);
-                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+
+            const tracks = this.clipsTimeline.animationClip.tracks;
+            for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+                for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+                    const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                    signInfo.clips.push(clip);
+                    globalStart = Math.min(globalStart, clip.start || globalStart);
+                    globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                }
             }
             signInfo.duration = globalEnd - globalStart;
             let sign = new ANIM.SuperClip(signInfo);
@@ -2179,7 +2285,26 @@ class ScriptGui extends Gui {
                 else
                     bml = [...bml, ...data[b]];
             }
-            this.editor.updateDictionaries(v + ".bml", bml, "signs", location);
+
+            const session = this.editor.getApp().FS.getSession();
+            if(!session.user || session.user.username == "signon") {
+                this.prompt = LX.prompt("Your animation will be saved locally. You must be logged in to save data.", "Alert", () => {
+                    
+                    this.showLoginModal();
+                }, { input: false, accept: "Login", on_cancel: () => {
+                    this.editor.updateDictionaries(signInfo.id + ".bml", bml, signInfo.type,  "local", (v) => {
+                        saveDialog.close()
+                        this.closeDialogs();
+                    });
+                    
+                }})
+            }
+            else {
+                this.editor.updateDictionaries(signInfo.id + ".bml", bml, signInfo.type, "server", () => {
+                    saveDialog.close()
+                    this.closeDialogs();
+                });
+            }
         },
         {
             onclose: (root) => {
@@ -2482,7 +2607,10 @@ class ScriptGui extends Gui {
         let dialog = this.prompt = new LX.Dialog('Available signs', async (p) => {
             
             const innerSelect = async (asset, action) => {
-           
+                let choice = document.getElementById("choice-insert-mode");
+                if(choice)
+                    choice.remove();
+
                 that.clipsTimeline.unSelectAllClips();
                 asset.bml.name = asset.id;
                 const modal = this.createAnimation();
@@ -2647,7 +2775,7 @@ class ScriptGui extends Gui {
                                     p.sameLine(2);
                                     p.addButton(null, "Add as single clip", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
                                     p.addButton(null, "Breakdown into BML clips", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
-                                }, {modal:true, closable: true})
+                                }, {modal:true, closable: true, id: "choice-insert-mode"})
                             }
                             break;
 

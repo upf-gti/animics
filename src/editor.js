@@ -165,10 +165,10 @@ class Editor {
         hemiLight.position.set( 0, 20, 0 );
         scene.add( hemiLight );
 
-        const dirLight = new THREE.DirectionalLight( 0xffffff, 0.1 );
-        dirLight.position.set( 3, 30, -50 );
-        dirLight.castShadow = false;
-        scene.add( dirLight );
+        // const dirLight = new THREE.DirectionalLight( 0xffffff, 0.1 );
+        // dirLight.position.set( 3, 30, -50 );
+        // dirLight.castShadow = false;
+        // scene.add( dirLight );
 
         // Left spotlight
         let spotLight = new THREE.SpotLight( 0xffffff, 0.5 );
@@ -956,7 +956,7 @@ class KeyframeEditor extends Editor{
         }
         
         // Load the target model (Eva) 
-        UTILS.loadGLTF("models/EvaHandsEyesFixed.glb", (gltf) => {
+        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/Eva/Eva.glb", (gltf) => {
             let model = gltf.scene;
             model.name = this.character;
             model.visible = true;
@@ -1438,19 +1438,25 @@ class ScriptEditor extends Editor{
 
     }
 
-    updateDictionaries(filename, data, type, location) {
+    updateDictionaries(filename, data, type, location, callback) {
         const extension = filename.split(".")[1];
 
         if(location == "server") {
             data = JSON.stringify(data, null, 4);
     
-            this.getApp().uploadData(data, filename, type, () => this.refreshRepository = true);
-            
+            this.getApp().uploadData(data, filename, type, (v) => {
+                this.refreshRepository = true; 
+                if(callback) 
+                    callback(v);
+            });   
             
         }
         else {
             
-            this.localStorage[type].children.push({filename: filename, id: filename, folder: type, type: extension, data: data})
+            this.localStorage[type].children.push({filename: filename, id: filename, folder: type, type: extension, data: data});
+            
+            if(callback)
+                callback();
         }
     }
 
@@ -1529,7 +1535,7 @@ class ScriptEditor extends Editor{
 
     loadModel(clip) {
         // Load the target model (Eva) 
-        UTILS.loadGLTF("models/EvaHandsEyesFixed.glb", (gltf) => {
+        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/Eva/Eva.glb", (gltf) => {
             let model = gltf.scene;
             model.name = this.character;
             model.visible = true;
