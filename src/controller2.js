@@ -119,7 +119,7 @@ class BMLController {
         this.ECAcontroller.reset();
 
         //convert each clip to BML json format
-        let json = { faceLexeme: [], gaze: [], head: [], gesture: [], speech: []};
+        let json = { faceLexeme: [], gaze: [], head: [], gesture: [], speech: [], control: "0"};
 
         for(let i = 0; i < timeline.animationClip.tracks.length; i++){
             let track = timeline.animationClip.tracks[i];

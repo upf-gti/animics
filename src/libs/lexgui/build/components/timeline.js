@@ -3221,6 +3221,10 @@
             {
                 clips = [...clips.slice(0, clipIdx), ...clips.slice(clipIdx + 1, clips.length)];
                 this.animationClip.tracks[trackIdx].clips = clips;
+                this.animationClip.tracks[trackIdx].hovered[clipIdx] = undefined;
+                this.animationClip.tracks[trackIdx].selected[clipIdx] = undefined;
+                this.animationClip.tracks[trackIdx].edited[clipIdx] = undefined;
+
                 if(clips.length)
                 {
                     let selectedIdx = 0;
@@ -3316,6 +3320,7 @@
             let clips = Array.from(track.clips);
             let trackInfo = Object.assign({}, track);
             trackInfo.clips = clips;
+            trackInfo.selected.fill(false);
             this.trackState.push({
                 idx: clipIdx,
                 t: trackInfo,

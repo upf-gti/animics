@@ -2254,9 +2254,10 @@
             let is_selected = this.selected.indexOf( node ) > -1;
             
             let has_parent_child = false;
-            if( this.options.only_parents ) {
-                node.children.forEach( c => has_parent_child |= (c.children && c.children.length) );
-                is_parent = !!has_parent_child;
+            if( this.options.only_folders ) {
+                let has_folders = false;
+                node.children.forEach( c => has_folders |= (c.type == 'folder') );
+                is_parent = !!has_folders;
             }
 
             let item = document.createElement('li');
@@ -2536,14 +2537,9 @@
             for( var i = 0; i < node.children.length; ++i )
             {
                 let child = node.children[i];
+                if( this.options.only_folders && child.type != 'folder') 
+                    continue;
 
-                if( this.options.only_parents ) {
-
-                    if(!child.children || !child.children.length) continue;
-                    let has_parent_child = false;
-                    node.children.forEach( c => has_parent_child |= (c.children && c.children.length) );
-                    if(!has_parent_child) continue;
-                }
                 this.#create_item( node, child, level + 1 );
             }
         }
@@ -6209,7 +6205,8 @@
         static ASSET_DELETED    = 2;
         static ASSET_RENAMED    = 3;
         static ASSET_CLONED     = 4;
-        static ASSET_DBLCLICK   = 5;
+        static ASSET_DBLCLICKED = 5;
+        static ENTER_FOLDER     = 6;
 
         constructor( type, item, value ) {
             this.type = type || TreeEvent.NONE;
@@ -6223,9 +6220,10 @@
                 case AssetViewEvent.NONE: return "assetview_event_none";
                 case AssetViewEvent.ASSET_SELECTED: return "assetview_event_selected";
                 case AssetViewEvent.ASSET_DELETED: return "assetview_event_deleted";
-                case AssetViewEvent.ASSET_RENAMED:  return "assetview_event_renamed";
-                case AssetViewEvent.ASSET_CLONED:  return "assetview_event_cloned";
-                case AssetViewEvent.ASSET_DBLCLICK:  return "assetview_event_dbclick";
+                case AssetViewEvent.ASSET_RENAMED: return "assetview_event_renamed";
+                case AssetViewEvent.ASSET_CLONED: return "assetview_event_cloned";
+                case AssetViewEvent.ASSET_DBLCLICKED: return "assetview_event_dblclicked";
+                case AssetViewEvent.ENTER_FOLDER: return "assetview_event_enter_folder";
             }
         }
     };
@@ -6272,7 +6270,7 @@
             this.skip_browser = options.skip_browser ?? false;
             this.skip_preview = options.skip_preview ?? false;
             this.preview_actions = options.preview_actions ?? [];
-            this.only_parents = options.only_parents;
+            this.only_folders = options.only_folders;
             if( !this.skip_browser )
             {
                 [left, right] = area.split({ type: "horizontal", sizes: ["15%", "85%"]});
@@ -6399,7 +6397,7 @@
             this.tree = this.leftPanel.addTree("Content Browser", tree_data, { 
                 // icons: tree_icons, 
                 filter: false,
-                only_parents: this.only_parents ?? true,
+                only_folders: this.only_folders ?? true,
                 onevent: (event) => { 
 
                     let node = event.node;
@@ -6642,13 +6640,14 @@
                         if( !that.skip_preview )
                             that._preview_asset( item );
                     } 
-                    else
+                    else if(is_folder) 
                     {
-                        if(is_folder) that._enter_folder( item );
+                        that._enter_folder( item );
+                        return;
                     }
 
                     if(that.onevent) {
-                        const event = new AssetViewEvent(is_double_click ? AssetViewEvent.ASSET_DBLCLICK : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
+                        const event = new AssetViewEvent(is_double_click ? AssetViewEvent.ASSET_DBLCLICKED : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
                         event.multiple = !!e.shiftKey;
                         that.onevent( event );
                     }
@@ -6841,6 +6840,12 @@
 
             // Update path
             this._update_path(this.current_data);
+            
+            // Trigger event
+            if(this.onevent) {
+                const event = new AssetViewEvent(AssetViewEvent.ENTER_FOLDER, folder_item);
+                this.onevent( event );
+            }
         }
 
         _delete_item( item ) {

@@ -2090,10 +2090,12 @@ class ScriptGui extends Gui {
                 widgets.merge();
             }
 
-            widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteContent(e, this.clipsTimeline.lastClipsSelected[0], () => {
+            widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1], () => {
                 clip = null;  
-                this.clipsTimeline.optimizeTracks(); 
+                // this.clipsTimeline.optimizeTracks(); 
                 updateTracks(); 
+                this.editor.gizmo.updateTracks();
+                this.updateClipPanel();
             }));
             
         }
@@ -2391,7 +2393,7 @@ class ScriptGui extends Gui {
                     case LX.AssetViewEvent.ASSET_RENAMED:
                         console.log(e.item.id + " is now called " + e.value); 
                         break;
-                    case LX.AssetViewEvent.ASSET_DBLCLICK: 
+                    case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                         if(e.item.type == "folder")
                             return;
                         innerSelect(e.item);                        
@@ -2498,7 +2500,7 @@ class ScriptGui extends Gui {
                 dialog.close();
             }
 
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"], only_parents: false, preview_actions: [
+            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"],  preview_actions: [
                 {
                     type: "sigml",
                     name: 'View source', 
@@ -2564,6 +2566,33 @@ class ScriptGui extends Gui {
                         }
                     })
                 }
+                //ONLY RELOAD ADMIN FOLDERS
+
+                // for(let i = 0; i < this.editor.repository.length; i++) {
+                //     let unit = this.editor.repository[i].unit;
+                //     if(unit) {
+                //         if(session.units[unit]) {
+                //             if(session.units[unit].mode == "ADMIN") {
+                //                 await session.getFolders(unit, async (folders) =>  {
+                //                     const signsFolder = folders.animics.signs;
+                //                     let assets = [];
+                //                     if(signsFolder) {
+                //                         for(let folder in signsFolder) {
+                //                             assets.push({id: folder, type: "folder", folder: "signs", children: [], unit: unit})
+                //                         }
+                //                     }
+                //                     this.editor.repository[i].children = assets;
+                //                     count++;
+                //                     if(units_number == count) {
+                //                         this.editor.repository.push(this.editor.localStorage.signs);
+                //                         closeModal(modal);
+                //                     }
+                //                 })
+                //             }
+                //         }
+                        
+                //     }
+                // }
             }
 
             const stringToBML = (e) => {
@@ -2608,32 +2637,8 @@ class ScriptGui extends Gui {
                         case LX.AssetViewEvent.ASSET_RENAMED:
                             console.log(e.item.id + " is now called " + e.value); 
                             break;
-                        case LX.AssetViewEvent.ASSET_DBLCLICK: 
-                            if(e.item.type == "folder") {
-                                if(!e.item.children.length) {
-                                    this.editor.getFilesFromRepo(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
-                                        let files_data = [];
-                                        if(files) {
-                                            
-                                            for(let f = 0; f < files.length; f++) {
-                                                files[f].id = files[f].filename;
-                                                files[f].folder = e.item.folder.id;
-                                                files[f].type = files[f].filename.split(".")[1];
-                                                if(files[f].type == "txt")
-                                                    continue;
-                                                files_data.push(files[f]);
-                                            }
-                                            e.item.children = files_data;
-                                            asset_browser.current_data = files_data;
-                                            if(!asset_browser.skip_browser)
-                                                asset_browser._create_tree_panel();
-                                            asset_browser._refresh_content();
-                                        }
-                                    })
-                                }
-                                return;
-                            }
-                            else {
+                        case LX.AssetViewEvent.ASSET_DBLCLICKED: 
+                            if(e.item.type != "folder") {
                                 let choice = new LX.Dialog("Add sign", (p) => {
                                     if(!e.item.bml) {
                                         stringToBML(e);
@@ -2644,7 +2649,31 @@ class ScriptGui extends Gui {
                                     p.addButton(null, "Breakdown into BML clips", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
                                 }, {modal:true, closable: true})
                             }
-                        break;
+                            break;
+
+                        case LX.AssetViewEvent.ENTER_FOLDER:
+                            if(!e.item.children.length && e.item.unit) {
+                                this.editor.getFilesFromRepo(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                                    let files_data = [];
+                                    if(files) {
+                                        
+                                        for(let f = 0; f < files.length; f++) {
+                                            files[f].id = files[f].filename;
+                                            files[f].folder = e.item.folder.id;
+                                            files[f].type = files[f].filename.split(".")[1];
+                                            if(files[f].type == "txt")
+                                                continue;
+                                            files_data.push(files[f]);
+                                        }
+                                        e.item.children = files_data;
+                                        asset_browser.current_data = files_data;
+                                        if(!asset_browser.skip_browser)
+                                            asset_browser._create_tree_panel();
+                                        asset_browser._refresh_content();
+                                    }
+                                })
+                            }
+                            break;
                     }
                 })
 

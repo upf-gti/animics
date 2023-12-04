@@ -133,6 +133,7 @@ function getBindQuaternion( skeleton, boneIdx, outQuat ){
         m1.premultiply(m2);
     }
     outQuat.setFromRotationMatrix( m1 ).normalize();
+    return outQuat;
 }
 
 // sets bind quaternions only. Warning: Not the best function to call every frame.
@@ -3869,7 +3870,7 @@ let handBendings = {
 }
 
 
-class HandShapeRealizer {
+class HandShape {
     constructor( config, skeleton, isLeftHand = false ){
         this._tempQ_0 = new THREE.Quaternion(0,0,0,1);
 
@@ -3925,6 +3926,7 @@ class HandShapeRealizer {
         let tempV3_1 = new THREE.Vector3();
 
         let result = { bendAxes: [], splayAxes: [], bindQuats: [] };  // although called bindQuats, thumb does not have its actual bind
+        this.bendRange = 4; // [1,9]
         
         // Z axis of avatar from mesh space to world space
         tempM3_0.setFromMatrix4( bones[ 0 ].matrixWorld.clone().multiply( this.skeleton.boneInverses[0] ) );
@@ -4175,7 +4177,7 @@ class HandShapeRealizer {
     }
 
     // selectMode: if str is not numbers,  0 does nothing, 1 same shapes as mainbend in basic handshape, 2 same as mainbend in thumbcombinations
-    _stringToFingerBend( str, outFinger, selectMode = 0, bendRange = 9 ){
+    _stringToFingerBend( str, outFinger, selectMode = 0, bendRange = 4 ){
         if ( !str ){ return; }
 
         if ( typeof( str ) == "stirng" ){ str = str.toUpperCase(); }
@@ -4356,8 +4358,11 @@ class HandShapeRealizer {
         }
 
         // Jasigning uses numbers in a string for bend. Its range is 0-4. This realizer works with 0-9. Remap
-        let bendRange = parseInt( bml._bendRange );
-        bendRange = isNaN( bendRange ) ? 9 : bendRange; 
+        let bendRange = this.bendRange;
+        if ( bml.bendRange ){
+            let newBend = parseInt( bml.bendRange );
+            bendRange = isNaN( bendRange ) ? bendRange : newBend; 
+        }
 
         // specific bendings
         this._stringToFingerBend( bml.bend1, this.trgG[0], 1, bendRange ); // thumb
@@ -4404,6 +4409,10 @@ class HandShapeRealizer {
 
         return true;
     }
+
+    setBendRange( value ){
+        this.bendRange = isNaN( parseInt(value) ) ? 4 : value; 
+    }
 }
 
 
@@ -4418,13 +4427,16 @@ class ExtfidirPalmor {
         this.skeleton = skeleton;
         this.isLeftHand = !!isLeftHand;
 
+        this.config = config;
         let boneMap = config.boneMap;
         let handName = ( isLeftHand ) ? "L" : "R";
         let bones = this.skeleton.bones;
 
-        this.wristBone = bones[ boneMap[ handName + "Wrist" ] ];
+        this.wristIdx = boneMap[ handName + "Wrist" ];
+        this.wristBone = bones[ this.wristIdx ];
         this.forearmBone = bones[ boneMap[ handName + "Elbow" ] ];
 
+        this.wristBindQuat = getBindQuaternion( this.skeleton, this.wristIdx, new THREE.Quaternion() );
         // before-bind axes
         this.twistAxisForearm = ( new THREE.Vector3() ).copy( bones[ boneMap[ handName + "Wrist" ] ].position ).normalize(),
         this.twistAxisWrist = ( new THREE.Vector3() ).copy( bones[ boneMap[ handName + "HandMiddle" ] ].position ).normalize(),
@@ -4476,8 +4488,8 @@ class ExtfidirPalmor {
         this.extfidir.defDir.set(0,-1,0);
     }
 
-      // compute the swing rotation so as to get the twistAxisWrist to point at a certain location. It finds the forearm twist correction
-      _computeSwingFromCurrentPose( targetPoint, resultWristQuat ){
+    // compute the swing rotation so as to get the twistAxisWrist to point at a certain location. It finds the forearm twist correction
+    _computeSwingFromCurrentPose( targetPoint, resultWristQuat ){
         let elevation = Math.atan2( targetPoint.y, Math.sqrt( targetPoint.x * targetPoint.x + targetPoint.z * targetPoint.z ) );
         let bearing = Math.atan2( targetPoint.x, targetPoint.z );
         
@@ -4487,8 +4499,9 @@ class ExtfidirPalmor {
 
 
         let wristBone = this.wristBone;
-        wristBone.quaternion.set(0,0,0,1); // swing computation requires it to be with no palmor
+        wristBone.quaternion.copy( this.wristBindQuat );
         wristBone.updateWorldMatrix( true );
+
         let wToLMat3 = this._tempMat3_0.setFromMatrix4( wristBone.matrixWorld ).invert(); // gets only rotation (and scale)
         
         let worldZAxisToLocal = this._tempV3_1.set(0,0,1).applyMatrix3( wToLMat3 ).normalize();        
@@ -4514,10 +4527,12 @@ class ExtfidirPalmor {
         let bearingRot = this._tempQ_0.setFromAxisAngle( worldYAxisToLocal, bearing );
         resultWristQuat.premultiply( bearingRot );
 
+        resultWristQuat.premultiply( this.wristBindQuat)
+
     }
 
     update(dt){
-        this.wristBone.quaternion.set(0,0,0,1);
+        this.wristBone.quaternion.copy( this.wristBindQuat );
         // if( !this.transition ){ return; }
 
         this.time += dt;
@@ -4826,6 +4841,8 @@ class LocationBodyArm {
         // TODO: expose distance modes? 
         // distance 
         let distance = isNaN( bml.distance ) ? 0 : bml.distance;
+        distance += 0.05; // hack 
+        
         if ( location.direction ){
             let m3 = ( new THREE.Matrix3() ).setFromMatrix4( location.matrixWorld );
             this._tempV3_0.copy( location.direction ).applyMatrix3( m3 ).normalize(); // from bone local space to world space direction 
@@ -6110,4 +6127,4 @@ class BodyMovement {
 
 
 
-export { quadraticBezierVec3, cubicBezierVec3, mirrorQuat, mirrorQuatSelf, nlerpQuats, getTwistSwingQuaternions, getTwistQuaternion, stringToDirection, findIndexOfBone, findIndexOfBoneByName, getBindQuaternion, forceBindPoseQuats, BehaviourManager, BehaviourPlanner, Blink, FacialExpr, FacialEmotion, GazeManager, Gaze, HeadBML, Lipsync, Text2LipInterface, T2LTABLES, HandShapeRealizer, ExtfidirPalmor, LocationBodyArm, HandConstellation, DirectedMotion, CircularMotion, FingerPlay, WristMotion, ElbowRaise, ShoulderRaise, ShoulderHunch, BodyMovement} 
+export { quadraticBezierVec3, cubicBezierVec3, mirrorQuat, mirrorQuatSelf, nlerpQuats, getTwistSwingQuaternions, getTwistQuaternion, stringToDirection, findIndexOfBone, findIndexOfBoneByName, getBindQuaternion, forceBindPoseQuats, BehaviourManager, BehaviourPlanner, Blink, FacialExpr, FacialEmotion, GazeManager, Gaze, HeadBML, Lipsync, Text2LipInterface, T2LTABLES, HandShape, ExtfidirPalmor, LocationBodyArm, HandConstellation, DirectedMotion, CircularMotion, FingerPlay, WristMotion, ElbowRaise, ShoulderRaise, ShoulderHunch, BodyMovement} 
