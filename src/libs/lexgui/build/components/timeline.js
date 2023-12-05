@@ -3375,6 +3375,19 @@
             return unselected;
         }
 
+        selectAll( ) {
+
+            this.unSelectAllClips();
+            for(let idx = 0; idx < this.animationClip.tracks.length; idx++) {
+                for(let clipIdx = 0; clipIdx < this.animationClip.tracks[idx].clips.length; clipIdx++) {
+                    this.animationClip.tracks[idx].selected[clipIdx] = true;
+                    let currentSelection = [ idx, clipIdx];
+                    this.lastClipsSelected.push( currentSelection );
+                }
+            }
+            if(this.onSelectClip)
+                this.onSelectClip();
+        }
         processCurrentClip( e, clipIndex, track, localX, multiple ) {
 
             e.multipleSelection = multiple;

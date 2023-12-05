@@ -1,9 +1,6 @@
 import { MediaPipe } from "./mediapipe.js";
 import { KeyframeEditor, ScriptEditor } from "./editor.js";
 import { VideoUtils } from "./video.js";
-import { FileSystem } from "./libs/filesystem.js";
-import { UTILS } from "./utils.js";
-
 
 class App {
     
@@ -17,73 +14,9 @@ class App {
         this.mediaRecorder = null
         this.chunks = [];
        
-        // Create the fileSystem and log the user
-        this.FS = new FileSystem("signon", "signon", () => console.log("Auto login of guest user"));
     	window.globals = {
             "app": this
         };
-    }
-
-    login(session, callback) {
-
-        this.FS.login(session.user, session.password, callback);
-    }
-
-    logout(callback) {
-        this.FS.logout(callback);
-    }
-    
-    createAccount(user,pass, email, on_complete, on_error) {
-        this.FS.createAccount(user, pass, email, (valid, request) => {
-            if(valid)
-            {
-                this.FS.getSession().setUserPrivileges("signon", user, "READ", function(status, resp){
-                    console.log(resp);						
-
-                    if(status)
-                        console.log(resp);						
-                });
-                this.FS.login(user, pass, () => {
-                    if(this.editor)
-                        this.editor.getUnits()
-                
-                    const session = this.FS.getSession();
-                    this.FS.createFolder( session.user.username + "/animics/presets/", (v, r) => {console.log(v)} );
-                    this.FS.createFolder( session.user.username + "/animics/signs/", (v, r) => {console.log(v)} );
-                    if(on_complete)
-                        on_complete(request);
-                });
-            }
-            else if(on_error)
-                on_error(request);
-        });
-    }
-
-    uploadData(data, filename, type, callback = () => {}) {
-        const session = this.FS.getSession();
-        const username = session.user.username;
-        const folder = "animics/"+ type;
-
-        session.getFiles(username, username + "/" + folder, (files) => {
-
-            if(files) {
-                files = files.filter(e => e.unit === username && e.filename === filename);
-
-                if(files.length)
-                {
-                    LX.prompt("Overwrite file?", "File already exists", () => {
-                        this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(folder));
-                    } )
-                }
-                
-            }else
-            {
-                this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(folder));
-            }
-        },
-        () => {
-            //create folder
-        });
     }
 
     init( settings ) {

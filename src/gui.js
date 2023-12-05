@@ -64,17 +64,7 @@ class Gui {
         
         // menubar.add("Project/");
         if(this.editor.mode == this.editor.eModes.script)
-            menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => {
-        
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.click();
-        
-                input.onchange = (e) => {
-                    const file = e.currentTarget.files[0];
-                    this.editor.loadFile(file);
-                }
-            }
+            menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFile(), short: "CTRL+I"
         });
   
         // Export animation
@@ -96,7 +86,7 @@ class Gui {
         });
 
         // Save animation
-        menubar.add("Project/Save animation", {callback: () => 
+        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => 
             this.createNewSignDialog(null, "server")
         });
 
@@ -109,11 +99,17 @@ class Gui {
         menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
         menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
         menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
+        menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
         
         if(this.editor.mode == this.editor.eModes.script) {
+            menubar.add("Timeline/Shortcuts/Create preset", { short: "Right click" });
+            menubar.add("Timeline/Shortcuts/Add clip", { short: "CTRL+K" });
+            menubar.add("Timeline/Shortcuts/Add preset", { short: "CTRL+P" });
+            menubar.add("Timeline/Shortcuts/Add sign", { short: "CTRL+L" });
             menubar.add("Timeline/Shortcuts/Move clips", { short: "Hold CTRL" });
             menubar.add("Timeline/Shortcuts/Add clips", { short: "Right Click" });
             menubar.add("Timeline/Shortcuts/Copy clips", { short: "Right Click" });
+            menubar.add("Timeline/Shortcuts/Copy clips", { short: "CTRL+C" });
             menubar.add("Timeline/Shortcuts/Delete clips");
             menubar.add("Timeline/Shortcuts/Delete clips/Single", { short: "DEL" });
             menubar.add("Timeline/Shortcuts/Delete clip/Multiple", { short: "Hold LSHIFT+DEL" });
@@ -122,7 +118,6 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Clip Selection/Multiple", { short: "Hold LSHIFT" });
         }
         else {
-
             menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
             menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "Hold ALT" });
             menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
@@ -190,7 +185,7 @@ class Gui {
         ]);
        
         menubar.add("Login", {callback: () => {
-            const session = this.editor.getApp().FS.getSession();
+            const session = this.editor.FS.getSession();
             if(this.prompt && this.prompt.root.checkVisibility())
                 return;
             if(session && session.user.username != "signon")
@@ -202,6 +197,18 @@ class Gui {
             }
         }, {float:"right"});
         menubar.setButtonIcon("Github", "fa-brands fa-github", () => {window.open("https://github.com/upf-gti/animics")}, {float:"right"});
+    }
+
+    importFile () {
+        
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.click();
+
+        input.onchange = (e) => {
+            const file = e.currentTarget.files[0];
+            this.editor.loadFile(file);
+        }
     }
 
     showLoginModal(session = {user: null, password: null}) {
@@ -224,7 +231,7 @@ class Gui {
                 });
     
                 p.addButton(null, "Login", (v) => {
-                    this.editor.getApp().login(session, (session, response) => {
+                    this.editor.login(session, (session, response) => {
                         if(response.status == 1) {
                             let el = document.querySelector("#Login");
                             el.innerText = session.user.username;
@@ -249,7 +256,7 @@ class Gui {
         } )
 
         this.prompt.onclose = () => {
-            this.editor.getDictionaries();
+            // this.editor.getDictionaries();
             this.prompt = null;
         }
   
@@ -257,10 +264,10 @@ class Gui {
 
     showLogoutModal() {
         this.prompt = LX.prompt( "Are you sure you want to logout?", "Logout", (v) => {
-            this.editor.getApp().logout(() => {
+            this.editor.logout(() => {
                 let el = document.querySelector("#Login");
                 el.innerText = "Login";
-                this.editor.getApp().FS.login("signon", "signon", this.editor.getUnits.bind(this.editor))
+                this.editor.FS.login("signon", "signon", this.editor.getUnits.bind(this.editor))
 
             }); 
             this.prompt = null;
@@ -291,7 +298,7 @@ class Gui {
                 p.addButton(null, "Register",  () => {
                     if(pass === pass2)
                     {
-                        this.editor.getApp().createAccount(user, pass, email, (request) => {
+                        this.editor.createAccount(user, pass, email, (request) => {
                             
                                 this.prompt.close();
                                 this.prompt = null;
@@ -1724,7 +1731,7 @@ class ScriptGui extends Gui {
                     {
                         title: "Create sign/In server",
                         callback: () => {
-                            const session = this.editor.getApp().FS.getSession();
+                            const session = this.editor.FS.getSession();
                             if(!session.user || session.user.username == "signon") {
                                 this.prompt = LX.prompt("You must be logged in to save data.", "Alert", () => {
                                     
@@ -1786,7 +1793,7 @@ class ScriptGui extends Gui {
     init() {
         this.createSidePanel();
         this.updateMenubar();
-        if(!this.duration)
+        if(this.duration <= 0)
             this.showGuide();
         this.showTimeline();
         // Canvas UI buttons
@@ -1844,8 +1851,12 @@ class ScriptGui extends Gui {
         widgets.onRefresh = (clip) => {
 
             widgets.clear();
-            if(!clip)
+            if(!clip) {
+                if(this.clipsTimeline.lastClipsSelected.length > 1) {
+                    widgets.addButton(null, "Create preset", (v, e) => this.createNewPresetDialog());
+                }
                 return;
+            }
             
             this.clipInPanel = clip;
             const updateTracks = (refreshPanel) => {
@@ -2172,6 +2183,9 @@ class ScriptGui extends Gui {
                 let globalStart = 10000;
                 let globalEnd = -10000;
 
+                if(presetInfo.name == "") {
+                    alert("You have to write a name.")
+                }
                 if(presetInfo.from == "Selected clips") {
                     this.clipsTimeline.lastClipsSelected.sort((a,b) => {
                         if(a[0]<b[0]) 
@@ -2205,8 +2219,11 @@ class ScriptGui extends Gui {
 
                 //Convert data to bml file format
                 let data = preset.toJSON();
-                
-                const session = this.editor.getApp().FS.getSession();
+                if(!data.clips.length) {
+                    alert("You can't create an empty preset.")
+                    return;
+                }
+                const session = this.editor.FS.getSession();
                 if(!session.user || session.user.username == "signon") {
                     this.prompt = LX.prompt("The preset will be save locally. You must be logged in to save it into server.", "Alert", () => {
                         
@@ -2214,7 +2231,7 @@ class ScriptGui extends Gui {
                         
 
                     }, { input: false, accept: "Login", on_cancel: () => {
-                        this.editor.updateDictionaries(presetInfo.preset + ".bml", data.clips, presetInfo.type,  "local", (v) => {
+                        this.editor.updateData(presetInfo.preset + ".bml", data.clips, presetInfo.type,  "local", (v) => {
                             saveDialog.close()
                             this.closeDialogs();
                         });
@@ -2222,7 +2239,7 @@ class ScriptGui extends Gui {
                     }})
                 }
                 else {
-                    this.editor.updateDictionaries(presetInfo.preset + ".bml", data.clips, presetInfo.type, "server", () => {
+                    this.editor.updateData(presetInfo.preset + ".bml", data.clips, presetInfo.type, "server", () => {
                         saveDialog.close()
                         this.closeDialogs();
                     });
@@ -2241,6 +2258,9 @@ class ScriptGui extends Gui {
    createNewSignDialog(clips, location) {
         
         let saveDialog = this.prompt = LX.prompt( "Sign name", "Create sign", (v) => {
+            if(v == "") {
+                alert("You have to write a name.")
+            }
             let signInfo = {id: v, clips:[], type: "signs"};
             let globalStart = 10000;
             let globalEnd = -10000;
@@ -2285,14 +2305,17 @@ class ScriptGui extends Gui {
                 else
                     bml = [...bml, ...data[b]];
             }
-
-            const session = this.editor.getApp().FS.getSession();
+            if(!bml.length) {
+                alert("You can't save an animation with empty tracks.")
+                return;
+            }
+            const session = this.editor.FS.getSession();
             if(!session.user || session.user.username == "signon") {
                 this.prompt = LX.prompt("Your animation will be saved locally. You must be logged in to save data.", "Alert", () => {
                     
                     this.showLoginModal();
                 }, { input: false, accept: "Login", on_cancel: () => {
-                    this.editor.updateDictionaries(signInfo.id + ".bml", bml, signInfo.type,  "local", (v) => {
+                    this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type,  "local", (v) => {
                         saveDialog.close()
                         this.closeDialogs();
                     });
@@ -2300,7 +2323,7 @@ class ScriptGui extends Gui {
                 }})
             }
             else {
-                this.editor.updateDictionaries(signInfo.id + ".bml", bml, signInfo.type, "server", () => {
+                this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type, "server", () => {
                     saveDialog.close()
                     this.closeDialogs();
                 });
@@ -2545,33 +2568,32 @@ class ScriptGui extends Gui {
         // Create a new dialog
         let dialog = this.prompt = new LX.Dialog('Available presets', (p) => {
 
+            const innerSelect = (asset)  => {
+                this.clipsTimeline.unSelectAllClips();
+                this.prompt.close();
+                let presetClip = new ANIM.FacePresetClip({preset: asset.id});
+                this.clipsTimeline.addClips(presetClip.clips)
+            }
+            
             let values = ANIM.FacePresetClip.facePreset; //["Yes/No-Question", "Negative", "WH-word Questions", "Topic", "RH-Questions"];
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", skip_browser: true, skip_preview: true, allowed_types: ["Clips"]  });
+            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", skip_browser: true, allowed_types: ["Preset"], preview_actions: [{
+                type: "Preset",
+                name: 'Add', 
+                callback: innerSelect.bind(this)
+            }]  });
             p.attach( asset_browser );
             let asset_data = [];
             
             // Create a collection of widgets values
             for(let i = 0; i < values.length; i++){
-                let data = { id: values[i], type: "Clips" };
+                let data = { id: values[i], type: "Preset" };
                 asset_data.push(data);
             }
-            
+
+
             asset_browser.load( asset_data, e => {
                 switch(e.type) {
                     case LX.AssetViewEvent.ASSET_SELECTED: 
-                        that.clipsTimeline.unSelectAllClips();
-
-                        if(e.multiple)
-                            console.log("Selected: ", e.item); 
-                        else
-                            console.log(e.item.id + " selected"); 
-
-                        dialog.close();
-                        let presetClip = new ANIM.FacePresetClip({preset: e.item.id});
-                        that.clipsTimeline.addClips(presetClip.clips)
-                        // for(let i = 0; i < presetClip.clips.length; i++){
-                        //     that.clipsTimeline.addClip( presetClip.clips[i], presetClip.clips[i].start);
-                        // }
                         break;
                     case LX.AssetViewEvent.ASSET_DELETED: 
                         console.log(e.item.id + " deleted"); 
@@ -2582,9 +2604,11 @@ class ScriptGui extends Gui {
                     case LX.AssetViewEvent.ASSET_RENAMED:
                         console.log(e.item.id + " is now called " + e.value); 
                         break;
+                    case LX.AssetViewEvent.ASSET_DBLCLICKED:
+                        innerSelect(e.item);
                 }
             })
-        }, { title:'Presets', close: true, minimize: false, size: [800], scroll: true, resizable: true, draggable: true, 
+        }, { title:'Presets', close: true, minimize: false, size: ["60%", "60%"], scroll: true, resizable: true, draggable: false, modal: true,
     
             onclose: (root) => {
                 
@@ -2597,7 +2621,7 @@ class ScriptGui extends Gui {
     createSignsDialog() {
         
         let that = this;
-        const fs = this.editor.getApp().FS;
+        const fs = this.editor.FS;
         const session = fs.getSession();
 
         if(this.prompt && this.prompt.root.checkVisibility())
@@ -2668,60 +2692,51 @@ class ScriptGui extends Gui {
             const closeModal = (modal ) => {
                 modal.panel.clear();
                 modal.root.remove();
-                loadData();
 
-                this.editor.refreshRepository = false;
             }
             //Get folders from each user unit
             const getFolders = async (modal) => {
-                this.editor.repository = [];
-                const units_number = Object.keys(session.units).length;
                 let count = 0;
-                for(let unit in session.units) {
-                    await session.getFolders(unit, async (folders) =>  {
-                        const signsFolder = folders.animics.signs;
-                        let assets = [];
-                        if(signsFolder) {
-                            for(let folder in signsFolder) {
-                                assets.push({id: folder, type: "folder", folder: "signs", children: [], unit: unit})
-                            }
-                        }
-                        this.editor.repository.push({id: unit == "signon" ? "Public" : unit, type:"folder",  children: assets, unit: unit});
-                        count++;
-                        if(units_number == count) {
-                            this.editor.repository.push(this.editor.localStorage.signs);
-                            closeModal(modal);
-                        }
-                    })
-                }
-                //ONLY RELOAD ADMIN FOLDERS
+                for(let i = 0; i < this.editor.repository.length; i++) {
 
-                // for(let i = 0; i < this.editor.repository.length; i++) {
-                //     let unit = this.editor.repository[i].unit;
-                //     if(unit) {
-                //         if(session.units[unit]) {
-                //             if(session.units[unit].mode == "ADMIN") {
-                //                 await session.getFolders(unit, async (folders) =>  {
-                //                     const signsFolder = folders.animics.signs;
-                //                     let assets = [];
-                //                     if(signsFolder) {
-                //                         for(let folder in signsFolder) {
-                //                             assets.push({id: folder, type: "folder", folder: "signs", children: [], unit: unit})
-                //                         }
-                //                     }
-                //                     this.editor.repository[i].children = assets;
-                //                     count++;
-                //                     if(units_number == count) {
-                //                         this.editor.repository.push(this.editor.localStorage.signs);
-                //                         closeModal(modal);
-                //                     }
-                //                 })
-                //             }
-                //         }
+                    const unit = this.editor.repository[i].id == "Public" ? "signon" : this.editor.repository[i].id;
+                    
+                    //get all folders for empty units
+                    if(!(unit == "Local" || this.editor.repository[i].children.length) || this.editor.refreshRepository && unit == session.user.username) {
+
+                        await session.getFolders(unit, async (folders) =>  {
+                            const signsFolder = folders.animics.signs;
+                            let assets = [];
+                            if(signsFolder) {
+                                for(let folder in signsFolder) {
+                                    assets.push({id: folder, type: "folder", folder: "signs", children: [], unit: unit})
+                                }
+                            }
+                            this.editor.repository[i].children = assets;
+                            count++;
+                            if(this.editor.repository.length == count) {
+                                closeModal(modal);
+                                loadData();
+                                this.editor.refreshRepository = false;
+                            }
+                        })
                         
-                //     }
-                // }
+                    } else {
+                        if(unit == "Local") {
+                            this.editor.repository[i] = this.editor.localStorage.signs;
+                        }
+                        count++;
+                        if(this.editor.repository.length == count) {
+                        
+                            closeModal(modal);
+                            loadData();
+                            this.editor.refreshRepository = false;
+                        }
+                    }
+                }
+                
             }
+
 
             const stringToBML = (e) => {
 
@@ -2780,8 +2795,11 @@ class ScriptGui extends Gui {
                             break;
 
                         case LX.AssetViewEvent.ENTER_FOLDER:
-                            if(!e.item.children.length && e.item.unit) {
-                                this.editor.getFilesFromRepo(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                            const session = this.editor.FS.getSession(); 
+                            if(e.item.unit && (!e.item.children.length || this.editor.refreshRepository && e.item.unit == session.user.username )) {
+                                const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                                modal.root.id = "loading";
+                                this.editor.getFilesFromUnit(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
                                     let files_data = [];
                                     if(files) {
                                         
@@ -2794,11 +2812,14 @@ class ScriptGui extends Gui {
                                             files_data.push(files[f]);
                                         }
                                         e.item.children = files_data;
-                                        asset_browser.current_data = files_data;
-                                        if(!asset_browser.skip_browser)
-                                            asset_browser._create_tree_panel();
-                                        asset_browser._refresh_content();
                                     }
+                                    asset_browser.current_data = files_data;
+                                    if(!asset_browser.skip_browser)
+                                        asset_browser._create_tree_panel();
+                                    asset_browser._refresh_content();
+
+                                    this.editor.refreshRepository = false;
+                                    closeModal(modal);
                                 })
                             }
                             break;
@@ -2820,13 +2841,20 @@ class ScriptGui extends Gui {
                 // }
                 
             }
-
-            if(this.editor.refreshRepository) {
-                await getFolders(modal);
+            if(!this.editor.repository.length) {
+                await this.editor.getAllUnitsFolders("signs", () => {
+                    closeModal(modal);
+                    loadData();
+                });
             }
             else {
-                closeModal(modal);
-            }   
+
+                await getFolders(modal);
+            }
+            // }
+            // else {
+            //     closeModal(modal);
+            // }   
        
         }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
@@ -2882,7 +2910,7 @@ class ScriptGui extends Gui {
 
             //from server
             if(asset.fullpath) {
-                const fs = this.editor.getApp().FS;
+                const fs = this.editor.FS;
                 LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
                     const bytesize = f => new Blob([f]).size;
                     asset.bytesize = bytesize();
