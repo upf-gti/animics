@@ -1,6 +1,7 @@
 import { UTILS } from "./utils.js";
 import { VideoUtils } from "./video.js"; 
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
+
 class Gui {
 
     constructor(editor) {

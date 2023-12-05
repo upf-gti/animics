@@ -13,6 +13,7 @@ import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loa
 import { GLTFExporter } from './exporters/GLTFExporoter.js' 
 import { BMLController } from "./controller2.js"
 import { BlendshapesManager } from "./blendshapes.js"
+import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 
 import { FileSystem } from "./libs/filesystem.js";
 
@@ -1727,12 +1728,19 @@ class ScriptEditor extends Editor{
     loadFile(file) {
         //load json (bml) file
         const extension = UTILS.getExtension(file.name);
-        if(extension != "json")
+        if(!(extension == "json" || extension == "sigml"))
             return;
         const fr = new FileReader();
         fr.readAsText( file );
         fr.onload = e => { 
-            let anim = JSON.parse(e.currentTarget.result);
+            let anim = e.currentTarget.result;
+            if(extension == 'sigml') {
+                anim = sigmlStringToBML(anim);
+                anim.behaviours = anim.data;
+                delete anim.data;
+            } else {
+                anim = JSON.parse(anim);
+            }
             let empty = true;
             if(this.activeTimeline.animationClip.tracks.length) {
                 for(let i = 0; i < this.activeTimeline.animationClip.tracks.length; i++) {

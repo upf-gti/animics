@@ -12,7 +12,7 @@ class BMLController {
         this.undoSteps = [];
 
         this.editor = editor;
-        fetch( "src/libs/bml/EvaHandsEyesFixedConfig.json" ).then(response => response.text()).then( (text) =>{
+        fetch( "https://webglstudio.org/3Dcharacters/Eva/Eva.json" ).then(response => response.text()).then( (text) =>{
             let config = JSON.parse( text );
             let ECAcontroller = this.ECAcontroller = new CharacterController( {character: editor.scene.getObjectByName(editor.character), characterConfig: config} );
             ECAcontroller.start();
