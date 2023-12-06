@@ -1508,7 +1508,6 @@ class ScriptGui extends Gui {
         ])
         this.timelineArea.attach(this.clipsTimeline.root);
         this.clipsTimeline.canvas.tabIndex = 1;
-                
     }
     
     async loadBMLClip(clip, callback, breakdown = true) {
@@ -1613,14 +1612,14 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
         this.clipsTimeline.onClipMoved = (selected)=> {
             this.editor.gizmo.updateTracks();
-
-            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime) 
+            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
         };
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
            if(clip.strokeStart) clip.strokeStart+=offset;
            if(clip.stroke) clip.stroke+=offset;
            if(clip.strokeEnd) clip.strokeEnd+=offset;
+           this.updateClipPanel(clip);
         };
 
         this.clipsTimeline.deleteContent = () => {
@@ -1994,13 +1993,14 @@ class ScriptGui extends Gui {
 
             widgets.addNumber("Duration", clip.duration.toFixed(2), (v) =>
             {
+                const diff = v - clip.duration;
                 clip.duration = v;
                 this.clipInPanel.duration = v;
                 const end = v + clip.start;
                 if(clip.relax != undefined)
-                    clip.relax = clip.fadeout = clip.fadeout > end ? end : clip.fadeout;
+                    clip.relax = clip.fadeout = clip.fadeout + diff > end ? end : clip.fadeout + diff;
                 if(clip.strokeEnd != undefined) 
-                    clip.strokeEnd = clip.strokeEnd > clip.relax ? clip.relax : clip.strokeEnd;
+                    clip.strokeEnd = clip.strokeEnd + diff > clip.relax ? clip.relax : clip.strokeEnd + diff;
                 if(clip.stroke != undefined) 
                     clip.stroke = clip.stroke > clip.strokeEnd ? clip.strokeEnd : clip.stroke;
                 if(clip.strokeStart != undefined) 

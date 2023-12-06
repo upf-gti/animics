@@ -2538,10 +2538,12 @@
                     //this.addUndoStep( "clip_modified", clip );
                     if( (e.ctrlKey && distToStart < 5) || (clip.fadein && Math.abs( this.timeToX( clip.start + clip.fadein ) - e.offsetX ) < 5) )
                         this.dragClipMode = "fadein";
-                    else if( (e.ctrlKey && distToEnd < 5) || (clip.fadeout && Math.abs( this.timeToX( clip.start + clip.duration - clip.fadeout ) - e.offsetX ) < 5) )
-                        this.dragClipMode = "fadeout";
-                    else if( Math.abs( endingX - x ) < 10 )
+                    else if(e.ctrlKey &&  Math.abs( endingX - x ) < 5 ) {
                         this.dragClipMode = "duration";
+                        this.canvas.style.cursor = "column-resize";
+                    }
+                    else if( (e.ctrlKey && distToEnd < 10) || (clip.fadeout && Math.abs( this.timeToX( clip.start + clip.duration - clip.fadeout ) - e.offsetX ) < 5) )
+                        this.dragClipMode = "fadeout";                  
                     else
                         this.dragClipMode = "move";
                 }
@@ -2629,11 +2631,16 @@
                             }
                         }
                         else if( this.dragClipMode == "fadein" )
-                            clip.fadein = Math.min(Math.max((clip.fadein || 0) + diff, clip.start), clip.start+clip.duration);
+                            clip.fadein = Math.min(Math.max((clip.fadein || 0) + delta, clip.start), clip.start+clip.duration);
                         else if( this.dragClipMode == "fadeout" )
-                            clip.fadeout = Math.max(Math.min((clip.fadeout || clip.start+clip.duration) + diff, clip.start+clip.duration), clip.start);
-                        else if( this.dragClipMode == "duration" )
-                            clip.duration += diff;
+                            clip.fadeout = Math.max(Math.min((clip.fadeout || clip.start+clip.duration) + delta, clip.start+clip.duration), clip.start);
+                        else if( this.dragClipMode == "duration" ) {
+                            clip.duration += delta;
+                            clip.fadeout += delta;
+                            if(this.onContentMoved) {
+                                this.onContentMoved(clip, 0);
+                            }
+                        }
 
                         if(this.duration < clip.start + clip.duration  )
                         {
@@ -2644,6 +2651,14 @@
                 }
                 else{
                     innerSetTime( this.currentTime );	
+                }
+            } 
+            else if(e.track && e.ctrlKey) {
+                for(let i = 0; i < e.track.clips.length; i++) {
+                    let clip = e.track.clips[i];
+                    const x = this.timeToX(clip.start+clip.duration);
+                    if(Math.abs(e.localX - x) < 5)
+                        this.canvas.style.cursor = "col-resize";
                 }
             }
         }

@@ -118,8 +118,14 @@ class Editor {
                         if(e.ctrlKey) {
                             e.preventDefault();
                             e.stopImmediatePropagation();
-                            if(this.gui.createNewSignDialog)
-                                this.gui.createNewSignDialog();
+                            if(e.altKey) {
+                                if(this.gui.createNewPresetDialog)
+                                    this.gui.createNewPresetDialog();
+                            }
+                            else {
+                                if(this.gui.createNewSignDialog)
+                                    this.gui.createNewSignDialog();
+                            }
                         }
                         break;
 
