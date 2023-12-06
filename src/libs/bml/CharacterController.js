@@ -54,10 +54,10 @@ function CharacterController(o) {
     } 
 }
 
-CharacterController.prototype.start = function () {
+CharacterController.prototype.start = function (flags) {
     this.pendingResources = [];
 
-    if ( this.facialController ){ this.facialController.start(); }
+    if ( this.facialController ){ this.facialController.start(flags); }
 }
 
 CharacterController.prototype.reset = function ( keepEmotion = false ) {
@@ -391,7 +391,7 @@ FacialController.prototype.configure = function (o) {
     }
 }
 
-FacialController.prototype.start = function () {
+FacialController.prototype.start = function (flags = {}) {
 
     this._morphTargets = {}; // map "name" of part to its scene obj
     for (const part in this._avatarParts) {
@@ -445,7 +445,7 @@ FacialController.prototype.start = function () {
 
     this.headBML = []; //null;
 
-    this.autoBlink = new Blink();
+    this.autoBlink = flags.autoblink ?? new Blink();
 }
 
 FacialController.prototype.reset = function ( keepEmotion = false ) {
@@ -688,7 +688,7 @@ FacialController.prototype.faceUpdate = function (dt) {
     // this._facialAUFinal has all the valid values
 
     // Eye blink
-    if (!this.autoBlink.between) {
+    if (this.autoBlink && !this.autoBlink.between) {
         this.autoBlink.update(dt, this._facialAUFinal[this._eyeLidsAU[0]], this._facialAUFinal[this._eyeLidsAU[1]]);
         this._facialAUFinal[this._eyeLidsAU[0]] = this.autoBlink.weights[0];
         this._facialAUFinal[this._eyeLidsAU[1]] = this.autoBlink.weights[1];
@@ -785,7 +785,8 @@ FacialController.prototype.newFA = function (faceData, shift) {
 
 // --------------------- BLINK ---------------------
 FacialController.prototype.newBlink = function ( bml ){
-    this.autoBlink.blink();
+    if(this.autoBlink)
+        this.autoBlink.blink();
 }
 
 // --------------------- GAZE ---------------------

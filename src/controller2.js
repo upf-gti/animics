@@ -15,7 +15,7 @@ class BMLController {
         fetch( "https://webglstudio.org/3Dcharacters/Eva/Eva.json" ).then(response => response.text()).then( (text) =>{
             let config = JSON.parse( text );
             let ECAcontroller = this.ECAcontroller = new CharacterController( {character: editor.scene.getObjectByName(editor.character), characterConfig: config} );
-            ECAcontroller.start();
+            ECAcontroller.start({autoblink: false});
             ECAcontroller.reset();
             this.updateTracks();
         })
