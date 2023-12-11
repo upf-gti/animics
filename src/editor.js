@@ -711,10 +711,13 @@ class Editor {
 
     logout(callback) {
         const units = Object.keys(this.FS.getSession().units);
-        let repo = [];
-        for(let i = 0; i < this.repository.length; i++) {
-            if(this.repository[i].id == "Local" || this.repository[i].id == "Public" ) {
-                repo.push(this.repository[i]);
+        let repo = {signs:[], prests: []};
+        for(let folder in this.repository) {
+
+            for(let i = 0; i < this.repository[folder].length; i++) {
+                if(this.repository[folder][i].id == "Local" || this.repository[folder][i].id == "Public" ) {
+                    repo[folder].push(this.repository[folder][i]);
+                }
             }
         }
         this.repository = repo;
@@ -751,9 +754,12 @@ class Editor {
         const session = this.FS.getSession();
         session.getUnits( (units) => {
             for(let i = 0; i < units.length; i++) {
-                if(units[i].name == "signon" || !this.repository.length)
+                if(units[i].name == "signon")
                     continue;
-                this.repository.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
+                if(this.repository.signs.length)
+                    this.repository.signs.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
+                if(this.repository.presets.length)
+                this.repository.presets.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
             }
         });
     }
@@ -772,16 +778,57 @@ class Editor {
                         assets.push({id: folder, type: "folder", folder: root, children: [], unit: unit})
                     }
                 }
-                this.repository.push({id: unit == "signon" ? "Public" : unit, type:"folder",  children: assets, unit: unit});
+                this.repository[root].push({id: unit == "signon" ? "Public" : unit, type:"folder",  children: assets, unit: unit});
                 count++;
                 if(units_number == count) {
-                    this.repository.push(this.localStorage[root]);
-                    this.refreshRepository = false;
+                    this.repository[root].push(this.localStorage[root]);
                     if(callback)
                         callback();
                 }
             })
         }
+    }
+
+    //Get folders from each user unit
+    async getFolders(root, callback) {
+        const session = this.FS.getSession();
+        let count = 0;
+        for(let i = 0; i < this.repository[root].length; i++) {
+
+            const unit = this.repository[root][i].id == "Public" ? "signon" : this.repository[root][i].id;
+            const variable = "refresh" + (root == "signs" ? "Signs" : "Presets") + "Repository";
+            //get all folders for empty units
+            if(!(unit == "Local" || this.repository[root][i].children.length) || this[variable] && unit == session.user.username) {
+
+                await session.getFolders(unit, async (folders) =>  {
+                    const mainFolder = folders.animics[root];
+                    let assets = [];
+                    if(mainFolder) {
+                        for(let folder in mainFolder) {
+                            assets.push({id: folder, type: "folder", folder: root, children: [], unit: unit})
+                        }
+                    }
+                    this.repository[root][i].children = assets;
+                    count++;
+                    if(this.repository[root].length == count) {   
+                        if(callback)
+                            callback();
+                    }
+                })
+                
+            } else {
+                if(unit == "Local") {
+                    this.repository[root][i] = this.localStorage[root];
+                }
+                count++;
+                if(this.repository[root].length == count) {
+
+                    if(callback)
+                        callback();
+                }
+            }
+        }
+        
     }
 
     getFilesFromUnit(unit, path, callback) {
@@ -795,7 +842,7 @@ class Editor {
             data = JSON.stringify(data, null, 4);
     
             this.uploadFile(filename, data, type, (v) => {
-                this.refreshRepository = true; 
+                this["refresh" + (type == "signs" ? "Signs":"Presets") +"Repository"] = true; 
                 if(callback) 
                     callback(v);
             });   
@@ -1601,8 +1648,9 @@ class ScriptEditor extends Editor{
         this.mode = this.eModes.script;
         this.gui = new ScriptGui(this);  
         // this.getDictionaries();
-        this.refreshRepository = false;
-        this.repository = [];
+        this.refreshSignsRepository = false;
+        this.refreshPresetsRepository = false;
+        this.repository = {signs: [], presets: []};
         this.localStorage = {signs: {id: "Local", type:"folder", children: []}, presets: {id: "Local", type:"folder", children: []}}
 
     }

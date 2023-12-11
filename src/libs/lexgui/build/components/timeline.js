@@ -3324,8 +3324,16 @@
                 clips: [],
                 selected: [], edited: [], hovered: []
             };
-
+            //delete all selectedclips
             this.animationClip.tracks[idx] = trackInfo;
+            let selected = [];
+            for(let i = 0; i < this.lastClipsSelected.length; i++) {
+                let [trackIdx, clipIdx] = this.lastClipsSelected[i];
+                if(trackIdx != idx)
+                    selected.push(this.lastClipsSelected[i]);
+
+            }
+            this.lastClipsSelected = selected;
             return trackInfo.idx;
         }
 
