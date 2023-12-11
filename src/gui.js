@@ -2236,30 +2236,31 @@ class ScriptGui extends Gui {
                     this.editor.updateData(presetInfo.preset + ".bml", data.clips, presetInfo.type,  "local", (v) => {
                         saveDialog.close()
                         this.closeDialogs();
-                        // new ANIM.FacePresetClip({preset: presetInfo.preset + ".bml", clips: data.clips});
+                        LX.popup(presetInfo.preset + " saved correctly.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
                         // this.repository.presets[1] = this.localStorage.presets;
                     });
                 }
                 else if(!session.user || session.user.username == "signon") {
-                    this.prompt = LX.prompt("The preset will be save locally. You must be logged in to save it into server.", "Alert", () => {
-                        
-                        this.showLoginModal();
-                        
-
-                    }, { input: false, accept: "Login", on_cancel: () => {
-                        this.editor.updateData(presetInfo.preset + ".bml", data.clips, presetInfo.type,  "local", (v) => {
-                            // new ANIM.FacePresetClip({preset: presetInfo.preset + ".bml", clips: data.clips});
-                            saveDialog.close()
-                            this.closeDialogs();
-                            // this.repository.presets[1] = this.localStorage.presets;
-                        });
-                        
-                    }})
+                    this.prompt = new LX.Dialog("Alert", d => {
+                        d.addText(null, "The preset will be save locally. You must be logged in to save it into server.", null, {disabled:true});
+                        d.addButton(null, "Login", () => {
+                            this.showLoginModal();
+                        })
+                        d.addButton(null, "Ok", () => {
+                            this.editor.updateData(presetInfo.preset + ".bml", data.clips, presetInfo.type,  "local", (v) => {
+                                saveDialog.close()
+                                this.closeDialogs();
+                                LX.popup(presetInfo.preset + " saved correctly.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+                                // this.repository.presets[1] = this.localStorage.presets;
+                            });
+                        })
+                    }, {closable: true})
                 }
                 else {
                     this.editor.updateData(presetInfo.preset + ".bml", data.clips, presetInfo.type, "server", () => {
                         saveDialog.close()
-                        this.closeDialogs();
+                        this.closeDialogs();LX.popup(presetInfo.preset + " saved correctly.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+                        
                     });
                 }
 

@@ -711,7 +711,7 @@ class Editor {
 
     logout(callback) {
         const units = Object.keys(this.FS.getSession().units);
-        let repo = {signs:[], prests: []};
+        let repo = {signs:[], presets: []};
         for(let folder in this.repository) {
 
             for(let i = 0; i < this.repository[folder].length; i++) {
