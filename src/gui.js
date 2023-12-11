@@ -1832,9 +1832,9 @@ class ScriptGui extends Gui {
             }, {min: 0.25, max: 1.5, step: 0.05, precision: 2});
             widgets.addSeparator();
             widgets.addComboButtons("Dominant hand", [{value: "Left", callback: (v) => this.editor.dominantHand = v}, {value:"Right", callback: (v) => this.editor.dominantHand = v}], {selected: this.editor.dominantHand})
-            widgets.addButton(null, "Add clip", () => this.createClipsDialog() )
-            widgets.addButton(null, "Add preset", () => this.createPresetsDialog() )
-            widgets.addButton(null, "Add sign", () => this.createSignsDialog() )
+            widgets.addButton(null, "Add clip", () => this.createClipsDialog(), {title: "CTRL+K"} )
+            widgets.addButton(null, "Add preset", () => this.createPresetsDialog(), {title: "CTRL+P"} )
+            widgets.addButton(null, "Add sign", () => this.createSignsDialog(), {title: "CTRL+L"} )
             widgets.addSeparator();
         }
         widgets.onRefresh(options);
