@@ -884,9 +884,11 @@ FacePresetClip.prototype.configure = function(o)
 		FacePresetClip.facePreset.push(this.properties.preset);
 		FacePresetClip.customPresets[this.properties.preset] = [...o.clips];
 	}
-
-	if(o.clips)
-		this.clips = [...o.clips];
+	else if (FacePresetClip.customPresets[this.properties.preset] && o.clips) {
+		FacePresetClip.customPresets[this.properties.preset] = [...o.clips];
+	}
+	// if(o.clips)
+	// 	this.clips = [...o.clips];
 	if(o.properties)
 	{
 		Object.assign(this.properties, o.properties);

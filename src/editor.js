@@ -849,11 +849,11 @@ class Editor {
             
         }
         else {
-            
-            this.localStorage[type].children.push({filename: filename, id: filename, folder: type, type: extension, data: data});
+            const id = filename.replace("." + extension, "");
+            this.localStorage[type].children.push({filename: id, id: id, folder: type, type: extension, data: data});
             
             if(callback)
-                callback();
+                callback(filename);
         }
     }
 
@@ -862,21 +862,29 @@ class Editor {
         const username = session.user.username;
         const folder = "animics/"+ type;
 
-        session.getFiles(username, username + "/" + folder, (files) => {
+        session.getFileInfo(username + "/" + folder + "/" + filename, (file) => {
 
-            if(files) {
-                files = files.filter(e => e.unit === username && e.filename === filename);
+            if(file.size) {
+                // files = files.filter(e => e.unit === username && e.filename === filename);
 
-                if(files.length)
-                {
-                    LX.prompt("Overwrite file?", "File already exists", () => {
-                        this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(folder));
-                    } )
-                }
+                // if(files.length)
+                // {
+                    LX.prompt("Do you want to overwrite the file?", "File already exists", () => {
+                        this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(filename));
+                    }, {input: false, on_cancel: () => {
+                        LX.prompt("Rename the file", "Save file", (v) => {
+                            if(v === "" || !v) {
+                                alert("You have to write a name.");
+                                return;
+                            }
+                            this.FS.uploadFile(username + "/" + folder + "/" + v, new File([data], filename ), []).then( () => callback(v));
+                        }, {input: filename} )
+                    }} )
+                // }
                 
             }else
             {
-                this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(folder));
+                this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(filename));
             }
         },
         () => {
@@ -884,6 +892,30 @@ class Editor {
         });
     }
     
+    deleteData(fullpath, type, location, callback) {
+
+        if(location == "server") {
+    
+            this.deleteFile(fullpath, (v) => {
+                this["refresh" + (type == "signs" ? "Signs":"Presets") +"Repository"] = true; 
+                if(callback) 
+                    callback(v);
+            });   
+            
+        }
+        // else {
+        //     const id = filename.replace("." + extension, "");
+        //     this.localStorage[type].children.push({filename: id, id: id, folder: type, type: extension, data: data});
+            
+        //     if(callback)
+        //         callback(true);
+        // }
+    }
+
+    deleteFile(fullpath, callback = () => {}) {
+        const session = this.FS.getSession();
+        session.deleteFile( fullpath, (v) => {callback(v)}, (v) => {callback(v)} )
+    }
 
 };
 
@@ -1952,5 +1984,23 @@ class ScriptEditor extends Editor{
         this.FS.createFolder( session.user.username + "/animics/signs/", (v, r) => {console.log(v)} );
     }
 
+    
+    fileToBML = (data, callback) => {
+        if(data.fullpath) {
+            LX.request({ url: this.FS.root + data.fullpath, dataType: 'text/plain', success: (f) => {
+                const bytesize = f => new Blob([f]).size;
+                data.bytesize = bytesize();
+                data.bml = data.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                data.bml.behaviours = data.bml.data;               
+                if(callback)
+                    callback(data);
+            } });
+        } else {
+            data.bml = data.type == "bml" ?  {data: (typeof data.data == "string") ? JSON.parse(data.data) : data.data } : sigmlStringToBML(data.data);
+            data.bml.behaviours = data.bml.data;              
+            if(callback)
+                callback(data);
+        }
+    }
 }
 export { Editor, KeyframeEditor, ScriptEditor };
