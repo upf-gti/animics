@@ -45,7 +45,7 @@ class App {
                 this.onScriptProject( settings.data, mode );
                 break;
             default:
-                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
+                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
                 return;
                 break;    
         }

@@ -86,9 +86,9 @@
 			if(!file)
 				return;
 			const extension = UTILS.getExtension(file.name);
-			const formats = ['mp4','wav','json', 'sigml', 'bvh','bvhe'];
+			const formats = ['mp4','wav','json', 'bml', 'sigml', 'bvh','bvhe'];
 			if(formats.indexOf(extension) < 0) {
-				alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'json', 'bml'\n\tKeyframe animation: 'bvh', 'bvhe'");
+				alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
 				return;
 			}
 			createApp({mode: extension.toLowerCase(), data: file});
@@ -105,9 +105,9 @@
 				if(!file)
 					return;
 				const extension = UTILS.getExtension(file.name);
-				const formats = ['mp4','wav','json', 'bvh', 'bvhe'];
+				const formats = ['mp4','wav','json', 'bml', 'sigml', 'bvh','bvhe'];
 				if(formats.indexOf(extension) < 0) {
-					alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'json', 'bml'\n\tKeyframe animation: 'bvh', 'bvhe'");
+					alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
 					return;
 				}
 				createApp({mode: extension.toLowerCase(), data: file});

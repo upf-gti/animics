@@ -115,19 +115,29 @@ class Editor {
                     break;
                 
                 case 's': case 'S':
-                        if(e.ctrlKey) {
+                    if(e.ctrlKey) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        if(e.altKey) {
+                            if(this.gui.createNewPresetDialog)
+                                this.gui.createNewPresetDialog();
+                        }
+                        else {
+                            if(this.gui.createNewSignDialog)
+                                this.gui.createNewSignDialog();
+                        }
+                    }
+                    break;
+
+                case 'e': case 'E':
+                    if(e.ctrlKey) {
+                        if(e.altKey) {
                             e.preventDefault();
                             e.stopImmediatePropagation();
-                            if(e.altKey) {
-                                if(this.gui.createNewPresetDialog)
-                                    this.gui.createNewPresetDialog();
-                            }
-                            else {
-                                if(this.gui.createNewSignDialog)
-                                    this.gui.createNewSignDialog();
-                            }
+                            LX.prompt("File name", "Export GLB", (v) => this.export("GLB", v), {input: this.clipName, required: true} )     
                         }
-                        break;
+                    }
+                    break;
 
                 case 'a': case 'A':
                     if(e.ctrlKey) {
@@ -144,7 +154,7 @@ class Editor {
                         this.gui.importFile();
                     }
                     break;
-                case 'l': case 'L':case 'p': case 'P': case 'k': case 'K':
+                case 'l': case 'L':case 'p': case 'P': case 'k': case 'K': case 'e': case 'E':
                     this.onKeyDown(e);
                     break;
             }
@@ -660,7 +670,7 @@ class Editor {
             default:
                 let json = this.exportBML();
                 if(!json) return;
-                BVHExporter.download(JSON.stringify(json), (name || this.clipName), "application/json");
+                BVHExporter.download(JSON.stringify(json), (name || this.clipName) + '.bml', "application/json");
                 console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
                 break;
         }
@@ -1710,6 +1720,12 @@ class ScriptEditor extends Editor{
                     this.gui.createClipsDialog();
                 }
                 break;
+            case 'e': case 'E':
+                if(e.ctrlKey && !e.altKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    LX.prompt("File name", "Export BML animation", (v) => this.export("", v), {input: this.clipName, required: true} )     
+                }
         }
     }
 
@@ -1814,8 +1830,11 @@ class ScriptEditor extends Editor{
     loadFile(file) {
         //load json (bml) file
         const extension = UTILS.getExtension(file.name);
-        if(!(extension == "json" || extension == "sigml"))
+        const formats = ['json', 'bml', 'sigml'];
+        if(formats.indexOf(extension) < 0) {
+            alert("Format not supported.\n\nFormats accepted:\n\t'bml', 'sigml', 'json'\n\t");
             return;
+        }
         const fr = new FileReader();
         fr.readAsText( file );
         fr.onload = e => { 
