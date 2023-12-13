@@ -2179,6 +2179,11 @@ class ScriptGui extends Gui {
                     for(let i = 0; i < clips.length; i++){
                         const [trackIdx, clipIdx] = clips[i];
                         const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                        if(clip.ready!=undefined) clip.ready = clip.fadein;
+                        if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                        if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                        if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
                         presetInfo.clips.push(clip);
                         globalStart = Math.min(globalStart, clip.start || globalStart);
                         globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
@@ -2189,6 +2194,11 @@ class ScriptGui extends Gui {
                     for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
                         for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
                             const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                            if(clip.ready!=undefined) clip.ready = clip.fadein;
+                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
                             presetInfo.clips.push(clip);
                             globalStart = Math.min(globalStart, clip.start || globalStart);
                             globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
