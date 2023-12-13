@@ -2383,11 +2383,11 @@ PalmOrientationClip.prototype.showInfo = function(panel, callback)
 HandOrientationClip.type = "gesture";
 HandOrientationClip.hands = ["Left", "Right", "Both"];
 HandOrientationClip.directions = ["Up", "Down", "Left", "Right", "In", "Out",
-							"Up Left", "Up Right", "Up In", "Up Out",
-							"Left In", "Left Out", "Right In", "Right Out",								
-							"Down Left", "Down Right", "Down In", "Down Out",
-							"Up Out Left", "Up Out Right", "Down Out Left", "Down Out Right",
-							"Down Out Left", "Down Out Right", "Down In Left", "Down In Right"];
+								"Up Left", "Up Right", "Up In", "Up Out",
+								"Left In", "Left Out", "Right In", "Right Out",								
+								"Down Left", "Down Right", "Down In", "Down Out",
+								"Up Out Left", "Up Out Right", "Down Out Left", "Down Out Right",
+								"Up In Left", "Up In Right", "Down In Left", "Down In Right"];
 
 HandOrientationClip.id = ANIM.HANDORIENTATION ? ANIM.HANDORIENTATION: ANIM.clipTypes.length;
 HandOrientationClip.clipColor = "#8cc157";
