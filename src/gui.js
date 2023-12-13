@@ -192,8 +192,7 @@ class Gui {
             if(session && session.user.username != "signon")
                 this.showLogoutModal();
             else
-                this.showLoginModal()
-            
+                this.showLoginModal();            
             
             }
         }, {float:"right"});
@@ -2262,108 +2261,127 @@ class ScriptGui extends Gui {
 
    createNewSignDialog(clips, location) {
         
-        let saveDialog = this.prompt = LX.prompt( "Sign name", "Create sign", (v) => {
-            if(v === "" || !v) {
-                alert("You have to write a name.")
-                return;
-            }
-            let signInfo = {id: v, clips:[], type: "signs"};
-            let globalStart = 10000;
-            let globalEnd = -10000;
+        const saveDialog = this.prompt = new LX.Dialog("Save animation", (p) => {
+            let signInfo = {clips:[], type: "signs"};
 
-            const tracks = this.clipsTimeline.animationClip.tracks;
-            if(clips) {
-                for(let i = 0; i < clips.length; i++){
-                        let [trackIdx, clipIdx] = clips[i];
-                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                        signInfo.clips.push(clip);
-                        globalStart = Math.min(globalStart, clip.start || globalStart);
-                        globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+            p.addText("Sign name", "", (v) => {
+                signInfo.id = v;
+            })
+            p.sameLine(2);
+            p.addButton(null, "Cancel", () => this.prompt.close());
+            p.addButton(null, "Save", () => {
+
+                if(signInfo.id === "" || !signInfo.id) {
+                    alert("You have to write a name.")
+                    return;
                 }
-            }
-            else {
-                for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-                    for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
-                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                        signInfo.clips.push(clip);
-                        globalStart = Math.min(globalStart, clip.start || globalStart);
-                        globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                let globalStart = 10000;
+                let globalEnd = -10000;
+
+                const tracks = this.clipsTimeline.animationClip.tracks;
+                if(clips) {
+                    for(let i = 0; i < clips.length; i++){
+                            let [trackIdx, clipIdx] = clips[i];
+                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                            if(clip.ready!=undefined) clip.ready = clip.fadein;
+                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                            signInfo.clips.push(clip);
+                            globalStart = Math.min(globalStart, clip.start || globalStart);
+                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
                     }
                 }
-            }
-            
-            signInfo.duration = globalEnd - globalStart;
-            let sign = new ANIM.SuperClip(signInfo);
-
-            //Convert data to bml file format
-            let data = sign.toJSON();
-            delete data.id;
-            delete data.start;
-            delete data.end;
-            delete data.type;
-            let bml = [];
-            for(let b in data) {
-                if(b == "glossa") {
-
-                    delete data[b].id;
-                    delete data[b].start;
-                    delete data[b].end;
-                    delete data[b].type;
-                    for(let i = 0; i < data[b].length; i++) {
-                        delete data[b][i].id;
-                        delete data[b][i].start;
-                        delete data[b][i].end;
-                        delete data[b][i].type;
-                        for(let g in data[b][i]) {
-
-                            bml = [...bml, ...data[b][i][g]];
+                else {
+                    for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+                        for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                            if(clip.ready!=undefined) clip.ready = clip.fadein;
+                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                            signInfo.clips.push(clip);
+                            globalStart = Math.min(globalStart, clip.start || globalStart);
+                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
                         }
                     }
                 }
-                else
-                    bml = [...bml, ...data[b]];
-            }
-            if(!bml.length) {
-                alert("You can't save an animation with empty tracks.")
-                return;
-            }
-            const session = this.editor.FS.getSession();
-            if(!session.user || session.user.username == "signon") {
-                let alert = new LX.Dialog("Alert", d => {
-                    d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                    d.sameLine(2);
-                    d.addButton(null, "Login", () => {
-                        this.showLoginModal();
-                        alert.close();
-                    })
-                    d.addButton(null, "Ok", () => {
-                        this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type,  "local", (filename) => {
-                            saveDialog.close();
-                            this.closeDialogs();
-                            alert.close();
-                            LX.popup('"' + filename + '"' + " created successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
-                            // this.repository.presets[1] = this.localStorage.presets;
-                        });
-                    })
-                }, {closable: true, modal: true})
                 
-            }
-            else {
-                this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type, "server", (filename) => {
-                    saveDialog.close()
-                    this.closeDialogs();
-                    LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+                signInfo.duration = globalEnd - globalStart;
+                let sign = new ANIM.SuperClip(signInfo);
+
+                //Convert data to bml file format
+                let data = sign.toJSON();
+                delete data.id;
+                delete data.start;
+                delete data.end;
+                delete data.type;
+                let bml = [];
+                for(let b in data) {
+                    if(b == "glossa") {
+
+                        delete data[b].id;
+                        delete data[b].start;
+                        delete data[b].end;
+                        delete data[b].type;
+                        for(let i = 0; i < data[b].length; i++) {
+                            delete data[b][i].id;
+                            delete data[b][i].start;
+                            delete data[b][i].end;
+                            delete data[b][i].type;
+                            for(let g in data[b][i]) {
+
+                                bml = [...bml, ...data[b][i][g]];
+                            }
+                        }
+                    }
+                    else
+                        bml = [...bml, ...data[b]];
+                }
+                if(!bml.length) {
+                    alert("You can't save an animation with empty tracks.")
+                    return;
+                }
+                const session = this.editor.FS.getSession();
+                if(!session.user || session.user.username == "signon") {
+                    let alert = new LX.Dialog("Alert", d => {
+                        d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+                        d.sameLine(2);
+                        d.addButton(null, "Login", () => {
+                            this.showLoginModal();
+                            alert.close();
+                        })
+                        d.addButton(null, "Ok", () => {
+                            this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type,  "local", (filename) => {
+                                saveDialog.close();
+                                this.closeDialogs();
+                                alert.close();
+                                LX.popup('"' + filename + '"' + " created successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+                                // this.repository.presets[1] = this.localStorage.presets;
+                            });
+                        })
+                    }, {closable: true, modal: true})
                     
-                });
-            }
-        },
-        {
-            onclose: (root) => {
-            
-                root.remove();
-                this.prompt = null;
-            }
-        } )
+                }
+                else {
+                    this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type, "server", (filename) => {
+                        saveDialog.close()
+                        this.closeDialogs();
+                        LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+                        
+                    });
+                }
+            },
+            {
+                onclose: (root) => {
+                
+                    root.remove();
+                    this.prompt = null;
+                }
+            } )
+        })
     }
 
     createClipsDialog() {
@@ -2576,7 +2594,7 @@ class ScriptGui extends Gui {
                         break;
                 }
             })
-        },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, 
+        },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, context_menu: false,
             onclose: (root) => {
             
                 root.remove();
@@ -2687,7 +2705,7 @@ class ScriptGui extends Gui {
                 });
             }
             
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["Preset"], preview_actions: preview_actions });
+            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["Preset"], preview_actions: preview_actions, context_menu: false });
 
             p.attach( asset_browser );
 
@@ -2735,6 +2753,7 @@ class ScriptGui extends Gui {
                                             files_data.push(files[f]);
                                         }
                                         e.item.children = files_data;
+                                    
                                     }
                                     asset_browser.current_data = files_data;
                                     asset_browser._update_path(asset_browser.current_data);
@@ -2917,7 +2936,7 @@ class ScriptGui extends Gui {
                 });
             }
             
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"],  preview_actions: preview_actions});
+            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
             
             p.attach( asset_browser );
             const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});

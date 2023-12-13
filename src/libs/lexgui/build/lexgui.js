@@ -6271,6 +6271,8 @@
             this.skip_preview = options.skip_preview ?? false;
             this.preview_actions = options.preview_actions ?? [];
             this.only_folders = options.only_folders;
+            this.context_menu = options.context_menu ?? [];
+
             if( !this.skip_browser )
             {
                 [left, right] = area.split({ type: "horizontal", sizes: ["15%", "85%"]});
@@ -6653,23 +6655,26 @@
                     }
                 });
 
-                itemEl.addEventListener('contextmenu', function(e) {
-                    e.preventDefault();
+                if(that.context_menu) {
 
-                    const multiple = that.content.querySelectorAll('.selected').length;
-
-                    LX.addContextMenu( multiple > 1 ? (multiple + " selected") : 
-                                is_folder ? item.id : item.type, e, m => {
-                        if(multiple <= 1)   
-                            m.add("Rename");
-                        if( !is_folder )
-                            m.add("Clone", that._clone_item.bind(that, item));
-                        if(multiple <= 1)
-                            m.add("Properties");
-                        m.add("");
-                        m.add("Delete", that._delete_item.bind(that, item));
+                    itemEl.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
+    
+                        const multiple = that.content.querySelectorAll('.selected').length;
+    
+                        LX.addContextMenu( multiple > 1 ? (multiple + " selected") : 
+                                    is_folder ? item.id : item.type, e, m => {
+                            if(multiple <= 1)   
+                                m.add("Rename");
+                            if( !is_folder )
+                                m.add("Clone", that._clone_item.bind(that, item));
+                            if(multiple <= 1)
+                                m.add("Properties");
+                            m.add("");
+                            m.add("Delete", that._delete_item.bind(that, item));
+                        });
                     });
-                });
+                }
 
                 itemEl.addEventListener("dragstart", function(e) {
                     e.preventDefault();
