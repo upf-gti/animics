@@ -13,6 +13,10 @@ import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loa
 import { GLTFExporter } from './exporters/GLTFExporoter.js' 
 import { BMLController } from "./controller2.js"
 import { BlendshapesManager } from "./blendshapes.js"
+import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
+
+import { FileSystem } from "./libs/filesystem.js";
+
 
 // const MapNames = await import('../data/mapnames.json', {assert: { type: 'json' }});
 const MapNames = await (await fetch('./data/mapnames.json')).json();
@@ -56,6 +60,10 @@ class Editor {
         // Keep "private"
         this.__app = app;
 
+        // Create the fileSystem and log the user
+        this.FS = new FileSystem("signon", "signon", () => console.log("Auto login of guest user"));
+        this.FS.login().then(this.getUnits.bind(this))
+
     }
 
     getApp() {
@@ -92,21 +100,63 @@ class Editor {
                     
                 //     break;
                 case "Escape":
-
-                    if(this.gui.prompt) {
-                        this.gui.prompt.close();
-                        this.gui.prompt = null;
-                    }
+                    this.gui.closeDialogs();
+                    
                 break;
-                case 'z':
+                case 'z': case 'Z': 
                     if(e.ctrlKey) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
                         if(this.activeTimeline.undo) {
                             this.activeTimeline.undo();
                             this.gui.updateClipPanel();
                         }
                     }
                     break;
+                
+                case 's': case 'S':
+                    if(e.ctrlKey) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        if(e.altKey) {
+                            if(this.gui.createNewPresetDialog)
+                                this.gui.createNewPresetDialog();
+                        }
+                        else {
+                            if(this.gui.createNewSignDialog)
+                                this.gui.createNewSignDialog();
+                        }
+                    }
+                    break;
 
+                case 'e': case 'E':
+                    if(e.ctrlKey) {
+                        if(e.altKey) {
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            LX.prompt("File name", "Export GLB", (v) => this.export("GLB", v), {input: this.clipName, required: true} )     
+                        }
+                    }
+                    break;
+
+                case 'a': case 'A':
+                    if(e.ctrlKey) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        if(this.activeTimeline.selectAll)
+                            this.activeTimeline.selectAll();
+                    }
+                    break;
+                case 'i': case 'I':
+                    if(e.ctrlKey) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        this.gui.importFile();
+                    }
+                    break;
+                case 'l': case 'L':case 'p': case 'P': case 'k': case 'K': case 'e': case 'E':
+                    this.onKeyDown(e);
+                    break;
             }
         } );
 
@@ -157,10 +207,10 @@ class Editor {
         hemiLight.position.set( 0, 20, 0 );
         scene.add( hemiLight );
 
-        const dirLight = new THREE.DirectionalLight( 0xffffff, 0.1 );
-        dirLight.position.set( 3, 30, -50 );
-        dirLight.castShadow = false;
-        scene.add( dirLight );
+        // const dirLight = new THREE.DirectionalLight( 0xffffff, 0.1 );
+        // dirLight.position.set( 3, 30, -50 );
+        // dirLight.castShadow = false;
+        // scene.add( dirLight );
 
         // Left spotlight
         let spotLight = new THREE.SpotLight( 0xffffff, 0.5 );
@@ -620,7 +670,7 @@ class Editor {
             default:
                 let json = this.exportBML();
                 if(!json) return;
-                BVHExporter.download(JSON.stringify(json), (name || this.clipName), "application/json");
+                BVHExporter.download(JSON.stringify(json), (name || this.clipName) + '.bml', "application/json");
                 console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
                 break;
         }
@@ -664,6 +714,219 @@ class Editor {
         }
 
     }
+
+    login(session, callback) {
+        this.FS.login(session.user, session.password, callback);
+    }
+
+    logout(callback) {
+        const units = Object.keys(this.FS.getSession().units);
+        let repo = {signs:[], presets: []};
+        for(let folder in this.repository) {
+
+            for(let i = 0; i < this.repository[folder].length; i++) {
+                if(this.repository[folder][i].id == "Local" || this.repository[folder][i].id == "Public" ) {
+                    repo[folder].push(this.repository[folder][i]);
+                }
+            }
+        }
+        this.repository = repo;
+        this.FS.logout(callback);
+    }
+    
+    createAccount(user,pass, email, on_complete, on_error) {
+        this.FS.createAccount(user, pass, email, (valid, request) => {
+            if(valid)
+            {
+                this.FS.getSession().setUserPrivileges("signon", user, "READ", function(status, resp){
+                    console.log(resp);						
+
+                    if(status)
+                        console.log(resp);						
+                });
+                this.FS.login(user, pass, () => {
+                    this.getUnits();
+                
+                    if(this.createServerFolders) {
+                        this.createServerFolders();
+                        
+                    if(on_complete)
+                        on_complete(request);
+                    }
+                });
+            }
+            else if(on_error)
+                on_error(request);
+        });
+    }
+
+    getUnits() {
+        const session = this.FS.getSession();
+        session.getUnits( (units) => {
+            for(let i = 0; i < units.length; i++) {
+                if(units[i].name == "signon")
+                    continue;
+                if(this.repository.signs.length)
+                    this.repository.signs.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
+                if(this.repository.presets.length)
+                this.repository.presets.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
+            }
+        });
+    }
+
+    async getAllUnitsFolders(root, callback) {
+        const session = this.FS.getSession();
+        const units_number = Object.keys(session.units).length;
+        let count = 0;
+        for(let unit in session.units) {     
+            //get all folders for empty units
+            await session.getFolders(unit, async (folders) =>  {
+                const mainFolder = folders.animics[root];
+                let assets = [];
+                if(mainFolder) {
+                    for(let folder in mainFolder) {
+                        assets.push({id: folder, type: "folder", folder: root, children: [], unit: unit})
+                    }
+                }
+                this.repository[root].push({id: unit == "signon" ? "Public" : unit, type:"folder",  children: assets, unit: unit});
+                count++;
+                if(units_number == count) {
+                    this.repository[root].push(this.localStorage[root]);
+                    if(callback)
+                        callback();
+                }
+            })
+        }
+    }
+
+    //Get folders from each user unit
+    async getFolders(root, callback) {
+        const session = this.FS.getSession();
+        let count = 0;
+        for(let i = 0; i < this.repository[root].length; i++) {
+
+            const unit = this.repository[root][i].id == "Public" ? "signon" : this.repository[root][i].id;
+            const variable = "refresh" + (root == "signs" ? "Signs" : "Presets") + "Repository";
+            //get all folders for empty units
+            if(!(unit == "Local" || this.repository[root][i].children.length) || this[variable] && unit == session.user.username) {
+
+                await session.getFolders(unit, async (folders) =>  {
+                    const mainFolder = folders.animics[root];
+                    let assets = [];
+                    if(mainFolder) {
+                        for(let folder in mainFolder) {
+                            assets.push({id: folder, type: "folder", folder: root, children: [], unit: unit})
+                        }
+                    }
+                    this.repository[root][i].children = assets;
+                    count++;
+                    if(this.repository[root].length == count) {   
+                        if(callback)
+                            callback();
+                    }
+                })
+                
+            } else {
+                if(unit == "Local") {
+                    this.repository[root][i] = this.localStorage[root];
+                }
+                count++;
+                if(this.repository[root].length == count) {
+
+                    if(callback)
+                        callback();
+                }
+            }
+        }
+        
+    }
+
+    getFilesFromUnit(unit, path, callback) {
+        this.FS.getFiles(unit, path).then(callback) ;
+    }
+
+    updateData(filename, data, type, location, callback) {
+        const extension = filename.split(".")[1];
+
+        if(location == "server") {
+            data = JSON.stringify(data, null, 4);
+    
+            this.uploadFile(filename, data, type, (v) => {
+                this["refresh" + (type == "signs" ? "Signs":"Presets") +"Repository"] = true; 
+                if(callback) 
+                    callback(v);
+            });   
+            
+        }
+        else {
+            const id = filename.replace("." + extension, "");
+            this.localStorage[type].children.push({filename: id, id: id, folder: type, type: extension, data: data});
+            
+            if(callback)
+                callback(filename);
+        }
+    }
+
+    uploadFile(filename, data, type, callback = () => {}) {
+        const session = this.FS.getSession();
+        const username = session.user.username;
+        const folder = "animics/"+ type;
+
+        session.getFileInfo(username + "/" + folder + "/" + filename, (file) => {
+
+            if(file.size) {
+                // files = files.filter(e => e.unit === username && e.filename === filename);
+
+                // if(files.length)
+                // {
+                    LX.prompt("Do you want to overwrite the file?", "File already exists", () => {
+                        this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(filename));
+                    }, {input: false, on_cancel: () => {
+                        LX.prompt("Rename the file", "Save file", (v) => {
+                            if(v === "" || !v) {
+                                alert("You have to write a name.");
+                                return;
+                            }
+                            this.FS.uploadFile(username + "/" + folder + "/" + v, new File([data], filename ), []).then( () => callback(v));
+                        }, {input: filename} )
+                    }} )
+                // }
+                
+            }else
+            {
+                this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(filename));
+            }
+        },
+        () => {
+            //create folder
+        });
+    }
+    
+    deleteData(fullpath, type, location, callback) {
+
+        if(location == "server") {
+    
+            this.deleteFile(fullpath, (v) => {
+                this["refresh" + (type == "signs" ? "Signs":"Presets") +"Repository"] = true; 
+                if(callback) 
+                    callback(v);
+            });   
+            
+        }
+        // else {
+        //     const id = filename.replace("." + extension, "");
+        //     this.localStorage[type].children.push({filename: id, id: id, folder: type, type: extension, data: data});
+            
+        //     if(callback)
+        //         callback(true);
+        // }
+    }
+
+    deleteFile(fullpath, callback = () => {}) {
+        const session = this.FS.getSession();
+        session.deleteFile( fullpath, (v) => {callback(v)}, (v) => {callback(v)} )
+    }
+
 };
 
 class KeyframeEditor extends Editor{
@@ -700,6 +963,9 @@ class KeyframeEditor extends Editor{
  
     }
 
+    onKeyDown(e) {
+
+    }
     /** -------------------- CREATE ANIMATIONS FROM MEDIAPIPE -------------------- */
 
     /**Create face and body animations from mediapipe and load character*/
@@ -948,7 +1214,7 @@ class KeyframeEditor extends Editor{
         }
         
         // Load the target model (Eva) 
-        UTILS.loadGLTF("models/EvaHandsEyesFixed.glb", (gltf) => {
+        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/Eva/Eva.glb", (gltf) => {
             let model = gltf.scene;
             model.name = this.character;
             model.visible = true;
@@ -1423,55 +1689,49 @@ class ScriptEditor extends Editor{
         // ------------------------------------------------------
         this.mode = this.eModes.script;
         this.gui = new ScriptGui(this);  
-        this.getDictionaries();
+        // this.getDictionaries();
+        this.refreshSignsRepository = false;
+        this.refreshPresetsRepository = false;
+        this.repository = {signs: [], presets: []};
+        this.localStorage = {signs: {id: "Local", type:"folder", children: []}, presets: {id: "Local", type:"folder", children: []}}
+
     }
 
-    getDictionaries() {
-        const fs = this.getApp().FS;
-        const session = fs.getSession();
-        this.dictionaries = []; 
-        const inner =  () => {
-
-            fs.getFolders( (units) => {
-            for(let i = 0; i < units.length; i++) {
-                    let data = {};
-                    if(units[i].folders.dictionaries) {
-
-                        const dictionaries = units[i].folders.dictionaries;
-                        for(let dictionary in dictionaries) {
-                            data[dictionary] = [];
-                            let assets = [];
-                            for(let folder in dictionaries[dictionary]) {
-                                 fs.getFiles(units[i].name, "dictionaries/" + dictionary + "/" + folder).then(async (files, resp) => {
-                                    
-                                    let files_data = [];
-                                    for(let f = 0; f < files.length; f++) {
-                                        files[f].id = files[f].filename;
-                                        files[f].folder = dictionary;
-                                        files[f].type = files[f].filename.split(".")[1];
-                                        if(files[f].type == "txt")
-                                            continue;
-                                        files_data.push(files[f]);
-                                    }
-                                    data[dictionary] = files_data;
-                                    assets.push({id: folder, type:"folder",  children: files_data});
-                                })
-                                // this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
-                            }
-                            this.dictionaries.push({id: dictionary, type:"folder",  children: assets});
-                        }
-                    }
+    onKeyDown(e) {
+        switch(e.key) {
+            case 'l': case 'L':
+                if(e.ctrlKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.gui.createSignsDialog();
                 }
-                }) 
-            }
-            if(!session)
-                 fs.login(null, null, inner);
-
+                break;
+            case 'p': case 'P':
+                if(e.ctrlKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.gui.createPresetsDialog();
+                }
+                break;
+            case 'k': case 'K':
+                if(e.ctrlKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.gui.createClipsDialog();
+                }
+                break;
+            case 'e': case 'E':
+                if(e.ctrlKey && !e.altKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    LX.prompt("File name", "Export BML animation", (v) => this.export("", v), {input: this.clipName, required: true} )     
+                }
+        }
     }
 
     loadModel(clip) {
         // Load the target model (Eva) 
-        UTILS.loadGLTF("models/EvaHandsEyesFixed.glb", (gltf) => {
+        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/Eva/Eva.glb", (gltf) => {
             let model = gltf.scene;
             model.name = this.character;
             model.visible = true;
@@ -1570,12 +1830,22 @@ class ScriptEditor extends Editor{
     loadFile(file) {
         //load json (bml) file
         const extension = UTILS.getExtension(file.name);
-        if(extension != "json")
+        const formats = ['json', 'bml', 'sigml'];
+        if(formats.indexOf(extension) < 0) {
+            alert("Format not supported.\n\nFormats accepted:\n\t'bml', 'sigml', 'json'\n\t");
             return;
+        }
         const fr = new FileReader();
         fr.readAsText( file );
         fr.onload = e => { 
-            let anim = JSON.parse(e.currentTarget.result);
+            let anim = e.currentTarget.result;
+            if(extension == 'sigml') {
+                anim = sigmlStringToBML(anim);
+                anim.behaviours = anim.data;
+                delete anim.data;
+            } else {
+                anim = JSON.parse(anim);
+            }
             let empty = true;
             if(this.activeTimeline.animationClip.tracks.length) {
                 for(let i = 0; i < this.activeTimeline.animationClip.tracks.length; i++) {
@@ -1725,6 +1995,31 @@ class ScriptEditor extends Editor{
         }
 
         return json;
+    }
+
+    createServerFolders() {
+        const session = this.FS.getSession();
+        this.FS.createFolder( session.user.username + "/animics/presets/", (v, r) => {console.log(v)} );
+        this.FS.createFolder( session.user.username + "/animics/signs/", (v, r) => {console.log(v)} );
+    }
+
+    
+    fileToBML = (data, callback) => {
+        if(data.fullpath) {
+            LX.request({ url: this.FS.root + data.fullpath, dataType: 'text/plain', success: (f) => {
+                const bytesize = f => new Blob([f]).size;
+                data.bytesize = bytesize();
+                data.bml = data.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                data.bml.behaviours = data.bml.data;               
+                if(callback)
+                    callback(data);
+            } });
+        } else {
+            data.bml = data.type == "bml" ?  {data: (typeof data.data == "string") ? JSON.parse(data.data) : data.data } : sigmlStringToBML(data.data);
+            data.bml.behaviours = data.bml.data;              
+            if(callback)
+                callback(data);
+        }
     }
 }
 export { Editor, KeyframeEditor, ScriptEditor };

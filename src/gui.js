@@ -1,6 +1,7 @@
 import { UTILS } from "./utils.js";
 import { VideoUtils } from "./video.js"; 
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
+
 class Gui {
 
     constructor(editor) {
@@ -10,6 +11,7 @@ class Gui {
         this.editor = editor;
 
         this.create();
+
     }
 
     create() {
@@ -63,32 +65,32 @@ class Gui {
         
         // menubar.add("Project/");
         if(this.editor.mode == this.editor.eModes.script)
-            menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => {
-        
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.click();
-        
-                input.onchange = (e) => {
-                    const file = e.currentTarget.files[0];
-                    this.editor.loadFile(file);
-                }
-            }
+            menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFile(), short: "CTRL+I"
         });
   
+        // Export animation
         menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
-        menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-            LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
-        }});
+       
         if(this.editor.mode == this.editor.eModes.script) {
             menubar.add("Project/Export animation/Export BML", {callback: () => 
                 LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", v), {input: this.editor.clipName, required: true} )     
             });
         }
+
+        menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
+            LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
+        }});
+
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
         menubar.add("Project/Export scene/Export GLB", {callback: () => 
             LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", v), {input: this.editor.clipName, required: true} )     
         });
+
+        // Save animation
+        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => 
+            this.createNewSignDialog(null, "server")
+        });
+
         // menubar.add("Project/Upload to server", {icon: "fa fa-upload", callback: () => this.editor.getApp().storeAnimation() }); --> NOT YET
         menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
 
@@ -98,11 +100,17 @@ class Gui {
         menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
         menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
         menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
+        menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
         
         if(this.editor.mode == this.editor.eModes.script) {
+            menubar.add("Timeline/Shortcuts/Create preset", { short: "Right click" });
+            menubar.add("Timeline/Shortcuts/Add clip", { short: "CTRL+K" });
+            menubar.add("Timeline/Shortcuts/Add preset", { short: "CTRL+P" });
+            menubar.add("Timeline/Shortcuts/Add sign", { short: "CTRL+L" });
             menubar.add("Timeline/Shortcuts/Move clips", { short: "Hold CTRL" });
             menubar.add("Timeline/Shortcuts/Add clips", { short: "Right Click" });
             menubar.add("Timeline/Shortcuts/Copy clips", { short: "Right Click" });
+            menubar.add("Timeline/Shortcuts/Copy clips", { short: "CTRL+C" });
             menubar.add("Timeline/Shortcuts/Delete clips");
             menubar.add("Timeline/Shortcuts/Delete clips/Single", { short: "DEL" });
             menubar.add("Timeline/Shortcuts/Delete clip/Multiple", { short: "Hold LSHIFT+DEL" });
@@ -111,7 +119,6 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Clip Selection/Multiple", { short: "Hold LSHIFT" });
         }
         else {
-
             menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
             menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "Hold ALT" });
             menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
@@ -179,15 +186,29 @@ class Gui {
         ]);
        
         menubar.add("Login", {callback: () => {
-            const session = this.editor.getApp().FS.getSession();
-
+            const session = this.editor.FS.getSession();
+            if(this.prompt && this.prompt.root.checkVisibility())
+                return;
             if(session && session.user.username != "signon")
                 this.showLogoutModal();
             else
-                this.showLoginModal()
+                this.showLoginModal();            
+            
             }
         }, {float:"right"});
         menubar.setButtonIcon("Github", "fa-brands fa-github", () => {window.open("https://github.com/upf-gti/animics")}, {float:"right"});
+    }
+
+    importFile () {
+        
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.click();
+
+        input.onchange = (e) => {
+            const file = e.currentTarget.files[0];
+            this.editor.loadFile(file);
+        }
     }
 
     showLoginModal(session = {user: null, password: null}) {
@@ -195,7 +216,7 @@ class Gui {
             const refresh = (p, msg) => {
                 p.clear();
                 if(msg) {
-                    p.addText(null, msg, null, {disabled: true});
+                    p.addText(null, msg, null, {disabled: true, warning: true});
                 }
                 p.addText("User", session.user, (v) => {
                     session.user = v;
@@ -210,10 +231,11 @@ class Gui {
                 });
     
                 p.addButton(null, "Login", (v) => {
-                    this.editor.getApp().login(session, (session, response) => {
+                    this.editor.login(session, (session, response) => {
                         if(response.status == 1) {
                             let el = document.querySelector("#Login");
                             el.innerText = session.user.username;
+                            this.editor.getUnits();
                             this.prompt.close();
                             this.prompt = null;
                         }
@@ -226,29 +248,38 @@ class Gui {
                 p.addButton(null, "Sign up", (v) => {
                     this.prompt.close();
                     this.prompt = null;
-                    this.showCreateAccountDialog();
+                    this.showCreateAccountDialog(session);
                 })
             }
             refresh(p);
             
         } )
+
+        this.prompt.onclose = () => {
+            // this.editor.getDictionaries();
+            this.prompt = null;
+        }
+  
     }
 
     showLogoutModal() {
         this.prompt = LX.prompt( "Are you sure you want to logout?", "Logout", (v) => {
-            this.editor.getApp().logout(() => {
+            this.editor.logout(() => {
                 let el = document.querySelector("#Login");
                 el.innerText = "Login";
-                this.editor.getApp().FS.user = "signon";
-                this.editor.getApp().FS.pass = "signon";
+                this.editor.FS.login("signon", "signon", this.editor.getUnits.bind(this.editor))
+
             }); 
             this.prompt = null;
         } , {input: false, accept: "Logout"})
+        this.prompt.onclose = () => {
+            this.prompt = null;
+        }
     }
 
-    showCreateAccountDialog()
+    showCreateAccountDialog(session = {user: "", password: ""})
     {
-        let user = "", pass = "",
+        let user = session.user, pass = session.password,
         pass2 = "", email = "";
         let errors = false;
 
@@ -256,8 +287,10 @@ class Gui {
         
             const refresh = (p, msg) => {
                 p.clear();
-                if(msg)
-                    p.addText(null, msg, null, {disabled: true});
+                if(msg) {
+
+                    let w = p.addText(null, msg, null, {disabled: true, warning: true});
+                }
                 p.addText("Username", user, (v) => { user = v; });
                 p.addText("Email", email, (v) => { email = v; }, {type: "email"});
                 p.addText("Password", pass, (v) => { pass = v; }, {type: "password"});
@@ -265,26 +298,18 @@ class Gui {
                 p.addButton(null, "Register",  () => {
                     if(pass === pass2)
                     {
-                        var req = this.editor.getApp().FS.createAccount(user, pass, email, (valid, request) => {
-                            if(valid)
-                            {
-                                this.editor.getApp().FS.getSession().setUserPrivileges("signon", user, "READ", function(status, resp){
-                                    console.log(resp);						
-
-                                    if(status)
-                                        console.log(resp);						
-                                    else
-                                        bootbox.alert( resp.msg );
-                                });
+                        this.editor.createAccount(user, pass, email, (request) => {
+                            
                                 this.prompt.close();
                                 this.prompt = null;
-                                this.showLoginModal( { user: user, password: pass});
-                            }else
-                            {
+                                let el = document.querySelector("#Login");
+                                el.innerText = session.user;
+                                // this.showLoginModal( { user: user, password: pass});
+                            }, (request)  => {
                                 refresh(p, "Server status: " + request.msg);
                                 console.error(request.msg);
                             }
-                        });
+                        );
                     }
                     else
                     {
@@ -516,7 +541,16 @@ class Gui {
         } );
     }
 
-    createLoadingModal(options) {
+    closeDialogs() {
+        if(!LX.modal.hidden)
+            LX.modal.toggle(true);
+        if(this.prompt) {
+            this.prompt.close();
+            this.prompt = null;
+            
+        }
+    }
+    createAnimation(options) {
         options = options || {size: ["80%", "70%"]};
 
         return new LX.Dialog(null, m => {
@@ -1473,20 +1507,18 @@ class ScriptGui extends Gui {
         ])
         this.timelineArea.attach(this.clipsTimeline.root);
         this.clipsTimeline.canvas.tabIndex = 1;
-                
     }
     
-    async loadBMLClip(clip, callback, breakdown = true) {
-        
-        
+    async dataToBMLClips(data, callback, breakdown = true) {
+
         let clips = [];
         let globalStart = 10000;
         let globalEnd = -10000;
-        if(clip && clip.behaviours) {
-            for(let i = 0; i < clip.behaviours.length; i++) {
+        if(data && data.behaviours) {
+            for(let i = 0; i < data.behaviours.length; i++) {
                 let clipClass = null;
-                if(!clip.indices){
-                    switch(clip.behaviours[i].type) {
+                if(!data.indices){
+                    switch(data.behaviours[i].type) {
                         case "gaze":
                             clipClass = ANIM.GazeClip;
                             break;
@@ -1520,72 +1552,75 @@ class ScriptGui extends Gui {
                             clipClass = ANIM.MouthingClip;
                             break;
                         case "gesture":
-                            if(clip.behaviours[i].handConstellation)
+                            if(data.behaviours[i].handConstellation)
                                 clipClass = ANIM.HandConstellationClip;
-                            else if(clip.behaviours[i].bodyMovement)
+                            else if(data.behaviours[i].bodyMovement)
                                 clipClass = ANIM.BodyMovementClip;
-                            else if(clip.behaviours[i].elbowRaise)
+                            else if(data.behaviours[i].elbowRaise)
                                 clipClass = ANIM.ElbowRaiseClip;
-                            else if(clip.behaviours[i].shoulderRaise || clip.behaviours[i].shoulderHunch)
+                            else if(data.behaviours[i].shoulderRaise || data.behaviours[i].shoulderHunch)
                                 clipClass = ANIM.ShoulderClip;
-                            else if(clip.behaviours[i].locationBodyArm)
+                            else if(data.behaviours[i].locationBodyArm)
                                 clipClass = ANIM.ArmLocationClip;
-                            else if(clip.behaviours[i].palmor)
+                            else if(data.behaviours[i].palmor)
                                 clipClass = ANIM.PalmOrientationClip;
-                            else if(clip.behaviours[i].extfidir)
+                            else if(data.behaviours[i].extfidir)
                                 clipClass = ANIM.HandOrientationClip;
-                            else if(clip.behaviours[i].handshape)
+                            else if(data.behaviours[i].handshape)
                                 clipClass = ANIM.HandshapeClip;
-                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion == "directed")
+                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "directed")
                                 clipClass = ANIM.DirectedMotionClip;
-                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion == "circular")
+                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "circular")
                                 clipClass = ANIM.CircularMotionClip;
-                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion == "wrist")
+                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "wrist")
                                 clipClass = ANIM.WristMotionClip;
-                            else if(clip.behaviours[i].motion && clip.behaviours[i].motion == "fingerplay")
+                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "fingerplay")
                                 clipClass = ANIM.FingerplayMotionClip;
 
                     }
                 }
                 else {
-                    clipClass = ANIM.clipTypes[clip.indices[i]];
+                    clipClass = ANIM.clipTypes[data.indices[i]];
                 }
 
                 if(!clipClass)
                     continue;
 
-                globalStart = Math.min(globalStart, clip.behaviours[i].start || globalStart);
-                globalEnd = Math.max(globalEnd, clip.behaviours[i].end || globalEnd);
+                globalStart = Math.min(globalStart, data.behaviours[i].start >= 0 ? data.behaviours[i].start : globalStart);
+                globalEnd = Math.max(globalEnd, data.behaviours[i].end || globalEnd);
                 
                 if(breakdown)
-                    clips.push(new clipClass( clip.behaviours[i]));
+                    clips.push(new clipClass( data.behaviours[i]));
                 else
-                    clips.push(new clipClass( clip.behaviours[i]));
+                    clips.push(new clipClass( data.behaviours[i]));
                 
             }
         }
+        return {clips: clips, duration: globalEnd - globalStart}
+    }
+    async loadBMLClip(clip, callback, breakdown = true) { 
+        
+        let {clips, duration} = await this.dataToBMLClips(clip, callback, breakdown);
 
         if(!breakdown) {
-            this.clipsTimeline.addClip(new ANIM.SuperClip( {duration: globalEnd - globalStart, type: "glossa", id: clip.name, clips}));
+            this.clipsTimeline.addClip(new ANIM.SuperClip( {duration: duration, type: "glossa", id: clip.name, clips}));
         }
         else {
             this.clipsTimeline.addClips(clips);
         }
         this.clip = this.clipsTimeline.animationClip || clip ;
-        this.duration = this.clip.duration || globalEnd - globalStart;
+        this.duration = this.clip.duration || duration;
 
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.animation.duration - 0.001) );
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
-        this.clipsTimeline.onClipMoved = (selected)=> {
-            this.editor.gizmo.updateTracks();
-
-            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime) 
-        };
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
            if(clip.strokeStart) clip.strokeStart+=offset;
            if(clip.stroke) clip.stroke+=offset;
            if(clip.strokeEnd) clip.strokeEnd+=offset;
+           this.updateClipPanel(clip);
+           this.editor.gizmo.updateTracks();
+           this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
         };
 
         this.clipsTimeline.deleteContent = () => {
@@ -1678,6 +1713,37 @@ class ScriptGui extends Gui {
                         }
                     }
                 )
+
+                // actions.push(
+                //     {
+                //         title: "Create sign/Local",
+                //         callback: () => {
+                //             this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                //                 if(a[0]<b[0]) 
+                //                     return -1;
+                //                 return 1;
+                //             });
+                //             this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "local");
+                //         }
+                //     }
+                // )
+
+                actions.push(
+                    {
+                        title: "Create sign",
+                        callback: () => {
+                            
+                                this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                                    if(a[0]<b[0]) 
+                                        return -1;
+                                    return 1;
+                                });
+                                this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");
+                            
+                            
+                        }
+                    }
+                )
             }
             else{
                 actions.push(
@@ -1721,7 +1787,7 @@ class ScriptGui extends Gui {
     init() {
         this.createSidePanel();
         this.updateMenubar();
-        if(!this.duration)
+        if(this.duration <= 0)
             this.showGuide();
         this.showTimeline();
         // Canvas UI buttons
@@ -1760,9 +1826,9 @@ class ScriptGui extends Gui {
             }, {min: 0.25, max: 1.5, step: 0.05, precision: 2});
             widgets.addSeparator();
             widgets.addComboButtons("Dominant hand", [{value: "Left", callback: (v) => this.editor.dominantHand = v}, {value:"Right", callback: (v) => this.editor.dominantHand = v}], {selected: this.editor.dominantHand})
-            widgets.addButton(null, "Add clip", () => this.createClipsDialog() )
-            widgets.addButton(null, "Add preset", () => this.createPresetsDialog() )
-            widgets.addButton(null, "Add sign", () => this.createSignsDialog() )
+            widgets.addButton(null, "Add clip", () => this.createClipsDialog(), {title: "CTRL+K"} )
+            widgets.addButton(null, "Add preset", () => this.createPresetsDialog(), {title: "CTRL+P"} )
+            widgets.addButton(null, "Add sign", () => this.createSignsDialog(), {title: "CTRL+L"} )
             widgets.addSeparator();
         }
         widgets.onRefresh(options);
@@ -1772,12 +1838,19 @@ class ScriptGui extends Gui {
     updateClipPanel(clip) {
         
         let widgets = this.clipPanel;
-        
+        if(this.clipsTimeline.lastClipsSelected.length > 1) {
+            clip = null;
+        }
+
         widgets.onRefresh = (clip) => {
 
             widgets.clear();
-            if(!clip)
+            if(!clip) {
+                if(this.clipsTimeline.lastClipsSelected.length > 1) {
+                    widgets.addButton(null, "Create preset", (v, e) => this.createNewPresetDialog());
+                }
                 return;
+            }
             
             this.clipInPanel = clip;
             const updateTracks = (refreshPanel) => {
@@ -1914,13 +1987,14 @@ class ScriptGui extends Gui {
 
             widgets.addNumber("Duration", clip.duration.toFixed(2), (v) =>
             {
+                const diff = v - clip.duration;
                 clip.duration = v;
                 this.clipInPanel.duration = v;
                 const end = v + clip.start;
                 if(clip.relax != undefined)
-                    clip.relax = clip.fadeout = clip.fadeout > end ? end : clip.fadeout;
+                    clip.relax = clip.fadeout = clip.fadeout + diff > end ? end : clip.fadeout + diff;
                 if(clip.strokeEnd != undefined) 
-                    clip.strokeEnd = clip.strokeEnd > clip.relax ? clip.relax : clip.strokeEnd;
+                    clip.strokeEnd = clip.strokeEnd + diff > clip.relax ? clip.relax : clip.strokeEnd + diff;
                 if(clip.stroke != undefined) 
                     clip.stroke = clip.stroke > clip.strokeEnd ? clip.strokeEnd : clip.stroke;
                 if(clip.strokeStart != undefined) 
@@ -2035,10 +2109,12 @@ class ScriptGui extends Gui {
                 widgets.merge();
             }
 
-            widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[0], () => {
+            widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1], () => {
                 clip = null;  
-                this.clipsTimeline.optimizeTracks(); 
+                // this.clipsTimeline.optimizeTracks(); 
                 updateTracks(); 
+                this.editor.gizmo.updateTracks();
+                this.updateClipPanel();
             }));
             
         }
@@ -2061,24 +2137,252 @@ class ScriptGui extends Gui {
 
     }
 
-    createNewPresetDialog(clips) {
-        this.prompt = LX.prompt( "Preset name", "Create preset", (v) => {
-           let presetInfo = {preset: v, clips:[]};
-           for(let i = 0; i < clips.length; i++){
-               let [trackIdx, clipIdx] = clips[i];
-               presetInfo.clips.push(this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx]);
-           }
-           let preset = new ANIM.FacePresetClip(presetInfo);
-       },
-       {
-        onclose: (root) => {
-        
+   createNewPresetDialog() {
+
+        const saveDialog = this.prompt = new LX.Dialog("Save preset", (p) => {
+            let presetInfo = { from: "Selected clips", type: "presets", server: false, clips:[] };
+
+            p.addComboButtons("Save from", [{value: "Selected clips", callback: (v) => {
+                presetInfo.from = v;
+
+            }}, {value: "All clips", callback: (v) => {
+                presetInfo.from = v;
+            }}], {selected: presetInfo.from});
+            p.addCheckbox("Upload to server", presetInfo.server, (v) =>  presetInfo.server = v);
+           
+            p.addText("Name", "", (v) => {
+                presetInfo.preset = v;
+            })
+            p.sameLine(2);
+            p.addButton(null, "Cancel", () => this.prompt.close());
+            p.addButton(null, "Save", () => {
+                
+                let clips = null;
+                let globalStart = 10000;
+                let globalEnd = -10000;
+
+                if(presetInfo.preset === "" || !presetInfo.preset) {
+                    alert("You have to write a name.");
+                    return;
+                }
+                if(presetInfo.from == "Selected clips") {
+                    this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                        if(a[0]<b[0]) 
+                            return -1;
+                        return 1;
+                    });
+                    
+                    clips = this.clipsTimeline.lastClipsSelected;
+                    for(let i = 0; i < clips.length; i++){
+                        const [trackIdx, clipIdx] = clips[i];
+                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                        if(clip.ready!=undefined) clip.ready = clip.fadein;
+                        if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                        if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                        if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                        presetInfo.clips.push(clip);
+                        globalStart = Math.min(globalStart, clip.start || globalStart);
+                        globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                    }
+                } 
+                else {
+                    const tracks = this.clipsTimeline.animationClip.tracks;
+                    for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+                        for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                            if(clip.ready!=undefined) clip.ready = clip.fadein;
+                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                            presetInfo.clips.push(clip);
+                            globalStart = Math.min(globalStart, clip.start || globalStart);
+                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                        }
+                    }
+                }
+                
+                presetInfo.duration = globalEnd - globalStart;
+                let preset = new ANIM.FacePresetClip(presetInfo);
+
+                //Convert data to bml file format
+                let data = preset.toJSON();
+                if(!data.clips.length) {
+                    alert("You can't create an empty preset.")
+                    return;
+                }
+                const session = this.editor.FS.getSession();
+                if(!presetInfo.server) {
+                    this.editor.updateData(presetInfo.preset + ".Preset", data.clips, presetInfo.type,  "local", (v) => {
+                        saveDialog.close()
+                        this.closeDialogs();
+                        LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+                        // this.repository.presets[1] = this.localStorage.presets;
+                    });
+                }
+                else if(!session.user || session.user.username == "signon") {
+                    let alert = new LX.Dialog("Alert", d => {
+                        d.addText(null, "The preset will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+                        d.sameLine(2);
+                        d.addButton(null, "Login", () => {
+                            this.showLoginModal();
+                            alert.close();
+                        })
+                        d.addButton(null, "Ok", () => {
+                            this.editor.updateData(presetInfo.preset + ".Preset", data.clips, presetInfo.type,  "local", (v) => {
+                                saveDialog.close();
+                                this.closeDialogs();
+                                alert.close();
+                                LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+                                // this.repository.presets[1] = this.localStorage.presets;
+                            });
+                        })
+                    }, {closable: true, modal: true})
+                }
+                else {
+                    this.editor.updateData(presetInfo.preset + ".bml", data.clips, presetInfo.type, "server", (filename) => {
+                        saveDialog.close()
+                        this.closeDialogs();
+                        LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+                        
+                    });
+                }
+
+            });
+        }, {modal: true, closable: true,  onclose: (root) => {
+                        
             root.remove();
             this.prompt = null;
-        }
-    } )
+        } });
 
-   }
+       
+    }
+
+   createNewSignDialog(clips, location) {
+        
+        const saveDialog = this.prompt = new LX.Dialog("Save animation", (p) => {
+            let signInfo = {clips:[], type: "signs"};
+
+            p.addText("Sign name", "", (v) => {
+                signInfo.id = v;
+            })
+            p.sameLine(2);
+            p.addButton(null, "Cancel", () => this.prompt.close());
+            p.addButton(null, "Save", () => {
+
+                if(signInfo.id === "" || !signInfo.id) {
+                    alert("You have to write a name.")
+                    return;
+                }
+                let globalStart = 10000;
+                let globalEnd = -10000;
+
+                const tracks = this.clipsTimeline.animationClip.tracks;
+                if(clips) {
+                    for(let i = 0; i < clips.length; i++){
+                            let [trackIdx, clipIdx] = clips[i];
+                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                            if(clip.ready!=undefined) clip.ready = clip.fadein;
+                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                            signInfo.clips.push(clip);
+                            globalStart = Math.min(globalStart, clip.start || globalStart);
+                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                    }
+                }
+                else {
+                    for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+                        for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                            if(clip.ready!=undefined) clip.ready = clip.fadein;
+                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                            signInfo.clips.push(clip);
+                            globalStart = Math.min(globalStart, clip.start || globalStart);
+                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                        }
+                    }
+                }
+                
+                signInfo.duration = globalEnd - globalStart;
+                let sign = new ANIM.SuperClip(signInfo);
+
+                //Convert data to bml file format
+                let data = sign.toJSON();
+                delete data.id;
+                delete data.start;
+                delete data.end;
+                delete data.type;
+                let bml = [];
+                for(let b in data) {
+                    if(b == "glossa") {
+
+                        delete data[b].id;
+                        delete data[b].start;
+                        delete data[b].end;
+                        delete data[b].type;
+                        for(let i = 0; i < data[b].length; i++) {
+                            delete data[b][i].id;
+                            delete data[b][i].start;
+                            delete data[b][i].end;
+                            delete data[b][i].type;
+                            for(let g in data[b][i]) {
+
+                                bml = [...bml, ...data[b][i][g]];
+                            }
+                        }
+                    }
+                    else
+                        bml = [...bml, ...data[b]];
+                }
+                if(!bml.length) {
+                    alert("You can't save an animation with empty tracks.")
+                    return;
+                }
+                const session = this.editor.FS.getSession();
+                if(!session.user || session.user.username == "signon") {
+                    let alert = new LX.Dialog("Alert", d => {
+                        d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+                        d.sameLine(2);
+                        d.addButton(null, "Login", () => {
+                            this.showLoginModal();
+                            alert.close();
+                        })
+                        d.addButton(null, "Ok", () => {
+                            this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type,  "local", (filename) => {
+                                saveDialog.close();
+                                this.closeDialogs();
+                                alert.close();
+                                LX.popup('"' + filename + '"' + " created successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+                                // this.repository.presets[1] = this.localStorage.presets;
+                            });
+                        })
+                    }, {closable: true, modal: true})
+                    
+                }
+                else {
+                    this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type, "server", (filename) => {
+                        saveDialog.close()
+                        this.closeDialogs();
+                        LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+                        
+                    });
+                }
+            },
+            {
+                onclose: (root) => {
+                
+                    root.remove();
+                    this.prompt = null;
+                }
+            } )
+        })
+    }
 
     createClipsDialog() {
         // Create a new dialog
@@ -2283,14 +2587,14 @@ class ScriptGui extends Gui {
                     case LX.AssetViewEvent.ASSET_RENAMED:
                         console.log(e.item.id + " is now called " + e.value); 
                         break;
-                    case LX.AssetViewEvent.ASSET_DBLCLICK: 
+                    case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                         if(e.item.type == "folder")
                             return;
                         innerSelect(e.item);                        
                         break;
                 }
             })
-        },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, 
+        },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, context_menu: false,
             onclose: (root) => {
             
                 root.remove();
@@ -2308,48 +2612,190 @@ class ScriptGui extends Gui {
             return;
 
         // Create a new dialog
-        let dialog = this.prompt = new LX.Dialog('Available presets', (p) => {
+        let dialog = this.prompt = new LX.Dialog('Available presets', async (p) => {
 
-            let values = ANIM.FacePresetClip.facePreset; //["Yes/No-Question", "Negative", "WH-word Questions", "Topic", "RH-Questions"];
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", skip_browser: true, skip_preview: true, allowed_types: ["Clips"]  });
-            p.attach( asset_browser );
-            let asset_data = [];
-            
-            // Create a collection of widgets values
-            for(let i = 0; i < values.length; i++){
-                let data = { id: values[i], type: "Clips" };
-                asset_data.push(data);
+            const innerSelect = (asset)  => {
+                this.clipsTimeline.unSelectAllClips();
+                
+                let name = asset.id.split(".");
+                if(name.length > 1)
+                    name.pop();
+                name = name.join(".");
+
+                let preset = {preset: name};
+                if(asset.type == "bml" && !asset.bml) {
+                    this.editor.fileToBML(asset, async (data) =>  {
+                        asset = data;
+                        let {clips, duration} = await this.dataToBMLClips(asset.bml);
+                        preset.clips = clips;
+                        let presetClip = new ANIM.FacePresetClip(preset);
+                        this.clipsTimeline.addClips(presetClip.clips);
+                    });
+                }
+                else {
+                    let presetClip = new ANIM.FacePresetClip(preset);
+                    this.clipsTimeline.addClips(presetClip.clips);
+                }
+                this.prompt.close();
             }
             
-            asset_browser.load( asset_data, e => {
-                switch(e.type) {
-                    case LX.AssetViewEvent.ASSET_SELECTED: 
-                        that.clipsTimeline.unSelectAllClips();
+            let preview_actions = [{
+                type: "Preset",
+                name: 'Add', 
+                callback: innerSelect.bind(this),
+            },
+            {
+                type: "bml",
+                name: 'Add', 
+                callback: innerSelect.bind(this),
+            }];
+            
+            const session = this.editor.FS.getSession();
+            if(session.user.username != "signon") {
+                preview_actions.push({
+                    type: "Preset",
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.updateData(item.filename + ".bml", item.data, "presets", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "Preset",
+                    path: "@/"+ session.user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "presets", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Preset removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
 
-                        if(e.multiple)
-                            console.log("Selected: ", e.item); 
-                        else
-                            console.log(e.item.id + " selected"); 
+                            }
+                            
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "bml",
+                    path: "@/"+ session.user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "presets", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Preset removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
 
-                        dialog.close();
-                        let presetClip = new ANIM.FacePresetClip({preset: e.item.id});
-                        that.clipsTimeline.addClips(presetClip.clips)
-                        // for(let i = 0; i < presetClip.clips.length; i++){
-                        //     that.clipsTimeline.addClip( presetClip.clips[i], presetClip.clips[i].start);
-                        // }
-                        break;
-                    case LX.AssetViewEvent.ASSET_DELETED: 
-                        console.log(e.item.id + " deleted"); 
-                        break;
-                    case LX.AssetViewEvent.ASSET_CLONED: 
-                        console.log(e.item.id + " cloned"); 
-                        break;
-                    case LX.AssetViewEvent.ASSET_RENAMED:
-                        console.log(e.item.id + " is now called " + e.value); 
-                        break;
-                }
-            })
-        }, { title:'Presets', close: true, minimize: false, size: [800], scroll: true, resizable: true, draggable: true, 
+                            }
+                            loadData();
+                            item.folder.domEl.click()
+                            // this.closeDialogs();
+                            
+                        });
+                    }
+                });
+            }
+            
+            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["Preset"], preview_actions: preview_actions, context_menu: false });
+
+            p.attach( asset_browser );
+
+            const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+            modal.root.id = "loading";
+            const closeModal = (modal ) => {
+                modal.panel.clear();
+                modal.root.remove();
+
+            }
+
+           
+            const loadData = () => {
+                asset_browser.load( this.editor.repository.presets, e => {
+                    switch(e.type) {
+                        case LX.AssetViewEvent.ASSET_SELECTED: 
+                            break;
+                        case LX.AssetViewEvent.ASSET_DELETED: 
+                            console.log(e.item.id + " deleted"); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_CLONED: 
+                            console.log(e.item.id + " cloned"); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_RENAMED:
+                            console.log(e.item.id + " is now called " + e.value); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_DBLCLICKED:
+                            innerSelect(e.item);
+                            break;
+                        case LX.AssetViewEvent.ENTER_FOLDER:
+                            const session = this.editor.FS.getSession(); 
+                            if(e.item.unit && e.item.unit != "signon" && (!e.item.children.length || this.editor.refreshPresetsRepository && e.item.unit == session.user.username )) {
+                                const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                                modal.root.id = "loading";
+                                this.editor.getFilesFromUnit(e.item.unit, "animics/presets/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                                    let files_data = [];
+                                    if(files) {
+                                        
+                                        for(let f = 0; f < files.length; f++) {
+                                            files[f].id = files[f].filename;
+                                            files[f].folder = e.item;
+                                            files[f].type = files[f].filename.split(".")[1];
+                                            if(files[f].type == "txt")
+                                                continue;
+                                            files_data.push(files[f]);
+                                        }
+                                        e.item.children = files_data;
+                                    
+                                    }
+                                    asset_browser.current_data = files_data;
+                                    asset_browser._update_path(asset_browser.current_data);
+                                    if(!asset_browser.skip_browser)
+                                        asset_browser._create_tree_panel();
+                                    asset_browser._refresh_content();
+
+                                    this.editor.refreshPresetsRepository = false;
+                                    closeModal(modal);
+                                })
+                            }
+                            break;
+                    }
+                })
+            }
+
+            if(!this.editor.repository.presets.length) {
+                await this.editor.getAllUnitsFolders("presets", () => {
+                    let values = ANIM.FacePresetClip.facePreset; //["Yes/No-Question", "Negative", "WH-word Questions", "Topic", "RH-Questions"];
+
+                    let asset_data = [];            
+                    // Create a collection of widgets values
+                    for(let i = 0; i < values.length; i++){
+                        let data = { id: values[i], type: "Preset" };
+                        asset_data.push(data);
+                    }
+                    for(let i = 0; i < this.editor.repository.presets.length; i++) {
+                        if(this.editor.repository.presets[i].id == "Public" || this.editor.repository.presets[i].id == "signon")
+                            this.editor.repository.presets[i].children = asset_data;
+                    }
+                    closeModal(modal);
+                    loadData();
+                });
+            }
+            else {
+
+                await this.editor.getFolders("presets", () => {
+                    closeModal(modal);
+                    loadData();
+                });
+            }
+        }, { title:'Presets', close: true, minimize: false, size: ["60%", "60%"], scroll: true, resizable: true, draggable: false, modal: true,
     
             onclose: (root) => {
                 
@@ -2362,16 +2808,23 @@ class ScriptGui extends Gui {
     createSignsDialog() {
         
         let that = this;
-        let fs = this.editor.getApp().FS;
+        const fs = this.editor.FS;
+        const session = fs.getSession();
+
         if(this.prompt && this.prompt.root.checkVisibility())
             return;
-        // Create a new dialog
+        
+            // Create a new dialog
         let dialog = this.prompt = new LX.Dialog('Available signs', async (p) => {
+            
             const innerSelect = async (asset, action) => {
-           
+                let choice = document.getElementById("choice-insert-mode");
+                if(choice)
+                    choice.remove();
+
                 that.clipsTimeline.unSelectAllClips();
                 asset.bml.name = asset.id;
-                const modal = this.createLoadingModal();
+                const modal = this.createAnimation();
 
                 const loadClip = async  () => {
                     return new Promise((resolve) => {
@@ -2386,162 +2839,299 @@ class ScriptGui extends Gui {
                 dialog.close();
             }
 
-            const showSourceCode = (asset) => {
-                if(window.dialog) 
-                    window.dialog.destroy();
-                window.dialog = new LX.PocketDialog("Editor", p => {
-                    const area = new LX.Area();
-                    p.attach( area );
-                    const filename = asset.filename;
-                    const type = asset.type;
-                    const name = filename.replace("."+ type, "");
-                    let editor = new LX.CodeEditor(area, {
-                        allow_add_scripts: false,
-                        name: type,
-                        title: name,
-                        disable_edition: true
-                    });
-                    LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
-                        const bytesize = f => new Blob([f]).size;
-                        asset.bytesize = bytesize();
-                        asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                        asset.bml.behaviours = asset.bml.data;
-                        let text = f.replaceAll('\r', '').replaceAll('\t', '');
-                        editor.code.lines = text.split('\n');
-                        editor.processLines();
-                        editor._refresh_code_info();
-                        if(asset.type == "sigml") {
-                            editor.addTab("bml", false, name);
-                            let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
-                                // limit precision of floats
-                                if (typeof value === 'number') {
-                                    return parseFloat(value.toFixed(3));
-                                }
-                                return value;
-                            });
-                            editor.openedTabs["bml"].lines = editor.toJSONFormat(t).split('\n');    
-                        }
-                        editor._change_language( "JSON" );
-                    } });
-                }, { size: ["40%", "600px"], closable: true });
-            }
-            const loadData = (modal) => {
-                if(!this.editor.dictionaries.length) {
-                    if(!modal)
-                        modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-                    setTimeout(loadData.bind(this,modal), 100);
+            let preview_actions = [
+                {
+                    type: "sigml",
+                    name: 'View source', 
+                    callback: this.showSourceCode.bind(this)
+                },
+                {
+                    type: "sigml",
+                    name: 'Add as single clip', 
+                    callback: innerSelect.bind("glossa")
+                },
+                {
+                    type: "sigml",
+                    name: 'Breakdown into BML clips', 
+                    callback: innerSelect.bind("clips")
+                },
+                {
+                    type: "bml",
+                    name: 'View source', 
+                    callback: this.showSourceCode.bind(this)
+                },
+                {
+                    type: "bml",
+                    name: 'Add as single clip', 
+                    callback: innerSelect.bind("glossa")
+                },
+                {
+                    type: "bml",
+                    name: 'Breakdown into BML clips', 
+                    callback: innerSelect.bind("clips")
                 }
-                else {
-                    if(modal) {
-                        modal.panel.clear();
-                        modal.root.remove();
-                    }
-                        
-                    asset_browser.load( this.editor.dictionaries, e => {
-                        switch(e.type) {
-                            case LX.AssetViewEvent.ASSET_SELECTED: 
-                                //request data
-                                if(e.item.type == "folder") {
-                                    return;
-                                }
-                                if(e.item.fullpath) {
-                                    LX.request({ url: fs.root+ "/"+ e.item.fullpath, dataType: 'text/plain', success: (f) => {
-                                        const bytesize = f => new Blob([f]).size;
-                                        e.item.bytesize = bytesize();
-                                        e.item.bml = e.item.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                                        e.item.bml.behaviours = e.item.bml.data;                        
-                                    } });
-                                } else {
-                                    e.item.bml = e.item.type == "bml" ?  {data: (typeof e.item.data == "string") ? JSON.parse(e.item.data) : e.item.data } : sigmlStringToBML(e.item.data);
-                                    e.item.bml.behaviours = e.item.bml.data;              
-                                }
-                                
-                                if(e.multiple)
-                                    console.log("Selected: ", e.item); 
-                                else
-                                    console.log(e.item.id + " selected"); 
-                                    
-                                break;
-                            case LX.AssetViewEvent.ASSET_DELETED: 
-                                console.log(e.item.id + " deleted"); 
-                                break;
-                            case LX.AssetViewEvent.ASSET_CLONED: 
-                                console.log(e.item.id + " cloned"); 
-                                break;
-                            case LX.AssetViewEvent.ASSET_RENAMED:
-                                console.log(e.item.id + " is now called " + e.value); 
-                                break;
-                            case LX.AssetViewEvent.ASSET_DBLCLICK: 
-                                if(e.item.type == "folder")
-                                    return;
-                                showSourceCode(e.item);
-                            break;
-                        }
-                    })
-                }
-                
-            }
+            ];
 
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"], preview_actions: [
+            if(session.user.username != "signon") {
+                preview_actions.push(
                 {
                     type: "sigml",
-                    name: 'View source', 
-                    callback: showSourceCode
-                },
-                {
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.updateData(item.filename + ".sigml", item.data, "signs", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "bml",
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.updateData(item.filename + ".bml", item.data, "signs", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
                     type: "sigml",
-                    name: 'Add as single clip', 
-                    callback: innerSelect.bind("glossa")
-                },
-                {
-                    type: "sigml",
-                    name: 'Breakdown into BML clips', 
-                    callback: innerSelect.bind("clips")
-                },
-                {
+                    path: "@/"+ session.user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "signs", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Sign removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
                     type: "bml",
-                    name: 'View source', 
-                    callback: showSourceCode
-                },
-                {
-                    type: "bml",
-                    name: 'Add as single clip', 
-                    callback: innerSelect.bind("glossa")
-                },
-                {
-                    type: "bml",
-                    name: 'Breakdown into BML clips', 
-                    callback: innerSelect.bind("clips")
-                }
-            ]  
-            });
+                    path: "@/"+ session.user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "signs", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Sign removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+            }
+            
+            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
             
             p.attach( asset_browser );
-       
-            let modal = null;
-            if(!this.editor.dictionaries.length) {
-                modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-         
-                loadData(modal)
-                return;
-                     
+            const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+            modal.root.id = "loading";
+            const closeModal = (modal ) => {
+                modal.panel.clear();
+                modal.root.remove();
+
+            }
+            
+            const loadData = () => {
+                asset_browser.load( this.editor.repository.signs, e => {
+                    switch(e.type) {
+                        case LX.AssetViewEvent.ASSET_SELECTED: 
+                            //request data
+                            if(e.item.type == "folder") {
+                                return;
+                            }
+                            
+                            if(!e.item.bml) {
+                                this.editor.fileToBML(e.item);
+                            }
+                            
+                            if(e.multiple)
+                                console.log("Selected: ", e.item); 
+                            else
+                                console.log(e.item.id + " selected"); 
+                                
+                            break;
+                        case LX.AssetViewEvent.ASSET_DELETED: 
+                            console.log(e.item.id + " deleted"); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_CLONED: 
+                            console.log(e.item.id + " cloned"); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_RENAMED:
+                            console.log(e.item.id + " is now called " + e.value); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_DBLCLICKED: 
+                            if(e.item.type != "folder") {
+                                let choice = new LX.Dialog("Add sign", (p) => {
+                                    if(!e.item.bml) {
+                                        this.editor.fileToBML(e.item);
+                                    }
+                                    p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                                    p.sameLine(2);
+                                    p.addButton(null, "Add as single clip", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
+                                    p.addButton(null, "Breakdown into BML clips", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
+                                }, {modal:true, closable: true, id: "choice-insert-mode"})
+                            }
+                            break;
+
+                        case LX.AssetViewEvent.ENTER_FOLDER:
+                            const session = this.editor.FS.getSession(); 
+                            if(e.item.unit && (!e.item.children.length || this.editor.refreshSignsRepository && e.item.unit == session.user.username )) {
+                                const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                                modal.root.id = "loading";
+                                this.editor.getFilesFromUnit(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                                    let files_data = [];
+                                    if(files) {
+                                        
+                                        for(let f = 0; f < files.length; f++) {
+                                            files[f].id = files[f].filename;
+                                            files[f].folder = e.item;
+                                            files[f].type = files[f].filename.split(".")[1];
+                                            if(files[f].type == "txt")
+                                                continue;
+                                            files_data.push(files[f]);
+                                        }
+                                        e.item.children = files_data;
+                                    }
+                                    asset_browser.current_data = files_data;
+                                    asset_browser._update_path(asset_browser.current_data);
+
+                                    if(!asset_browser.skip_browser)
+                                        asset_browser._create_tree_panel();
+                                    asset_browser._refresh_content();
+
+                                    this.editor.refreshSignsRepository = false;
+                                    closeModal(modal);
+                                })
+                            }
+                            break;
+                    }
+                })
+
+                // if(!this.editor.dictionaries.length) {
+                //     if(!modal)
+                //         modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                //     setTimeout(loadData.bind(this,modal), 100);
+                // }
+                // else {
+                //     if(modal) {
+                //         modal.panel.clear();
+                //         modal.root.remove();
+                //     }
+                        
+                    
+                // }
+                
+            }
+            
+            if(!this.editor.repository.signs.length) {
+                await this.editor.getAllUnitsFolders("signs", () => {
+                    this.editor.refreshSignsRepository = false;
+                    closeModal(modal);
+                    loadData();
+                });
             }
             else {
-                if(modal) {
-                    modal.panel.clear();
-                    modal.root.remove();
-                }
-                loadData();
+
+                await this.editor.getFolders("signs", () => {
+                    this.editor.refreshSignsRepository = false;
+
+                    closeModal(modal);
+                    loadData();
+                });
             }
-           
-        }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false, 
+            // }
+            // else {
+            //     closeModal(modal);
+            // }   
+       
+        }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
             onclose: (root) => {
-                
+                let loadingmodal = document.getElementById("loading")
+                if(loadingmodal)
+                    loadingmodal.remove();
                 root.remove();
                 this.prompt = null;
+                if(!LX.modal.hidden)                 
+                    LX.modal.toggle(true);
+                if(this.choice) this.choice.close()
             }
         });
+    }
+
+
+    showSourceCode (asset) 
+    {
+        if(window.dialog) 
+            window.dialog.destroy();
+        window.dialog = new LX.PocketDialog("Editor", p => {
+            const area = new LX.Area();
+            p.attach( area );
+            const filename = asset.filename;
+            const type = asset.type;
+            const name = filename.replace("."+ type, "");
+           
+            const setText = (text) => {
+                let code_editor = new LX.CodeEditor(area, {
+                    allow_add_scripts: false,
+                    name: type,
+                    title: name,
+                    disable_edition: true
+                });
+                
+                code_editor.code.lines = text.split('\n');
+                code_editor.processLines();
+                code_editor._refresh_code_info();
+                if(asset.type == "sigml") {
+                    code_editor.addTab("bml", false, name);
+                    let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
+                        // limit precision of floats
+                        if (typeof value === 'number') {
+                            return parseFloat(value.toFixed(3));
+                        }
+                        return value;
+                    });
+                    code_editor.openedTabs["bml"].lines = code_editor.toJSONFormat(t).split('\n');    
+                }
+                code_editor._change_language( "JSON" );
+            }
+
+            //from server
+            if(asset.fullpath) {
+                const fs = this.editor.FS;
+                LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
+                    const bytesize = f => new Blob([f]).size;
+                    asset.bytesize = bytesize();
+                    asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                    asset.bml.behaviours = asset.bml.data;
+                    let text = f.replaceAll('\r', '').replaceAll('\t', '');
+                    setText(text)
+                } });
+            } else {
+                //from local
+                asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
+                asset.bml.behaviours = asset.bml.data;              
+                let text = JSON.stringify(asset.bml.behaviours);
+                setText(text);
+            }
+
+        }, { size: ["40%", "600px"], closable: true });
     }
 
 
@@ -2577,22 +3167,12 @@ class ScriptGui extends Gui {
                 }
             },
     
-            // {
-            //     name: 'Animation loop',
-            //     property: 'animLoop',
-            //     selectable: true,
-            //     selected: true,
-            //     icon: 'fa-solid fa-person-walking-arrow-loop-left',
-            //     callback: (v) =>  {
-            //         editor.animLoop = !editor.animLoop;
-            //         editor.setAnimationLoop(editor.animLoop);
-                    
-            //     }
-            // }
         ]
         area.addOverlayButtons(canvasButtons, { float: "htc" } );
     }
 
+    
 }
+
 
 export { Gui, KeyframesGui, ScriptGui };

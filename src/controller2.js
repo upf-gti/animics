@@ -12,10 +12,10 @@ class BMLController {
         this.undoSteps = [];
 
         this.editor = editor;
-        fetch( "src/libs/bml/EvaHandsEyesFixedConfig.json" ).then(response => response.text()).then( (text) =>{
+        fetch( "https://webglstudio.org/3Dcharacters/Eva/Eva.json" ).then(response => response.text()).then( (text) =>{
             let config = JSON.parse( text );
             let ECAcontroller = this.ECAcontroller = new CharacterController( {character: editor.scene.getObjectByName(editor.character), characterConfig: config} );
-            ECAcontroller.start();
+            ECAcontroller.start({autoblink: false});
             ECAcontroller.reset();
             this.updateTracks();
         })
@@ -119,7 +119,7 @@ class BMLController {
         this.ECAcontroller.reset();
 
         //convert each clip to BML json format
-        let json = { faceLexeme: [], gaze: [], head: [], gesture: [], speech: []};
+        let json = { faceLexeme: [], gaze: [], head: [], gesture: [], speech: [], control: "0"};
 
         for(let i = 0; i < timeline.animationClip.tracks.length; i++){
             let track = timeline.animationClip.tracks[i];

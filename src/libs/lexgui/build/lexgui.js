@@ -2254,9 +2254,10 @@
             let is_selected = this.selected.indexOf( node ) > -1;
             
             let has_parent_child = false;
-            if( this.options.only_parents ) {
-                node.children.forEach( c => has_parent_child |= (c.children && c.children.length) );
-                is_parent = !!has_parent_child;
+            if( this.options.only_folders ) {
+                let has_folders = false;
+                node.children.forEach( c => has_folders |= (c.type == 'folder') );
+                is_parent = !!has_folders;
             }
 
             let item = document.createElement('li');
@@ -2536,14 +2537,9 @@
             for( var i = 0; i < node.children.length; ++i )
             {
                 let child = node.children[i];
+                if( this.options.only_folders && child.type != 'folder') 
+                    continue;
 
-                if( this.options.only_parents ) {
-
-                    if(!child.children || !child.children.length) continue;
-                    let has_parent_child = false;
-                    node.children.forEach( c => has_parent_child |= (c.children && c.children.length) );
-                    if(!has_parent_child) continue;
-                }
                 this.#create_item( node, child, level + 1 );
             }
         }
@@ -3175,7 +3171,7 @@
             // Add widget value
 
             let container = document.createElement('div');
-            container.className = "lextext";
+            container.className = "lextext" + (options.warning ? " lexwarning" : "");
             container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + " )";
             container.style.display = "flex";
 
@@ -5453,7 +5449,7 @@
                     }
 
                     if(modal)
-                        LX.modal.toggle();
+                        LX.modal.toggle(true);
                 };
 
                 var closeButton = document.createElement('a');
@@ -6209,7 +6205,8 @@
         static ASSET_DELETED    = 2;
         static ASSET_RENAMED    = 3;
         static ASSET_CLONED     = 4;
-        static ASSET_DBLCLICK   = 5;
+        static ASSET_DBLCLICKED = 5;
+        static ENTER_FOLDER     = 6;
 
         constructor( type, item, value ) {
             this.type = type || TreeEvent.NONE;
@@ -6223,9 +6220,10 @@
                 case AssetViewEvent.NONE: return "assetview_event_none";
                 case AssetViewEvent.ASSET_SELECTED: return "assetview_event_selected";
                 case AssetViewEvent.ASSET_DELETED: return "assetview_event_deleted";
-                case AssetViewEvent.ASSET_RENAMED:  return "assetview_event_renamed";
-                case AssetViewEvent.ASSET_CLONED:  return "assetview_event_cloned";
-                case AssetViewEvent.ASSET_DBLCLICK:  return "assetview_event_dbclick";
+                case AssetViewEvent.ASSET_RENAMED: return "assetview_event_renamed";
+                case AssetViewEvent.ASSET_CLONED: return "assetview_event_cloned";
+                case AssetViewEvent.ASSET_DBLCLICKED: return "assetview_event_dblclicked";
+                case AssetViewEvent.ENTER_FOLDER: return "assetview_event_enter_folder";
             }
         }
     };
@@ -6272,6 +6270,8 @@
             this.skip_browser = options.skip_browser ?? false;
             this.skip_preview = options.skip_preview ?? false;
             this.preview_actions = options.preview_actions ?? [];
+            this.only_folders = options.only_folders;
+            this.context_menu = options.context_menu ?? [];
 
             if( !this.skip_browser )
             {
@@ -6399,7 +6399,7 @@
             this.tree = this.leftPanel.addTree("Content Browser", tree_data, { 
                 // icons: tree_icons, 
                 filter: false,
-                only_parents: true,
+                only_folders: this.only_folders ?? true,
                 onevent: (event) => { 
 
                     let node = event.node;
@@ -6642,35 +6642,39 @@
                         if( !that.skip_preview )
                             that._preview_asset( item );
                     } 
-                    else
+                    else if(is_folder) 
                     {
-                        if(is_folder) that._enter_folder( item );
+                        that._enter_folder( item );
+                        return;
                     }
 
                     if(that.onevent) {
-                        const event = new AssetViewEvent(is_double_click ? AssetViewEvent.ASSET_DBLCLICK : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
+                        const event = new AssetViewEvent(is_double_click ? AssetViewEvent.ASSET_DBLCLICKED : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
                         event.multiple = !!e.shiftKey;
                         that.onevent( event );
                     }
                 });
 
-                itemEl.addEventListener('contextmenu', function(e) {
-                    e.preventDefault();
+                if(that.context_menu) {
 
-                    const multiple = that.content.querySelectorAll('.selected').length;
-
-                    LX.addContextMenu( multiple > 1 ? (multiple + " selected") : 
-                                is_folder ? item.id : item.type, e, m => {
-                        if(multiple <= 1)   
-                            m.add("Rename");
-                        if( !is_folder )
-                            m.add("Clone", that._clone_item.bind(that, item));
-                        if(multiple <= 1)
-                            m.add("Properties");
-                        m.add("");
-                        m.add("Delete", that._delete_item.bind(that, item));
+                    itemEl.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
+    
+                        const multiple = that.content.querySelectorAll('.selected').length;
+    
+                        LX.addContextMenu( multiple > 1 ? (multiple + " selected") : 
+                                    is_folder ? item.id : item.type, e, m => {
+                            if(multiple <= 1)   
+                                m.add("Rename");
+                            if( !is_folder )
+                                m.add("Clone", that._clone_item.bind(that, item));
+                            if(multiple <= 1)
+                                m.add("Properties");
+                            m.add("");
+                            m.add("Delete", that._delete_item.bind(that, item));
+                        });
                     });
-                });
+                }
 
                 itemEl.addEventListener("dragstart", function(e) {
                     e.preventDefault();
@@ -6742,7 +6746,7 @@
             (file._path || file.src ) ? this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options) : 0;
             this.previewPanel.addText("Path", this.path.join('/'), null, options);
             this.previewPanel.addText("Type", file.type, null, options);
-            file.type == "folder" ? this.previewPanel.addText("Files", file.children.length, null, options) : 0;
+            file.type == "folder" ? this.previewPanel.addText("Files", file.children.length.toString(), null, options) : 0;
             file.bytesize ? this.previewPanel.addText("Size", (file.bytesize/1024).toPrecision(3) + " KBs", null, options) : 0;
             this.previewPanel.addSeparator();
             
@@ -6759,7 +6763,7 @@
 
             for( let action of preview_actions )
             {
-                if( action.type && action.type !== file.type )
+                if( action.type && action.type !== file.type || action.path && action.path !== this.path.join('/') )
                     continue;
                 this.previewPanel.addButton( null, action.name, action.callback.bind( this, file ) );
             }
@@ -6841,6 +6845,12 @@
 
             // Update path
             this._update_path(this.current_data);
+            
+            // Trigger event
+            if(this.onevent) {
+                const event = new AssetViewEvent(AssetViewEvent.ENTER_FOLDER, folder_item);
+                this.onevent( event );
+            }
         }
 
         _delete_item( item ) {

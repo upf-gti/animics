@@ -1,4 +1,4 @@
-import { BehaviourPlanner, BehaviourManager, findIndexOfBoneByName, Blink, FacialExpr, FacialEmotion, GazeManager, Gaze, HeadBML, Lipsync, Text2LipInterface, T2LTABLES, LocationBodyArm, HandShapeRealizer, ExtfidirPalmor, CircularMotion, DirectedMotion, FingerPlay, WristMotion, HandConstellation, ElbowRaise, ShoulderRaise, ShoulderHunch, BodyMovement, forceBindPoseQuats, getTwistQuaternion, nlerpQuats } from './BML.js';
+import { BehaviourPlanner, BehaviourManager, findIndexOfBoneByName, Blink, FacialExpr, FacialEmotion, GazeManager, Gaze, HeadBML, Lipsync, Text2LipInterface, T2LTABLES, LocationBodyArm, HandShape, ExtfidirPalmor, CircularMotion, DirectedMotion, FingerPlay, WristMotion, HandConstellation, ElbowRaise, ShoulderRaise, ShoulderHunch, BodyMovement, forceBindPoseQuats, getTwistQuaternion, nlerpQuats } from './BML.js';
 import * as THREE  from 'three';
 import { GeometricArmIK } from './IKSolver.js';
 //@ECA controller
@@ -54,10 +54,10 @@ function CharacterController(o) {
     } 
 }
 
-CharacterController.prototype.start = function () {
+CharacterController.prototype.start = function (flags) {
     this.pendingResources = [];
 
-    if ( this.facialController ){ this.facialController.start(); }
+    if ( this.facialController ){ this.facialController.start(flags); }
 }
 
 CharacterController.prototype.reset = function ( keepEmotion = false ) {
@@ -163,7 +163,7 @@ CharacterController.prototype.processMsg = function (data, fromWS) {
         if (!msg.composition)
             msg.composition = "MERGE";
 
-        if ( msg.speech ) {
+        if ( msg.speech && (msg.speech.constructor == Object || msg.speech.length) ) {
             msg.control = this.SPEAKING;
         }
 
@@ -184,7 +184,7 @@ CharacterController.prototype.processMsg = function (data, fromWS) {
         else if (data.type == "info")
             return;
 
-        if ( msg.speech ) {
+        if ( msg.speech && (msg.speech.constructor == Object || msg.speech.length) ) {
             msg.control = this.SPEAKING;
         }
         // Process block
@@ -391,7 +391,7 @@ FacialController.prototype.configure = function (o) {
     }
 }
 
-FacialController.prototype.start = function () {
+FacialController.prototype.start = function (flags = {}) {
 
     this._morphTargets = {}; // map "name" of part to its scene obj
     for (const part in this._avatarParts) {
@@ -445,7 +445,7 @@ FacialController.prototype.start = function () {
 
     this.headBML = []; //null;
 
-    this.autoBlink = new Blink();
+    this.autoBlink = flags.autoblink ?? new Blink();
 }
 
 FacialController.prototype.reset = function ( keepEmotion = false ) {
@@ -688,7 +688,7 @@ FacialController.prototype.faceUpdate = function (dt) {
     // this._facialAUFinal has all the valid values
 
     // Eye blink
-    if (!this.autoBlink.between) {
+    if (this.autoBlink && !this.autoBlink.between) {
         this.autoBlink.update(dt, this._facialAUFinal[this._eyeLidsAU[0]], this._facialAUFinal[this._eyeLidsAU[1]]);
         this._facialAUFinal[this._eyeLidsAU[0]] = this.autoBlink.weights[0];
         this._facialAUFinal[this._eyeLidsAU[1]] = this.autoBlink.weights[1];
@@ -785,7 +785,8 @@ FacialController.prototype.newFA = function (faceData, shift) {
 
 // --------------------- BLINK ---------------------
 FacialController.prototype.newBlink = function ( bml ){
-    this.autoBlink.blink();
+    if(this.autoBlink)
+        this.autoBlink.blink();
 }
 
 // --------------------- GAZE ---------------------
@@ -929,7 +930,7 @@ class BodyController{
             return result;   
         }
         this.config.bodyLocations = locationToObjects( this.config.bodyLocations, this.skeleton, false );
-        this.config.handLocationsL = locationToObjects( this.config.handLocationsL ? this.config.handLocationsL : this.config.handLocationsR, this.skeleton, this.config.handLocationsL ? false : true ); // assume symmetric mesh/skeleton
+        this.config.handLocationsL = locationToObjects( this.config.handLocationsL ? this.config.handLocationsL : this.config.handLocationsR, this.skeleton, !this.config.handLocationsL ); // assume symmetric mesh/skeleton
         this.config.handLocationsR = locationToObjects( this.config.handLocationsR, this.skeleton, false ); // since this.config is being overwrite, generate left before right
 
         // finger axes do no need any change
@@ -966,7 +967,7 @@ class BodyController{
             locMotions: [],
             extfidirPalmor: new ExtfidirPalmor( this.config, this.skeleton, isLeftHand ),
             wristMotion: new WristMotion( this.config, this.skeleton, isLeftHand ),
-            handshape: new HandShapeRealizer( this.config, this.skeleton, isLeftHand ),
+            handshape: new HandShape( this.config, this.skeleton, isLeftHand ),
             fingerplay: new FingerPlay(),
             elbowRaise: new ElbowRaise( this.config, this.skeleton, isLeftHand ),
             shoulderRaise: new ShoulderRaise( this.config, this.skeleton, isLeftHand ),
@@ -1160,11 +1161,11 @@ class BodyController{
 
     _newGestureArm( bml, arm, symmetry = 0x00 ){
         if ( bml.locationBodyArm ){ // when location change, cut directed and circular motions
-            this.bodyMovement.forceBindPose();
+            // this.bodyMovement.forceBindPose();
             arm.loc.newGestureBML( bml, symmetry, arm.locUpdatePoint );
             arm.locMotions = [];
             this.handConstellation.cancelArm( arm == this.right ? 'R' : 'L' );
-            this.bodyMovement.forceLastFramePose();
+            // this.bodyMovement.forceLastFramePose();
         }
         if ( bml.motion ){
             let m = null;
@@ -1221,6 +1222,10 @@ class BodyController{
         if ( bml.config ){
             let c = bml.config;
             if ( c.dominant ){ this.setDominantHand( c.dominant == "RIGHT" ); }
+            if ( c.handshapeBendRange ){ 
+                this.left.handshape.setBendRange( handshapeBendRange );
+                this.right.handshape.setBendRange( handshapeBendRange );
+            }
             //...
         }
 

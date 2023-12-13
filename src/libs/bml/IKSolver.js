@@ -149,6 +149,7 @@ class GeometricArmIK{
         this._tempV3_0.subVectors( targetWorldPoint, armWPos );
         let a = this.forearmWSize; let b = this.upperarmWSize; let cc = this._tempV3_0.lengthSq(); 
         let elbowAngle = Math.acos( Math.max( -1, Math.min( 1, ( cc - a*a - b*b ) / ( -2 * a * b ) ) ) );
+        elbowAngle =  Math.min( Math.PI, Math.max( 0.349, elbowAngle ) ); // limit elbow bend   Math.min( 180 * Math.PI/180, Math.max( 20 * Math.PI / 180, elbowAngle ) );
         cc = this.armWorldSize * this.armWorldSize;
         let misalignmentAngle = Math.acos( Math.max( -1, Math.min( 1, ( cc - a*a - b*b ) / ( -2 * a * b ) ) ) ); // angle from forearm-upperarm tpose misalignment
         this._tempQ_0.setFromAxisAngle( this.beforeBindAxes.elbow, misalignmentAngle - elbowAngle ); // ( Math.PI - elbowAngle ) - ( Math.PI - misalignmentAngle )
@@ -179,7 +180,7 @@ class GeometricArmIK{
         /** ElbowRaise Computation */
         let elbowRaiseAngle = -1.5* ( 1 - elbowAngle / Math.PI ); 
         elbowRaiseAngle += Math.PI * 0.1 * Math.max( 0, Math.min( 1, targetWorldProj.x * 2 * (this.isLeftHand?-1:1)) );  // x / 0.5
-        elbowRaiseAngle += -Math.PI * 0.1 * Math.max( 0, Math.min( 1, targetWorldProj.y * 2 ) ); // y / 0.5
+        elbowRaiseAngle += Math.PI * 0.1 * Math.max( 0, Math.min( 1, targetWorldProj.y * 2 ) ); // y / 0.5
         elbowRaiseAngle += Math.PI * 0.2 * Math.max( 0, Math.min( 1, -targetWorldProj.z * 5 ) ); // z / 0.2
         elbowRaiseAngle += forcedElbowRaiseDelta + this.config.elbowRaise;
         elbowRaiseAngle *= ( this.isLeftHand ? 1 : -1 ); // due to how axis is computed, angle for right arm is inverted

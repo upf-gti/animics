@@ -1,9 +1,7 @@
 import { MediaPipe } from "./mediapipe.js";
 import { KeyframeEditor, ScriptEditor } from "./editor.js";
 import { VideoUtils } from "./video.js";
-import { FileSystem } from "./libs/filesystem.js";
-import { UTILS } from "./utils.js";
-
+import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 
 class App {
     
@@ -17,21 +15,9 @@ class App {
         this.mediaRecorder = null
         this.chunks = [];
        
-        // Create the fileSystem and log the user
-        this.FS = new FileSystem("signon", "signon", () => console.log("Auto login of guest user"));
-        this.FS.login();
     	window.globals = {
             "app": this
         };
-    }
-
-    login(session, callback) {
-
-        this.FS.login(session.user, session.password, callback);
-    }
-
-    logout(callback) {
-        this.FS.logout(callback);
     }
 
     init( settings ) {
@@ -54,12 +40,12 @@ class App {
                 this.editor = new KeyframeEditor(this, "video");
                 this.onLoadVideo( settings.data );
                 break;
-            case 'bml': case 'json':
+            case 'bml': case 'json': case 'sigml':
                 this.editor = new ScriptEditor(this, 'script');
-                this.onBMLProject( settings.data );
+                this.onScriptProject( settings.data, mode );
                 break;
             default:
-                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
+                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
                 return;
                 break;    
         }
@@ -292,7 +278,7 @@ class App {
         this.editor.buildAnimation( {landmarks: MediaPipe.landmarks, blendshapes: MediaPipe.blendshapes} );
     }
 
-    onBMLProject(dataFile) {
+    onScriptProject(dataFile, mode) {
         
         if(dataFile)
         {
@@ -300,7 +286,15 @@ class App {
           
             fr.readAsText( dataFile );
             fr.onload = e => { 
-                let anim = JSON.parse(e.currentTarget.result);
+                let data = e.currentTarget.result;
+                if(mode == 'sigml') {
+                    data = sigmlStringToBML(e.currentTarget.result);
+                    data.behaviours = data.data;
+                    delete data.data;
+                } else {
+                    data = JSON.parse(e.currentTarget.result);
+                }
+                let anim = data;
                 this.editor.clipName = anim.name;
                 this.editor.loadModel(anim);    
             };

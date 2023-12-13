@@ -787,7 +787,7 @@
             for(var i = this.tracksDrawn.length - 1; i >= 0; --i)
             {
                 var t = this.tracksDrawn[i];
-                if( localY >= t[1] && localY < (t[1] + t[2]) )
+                if( t[1] >= this.topMargin && localY >= t[1] && localY < (t[1] + t[2]) )
                 {
                     track = t[0];
                     break;
@@ -819,10 +819,6 @@
                 // this.canvas.style.cursor = "default";
                 const discard = this.movingKeys || (LX.UTILS.getTime() - this.clickTime) > 420; // ms
                 this.movingKeys ? innerSetTime( this.currentTime ) : 0;
-
-                if(e.button == 0 && this.grabbing && this.onClipMoved && this.lastClipsSelected.length){
-                    this.onClipMoved(this.lastClipsSelected);
-                }
 
                 this.grabbing_timeline = false;
                 this.grabbing = false;
@@ -1058,6 +1054,7 @@
          
                 for(var j = 0; j < clips.length; ++j)
                 {
+                    selectedClipArea = null;
                     let clip = clips[j];
                     //let selected = track.selected[j];
                     var x = Math.floor( this.timeToX(clip.start) ) + 0.5;
@@ -2538,10 +2535,12 @@
                     //this.addUndoStep( "clip_modified", clip );
                     if( (e.ctrlKey && distToStart < 5) || (clip.fadein && Math.abs( this.timeToX( clip.start + clip.fadein ) - e.offsetX ) < 5) )
                         this.dragClipMode = "fadein";
-                    else if( (e.ctrlKey && distToEnd < 5) || (clip.fadeout && Math.abs( this.timeToX( clip.start + clip.duration - clip.fadeout ) - e.offsetX ) < 5) )
-                        this.dragClipMode = "fadeout";
-                    else if( Math.abs( endingX - x ) < 10 )
+                    else if(e.ctrlKey &&  Math.abs( endingX - x ) < 5 ) {
                         this.dragClipMode = "duration";
+                        this.canvas.style.cursor = "column-resize";
+                    }
+                    else if( (e.ctrlKey && distToEnd < 10) || (clip.fadeout && Math.abs( this.timeToX( clip.start + clip.duration - clip.fadeout ) - e.offsetX ) < 5) )
+                        this.dragClipMode = "fadeout";                  
                     else
                         this.dragClipMode = "move";
                 }
@@ -2629,11 +2628,16 @@
                             }
                         }
                         else if( this.dragClipMode == "fadein" )
-                            clip.fadein = Math.min(Math.max((clip.fadein || 0) + diff, clip.start), clip.start+clip.duration);
+                            clip.fadein = Math.min(Math.max((clip.fadein || 0) + delta, clip.start), clip.start+clip.duration);
                         else if( this.dragClipMode == "fadeout" )
-                            clip.fadeout = Math.max(Math.min((clip.fadeout || clip.start+clip.duration) + diff, clip.start+clip.duration), clip.start);
-                        else if( this.dragClipMode == "duration" )
-                            clip.duration += diff;
+                            clip.fadeout = Math.max(Math.min((clip.fadeout || clip.start+clip.duration) + delta, clip.start+clip.duration), clip.start);
+                        else if( this.dragClipMode == "duration" ) {
+                            clip.duration += delta;
+                            clip.fadeout += delta;
+                            if(this.onContentMoved) {
+                                this.onContentMoved(clip, 0);
+                            }
+                        }
 
                         if(this.duration < clip.start + clip.duration  )
                         {
@@ -2644,6 +2648,14 @@
                 }
                 else{
                     innerSetTime( this.currentTime );	
+                }
+            } 
+            else if(e.track && e.ctrlKey) {
+                for(let i = 0; i < e.track.clips.length; i++) {
+                    let clip = e.track.clips[i];
+                    const x = this.timeToX(clip.start+clip.duration);
+                    if(Math.abs(e.localX - x) < 5)
+                        this.canvas.style.cursor = "col-resize";
                 }
             }
         }
@@ -3221,6 +3233,10 @@
             {
                 clips = [...clips.slice(0, clipIdx), ...clips.slice(clipIdx + 1, clips.length)];
                 this.animationClip.tracks[trackIdx].clips = clips;
+                this.animationClip.tracks[trackIdx].hovered[clipIdx] = undefined;
+                this.animationClip.tracks[trackIdx].selected[clipIdx] = undefined;
+                this.animationClip.tracks[trackIdx].edited[clipIdx] = undefined;
+
                 if(clips.length)
                 {
                     let selectedIdx = 0;
@@ -3305,8 +3321,16 @@
                 clips: [],
                 selected: [], edited: [], hovered: []
             };
-
+            //delete all selectedclips
             this.animationClip.tracks[idx] = trackInfo;
+            let selected = [];
+            for(let i = 0; i < this.lastClipsSelected.length; i++) {
+                let [trackIdx, clipIdx] = this.lastClipsSelected[i];
+                if(trackIdx != idx)
+                    selected.push(this.lastClipsSelected[i]);
+
+            }
+            this.lastClipsSelected = selected;
             return trackInfo.idx;
         }
 
@@ -3316,6 +3340,7 @@
             let clips = Array.from(track.clips);
             let trackInfo = Object.assign({}, track);
             trackInfo.clips = clips;
+            trackInfo.selected.fill(false);
             this.trackState.push({
                 idx: clipIdx,
                 t: trackInfo,
@@ -3370,6 +3395,19 @@
             return unselected;
         }
 
+        selectAll( ) {
+
+            this.unSelectAllClips();
+            for(let idx = 0; idx < this.animationClip.tracks.length; idx++) {
+                for(let clipIdx = 0; clipIdx < this.animationClip.tracks[idx].clips.length; clipIdx++) {
+                    this.animationClip.tracks[idx].selected[clipIdx] = true;
+                    let currentSelection = [ idx, clipIdx];
+                    this.lastClipsSelected.push( currentSelection );
+                }
+            }
+            if(this.onSelectClip)
+                this.onSelectClip();
+        }
         processCurrentClip( e, clipIndex, track, localX, multiple ) {
 
             e.multipleSelection = multiple;
