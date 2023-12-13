@@ -154,10 +154,8 @@ class Editor {
                         this.gui.importFile();
                     }
                     break;
-                case 'l': case 'L':case 'p': case 'P': case 'k': case 'K': case 'e': case 'E':
-                    this.onKeyDown(e);
-                    break;
             }
+            this.onKeyDown(e);
         } );
 
         // window.addEventListener("beforeunload", (e) => {
@@ -1724,7 +1722,7 @@ class ScriptEditor extends Editor{
                 if(e.ctrlKey && !e.altKey) {
                     e.preventDefault();
                     e.stopImmediatePropagation();
-                    LX.prompt("File name", "Export BML animation", (v) => this.export("", v), {input: this.clipName, required: true} )     
+                    this.gui.createExportBMLDialog(); 
                 }
         }
     }

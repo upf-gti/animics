@@ -72,18 +72,17 @@ class Gui {
         menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
        
         if(this.editor.mode == this.editor.eModes.script) {
-            menubar.add("Project/Export animation/Export BML", {callback: () => 
-                LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", v), {input: this.editor.clipName, required: true} )     
+            menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
             });
         }
 
         menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-            LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
+            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
         }});
 
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
         menubar.add("Project/Export scene/Export GLB", {callback: () => 
-            LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", v), {input: this.editor.clipName, required: true} )     
+            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", v), {input: this.editor.clipName, required: true} )     
         });
 
         // Save animation
@@ -243,7 +242,7 @@ class Gui {
                             refresh(p, response.msg);
                         }
                     });
-                });
+                }, { buttonClass: "accept" });
 
                 p.addButton(null, "Sign up", (v) => {
                     this.prompt.close();
@@ -253,7 +252,7 @@ class Gui {
             }
             refresh(p);
             
-        } )
+        }, {modal: true, closable: true} )
 
         this.prompt.onclose = () => {
             // this.editor.getDictionaries();
@@ -271,7 +270,7 @@ class Gui {
 
             }); 
             this.prompt = null;
-        } , {input: false, accept: "Logout"})
+        } , {input: false, accept: "Logout", modal: true})
         this.prompt.onclose = () => {
             this.prompt = null;
         }
@@ -316,10 +315,10 @@ class Gui {
                         refresh(p, "Please confirm password");
                         console.error("Wrong pass confirmation");
                     }
-                })
+                }, { buttonClass: "accept" })
             }
             refresh(p);
-        });
+        }, {modal: true, closable: true});
             
     }
 
@@ -507,11 +506,11 @@ class Gui {
             p.addButton(null, "Export", () => {
                 p.clear();
                 p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
-                p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended", this.editor.clipName));
+                p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended", this.editor.clipName), { buttonClass: "accept" });
                 if(this.editor.mode == this.editor.eModes.script) {
-                    p.addButton( null, "Export BML", () => this.editor.export("", this.editor.clipName ));
+                    p.addButton( null, "Export BML", () => this.editor.export("", this.editor.clipName ), { buttonClass: "accept" });
                 }
-                p.addButton( null, "Export GLB", () => this.editor.export("GLB", this.editor.clipName));
+                p.addButton( null, "Export GLB", () => this.editor.export("GLB", this.editor.clipName), { buttonClass: "accept" });
             });
             p.addButton(null, "Discard", () => {
 
@@ -526,7 +525,7 @@ class Gui {
                 root.remove();
                 this.prompt = null;
             }
-        });
+        }, {modal: true, closable: true});
         return this.prompt;
     }
 
@@ -2249,7 +2248,7 @@ class ScriptGui extends Gui {
                     });
                 }
 
-            });
+            }, { buttonClass: "accept" });
         }, {modal: true, closable: true,  onclose: (root) => {
                         
             root.remove();
@@ -2379,9 +2378,10 @@ class ScriptGui extends Gui {
                 
                     root.remove();
                     this.prompt = null;
-                }
+                }, 
+                buttonClass: "accept" 
             } )
-        })
+        }, {modal: true, closable: true})
     }
 
     createClipsDialog() {
@@ -3075,6 +3075,9 @@ class ScriptGui extends Gui {
         });
     }
 
+    createExportBMLDialog() {
+        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", v), {input: this.editor.clipName, required: true} )  
+    }
 
     showSourceCode (asset) 
     {
