@@ -1614,16 +1614,14 @@ class ScriptGui extends Gui {
 
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.animation.duration - 0.001) );
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
-        this.clipsTimeline.onClipMoved = (selected)=> {
-            this.editor.gizmo.updateTracks();
-            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
-        };
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
            if(clip.strokeStart) clip.strokeStart+=offset;
            if(clip.stroke) clip.stroke+=offset;
            if(clip.strokeEnd) clip.strokeEnd+=offset;
            this.updateClipPanel(clip);
+           this.editor.gizmo.updateTracks();
+           this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
         };
 
         this.clipsTimeline.deleteContent = () => {
