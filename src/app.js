@@ -472,7 +472,7 @@ class App {
     }
 
 
-        this.editor.gui.prompt = LX.prompt( "Please, enter the name of the sign performed and the language. (Example: Dog in Irish Sign Language --> dog_ISL)", "Animation name", async (name) => {
+        this.editor.gui.prompt = LX.prompt( "Please, enter the name of the sign performed and the language. (Example: Dog in Irish Sign Language &#8594; dog_ISL)", "Animation name", async (name) => {
             if(name == "") {
                 alert("You can't upload an animation without name");
                 this.storeAnimation();

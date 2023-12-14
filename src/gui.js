@@ -90,7 +90,6 @@ class Gui {
             this.createNewSignDialog(null, "server")
         });
 
-        // menubar.add("Project/Upload to server", {icon: "fa fa-upload", callback: () => this.editor.getApp().storeAnimation() }); --> NOT YET
         menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
 
         // menubar.add("Timeline/");
@@ -2125,7 +2124,7 @@ class ScriptGui extends Gui {
         
         this.prompt = new LX.Dialog("How to start?", (p) =>{
             p.addText(null, "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard.", null, {disabled: true, height: "50%"})
-            p.addText(null, "Go to Menubar -> Timeline -> Shortcuts for more information about the tool.", null, {disabled: true, height: "50%"})
+            p.addText(null, "Go to Menubar/Timeline/Shortcuts/ for more information about the tool.", null, {disabled: true, height: "50%"})
         }, {closable: true, onclose: (root) => {
             root.remove();
             this.prompt = null;
