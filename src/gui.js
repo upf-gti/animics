@@ -2164,31 +2164,17 @@ class ScriptGui extends Gui {
                     alert("You have to write a name.");
                     return;
                 }
-                if(presetInfo.from == "Selected clips") {
-                    this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                        if(a[0]<b[0]) 
-                            return -1;
-                        return 1;
-                    });
-                    
-                    clips = this.clipsTimeline.lastClipsSelected;
-                    for(let i = 0; i < clips.length; i++){
-                        const [trackIdx, clipIdx] = clips[i];
-                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                        if(clip.ready!=undefined) clip.ready = clip.fadein;
-                        if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                        if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                        if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                        presetInfo.clips.push(clip);
-                        globalStart = Math.min(globalStart, clip.start || globalStart);
-                        globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                    }
-                } 
-                else {
-                    const tracks = this.clipsTimeline.animationClip.tracks;
-                    for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-                        for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+                if(!presetInfo.clips.length) {
+                    if(presetInfo.from == "Selected clips") {
+                        this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                            if(a[0]<b[0]) 
+                                return -1;
+                            return 1;
+                        });
+                        
+                        clips = this.clipsTimeline.lastClipsSelected;
+                        for(let i = 0; i < clips.length; i++){
+                            const [trackIdx, clipIdx] = clips[i];
                             const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
                             if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
                             if(clip.ready!=undefined) clip.ready = clip.fadein;
@@ -2199,21 +2185,39 @@ class ScriptGui extends Gui {
                             globalStart = Math.min(globalStart, clip.start || globalStart);
                             globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
                         }
+                    } 
+                    else {
+                        const tracks = this.clipsTimeline.animationClip.tracks;
+                        for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+                            for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                                if(clip.ready!=undefined) clip.ready = clip.fadein;
+                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                                presetInfo.clips.push(clip);
+                                globalStart = Math.min(globalStart, clip.start || globalStart);
+                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                            }
+                        }
                     }
+                    
+                    presetInfo.duration = globalEnd - globalStart;
+                    let preset = new ANIM.FacePresetClip(presetInfo);
+    
+                    //Convert data to bml file format
+                    let data = preset.toJSON();
+                    presetInfo.clips = data.clips;
                 }
                 
-                presetInfo.duration = globalEnd - globalStart;
-                let preset = new ANIM.FacePresetClip(presetInfo);
-
-                //Convert data to bml file format
-                let data = preset.toJSON();
-                if(!data.clips.length) {
+                if(!presetInfo.clips.length) {
                     alert("You can't create an empty preset.")
                     return;
                 }
                 const session = this.editor.FS.getSession();
                 if(!presetInfo.server) {
-                    this.editor.updateData(presetInfo.preset + ".Preset", data.clips, presetInfo.type,  "local", (v) => {
+                    this.editor.updateData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
                         saveDialog.close()
                         this.closeDialogs();
                         LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
@@ -2229,7 +2233,7 @@ class ScriptGui extends Gui {
                             alert.close();
                         })
                         d.addButton(null, "Ok", () => {
-                            this.editor.updateData(presetInfo.preset + ".Preset", data.clips, presetInfo.type,  "local", (v) => {
+                            this.editor.updateData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
                                 saveDialog.close();
                                 this.closeDialogs();
                                 alert.close();
@@ -2240,7 +2244,7 @@ class ScriptGui extends Gui {
                     }, {closable: true, modal: true})
                 }
                 else {
-                    this.editor.updateData(presetInfo.preset + ".bml", data.clips, presetInfo.type, "server", (filename) => {
+                    this.editor.updateData(presetInfo.preset + ".bml", presetInfo.clips, presetInfo.type, "server", (filename) => {
                         saveDialog.close()
                         this.closeDialogs();
                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
@@ -2274,72 +2278,76 @@ class ScriptGui extends Gui {
                     alert("You have to write a name.")
                     return;
                 }
-                let globalStart = 10000;
-                let globalEnd = -10000;
+                if(!signInfo.clips.length) {
+                    let globalStart = 10000;
+                    let globalEnd = -10000;
 
-                const tracks = this.clipsTimeline.animationClip.tracks;
-                if(clips) {
-                    for(let i = 0; i < clips.length; i++){
-                            let [trackIdx, clipIdx] = clips[i];
-                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                            if(clip.ready!=undefined) clip.ready = clip.fadein;
-                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                            signInfo.clips.push(clip);
-                            globalStart = Math.min(globalStart, clip.start || globalStart);
-                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                    }
-                }
-                else {
-                    for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-                        for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
-                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                            if(clip.ready!=undefined) clip.ready = clip.fadein;
-                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                            signInfo.clips.push(clip);
-                            globalStart = Math.min(globalStart, clip.start || globalStart);
-                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                    const tracks = this.clipsTimeline.animationClip.tracks;
+                    if(clips) {
+                        for(let i = 0; i < clips.length; i++){
+                                let [trackIdx, clipIdx] = clips[i];
+                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                                if(clip.ready!=undefined) clip.ready = clip.fadein;
+                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                                signInfo.clips.push(clip);
+                                globalStart = Math.min(globalStart, clip.start || globalStart);
+                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
                         }
                     }
-                }
-                
-                signInfo.duration = globalEnd - globalStart;
-                let sign = new ANIM.SuperClip(signInfo);
-
-                //Convert data to bml file format
-                let data = sign.toJSON();
-                delete data.id;
-                delete data.start;
-                delete data.end;
-                delete data.type;
-                let bml = [];
-                for(let b in data) {
-                    if(b == "glossa") {
-
-                        delete data[b].id;
-                        delete data[b].start;
-                        delete data[b].end;
-                        delete data[b].type;
-                        for(let i = 0; i < data[b].length; i++) {
-                            delete data[b][i].id;
-                            delete data[b][i].start;
-                            delete data[b][i].end;
-                            delete data[b][i].type;
-                            for(let g in data[b][i]) {
-
-                                bml = [...bml, ...data[b][i][g]];
+                    else {
+                        for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+                            for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                                if(clip.ready!=undefined) clip.ready = clip.fadein;
+                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                                signInfo.clips.push(clip);
+                                globalStart = Math.min(globalStart, clip.start || globalStart);
+                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
                             }
                         }
                     }
-                    else
-                        bml = [...bml, ...data[b]];
+                    
+                    signInfo.duration = globalEnd - globalStart;
+                    let sign = new ANIM.SuperClip(signInfo);
+
+                    //Convert data to bml file format
+                    let data = sign.toJSON();
+                    delete data.id;
+                    delete data.start;
+                    delete data.end;
+                    delete data.type;
+                    let bml = [];
+                    for(let b in data) {
+                        if(b == "glossa") {
+
+                            delete data[b].id;
+                            delete data[b].start;
+                            delete data[b].end;
+                            delete data[b].type;
+                            for(let i = 0; i < data[b].length; i++) {
+                                delete data[b][i].id;
+                                delete data[b][i].start;
+                                delete data[b][i].end;
+                                delete data[b][i].type;
+                                for(let g in data[b][i]) {
+
+                                    bml = [...bml, ...data[b][i][g]];
+                                }
+                            }
+                        }
+                        else
+                            bml = [...bml, ...data[b]];
+                    }
+                    signInfo.clips = bml;
                 }
-                if(!bml.length) {
+
+                if(!signInfo.clips.length) {
                     alert("You can't save an animation with empty tracks.")
                     return;
                 }
@@ -2353,7 +2361,7 @@ class ScriptGui extends Gui {
                             alert.close();
                         })
                         d.addButton(null, "Ok", () => {
-                            this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type,  "local", (filename) => {
+                            this.editor.updateData(signInfo.id + ".bml", signInfo.clips , signInfo.type,  "local", (filename) => {
                                 saveDialog.close();
                                 this.closeDialogs();
                                 alert.close();
@@ -2365,7 +2373,7 @@ class ScriptGui extends Gui {
                     
                 }
                 else {
-                    this.editor.updateData(signInfo.id + ".bml", bml, signInfo.type, "server", (filename) => {
+                    this.editor.updateData(signInfo.id + ".bml", signInfo.clips, signInfo.type, "server", (filename) => {
                         saveDialog.close()
                         this.closeDialogs();
                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
