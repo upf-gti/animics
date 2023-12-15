@@ -17,6 +17,7 @@ import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 
 import { FileSystem } from "./libs/filesystem.js";
 
+import { LX } from "lexgui"
 
 // const MapNames = await import('../data/mapnames.json', {assert: { type: 'json' }});
 const MapNames = await (await fetch('./data/mapnames.json')).json();

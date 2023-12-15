@@ -2,6 +2,7 @@ import { MediaPipe } from "./mediapipe.js";
 import { KeyframeEditor, ScriptEditor } from "./editor.js";
 import { VideoUtils } from "./video.js";
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
+import { LX } from 'lexgui';
 
 class App {
     

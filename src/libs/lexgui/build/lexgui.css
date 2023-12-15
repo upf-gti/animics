@@ -369,11 +369,11 @@ body.nocursor * {
 }
 
 .lexsplitbar.horizontal {
-  cursor: e-resize;
+  cursor: col-resize;
 }
 
 .lexsplitbar.vertical {
-	cursor: n-resize;
+	cursor: row-resize;
   transform: translateY(-3px);
   left: calc(50% - 32px);
 }
@@ -530,6 +530,7 @@ body.nocursor * {
 }
 
 .lexwidget.micro {
+  min-width: 24px;
   width: 3% !important;
   padding-left: 4px;
   padding-right: 4px;
@@ -600,7 +601,13 @@ body.nocursor * {
 }
 
 .lexwidget .lextext.lexwarning div {
-  color: var(--global-color-highlight);
+  color: rgb(213, 208, 128);
+  font-weight: 700;
+}
+
+.lexwidget .lextext.lexwarning i {
+  color: rgb(212, 165, 63);
+  margin-right: 16px;
 }
 
 .lexwidget .lextext input:focus {
@@ -863,6 +870,7 @@ body.nocursor * {
   flex-direction: column;
   align-items: center;
   width: 100%;
+  position: relative;
 }
 
 .lexdropdown .option:not(.media) {
@@ -929,7 +937,7 @@ body.nocursor * {
 
 .lexdropdown .lexdropdownitem a {
   display: none;
-  right: 16px;
+  right: 24px;
   position: absolute;
 }
 
@@ -2724,7 +2732,7 @@ ul.lexassetscontent {
   width: 32px;
   height: calc(100% - 69px); /* 6px of the vertical scrollbar */
   background-color: var(--global-branch-darker);
-  margin-top: 27.8px;
+  margin-top: 25px;
   text-align: center;
   overflow: hidden;
   -webkit-user-select: none; /* Safari 3.1+ */
@@ -2737,7 +2745,7 @@ ul.lexassetscontent {
 .lexcodegutter span {
   width: 100%;
   display: block;
-  height: 18px;
+  height: 16px;
   margin-top: 4px;
   font-size: 13px;
   color: #888;
@@ -2748,7 +2756,7 @@ ul.lexassetscontent {
 .lexcodeeditor .code {
   height: calc(100% - 30px);
   cursor: text;
-  font-size: 18px;
+  font-size: 16px;
   overflow: scroll;
   background-color: var(--global-branch-darker);
   padding-right: 6px;
@@ -2759,7 +2767,7 @@ ul.lexassetscontent {
 }
 
 .codechar {
-  font-size: 18px;
+  font-size: 16px;
   font-family: 'Inconsolata', monospace;
   position: absolute;
   top: 0;
@@ -2783,7 +2791,7 @@ ul.lexassetscontent {
   white-space: pre;
   word-wrap: normal;
   line-height: inherit;
-  color: #c9d5f4;
+  color: #dde1ec;
   position: relative;
   overflow: visible;
   -webkit-tap-highlight-color: transparent;
@@ -2802,7 +2810,7 @@ ul.lexassetscontent {
   -webkit-tap-highlight-color: transparent;
   box-sizing: border-box;
   display: inline-block;
-  height: 18px;
+  height: 16px;
   vertical-align: top;
 }
 
@@ -2810,7 +2818,7 @@ ul.lexassetscontent {
   -webkit-text-size-adjust: 100%;
   font-family: monospace;
   color: #AAA !important;
-  font-size: 15px;
+  font-size: 16px;
   cursor: text;
   box-sizing: border-box;
   visibility: hidden;
@@ -2829,7 +2837,7 @@ ul.lexassetscontent {
   -webkit-text-size-adjust: 100%;
   font-family: monospace;
   color: #AAA !important;
-  font-size: 15px;
+  font-size: 16px;
   cursor: text;
   box-sizing: border-box;
   margin: 0;
@@ -2837,7 +2845,7 @@ ul.lexassetscontent {
   border-right: none;
   width: 0;
   position: absolute;
-  border-left: 3px solid #a7a7a7b9 !important;
+  border-left: 3px solid #c5c5c5d6 !important;
   z-index: 0 !important;
   left: 0px;
   top: 0px;
@@ -2859,62 +2867,138 @@ ul.lexassetscontent {
   left: 0px;
   top: 0px;
   width: 100px;
-  height: 22px;
+  height: 20px;
   margin-top: -2px;
   background-color: var(--global-selected);
   opacity: 0.3;
 }
 
-.cm-str { color: #c69179; } /* string */
-.cm-kwd { color: #2194ce; } /* keyword */
-.cm-com { color: #75b073; } /* comment */
-.cm-typ { color: #36c0b0; } /* type */
-.cm-lit { color: #cf6dcf; } /* literal */
-.cm-bln { color: #cfc159; } /* builtin */
-.cm-dec { color: #b1ce9b; } /* decimal */
-.cm-sym { color: #e7ded2; } /* symbol */
-.cm-mtd { color: #f1e9bf; } /* method */
+.lexcodeeditor .autocomplete {
+  background-color: var(--global-branch-darker);
+  width: 256px;
+  max-height: 128px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  z-index: 100;
+  border-radius: 4px;
+  border: 1px solid var(--global-button-color);
+  box-shadow: 0 0px 4px #101010;
+  overflow-y: scroll;
+}
 
-.cm-str.css { color: #c69179; } /* string */
-.cm-kwd.css { color: #d2ba7f; } /* keyword */
-.cm-com.css { color: #75b073; } /* comment */
+.lexcodeeditor .autocomplete.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.lexcodeeditor .autocomplete.show {
+  visibility: visible;
+}
+
+.lexcodeeditor .autocomplete pre {
+  margin: 0;
+  pointer-events: unset;
+  cursor: default;
+  height: 18px;
+}
+
+.lexcodeeditor .autocomplete pre a {
+  font-size: 11px;
+  margin-top: 4px;
+  margin-right: 6px;
+  margin-left: 2px;
+}
+
+.lexcodeeditor .autocomplete pre:hover {
+  background-color: var(--global-color-terciary);
+  cursor: pointer;
+}
+
+.lexcodeeditor .autocomplete pre.selected {
+  background-color: var(--global-selected);
+}
+
+.lexcodeeditor .autocomplete pre span {
+  cursor: inherit;
+}
+
+.lexcodeeditor .autocomplete pre span.word-highlight {
+  color: var(--global-selected-light);
+}
+
+.lexcodeeditor .autocomplete pre.selected span.word-highlight {
+  color: #95a0e1;
+}
+
+.cm-str.javascript { color: #d0774e; } /* string */
+.cm-kwd.javascript { color: #218cce; } /* keyword */
+.cm-com.javascript { color: #5cab5a; } /* comment */
+.cm-typ.javascript { color: #36c0b0; } /* type */
+.cm-std.javascript { color: #cf6dcf; } /* statements & declarations */
+.cm-bln.javascript { color: inherit; } /* builtin */
+.cm-dec.javascript { color: #b1ce9b; } /* decimal */
+.cm-sym.javascript { color: #e7ded2; } /* symbol */
+.cm-mtd.javascript { color: #e0cc68 } /* method */
+
+.cm-str.css { color: #d0774e; } /* string */
+.cm-kwd.css { color: #e8be53; } /* keyword */
+.cm-com.css { color: #5cab5a; } /* comment */
 .cm-typ.css { color: #b7c3ec; } /* type */
-.cm-lit.css { color: #cf6dcf; } /* literal */
+.cm-std.css { color: #cf6dcf; } /* statements & declarations */
 .cm-bln.css { color: #2194ce; } /* builtin */
 .cm-dec.css { color: #b1ce9b; } /* decimal */
 .cm-sym.css { color: #f9d620; } /* symbol */
-.cm-mtd.css { color: #f1e9bf; } /* method */
+.cm-mtd.css { color: #e0cc68; } /* method */
 
-.cm-str.json { color: #c69179; } /* string */
+.cm-str.json { color: #d0774e; } /* string */
 .cm-kwd.json { color: inherit; } /* keyword */
 .cm-com.json { color: inherit; } /* comment */
 .cm-typ.json { color: inherit; } /* type */
-.cm-lit.json { color: inherit; } /* literal */
+.cm-std.json { color: inherit; } /* statements & declarations */
 .cm-bln.json { color: inherit; } /* builtin */
 .cm-dec.json { color: #b1ce9b; } /* decimal */
 .cm-sym.json { color: #cf6dcf; } /* symbol */
 .cm-mtd.json { color: inherit; } /* method */
 
-.cm-str.glsl { color: #c69179; } /* string */
+.cm-str.glsl { color: #d0774e; } /* string */
 .cm-kwd.glsl { color: #2194ce; } /* keyword */
-.cm-com.glsl { color: #75b073; } /* comment */
+.cm-com.glsl { color: #5cab5a; } /* comment */
 .cm-typ.glsl { color: #36c0b0; } /* type */
-.cm-lit.glsl { color: #cf6dcf; } /* literal */
+.cm-std.glsl { color: #cf6dcf; } /* statements & declarations */
 .cm-bln.glsl { color: #cfc159; } /* builtin */
 .cm-dec.glsl { color: #b1ce9b; } /* decimal */
 .cm-sym.glsl { color: #f9cb20; } /* symbol */
-.cm-mtd.glsl { color: #f1e9bf; } /* method */
+.cm-mtd.glsl { color: #e0cc68; } /* method */
 
-.cm-str.wgsl { color: #c69179; } /* string */
+.cm-str.wgsl { color: #d0774e; } /* string */
 .cm-kwd.wgsl { color: #2194ce; } /* keyword */
-.cm-com.wgsl { color: #75b073; } /* comment */
+.cm-com.wgsl { color: #5cab5a; } /* comment */
 .cm-typ.wgsl { color: #36c0b0; } /* type */
-.cm-lit.wgsl { color: #cf6dcf; } /* literal */
+.cm-std.wgsl { color: #cf6dcf; } /* statements & declarations */
 .cm-bln.wgsl { color: #cfc159; } /* builtin */
 .cm-dec.wgsl { color: #b1ce9b; } /* decimal */
 .cm-sym.wgsl { color: #f9cb20; } /* symbol */
-.cm-mtd.wgsl { color: #f1e9bf; } /* method */
+.cm-mtd.wgsl { color: #e0cc68; } /* method */
+
+.cm-str.python { color: #d0774e; } /* string */
+.cm-kwd.python { color: #218cce; } /* keyword */
+.cm-com.python { color: #5cab5a; } /* comment */
+.cm-typ.python { color: #36c0b0; } /* type */
+.cm-std.python { color: #cf6dcf; } /* statements & declarations */
+.cm-bln.python { color: inherit; } /* builtin */
+.cm-dec.python { color: #b1ce9b; } /* decimal */
+.cm-sym.python { color: #e7ded2; } /* symbol */
+.cm-mtd.python { color: #e0cc68 } /* method */
 
 /* plain color */
-.cm-str.plaintext, .cm-kwd.plaintext, .cm-com.plaintext, .cm-typ.plaintext, .cm-lit.plaintext, 
+.cm-str.plaintext, .cm-kwd.plaintext, .cm-com.plaintext, .cm-typ.plaintext, .cm-std.plaintext, 
 .cm-bln.plaintext, .cm-dec.plaintext, .cm-sym.plaintext, .cm-mtd.plaintext { color: inherit; }
+
+
+/* Node Graph */
+
+.lexnodegraph canvas {
+  width: 100%;
+  height: 100%;
+}

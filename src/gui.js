@@ -1,6 +1,9 @@
 import { UTILS } from "./utils.js";
 import { VideoUtils } from "./video.js"; 
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
+import { LX } from 'lexgui';
+import 'lexgui/components/codeeditor.js';
+import 'lexgui/components/timeline.js';
 
 class Gui {
 
@@ -894,10 +897,10 @@ class KeyframesGui extends Gui {
 
         let bodyArea = new LX.Area({className: "sidePanel", id: 'Body', scroll: true});  
         let faceArea = new LX.Area({className: "sidePanel", id: 'Face', scroll: true});  
-        tabs.add( "Body", bodyArea, true, null, {onSelect: (e,v) => {this.editor.setAnimation(v)}}  );
+        tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {this.editor.setAnimation(v)}}  );
         if(this.editor.auAnimation) {
 
-            tabs.add( "Face", faceArea, false, null, {onSelect: (e,v) => {
+            tabs.add( "Face", faceArea, {onSelect: (e,v) => {
                 this.editor.setAnimation(v); 
                 this.updateActionUnitsPanel(this.editor.getSelectedActionUnit());
                 this.imageMap.resize();
@@ -1093,7 +1096,7 @@ class KeyframesGui extends Gui {
         for(let area in areas) {
             let panel = new LX.Panel({id: "au-"+ area});
             panel = this.createBlendShapesInspector(areas[area], {inspector: panel, editable: true, showNumber:true});
-            tabs.add(area, panel, this.editor.getSelectedActionUnit() == area, null, {onSelect : (e, v) => {
+            tabs.add(area, panel, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
                 this.showTimeline();
                 this.editor.setSelectedActionUnit(v);
                 document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
@@ -2571,12 +2574,9 @@ class ScriptGui extends Gui {
                 allowed_types: ["Clip"]
             })
 
-            
-            asset_browser = new LX.AssetView({  
-                root_path: "./src/libs/lexgui/",
-                preview_actions
-            });
+            asset_browser = new LX.AssetView({ preview_actions });
             p.attach( asset_browser );
+
             asset_browser.load( asset_data, (e,v) => {
                 switch(e.type) {
                     case LX.AssetViewEvent.ASSET_SELECTED: 
@@ -2712,7 +2712,7 @@ class ScriptGui extends Gui {
                 });
             }
             
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["Preset"], preview_actions: preview_actions, context_menu: false });
+            let asset_browser = new LX.AssetView({  allowed_types: ["Preset"], preview_actions: preview_actions, context_menu: false });
 
             p.attach( asset_browser );
 
@@ -2724,7 +2724,6 @@ class ScriptGui extends Gui {
 
             }
 
-           
             const loadData = () => {
                 asset_browser.load( this.editor.repository.presets, e => {
                     switch(e.type) {
@@ -2762,11 +2761,11 @@ class ScriptGui extends Gui {
                                         e.item.children = files_data;
                                     
                                     }
-                                    asset_browser.current_data = files_data;
-                                    asset_browser._update_path(asset_browser.current_data);
+                                    asset_browser.currentData = files_data;
+                                    asset_browser._updatePath(asset_browser.currentData);
                                     if(!asset_browser.skip_browser)
-                                        asset_browser._create_tree_panel();
-                                    asset_browser._refresh_content();
+                                        asset_browser._createTreePanel();
+                                    asset_browser._refreshContent();
 
                                     this.editor.refreshPresetsRepository = false;
                                     closeModal(modal);
@@ -2943,7 +2942,7 @@ class ScriptGui extends Gui {
                 });
             }
             
-            let asset_browser = new LX.AssetView({ root_path: "./src/libs/lexgui/", allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
+            let asset_browser = new LX.AssetView({  allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
             
             p.attach( asset_browser );
             const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
@@ -3015,12 +3014,12 @@ class ScriptGui extends Gui {
                                         }
                                         e.item.children = files_data;
                                     }
-                                    asset_browser.current_data = files_data;
-                                    asset_browser._update_path(asset_browser.current_data);
+                                    asset_browser.currentData = files_data;
+                                    asset_browser._updatePath(asset_browser.currentData);
 
                                     if(!asset_browser.skip_browser)
-                                        asset_browser._create_tree_panel();
-                                    asset_browser._refresh_content();
+                                        asset_browser._createTreePanel();
+                                    asset_browser._refreshContent();
 
                                     this.editor.refreshSignsRepository = false;
                                     closeModal(modal);
@@ -3090,58 +3089,58 @@ class ScriptGui extends Gui {
     {
         if(window.dialog) 
             window.dialog.destroy();
+        const area = new LX.Area();
+        
         window.dialog = new LX.PocketDialog("Editor", p => {
-            const area = new LX.Area();
             p.attach( area );
-            const filename = asset.filename;
-            const type = asset.type;
-            const name = filename.replace("."+ type, "");
-           
-            const setText = (text) => {
-                let code_editor = new LX.CodeEditor(area, {
-                    allow_add_scripts: false,
-                    name: type,
-                    title: name,
-                    disable_edition: true
-                });
-                
-                code_editor.code.lines = text.split('\n');
-                code_editor.processLines();
-                code_editor._refresh_code_info();
-                if(asset.type == "sigml") {
-                    code_editor.addTab("bml", false, name);
-                    let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
-                        // limit precision of floats
-                        if (typeof value === 'number') {
-                            return parseFloat(value.toFixed(3));
-                        }
-                        return value;
-                    });
-                    code_editor.openedTabs["bml"].lines = code_editor.toJSONFormat(t).split('\n');    
-                }
-                code_editor._change_language( "JSON" );
-            }
-
-            //from server
-            if(asset.fullpath) {
-                const fs = this.editor.FS;
-                LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
-                    const bytesize = f => new Blob([f]).size;
-                    asset.bytesize = bytesize();
-                    asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                    asset.bml.behaviours = asset.bml.data;
-                    let text = f.replaceAll('\r', '').replaceAll('\t', '');
-                    setText(text)
-                } });
-            } else {
-                //from local
-                asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
-                asset.bml.behaviours = asset.bml.data;              
-                let text = JSON.stringify(asset.bml.behaviours);
-                setText(text);
-            }
-
         }, { size: ["40%", "600px"], closable: true });
+        
+        const filename = asset.filename;
+        const type = asset.type;
+        const name = filename.replace("."+ type, "");
+        
+        const setText = (text) => {
+            let code_editor = new LX.CodeEditor(area, {
+                allow_add_scripts: false,
+                name: type,
+                title: name,
+                disable_edition: true
+            });
+            code_editor.setText(text);
+            
+            if(asset.type == "sigml") {
+                code_editor.addTab("bml", false, name);
+                let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
+                    // limit precision of floats
+                    if (typeof value === 'number') {
+                        return parseFloat(value.toFixed(3));
+                    }
+                    return value;
+                });
+                code_editor.openedTabs["bml"].lines = code_editor.toJSONFormat(t).split('\n');    
+            }
+            code_editor._changeLanguage( "JSON" );
+        }
+
+        //from server
+        if(asset.fullpath) {
+            const fs = this.editor.FS;
+            LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
+                const bytesize = f => new Blob([f]).size;
+                asset.bytesize = bytesize();
+                asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                asset.bml.behaviours = asset.bml.data;
+                let text = f.replaceAll('\r', '').replaceAll('\t', '');
+                setText(text)
+            } });
+        } else {
+            //from local
+            asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
+            asset.bml.behaviours = asset.bml.data;              
+            let text = JSON.stringify(asset.bml.behaviours);
+            setText(text);
+        }
+
     }
 
 
