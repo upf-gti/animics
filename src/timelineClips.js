@@ -2196,6 +2196,25 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 			
 		}, {filter: true});
 	}
+
+	panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
+	{
+		this.properties.lrSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
+	{
+		this.properties.udSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
+	{
+		this.properties.ioSym = v;
+		if(callback)
+			callback();
+	});
 }
 
 //PalmOrientationClip
@@ -2386,6 +2405,25 @@ PalmOrientationClip.prototype.showInfo = function(panel, callback)
 			callback();
 		
 	}, {filter: true, title: "Will compute midpoint between direction and second direction"});
+
+	panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
+	{
+		this.properties.lrSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
+	{
+		this.properties.udSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
+	{
+		this.properties.ioSym = v;
+		if(callback)
+			callback();
+	});
 }
 
 //HandOrientationClip
@@ -2595,6 +2633,25 @@ HandOrientationClip.prototype.showInfo = function(panel, callback)
 			callback();
 		
 	}, {filter: true, title: "Will compute midpoint between direction and second direction"});
+
+	panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
+	{
+		this.properties.lrSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
+	{
+		this.properties.udSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
+	{
+		this.properties.ioSym = v;
+		if(callback)
+			callback();
+	});
 }
 
 
@@ -3557,6 +3614,25 @@ DirectedMotionClip.prototype.showInfo = function(panel, callback)
 		}, {precision: 2, min: 0, step: 1, title: "Oscillations per second"});
 	
 	}
+
+	panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
+	{
+		this.properties.lrSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
+	{
+		this.properties.udSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
+	{
+		this.properties.ioSym = v;
+		if(callback)
+			callback();
+	});
 }
 
 //CircularMotionClip
@@ -3578,6 +3654,8 @@ function CircularMotionClip(o)
 	this.id= "Circular Motion";
 	this.start = 0
 	this.duration = 1;
+	this.attackPeak = this.fadein = 0.25; //if it's not permanent
+	this.relax = this.fadeout = 0.75; //if it's not permanent
 	this._width = 0;
 	
 	this.properties = {
@@ -3882,6 +3960,25 @@ CircularMotionClip.prototype.showInfo = function(panel, callback)
 		}, {precision: 2, min: 0, step: 1, title: "Zig zag speed"});
 	
 	}
+
+	panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
+	{
+		this.properties.lrSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
+	{
+		this.properties.udSym = v;
+		if(callback)
+			callback();
+	});
+	panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
+	{
+		this.properties.ioSym = v;
+		if(callback)
+			callback();
+	});
 }
 
 //WristMotionClip
