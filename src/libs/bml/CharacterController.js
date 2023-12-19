@@ -110,7 +110,7 @@ CharacterController.prototype.update = function (dt, et) {
 // Process message
 // Messages can come from inner processes. "fromWS" indicates if a reply to the server is required in BMLManager.js
 CharacterController.prototype.processMsg = function (data, fromWS) {
-
+    if ( !data ){ return; }
     // Update to remove aborted blocks
     if (!this.BehaviourManager)
         return;
@@ -163,7 +163,7 @@ CharacterController.prototype.processMsg = function (data, fromWS) {
         if (!msg.composition)
             msg.composition = "MERGE";
 
-        if ( msg.speech && (msg.speech.constructor == Object || msg.speech.length) ) {
+        if ( msg.speech && ( msg.speech.constructor == Object || msg.speech.length ) ) {
             msg.control = this.SPEAKING;
         }
 
@@ -184,7 +184,7 @@ CharacterController.prototype.processMsg = function (data, fromWS) {
         else if (data.type == "info")
             return;
 
-        if ( msg.speech && (msg.speech.constructor == Object || msg.speech.length) ) {
+        if ( msg.speech && ( msg.speech.constructor == Object || msg.speech.length ) ) {
             msg.control = this.SPEAKING;
         }
         // Process block

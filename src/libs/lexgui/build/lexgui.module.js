@@ -2879,9 +2879,11 @@ class Panel {
         // Create new branch
         var branch = new Branch(name, options);
         branch.panel = this;
+
         // Declare new open
         this.branch_open = true;
         this.current_branch = branch;
+
         // Append to panel
         if(this.branches.length == 0)
             branch.root.classList.add('first');
@@ -2895,7 +2897,7 @@ class Panel {
 
         // Add widget filter
         if(options.filter) {
-            this._add_filter( options.filter, {callback: this._search_widgets.bind(this, branch.name)} );
+            this._addFilter( options.filter, {callback: this._searchWidgets.bind(this, branch.name)} );
         }
 
         return branch;
@@ -3047,7 +3049,7 @@ class Panel {
         return widget;
     }
 
-    _add_filter( placeholder, options = {} ) {
+    _addFilter( placeholder, options = {} ) {
 
         options.placeholder = placeholder.constructor == String ? placeholder : "Filter properties..";
         options.skipWidget = options.skipWidget ?? true;
@@ -3076,7 +3078,7 @@ class Panel {
         return element;
     }
 
-    _search_widgets(branchName, value) {
+    _searchWidgets(branchName, value) {
 
         for( let b of this.branches ) {
 
@@ -3470,7 +3472,7 @@ class Panel {
                 // Update height depending on the content
                 wValue.style.height = wValue.scrollHeight + "px";
             }
-        }, 100);
+        }, 10);
 
         return widget;
     }
@@ -3820,7 +3822,7 @@ class Panel {
         // Add filter options
         let filter = null;
         if(options.filter ?? false)
-            filter = this._add_filter("Search option", {container: list, callback: this._search_options.bind(list, values)});
+            filter = this._addFilter("Search option", {container: list, callback: this._search_options.bind(list, values)});
 
         // Create option list to empty it easily..
         const list_options = document.createElement('span');
@@ -4634,8 +4636,7 @@ class Panel {
             slider.value = value;
             slider.addEventListener("input", function(e) {
                 let new_value = +this.valueAsNumber;
-                let fract = new_value % 1;
-                vecinput.value = Math.trunc(new_value) + (+fract.toPrecision(5));
+                vecinput.value = (+new_value).toFixed(4).replace(/([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/,'$1');
                 Panel._dispatch_event(vecinput, "change");
             }, false);
             box.appendChild(slider);
@@ -4651,8 +4652,7 @@ class Panel {
             if(e.shiftKey) mult *= 10;
             else if(e.altKey) mult *= 0.1;
             let new_value = (+this.valueAsNumber - mult * (e.deltaY > 0 ? 1 : -1));
-            let fract = new_value % 1;
-            this.value = Math.trunc(new_value) + (+fract.toPrecision(5));
+            this.value = (+new_value).toFixed(4).replace(/([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/,'$1');
             Panel._dispatch_event(vecinput, "change");
         }, {passive:false});
 
@@ -4695,8 +4695,7 @@ class Panel {
                 if(e.shiftKey) mult *= 10;
                 else if(e.altKey) mult *= 0.1;
                 let new_value = (+vecinput.valueAsNumber + mult * dt);
-                let fract = new_value % 1;
-                vecinput.value = Math.trunc(new_value) + (+fract.toPrecision(5));
+                vecinput.value = (+new_value).toFixed(4).replace(/([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/,'$1');
                 Panel._dispatch_event(vecinput, "change");
             }
 
@@ -5310,11 +5309,13 @@ class Branch {
 
         this._addBranchSeparator();
 
-        if(options.closed) {
+        if( options.closed ) {
             title.className += " closed";
             root.className += " closed";
-            this.content.setAttribute('hidden', true);
             this.grabber.setAttribute('hidden', true);
+            doAsync( () => {
+                this.content.setAttribute('hidden', true);
+            }, 15);
         }
 
         this.onclick = function(e){
@@ -5840,7 +5841,7 @@ class ContextMenu {
         const hasSubmenu = o[ k ].length;
         let entry = document.createElement('div');
         entry.className = "lexcontextmenuentry" + (o[ 'className' ] ? " " + o[ 'className' ] : "" );
-        entry.id = o.id ?? ("eId" + k.replace(/\s/g, '').replace('@', '_'));
+        entry.id = o.id ?? ("eId" + this._getSupportedDOMName( k ));
         entry.innerHTML = "";
         const icon = o[ 'icon' ];
         if(icon) {
@@ -5987,7 +5988,7 @@ class ContextMenu {
         for( let item of this.items )
         {
             let key = Object.keys(item)[0];
-            let pKey = "eId" + key.replace(/\s/g, '').replace('@', '_');
+            let pKey = "eId" + this._getSupportedDOMName( key );
 
             // Item already created
             const id = "#" + (item.id ?? pKey);
@@ -6003,7 +6004,11 @@ class ContextMenu {
 
         this.colors[ token ] = color;
     }
-    
+
+    _getSupportedDOMName( key ) {
+        return key.replace(/\s/g, '').replaceAll('@', '_').replaceAll('+', '_plus_');
+    }
+
 };
 
 LX.ContextMenu = ContextMenu;

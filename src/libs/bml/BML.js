@@ -3892,8 +3892,7 @@ class HandShape {
         this.thumbshapes = config.thumbshapes ? config.thumbshapes : thumbshapes;
         this.handBendings = config.handBendings ? config.handBendings : handBendings;
 
-        // this.fingerAxes = isLeftHand ? config.fingerAxes.L : config.fingerAxes.R;
-        this.fingerAxes = isLeftHand ? this._computeFingerAxesOfHand( true ) : this._computeFingerAxesOfHand( false );
+        this.fingerAxes = this._computeFingerAxesOfHand( isLeftHand );
         this.thumbAfterBindTwistAxis = (new THREE.Vector3()).copy(this.skeleton.bones[ this.fingerIdxs[0] + 1 ].position).applyQuaternion( this.fingerAxes.bindQuats[0] ).normalize();
 
         this.defG = [ [0,0,0,0], [0,0,0,0], [0,0,0,0], [0,0,0,0], [0,0,0,0] ];
@@ -4161,18 +4160,12 @@ class HandShape {
 
         // rest of fingers
         for( let i = 1; i < 5; ++i ){
-            if ( selectedFingers[i] == 1 ){ 
-                let f = b[1];
-                handArray[i][1] = f[0]; 
-                handArray[i][2] = f[1]; 
-                handArray[i][3] = f[2]; 
-            }
-            if ( selectedFingers[i] >= 2 ){ 
-                let bf = b[2].f;
-                handArray[i][1] = selectedFingers[i] == 3 ? ( bf[0] * 0.8 ) : bf[0]; 
-                handArray[i][2] = bf[1]; 
-                handArray[i][3] = bf[2]; 
-            }
+            let s = selectedFingers[i]; 
+            if ( !s ){ continue; }
+            let f = ( s > 1 ) ? b[2].f : b[1];
+            handArray[i][1] = s == 3 ? ( f[0] * 0.8 ) : f[0]; 
+            handArray[i][2] = f[1]; 
+            handArray[i][3] = f[2]; 
         }
     }
 
@@ -4180,7 +4173,7 @@ class HandShape {
     _stringToFingerBend( str, outFinger, selectMode = 0, bendRange = 4 ){
         if ( !str ){ return; }
 
-        if ( typeof( str ) == "stirng" ){ str = str.toUpperCase(); }
+        if ( str.toUpperCase ){ str = str.toUpperCase(); }
         let b = this.handBendings[ str ];
         if ( !b ){ 
             if ( typeof( str ) == "string" ){
@@ -4193,21 +4186,14 @@ class HandShape {
             }
             return;
         }
-        if ( selectMode == 1 ){ // basic handshapes
-            let f = b[1];
-            outFinger[1] = f[0]; 
-            outFinger[2] = f[1]; 
-            outFinger[3] = f[2]; 
-        }
-        if ( selectMode >= 2 ){  // thumb combination handshapes
-            let bf = b[2].f;
-            outFinger[1] = selectedFingers[i] == 3 ? ( bf[0] * 0.8 ) : bf[0]; 
-            outFinger[2] = bf[1]; 
-            outFinger[3] = bf[2]; 
-        }
 
-
+        if ( !selectMode ){ return; }
+        let f = ( selectMode > 1 ) ? b[2].f : b[1];
+        outFinger[1] = ( selectMode == 3 ) ? ( f[0] * 0.8 ) : f[0]; 
+        outFinger[2] = f[1]; 
+        outFinger[3] = f[2]; 
     }
+
     _stringToSplay( str, outFinger ){
         let val = str;
         if ( typeof val == "string" ){ 

@@ -666,7 +666,7 @@ progress {
     max-width: 1320px;
   }
 }
-.row {
+.masthead .row {
   --bs-gutter-x: 1.5rem;
   --bs-gutter-y: 0;
   display: flex;
@@ -675,7 +675,7 @@ progress {
   margin-right: calc(-0.5 * var(--bs-gutter-x));
   margin-left: calc(-0.5 * var(--bs-gutter-x));
 }
-.row > * {
+.masthead .row > * {
   flex-shrink: 0;
   width: 100%;
   max-width: 100%;
@@ -684,7 +684,7 @@ progress {
   margin-top: var(--bs-gutter-y);
 }
 
-.col {
+.masthead.col {
   flex: 1 0 0%;
 }
 

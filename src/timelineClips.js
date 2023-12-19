@@ -267,10 +267,10 @@ ANIM.clipToJSON = function( clip )
 		console.warn("Clip without toJSON, data not serialized");
 		return null;
 	}
-	if( clip.fadein )
-		data.fadein = clip.fadein;
-	if( clip.fadeout )
-		data.fadeout = clip.fadeout;
+	// if( clip.fadein )
+	// 	data.fadein = clip.fadein;
+	// if( clip.fadeout )
+	// 	data.fadeout = clip.fadeout;
 	if( clip.controlChannels )
 	{
 		data.ccs = [];
@@ -1225,6 +1225,14 @@ GazeClip.prototype.configure = function(o)
 
 GazeClip.prototype.toJSON = function()
 {
+	let data = {
+		"id": null,
+		"start": null,
+		"end": null,
+		"ready": null,
+		"relax": null,
+		"type": null
+	}
 	var json = {
 		id: this.id,
 		start: this.start,
@@ -1233,6 +1241,7 @@ GazeClip.prototype.toJSON = function()
 		relax: this.fadeout,
 		type: "gaze"
 	}
+	data = Object.assign(data, json);
 	for(var i in this.properties)
 	{
 		json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
@@ -1877,8 +1886,8 @@ ArmLocationClip.directions = ["Up", "Down", "Left", "Right", "In", "Out",
 								"Up Left", "Up Right", "Up In", "Up Out",
 								"Left In", "Left Out", "Right In", "Right Out",								
 								"Down Left", "Down Right", "Down In", "Down Out",
-								"Up Out Left", "Up Out Right", "Down Out Left", "Down Out Right",
-								"Down Out Left", "Down Out Right", "Down In Left", "Down In Right"];
+								"Down In Left", "Down In Right", "Down Out Left", "Down Out Right",
+								"Up In Left", "Up In Right", "Up Out Left", "Up Out Right"];
 ArmLocationClip.fingers = ["","Thumb", "Index", "Middle", "Ring", "Pinky"];
 ArmLocationClip.hand_locations = ["","Tip", "Pad", "Mid", "Base", "Thumb ball", "Hand", "Wrist"];
 ArmLocationClip.hand_sides = ["", "Right", "Left", "Ulnar", "Radial", "Front", "Back", "Palmar"];
@@ -2386,8 +2395,8 @@ HandOrientationClip.directions = ["Up", "Down", "Left", "Right", "In", "Out",
 								"Up Left", "Up Right", "Up In", "Up Out",
 								"Left In", "Left Out", "Right In", "Right Out",								
 								"Down Left", "Down Right", "Down In", "Down Out",
-								"Up Out Left", "Up Out Right", "Down Out Left", "Down Out Right",
-								"Up In Left", "Up In Right", "Down In Left", "Down In Right"];
+								"Down In Left", "Down In Right", "Down Out Left", "Down Out Right",
+								"Up In Left", "Up In Right", "Up Out Left", "Up Out Right"];
 
 HandOrientationClip.id = ANIM.HANDORIENTATION ? ANIM.HANDORIENTATION: ANIM.clipTypes.length;
 HandOrientationClip.clipColor = "#8cc157";
@@ -2891,8 +2900,8 @@ HandConstellationClip.directions = ["Up", "Down", "Left", "Right", "In", "Out",
 									"Up Left", "Up Right", "Up In", "Up Out",
 									"Left In", "Left Out", "Right In", "Right Out",								
 									"Down Left", "Down Right", "Down In", "Down Out",
-									"Up Out Left", "Up Out Right", "Down Out Left", "Down Out Right",
-									"Down Out Left", "Down Out Right", "Down In Left", "Down In Right"];
+									"Down In Left", "Down In Right", "Down Out Left", "Down Out Right",
+									"Up In Left", "Up In Right", "Up Out Left", "Up Out Right"]
 
 HandConstellationClip.id = ANIM.HANDCONSTELLATION ? ANIM.HANDCONSTELLATION: ANIM.clipTypes.length;
 HandConstellationClip.clipColor = "#c1578c";
@@ -3213,8 +3222,8 @@ DirectedMotionClip.directions = ["Up", "Down", "Left", "Right", "In", "Out",
 								"Up Left", "Up Right", "Up In", "Up Out",
 								"Left In", "Left Out", "Right In", "Right Out",								
 								"Down Left", "Down Right", "Down In", "Down Out",
-								"Up Out Left", "Up Out Right", "Down Out Left", "Down Out Right",
-								"Down Out Left", "Down Out Right", "Down In Left", "Down In Right"];
+								"Down In Left", "Down In Right", "Down Out Left", "Down Out Right",
+								"Up In Left", "Up In Right", "Up Out Left", "Up Out Right"]
 DirectedMotionClip.second_directions = ["Up", "Down", "Left", "Right","Up Left", "Up Right", "Down Left", "Down Right"];
 
 DirectedMotionClip.id = ANIM.DIRECTEDMOTION ? ANIM.DIRECTEDMOTION: ANIM.clipTypes.length;
@@ -3557,8 +3566,8 @@ CircularMotionClip.directions = ["Up", "Down", "Left", "Right", "In", "Out",
 								"Up Left", "Up Right", "Up In", "Up Out",
 								"Left In", "Left Out", "Right In", "Right Out",								
 								"Down Left", "Down Right", "Down In", "Down Out",
-								"Up Out Left", "Up Out Right", "Down Out Left", "Down Out Right",
-								"Down Out Left", "Down Out Right", "Down In Left", "Down In Right"];
+								"Down In Left", "Down In Right", "Down Out Left", "Down Out Right",
+								"Up In Left", "Up In Right", "Up Out Left", "Up Out Right"]
 CircularMotionClip.second_directions = ["Up", "Down", "Left", "Right","Up Left", "Up Right", "Down Left", "Down Right"];
 
 CircularMotionClip.id = ANIM.CIRCULARMOTION ? ANIM.CIRCULARMOTION: ANIM.clipTypes.length;

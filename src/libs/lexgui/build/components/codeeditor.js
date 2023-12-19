@@ -106,9 +106,6 @@ class CodeEditor {
 
         CodeEditor.__instances.push( this );
 
-        this.disable_edition = options.disable_edition ?? false;
-
-        this.skip_info = options.skip_info;
         this.base_area = area;
         this.area = new LX.Area( { className: "lexcodeeditor", height: "auto", no_append: true } );
 
@@ -129,14 +126,21 @@ class CodeEditor {
         this.root.tabIndex = -1;
         area.attach( this.root );
 
-        this.root.addEventListener( 'keydown', this.processKey.bind(this), true);
+        this.skipCodeInfo = options.skip_info ?? false;
+        this.disableEdition = options.disable_edition ?? false;
+
+        if( !this.disableEdition )
+        {
+            this.root.addEventListener( 'keydown', this.processKey.bind(this), true);
+            this.root.addEventListener( 'focus', this.processFocus.bind(this, true) );
+            this.root.addEventListener( 'focusout', this.processFocus.bind(this, false) );
+        }
+       
         this.root.addEventListener( 'mousedown', this.processMouse.bind(this) );
         this.root.addEventListener( 'mouseup', this.processMouse.bind(this) );
         this.root.addEventListener( 'mousemove', this.processMouse.bind(this) );
         this.root.addEventListener( 'click', this.processMouse.bind(this) );
         this.root.addEventListener( 'contextmenu', this.processMouse.bind(this) );
-        this.root.addEventListener( 'focus', this.processFocus.bind(this, true) );
-        this.root.addEventListener( 'focusout', this.processFocus.bind(this, false) );
 
         // Cursors and selection
 
@@ -198,8 +202,19 @@ class CodeEditor {
         this.charWidth = 8; //this.measureChar();
         this._lastTime = null;
 
+        this.pairKeys = {
+            "\"": "\"",
+            "'": "'",
+            "(": ")",
+            "{": "}",
+            "[": "]"
+        };
+
+        // Scan tokens..
+        setInterval( this.scanWordSuggestions.bind(this), 2000 );
+
         this.languages = [
-            'Plain Text', 'JavaScript', 'CSS', 'GLSL', 'WGSL', 'JSON', 'XML', 'Python'
+            'Plain Text', 'JavaScript', 'C++', 'CSS', 'GLSL', 'WGSL', 'JSON', 'XML', 'Python'
         ];
         this.specialKeys = [
             'Backspace', 'Enter', 'ArrowUp', 'ArrowDown', 
@@ -209,6 +224,7 @@ class CodeEditor {
         this.keywords = {
             'JavaScript': ['var', 'let', 'const', 'this', 'in', 'of', 'true', 'false', 'new', 'function', 'NaN', 'static', 'class', 'constructor', 'null', 'typeof', 'debugger', 'abstract',
                           'arguments', 'extends', 'instanceof'],
+            'C++': ['int', 'float', 'bool', 'const', 'static_cast', 'dynamic_cast', 'new', 'delete', 'void', 'true', 'false', 'auto', 'struct', 'typedef'],
             'GLSL': ['true', 'false', 'function', 'int', 'float', 'vec2', 'vec3', 'vec4', 'mat2x2', 'mat3x3', 'mat4x4', 'struct'],
             'CSS': ['body', 'html', 'canvas', 'div', 'input', 'span', '.'],
             'WGSL': ['var', 'let', 'true', 'false', 'fn', 'bool', 'u32', 'i32', 'f16', 'f32', 'vec2f', 'vec3f', 'vec4f', 'mat2x2f', 'mat3x3f', 'mat4x4f', 'array', 'atomic', 'struct',
@@ -236,16 +252,19 @@ class CodeEditor {
         };
         this.builtin = {
             'JavaScript': ['document', 'console', 'window', 'navigator', 'performance'],
-            'CSS': ['*', '!important']
+            'CSS': ['*', '!important'],
+            'C++': ['vector', 'list', 'map']
         };
         this.statementsAndDeclarations = {
             'JavaScript': ['for', 'if', 'else', 'case', 'switch', 'return', 'while', 'continue', 'break', 'do', 'import', 'from', 'throw', 'async', 'try', 'catch', 'await'],
+            'C++': ['std', 'for', 'if', 'else', 'return', 'continue', 'break', 'case', 'switch', 'while', 'glm'],
             'GLSL': ['for', 'if', 'else', 'return', 'continue', 'break'],
             'WGSL': ['const','for', 'if', 'else', 'return', 'continue', 'break', 'storage', 'read', 'uniform'],
             'Python': ['if', 'raise', 'del', 'import', 'return', 'elif', 'try', 'else', 'while', 'as', 'except', 'with', 'assert', 'finally', 'yield', 'break', 'for', 'class', 'continue', 'global', 'pass']
         };
         this.symbols = {
             'JavaScript': ['<', '>', '[', ']', '{', '}', '(', ')', ';', '=', '|', '||', '&', '&&', '?', '??'],
+            'C++': ['<', '>', '[', ']', '{', '}', '(', ')', ';', '=', '|', '||', '&', '&&', '?', '::'],
             'JSON': ['[', ']', '{', '}', '(', ')'],
             'GLSL': ['[', ']', '{', '}', '(', ')'],
             'WGSL': ['[', ']', '{', '}', '(', ')', '->'],
@@ -335,7 +354,7 @@ class CodeEditor {
 
             this.resetCursorPos( CodeEditor.CURSOR_LEFT );
             if(idx > 0) this.cursorToString(cursor, prestring);
-            this._refreshCodeInfo(cursor.line + 1, cursor.position);
+            this._refreshCodeInfo(cursor.line, cursor.position);
             this.code.scrollLeft = 0;
 
             if( e.shiftKey && !e.cancelShift )
@@ -764,11 +783,14 @@ class CodeEditor {
         switch(ext.toLowerCase())
         {
             case 'js': return this._changeLanguage('JavaScript');
+            case 'cpp': return this._changeLanguage('C++');
+            case 'h': return this._changeLanguage('C++');
             case 'glsl': return this._changeLanguage('GLSL');
             case 'css': return this._changeLanguage('CSS');
             case 'json': return this._changeLanguage('JSON');
             case 'xml': return this._changeLanguage('XML');
             case 'wgsl': return this._changeLanguage('WGSL');
+            case 'py': return this._changeLanguage('Python');
             case 'txt': 
             default:
                 this._changeLanguage('Plain Text');
@@ -777,20 +799,20 @@ class CodeEditor {
 
     _createPanelInfo() {
         
-        if( !this.skip_info )
+        if( !this.skipCodeInfo )
         {
             let panel = new LX.Panel({ className: "lexcodetabinfo", width: "calc(100%)", height: "auto" });
             panel.ln = 0;
             panel.col = 0;
 
             this._refreshCodeInfo = (ln = panel.ln, col = panel.col) => {
-                panel.ln = ln;
-                panel.col = col;
+                panel.ln = ln + 1;
+                panel.col = col + 1;
                 panel.clear();
                 panel.sameLine();
                 panel.addLabel(this.code.title, { float: 'right' });
-                panel.addLabel("Ln " + ln, { width: "64px" });
-                panel.addLabel("Col " + col, { width: "64px" });
+                panel.addLabel("Ln " + panel.ln, { width: "64px" });
+                panel.addLabel("Col " + panel.col, { width: "64px" });
                 panel.addButton("<b>{ }</b>", this.highlight, (value, event) => {
                     LX.addContextMenu( "Language", event, m => {
                         for( const lang of this.languages )
@@ -894,7 +916,7 @@ class CodeEditor {
             this.restoreCursor(cursor, this.code.cursorState);    
             this.endSelection();
             this._changeLanguageFromExtension( LX.getExtension(tabname) );
-            this._refreshCodeInfo(cursor.line + 1, cursor.position);
+            this._refreshCodeInfo(cursor.line, cursor.position);
 
             // Restore scroll
             this.gutter.scrollTop = this.code.scrollTop;
@@ -1024,15 +1046,18 @@ class CodeEditor {
                 return;
 
             LX.addContextMenu( null, e, m => {
-                m.add( "Format/JSON", () => { 
-                    let json = this.toJSONFormat(this.getText());
-                    this.code.lines = json.split("\n"); 
-                    this.processLines();
-                } );
-                m.add( "" )
-                m.add( "Cut", () => {  this._cutContent(); } );
                 m.add( "Copy", () => {  this._copyContent(); } );
-                m.add( "Paste", () => {  this._pasteContent(); } );
+                if( !this.disableEdition )
+                {
+                    m.add( "Cut", () => {  this._cutContent(); } );
+                    m.add( "Paste", () => {  this._pasteContent(); } );
+                    m.add( "" );
+                    m.add( "Format/JSON", () => { 
+                        let json = this.toJSONFormat(this.getText());
+                        this.code.lines = json.split("\n"); 
+                        this.processLines();
+                    } );
+                }
             });
 
             this.canOpenContextMenu = false;
@@ -1060,7 +1085,7 @@ class CodeEditor {
         this.hideAutoCompleteBox();
         
         if(!skip_refresh) 
-            this._refreshCodeInfo( ln + 1, cursor.position );
+            this._refreshCodeInfo( ln, cursor.position );
     }
 
     processSelection( e, keep_range ) {
@@ -1315,36 +1340,33 @@ class CodeEditor {
             lidx = cursor.line; // Update this, since it's from the old code
         }
 
-        // Append key 
+        // Append key
 
-        this.code.lines[lidx] = [
-            this.code.lines[lidx].slice(0, cursor.position), 
-            key, 
-            this.code.lines[lidx].slice(cursor.position)
-        ].join('');
+        const isPairKey = (Object.values( this.pairKeys ).indexOf( key ) > -1) && !this.wasKeyPaired;
+        const sameKeyNext = isPairKey && (this.code.lines[lidx][cursor.position] === key);
+
+        if( !sameKeyNext )
+        {
+            this.code.lines[lidx] = [
+                this.code.lines[lidx].slice(0, cursor.position), 
+                key, 
+                this.code.lines[lidx].slice(cursor.position)
+            ].join('');
+        }
 
         this.cursorToRight( key );
 
         //  Some custom cases for auto key pair (), {}, "", '', ...
-
-        const pairKeys = ["\"", "'", "(", "{"];
-        if( pairKeys.indexOf( key ) > -1 && !this.wasKeyPaired )
+        
+        const keyMustPair = (this.pairKeys[ key ] !== undefined);
+        if( keyMustPair && !this.wasKeyPaired )
         {
-            // Find pair key
-            let pair = key;
-            switch(key)
-            {
-                case "'":
-                case "\"":
-                    break;
-                case "(": pair = ")"; break;
-                case "{": pair = "}"; break;
-            }
-
             // Make sure to detect later that the key is paired automatically to avoid loops...
             this.wasKeyPaired = true;
 
-            this.root.dispatchEvent(new KeyboardEvent('keydown', { 'key': pair }));
+            if(sameKeyNext) return;
+
+            this.root.dispatchEvent(new KeyboardEvent('keydown', { 'key': this.pairKeys[ key ] }));
             this.cursorToLeft( key, cursor );
             return;
         }
@@ -1436,105 +1458,85 @@ class CodeEditor {
         };
     }
 
-    processLines( from ) {
+    scanWordSuggestions() {
 
-        if( !from )
+        this.code.tokens = {};
+
+        for( let i = 0; i < this.code.lines.length; ++i )
         {
-            this.gutter.innerHTML = "";
-            this.code.innerHTML = "";
-            this.code.tokens = {};
+            const linestring = this.code.lines[ i ];
+            const tokens = this._getTokensFromString( linestring, true );
+            tokens.forEach( t => this.code.tokens[ t ] = 1 );
         }
-
-        for( let i = from ?? 0; i < this.code.lines.length; ++i )
-        {
-            this.processLine( i );
-        }
-
-        // Clean up...
-        if( from )
-        {
-            while( this.code.lines.length != this.gutter.children.length )            
-                this.gutter.lastChild.remove();
-            while( this.code.lines.length != this.code.children.length )            
-                this.code.lastChild.remove();
-        }
-
     }
 
-    processLine( linenum ) {
+    processLines( from ) {
+
+        // const start = performance.now();
+
+        this.gutter.innerHTML = "";
+        this.code.innerHTML = "";
+
+        for( let i = 0; i < this.code.lines.length; ++i )
+        {
+            this.processLine( i, true );
+        }
+
+        // console.log( performance.now() - start );
+    }
+
+    processLine( linenum, force ) {
+
+        // if(!force)
+        // {
+        //     this.processLines();
+        //     return;
+        // }
 
         delete this._building_string; // multi-line strings not supported by now
         
         // It's allowed to process only 1 line to optimize
         let linestring = this.code.lines[ linenum ];
-        var _lines = this.code.querySelectorAll('pre');
-        var pre = null, single_update = false;
-        if( _lines[linenum] ) {
-            pre = _lines[linenum];
-            single_update = true;
-        }
-        
-        if(!pre)
+
+        var pre = document.createElement('pre');
+        pre.dataset['linenum'] = linenum;
+
+        // Line gutter
+        var linenumspan = document.createElement('span');
+        linenumspan.innerHTML = (linenum + 1);
+
+        if( force )
         {
-            var pre = document.createElement('pre');
-            pre.dataset['linenum'] = linenum;
-            this.code.appendChild(pre);
-        }
-        else
+            this.gutter.appendChild(linenumspan);
+            this.code.appendChild( pre );
+        } else
         {
-            pre.children[0].remove(); // Remove token list
+            this.gutter.childNodes[ linenum ].remove();
+            this.code.childNodes[ linenum ].remove();
+            this.gutter.insertChildAtIndex( linenumspan, linenum );
+            this.code.insertChildAtIndex( pre, linenum );
         }
 
         var linespan = document.createElement('span');
         pre.appendChild(linespan);
 
-        // Check if line comment
-        const is_comment = linestring.split('//');
-        linestring = ( is_comment.length > 1 ) ? is_comment[0] : linestring;
+        const to_process = this._getTokensFromString( linestring );
 
-        const tokens = linestring.split(' ').join('¬ ¬').split('¬'); // trick to split without losing spaces
-        const to_process = []; // store in a temp array so we know prev and next tokens...
-
-        for( let t of tokens )
-        {
-            let iter = t.matchAll(/[\[\](){}<>.,;:"']/g);
-            let subtokens = iter.next();
-            if( subtokens.value )
-            {
-                let idx = 0;
-                while( subtokens.value != undefined )
-                {
-                    const _pt = t.substring(idx, subtokens.value.index);
-                    to_process.push( _pt );
-                    to_process.push( subtokens.value[0] );
-                    idx = subtokens.value.index + 1;
-                    subtokens = iter.next();
-                    if(!subtokens.value) {
-                        const _at = t.substring(idx);
-                        to_process.push( _at );
-                    }
-                }
-            }
-            else
-                to_process.push( t );
-        }
-
-        if( is_comment.length > 1 )
-            to_process.push( "//" + is_comment[1] );
+        let line_inner_html = "";
 
         // Process all tokens
         for( var i = 0; i < to_process.length; ++i )
         {
             let it = i - 1;
             let prev = to_process[it];
-            while( prev == '' || prev == ' ' ) {
+            while( prev == ' ' ) {
                 it--;
                 prev = to_process[it];
             }
-
+            
             it = i + 1;
             let next = to_process[it];
-            while( next == '' || next == ' ' || next == '"') {
+            while( next == ' ' || next == '"') {
                 it++;
                 next = to_process[it];
             }
@@ -1545,16 +1547,56 @@ class CodeEditor {
             if( token.substr(token.length - 2) == '*/' )
                 delete this._building_block_comment;
             
-            this.processToken(token, linespan, prev, next);
+            line_inner_html += this.processToken(token, prev, next);
         }
 
-        // add line gutter
-        if(!single_update)
+        linespan.innerHTML = line_inner_html;
+    }
+
+    _getTokensFromString( linestring, skipNonWords ) {
+
+        // Check if line comment
+        const is_comment = linestring.split('//');
+        linestring = ( is_comment.length > 1 ) ? is_comment[0] : linestring;
+
+        const tokens = linestring.split(' ').join('¬ ¬').split('¬'); // trick to split without losing spaces
+        const to_process = []; // store in a temp array so we know prev and next tokens...
+
+        for( let t of tokens )
         {
-            var linenumspan = document.createElement('span');
-            linenumspan.innerHTML = (linenum + 1);
-            this.gutter.appendChild(linenumspan);
+            if( !t.length || (skipNonWords && ( t.includes('"') || t.length < 3 )) )
+                continue;
+
+            if( t == ' ' ) {
+                to_process.push( t );
+                continue;
+            }
+
+            let iter = t.matchAll(/(::|[\[\](){}<>.,;:"'])/g);
+            let subtokens = iter.next();
+            if( subtokens.value )
+            {
+                let idx = 0;
+                while( subtokens.value != undefined )
+                {
+                    const _pt = t.substring(idx, subtokens.value.index);
+                    if( _pt.length ) to_process.push( _pt );
+                    to_process.push( subtokens.value[0] );
+                    idx = subtokens.value.index + subtokens.value[0].length;
+                    subtokens = iter.next();
+                    if(!subtokens.value) {
+                        const _at = t.substring(idx);
+                        if( _at.length ) to_process.push( _at );
+                    }
+                }
+            }
+            else to_process.push( t );
         }
+
+        if( is_comment.length > 1 && !skipNonWords )
+            to_process.push( "//" + is_comment[1] );
+            
+        return to_process;
     }
 
     _mustHightlightWord( token, kindArray ) {
@@ -1562,10 +1604,11 @@ class CodeEditor {
         return kindArray[this.highlight] && kindArray[this.highlight].indexOf(token) > -1;
     }
 
-    processToken(token, linespan, prev, next) {
+    processToken(token, prev, next) {
 
         let sString = false;
-        let highlight = this.highlight.replace(/\s/g, '').toLowerCase();
+        let highlight = this.highlight.replace(/\s/g, '').replaceAll("+", "p").toLowerCase();
+        let inner_html = "", token_classname = "";
 
         if(token == '"' || token == "'")
         {
@@ -1575,75 +1618,68 @@ class CodeEditor {
 
         if(token == ' ')
         {
-            linespan.innerHTML += token;
+            inner_html += token;
         }
         else
         {
-            var span = document.createElement('span');
-            span.innerHTML = token;
-
             if( this._building_block_comment )
-                span.classList.add("cm-com");
+                token_classname += "cm-com";
             
             else if( this._building_string  )
-                span.classList.add("cm-str");
+                token_classname += "cm-str";
             
             else if( this._mustHightlightWord( token, this.keywords ) )
-                span.classList.add("cm-kwd");
+                token_classname += "cm-kwd";
 
             else if( this._mustHightlightWord( token, this.builtin ) )
-                span.classList.add("cm-bln");
+                token_classname += "cm-bln";
 
             else if( this._mustHightlightWord( token, this.statementsAndDeclarations ) )
-                span.classList.add("cm-std");
+                token_classname += "cm-std";
 
-                else if( this._mustHightlightWord( token, this.symbols ) )
-                span.classList.add("cm-sym");
+            else if( this._mustHightlightWord( token, this.symbols ) )
+                token_classname += "cm-sym";
 
             else if( token.substr(0, 2) == '//' )
-                span.classList.add("cm-com");
+                token_classname += "cm-com";
 
             else if( token.substr(0, 2) == '/*' )
-                span.classList.add("cm-com");
+                token_classname += "cm-com";
 
             else if( token.substr(token.length - 2) == '*/' )
-                span.classList.add("cm-com");
+                token_classname += "cm-com";
 
             else if(  this.isNumber(token) || this.isNumber( token.replace(/[px]|[em]|%/g,'') ) )
-                span.classList.add("cm-dec");
+                token_classname += "cm-dec";
 
             else if( this.isCSSClass(token, prev, next) )
-                span.classList.add("cm-kwd");
+                token_classname += "cm-kwd";
 
-            else if ( this.isType(token, prev, next) ) {
-                span.classList.add("cm-typ");
-                this.code.tokens[ token ] = CodeEditor.WORD_TYPE_CLASS;
-            }
+            else if ( this.isType(token, prev, next) )
+                token_classname += "cm-typ";
 
-            else if ( token[0] != '@' && next == '(' ) {
-                span.classList.add("cm-mtd");
-                this.code.tokens[ token ] = CodeEditor.WORD_TYPE_METHOD;
-            }
+            else if ( token[0] != '@' && next == '(' )
+                token_classname += "cm-mtd";
+
+            else if ( highlight == 'cpp' && token.includes('#') ) // C++ preprocessor
+                token_classname += "cm-ppc";
+
+            else if ( highlight == 'cpp' && prev != 'WDWD:' && next == '::' ) // C++ Class
+                token_classname += "cm-typ";
 
             else if ( highlight == 'css' && prev == ':' && (next == ';' || next == '!important') ) // CSS value
-                span.classList.add("cm-str");
+                token_classname += "cm-str";
 
             else if ( highlight == 'css' && prev == undefined && next == ':' ) // CSS attribute
-                span.classList.add("cm-typ");
-            else {
+                token_classname += "cm-typ";
 
-                if( token.length > 1 )
-                {
-                    // Store in token map to show later as autocomplete suggestions
-                    this.code.tokens[ token ] = -1;
-                }
-            }
-
-            span.classList.add(highlight);
-            linespan.appendChild(span);
+            token_classname += " " + highlight;
+            inner_html += "<span class=' " + token_classname + "'>" + token + "</span>";
         }
 
         if(sString) delete this._building_string;
+
+        return inner_html;
     }
 
     isCSSClass( token, prev, next ) {
@@ -1764,8 +1800,10 @@ class CodeEditor {
 
     deleteSelection( cursor ) {
 
-        if(this.disable_edition) 
+        // I think it's not necessary but... 
+        if(this.disableEdition) 
             return;
+
         // Some selections don't depend on mouse up..
         if(this.selection) this.selection.invertIfNecessary();
 
@@ -1808,7 +1846,7 @@ class CodeEditor {
         cursor.style.left = "calc(" + (cursor._left - this.getScrollLeft()) + "px + " + this.xPadding + ")";
         cursor.position++;
         this.restartBlink();
-        this._refreshCodeInfo( cursor.line + 1, cursor.position );
+        this._refreshCodeInfo( cursor.line, cursor.position );
 
         // Add horizontal scroll
 
@@ -1829,7 +1867,7 @@ class CodeEditor {
         cursor.position--;
         cursor.position = Math.max(cursor.position, 0);
         this.restartBlink();
-        this._refreshCodeInfo( cursor.line + 1, cursor.position );
+        this._refreshCodeInfo( cursor.line, cursor.position );
 
         doAsync(() => {
             var first_char = (this.code.scrollLeft / this.charWidth)|0;
@@ -1849,7 +1887,7 @@ class CodeEditor {
         if(resetLeft)
             this.resetCursorPos( CodeEditor.CURSOR_LEFT, cursor );
 
-        this._refreshCodeInfo( cursor.line + 1, cursor.position );
+        this._refreshCodeInfo( cursor.line, cursor.position );
 
         doAsync(() => {
             var first_line = (this.code.scrollTop / this.lineHeight)|0;
@@ -1868,7 +1906,7 @@ class CodeEditor {
         if(resetLeft)
             this.resetCursorPos( CodeEditor.CURSOR_LEFT, cursor );
 
-        this._refreshCodeInfo( cursor.line + 1, cursor.position );
+        this._refreshCodeInfo( cursor.line, cursor.position );
 
         doAsync(() => {
             var last_line = ((this.code.scrollTop  + this.code.offsetHeight) / this.lineHeight)|0;
@@ -2085,10 +2123,10 @@ class CodeEditor {
         );
 
         // Add words in current tab plus remove current word
-        // suggestions = suggestions.concat( Object.keys(this.code.tokens).filter( a => a != word ) );
+        suggestions = suggestions.concat( Object.keys(this.code.tokens).filter( a => a != word ) );
 
-        // Remove single chars and duplicates...        
-        suggestions = suggestions.filter( (value, index) => value.length > 1 && suggestions.indexOf(value) === index );
+        // Remove 1/2 char words and duplicates...        
+        suggestions = suggestions.filter( (value, index) => value.length > 2 && suggestions.indexOf(value) === index );
 
         // Order...
         suggestions = suggestions.sort( (a, b) => a.localeCompare(b) );

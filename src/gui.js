@@ -3089,57 +3089,58 @@ class ScriptGui extends Gui {
     {
         if(window.dialog) 
             window.dialog.destroy();
-        const area = new LX.Area();
-        
+    
         window.dialog = new LX.PocketDialog("Editor", p => {
+            const area = new LX.Area();
             p.attach( area );
-        }, { size: ["40%", "600px"], closable: true });
-        
-        const filename = asset.filename;
-        const type = asset.type;
-        const name = filename.replace("."+ type, "");
-        
-        const setText = (text) => {
-            let code_editor = new LX.CodeEditor(area, {
-                allow_add_scripts: false,
-                name: type,
-                title: name,
-                disable_edition: true
-            });
-            code_editor.setText(text);
+            const filename = asset.filename;
+            const type = asset.type;
+            const name = filename.replace("."+ type, "");
             
-            if(asset.type == "sigml") {
-                code_editor.addTab("bml", false, name);
-                let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
-                    // limit precision of floats
-                    if (typeof value === 'number') {
-                        return parseFloat(value.toFixed(3));
-                    }
-                    return value;
+            const setText = (text) => {
+                let code_editor = new LX.CodeEditor(area, {
+                    allow_add_scripts: false,
+                    name: type,
+                    title: name,
+                    disable_edition: true
                 });
-                code_editor.openedTabs["bml"].lines = code_editor.toJSONFormat(t).split('\n');    
+                
+                code_editor.setText(text);
+                if(asset.type == "sigml") {
+                    code_editor.addTab("bml", false, name);
+                    let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
+                        // limit precision of floats
+                        if (typeof value === 'number') {
+                            return parseFloat(value.toFixed(3));
+                        }
+                        if(key == "gloss") {
+                            return value.replaceAll(":", "_")
+                        }
+                        return value;
+                    });
+                    code_editor.openedTabs["bml"].lines = code_editor.toJSONFormat(t).split('\n');    
+                }
+                code_editor._changeLanguage( "JSON" );
             }
-            code_editor._changeLanguage( "JSON" );
-        }
-
-        //from server
-        if(asset.fullpath) {
-            const fs = this.editor.FS;
-            LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
-                const bytesize = f => new Blob([f]).size;
-                asset.bytesize = bytesize();
-                asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                asset.bml.behaviours = asset.bml.data;
-                let text = f.replaceAll('\r', '').replaceAll('\t', '');
-                setText(text)
-            } });
-        } else {
-            //from local
-            asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
-            asset.bml.behaviours = asset.bml.data;              
-            let text = JSON.stringify(asset.bml.behaviours);
-            setText(text);
-        }
+            //from server
+            if(asset.fullpath) {
+                const fs = this.editor.FS;
+                LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
+                    const bytesize = f => new Blob([f]).size;
+                    asset.bytesize = bytesize();
+                    asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                    asset.bml.behaviours = asset.bml.data;
+                    let text = f.replaceAll('\r', '').replaceAll('\t', '');
+                    setText(text)
+                } });
+            } else {
+                //from local
+                asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
+                asset.bml.behaviours = asset.bml.data;              
+                let text = JSON.stringify(asset.bml.behaviours);
+                setText(text);
+            }
+        }, { size: ["40%", "600px"], closable: true });
 
     }
 
