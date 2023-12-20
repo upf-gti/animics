@@ -2337,6 +2337,8 @@ PalmOrientationClip.prototype.toJSON = function()
 			let d = this.properties[i].split(" ");
 			json[i] = "";
 			for(let j = 0; j < d.length; j++) {
+				if(!d[j][0]) 
+						continue;
 				json[i] += d[j][0].toLowerCase();
 			}
 		}
@@ -2565,6 +2567,8 @@ HandOrientationClip.prototype.toJSON = function()
 				let d = this.properties[i].split(" ");
 				json[i] = "";
 				for(let j = 0; j < d.length; j++) {
+					if(!d[j][0]) 
+						continue;
 					json[i] += d[j][0].toLowerCase();
 				}
 			}
