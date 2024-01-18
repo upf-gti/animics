@@ -62,7 +62,7 @@ This project makes use of the following libraries:
 - [Three.js](https://github.com/mrdoob/three.js/) - An open-source JavaScript library for creating interactive 3D and 2D graphics in web browsers using WebGL.
 - [Mediapipe](https://github.com/google/mediapipe) - An open-source library from Google for building cross-platform multimodal applied ML pipelines.
 - [Tensorflow.js](https://github.com/tensorflow/tfjs) - A JavaScript library for training and deploying machine learning models in the browser and on Node.js.
-- [Lexgui.js](https://github.com/jxarco/lexgui.js/) - A simple and lightweight GUI library for creating graphical user interfaces for C++ programs.
+- [Lexgui.js](https://github.com/jxarco/lexgui.js/) - A simple and lightweight GUI library for creating graphical user interfaces for web applications.
 
 We would like to extend our gratitude to the creators and maintainers of these libraries for their invaluable contributions to the open-source community.
 
