@@ -3697,6 +3697,8 @@ CircularMotionClip.prototype.configure = function(o)
 {
 	this.start = o.start || 0;
 	if(o.duration) this.duration = o.duration || 1;
+	this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
+	this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
 	if(o.end) this.duration = (o.end - o.start) || 1;
 	if(o.properties)
 	{
