@@ -1947,7 +1947,7 @@ class ScriptEditor extends Editor{
 
         let json =  {
             behaviours: [],
-            indices: [],
+            //indices: [],
             name : this.clipName || "BML animation",
             duration: this.animation.duration,
         }
@@ -1985,7 +1985,7 @@ class ScriptEditor extends Editor{
                     else {
 
                         json.behaviours.push( data );
-                        json.indices.push(type.id);
+                        //json.indices.push(type.id);
                     }
                 }
                 
