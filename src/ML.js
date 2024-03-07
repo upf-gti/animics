@@ -5,9 +5,11 @@ import { UTILS } from "./utils.js"
 
 class NN {
 
-    constructor( path ) {
+    constructor( bodyPath, handsPath ) {
 
-        this.model = new TFModel( path );
+        // this.model = new TFModel( path );
+        this.bodyModel = new TFModel( bodyPath );
+        this.handsModel = new TFModel( handsPath );
     }
 
     loadLandmarks(landmarks, onLoad, onError) {
@@ -74,26 +76,111 @@ class NN {
         return this.nnDeltas[ idx ];
     }
 
+    frame6DToQuat( frame, out=null ) {
+        let numQuats = Math.ceil( frame.length / 6 ); // avoid rounding errors
+        if (out == null) {
+            out = new Array(numQuats * 4).fill(0);
+        }
+        for (let i = 0; i < numQuats; i++) {    
+            let x = frame.slice(i * 6, i * 6 + 3);
+            let y = frame.slice(i * 6 + 3, i * 6 + 6);
+            let xNorm = Math.sqrt( x[0] * x[0] + x[1] * x[1] + x[2] * x[2] ); // normalize
+            x = x.map(val => val / xNorm);
+
+            // gram-schmidt
+            let dotProduct_raw = x[0] * y[0] + x[1] * y[1] + x[2] * y[2]; // dot product xNorm * yRaw
+            y[0] = y[0] - dotProduct_raw * x[0];
+            y[1] = y[1] - dotProduct_raw * x[1];
+            y[2] = y[2] - dotProduct_raw * x[2];
+            let yNorm = Math.sqrt( y[0] * y[0] + y[1] * y[1] + y[2] * y[2] ); // normalize
+            y = y.map(val => val / yNorm);
+            
+            let z = [ x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0] ]; // cross product
+            let zNorm = Math.sqrt( z[0] * z[0] + z[1] * z[1] + z[2] * z[2] );
+            if (zNorm < 0.0000001) { console.log("frame6DToQuat error: invalid z" ); }
+            else { z = z.map(val => val / zNorm); }
+            
+            let matrix = new THREE.Matrix3();
+            matrix.set(x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]);
+            let rot = new THREE.Matrix4();
+            rot.setFromMatrix3(matrix); // 3x3 to Matrix4
+            let quat = new THREE.Quaternion();
+            quat.setFromRotationMatrix(rot);
+
+            let dotTest= quat.x*quat.x + quat.y*quat.y + quat.z*quat.z +quat.w*quat.w;  
+            if( dotTest  < 0.999 ){ print("problems", quat.toArray())}
+            quat.normalize();
+            out.splice(i * 4, 4, ...quat.toArray());
+        }
+        return out
+    }
+
+    frameQuatTo6D( frame, out=null ) {
+        let numQuats = Math.ceil( frame.length / 4); // avoid rounding errors
+        if (out == null) {
+            out = new Array(numQuats * 4).fill(0);
+        }
+        for (let i = 0; i < numQuats; i++) {
+            let quat = new THREE.Quaternion( frame[i*4 + 0], frame[i*4 + 1], frame[i*4 + 2], frame[i*4 + 3]);
+            let rot = new THREE.Matrix4();
+            rot.makeRotationFromQuaternion(quat);
+            let idx = i*6
+            out[ idx + 0 ] = rot.elements[0]; // [0][0]
+            out[ idx + 1 ] = rot.elements[1]; // [1][0]
+            out[ idx + 2 ] = rot.elements[2]; // [2][0]
+            out[ idx + 3 ] = rot.elements[4]; // [0][1]
+            out[ idx + 4 ] = rot.elements[5]; // [1][1]
+            out[ idx + 5 ] = rot.elements[6]; // [2][1]
+        }
+        return out
+    }
+
+    unifyDatasetBodyParts( body_array, hands_array, size_of_entry = 6 ) {
+        let result = new Array(size_of_entry * 44).fill(0);
+        
+        let frame = body_array;
+        result.splice(0, 10 * size_of_entry, ...frame.slice(0, 10 * size_of_entry));
+        result.splice(25 * size_of_entry, 4 * size_of_entry, ...frame.slice(10 * size_of_entry));
+        
+        frame = hands_array;
+        result.splice(10 * size_of_entry, 15 * size_of_entry, ...frame.slice(0, 15 * size_of_entry));
+        result.splice(29 * size_of_entry, result.length - 29 * size_of_entry, ...frame.slice(15 * size_of_entry));
+        return result
+    }
+
     getQuaternions() {
 
         let landmarks = this.landmarksNN;
         let blankFrames = [];
         let quatData = [];
 
+
+        console.log( JSON.stringify(landmarks) )
+
         for (let i = 0; i < landmarks.length; i++) {
-            let outputNN = this.model.predictSampleSync( landmarks[i] );
+            // let outputNN = this.model.predictSampleSync( landmarks[i] );
+            let bodyOutputNN = this.bodyModel.predictSampleSync( landmarks[i] );
+            let handsOutputNN = this.handsModel.predictSampleSync( landmarks[i] );
             
             // Solve normalization problem
-            for (let j = 0; j < outputNN.length; j+=4)
-            {
-                let val = new THREE.Quaternion(outputNN[j], outputNN[j+1], outputNN[j+2], outputNN[j+3]);
-                val.normalize();
-                outputNN[j] = val.x;
-                outputNN[j+1] = val.y;
-                outputNN[j+2] = val.z;
-                outputNN[j+3] = val.w;
-            }
+            // for (let j = 0; j < outputNN.length; j+=4)
+            // {
+            //     let val = new THREE.Quaternion(outputNN[j], outputNN[j+1], outputNN[j+2], outputNN[j+3]);
+            //     val.normalize();
+            //     outputNN[j] = val.x;
+            //     outputNN[j+1] = val.y;
+            //     outputNN[j+2] = val.z;
+            //     outputNN[j+3] = val.w;
+            // }
+
+            let outputNN = this.unifyDatasetBodyParts(bodyOutputNN, handsOutputNN);
+            outputNN = this.frame6DToQuat(outputNN); // from 6d to quaternions
             
+
+            if (!window.test) {
+                window.test = outputNN
+            }
+
             if (outputNN.includes(NaN)) blankFrames.push(i); // track lost frames
             
             quatData.push([0, 0.952298, 0, ... outputNN]); // add netral position to hip

@@ -949,7 +949,8 @@ class KeyframeEditor extends Editor{
         this.blendshapesArray = [];
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
-        this.nn = new NN("data/ML/model.json");
+        // this.nn = new NN("data/ML/model.json");
+        this.nn = new NN("data/ML/body_model_04/model.json", "data/ML/hands_model_04/model.json");
         this.retargeting = new AnimationRetargeting();
         this.video = app.video;
         
@@ -1116,7 +1117,6 @@ class KeyframeEditor extends Editor{
                 window.location.reload();
             } 
         );
-
         return landmarks;
     }
 
