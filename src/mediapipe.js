@@ -47,7 +47,7 @@ const MediaPipe = {
                 smoothSegmentation: true,
                 refineFaceLandmarks: true,
                 minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
+                minTrackingConfidence: 0.5,
             });
         }
         else {

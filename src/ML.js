@@ -108,7 +108,7 @@ class NN {
             quat.setFromRotationMatrix(rot);
 
             let dotTest= quat.x*quat.x + quat.y*quat.y + quat.z*quat.z +quat.w*quat.w;  
-            if( dotTest  < 0.999 ){ print("problems", quat.toArray())}
+            if( dotTest  < 0.999 ){ console.log("problems", quat.toArray())}
             quat.normalize();
             out.splice(i * 4, 4, ...quat.toArray());
         }
@@ -162,6 +162,10 @@ class NN {
             let bodyOutputNN = this.bodyModel.predictSampleSync( landmarks[i] );
             let handsOutputNN = this.handsModel.predictSampleSync( landmarks[i] );
             
+
+            let outputNN = this.unifyDatasetBodyParts(bodyOutputNN, handsOutputNN);
+            outputNN = this.frame6DToQuat(outputNN); // from 6d to quaternions
+            
             // Solve normalization problem
             // for (let j = 0; j < outputNN.length; j+=4)
             // {
@@ -172,10 +176,6 @@ class NN {
             //     outputNN[j+2] = val.z;
             //     outputNN[j+3] = val.w;
             // }
-
-            let outputNN = this.unifyDatasetBodyParts(bodyOutputNN, handsOutputNN);
-            outputNN = this.frame6DToQuat(outputNN); // from 6d to quaternions
-            
 
             if (!window.test) {
                 window.test = outputNN
