@@ -950,8 +950,8 @@ class KeyframeEditor extends Editor{
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
         // this.nn = new NN("data/ML/model.json");
-        this.nn = new NN("data/ML/body_model_20240312_111959_8_tfjs/model.json", "data/ML/hands_model_20240312_111959_7_tfjs/model.json");
-        this.retargeting = new AnimationRetargeting();
+        this.nn = new NN("data/ML/body_model_20240319_144753_1_tfjs/model.json", "data/ML/hand_model_20240319_144753_0_tfjs/model.json");
+        this.retargeting = null;
         this.video = app.video;
         
         this.mapNames = MapNames.map_llnames[this.character];
@@ -1061,6 +1061,11 @@ class KeyframeEditor extends Editor{
             }
             else {
                 this.BVHloader.load( 'models/kateBVH.bvh', (result) => {
+                    // loader does not correctly compute the skeleton boneInverses and matrixWorld 
+                    result.skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
+                    result.skeleton = new THREE.Skeleton( result.skeleton.bones ); // will automatically compute boneInverses
+                    
+                    result.skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } ); // bodyAnimation have different names than bvh skeleton
                     result.clip = this.bodyAnimation;
                     this.loadAnimationWithSkin(result);
                 });
@@ -1195,7 +1200,6 @@ class KeyframeEditor extends Editor{
         if(skeletonAnim && skeletonAnim.skeleton ) {
             skeletonAnim.clip.name = UTILS.removeExtension(this.clipName || skeletonAnim.clip.name);
             this.bodyAnimation = skeletonAnim.clip;
-            let srcSkeleton = skeletonAnim.skeleton; 
             let tracks = [];
             
             // remove position changes (only keep i == 0, hips)
@@ -1204,12 +1208,9 @@ class KeyframeEditor extends Editor{
                     continue;
                 }
                 tracks.push( this.bodyAnimation.tracks[i] );
-
             }
 
             this.bodyAnimation.tracks = tracks;
-            this.retargeting.loadAnimation(srcSkeleton, this.bodyAnimation);
-            //this.retargeting.loadAnimationFromSkeleton(skinnedMesh, this.bodyAnimation);
         }
         
         // Load the target model (Eva) 
@@ -1244,7 +1245,7 @@ class KeyframeEditor extends Editor{
             model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
             model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
             model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
-            this.skeletonHelper = this.retargeting.tgtSkeletonHelper || new THREE.SkeletonHelper(model);
+            this.skeletonHelper = new THREE.SkeletonHelper(model);
             this.skeletonHelper.name = "SkeletonHelper";
 
             //Create animations
@@ -1252,12 +1253,14 @@ class KeyframeEditor extends Editor{
             //Create body animation from mediapipe landmarks
             if(this.bodyAnimation)
             {
-                this.bodyAnimation = this.retargeting.createAnimation(model);
+                // trgUseCurrentPose: use current Bone obj quats,pos, and scale
+                // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
+                let retargeting = new AnimationRetargeting( skeletonAnim.skeleton, model, { trgUseCurrentPose: true, trgEmbedWorldTransforms:true } );
+                this.bodyAnimation = retargeting.retargetAnimation(this.bodyAnimation);
                 
                 this.validateAnimationClip();
                 this.mixer.clipAction(this.bodyAnimation).setEffectiveWeight(1.0).play();
-                updateThreeJSSkeleton(this.retargeting.tgtBindPose);
-                
+                this.mixer.setTime(0); // resets and automatically calls a this.mixer.update
             }
             this.skeletonHelper.skeleton = this.skeleton; //= createSkeleton();
 
@@ -1293,23 +1296,27 @@ class KeyframeEditor extends Editor{
     loadAnimationWithSkeleton(animation) {
         this.bodyAnimation = animation.clip || animation || this.bodyAnimation;
         this.BVHloader.load( 'models/kateBVH.bvh' , (result) => {
-    
-            let skinnedMesh = result.skeleton;
-            // skinnedMesh.bones.map(x => x.scale.set(0.1, 0.1, 0.1));
-            skinnedMesh.bones[0].scale.set(0.1,0.1,0.1)
-            skinnedMesh.bones[0].position.set(0,0.85,0)
-            this.skeletonHelper = new THREE.SkeletonHelper( skinnedMesh.bones[0] );
-            this.skeletonHelper.skeleton = this.skeleton = skinnedMesh;
+            result.skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+            // loader does not correctly compute the skeleton boneInverses and matrixWorld 
+            result.skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
+            result.skeleton = new THREE.Skeleton( result.skeleton.bones ); // will automatically compute boneInverses
+            
+            let skeleton = result.skeleton;
+            // skeleton.bones.map(x => x.scale.set(0.1, 0.1, 0.1));
+            skeleton.bones[0].scale.set(0.1,0.1,0.1)
+            skeleton.bones[0].position.set(0,0.85,0)
+            this.skeletonHelper = new THREE.SkeletonHelper( skeleton.bones[0] );
+            this.skeletonHelper.skeleton = this.skeleton = skeleton;
             this.skeletonHelper.name = "SkeletonHelper";
             // this.skeletonHelper.position.set(0, 0.85, 0);
 
             let boneContainer = new THREE.Group();
-            boneContainer.add( skinnedMesh.bones[0] );
+            boneContainer.add( skeleton.bones[0] );
             boneContainer.rotateOnAxis( new THREE.Vector3(1,0,0), Math.PI/2 );
             // boneContainer.position.set(0, 0.85, 0);
 
             this.scene.add( boneContainer );
-            this.scene.add(skinnedMesh.bones[0])
+            this.scene.add(skeleton.bones[0])
             this.scene.add( this.skeletonHelper );
 
             this.mixer = new THREE.AnimationMixer( this.skeletonHelper );
