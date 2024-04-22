@@ -15,10 +15,6 @@ class App {
 
         this.mediaRecorder = null
         this.chunks = [];
-       
-    	window.globals = {
-            "app": this
-        };
     }
 
     init( settings ) {
@@ -41,7 +37,7 @@ class App {
                 this.editor = new KeyframeEditor(this, "video");
                 this.onLoadVideo( settings.data );
                 break;
-            case 'bml': case 'json': case 'sigml':
+            case 'bml': case 'json': case 'sigml': case 'script':
                 this.editor = new ScriptEditor(this, 'script');
                 this.onScriptProject( settings.data, mode );
                 break;
@@ -59,7 +55,7 @@ class App {
     }
 
     setIsRecording( value ) {
-        this.recording = value;
+        this.recording = !!value;
     }
 
     //Start mediapipe recording 
@@ -71,8 +67,6 @@ class App {
             window.location.reload();
         } 
         
-        // Run mediapipe to extract landmarks
-        // if(!MediaPipe.loaded)
         let that = this;
                 
         // prepare the device to capture the video
@@ -83,34 +77,35 @@ class App {
             navigator.mediaDevices.getUserMedia(constraints)
             .then( (stream) => {
 
-                let videoElement = document.getElementById("inputVideo");
-                
-                if(!videoElement.srcObject)
-                    videoElement.srcObject = stream;
-                // videoElement.width = "1280px";
-                // videoElement.height = "720px";
-                that.mediaRecorder = new MediaRecorder(videoElement.srcObject);
-                that.chunks = [];
-                let videoCanvas = document.getElementById("outputVideo");
+                let videoElement = document.getElementById("inputVideo"); // this video will hold the camera stream
+                let videoCanvas = document.getElementById("outputVideo"); // this canvas will contain image, landmarks and edges
+
+                if(!videoElement.srcObject){ videoElement.srcObject = stream; }
 
                 videoElement.addEventListener( "loadedmetadata", function (e) {
                     console.log(this.videoWidth)
                     console.log(this.videoHeight);
                     
                     let aspect = this.videoWidth/this.videoHeight;
-
+                    
                     let height = 802;
                     let width = height*aspect;
-
+                    
                     videoCanvas.width  = width;
                     videoCanvas.height = height;
                 }, false );
+                
+                // setup mediarecorder but do not start it yet (setEvents deals with starting/stopping the recording)
+                that.mediaRecorder = new MediaRecorder(videoElement.srcObject);
+                that.chunks = [];
+                
+                that.mediaRecorder.ondataavailable = function (e) {
+                    that.chunks.push(e.data);
+                }
 
                 that.mediaRecorder.onstop = function (e) {
 
-                    video.addEventListener("play", function() {});
-                    video.addEventListener("pause", function() {});
-                    video.setAttribute('controls', 'name');
+                    let video = document.getElementById("recording");
                     video.controls = false;
                     video.loop = true;
                     
@@ -119,10 +114,7 @@ class App {
                     video.src = videoURL;
                     console.log("Recording correctly saved");
                 }
-
-                that.mediaRecorder.ondataavailable = function (e) {
-                    that.chunks.push(e.data);
-                }
+                
                 videoElement.play()
             })
             .catch( on_error );            
@@ -131,26 +123,17 @@ class App {
             on_error();
         }
     
+        // Run mediapipe to extract landmarks. Not recording yet, but providing feedback to the user
         MediaPipe.start( true, () => {
             this.setEvents(true);
             $('#loading').fadeOut();
             
         }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui));
 
-        // Show video
-        let video = document.getElementById("recording");
-            
     }
-
-    onBeginEdition() {
-
-        this.editor.startEdition();
-    }
-
 
     onLoadAnimation( animation ) {
-    
-        this.editor.startEdition();// this.onBeginEdition();
+        this.editor.startEdition();
 
         const name = animation.name;
         this.editor.clipName = name;
@@ -288,15 +271,9 @@ class App {
         $(captureDiv).removeClass("hidden");
         let videoCanvas = document.getElementById("outputVideo");
         let videoElement = document.getElementById("inputVideo");
-        let h = videoElement.videoHeight || videoCanvas.height;
-        let w = videoElement.videoWidth || videoCanvas.width;
-        // let aspectRatio = w / h;
-        // h = captureDiv.clientHeight * 0.8;
-        // videoCanvas.height = captureDiv.height = h;
-        // videoCanvas.width = captureDiv.width = h * aspectRatio;
-
+        
         // configurate buttons
-        let elem = document.getElementById("endOfCapture");
+        let eocDiv = document.getElementById("endOfCapture");
     
         let capture = document.getElementById("capture_btn");
         capture.onclick = () => {
@@ -319,8 +296,7 @@ class App {
                 this.recording = true;
                 setTimeout(()=> {
                     MediaPipe.onStartRecording();
-                    if(this.mediaRecorder)
-                        this.mediaRecorder.start();
+                    if(this.mediaRecorder){ this.mediaRecorder.start(); }
                     this.startTime = Date.now();
                     console.log("Start recording");
                 }, 100);
@@ -349,7 +325,7 @@ class App {
                     let endTime = Date.now();
                     this.duration = endTime - this.startTime;
                     // Show modal to redo or load the animation in the scene
-                    elem.style.display = "none";
+                    eocDiv.style.display = "none";
                     setTimeout(()=>{
                         MediaPipe.stop();
                         this.processVideo(live, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
@@ -360,11 +336,11 @@ class App {
         };
     
         let redo = document.getElementById("redo_btn");
-        redo.onclick = () => elem.style.display = "none";
+        redo.onclick = () => eocDiv.style.display = "none";
     
         let trimData = document.getElementById("trimData_btn");
         trimData.onclick = () => {
-            elem.style.display = "none";
+            eocDiv.style.display = "none";
             MediaPipe.stop();
             this.processVideo();
         };
@@ -390,7 +366,7 @@ class App {
         video.style.height = canvas.offsetHeight + "px";
         video.width = canvas.offsetWidth;
         video.height = canvas.offsetHeight;
-        if(live === undefined || !live){
+        if(!live){
             video.style.cssText+= "transform: rotateY(0deg);\
                             -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
                             -moz-transform:rotateY(0deg); /* Firefox */"

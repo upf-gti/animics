@@ -55,7 +55,7 @@ const MediaPipe = {
         }
         this.holistic.onResults(((results) => {
 
-            if (window.globals.app.isRecording()) // store MediaPipe data
+            if (window.global.app.isRecording()) // store MediaPipe data
             {
                 this.currentTime = Date.now();
                 var dt = this.currentTime - this.previousTime;
@@ -82,7 +82,7 @@ const MediaPipe = {
             }
 
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-            let recording = window.globals.app.isRecording();
+            let recording = window.global.app.isRecording();
             if(!recording) {
                 canvasCtx.globalCompositeOperation = 'source-over';
             
@@ -156,7 +156,7 @@ const MediaPipe = {
     onFaceResults(results) {
         
         let faceBlendshapes = null;
-        if (window.globals.app.isRecording()) // store MediaPipe data
+        if (window.global.app.isRecording()) // store MediaPipe data
         {
             this.bsCurrentTime = Date.now();
             var dt = this.bsCurrentTime - this.bsPreviousTime;
@@ -168,7 +168,7 @@ const MediaPipe = {
             faceBlendshapes = this.fillBlendshapes(results);
         }
 
-        this.onresults({blendshapesResults: faceBlendshapes}, window.globals.app.isRecording())
+        this.onresults({blendshapesResults: faceBlendshapes}, window.global.app.isRecording())
     },
 
     stop() {

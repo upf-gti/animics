@@ -1282,7 +1282,7 @@ class KeyframeEditor extends Editor{
             this.gizmo = new Gizmo(this);
             this.gizmo.begin(this.skeletonHelper);
                     
-            this.startEdition();// this.onBeginEdition();
+            this.startEdition();
             this.gui.loadKeyframeClip(this.bodyAnimation, () => this.gui.init());
             this.animation = this.bodyAnimation;
       
@@ -1791,7 +1791,7 @@ class ScriptEditor extends Editor{
             //this.scene.add( this.retargeting.srcSkeletonHelper );
             
             // this.gui.createScriptTimeline();
-            // this.gui.updateMenubar();// this.onBeginEdition();
+            // this.gui.updateMenubar();
             // Behaviour Planner
             this.eyesTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffff00 , depthWrite: false }) );
             this.eyesTarget.name = "eyesTarget";

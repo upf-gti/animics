@@ -499,7 +499,7 @@ class Gui {
 
     resize(width, height) {
         //this.timelineArea.setSize([width, null]);
-        this.editor.activeTimeline.resize();
+        if (this.editor.activeTimeline){ this.editor.activeTimeline.resize(); }
     }
 
     async promptExit() {
@@ -715,7 +715,7 @@ class KeyframesGui extends Gui {
                 id: "trim_btn",
                 text: "Convert to animation",
                 display: "none",
-                callback: () => VideoUtils.unbind( (start, end) => window.globals.app.onRecordLandmarks(start, end) )
+                callback: () => VideoUtils.unbind( (start, end) => window.global.app.onRecordLandmarks(start, end) )
             },
             {
                 id: "redo_btn",

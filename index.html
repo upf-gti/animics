@@ -44,8 +44,10 @@
 
 		import { App } from "./src/app.js";
 		import { UTILS } from "./src/utils.js";
+
+		window.global = {};
 	
-		const createApp = window.createApp = (settings) => {
+		const createApp = (settings) => {
 
 			$("#mainNav").remove();
 			$(".masthead").remove();
@@ -130,7 +132,7 @@
 			$("#import").click(onloadfile);
 		} );
 	
-	window.global = {createApp: createApp};
+		window.global.createApp = createApp;
 	</script>
     <body id="page-top">
         <!-- Navigation-->
