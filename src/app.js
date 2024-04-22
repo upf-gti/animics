@@ -65,14 +65,10 @@ class App {
     //Start mediapipe recording 
     onBeginCapture() {
         this.mediaRecorder = null;
-        const on_error = (err) => {
-            LX.prompt("Can not access to the camera. Do you want to load a video instead?", "Camera problem", (v)=> {
-                
-                this.editor.mode = this.editor.eModes.video;
-                let input = document.getElementById("video-input");
-                input.value = "";
-                input.click();
-            }, {input: false, on_cancel: () => window.location.reload()})
+        const on_error = (err = null) => {
+            alert("Cannot access the camera. Check it is properly connected and not being used by any other application. You may want to upload a video instead.")
+            console.error("Error  " + err.name + ": " + err.message);            
+            window.location.reload();
         } 
         
         // Run mediapipe to extract landmarks
@@ -83,80 +79,56 @@ class App {
         if (navigator.mediaDevices) {
             console.log("UserMedia supported");
                     
+            let constraints = { "video": true, "audio": false, width: 1280, height: 720 };
+            navigator.mediaDevices.getUserMedia(constraints)
+            .then( (stream) => {
 
-            navigator.mediaDevices.enumerateDevices()
-            .then(function(devices) {
-                let deviceId = null;
-                for (const deviceInfo of devices) {
-                    if(deviceInfo.kind === 'videoinput') {
-                        deviceId = deviceInfo.deviceId;
-                        break;
-                    }
-                };
-                let constraints = { "video": true, "audio": false, width: 1280, height: 720 };
-                navigator.mediaDevices.getUserMedia(constraints)
-                .then( (stream) => {
-
-                    let videoElement = document.getElementById("inputVideo");
-                    
-                    if(!videoElement.srcObject)
-                        videoElement.srcObject = stream;
-                    // videoElement.width = "1280px";
-                    // videoElement.height = "720px";
-                    that.mediaRecorder = new MediaRecorder(videoElement.srcObject);
-                    that.chunks = [];
-                    let videoCanvas = document.getElementById("outputVideo");
-
-                    videoElement.addEventListener( "loadedmetadata", function (e) {
-                        console.log(this.videoWidth)
-                        console.log(this.videoHeight);
-                        
-                        let aspect = this.videoWidth/this.videoHeight;
-
-                        let height = 802;
-                        let width = height*aspect;
-
-                        videoCanvas.width  = width;
-                        videoCanvas.height = height;
-                    }, false );
-
-                    that.mediaRecorder.onstop = function (e) {
-
-                        video.addEventListener("play", function() {});
-                        video.addEventListener("pause", function() {});
-                        video.setAttribute('controls', 'name');
-                        video.controls = false;
-                        video.loop = true;
-                        
-                        let blob = new Blob(that.chunks, { "type": "video/mp4; codecs=avc1" });
-                        let videoURL = URL.createObjectURL(blob);
-                        video.src = videoURL;
-                        console.log("Recording correctly saved");
-                    }
-
-                    that.mediaRecorder.ondataavailable = function (e) {
-                        that.chunks.push(e.data);
-                    }
-                    videoElement.play()
-                })
-                .catch(function (err) {
-                    console.error("The following error occurred: " + err);
-                    if(err == "NotReadableError: Could not start video source")
-                        alert("Camera error: Make sure your webcam is not used in another application.")
-                    if(on_error)
-                        on_error(err);
-                });
+                let videoElement = document.getElementById("inputVideo");
                 
+                if(!videoElement.srcObject)
+                    videoElement.srcObject = stream;
+                // videoElement.width = "1280px";
+                // videoElement.height = "720px";
+                that.mediaRecorder = new MediaRecorder(videoElement.srcObject);
+                that.chunks = [];
+                let videoCanvas = document.getElementById("outputVideo");
+
+                videoElement.addEventListener( "loadedmetadata", function (e) {
+                    console.log(this.videoWidth)
+                    console.log(this.videoHeight);
+                    
+                    let aspect = this.videoWidth/this.videoHeight;
+
+                    let height = 802;
+                    let width = height*aspect;
+
+                    videoCanvas.width  = width;
+                    videoCanvas.height = height;
+                }, false );
+
+                that.mediaRecorder.onstop = function (e) {
+
+                    video.addEventListener("play", function() {});
+                    video.addEventListener("pause", function() {});
+                    video.setAttribute('controls', 'name');
+                    video.controls = false;
+                    video.loop = true;
+                    
+                    let blob = new Blob(that.chunks, { "type": "video/mp4; codecs=avc1" });
+                    let videoURL = URL.createObjectURL(blob);
+                    video.src = videoURL;
+                    console.log("Recording correctly saved");
+                }
+
+                that.mediaRecorder.ondataavailable = function (e) {
+                    that.chunks.push(e.data);
+                }
+                videoElement.play()
             })
-            .catch(function(err) {
-                on_error();
-                console.log(err.name + ": " + err.message);
-            });
-            
+            .catch( on_error );            
         }
         else {
-            if(on_error)
-                on_error();
+            on_error();
         }
     
         MediaPipe.start( true, () => {

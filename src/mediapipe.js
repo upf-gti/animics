@@ -136,14 +136,15 @@ const MediaPipe = {
         videoElement.play();
         videoElement.controls = true;
         videoElement.loop = true;
+        videoElement.muted = true;
         videoElement.requestVideoFrameCallback( this.sendVideo.bind(this, this.holistic, videoElement) );  
     },
 
     async sendVideo(holistic, videoElement){
         await holistic.send({image: videoElement});
-         const faceResults = this.faceLandmarker.detectForVideo(videoElement, Date.now() );
-                    if(faceResults)
-                        this.onFaceResults(faceResults);
+        const faceResults = this.faceLandmarker.detectForVideo(videoElement, Date.now() );
+        if(faceResults)
+            this.onFaceResults(faceResults);
         videoElement.requestVideoFrameCallback(this.sendVideo.bind(this, holistic, videoElement));
 
         if(!this.loaded) {
@@ -186,17 +187,12 @@ const MediaPipe = {
     onStartRecording() {
         this.landmarks = [];
         this.blendshapes = [];
-        if(this.mediaRecorder)
-            this.mediaRecorder.start();
     },
 
     onStopRecording() {
-        
         // Correct first dt of landmarks
         this.landmarks[0].dt = 0;
         this.blendshapes[0].dt = 0;
-        if(this.mediaRecorder)
-            this.mediaRecorder.stop();
     },
 
     fillLandmarks(data, dt) {
