@@ -814,7 +814,7 @@ class KeyframesGui extends Gui {
         videoDiv.style.height = videoDiv.height + "px";
         videoCanvas.height = 300;
         videoCanvas.width = 300 * aspectRatio;
-        $(videoDiv).draggable({containment: "#canvasarea"}).resizable({ aspectRatio: true, containment: "#outputVideo"});
+        $(videoDiv).draggable({containment: this.canvasArea.root}).resizable({ aspectRatio: true, containment: this.canvasArea.root});
     }
     
     changeCaptureGUIVisivility(hidde) {
@@ -930,7 +930,8 @@ class KeyframesGui extends Gui {
             widgets.addText("Name", this.editor.clipName || "", (v) => this.editor.clipName = v)
             widgets.addNumber("Speed", this.editor.mixer.timeScale, v => {
                 this.editor.mixer.timeScale = v;
-            }, {min: 0.25, max: 1.5, step: 0.05, precision: 2});
+                if ( this.editor.video ){ this.editor.video.playbackRate = v; }
+            }, {min: 0.1, max: 2, step: 0.01, precision: 2});
             widgets.addSeparator();
         }
         widgets.onRefresh(options);

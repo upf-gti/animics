@@ -138,7 +138,7 @@ class NN {
             aux.forEach( (frame) => { data.push(frame[coord]); }); // get the data of each coord per frame
             try {
 
-                let ans = mlSavitzkyGolay(data, 1, { windowSize: 9, polynomial: 3, derivative: 0, pad: 'post', padValue: 'symmetric' }); //https://www.skypack.dev/view/ml-savitzky-golay
+                let ans = mlSavitzkyGolay(data, 1, { windowSize: 9, polynomial: 3, derivative: 0, pad: 'pre', padValue: 'replicate' }); //https://www.skypack.dev/view/ml-savitzky-golay
                 quatData.forEach( (frame, idx) => { frame[coord] = ans[idx]; }); // replace with the posto data
             }
             catch {

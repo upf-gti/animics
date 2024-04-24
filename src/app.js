@@ -78,11 +78,12 @@ class App {
             .then( (stream) => {
 
                 let videoElement = document.getElementById("inputVideo"); // this video will hold the camera stream
-                let videoCanvas = document.getElementById("outputVideo"); // this canvas will contain image, landmarks and edges
+                let videoCanvas = document.getElementById("outputVideo"); // this canvas will output image, landmarks (and edges)
 
                 if(!videoElement.srcObject){ videoElement.srcObject = stream; }
 
                 videoElement.addEventListener( "loadedmetadata", function (e) {
+                    // this === videoElement
                     console.log(this.videoWidth)
                     console.log(this.videoHeight);
                     
@@ -159,6 +160,7 @@ class App {
         
         
         videoElement.addEventListener( "loadedmetadata", function (e) {
+            // this === videoElement
             let videoCanvas = document.getElementById("outputVideo");
             let stream = videoCanvas.captureStream();
 
