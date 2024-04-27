@@ -12,6 +12,7 @@ import { UTILS } from "./utils.js"
 const MediaPipe = {
 
     loaded: false,
+    recording: false,
     currentTime: 0,
     previousTime: 0,
     bsCurrentTime: 0,
@@ -55,7 +56,7 @@ const MediaPipe = {
         }
         this.holistic.onResults(((results) => {
 
-            if (window.global.app.isRecording()) // store MediaPipe data
+            if (this.recording) // store MediaPipe data
             {
                 this.currentTime = Date.now();
                 var dt = this.currentTime - this.previousTime;
@@ -82,8 +83,7 @@ const MediaPipe = {
             }
 
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-            let recording = window.global.app.isRecording();
-            if(!recording) {
+            if(!this.recording) {
                 canvasCtx.globalCompositeOperation = 'source-over';
             
                 // const image = document.getElementById("source");
@@ -108,7 +108,7 @@ const MediaPipe = {
             }
             canvasCtx.restore();
             if(this.onresults)
-                this.onresults({landmarksResults: results}, recording);
+                this.onresults({landmarksResults: results}, this.recording);
 
         }).bind(this));
 
@@ -156,7 +156,7 @@ const MediaPipe = {
     onFaceResults(results) {
         
         let faceBlendshapes = null;
-        if (window.global.app.isRecording()) // store MediaPipe data
+        if (this.recording) // store MediaPipe data
         {
             this.bsCurrentTime = Date.now();
             var dt = this.bsCurrentTime - this.bsPreviousTime;
@@ -168,7 +168,7 @@ const MediaPipe = {
             faceBlendshapes = this.fillBlendshapes(results);
         }
 
-        this.onresults({blendshapesResults: faceBlendshapes}, window.global.app.isRecording())
+        this.onresults({blendshapesResults: faceBlendshapes}, this.recording)
     },
 
     stop() {
@@ -185,14 +185,16 @@ const MediaPipe = {
     },
 
     onStartRecording() {
+        this.recording = true;
         this.landmarks = [];
         this.blendshapes = [];
     },
 
     onStopRecording() {
+        this.recording = false;
         // Correct first dt of landmarks
-        this.landmarks[0].dt = 0;
-        this.blendshapes[0].dt = 0;
+        if ( this.landmarks.length ){ this.landmarks[0].dt = 0; }
+        if ( this.blendshapes.length ){ this.blendshapes[0].dt = 0; }
     },
 
     fillLandmarks(data, dt) {

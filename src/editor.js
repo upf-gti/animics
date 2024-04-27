@@ -83,7 +83,8 @@ class Editor {
 
                         e.preventDefault();
                         e.stopImmediatePropagation();
-                        document.querySelector("[title = Play]").children[0].click()
+                        let playElement = document.querySelector("[title = Play]");
+                        if ( playElement ){ playElement.children[0].click() }
                     }
                     break;
                 // case "Delete":
@@ -368,8 +369,8 @@ class Editor {
         if(this.state && !force)
             return;
 
-        this.mixer.setTime(t*this.mixer.timeScale);
-        this.mixer.update(0);
+        // mixer computes time * timeScale. We actually want to set the reaw animation (track) time, without any timeScale 
+        this.mixer.setTime(t/this.mixer.timeScale); //already calls mixer.update
     }
 
     clearAllTracks() {
@@ -1419,9 +1420,9 @@ class KeyframeEditor extends Editor{
             
         this.onUpdateAnimationTime();
         this.gizmo.updateBones();
-        
-        this.mixer.setTime(t* this.mixer.timeScale);
-        this.mixer.update(0);
+
+        // mixer computes time * timeScale. We actually want to set the reaw animation (track) time, without any timeScale 
+        this.mixer.setTime(t / this.mixer.timeScale ); // already calls mixer.update
 
         // Update video
         this.video.currentTime = this.video.startTime + t;
@@ -1608,14 +1609,14 @@ class KeyframeEditor extends Editor{
             
             for(let i = 0; i < data.blendshapesResults.length; i++) {
                 timeAcc += data.blendshapesResults[i].dt*0.001;
-                if(timeAcc <= t) {
-                    idx = i             
+                if(timeAcc > t) {
+                    idx = Math.max(0, i-1);
+                    break;             
                 }
             }
             if(idx >= 0) {
                 bs = data.blendshapesResults[idx];
-                if(data.landmarksResults)
-                    lm = data.landmarksResults[idx];
+                if(data.landmarksResults){ lm = data.landmarksResults[idx]; }
             }
         }
         else {

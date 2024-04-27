@@ -28,21 +28,21 @@ class App {
                 this.editor = new KeyframeEditor(this, mode);
                 this.onBeginCapture();
                 break;
-            case 'bvh': case 'bvhe':
-                this.editor = new KeyframeEditor(this, "video");
-                this.onLoadAnimation( settings.data );
-                break;
-            case 'video': case "mp4": case "wav": 
+            case 'video': 
                 this.video = settings.data;
                 this.editor = new KeyframeEditor(this, "video");
                 this.onLoadVideo( settings.data );
+                break;
+            case 'bvh': case 'bvhe':
+                this.editor = new KeyframeEditor(this, "video");
+                this.onLoadAnimation( settings.data );
                 break;
             case 'bml': case 'json': case 'sigml': case 'script':
                 this.editor = new ScriptEditor(this, 'script');
                 this.onScriptProject( settings.data, mode );
                 break;
             default:
-                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
+                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
                 return;
                 break;    
         }
@@ -177,12 +177,8 @@ class App {
 
             this.mediaRecorder = new MediaRecorder(stream);
         
-
             this.mediaRecorder.onstop = function (e) {
 
-                video.addEventListener("play", function() {});
-                video.addEventListener("pause", function() {});
-                video.setAttribute('controls', 'name');
                 video.controls = false;
                 video.loop = true;
                 
@@ -196,8 +192,6 @@ class App {
                 that.chunks.push(e.data);
             }
         }, false );
-
-        
 
         MediaPipe.start( false, () => {
             $('#loading').fadeOut();
@@ -275,18 +269,18 @@ class App {
         let videoElement = document.getElementById("inputVideo");
         
         // configurate buttons
-        let eocDiv = document.getElementById("endOfCapture");
-    
         let capture = document.getElementById("capture_btn");
         capture.onclick = () => {
             
-            if (!this.recording) {
+            if (!this.recording) { // start video recording
                 
-                videoElement.loop = false;
+                this.recording = true;
+
                 if(!live) {
+                    videoElement.loop = false;
                     videoElement.currentTime = 0;
                     videoElement.onended = () => {
-                        capture.click();
+                        capture.click(); // automatically end capture once video ended
                     }
                 }
 
@@ -294,67 +288,36 @@ class App {
                 document.getElementById("select-mode").innerHTML = "";
                 capture.classList.add("stop");
                 videoCanvas.classList.add("active");
-                // Start the capture
-                this.recording = true;
-                setTimeout(()=> {
-                    MediaPipe.onStartRecording();
-                    if(this.mediaRecorder){ this.mediaRecorder.start(); }
-                    this.startTime = Date.now();
-                    console.log("Start recording");
-                }, 100);
-                
+
+                MediaPipe.onStartRecording();
+                if(this.mediaRecorder){ this.mediaRecorder.start(); }
+                this.startTime = Date.now();
+                console.log("Started recording");                
             }
-            else {
+            else { // stop video recording
+                
+                this.recording = false;
 
                 if(!live) {
                     videoElement.onended = undefined;
                     videoElement.loop = true;
                 }
 
-                
-                // Stop the video recording
-                this.recording = false;
-                
-                console.log("Stop recording");
-                if(this.mediaRecorder)
-                    this.mediaRecorder.stop();
+                if(this.mediaRecorder){ this.mediaRecorder.stop(); }
                 
                 videoCanvas.classList.remove("active");  
+                
+                MediaPipe.onStopRecording();
+                let endTime = Date.now();
+                this.duration = endTime - this.startTime;
+                // Show modal to redo or load the animation in the scene
 
-                if(MediaPipe.landmarks.length) {
-                    
-                    MediaPipe.onStopRecording();
-                    let endTime = Date.now();
-                    this.duration = endTime - this.startTime;
-                    // Show modal to redo or load the animation in the scene
-                    eocDiv.style.display = "none";
-                    setTimeout(()=>{
-                        MediaPipe.stop();
-                        this.processVideo(live, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
-                    }, 100);
-                    
-                }
+                MediaPipe.stop(); // destroys inputVideo stream. TODO: move this from MediaPipe class to this class. 
+                this.processVideo(live, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
+        
+                console.log("Stopped recording");
             }
-        };
-    
-        let redo = document.getElementById("redo_btn");
-        redo.onclick = () => eocDiv.style.display = "none";
-    
-        let trimData = document.getElementById("trimData_btn");
-        trimData.onclick = () => {
-            eocDiv.style.display = "none";
-            MediaPipe.stop();
-            this.processVideo();
-        };
-
-        let loadData = document.getElementById("loadData_btn");
-        loadData.onclick = () => {
-            elem.style.display = "none";
-            MediaPipe.stop();
-            this.onRecordLandmarks(0, null);
-        };
-
-    
+        };    
     }
     
     async processVideo(live, results) {

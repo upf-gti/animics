@@ -47,92 +47,54 @@
 
 		window.global = {};
 	
-		const createApp = (settings) => {
+		const createApp = window.global.createApp = (settings) => {
 
 			$("#mainNav").remove();
 			$(".masthead").remove();
 			$("footer").remove();
 			const app = window.global.app = new App();
 			app.init(settings);
-			// let gui = LX.init();
-			// const dialog = new LX.Dialog( "Select input", p => {
-            //     p.addFile("From disk", (data) => { 
-            //         const extension = UTILS.getExtension(data.name);
-			//         let mode = extension.includes('bvh') ? 'bvh' : 'video';
-                    
-            //         let settings = {mode, data}
-            //         dialog.close()
-			// 		const app = new App();
-			// 		app.init(settings);
-            //         window.addEventListener("resize", this.onResize.bind(this));
-            //      }, {read: false, local: false} );
-
-              
-            //     p.addButton(null, "Capture", () => {
-			// 		const app = new App();
-            //         app.init()
-            //         dialog.close()
-            //         window.addEventListener("resize", this.onResize.bind(this));
-            //     });
-            // }, {modal:true})
-			
-			
+			return app;
 		}
 	
+		const onLoadFile = function( file ){
+			if(!file){ return null; }
+			console.log(file);
+
+			// MIME type is video
+			if(file.type.startsWith("video/")){ return createApp({mode: "video", data: file}); }
+
+			// other valid file formats
+			const extension = UTILS.getExtension(file.name).toLowerCase(); 
+			const formats = ['json', 'bml', 'sigml', 'bvh','bvhe'];
+			if(formats.indexOf(extension) >= 0) { return createApp({mode: extension, data: file}); }
+
+			alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
+			return null;
+		}
+
 		const dialog = $("#init-dialog")[0];
 		dialog.ondragover = () => {return false};
 		dialog.ondragend = () => {return false};
 		dialog.ondrop = (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-	
-			const file = e.dataTransfer.files[0];
-			if(!file)
-				return;
-			const extension = UTILS.getExtension(file.name);
-			const formats = ['mp4','wav','json', 'bml', 'sigml', 'bvh','bvhe'];
-			if(formats.indexOf(extension) < 0) {
-				alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
-				return;
-			}
-			createApp({mode: extension.toLowerCase(), data: file});
+			onLoadFile( e.dataTransfer.files[0] );
 		};
 	
-		const onloadfile = function() {
-	
+		$("#keyframe-project").click(() => {
+			createApp({mode: "capture"});
+		});
+		$("#bml-project").click(() => {
+			createApp({mode: "bml"});
+		});
+		$("#import").click(() =>{
 			const input = document.createElement('input');
 			input.type = 'file';
 			input.click();
-	
-			input.onchange = (e) => {
-				const file = e.currentTarget.files[0];
-				if(!file)
-					return;
-				const extension = UTILS.getExtension(file.name);
-				const formats = ['mp4','wav','json', 'bml', 'sigml', 'bvh','bvhe'];
-				if(formats.indexOf(extension) < 0) {
-					alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'mp4','wav'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
-					return;
-				}
-				createApp({mode: extension.toLowerCase(), data: file});
-			}
-		}
-	
-		$( function() {
-	
-			//$("#loading").fadeOut();
-			$("#keyframe-project").click(() => {
-				createApp({mode: "capture"});
-			});
-			$("#bml-project").click(() => {
-				createApp({mode: "bml"});
-			});
-
-			$("#from-file").click(onloadfile);
-			$("#import").click(onloadfile);
-		} );
-	
-		window.global.createApp = createApp;
+			input.onchange = (e) => { onLoadFile(e.currentTarget.files[0]); };
+		});
+				
 	</script>
     <body id="page-top">
         <!-- Navigation-->
@@ -201,20 +163,7 @@
 					</div>
 				</div> 
 			</div>
-			<!-- <div class=" py-2" id="mainNav" style="position: absolute; bottom: 5px;"> -->
-			<div class="">
-					
-					
-					<!-- <button class="navbar-toggler navbar-toggler-right" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-						<span class="navbar-toggler-icon"></span>
-					</button> -->
-					<!--  -->
-					
-				</div>
-				
-			</div>
-
-			</footer>
+		</footer>
     
 		<!-- Modals -->
 		<div id="loading" class="modal hidden">
@@ -226,17 +175,7 @@
 			</div>
 		</div>
 
-		<div id="endOfCapture" class="modal" style="display: none">
-			<!-- <button id="redo_btn" class="onEndBtn" style="height: 25%; width: 100%; background: rgba(54,61,61,0.7);"><span>Redo
-					the video</span></button> -->
-			<button id="trimData_btn" class="onEndBtn"
-				style="height: 25%; width: 100%; background: rgba(54,61,61,0.7);"><span>Trim video</span></button>
-			<button id="loadData_btn" class="onEndBtn"
-				style="height: 25%; width: 100%; background: rgba(54,61,61,0.7);"><span>Create 3D animation</span></button>
-		</div>
-
 		<!---->
-
 		<div id="capture" class="expanded hidden" draggable="false">
 			<div id="capture-area" class="flex-horizontal" style ="width: 100%;">
 				<div id="video-area" class="flex-vertical">

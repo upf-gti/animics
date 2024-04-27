@@ -722,10 +722,7 @@ class KeyframesGui extends Gui {
                 text: " <i class='fa fa-redo'></i>",
                 title: "Redo video",
                 display: "none",
-                callback: async () => {
-                    
-                    window.location.reload();
-                }
+                callback: async () => { window.location.reload(); }
             }
         ];
 
