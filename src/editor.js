@@ -1417,9 +1417,6 @@ class KeyframeEditor extends Editor{
 
         if(this.state && !force)
             return;
-            
-        this.onUpdateAnimationTime();
-        this.gizmo.updateBones();
 
         // mixer computes time * timeScale. We actually want to set the reaw animation (track) time, without any timeScale 
         this.mixer.setTime(t / this.mixer.timeScale ); // already calls mixer.update
@@ -1433,6 +1430,9 @@ class KeyframeEditor extends Editor{
                 console.error("video warning");
             }
         }
+
+        this.onUpdateAnimationTime();
+        this.gizmo.updateBones();
     }
 
     /** -------------------- BONES INTERACTION -------------------- */
