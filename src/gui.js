@@ -1589,7 +1589,7 @@ class ScriptGui extends Gui {
                 }
 
                 if(this.mode == ClipModes.Glosses) {
-                    if(data.behaviours[i].gloss && clips.length || i == data.behaviours.length - 1)  {
+                    if((data.behaviours[i].gloss || i == data.behaviours.length - 1) && clips.length)  {
                         auxClips.push(new ANIM.SuperClip( {start: globalStart, duration: globalEnd - globalStart, type: "glossa", id: gloss, clips}));
                         clips = [];
                         globalStart = 10000;
