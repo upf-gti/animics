@@ -1644,6 +1644,8 @@ class ScriptGui extends Gui {
            this.updateClipPanel(clip);
            this.editor.gizmo.updateTracks();
            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
+           if(clip.onChangeStart) 
+                clip.onChangeStart(offset);
         };
 
         this.clipsTimeline.deleteContent = () => {
@@ -1738,13 +1740,14 @@ class ScriptGui extends Gui {
                 )
                 if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.idx == this.clipsTimeline.lastClipsSelected[0][0]) {
                     let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
-                    if(clip.type == "glossa") {
+                    if(clip.type == "glossa") {                        
                         actions.push(
                             {
                                 title: "Break down into actions",
                                 callback: () => {
                                     this.clipsTimeline.deleteContent();
-                                    this.clipsTimeline.addClips(clip.clips, -clip.start);
+                                    this.mode = ClipModes.Actions;
+                                    this.clipsTimeline.addClips(clip.clips, -this.clipsTimeline.currentTime);
                                 }
                             }
                         )
@@ -2014,7 +2017,7 @@ class ScriptGui extends Gui {
                 clip.start = v;
                 
                 if(clip.onChangeStart) {
-                    clip.onChangeStart(v);
+                    clip.onChangeStart(diff);
                 }
                 updateTracks(true);
                 // this.updateClipPanel(clip);

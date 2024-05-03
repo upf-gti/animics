@@ -4565,21 +4565,21 @@ SuperClip.prototype.toJSON = function()
 			let data = ANIM.clipToJSON( subclips[c] );
 			if(data)
 			{
-				data[1] = data[3].start += offset;
+				// data[1] = data[3].start += offset;
 			
-				if(data[3].attackPeak != null)
-					data[3].attackPeak += offset;
-				if(data[3].startStroke != null)
-					data[3].startStroke += offset;
-				if(data[3].stroke != null)
-					data[3].stroke += offset;
-				if(data[3].endStroke != null)
-					data[3].endStroke += offset;
-				if(data[3].ready != null)
-					data[3].ready += offset;
-				if(data[3].relax != null)
-					data[3].relax += offset;
-				data[3].end = (data[3].end + offset) || (data[3].start + data[3].duration);
+				// if(data[3].attackPeak != null)
+				// 	data[3].attackPeak += offset;
+				// if(data[3].startStroke != null)
+				// 	data[3].startStroke += offset;
+				// if(data[3].stroke != null)
+				// 	data[3].stroke += offset;
+				// if(data[3].endStroke != null)
+				// 	data[3].endStroke += offset;
+				// if(data[3].ready != null)
+				// 	data[3].ready += offset;
+				// if(data[3].relax != null)
+				// 	data[3].relax += offset;
+				// data[3].end = (data[3].end + offset) || (data[3].start + data[3].duration);
 				if(!json[data[3].type])
 					json[data[3].type] = [];
 				json[data[3].type].push( data[3] );
@@ -4636,6 +4636,31 @@ SuperClip.prototype.showInfo = function(panel, callback)
 			callback();
 	}, { precision: 2,  min: 0, max: 1, step: 0.01, title: "Intensity" } );
 
+}
+
+SuperClip.prototype.onChangeStart = function(offset) 
+{
+	if(this.clips) {
+
+		for(let c = 0; c < this.clips.length; c++) {	
+			this.clips[c].start += offset;
+		
+			if(this.clips[c].attackPeak != null)
+				this.clips[c].fadein = this.clips[c].attackPeak += offset;
+			if(this.clips[c].startStroke != null)
+				this.clips[c].fadein = this.clips[c].startStroke += offset;
+			if(this.clips[c].stroke != null)
+			this.clips[c].stroke += offset;
+			if(this.clips[c].endStroke != null)
+				this.clips[c].fadeout = this.clips[c].endStroke += offset;
+			if(this.clips[c].ready != null)
+				this.clips[c].ready += offset;
+			if(this.clips[c].relax != null)
+				this.clips[c].fadeout = this.clips[c].relax += offset;
+
+			this.clips[c].end = (this.clips[c].end + offset) || (this.clips[c].start + this.clips[c].duration);			
+		}
+	}
 }
 
 //helpers **************************
