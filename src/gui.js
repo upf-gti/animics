@@ -2861,11 +2861,21 @@ class ScriptGui extends Gui {
             // Create a new dialog
         let dialog = this.prompt = new LX.Dialog('Available signs', async (p) => {
             
-            const innerSelect = async (asset, action) => {
+            const innerSelect = async (asset, button, e, action) => {
                 let choice = document.getElementById("choice-insert-mode");
                 if(choice)
                     choice.remove();
-
+                switch(button) {
+                    case "Add as single clip":
+                        this.mode = ClipModes.Phrase;
+                        break;
+                    case "Breakdown into glosses":
+                        this.mode = ClipModes.Glosses;
+                        break;
+                    case "Breakdown into action clips":
+                        this.mode = ClipModes.Actions;
+                        break;
+                }
                 that.clipsTimeline.unSelectAllClips();
                 asset.bml.name = asset.id;
                 const modal = this.createAnimation();
@@ -2892,12 +2902,17 @@ class ScriptGui extends Gui {
                 {
                     type: "sigml",
                     name: 'Add as single clip', 
-                    callback: innerSelect.bind("glossa")
+                    callback: innerSelect
                 },
                 {
                     type: "sigml",
-                    name: 'Breakdown into BML clips', 
-                    callback: innerSelect.bind("clips")
+                    name: 'Breakdown into glosses', 
+                    callback: innerSelect
+                },
+                {
+                    type: "sigml",
+                    name: 'Breakdown into action clips', 
+                    callback: innerSelect
                 },
                 {
                     type: "bml",
@@ -2907,12 +2922,17 @@ class ScriptGui extends Gui {
                 {
                     type: "bml",
                     name: 'Add as single clip', 
-                    callback: innerSelect.bind("glossa")
+                    callback: innerSelect
                 },
                 {
                     type: "bml",
-                    name: 'Breakdown into BML clips', 
-                    callback: innerSelect.bind("clips")
+                    name: 'Breakdown into glosses', 
+                    callback: innerSelect
+                },
+                {
+                    type: "bml",
+                    name: 'Breakdown into action clips', 
+                    callback: innerSelect
                 }
             ];
 
