@@ -1465,12 +1465,13 @@ class KeyframesGui extends Gui {
 
 }
 
+const ClipModes = { Phrase: 0, Glosses: 1, Actions: 2};
 class ScriptGui extends Gui {
 
     constructor(editor) {
         
         super(editor);
-
+        this.mode = ClipModes.Actions;
     }
 
     /** Create timelines */
@@ -1513,6 +1514,9 @@ class ScriptGui extends Gui {
         let clips = [];
         let globalStart = 10000;
         let globalEnd = -10000;
+        let auxClips = [];
+        let gloss = "";
+
         if(data && data.behaviours) {
             for(let i = 0; i < data.behaviours.length; i++) {
                 let clipClass = null;
@@ -1551,6 +1555,7 @@ class ScriptGui extends Gui {
                             clipClass = ANIM.MouthingClip;
                             break;
                         case "gesture":
+                        {
                             if(data.behaviours[i].handConstellation)
                                 clipClass = ANIM.HandConstellationClip;
                             else if(data.behaviours[i].bodyMovement)
@@ -1575,12 +1580,24 @@ class ScriptGui extends Gui {
                                 clipClass = ANIM.WristMotionClip;
                             else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "fingerplay")
                                 clipClass = ANIM.FingerplayMotionClip;
-
+                            break;
+                        }                       
                     }
                 }
                 else {
                     clipClass = ANIM.clipTypes[data.indices[i]];
                 }
+
+                if(this.mode == ClipModes.Glosses) {
+                    if(data.behaviours[i].gloss && clips.length || i == data.behaviours.length - 1)  {
+                        auxClips.push(new ANIM.SuperClip( {start: globalStart, duration: globalEnd - globalStart, type: "glossa", id: gloss, clips}));
+                        clips = [];
+                        globalStart = 10000;
+                        globalEnd = -10000;
+                    }
+                    if(data.behaviours[i].gloss)
+                        gloss = data.behaviours[i].gloss;                    
+                }        
 
                 if(!clipClass)
                     continue;
@@ -1588,25 +1605,32 @@ class ScriptGui extends Gui {
                 globalStart = Math.min(globalStart, data.behaviours[i].start >= 0 ? data.behaviours[i].start : globalStart);
                 globalEnd = Math.max(globalEnd, data.behaviours[i].end || globalEnd);
                 
-                if(breakdown)
-                    clips.push(new clipClass( data.behaviours[i]));
-                else
-                    clips.push(new clipClass( data.behaviours[i]));
+                // if(breakdown)
+                //     clips.push(new clipClass( data.behaviours[i]));
+                // else
+                //     clips.push(new clipClass( data.behaviours[i]));
                 
+                clips.push(new clipClass( data.behaviours[i]));                               
             }
         }
-        return {clips: clips, duration: globalEnd - globalStart}
+        return {clips: auxClips.length ? auxClips : clips, duration: globalEnd - globalStart}
     }
-    async loadBMLClip(clip, callback, breakdown = true) { 
+    async loadBMLClip(clip, callback) { 
         
-        let {clips, duration} = await this.dataToBMLClips(clip, callback, breakdown);
+        let {clips, duration} = await this.dataToBMLClips(clip, callback);
 
-        if(!breakdown) {
-            this.clipsTimeline.addClip(new ANIM.SuperClip( {duration: duration, type: "glossa", id: clip.name, clips}));
+        switch(this.mode) {
+            case ClipModes.Phrase:
+                this.clipsTimeline.addClip(new ANIM.SuperClip( {duration: duration, type: "glossa", id: clip.name, clips}));
+                break;
+            case ClipModes.Glosses:
+                this.clipsTimeline.addClips(clips);
+                break;
+            case ClipModes.Actions:
+                this.clipsTimeline.addClips(clips);
+                break;
         }
-        else {
-            this.clipsTimeline.addClips(clips);
-        }
+    
         this.clip = this.clipsTimeline.animationClip || clip ;
         this.duration = this.clip.duration || duration;
 
@@ -1689,13 +1713,13 @@ class ScriptGui extends Gui {
             if(this.clipsTimeline.lastClipsSelected.length) {
                 actions.push(
                     {
-                        title: "Copy",// + " <i class='bi bi-clipboard-fill float-right'></i>",
+                        title: "Copy",
                         callback: () => this.clipsTimeline.copyContent()
                     }
                 )
                 actions.push(
                     {
-                        title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
+                        title: "Delete",
                         callback: () => this.clipsTimeline.deleteContent()
                     }
                 )
@@ -1712,7 +1736,20 @@ class ScriptGui extends Gui {
                         }
                     }
                 )
-
+                if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.idx == this.clipsTimeline.lastClipsSelected[0][0]) {
+                    let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
+                    if(clip.type == "glossa") {
+                        actions.push(
+                            {
+                                title: "Break down into actions",
+                                callback: () => {
+                                    this.clipsTimeline.deleteContent();
+                                    this.clipsTimeline.addClips(clip.clips, -clip.start);
+                                }
+                            }
+                        )
+                    }
+                }
                 // actions.push(
                 //     {
                 //         title: "Create sign/Local",
@@ -2833,7 +2870,7 @@ class ScriptGui extends Gui {
                 const loadClip = async  () => {
                     return new Promise((resolve) => {
                     setTimeout(() => {
-                        resolve(this.loadBMLClip(asset.bml, null, action != "Add as single clip"));
+                        resolve(this.loadBMLClip(asset.bml, null));
                     }, 100)
                   });}
                 
@@ -2986,9 +3023,10 @@ class ScriptGui extends Gui {
                                         this.editor.fileToBML(e.item);
                                     }
                                     p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
-                                    p.sameLine(2);
-                                    p.addButton(null, "Add as single clip", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
-                                    p.addButton(null, "Breakdown into BML clips", (v) => { choice.close(); this.closeDialogs(); innerSelect(e.item, v);} )
+                                    p.sameLine(3);
+                                    p.addButton(null, "Add as single clip", (v) => { choice.close(); this.mode = ClipModes.Phrase; this.closeDialogs(); innerSelect(e.item, v);} )
+                                    p.addButton(null, "Breakdown into glosses", (v) => { choice.close(); this.mode = ClipModes.Glosses; this.closeDialogs(); innerSelect(e.item, v);} )
+                                    p.addButton(null, "Breakdown into action clips", (v) => { choice.close(); this.mode = ClipModes.Actions; this.closeDialogs(); innerSelect(e.item, v);} )
                                 }, {modal:true, closable: true, id: "choice-insert-mode"})
                             }
                             break;
