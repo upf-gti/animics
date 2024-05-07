@@ -1747,7 +1747,7 @@ class ScriptGui extends Gui {
                                 callback: () => {
                                     this.clipsTimeline.deleteContent();
                                     this.mode = ClipModes.Actions;
-                                    this.clipsTimeline.addClips(clip.clips, -this.clipsTimeline.currentTime);
+                                    this.clipsTimeline.addClips(clip.clips);
                                 }
                             }
                         )

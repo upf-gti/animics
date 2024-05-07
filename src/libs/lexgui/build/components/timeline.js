@@ -3429,11 +3429,11 @@ class ClipsTimeline extends Timeline {
         this.lastClipsSelected.push( currentSelection );
         track.selected[clipIndex] = true;
 
-        if( !multiple && this.onSetTime ) {
-            this.currentTime = track.clips[ clipIndex ].start;
-            LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        	this.onSetTime( this.currentTime );
-        }
+        // if( !multiple && this.onSetTime ) {
+        //     this.currentTime = track.clips[ clipIndex ].start;
+        //     LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
+        // 	this.onSetTime( this.currentTime );
+        // }
 
         if( this.onSelectClip && this.onSelectClip(track.clips[ clipIndex ])) {
             // Event handled
