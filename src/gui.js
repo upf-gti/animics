@@ -813,33 +813,23 @@ class KeyframesGui extends Gui {
         $(videoDiv).draggable({containment: this.canvasArea.root}).resizable({ aspectRatio: true, containment: this.canvasArea.root});
     }
     
-    changeCaptureGUIVisivility(hidde) {
-        this.bsInspector.root.hidden = hidde || !this.bsInspector.root.hidden;
+    changeCaptureGUIVisivility(hidden) {
+        this.bsInspector.root.hidden = hidden || !this.bsInspector.root.hidden;
     }
 
     updateCaptureGUI(results, isRecording) {
-        
+        // update blendshape inspector both in capture and edition stages
+
         let {landmarksResults, blendshapesResults} = results;
         if(isRecording){
             this.changeCaptureGUIVisivility(true);
             return;
         }
-        else {
-            //document.getElementById("capture-info").classList.remove("hidden");
-        }
-        if(landmarksResults && landmarksResults.poseLandmarks) {
 
-            const { poseLandmarks } = landmarksResults;
-            
-            let distance = (poseLandmarks[23].visibility + poseLandmarks[24].visibility)*0.5;
-            let leftHand = (poseLandmarks[15].visibility + poseLandmarks[17].visibility + poseLandmarks[19].visibility)/3;
-            let rightHand = (poseLandmarks[16].visibility + poseLandmarks[18].visibility + poseLandmarks[20].visibility)/3;
-        
-            this.bsInspector.get('Distance to the camera').onSetValue(distance);
-            this.bsInspector.get('Left Hand visibility').onSetValue(leftHand);
-            this.bsInspector.get('Right Hand visibility').onSetValue(rightHand);
-            
-       
+        if(landmarksResults) {
+            this.bsInspector.get('Distance to the camera').onSetValue( landmarksResults.distanceToCamera ?? 0 );
+            this.bsInspector.get('Left Hand visibility').onSetValue( landmarksResults.leftHandVisibility ?? 0 );
+            this.bsInspector.get('Right Hand visibility').onSetValue( landmarksResults.rightHandVisibility ?? 0 );
         }        
 
         if(blendshapesResults && (!this.bsInspector.root.hidden || this.facePanel && !this.facePanel.root.hidden )) {

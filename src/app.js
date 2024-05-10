@@ -151,21 +151,15 @@ class App {
             url = videoFile;
         else
             url = URL.createObjectURL(videoFile);
-        const that = this;
 
         let videoElement = document.getElementById("inputVideo");
         videoElement.src = url;
         let video = document.getElementById("recording");
         video.src = url; 
         
-        
         videoElement.addEventListener( "loadedmetadata", function (e) {
             // this === videoElement
             let videoCanvas = document.getElementById("outputVideo");
-            let stream = videoCanvas.captureStream();
-
-            console.log(this.videoWidth)
-            console.log(this.videoHeight);
             
             let aspect = this.videoWidth/this.videoHeight;
 
@@ -174,23 +168,6 @@ class App {
 
             videoCanvas.width  = width;
             videoCanvas.height = height;
-
-            this.mediaRecorder = new MediaRecorder(stream);
-        
-            this.mediaRecorder.onstop = function (e) {
-
-                video.controls = false;
-                video.loop = true;
-                
-                let blob = new Blob(that.chunks, { "type": "video/mp4; codecs=avc1" });
-                let videoURL = URL.createObjectURL(blob);
-                video.src = videoURL;
-                console.log("Recording correctly saved");
-            }
-
-            this.mediaRecorder.ondataavailable = function (e) {
-                that.chunks.push(e.data);
-            }
         }, false );
 
         MediaPipe.start( false, () => {
@@ -202,28 +179,28 @@ class App {
 
         let videoRec = document.getElementById("recording");
 
-        const updateFrame = (now, metadata) => {
+        // const updateFrame = (now, metadata) => {
             
-            // Do something with the frame.
-            const canvasElement = document.getElementById("outputVideo");
-            const canvasCtx = canvasElement.getContext("2d");
+        //     // Do something with the frame.
+        //     const canvasElement = document.getElementById("outputVideo");
+        //     const canvasCtx = canvasElement.getContext("2d");
     
-            let landmarks = MediaPipe.landmarks; //[frame];
+        //     let landmarks = MediaPipe.landmarks; //[frame];
     
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        //     canvasCtx.save();
+        //     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     
-            drawConnectors(canvasCtx, landmarks.PLM, POSE_CONNECTIONS,
-                            {color: '#00FF00', lineWidth: 4});
-            drawLandmarks(canvasCtx, landmarks.PLM,
-                            {color: '#FF0000', lineWidth: 2});
-            canvasCtx.restore();
+        //     drawConnectors(canvasCtx, landmarks.PLM, POSE_CONNECTIONS,
+        //                     {color: '#00FF00', lineWidth: 4});
+        //     drawLandmarks(canvasCtx, landmarks.PLM,
+        //                     {color: '#FF0000', lineWidth: 2});
+        //     canvasCtx.restore();
             
-            // Re-register the callback to be notified about the next frame.
-            videoRec.requestVideoFrameCallback(updateFrame);
-        };
-        // Initially register the callback to be notified about the first frame.
-        videoRec.requestVideoFrameCallback(updateFrame);
+        //     // Re-register the callback to be notified about the next frame.
+        //     videoRec.requestVideoFrameCallback(updateFrame);
+        // };
+        // // Initially register the callback to be notified about the first frame.
+        // videoRec.requestVideoFrameCallback(updateFrame);
 
         // Creates the scene and loads the animation
         this.editor.trimTimes = [startTime, endTime];
