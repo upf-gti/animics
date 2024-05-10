@@ -103,31 +103,31 @@ class NN {
         blankFrames = UTILS.consecutiveRanges(blankFrames);
         for (let range of blankFrames) {
             if (typeof range == 'number') {
-                let frame = quatData[range];
-                let prevFrame = quatData[range - 1];
-                let nextFrame = quatData[range + 1];
-                quatData[range] = frame.map( (v, idx) => {
-                    let a = prevFrame[idx];
-                    let b = nextFrame[idx];
-                    return THREE.Math.lerp(a, b, 0.5);
-                } );
-            } else {
-                let [x0, x1] = [... range];
-                let n = x1 - x0 + 1; // Count middle frames
-                let divisions = 1 / (n + 1); // Divide 1 by num of frames + 1
-                let prevFrame = quatData[x0 - 1];
-                let nextFrame = quatData[x1 + 1];
+                range = [range,range];
+            } 
+            
+            let [blank0, blank1] = [... range]; // blank0 < blank1 always and 0 <= both < length
+            
+            // prev and next correct frames 
+            let x0 = blank0 - 1;
+            let x1 = blank1 + 1;
+            x0 = x0 >= 0 ? x0 : x1; // no good frame before x1
+            x1 = x1 < quatData.length ? x1 : x0; // no good frame after x0
+            if ( x1 > quatData.length ){ 
+                console.warn( "WARNING: All estimated quaternions are NaN");
+                return [];
+            }
+            
+            let n = blank1 - blank0 + 1; // how many blank frames
+            let divisions = 1 / ( n + 1 ); // if x0 == x1 then lerp === copy of either x0 or x1.
+            let prevFrame = quatData[x0];
+            let nextFrame = quatData[x1];
 
-                // Compute lerp for all frames
-                for (let i = x0; i <= x1; i++) {
-                    let frame = quatData[i];
-                    quatData[i] = frame.map( (v, idx) => {
-                        let a = prevFrame[idx];
-                        let b = nextFrame[idx];
-                        return THREE.Math.lerp(a, b, divisions);
-                    } );
-                    divisions += divisions;
-                }
+            // Compute lerp for all frames
+            for (let i = blank0; i <= blank1; i++) {
+                quatData[i] = quatData[i].map( (v, idx) => {
+                    return THREE.Math.lerp(prevFrame[idx], nextFrame[idx], (i-blank0+1)*divisions );
+                } );
             }
         }
 

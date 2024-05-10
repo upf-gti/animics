@@ -178,9 +178,10 @@ const MediaPipe = {
 
         // reset feed source 
         $feed.pause();
-        if(!$feed.srcObject)
-            $feed.srcObject = $feed.captureStream();
-        $feed.srcObject.getTracks().forEach(a => a.stop());
+        if($feed.srcObject){
+            // $feed.srcObject = $feed.captureStream();
+            $feed.srcObject.getTracks().forEach(a => a.stop());
+        }
         $feed.srcObject = null;
     },
 

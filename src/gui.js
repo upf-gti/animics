@@ -440,22 +440,21 @@ class Gui {
     
      
     setBoneInfoState( enabled ) {
-        for(const ip of $(".bone-position input, .bone-euler input, .bone-quaternion input"))
-        enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
+        for(const ip of $(".bone-position input, .bone-euler input, .bone-quaternion input")){
+            enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
+        }
     }
     /** ------------------------------------------------------------ */
 
     /** -------------------- TIMELINE -------------------- */
     render() {
 
-        if(this.timelineVisible)
-            this.drawTimeline();
+        if(this.timelineVisible){ this.drawTimeline(); }
     }
 
     drawTimeline(currentTimeline) {
         
-        if(this.timelineVisible)
-            currentTimeline.draw();
+        if(this.timelineVisible){ currentTimeline.draw(); }
         // const canvas = this.timelineCTX.canvas;
        
 
@@ -1269,14 +1268,17 @@ class KeyframesGui extends Gui {
 
                 const innerUpdate = (attribute, value) => {
             
-                    boneSelected[attribute].fromArray( value ); 
                     if(attribute == 'quaternion') {
-                        boneSelected[attribute].normalize();
-                        widgets.widgets['Quaternion'].setValue(boneSelected[attribute].toArray());
-                        widgets.widgets['Rotation (XYZ)'].setValue(boneSelected['rotation'].toArray());
+                        boneSelected.quaternion.fromArray( value ).normalize(); 
+                        // widgets.widgets['Quaternion'].setValue(quat.toArray());
+
+                        let rot = boneSelected.rotation.toArray();
+                        rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
+                        widgets.widgets['Rotation (XYZ)'].setValue( rot );
                     }
                     if(attribute == 'rotation') {
-                        widgets.widgets['Quaternion'].setValue(boneSelected['quaternion'].toArray());
+                        boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
+                        widgets.widgets['Quaternion'].setValue(boneSelected.quaternion.toArray());
                     }
                     this.editor.gizmo.onGUI(attribute);
                 };
@@ -1296,10 +1298,12 @@ class KeyframesGui extends Gui {
                 }
 
                 this.boneProperties['rotation'] = boneSelected.rotation;
-                widgets.addVector3('Rotation (XYZ)', boneSelected.rotation.toArray(), (v) => {innerUpdate("rotation", v), widgets.onRefresh(options)}, {disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-euler'});
+                let rot = boneSelected.rotation.toArray();
+                rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
+                widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-euler'});
 
                 this.boneProperties['quaternion'] = boneSelected.quaternion;
-                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-quaternion'});
+                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-quaternion'});
             }
 
         };
