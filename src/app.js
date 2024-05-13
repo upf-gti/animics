@@ -285,6 +285,7 @@ class App {
                 videoCanvas.classList.remove("active");  
                 
                 MediaPipe.stopRecording();
+                MediaPipe.stopVideoProcessing();
                 let endTime = Date.now();
                 this.duration = endTime - this.startTime;
                 // Show modal to redo or load the animation in the scene

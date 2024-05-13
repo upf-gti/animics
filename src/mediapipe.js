@@ -279,14 +279,15 @@ const MediaPipe = {
 
         let listener = async () => {
             let videoElement = this.currentVideoProcessing.videoElement;
-            await this.processFrame( videoElement );
-
+            
             if ( videoElement.requestVideoFrameCallback ){
                 this.currentVideoProcessing.listenerID = videoElement.requestVideoFrameCallback( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
             }
             else{
                 this.currentVideoProcessing.listenerID = window.requestAnimationFrame( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
             }
+
+            await this.processFrame( videoElement );
         }
 
         let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
@@ -321,8 +322,7 @@ const MediaPipe = {
         
         let listener = async () => {
             let videoElement = this.currentVideoProcessing.videoElement;
-            await this.processFrame(videoElement);
-            
+ 
             let val = videoElement.currentTime + this.currentVideoProcessing.dt;
             if (val < this.currentVideoProcessing.endTime){
                 videoElement.currentTime = val;
@@ -332,6 +332,8 @@ const MediaPipe = {
                 if ( this.currentVideoProcessing.onEnded ){ this.currentVideoProcessing.onEnded(); }
                 this.stopVideoProcessing();
             }
+
+            await this.processFrame(videoElement);
         };
         
         this.startRecording();
