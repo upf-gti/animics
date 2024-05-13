@@ -133,14 +133,6 @@ class App {
 
     }
 
-    onLoadAnimation( animation ) {
-        this.editor.startEdition();
-
-        const name = animation.name;
-        this.editor.clipName = name;
-        this.editor.loadAnimation( animation );
-    }
-
     onLoadVideo( videoFile ) {
         this.mediaRecorder = null;
         this.editor.mode = this.editor.eModes.video;
@@ -207,6 +199,14 @@ class App {
         this.editor.buildAnimation( {landmarks: MediaPipe.landmarks, blendshapes: MediaPipe.blendshapes} );
     }
 
+    onLoadAnimation( animation ) {
+        this.editor.startEdition();
+
+        const name = animation.name;
+        this.editor.clipName = name;
+        this.editor.loadAnimation( animation );
+    }
+
     onScriptProject(dataFile, mode) {
         
         if(dataFile)
@@ -266,7 +266,7 @@ class App {
                 capture.classList.add("stop");
                 videoCanvas.classList.add("active");
 
-                MediaPipe.onStartRecording();
+                MediaPipe.startRecording();
                 if(this.mediaRecorder){ this.mediaRecorder.start(); }
                 this.startTime = Date.now();
                 console.log("Started recording");                
@@ -284,13 +284,19 @@ class App {
                 
                 videoCanvas.classList.remove("active");  
                 
-                MediaPipe.onStopRecording();
+                MediaPipe.stopRecording();
                 let endTime = Date.now();
                 this.duration = endTime - this.startTime;
                 // Show modal to redo or load the animation in the scene
 
-                MediaPipe.stop(); // destroys inputVideo stream. TODO: move this from MediaPipe class to this class. 
                 this.processVideo(live, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
+
+                // destroys inputVideo camera stream, if any
+                videoElement.pause();
+                if(videoElement.srcObject){
+                    videoElement.srcObject.getTracks().forEach(a => a.stop());
+                }
+                videoElement.srcObject = null;
         
                 console.log("Stopped recording");
             }

@@ -32,17 +32,31 @@ const MediaPipe = {
         const videoElement = document.getElementById("inputVideo");
         const canvasElement = document.getElementById("outputVideo");
         this.canvasCtx = canvasElement.getContext("2d");
-        MediaPipe.stop();
         
         const vision = await FilesetResolver.forVisionTasks( "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13/wasm" );
+        
+        if(!this.faceLandmarker) {
+            this.faceLandmarker = await FaceLandmarker.createFromOptions(
+                vision, 
+                {
+                    baseOptions: {
+                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+                        delegate: 'GPU'
+                    },
+                    outputFaceBlendshapes: true,
+                    outputFacialTransformationMatrixes: true,
+                    runningMode: 'VIDEO',
+                    numFaces: 1
+                }
+            );
+        }
 
         if(!this.handDetector){
             this.handDetector = await HandLandmarker.createFromOptions(
                 vision,
                 {
                     baseOptions: {
-                        modelAssetPath: "../MediapipeModels/hand_landmarker.task",
-                        // modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
                         delegate: "GPU"
                     },
                     numHands: 2,
@@ -50,49 +64,44 @@ const MediaPipe = {
                     // minTrackingConfidence: 0.001,
                     // minPosePresenceConfidence: 0.001,
                     // minPoseDetectionConfidence: 0.001
-                });
-        }
-        if(!this.faceLandmarker) {
-            this.faceLandmarker = await FaceLandmarker.createFromOptions( vision, {
-                baseOptions: {
-                    //
-                    modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-                    delegate: 'GPU'
-                },
-                outputFaceBlendshapes: true,
-                outputFacialTransformationMatrixes: true,
-                runningMode: 'VIDEO',
-                numFaces: 1
-            } );
+                }
+            );
         }
             
         if(!this.poseDetector){
             this.poseDetector = await PoseLandmarker.createFromOptions(
                 vision,
                 {
-                baseOptions: {
-                    // modelAssetPath: "../MediapipeModels/pose_landmarker_heavy.task",
-                    // modelAssetPath: "../MediapipeModels/pose_landmarker_full.task",
-                    // modelAssetPath: "../MediapipeModels/pose_landmarker_lite.task",
-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-                    delegate:"GPU"
-                },
-                runningMode: "VIDEO",
+                    baseOptions: {
+                        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+                        delegate:"GPU"
+                    },
+                    runningMode: "VIDEO",
                 // minTrackingConfidence: 0.001,
                 // minPosePresenceConfidence: 0.001,
                 // minPoseDetectionConfidence: 0.001
-            });
+                }
+            );
         }
-        this.drawingUtils = new DrawingUtils( this.canvasCtx );
 
-        this.loaded = false;
+        if (!this.drawingUtils){ this.drawingUtils = new DrawingUtils( this.canvasCtx ); }
+
+            this.loaded = true; // using awaits. TODO: use promises when loading models
+        if ( this.onload ){ this.onload(); }
+
+        this.PROCESSING_EVENT_TYPES = { NONE: 0, SEEK: 1, VIDEOFRAME: 2, ANIMATIONFRAME: 3 };
+        this.currentVideoProcessing = null;
+
 
         videoElement.play();
         videoElement.controls = true;
         videoElement.loop = true;
         videoElement.muted = true;
-        videoElement.requestVideoFrameCallback( this.sendVideo.bind(this, videoElement) );  
+
+        this.processVideoOnline( videoElement );
+
         window.mediapipe = this;
+
     },
 
     drawResults( results ){
@@ -143,16 +152,6 @@ const MediaPipe = {
         canvasCtx.restore();
     },
 
-    async sendVideo(videoElement){
-        videoElement.requestVideoFrameCallback(this.sendVideo.bind(this, videoElement));
-        await this.processFrame( videoElement );
-
-        if(!this.loaded) {
-            this.loaded = true;
-            if(this.onload) this.onload();
-        }
-    },
-
     async processFrame(videoElement){
         // take same image for face, pose, hand detectors and ui 
         this.canvasCtx.clearRect(0, 0, this.canvasCtx.canvas.width, this.canvasCtx.canvas.height);
@@ -167,11 +166,11 @@ const MediaPipe = {
         // let holistic_results = this.holisticLandmarker.detectForVideo(videoElement,time);
         
         //miliseconds
-        const dt = this.currentResults ? ( ( videoElement.currentTime - this.currentResults.currentTime ) * 1000 ) : 0; 
+        const dt = this.currentResults ? Math.max( ( videoElement.currentTime - this.currentResults.currentTime ) * 1000, 0 ) : 0; 
         
         const results = {
             dt: dt, // miliseconds
-            currentTime: videoElement.currentTime, //second. Both a video and a stream update videoElement.currentTime
+            currentTime: videoElement.currentTime, //seconds. Both a video and a stream update videoElement.currentTime
             image: image, // display same image that was used for inference
             blendshapesResults: this.processBlendshapes( detectionsFace, dt ),
             landmarksResults: this.processLandmarks( detectionsFace, detectionsPose, detectionsHands, dt )
@@ -263,64 +262,121 @@ const MediaPipe = {
         return blends;
     },
 
+    /**
+     * sets mediapipe to process videoElement on each rendered frame. It does not automatically start recording. 
+     * Hardware capabilities affect the rate at which frames can be displayed and processed
+     */
+    async processVideoOnline( videoElement ){
+        this.stopVideoProcessing(); // stop previous video processing, if any
+        
+        this.currentVideoProcessing = {
+            videoElement: videoElement,
+            isOffline: false,
+            listenerBind: null,
+            listenerID: null,
+            listenerType: null
+        }
+
+        let listener = async () => {
+            let videoElement = this.currentVideoProcessing.videoElement;
+            await this.processFrame( videoElement );
+
+            if ( videoElement.requestVideoFrameCallback ){
+                this.currentVideoProcessing.listenerID = videoElement.requestVideoFrameCallback( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
+            }
+            else{
+                this.currentVideoProcessing.listenerID = window.requestAnimationFrame( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
+            }
+        }
+
+        let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
+
+        if ( videoElement.requestVideoFrameCallback ){ // not available on firefox
+            this.currentVideoProcessing.listenerID = videoElement.requestVideoFrameCallback( listenerBind ); // ID needed to cancel
+            this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.VIDEOFRAME;
+        }else{
+            this.currentVideoProcessing.listenerID = window.requestAnimationFrame( listenerBind ); // ID needed to cancel
+            this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.ANIMATIONFRAME;
+        }
+    },
     
-    async processEntireVideo_V2( videoElement, startTime, endTime, dt = 0.04 ){
-        // PROBLEMS: still reading speed (browser speed). Captures frames at specified fps, not at video's fps
-        // Ensures current time has loaded correctly before sending to mediapipe. Better support than requestVideoCallback
+    /**
+     * sets mediapipe to process videoElement from [startTime, endTime] at each dt. It automatically starts recording
+     * @param {HTMLVideoElement*} videoElement 
+     * @param {Number} startTime seconds
+     * @param {Number} endTime seconds
+     * @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
+     * @param {Function} onEnded 
+     */
+    async processVideoOffline( videoElement,  startTime = -1, endTime = -1, dt = 0.04, onEnded = null ){ // dt=seconds, default 25 fps
+        // PROBLEMS: still reading speed (browser speed). Captures frames at specified fps (dt) instead of the actual available video frames
+        // PROS: Ensures current time has loaded correctly before sending to mediapipe. Better support than requestVideoCallback
+        
+        this.stopVideoProcessing(); // stop previous video processing, if any
+
+        videoElement.pause();
         startTime = Math.max( Math.min( videoElement.duration, startTime ), 0 );
         endTime = Math.max( Math.min( videoElement.duration, endTime ), startTime );
-
-        this.onStartRecording();
-
-        let listener = async (videoElement, endTime, dt) => {
-            await this.holistic.send({image: videoElement});
-            const faceResults = this.faceLandmarker.detectForVideo(videoElement, Date.now() );
-            if(faceResults){ this.onFaceResults(faceResults); }
-            console.log( videoElement.currentTime );
-            let val = videoElement.currentTime + dt;
-            if (val < endTime){
+        dt = Math.max( dt, 0.001 );
+        
+        let listener = async () => {
+            let videoElement = this.currentVideoProcessing.videoElement;
+            await this.processFrame(videoElement);
+            
+            let val = videoElement.currentTime + this.currentVideoProcessing.dt;
+            if (val < this.currentVideoProcessing.endTime){
                 videoElement.currentTime = val;
             }
             else {
-                this.onStopRecording();
-                videoElement.removeEventListener("seeked", this.listenerBinded, false );
-                for(let i = 0; i < this.landmarks.length; ++i ){
-                    this.landmarks[i].dt = dt * 1000;
-                    this.blendshapes[i].dt = dt * 1000;
-                }
-                console.log("asdfasdf");
-                console.log((performance.now() - window.t) * 0.001 )
+                this.stopRecording();
+                if ( this.currentVideoProcessing.onEnded ){ this.currentVideoProcessing.onEnded(); }
+                this.stopVideoProcessing();
             }
         };
-        this.listenerBinded = listener.bind(this, videoElement, endTime, dt );
-        videoElement.addEventListener( "seeked", this.listenerBinded, false );
-        videoElement.currentTime = startTime;
-        window.t = performance.now()
-
-    },
-
-    stop() {
         
-        // get reference of the video element the Camera is constructed on
-        let $feed = $("#inputVideo")[0];
+        this.startRecording();
+        let listenerBind = listener.bind(this);
+        videoElement.addEventListener( "seeked", listenerBind, false );
+        videoElement.currentTime = startTime;
 
-        // reset feed source 
-        $feed.pause();
-        if($feed.srcObject){
-            // $feed.srcObject = $feed.captureStream();
-            $feed.srcObject.getTracks().forEach(a => a.stop());
+        this.currentVideoProcessing = {
+            videoElement: videoElement,
+            isOffline: true,
+            startTime: startTime,
+            endTime: endTime,
+            dt: dt,
+            onEnded: typeof( onEnded ) === 'function' ? onEnded : null,
+            listenerBind: listenerBind,
+            listenerID: listenerBind,
+            listenerType: this.PROCESSING_EVENT_TYPES.SEEK
         }
-        $feed.srcObject = null;
     },
 
-    onStartRecording() {
+    stopVideoProcessing(){
+        if ( !this.currentVideoProcessing ){ return; }
+        
+        switch( this.currentVideoProcessing.listenerType ){
+            case this.PROCESSING_EVENT_TYPES.SEEK:
+                this.currentVideoProcessing.videoElement.removeEventListener( "seeked", this.currentVideoProcessing.listenerID, false );
+                break;
+            case this.PROCESSING_EVENT_TYPES.VIDEOFRAME:
+                this.currentVideoProcessing.videoElement.cancelVideoFrameCallback( this.currentVideoProcessing.listenerID );
+                break;
+            case this.PROCESSING_EVENT_TYPES.ANIMATIONFRAME:
+                window.cancelAnimationFrame( this.currentVideoProcessing.listenerID );
+                break;
+        }
+
+        this.currentVideoProcessing = null;
+    },
+
+    startRecording() {
         this.recording = true;
         this.landmarks = [];
         this.blendshapes = [];
-        
     },
 
-    onStopRecording() {
+    stopRecording() {
         this.recording = false;
         // Correct first dt of landmarks
         if ( this.landmarks.length ){ this.landmarks[0].dt = 0; }
