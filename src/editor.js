@@ -171,7 +171,7 @@ class Editor {
         //     return this.gui.promptExit();
         // })
         window.onbeforeunload =  (e) => {
-            if(!this.animation.tracks.length)
+            if(!this.animation || !this.animation.tracks.length)
                 return;
             e.preventDefault();
             e.returnValue = ""

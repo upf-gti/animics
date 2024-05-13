@@ -21,6 +21,9 @@ const HexToRgb = (hex) => {
 }
 
 const UTILS = {
+	deg2rad: Math.PI / 180,
+	rad2deg: 180 / Math.PI,
+	
 	getTime() {
 		return new Date().getTime();
 	},

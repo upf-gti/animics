@@ -1,10 +1,10 @@
 import "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js";
 import "https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js";
 import "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js";
-import "https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js";
 
 // Mediapipe face blendshapes
-import { FaceLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0';
+import { DrawingUtils, HolisticLandmarker, FaceLandmarker, PoseLandmarker, HandLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13';
+
 
 import * as THREE from 'three'
 import { UTILS } from "./utils.js"
@@ -14,9 +14,8 @@ const MediaPipe = {
     loaded: false,
     recording: false,
     currentTime: 0,
-    previousTime: 0,
-    bsCurrentTime: 0,
-    bsPreviousTime: 0,
+    
+    currentResults: null, 
     landmarks: [],
     blendshapes : [],
     async start( live, onload, onresults, onerror ) {
@@ -32,214 +31,226 @@ const MediaPipe = {
         // Webcam and MediaPipe Set-up
         const videoElement = document.getElementById("inputVideo");
         const canvasElement = document.getElementById("outputVideo");
-        const canvasCtx = canvasElement.getContext("2d");
-        MediaPipe.stop();
-        //Holistic 
-        if(!this.holistic) {
-
-            this.holistic = await new Holistic({locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
-            }});
-    
-            this.holistic.setOptions({
-                modelComplexity: 1,
-                smoothLandmarks: true,
-                enableSegmentation: true,
-                smoothSegmentation: true,
-                refineFaceLandmarks: true,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-            });
-        }
-        else {
-            // this.holistic.reset();
-        }
-        this.holistic.onResults(((results) => {
-
-            if (this.recording) // store MediaPipe data
-            {
-                this.currentTime = Date.now();
-                var dt = this.currentTime - this.previousTime;
-                this.fillLandmarks(results, dt);
-            
-                this.previousTime = this.currentTime;
-            }
-            
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            // Only overwrite existing pixels.
-            canvasCtx.globalCompositeOperation = 'source-in';
-            canvasCtx.fillStyle = '#00FF00';
-            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
-
-            // Only overwrite missing pixels.
-            canvasCtx.globalCompositeOperation = 'destination-atop';
-
-            if(this.live){
-                // Mirror canvas
-                canvasCtx.translate(canvasElement.width, 0);
-                canvasCtx.scale(-1, 1);    
-                // -------------
-            }
-
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-            if(!this.recording) {
-                canvasCtx.globalCompositeOperation = 'source-over';
-            
-                // const image = document.getElementById("source");
-                // canvasCtx.globalAlpha = 0.6;
-                // canvasCtx.drawImage(image, 0, 0, canvasElement.width, canvasElement.height);
-                // canvasCtx.globalAlpha = 1;
-                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
-                    {color: '#1a2025', lineWidth: 4}); //'#00FF00'
-                drawLandmarks(canvasCtx, results.poseLandmarks,
-                                {color: '#1a2025',fillColor: 'rgba(255, 255, 255, 1)', lineWidth: 2}); //'#00FF00'
-                // drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION,
-                //                 {color: '#C0C0C070', lineWidth: 1});
-                drawConnectors(canvasCtx, results.leftHandLandmarks, HAND_CONNECTIONS,
-                                {color: '#1a2025', lineWidth: 4}); //#CC0000
-                drawLandmarks(canvasCtx, results.leftHandLandmarks,
-                                {color: '#1a2025',fillColor: 'rgba(58, 161, 156, 1)', lineWidth: 2}); //'#00FF00'
-                drawConnectors(canvasCtx, results.rightHandLandmarks, HAND_CONNECTIONS,
-                                {color: '#1a2025', lineWidth: 4}); //#00CC00
-                drawLandmarks(canvasCtx, results.rightHandLandmarks,
-                                {color: '#1a2025',fillColor: 'rgba(196, 113, 35, 1)', lineWidth: 2});
-                canvasCtx.globalCompositeOperation = 'source-in';
-            }
-            canvasCtx.restore();
-            if(this.onresults)
-                this.onresults({landmarksResults: results}, this.recording);
-
-        }).bind(this));
-
-        // Face blendshapes
+        this.canvasCtx = canvasElement.getContext("2d");
+        
+        const vision = await FilesetResolver.forVisionTasks( "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13/wasm" );
+        
         if(!this.faceLandmarker) {
-
-            const filesetResolver = await FilesetResolver.forVisionTasks(
-                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm'
+            this.faceLandmarker = await FaceLandmarker.createFromOptions(
+                vision, 
+                {
+                    baseOptions: {
+                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+                        delegate: 'GPU'
+                    },
+                    outputFaceBlendshapes: true,
+                    outputFacialTransformationMatrixes: true,
+                    runningMode: 'VIDEO',
+                    numFaces: 1
+                }
             );
-    
-            this.faceLandmarker = await FaceLandmarker.createFromOptions( filesetResolver, {
-                baseOptions: {
-                    modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-                    delegate: 'GPU'
-                },
-                outputFaceBlendshapes: true,
-                outputFacialTransformationMatrixes: true,
-                runningMode: 'VIDEO',
-                numFaces: 1
-            } );
         }
 
-        this.loaded = false;
+        if(!this.handDetector){
+            this.handDetector = await HandLandmarker.createFromOptions(
+                vision,
+                {
+                    baseOptions: {
+                        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                        delegate: "GPU"
+                    },
+                    numHands: 2,
+                    runningMode: "VIDEO",
+                    // minTrackingConfidence: 0.001,
+                    // minPosePresenceConfidence: 0.001,
+                    // minPoseDetectionConfidence: 0.001
+                }
+            );
+        }
+            
+        if(!this.poseDetector){
+            this.poseDetector = await PoseLandmarker.createFromOptions(
+                vision,
+                {
+                    baseOptions: {
+                        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+                        delegate:"GPU"
+                    },
+                    runningMode: "VIDEO",
+                // minTrackingConfidence: 0.001,
+                // minPosePresenceConfidence: 0.001,
+                // minPoseDetectionConfidence: 0.001
+                }
+            );
+        }
+
+        if (!this.drawingUtils){ this.drawingUtils = new DrawingUtils( this.canvasCtx ); }
+
+            this.loaded = true; // using awaits. TODO: use promises when loading models
+        if ( this.onload ){ this.onload(); }
+
+        this.PROCESSING_EVENT_TYPES = { NONE: 0, SEEK: 1, VIDEOFRAME: 2, ANIMATIONFRAME: 3 };
+        this.currentVideoProcessing = null;
+
 
         videoElement.play();
         videoElement.controls = true;
         videoElement.loop = true;
         videoElement.muted = true;
-        videoElement.requestVideoFrameCallback( this.sendVideo.bind(this, this.holistic, videoElement) );  
+
+        this.processVideoOnline( videoElement );
+
+        window.mediapipe = this;
+
     },
 
-    async sendVideo(holistic, videoElement){
-        await holistic.send({image: videoElement});
-        const faceResults = this.faceLandmarker.detectForVideo(videoElement, Date.now() );
-        if(faceResults)
-            this.onFaceResults(faceResults);
-        videoElement.requestVideoFrameCallback(this.sendVideo.bind(this, holistic, videoElement));
+    drawResults( results ){
+        const canvasCtx = this.canvasCtx;
+        const canvasElement = canvasCtx.canvas;
 
-        if(!this.loaded) {
-            this.loaded = true;
-            if(this.onload) this.onload();
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        // Only overwrite existing pixels.
+        canvasCtx.globalCompositeOperation = 'source-in';
+        canvasCtx.fillStyle = '#00FF00';
+        canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+        // Only overwrite missing pixels.
+        canvasCtx.globalCompositeOperation = 'destination-atop';
+
+        if(this.live){
+            // Mirror canvas
+            canvasCtx.translate(canvasElement.width, 0);
+            canvasCtx.scale(-1, 1);    
+            // -------------
         }
-    },
 
-    onFaceResults(results) {
+        if ( results.image ){ canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height); }
+        if(!this.recording) {
+            canvasCtx.globalCompositeOperation = 'source-over';
         
-        let faceBlendshapes = null;
-        if (this.recording) // store MediaPipe data
-        {
-            this.bsCurrentTime = Date.now();
-            var dt = this.bsCurrentTime - this.bsPreviousTime;
-            faceBlendshapes = this.fillBlendshapes(results, dt, true);
-            this.bsPreviousTime = this.bsCurrentTime;
-            
+            // const image = document.getElementById("source");
+            // canvasCtx.globalAlpha = 0.6;
+            // canvasCtx.drawImage(image, 0, 0, canvasElement.width, canvasElement.height);
+            // canvasCtx.globalAlpha = 1;
+            const lm = results.landmarksResults;
+            if ( lm.PLM ){
+                this.drawingUtils.drawConnectors( lm.PLM, PoseLandmarker.POSE_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //'#00FF00'
+                this.drawingUtils.drawLandmarks( lm.PLM, {color: '#1a2025',fillColor: 'rgba(255, 255, 255, 1)', lineWidth: 2}); //'#00FF00'
+            }
+            // drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
+            if ( lm.LLM ){
+                this.drawingUtils.drawConnectors( lm.LLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#CC0000
+                this.drawingUtils.drawLandmarks( lm.LLM, {color: '#1a2025',fillColor: 'rgba(58, 161, 156, 1)', lineWidth: 2}); //'#00FF00'
+            }
+            if ( lm.RLM ){
+                this.drawingUtils.drawConnectors( lm.RLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#00CC00
+                this.drawingUtils.drawLandmarks( lm.RLM, {color: '#1a2025',fillColor: 'rgba(196, 113, 35, 1)', lineWidth: 2});
+            }
+            canvasCtx.globalCompositeOperation = 'source-in';
         }
-        else {
-            faceBlendshapes = this.fillBlendshapes(results);
-        }
-
-        this.onresults({blendshapesResults: faceBlendshapes}, this.recording)
+        canvasCtx.restore();
     },
 
-    stop() {
+    async processFrame(videoElement){
+        // take same image for face, pose, hand detectors and ui 
+        this.canvasCtx.clearRect(0, 0, this.canvasCtx.canvas.width, this.canvasCtx.canvas.height);
+        this.canvasCtx.drawImage(videoElement, 0, 0, this.canvasCtx.canvas.width, this.canvasCtx.canvas.height);
+        let image = await createImageBitmap( this.canvasCtx.canvas );
+
+        const time = performance.now()//Date.now();
+        // it would probably be more optimal to use hollistic. But it does not return certain types of values 
+        const detectionsFace = this.faceLandmarker.detectForVideo(image, time);
+        const detectionsPose = this.poseDetector.detectForVideo(image,time);
+        const detectionsHands = this.handDetector.detectForVideo(image,time);
+        // let holistic_results = this.holisticLandmarker.detectForVideo(videoElement,time);
         
-        // get reference of the video element the Camera is constructed on
-        let $feed = $("#inputVideo")[0];
+        //miliseconds
+        const dt = this.currentResults ? Math.max( ( videoElement.currentTime - this.currentResults.currentTime ) * 1000, 0 ) : 0; 
+        
+        const results = {
+            dt: dt, // miliseconds
+            currentTime: videoElement.currentTime, //seconds. Both a video and a stream update videoElement.currentTime
+            image: image, // display same image that was used for inference
+            blendshapesResults: this.processBlendshapes( detectionsFace, dt ),
+            landmarksResults: this.processLandmarks( detectionsFace, detectionsPose, detectionsHands, dt )
+        }      
 
-        // reset feed source 
-        $feed.pause();
-        if(!$feed.srcObject)
-            $feed.srcObject = $feed.captureStream();
-        $feed.srcObject.getTracks().forEach(a => a.stop());
-        $feed.srcObject = null;
-    },
+        this.drawResults( results );
 
-    onStartRecording() {
-        this.recording = true;
-        this.landmarks = [];
-        this.blendshapes = [];
-    },
+        delete results.image;
+        image.close();
 
-    onStopRecording() {
-        this.recording = false;
-        // Correct first dt of landmarks
-        if ( this.landmarks.length ){ this.landmarks[0].dt = 0; }
-        if ( this.blendshapes.length ){ this.blendshapes[0].dt = 0; }
-    },
-
-    fillLandmarks(data, dt) {
-
-        if(!data || data.poseLandmarks == undefined) {
-            console.warn( "no landmark data at time " + dt/1000.0 );
-            return;
+        if ( this.recording ){
+            this.landmarks.push( results.landmarksResults );
+            this.blendshapes.push( results.blendshapesResults );
         }
-        const { poseLandmarks } = data;
-        let distance = (poseLandmarks[23].visibility + poseLandmarks[24].visibility)*0.5;
-        let leftHand = (poseLandmarks[15].visibility + poseLandmarks[17].visibility + poseLandmarks[19].visibility)/3;
-        let rightHand = (poseLandmarks[16].visibility + poseLandmarks[18].visibility + poseLandmarks[20].visibility)/3;
-      
-        this.landmarks.push({"RLM": data.rightHandLandmarks, "LLM": data.leftHandLandmarks, "FLM": data.faceLandmarks, "PLM": data.poseLandmarks, "dt": dt, distanceToCamera: distance, rightHandVisibility: rightHand, leftHandVisibility: leftHand});
+
+        this.currentResults = results;
+        
+        if ( this.onresults ){
+            this.onresults( results, this.recording);
+        }
+    },
+
+    processLandmarks(faceData, poseData, handsData, dt = 0) {
+
+        const results = {
+            dt: dt, 
+            RLM: null, 
+            LLM: null, 
+            FLM: null, 
+            PLM: null, 
+            distanceToCamera: 0,
+            rightHandVisibility: 0, 
+            leftHandVisibility: 0
+        };
+
+        if ( handsData ){
+            for ( let i = 0; i < handsData.handednesses.length; ++i ){
+                let h = handsData.handednesses[i][0];
+                let landmarks = handsData.landmarks[ i ]; // handsData.worldLandmarks[ i ];
+                if ( h.categoryName == 'Left' ){ results.LLM = landmarks; }
+                else{ results.RLM = landmarks; }
+            }
+        }
+
+        if ( faceData && faceData.faceLandmarks.length ){
+            results.FLM = faceData.faceLandmarks[0];
+        }
+
+        if ( poseData && poseData.landmarks.length ){
+            const lm = poseData.landmarks[0];
+            results.PLM = lm;
+            results.distanceToCamera = (lm[23].visibility + lm[24].visibility)*0.5;
+            results.leftHandVisibility = !!results.LLM * (lm[15].visibility + lm[17].visibility + lm[19].visibility)/3;
+            results.rightHandVisibility = !!results.RLM * (lm[16].visibility + lm[18].visibility + lm[20].visibility)/3;
+        }
+                
+        return results;
     },
 
  
-    fillBlendshapes(data, dt = 0, fill = false) {
-        const transform = new THREE.Object3D();
+    processBlendshapes(faceData, dt = 0) {
         let blends = {};
-        if ( data.faceBlendshapes.length > 0  ) {
-
-            const faceBlendshapes = data.faceBlendshapes[ 0 ].categories;
+        if ( faceData.faceBlendshapes.length > 0  ) {
+            const faceBlendshapes = faceData.faceBlendshapes[ 0 ].categories;
             for ( const blendshape of faceBlendshapes ) {
-
                 const name =  blendshape.categoryName.charAt(0).toUpperCase() + blendshape.categoryName.slice(1);
                 blends[name] = blendshape.score;
-
             }
             
-            if(blends["LeftEyeYaw"] == null);
-            {
-                blends["LeftEyeYaw"] = (blends["EyeLookOutLeft"] - blends["EyeLookInLeft"])/2;
-                blends["RightEyeYaw"] = - (blends["EyeLookOutRight"] - blends["EyeLookInRight"])/2;
-                blends["LeftEyePitch"] = (blends["EyeLookDownLeft"] - blends["EyeLookUpLeft"])/2;
-                blends["RightEyePitch"] = (blends["EyeLookDownRight"] - blends["EyeLookUpRight"])/2;
+            if(blends["LeftEyeYaw"] == null){
+                blends["LeftEyeYaw"] = (blends["EyeLookOutLeft"] - blends["EyeLookInLeft"]) * 0.5;
+                blends["RightEyeYaw"] = - (blends["EyeLookOutRight"] - blends["EyeLookInRight"]) * 0.5;
+                blends["LeftEyePitch"] = (blends["EyeLookDownLeft"] - blends["EyeLookUpLeft"]) * 0.5;
+                blends["RightEyePitch"] = (blends["EyeLookDownRight"] - blends["EyeLookUpRight"]) * 0.5;
             }
-
         }
 
-        if ( data.facialTransformationMatrixes.length > 0 ) {
-
-            const facialTransformationMatrixes = data.facialTransformationMatrixes[ 0 ].data;
-
-            transform.matrix.fromArray( facialTransformationMatrixes );
+        if ( faceData.facialTransformationMatrixes.length > 0 ) {
+            const transform = new THREE.Object3D();
+            transform.matrix.fromArray( faceData.facialTransformationMatrixes[ 0 ].data );
             transform.matrix.decompose( transform.position, transform.quaternion, transform.scale );
 
             blends["HeadYaw"] = - transform.rotation.y;
@@ -247,12 +258,131 @@ const MediaPipe = {
             blends["HeadRoll"] = - transform.rotation.z;
         }
 
-        if(fill) {
-            blends.dt = dt;
-            this.blendshapes.push(blends)
+        blends.dt = dt;
+        return blends;
+    },
+
+    /**
+     * sets mediapipe to process videoElement on each rendered frame. It does not automatically start recording. 
+     * Hardware capabilities affect the rate at which frames can be displayed and processed
+     */
+    async processVideoOnline( videoElement ){
+        this.stopVideoProcessing(); // stop previous video processing, if any
+        
+        this.currentVideoProcessing = {
+            videoElement: videoElement,
+            isOffline: false,
+            listenerBind: null,
+            listenerID: null,
+            listenerType: null
         }
 
-        return blends;
+        let listener = async () => {
+            let videoElement = this.currentVideoProcessing.videoElement;
+            
+            if ( videoElement.requestVideoFrameCallback ){
+                this.currentVideoProcessing.listenerID = videoElement.requestVideoFrameCallback( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
+            }
+            else{
+                this.currentVideoProcessing.listenerID = window.requestAnimationFrame( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
+            }
+
+            await this.processFrame( videoElement );
+        }
+
+        let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
+
+        if ( videoElement.requestVideoFrameCallback ){ // not available on firefox
+            this.currentVideoProcessing.listenerID = videoElement.requestVideoFrameCallback( listenerBind ); // ID needed to cancel
+            this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.VIDEOFRAME;
+        }else{
+            this.currentVideoProcessing.listenerID = window.requestAnimationFrame( listenerBind ); // ID needed to cancel
+            this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.ANIMATIONFRAME;
+        }
+    },
+    
+    /**
+     * sets mediapipe to process videoElement from [startTime, endTime] at each dt. It automatically starts recording
+     * @param {HTMLVideoElement*} videoElement 
+     * @param {Number} startTime seconds
+     * @param {Number} endTime seconds
+     * @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
+     * @param {Function} onEnded 
+     */
+    async processVideoOffline( videoElement,  startTime = -1, endTime = -1, dt = 0.04, onEnded = null ){ // dt=seconds, default 25 fps
+        // PROBLEMS: still reading speed (browser speed). Captures frames at specified fps (dt) instead of the actual available video frames
+        // PROS: Ensures current time has loaded correctly before sending to mediapipe. Better support than requestVideoCallback
+        
+        this.stopVideoProcessing(); // stop previous video processing, if any
+
+        videoElement.pause();
+        startTime = Math.max( Math.min( videoElement.duration, startTime ), 0 );
+        endTime = Math.max( Math.min( videoElement.duration, endTime ), startTime );
+        dt = Math.max( dt, 0.001 );
+        
+        let listener = async () => {
+            let videoElement = this.currentVideoProcessing.videoElement;
+ 
+            let val = videoElement.currentTime + this.currentVideoProcessing.dt;
+            if (val < this.currentVideoProcessing.endTime){
+                videoElement.currentTime = val;
+            }
+            else {
+                this.stopRecording();
+                if ( this.currentVideoProcessing.onEnded ){ this.currentVideoProcessing.onEnded(); }
+                this.stopVideoProcessing();
+            }
+
+            await this.processFrame(videoElement);
+        };
+        
+        this.startRecording();
+        let listenerBind = listener.bind(this);
+        videoElement.addEventListener( "seeked", listenerBind, false );
+        videoElement.currentTime = startTime;
+
+        this.currentVideoProcessing = {
+            videoElement: videoElement,
+            isOffline: true,
+            startTime: startTime,
+            endTime: endTime,
+            dt: dt,
+            onEnded: typeof( onEnded ) === 'function' ? onEnded : null,
+            listenerBind: listenerBind,
+            listenerID: listenerBind,
+            listenerType: this.PROCESSING_EVENT_TYPES.SEEK
+        }
+    },
+
+    stopVideoProcessing(){
+        if ( !this.currentVideoProcessing ){ return; }
+        
+        switch( this.currentVideoProcessing.listenerType ){
+            case this.PROCESSING_EVENT_TYPES.SEEK:
+                this.currentVideoProcessing.videoElement.removeEventListener( "seeked", this.currentVideoProcessing.listenerID, false );
+                break;
+            case this.PROCESSING_EVENT_TYPES.VIDEOFRAME:
+                this.currentVideoProcessing.videoElement.cancelVideoFrameCallback( this.currentVideoProcessing.listenerID );
+                break;
+            case this.PROCESSING_EVENT_TYPES.ANIMATIONFRAME:
+                window.cancelAnimationFrame( this.currentVideoProcessing.listenerID );
+                break;
+        }
+
+        this.currentVideoProcessing = null;
+    },
+
+    startRecording() {
+        this.recording = true;
+        this.landmarks = [];
+        this.blendshapes = [];
+    },
+
+    stopRecording() {
+        this.recording = false;
+        // Correct first dt of landmarks
+        if ( this.landmarks.length ){ this.landmarks[0].dt = 0; }
+        if ( this.blendshapes.length ){ this.blendshapes[0].dt = 0; }
     }
 }
 

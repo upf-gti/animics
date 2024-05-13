@@ -440,22 +440,21 @@ class Gui {
     
      
     setBoneInfoState( enabled ) {
-        for(const ip of $(".bone-position input, .bone-euler input, .bone-quaternion input"))
-        enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
+        for(const ip of $(".bone-position input, .bone-euler input, .bone-quaternion input")){
+            enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
+        }
     }
     /** ------------------------------------------------------------ */
 
     /** -------------------- TIMELINE -------------------- */
     render() {
 
-        if(this.timelineVisible)
-            this.drawTimeline();
+        if(this.timelineVisible){ this.drawTimeline(); }
     }
 
     drawTimeline(currentTimeline) {
         
-        if(this.timelineVisible)
-            currentTimeline.draw();
+        if(this.timelineVisible){ currentTimeline.draw(); }
         // const canvas = this.timelineCTX.canvas;
        
 
@@ -814,33 +813,23 @@ class KeyframesGui extends Gui {
         $(videoDiv).draggable({containment: this.canvasArea.root}).resizable({ aspectRatio: true, containment: this.canvasArea.root});
     }
     
-    changeCaptureGUIVisivility(hidde) {
-        this.bsInspector.root.hidden = hidde || !this.bsInspector.root.hidden;
+    changeCaptureGUIVisivility(hidden) {
+        this.bsInspector.root.hidden = hidden || !this.bsInspector.root.hidden;
     }
 
     updateCaptureGUI(results, isRecording) {
-        
+        // update blendshape inspector both in capture and edition stages
+
         let {landmarksResults, blendshapesResults} = results;
         if(isRecording){
             this.changeCaptureGUIVisivility(true);
             return;
         }
-        else {
-            //document.getElementById("capture-info").classList.remove("hidden");
-        }
-        if(landmarksResults && landmarksResults.poseLandmarks) {
 
-            const { poseLandmarks } = landmarksResults;
-            
-            let distance = (poseLandmarks[23].visibility + poseLandmarks[24].visibility)*0.5;
-            let leftHand = (poseLandmarks[15].visibility + poseLandmarks[17].visibility + poseLandmarks[19].visibility)/3;
-            let rightHand = (poseLandmarks[16].visibility + poseLandmarks[18].visibility + poseLandmarks[20].visibility)/3;
-        
-            this.bsInspector.get('Distance to the camera').onSetValue(distance);
-            this.bsInspector.get('Left Hand visibility').onSetValue(leftHand);
-            this.bsInspector.get('Right Hand visibility').onSetValue(rightHand);
-            
-       
+        if(landmarksResults) {
+            this.bsInspector.get('Distance to the camera').onSetValue( landmarksResults.distanceToCamera ?? 0 );
+            this.bsInspector.get('Left Hand visibility').onSetValue( landmarksResults.leftHandVisibility ?? 0 );
+            this.bsInspector.get('Right Hand visibility').onSetValue( landmarksResults.rightHandVisibility ?? 0 );
         }        
 
         if(blendshapesResults && (!this.bsInspector.root.hidden || this.facePanel && !this.facePanel.root.hidden )) {
@@ -1269,14 +1258,17 @@ class KeyframesGui extends Gui {
 
                 const innerUpdate = (attribute, value) => {
             
-                    boneSelected[attribute].fromArray( value ); 
                     if(attribute == 'quaternion') {
-                        boneSelected[attribute].normalize();
-                        widgets.widgets['Quaternion'].setValue(boneSelected[attribute].toArray());
-                        widgets.widgets['Rotation (XYZ)'].setValue(boneSelected['rotation'].toArray());
+                        boneSelected.quaternion.fromArray( value ).normalize(); 
+                        // widgets.widgets['Quaternion'].setValue(quat.toArray());
+
+                        let rot = boneSelected.rotation.toArray();
+                        rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
+                        widgets.widgets['Rotation (XYZ)'].setValue( rot );
                     }
                     if(attribute == 'rotation') {
-                        widgets.widgets['Quaternion'].setValue(boneSelected['quaternion'].toArray());
+                        boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
+                        widgets.widgets['Quaternion'].setValue(boneSelected.quaternion.toArray());
                     }
                     this.editor.gizmo.onGUI(attribute);
                 };
@@ -1296,10 +1288,12 @@ class KeyframesGui extends Gui {
                 }
 
                 this.boneProperties['rotation'] = boneSelected.rotation;
-                widgets.addVector3('Rotation (XYZ)', boneSelected.rotation.toArray(), (v) => {innerUpdate("rotation", v), widgets.onRefresh(options)}, {disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-euler'});
+                let rot = boneSelected.rotation.toArray();
+                rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
+                widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-euler'});
 
                 this.boneProperties['quaternion'] = boneSelected.quaternion;
-                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-quaternion'});
+                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-quaternion'});
             }
 
         };

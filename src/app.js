@@ -133,14 +133,6 @@ class App {
 
     }
 
-    onLoadAnimation( animation ) {
-        this.editor.startEdition();
-
-        const name = animation.name;
-        this.editor.clipName = name;
-        this.editor.loadAnimation( animation );
-    }
-
     onLoadVideo( videoFile ) {
         this.mediaRecorder = null;
         this.editor.mode = this.editor.eModes.video;
@@ -151,21 +143,15 @@ class App {
             url = videoFile;
         else
             url = URL.createObjectURL(videoFile);
-        const that = this;
 
         let videoElement = document.getElementById("inputVideo");
         videoElement.src = url;
         let video = document.getElementById("recording");
         video.src = url; 
         
-        
         videoElement.addEventListener( "loadedmetadata", function (e) {
             // this === videoElement
             let videoCanvas = document.getElementById("outputVideo");
-            let stream = videoCanvas.captureStream();
-
-            console.log(this.videoWidth)
-            console.log(this.videoHeight);
             
             let aspect = this.videoWidth/this.videoHeight;
 
@@ -174,23 +160,6 @@ class App {
 
             videoCanvas.width  = width;
             videoCanvas.height = height;
-
-            this.mediaRecorder = new MediaRecorder(stream);
-        
-            this.mediaRecorder.onstop = function (e) {
-
-                video.controls = false;
-                video.loop = true;
-                
-                let blob = new Blob(that.chunks, { "type": "video/mp4; codecs=avc1" });
-                let videoURL = URL.createObjectURL(blob);
-                video.src = videoURL;
-                console.log("Recording correctly saved");
-            }
-
-            this.mediaRecorder.ondataavailable = function (e) {
-                that.chunks.push(e.data);
-            }
         }, false );
 
         MediaPipe.start( false, () => {
@@ -202,32 +171,40 @@ class App {
 
         let videoRec = document.getElementById("recording");
 
-        const updateFrame = (now, metadata) => {
+        // const updateFrame = (now, metadata) => {
             
-            // Do something with the frame.
-            const canvasElement = document.getElementById("outputVideo");
-            const canvasCtx = canvasElement.getContext("2d");
+        //     // Do something with the frame.
+        //     const canvasElement = document.getElementById("outputVideo");
+        //     const canvasCtx = canvasElement.getContext("2d");
     
-            let landmarks = MediaPipe.landmarks; //[frame];
+        //     let landmarks = MediaPipe.landmarks; //[frame];
     
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        //     canvasCtx.save();
+        //     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     
-            drawConnectors(canvasCtx, landmarks.PLM, POSE_CONNECTIONS,
-                            {color: '#00FF00', lineWidth: 4});
-            drawLandmarks(canvasCtx, landmarks.PLM,
-                            {color: '#FF0000', lineWidth: 2});
-            canvasCtx.restore();
+        //     drawConnectors(canvasCtx, landmarks.PLM, POSE_CONNECTIONS,
+        //                     {color: '#00FF00', lineWidth: 4});
+        //     drawLandmarks(canvasCtx, landmarks.PLM,
+        //                     {color: '#FF0000', lineWidth: 2});
+        //     canvasCtx.restore();
             
-            // Re-register the callback to be notified about the next frame.
-            videoRec.requestVideoFrameCallback(updateFrame);
-        };
-        // Initially register the callback to be notified about the first frame.
-        videoRec.requestVideoFrameCallback(updateFrame);
+        //     // Re-register the callback to be notified about the next frame.
+        //     videoRec.requestVideoFrameCallback(updateFrame);
+        // };
+        // // Initially register the callback to be notified about the first frame.
+        // videoRec.requestVideoFrameCallback(updateFrame);
 
         // Creates the scene and loads the animation
         this.editor.trimTimes = [startTime, endTime];
         this.editor.buildAnimation( {landmarks: MediaPipe.landmarks, blendshapes: MediaPipe.blendshapes} );
+    }
+
+    onLoadAnimation( animation ) {
+        this.editor.startEdition();
+
+        const name = animation.name;
+        this.editor.clipName = name;
+        this.editor.loadAnimation( animation );
     }
 
     onScriptProject(dataFile, mode) {
@@ -289,7 +266,7 @@ class App {
                 capture.classList.add("stop");
                 videoCanvas.classList.add("active");
 
-                MediaPipe.onStartRecording();
+                MediaPipe.startRecording();
                 if(this.mediaRecorder){ this.mediaRecorder.start(); }
                 this.startTime = Date.now();
                 console.log("Started recording");                
@@ -307,13 +284,20 @@ class App {
                 
                 videoCanvas.classList.remove("active");  
                 
-                MediaPipe.onStopRecording();
+                MediaPipe.stopRecording();
+                MediaPipe.stopVideoProcessing();
                 let endTime = Date.now();
                 this.duration = endTime - this.startTime;
                 // Show modal to redo or load the animation in the scene
 
-                MediaPipe.stop(); // destroys inputVideo stream. TODO: move this from MediaPipe class to this class. 
                 this.processVideo(live, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
+
+                // destroys inputVideo camera stream, if any
+                videoElement.pause();
+                if(videoElement.srcObject){
+                    videoElement.srcObject.getTracks().forEach(a => a.stop());
+                }
+                videoElement.srcObject = null;
         
                 console.log("Stopped recording");
             }
