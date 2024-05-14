@@ -6,8 +6,10 @@ const VideoUtils = {
     offsetWidth: 20,
     offsetHeight: 5,
     playButtonWidth: 40,
+    onSetTime: null,
+    onRender: null,
 
-    bind: async function(video, canvas) {
+    bind: async function(video, canvas, callback) {
 
         canvas.addEventListener("mouseup", this.onMouse.bind(this));
         canvas.addEventListener("mousedown", this.onMouse.bind(this));
@@ -39,6 +41,8 @@ const VideoUtils = {
         window.VU = this;
 
         this.animate();
+        
+        if ( callback ){ callback(); }
     },
 
     onVideoEnded: function() {
@@ -88,6 +92,10 @@ const VideoUtils = {
         const ctx = this.ctx;
         ctx.save();
         ctx.clearRect(0, 0, this.width, this.height);
+
+        if ( this.onRender ){
+            this.onRender();
+        }
 
         ctx.globalAlpha = 0.8;
         ctx.fillStyle = "rgb(29, 29, 29)";

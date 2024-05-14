@@ -113,7 +113,7 @@ class NN {
             let x1 = blank1 + 1;
             x0 = x0 >= 0 ? x0 : x1; // no good frame before x1
             x1 = x1 < quatData.length ? x1 : x0; // no good frame after x0
-            if ( x1 > quatData.length ){ 
+            if ( x1 >= quatData.length ){ 
                 console.warn( "WARNING: All estimated quaternions are NaN");
                 return [];
             }

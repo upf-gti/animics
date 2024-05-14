@@ -3,6 +3,7 @@ import { KeyframeEditor, ScriptEditor } from "./editor.js";
 import { VideoUtils } from "./video.js";
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { LX } from 'lexgui';
+import { UTILS } from "./utils.js";
 
 class App {
     
@@ -10,8 +11,6 @@ class App {
         
         // Helpers
         this.recording = false;
-        this.startTime = 0;
-        this.duration = 0;
 
         this.mediaRecorder = null
         this.chunks = [];
@@ -113,7 +112,21 @@ class App {
                     let blob = new Blob(that.chunks, { "type": "video/mp4; codecs=avc1" });
                     let videoURL = URL.createObjectURL(blob);
                     video.src = videoURL;
-                    console.log("Recording correctly saved");
+                    video.autoplay = true;
+                    video.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".mp4";
+
+                    videoCanvas.classList.remove("active");  
+                                
+                    // destroys inputVideo camera stream, if any
+                    let inputVideo = document.getElementById("inputVideo");
+                    inputVideo.pause();
+                    if( inputVideo.srcObject ){ inputVideo.srcObject.getTracks().forEach(a => a.stop()); }
+                    inputVideo.srcObject = null;
+                                       
+                    // Show modal to redo or load the animation in the scene
+                    that.processVideo(true, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
+
+                    console.log("Stopped recording");
                 }
                 
                 videoElement.play()
@@ -127,6 +140,7 @@ class App {
         // Run mediapipe to extract landmarks. Not recording yet, but providing feedback to the user
         MediaPipe.start( true, () => {
             this.setEvents(true);
+            MediaPipe.processVideoOnline( document.getElementById("inputVideo") );
             $('#loading').fadeOut();
             
         }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui));
@@ -136,7 +150,6 @@ class App {
     onLoadVideo( videoFile ) {
         this.mediaRecorder = null;
         this.editor.mode = this.editor.eModes.video;
-        this.setEvents();
 
         let url = "";
         if(typeof(videoFile) == 'string' && videoFile.includes("blob:"))
@@ -144,12 +157,18 @@ class App {
         else
             url = URL.createObjectURL(videoFile);
 
-        let videoElement = document.getElementById("inputVideo");
-        videoElement.src = url;
+        // let videoElement = document.getElementById("inputVideo");
+        // videoElement.src = url;
         let video = document.getElementById("recording");
         video.src = url; 
+        video.muted = true;
+
+        // set video file name to dom element
+        if ( videoFile.name ){ video.name = videoFile.name; }
+        else{ video.name = "video_" + Math.floor( performance.now()*1000 ).toString() + videoFile.type.replace("video/", "." ); }
         
-        videoElement.addEventListener( "loadedmetadata", function (e) {
+        let that = this;
+        video.addEventListener( "loadedmetadata", function (e) {
             // this === videoElement
             let videoCanvas = document.getElementById("outputVideo");
             
@@ -160,43 +179,50 @@ class App {
 
             videoCanvas.width  = width;
             videoCanvas.height = height;
+
+            MediaPipe.start( false, () => {
+                that.processVideo( false, { blendshapesResults:[], landmarksResults:[] } );
+                $('#loading').fadeOut();
+    
+            }, that.editor.gui.updateCaptureGUI.bind(that.editor.gui) );
         }, false );
 
-        MediaPipe.start( false, () => {
-            $('#loading').fadeOut();
-        }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui) );
     }
 
-    onRecordLandmarks(startTime, endTime) {
+    // after video has been trimmed by VideoUtils and has been unbinded
+    onVideoTrimmed(startTime, endTime){
+        const videoObj = {
+            name: document.getElementById("recording").name,
+            videoBlob: document.getElementById("recording").src,
+            startTime: startTime,
+            endTime: endTime,
+            dt: 1/25,
+            landmarks: null,
+            blendshapes: null,
+        }
 
-        let videoRec = document.getElementById("recording");
+        // Hide trim stage buttons
+        let trimBtn = document.getElementById("trim_btn");
+        trimBtn.classList.add("hidden");
+        let redoBtn = document.getElementById("redo_btn");
+        redoBtn.classList.add("hidden");
 
-        // const updateFrame = (now, metadata) => {
-            
-        //     // Do something with the frame.
-        //     const canvasElement = document.getElementById("outputVideo");
-        //     const canvasCtx = canvasElement.getContext("2d");
-    
-        //     let landmarks = MediaPipe.landmarks; //[frame];
-    
-        //     canvasCtx.save();
-        //     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    
-        //     drawConnectors(canvasCtx, landmarks.PLM, POSE_CONNECTIONS,
-        //                     {color: '#00FF00', lineWidth: 4});
-        //     drawLandmarks(canvasCtx, landmarks.PLM,
-        //                     {color: '#FF0000', lineWidth: 2});
-        //     canvasCtx.restore();
-            
-        //     // Re-register the callback to be notified about the next frame.
-        //     videoRec.requestVideoFrameCallback(updateFrame);
-        // };
-        // // Initially register the callback to be notified about the first frame.
-        // videoRec.requestVideoFrameCallback(updateFrame);
 
-        // Creates the scene and loads the animation
-        this.editor.trimTimes = [startTime, endTime];
-        this.editor.buildAnimation( {landmarks: MediaPipe.landmarks, blendshapes: MediaPipe.blendshapes} );
+        // stops any processVideoOnline and starts processing video with these parameters
+        UTILS.makeLoading("Processing video", 0.5 )
+        MediaPipe.setOptions( { autoDraw: true } );
+        MediaPipe.processVideoOffline( document.getElementById("recording"), videoObj.startTime, videoObj.endTime, videoObj.dt, () =>{
+            videoObj.landmarks = MediaPipe.landmarks;
+            videoObj.blendshapes = MediaPipe.blendshapes;
+
+            document.getElementById("recording").style.cssText+= "transform: rotateY(0deg);\
+            -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
+            -moz-transform:rotateY(0deg); /* Firefox */"
+    
+            // Creates the scene and loads the animation. Changes ui to edition
+            this.editor.trimTimes = [videoObj.startTime, videoObj.endTime];
+            this.editor.buildAnimation( {landmarks: videoObj.landmarks, blendshapes: videoObj.blendshapes} );
+        } )
     }
 
     onLoadAnimation( animation ) {
@@ -238,7 +264,8 @@ class App {
     }
 
     setEvents(live) {
-
+        //TODO move to beginCapture
+        
         // Adjust video canvas
         let captureDiv = document.getElementById("capture");
         $(captureDiv).removeClass("hidden");
@@ -253,59 +280,29 @@ class App {
                 
                 this.recording = true;
 
-                if(!live) {
-                    videoElement.loop = false;
-                    videoElement.currentTime = 0;
-                    videoElement.onended = () => {
-                        capture.click(); // automatically end capture once video ended
-                    }
-                }
-
                 capture.innerHTML = " <i class='fa fa-stop' style= 'margin:5px; font-size:initial;'></i>"//"Stop" + " <i class='bi bi-stop-fill'></i>"
                 document.getElementById("select-mode").innerHTML = "";
                 capture.classList.add("stop");
                 videoCanvas.classList.add("active");
 
-                MediaPipe.startRecording();
                 if(this.mediaRecorder){ this.mediaRecorder.start(); }
-                this.startTime = Date.now();
                 console.log("Started recording");                
             }
             else { // stop video recording
                 
                 this.recording = false;
-
-                if(!live) {
-                    videoElement.onended = undefined;
-                    videoElement.loop = true;
-                }
-
+                MediaPipe.stopVideoProcessing();
                 if(this.mediaRecorder){ this.mediaRecorder.stop(); }
                 
-                videoCanvas.classList.remove("active");  
                 
-                MediaPipe.stopRecording();
-                MediaPipe.stopVideoProcessing();
-                let endTime = Date.now();
-                this.duration = endTime - this.startTime;
-                // Show modal to redo or load the animation in the scene
-
-                this.processVideo(live, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
-
-                // destroys inputVideo camera stream, if any
-                videoElement.pause();
-                if(videoElement.srcObject){
-                    videoElement.srcObject.getTracks().forEach(a => a.stop());
-                }
-                videoElement.srcObject = null;
-        
-                console.log("Stopped recording");
             }
         };    
     }
     
     async processVideo(live, results) {
-                       
+        let captureDiv = document.getElementById("capture");
+        $(captureDiv).removeClass("hidden");
+
         // TRIM VIDEO - be sure that only the sign is recorded
         let canvas = document.getElementById("outputVideo");
 
@@ -315,24 +312,40 @@ class App {
         video.style.height = canvas.offsetHeight + "px";
         video.width = canvas.offsetWidth;
         video.height = canvas.offsetHeight;
-        if(!live){
+        video.play();
+        if(live){
+            video.style.cssText+= "transform: rotateY(180deg);\
+                            -webkit-transform:rotateY(180deg); /* Safari and Chrome */\
+                            -moz-transform:rotateY(180deg); /* Firefox */"
+        }else{
             video.style.cssText+= "transform: rotateY(0deg);\
                             -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
                             -moz-transform:rotateY(0deg); /* Firefox */"
         }
-        // Hidde bottom buttons
+
+        // Hide capture buttons
+        document.getElementById("select-mode").innerHTML = "";
         let capture = document.getElementById("capture_btn");
         capture.style.display = "none";
         capture.disabled = true;
         capture.classList.remove("stop");
+    
+        // draw mediapipe results with trimming buttons on top.
+        await VideoUtils.bind(video, canvas, ()=>{
+            // (re)start process video online
+            MediaPipe.setOptions( { autoDraw: false } );
+            MediaPipe.processVideoOnline(video); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
 
-        await VideoUtils.bind(video, canvas);
+            // Show trim stage buttons
+            let trimBtn = document.getElementById("trim_btn");
+            trimBtn.style.display = "block";
+            let redoBtn = document.getElementById("redo_btn");
+            redoBtn.style.display = "block";
+
+        });
         VideoUtils.onSetTime = this.editor.updateCaptureDataTime.bind(this.editor, results);
+        VideoUtils.onRender = () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); } }
 
-        let trimBtn = document.getElementById("trim_btn");
-        trimBtn.style.display = "block";
-        let redoBtn = document.getElementById("redo_btn");
-        redoBtn.style.display = "block";
     }
 
 

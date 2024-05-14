@@ -1,8 +1,3 @@
-import "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js";
-import "https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js";
-import "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js";
-
-// Mediapipe face blendshapes
 import { DrawingUtils, HolisticLandmarker, FaceLandmarker, PoseLandmarker, HandLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13';
 
 
@@ -10,10 +5,10 @@ import * as THREE from 'three'
 import { UTILS } from "./utils.js"
 
 const MediaPipe = {
+    PROCESSING_EVENT_TYPES: { NONE: 0, SEEK: 1, VIDEOFRAME: 2, ANIMATIONFRAME: 3 },
 
     loaded: false,
     recording: false,
-    currentTime: 0,
     
     currentResults: null, 
     landmarks: [],
@@ -84,24 +79,29 @@ const MediaPipe = {
             );
         }
 
-        if (!this.drawingUtils){ this.drawingUtils = new DrawingUtils( this.canvasCtx ); }
-
-            this.loaded = true; // using awaits. TODO: use promises when loading models
-        if ( this.onload ){ this.onload(); }
-
-        this.PROCESSING_EVENT_TYPES = { NONE: 0, SEEK: 1, VIDEOFRAME: 2, ANIMATIONFRAME: 3 };
+        if (!this.drawingUtils){ 
+            this.drawingUtils = new DrawingUtils( this.canvasCtx ); 
+            this.drawingUtils.autoDraw = true;
+        }
+        
+        this.drawingUtils.autoDraw = false;
+        await this.processFrame( document.getElementById("outputVideo") ); // force models to load on gpu
+        this.drawingUtils.autoDraw = true;
+        
         this.currentVideoProcessing = null;
-
-
-        videoElement.play();
-        videoElement.controls = true;
-        videoElement.loop = true;
-        videoElement.muted = true;
-
-        this.processVideoOnline( videoElement );
-
+        
+        this.loaded = true; // using awaits
+        if ( this.onload ){ this.onload(); }
+        
         window.mediapipe = this;
+    },
 
+    setOptions( o ){
+        if( o.hasOwnProperty("autoDraw") ){ this.drawingUtils.autoDraw = !!o.autoDraw; }
+    },
+
+    drawCurrentResults(){
+        if ( this.currentResults ){ this.drawResults( this.currentResults ); }
     },
 
     drawResults( results ){
@@ -126,37 +126,36 @@ const MediaPipe = {
         }
 
         if ( results.image ){ canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height); }
-        if(!this.recording) {
-            canvasCtx.globalCompositeOperation = 'source-over';
-        
-            // const image = document.getElementById("source");
-            // canvasCtx.globalAlpha = 0.6;
-            // canvasCtx.drawImage(image, 0, 0, canvasElement.width, canvasElement.height);
-            // canvasCtx.globalAlpha = 1;
-            const lm = results.landmarksResults;
-            if ( lm.PLM ){
-                this.drawingUtils.drawConnectors( lm.PLM, PoseLandmarker.POSE_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //'#00FF00'
-                this.drawingUtils.drawLandmarks( lm.PLM, {color: '#1a2025',fillColor: 'rgba(255, 255, 255, 1)', lineWidth: 2}); //'#00FF00'
-            }
-            // drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
-            if ( lm.LLM ){
-                this.drawingUtils.drawConnectors( lm.LLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#CC0000
-                this.drawingUtils.drawLandmarks( lm.LLM, {color: '#1a2025',fillColor: 'rgba(58, 161, 156, 1)', lineWidth: 2}); //'#00FF00'
-            }
-            if ( lm.RLM ){
-                this.drawingUtils.drawConnectors( lm.RLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#00CC00
-                this.drawingUtils.drawLandmarks( lm.RLM, {color: '#1a2025',fillColor: 'rgba(196, 113, 35, 1)', lineWidth: 2});
-            }
-            canvasCtx.globalCompositeOperation = 'source-in';
+        canvasCtx.globalCompositeOperation = 'source-over';
+    
+        // const image = document.getElementById("source");
+        // canvasCtx.globalAlpha = 0.6;
+        // canvasCtx.drawImage(image, 0, 0, canvasElement.width, canvasElement.height);
+        // canvasCtx.globalAlpha = 1;
+        const lm = results.landmarksResults;
+        if ( lm.PLM ){
+            this.drawingUtils.drawConnectors( lm.PLM, PoseLandmarker.POSE_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //'#00FF00'
+            this.drawingUtils.drawLandmarks( lm.PLM, {color: '#1a2025',fillColor: 'rgba(255, 255, 255, 1)', lineWidth: 2}); //'#00FF00'
         }
+        // drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
+        if ( lm.LLM ){
+            this.drawingUtils.drawConnectors( lm.LLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#CC0000
+            this.drawingUtils.drawLandmarks( lm.LLM, {color: '#1a2025',fillColor: 'rgba(58, 161, 156, 1)', lineWidth: 2}); //'#00FF00'
+        }
+        if ( lm.RLM ){
+            this.drawingUtils.drawConnectors( lm.RLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#00CC00
+            this.drawingUtils.drawLandmarks( lm.RLM, {color: '#1a2025',fillColor: 'rgba(196, 113, 35, 1)', lineWidth: 2});
+        }
+        canvasCtx.globalCompositeOperation = 'source-in';
+
         canvasCtx.restore();
     },
 
     async processFrame(videoElement){
+        // if ( !videoElement || videoElement.width < 0.001 || videoElement.height < 0.001 ){ return; }
         // take same image for face, pose, hand detectors and ui 
-        this.canvasCtx.clearRect(0, 0, this.canvasCtx.canvas.width, this.canvasCtx.canvas.height);
-        this.canvasCtx.drawImage(videoElement, 0, 0, this.canvasCtx.canvas.width, this.canvasCtx.canvas.height);
-        let image = await createImageBitmap( this.canvasCtx.canvas );
+
+        let image = await createImageBitmap( videoElement );
 
         const time = performance.now()//Date.now();
         // it would probably be more optimal to use hollistic. But it does not return certain types of values 
@@ -176,8 +175,9 @@ const MediaPipe = {
             landmarksResults: this.processLandmarks( detectionsFace, detectionsPose, detectionsHands, dt )
         }      
 
-        this.drawResults( results );
+        if ( this.drawingUtils.autoDraw ){ this.drawResults( results ); }
 
+        // TODO: consider keeping the image until this.currentResults is modified. This way, the image used in mediapipe can be displayed at any time
         delete results.image;
         image.close();
 
@@ -271,6 +271,7 @@ const MediaPipe = {
         
         this.currentVideoProcessing = {
             videoElement: videoElement,
+            currentTime: videoElement.currentTime,
             isOffline: false,
             listenerBind: null,
             listenerID: null,
@@ -287,7 +288,11 @@ const MediaPipe = {
                 this.currentVideoProcessing.listenerID = window.requestAnimationFrame( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
             }
 
-            await this.processFrame( videoElement );
+            // update only if sufficient time has passed to avoid processing a paused video
+            if ( Math.abs( videoElement.currentTime - this.currentVideoProcessing.currentTime ) > 0.001 ){ 
+                this.currentVideoProcessing.currentTime = videoElement.currentTime;
+                await this.processFrame( videoElement ); 
+            } 
         }
 
         let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);

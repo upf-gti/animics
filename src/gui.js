@@ -714,7 +714,7 @@ class KeyframesGui extends Gui {
                 id: "trim_btn",
                 text: "Convert to animation",
                 display: "none",
-                callback: () => VideoUtils.unbind( (start, end) => window.global.app.onRecordLandmarks(start, end) )
+                callback: () => VideoUtils.unbind( (start, end) => window.global.app.onVideoTrimmed(start, end) )
             },
             {
                 id: "redo_btn",
