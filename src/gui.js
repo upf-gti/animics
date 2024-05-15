@@ -914,8 +914,8 @@ class KeyframesGui extends Gui {
             widgets.clear();
             widgets.addTitle("Animation");
             widgets.addText("Name", this.editor.clipName || "", (v) => this.editor.clipName = v)
-            widgets.addNumber("Speed", this.editor.mixer.timeScale, v => {
-                this.editor.mixer.timeScale = v;
+            widgets.addNumber("Speed", this.editor.currentCharacter.mixer.timeScale, v => {
+                this.editor.currentCharacter.mixer.timeScale = v;
                 if ( this.editor.video ){ this.editor.video.playbackRate = v; }
             }, {min: 0.1, max: 2, step: 0.01, precision: 2});
             widgets.addSeparator();
@@ -1167,7 +1167,7 @@ class KeyframesGui extends Gui {
 
     updateNodeTree() {
         
-        const rootBone = this.editor.skeletonHelper.bones[0];
+        const rootBone = this.editor.currentCharacter.skeletonHelper.bones[0];
         
         let mytree = { 'id': rootBone.name };
         let children = [];
@@ -1221,8 +1221,8 @@ class KeyframesGui extends Gui {
             widgets.clear();
 
             const boneSelected = !(o.firstBone && numBones) ? //change to get values of animation?
-                this.editor.skeletonHelper.getBoneByName(o.itemSelected) : 
-                this.editor.skeletonHelper.bones[0];
+                this.editor.currentCharacter.skeletonHelper.getBoneByName(o.itemSelected) : 
+                this.editor.currentCharacter.skeletonHelper.bones[0];
 
             if(boneSelected) {
 
@@ -1310,8 +1310,8 @@ class KeyframesGui extends Gui {
         this.duration =  this.clip.duration;
 
         let boneName = null;
-        if(this.editor.skeletonHelper.bones.length) {
-            boneName = this.editor.skeletonHelper.bones[0].name;
+        if(this.editor.currentCharacter.skeletonHelper.bones.length) {
+            boneName = this.editor.currentCharacter.skeletonHelper.bones[0].name;
         }
 
         let tracks = [];
@@ -1854,8 +1854,8 @@ class ScriptGui extends Gui {
             widgets.clear();
             widgets.addTitle("Animation");
             widgets.addText("Name", this.editor.clipName || "", (v) => this.editor.clipName = v)
-            widgets.addNumber("Speed", this.editor.mixer.timeScale, v => {
-                this.editor.mixer.timeScale = v;
+            widgets.addNumber("Speed", this.editor.currentCharacter.mixer.timeScale, v => {
+                this.editor.currentCharacter.mixer.timeScale = v;
             }, {min: 0.25, max: 1.5, step: 0.05, precision: 2});
             widgets.addSeparator();
             widgets.addComboButtons("Dominant hand", [{value: "Left", callback: (v) => this.editor.dominantHand = v}, {value:"Right", callback: (v) => this.editor.dominantHand = v}], {selected: this.editor.dominantHand})

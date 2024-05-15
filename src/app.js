@@ -21,31 +21,31 @@ class App {
         settings = settings || {};
     
         const mode = settings.mode ?? 'script';
-
+        let callback;
         switch(mode) {
             case 'capture': 
                 this.editor = new KeyframeEditor(this, mode);
-                this.onBeginCapture();
+                callback = this.onBeginCapture.bind(this);
                 break;
             case 'video': 
                 this.video = settings.data;
                 this.editor = new KeyframeEditor(this, "video");
-                this.onLoadVideo( settings.data );
+                callback = this.onLoadVideo.bind(this, settings.data );
                 break;
             case 'bvh': case 'bvhe':
                 this.editor = new KeyframeEditor(this, "video");
-                this.onLoadAnimation( settings.data );
+                callback = this.onLoadAnimation.bind(this, settings.data );
                 break;
             case 'bml': case 'json': case 'sigml': case 'script':
                 this.editor = new ScriptEditor(this, 'script');
-                this.onScriptProject( settings.data, mode );
+                callback = this.onScriptProject.bind(this, settings.data, mode );
                 break;
             default:
                 alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
                 return;
                 break;    
         }
-        this.editor.init();
+        this.editor.init(callback);
         window.addEventListener("resize", this.onResize.bind(this));
     }
 
@@ -223,7 +223,9 @@ class App {
     
             // Creates the scene and loads the animation. Changes ui to edition
             this.editor.trimTimes = [videoObj.startTime, videoObj.endTime];
-            this.editor.buildAnimation( {landmarks: videoObj.landmarks, blendshapes: videoObj.blendshapes} );
+            this.editor.buildAnimation( videoObj );
+            this.editor.bindAnimationToCharacter( videoObj.name );
+            this.editor.startEdition();
         } )
     }
 

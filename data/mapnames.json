@@ -77,7 +77,7 @@
 
     "map_llnames" : { 
         
-        "EVA" : {
+        "Eva" : {
         "EyeBlinkLeft": "Blink_Left",
         "EyeLookDownLeft": "Blink_Left",
         "EyeLookInLeft": null,
@@ -150,7 +150,7 @@
         "RightEyePitch": null,
         "RightEyeRoll": null
         },
-        "CLEO": {
+        "Cleo": {
             "EyeBlinkLeft": "A14_Eye_Blink_Left",
             "EyeLookDownLeft": "A08_Eye_Look_Down_Left",
             "EyeLookInLeft": "A11_Eye_Look_In_Left",

@@ -7,26 +7,13 @@ class BlendshapesManager {
         this.mapNames = mapNames;
         this.skinnedMeshes = skinnedMeshes;
         this.morphTargetDictionary = morphTargetDictionary;
-        this.faceAreas =  [
-            "Nose", 
-            "Brow Right",
-            "Brow Left",
-            "Eye Right",
-            "Eye Left",
-            "Cheek Right",
-            "Cheek Left",
-            "Jaw",
-            "Mouth"
-        ]
+        
     }
     
-    createAnimationFromBlendshapes = function(name, data, applyRotation = false) {
+    createBlendShapesAnimation = function(data, applyRotation = false) {
 
         let clipData = {};
         let times = [];
-
-        let auValues = {};
-        // let {dt, weights} = data;
 
         for (let idx = 0; idx < data.length; idx++) {
             let dt = data[idx].dt * 0.001;
@@ -36,17 +23,12 @@ class BlendshapesManager {
                 times.push(times[idx-1] + dt);
             else
                 times.push(dt);
-
                 
             for(let i in weights)
             {
                 var value = weights[i];
-                if(!auValues[i])
-                    auValues[i] = [value];
-                else
-                    auValues[i].push(value);
-
                 let map = this.mapNames[i];
+
                 if(map == null) 
                 {
                     if(!applyRotation) 
@@ -192,10 +174,9 @@ class BlendshapesManager {
                         clipData[map[j]][idx] = Math.max(clipData[map[j]][idx], value );; 
                     }
                 }
-            
             }
-
         }
+
         let tracks = [];
         for(let bs in clipData)
         {
@@ -223,37 +204,15 @@ class BlendshapesManager {
 
                 }
             }
-        }
-        let auTracks = [];
-        for(let bs in auValues) {
-            let bsname = bs;
-            for(let i = 0; i < this.faceAreas.length; i++)
-            {
-                let toCompare = this.faceAreas[i].toLowerCase().split(" ");
-                let found = true;
-                for(let j = 0; j < toCompare.length; j++) {
-
-                    if(!bs.toLowerCase().includes(toCompare[j])) {
-                        found = false;
-                        break;
-                    }
-                }
-                if(found)
-                    bsname = this.faceAreas[i] + "." + bs;
-
-            }
-            auTracks.push( new THREE.NumberKeyframeTrack(bsname, times, auValues[bs] ));
-        }
+        }    
 
         // use -1 to automatically calculate
         // the length from the array of tracks
         const length = -1;
 
-        let animation = new THREE.AnimationClip(name || "liveLinkAnim", length, tracks);
-        let auAnimation = new THREE.AnimationClip("au-animation", length, auTracks);
-        return [animation, auAnimation];
+        let bsAnimation = new THREE.AnimationClip( "bsAnimation", length, tracks);
+        return bsAnimation;
     }
-
 
     getBlendshapesMap = function(name) {
         let map = this.mapNames[name];
@@ -272,4 +231,71 @@ class BlendshapesManager {
         return bs;
     }
 }
-export {BlendshapesManager}
+
+BlendshapesManager.faceAreas =  [
+    "Nose", 
+    "Brow Right",
+    "Brow Left",
+    "Eye Right",
+    "Eye Left",
+    "Cheek Right",
+    "Cheek Left",
+    "Jaw",
+    "Mouth"
+]
+
+function createAnimationFromActionUnits(data) {
+
+    let times = [];
+    let auValues = {};
+
+    for (let idx = 0; idx < data.length; idx++) {
+        
+        let dt = data[idx].dt * 0.001;
+        let weights = data[idx];
+
+        if(times.length)
+            times.push(times[idx-1] + dt);
+        else
+            times.push(dt);
+            
+        for(let i in weights)
+        {
+            var value = weights[i];
+            if(!auValues[i])
+                auValues[i] = [value];
+            else
+                auValues[i].push(value);
+        }
+    }
+   
+    let auTracks = [];
+    for(let bs in auValues) {
+        let bsname = bs;
+        for(let i = 0; i < BlendshapesManager.faceAreas.length; i++)
+        {
+            let toCompare = BlendshapesManager.faceAreas[i].toLowerCase().split(" ");
+            let found = true;
+            for(let j = 0; j < toCompare.length; j++) {
+
+                if(!bs.toLowerCase().includes(toCompare[j])) {
+                    found = false;
+                    break;
+                }
+            }
+            if(found)
+                bsname = BlendshapesManager.faceAreas[i] + "." + bs;
+
+        }
+        auTracks.push( new THREE.NumberKeyframeTrack(bsname, times, auValues[bs] ));
+    }
+
+    // use -1 to automatically calculate
+    // the length from the array of tracks
+    const length = -1;
+
+    let auAnimation = new THREE.AnimationClip("au-animation", length, auTracks);
+    return auAnimation;
+}
+
+export{ BlendshapesManager, createAnimationFromActionUnits }

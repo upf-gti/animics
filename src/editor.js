@@ -8,11 +8,11 @@ import { Gizmo } from "./gizmo.js";
 import { UTILS } from "./utils.js"
 import { NN } from "./ML.js"
 import { OrientationHelper } from "./libs/OrientationHelper.js";
-import { AnimationRetargeting } from './retargeting.js'
+import { AnimationRetargeting, forceBindPoseQuats } from './retargeting.js'
 import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/GLTFLoader.js';
 import { GLTFExporter } from './exporters/GLTFExporoter.js' 
 import { BMLController } from "./controller2.js"
-import { BlendshapesManager } from "./blendshapes.js"
+import { BlendshapesManager, createAnimationFromActionUnits } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 
 import { FileSystem } from "./libs/filesystem.js";
@@ -30,7 +30,16 @@ class Editor {
     
     constructor(app, mode) {
         
-        this.character = "EVA";
+        this.character = "Eva";
+
+        this.currentCharacter = null;
+        this.loadedCharacters = {};
+                
+        this.currentAnimation = "";
+        this.loadedAnimations = {}; // loaded animations from mediapipe&NN or BVH
+        this.bindedAnimations = {}; // loaded retargeted animations binded to characters
+
+        this.animation = null; //ThreeJS animation (only bones in keyframing mode) : {values: [], times: []}
 
         this.clock = new THREE.Clock();
         this.BVHloader = new BVHLoader();
@@ -54,9 +63,6 @@ class Editor {
         
         this.eModes = {capture: 0, video: 1, script: 2};
         this.mode = this.eModes[mode];
-        
-        this.animation = null; //ThreeJS animation (only bones in keyframing mode) : {values: [], times: []}
-        this.morphTargets = {};
 
         // Keep "private"
         this.__app = app;
@@ -64,7 +70,6 @@ class Editor {
         // Create the fileSystem and log the user
         this.FS = new FileSystem("signon", "signon", () => console.log("Auto login of guest user"));
         this.FS.login().then(this.getUnits.bind(this))
-
     }
 
     getApp() {
@@ -72,9 +77,10 @@ class Editor {
     }
 
     //Create canvas scene
-    init() {
+    async init(callback) {
 
         this.initScene();
+        await this.initCharacters();
 
         document.addEventListener( 'keydown', (e) => {
             switch ( e.key ) {
@@ -159,17 +165,7 @@ class Editor {
             }
             this.onKeyDown(e);
         } );
-
-        // window.addEventListener("beforeunload", (e) => {
-        //     if(!this.animation.tracks.length)
-        //         return;
-        //     e.preventDefault();
-        //     e.cancelBubble = true;
-        //     e.stopPropagation();
-        //     e.returnValue = "Exit"
-        //     window.stop();
-        //     return this.gui.promptExit();
-        // })
+       
         window.onbeforeunload =  (e) => {
             if(!this.animation || !this.animation.tracks.length)
                 return;
@@ -178,8 +174,10 @@ class Editor {
             window.stop();
             return "Be sure you have exported the animation. If you exit now, your data will be lost."
         }
-    }
-    
+
+        if(callback)
+            callback();
+    }    
 
     initScene() {
 
@@ -284,9 +282,90 @@ class Editor {
         this.orientationHelper = orientationHelper;
     }
 
+    loadCharacter(characterName) {
+        // Load the target model (Eva) 
+        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/" + characterName + "/" + characterName +".glb", (gltf) => {
+            let model = gltf.scene;
+            model.name = characterName;
+            model.visible = true;
+            
+            let skeleton;
+            let morphTargets = {};
+            let skinnedMeshes = {};
+            this.loadedCharacters[characterName] = {}
+
+            model.traverse( o => {
+                if (o.isMesh || o.isSkinnedMesh) {
+                    o.castShadow = true;
+                    o.receiveShadow = true;
+                    o.frustumCulled = false;
+                    if ( o.skeleton ){ 
+                        skeleton = o.skeleton;
+                    }
+                    if (o.name == "Body")
+                            o.name == "BodyMesh";
+                    if(o.morphTargetDictionary)
+                    {
+                        morphTargets[o.name] = o.morphTargetDictionary;
+                        skinnedMeshes[o.name] = o;
+                    }
+                    o.material.side = THREE.FrontSide;                    
+                }
+            } );
+            
+            // correct model -> TO DO: REMOVE
+            model.position.set(0,0.85,0);
+            model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
+            model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
+            model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
+            //------------------------------------------------
+            
+            // Create skeleton helper
+            let skeletonHelper = new THREE.SkeletonHelper(model);
+            skeletonHelper.name = "SkeletonHelper";            
+            skeletonHelper.skeleton = skeleton;
+
+            // Create mixer for animation
+            let mixer = new THREE.AnimationMixer(model);           
+            let blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
+
+            // Add loaded data to the character
+            this.loadedCharacters[characterName] = {
+                name: characterName, model, morphTargets, mixer, skeletonHelper, blendshapesManager
+            };
+
+            this.changeCharacter(characterName);
+        });   
+    }
+
+    changeCharacter(characterName) {
+        // Check if the character is already loaded
+        if( !this.loadedCharacters[characterName] ) {
+            console.warn(characterName + " not loaded");
+            this.loadCharacter(characterName);
+        }
+
+        // Remove current character from the scene
+        if(this.currentCharacter) {
+            this.scene.remove(this.currentCharacter.model);
+            this.scene.remove(this.currentCharacter.skeletonHelper);
+        }
+
+        // Add current character to the scene
+        this.currentCharacter = this.loadedCharacters[characterName];
+        this.scene.add( this.currentCharacter.model );
+        this.scene.add( this.currentCharacter.skeletonHelper );
+        
+        // Gizmo stuff
+        if(this.gizmo) {
+            this.gizmo.begin(this.currentCharacter.skeletonHelper);            
+        }
+    }
 
     startEdition() {
         this.gui.initEditionGUI();
+        this.gui.showVideo = true
+        this.animate();
     }
 
     /** -------------------- UPDATES, RENDER AND EVENTS -------------------- */
@@ -317,10 +396,10 @@ class Editor {
             this.currentTime = this.activeTimeline.currentTime = 0.0;
             this.onAnimationEnded();
         }
-        if (this.mixer && this.state) {
+        if (this.currentCharacter.mixer && this.state) {
 
-            this.mixer.update(dt);
-            this.currentTime = this.activeTimeline.currentTime = this.mixer.time;
+            this.currentCharacter.mixer.update(dt);
+            this.currentTime = this.activeTimeline.currentTime = this.currentCharacter.mixer.time;
             LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
             if(this.onUpdateAnimationTime)
                 this.onUpdateAnimationTime();
@@ -600,15 +679,13 @@ class Editor {
         }
     }
 
-    
-
     onAnimationEnded() {
 
         if(this.animLoop) {
             this.setTime(0.0, true);
         } else {
             this.mixer.setTime(0);
-            this.mixer._actions[0].paused = true;
+            this.currentCharacter.mixer._actions[0].paused = true;
             let stateBtn = document.querySelector("[title=Play]");
             stateBtn.children[0].click();
 
@@ -634,17 +711,17 @@ class Editor {
     export(type = null, name) {
         switch(type){
             case 'BVH':
-                BVHExporter.export(this.mixer._actions[0], this.skeletonHelper, this.bodyAnimation);
+                BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.bodyAnimation);
                 break;
             case 'GLB':
                 let options = {
                     binary: true,
                     animations: []
                 };
-                for(let i = 0; i < this.mixer._actions.length; i++) {
-                    options.animations.push(this.mixer._actions[i]._clip);
+                for(let i = 0; i < this.currentCharacter.mixer._actions.length; i++) {
+                    options.animations.push(this.currentCharacter.mixer._actions[i]._clip);
                 }
-                let model = this.mixer._root.getChildByName('Armature');
+                let model = this.currentCharacter.mixer._root.getChildByName('Armature');
                 this.GLTFExporter.parse(model, 
                     ( gltf ) => BVHExporter.download(gltf, (name || this.clipName) + '.glb', 'arraybuffer' ), // called when the gltf has been generated
                     ( error ) => { console.log( 'An error happened:', error ); }, // called when there is an error in the generation
@@ -654,12 +731,12 @@ class Editor {
             case 'BVH extended':
                 let LOCAL_STORAGE = 1;
                 if(this.mode == this.eModes.script) {
-                    BVHExporter.export(this.mixer._actions[0], this.skeletonHelper, this.animation, LOCAL_STORAGE );
-                    BVHExporter.exportMorphTargets(this.mixer._actions[0], this.morphTargets.BodyMesh, this.animation, LOCAL_STORAGE);
+                    BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.animation, LOCAL_STORAGE );
+                    BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[0], this.currentCharacter.morphTargets.BodyMesh, this.animation, LOCAL_STORAGE);
                 }
                 else {
-                    BVHExporter.export(this.mixer._actions[0], this.skeletonHelper, this.bodyAnimation, LOCAL_STORAGE);
-                    BVHExporter.exportMorphTargets(this.mixer._actions[1], this.morphTargets.BodyMesh, this.animation, LOCAL_STORAGE);
+                    BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.bodyAnimation, LOCAL_STORAGE);
+                    BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.animation, LOCAL_STORAGE);
                 }
                 
                 let bvh = window.localStorage.getItem("bvhskeletonpreview");
@@ -681,7 +758,7 @@ class Editor {
         let url = "";
         if(this.mode == this.eModes.capture || this.mode == this.eModes.video) {
 
-            BVHExporter.copyToLocalStorage(this.mixer._actions[0], this.skeletonHelper, this.bodyAnimation);
+            BVHExporter.copyToLocalStorage(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.bodyAnimation);
             url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
         }
         else{
@@ -940,8 +1017,7 @@ class KeyframeEditor extends Editor{
         this.defaultScaleSnapValue = 1;
 
         this.showSkeleton = true;
-        this.skeletonHelper = null;
-        this.skeleton = null;
+        //this.skeletonHelper = null;
         
         this.bodyAnimation = null;
         this.faceAnimation = null; //ThreeJS BS animation (used for the mixer): {values: [], times: []}
@@ -950,7 +1026,10 @@ class KeyframeEditor extends Editor{
         this.blendshapesArray = [];
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
+        
         this.nn = new NN("data/ML/model.json");
+        this.nnSkeleton = null;
+
         this.retargeting = null;
         this.video = app.video;
         
@@ -963,6 +1042,34 @@ class KeyframeEditor extends Editor{
  
     }
 
+    async initCharacters()
+    {
+        // Create gizmo
+        this.gizmo = new Gizmo(this);
+
+        // Load current character
+        this.loadCharacter(this.character);
+        this.loadNNSkeleton();
+
+        while(!this.loadedCharacters[this.character] || !this.nnSkeleton) {
+            await new Promise(r => setTimeout(r, 1000));            
+        }        
+
+        this.setBoneSize(0.05);
+    }
+
+    loadNNSkeleton() {
+        this.BVHloader.load( 'models/kateBVH.bvh', (result) => {
+            // loader does not correctly compute the skeleton boneInverses and matrixWorld 
+            result.skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
+            result.skeleton = new THREE.Skeleton( result.skeleton.bones ); // will automatically compute boneInverses
+            
+            result.skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } ); // bodyAnimation have different names than bvh skeleton
+            
+            this.nnSkeleton = result.skeleton;
+        });
+    }
+
     onKeyDown(e) {
 
     }
@@ -972,11 +1079,12 @@ class KeyframeEditor extends Editor{
     buildAnimation(data) {
 
         let {landmarks, blendshapes} = data;
+        
         // Remove loop mode for the display video
         this.video.sync = true;
         this.video.loop = false;
 
-        // Trim
+        // TO DO: Check if Trim is necessary
         this.landmarksArray = this.processLandmarks( landmarks );
         this.blendshapesArray = this.processBlendshapes( blendshapes );
 
@@ -984,94 +1092,29 @@ class KeyframeEditor extends Editor{
         const queryString = window.location.search;
         const urlParams = new URLSearchParams(queryString);
 
-        if ( urlParams.get('load') == 'hard') {
-    
-            this.GLTFloader.load( 'models/Eva_Y.glb', (glb) => {
+        UTILS.makeLoading("");
 
-                let model = glb.scene;
-                model.name = this.character;
-                model.castShadow = true;
-                
-                model.traverse( (object) => {
-                    if ( object.isMesh || object.isSkinnedMesh ) {
-                        object.material.side = THREE.FrontSide;
-                        object.frustumCulled = false;
-                        object.castShadow = true;
-                        object.receiveShadow = true;
+        // Create body animation from mediapipe landmakrs using ML
+        let bodyAnimation = createAnimationFromRotations(data, this.nn);
+        
+        // Create face animation from mediapipe action units
+        let faceAnimation = createAnimationFromActionUnits(this.blendshapesArray); // faceAnimation is an action units clip
 
-                        if (object.name == "Eyelashes")
-                            object.castShadow = false;
-                        else if (object.name == "Body")
-                            object.name == "BodyMesh";
+        this.loadedAnimations[data.name] = data;
+        this.loadedAnimations[data.name].bodyAnimation = bodyAnimation;
+        this.loadedAnimations[data.name].faceAnimation = faceAnimation;
+        this.loadedAnimations[data.name].type = "video";
 
-                        if(object.material.map)
-                            object.material.map.anisotropy = 16; 
-
-                        this.help = object.skeleton;
-                        if(object.morphTargetDictionary)
-                            this.morphTargets[object.name] = object.morphTargetDictionary;
-                        
-                    } else if (object.isBone) {
-                        object.scale.set(1.0, 1.0, 1.0);
-                    }
-                } );
-
-                model.position.set(0, 0.75, 0);
-                model.rotateOnAxis (new THREE.Vector3(1,0,0), -Math.PI/2);
-                model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
-                model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
-                this.skeletonHelper = new THREE.SkeletonHelper(model);
-
-                updateThreeJSSkeleton(this.help.bones);
-                this.skeletonHelper.visible = true;
-                this.skeletonHelper.name = "SkeletonHelper";
-                this.skeletonHelper.skeleton = this.skeleton = createSkeleton();
-                
-                this.scene.add(this.skeletonHelper);
-                this.scene.add(model);
-                
-
-                // load the actual animation to play
-                this.mixer = new THREE.AnimationMixer( model );
-                this.BVHloader.load( 'models/ISL Thanks final.bvh' , (result) => {
-                    this.bodyAnimation = result.clip;
-                    for (let i = 0; i < result.clip.tracks.length; i++) {
-                        this.bodyAnimation.tracks[i].name = this.bodyAnimation.tracks[i].name.replaceAll(/[\]\[]/g,"").replaceAll(".bones","");
-
-                    }
-                    this.gizmo = new Gizmo(this);
-                    this.gizmo.begin(this.skeletonHelper);
-                    this.gui.loadKeyframeClip(this.bodyAnimation, () => this.gui.init());
-                    this.animation = this.bodyAnimation;
-                    this.mixer.clipAction( this.bodyAnimation ).setEffectiveWeight( 1.0 ).play();
-                    this.mixer.update(0);
-                    this.setBoneSize(0.05);
-                    this.animate();
-                    $('#loading').fadeOut();
-                } );
-            } );
-
-        } 
-        else {// -- default -- if ( urlParams.get('load') == 'NN' ) {
-            UTILS.makeLoading("")
-            this.bodyAnimation = createAnimationFromRotations(this.clipName, this.nn);
-            //postProcessAnimation(this.bodyAnimation, this.landmarksArray);
-            if (urlParams.get('skin') && urlParams.get('skin') == 'false') {
-                this.loadAnimationWithSkeleton(this.bodyAnimation);
-            }
-            else {
-                this.BVHloader.load( 'models/kateBVH.bvh', (result) => {
-                    // loader does not correctly compute the skeleton boneInverses and matrixWorld 
-                    result.skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
-                    result.skeleton = new THREE.Skeleton( result.skeleton.bones ); // will automatically compute boneInverses
-                    
-                    result.skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } ); // bodyAnimation have different names than bvh skeleton
-                    result.clip = this.bodyAnimation;
-                    this.loadAnimationWithSkin(result);
-                });
-            }
-        }
-        this.gui.showVideo = true;
+        // TO DO: Call these code somewhere
+        // //postProcessAnimation(this.bodyAnimation, this.landmarksArray);
+        // if (urlParams.get('skin') && urlParams.get('skin') == 'false') {
+        //     this.loadAnimationWithSkeleton(this.bodyAnimation);
+        // }
+        // else {
+        //     this.loadAnimationWithSkin({skeletonAnim: this.bodyAnimation, blendshapesAnim: this.faceAnimation, type: "video", name: data.name});
+        // }
+        
+        // this.gui.showVideo = true;
     }
 
     processLandmarks( landmarks ) {
@@ -1161,142 +1204,208 @@ class KeyframeEditor extends Editor{
         return blendshapes;
     }
 
-    loadAnimation( animation ) {
+    loadAnimation( animation ) { // TO DO: Refactor params of loadAnimation...()
 
-        const extension = UTILS.getExtension(animation.name);
-    
-        const queryString = window.location.search;
-        const urlParams = new URLSearchParams(queryString);
-        
         const innerOnLoad = result => {
-            if(urlParams.get('skin') && urlParams.get('skin') == 'true' || extension == 'bvhe') {
-                
-                this.loadAnimationWithSkin(result);
 
-            } else if(!result.skeleton) {
+            let skeleton = result.skeletonAnim.skeleton;
+            skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+            // loader does not correctly compute the skeleton boneInverses and matrixWorld 
+            skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
+            skeleton = new THREE.Skeleton( skeleton.bones ); // will automatically compute boneInverses
 
-                this.loadAnimationWithSkin(result.skeletonAnim, result.blendshapesAnim);
-
-            } else {
-                
-                this.loadAnimationWithSkeleton(result);
+            this.loadedAnimations[data.name] = {
+                name: animation.name,
+                bodyAnimation: result.skeletonAnim.clip,
+                faceAnimation: result.blendshapesAnim ?? null,
+                skeleton: skeleton,
+                type: "bvh"
             }
+    
+            // TO DO: Call this code in other part 
+            // const queryString = window.location.search;
+            // const urlParams = new URLSearchParams(queryString);
+            // if(urlParams.get('skin') && urlParams.get('skin') == 'true' || extension == 'bvhe') {
+                
+            //     this.loadAnimationWithSkin(result);
+
+            // } else if(!result.skeleton) {
+
+            //     result.skeletonAnim.name = animation.name;
+            //     this.loadAnimationWithSkin(result);
+
+            // } else {
+                
+            //     this.loadAnimationWithSkeleton(result);
+            // }
         };
 
-        var reader = new FileReader();
+        // Read the file and parse the data to extract the animation/s
+        const extension = UTILS.getExtension(animation.name);
+
+        let reader = new FileReader();
         reader.onload = (e) => {
             const text = e.currentTarget.result;
             let data = null;
-            if(extension.includes('bvh'))
-                data = this.BVHloader.parse( text );
-            else
+            if(extension.includes('bvh')) {
+                data = { skeletonAnim: this.BVHloader.parse( text ) };
+            }
+            else {
                 data = this.BVHloader.parseExtended( text );
+            }
+
             innerOnLoad(data);
         };
         reader.readAsText(animation);
     }
 
-    loadAnimationWithSkin(skeletonAnim, blendshapesAnim = null) {
+    bindAnimationToCharacter(animationName) {
         
-        if(skeletonAnim && skeletonAnim.skeleton ) {
-            skeletonAnim.clip.name = UTILS.removeExtension(this.clipName || skeletonAnim.clip.name);
-            this.bodyAnimation = skeletonAnim.clip;
-            let tracks = [];
-            
-            // remove position changes (only keep i == 0, hips)
-            for (let i = 0; i < this.bodyAnimation.tracks.length; i++) {
-                if(i && this.bodyAnimation.tracks[i].name.includes('position')) {
+        let animation = this.loadedAnimations[animationName];
+        if(!animation) {
+            console.error(animationName + " not found");
+        }
+
+        this.currentAnimation = animationName;
+        
+        // Remove current animation clip
+        let mixer = this.currentCharacter.mixer.stopAllAction();
+        mixer.stopAllAction();
+
+        for(let i = 0; i < mixer._actions.length; i++) { //TO DO: Check if it changes actions length
+            mixer.uncacheAction(mixer._actions[i]);
+            //this.mixer._actions.pop();
+        }
+
+        let bodyAnimation = animation.bodyAnimation;        
+        if(bodyAnimation) {
+            //bodyAnimation.name = UTILS.removeExtension(bodyAnimation.name);
+        
+            let tracks = [];        
+            // Remove position changes (only keep i == 0, hips)
+            for (let i = 0; i < bodyAnimation.tracks.length; i++) {
+
+                if(i && bodyAnimation.tracks[i].name.includes('position')) {
                     continue;
                 }
-                tracks.push( this.bodyAnimation.tracks[i] );
+                tracks.push(bodyAnimation.tracks[i] );
             }
 
-            this.bodyAnimation.tracks = tracks;
+            //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+            bodyAnimation.tracks = tracks;            
+            let skeleton = animation.skeleton ?? this.nnSkeleton;
+            // Retarget NN animation              
+            forceBindPoseQuats(this.currentCharacter.skeletonHelper.skeleton); // TO DO: Fix bind pose of Eva
+            forceBindPoseQuats(skeleton); 
+            // trgUseCurrentPose: use current Bone obj quats,pos, and scale
+            // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
+            let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.model, { trgUseCurrentPose: true, trgEmbedWorldTransforms: true } ); // TO DO: change trgUseCurrentPose param
+            bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+            
+            this.validateAnimationClip(bodyAnimation);
+
+            this.currentCharacter.mixer.clipAction(bodyAnimation).setEffectiveWeight(1.0).play();
+        }
+              
+        let faceAnimation = animation.faceAnimation;        
+        let auAnimation = faceAnimation.clone();
+
+        if(faceAnimation) { // TO DO: Check if it's if-else or if-if
+
+            if(animation.type == "video") {
+                faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
+
+                //this.currentCharacter.mixer.clipAction(auAnimation).setEffectiveWeight(1.0).play();
+            }
+            this.currentCharacter.mixer.clipAction(faceAnimation).setEffectiveWeight(1.0).play();
+        }
+
+        if(!this.bindedAnimations[animationName]) {
+            this.bindedAnimations[animationName] = {};
+        }
+        this.bindedAnimations[animationName][this.currentCharacter.name] = {
+            bodyAnimation, faceAnimation, auAnimation
+        }
+
+        this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
+        this.gui.loadKeyframeClip(bodyAnimation, () => this.gui.init());
+        if(bodyAnimation)
+            $('#loading').fadeOut();
+    }
+
+    loadAnimationWithSkin(animationData) {  // This function can be called from buildAnimation (NN) or loadAnimation (BVH)
+        
+        let bodyAnimation = animationData.skeletonAnim;
+        let skeleton = this.nnSkeleton;
+
+        let faceAnimation = animationData.blendshapesAnim;
+
+        // Check if it comes from loadAnimation
+        if(animationData.type == "bvh") {
+            skeleton = bodyAnimation.skeleton;
+            bodyAnimation = bodyAnimation.clip;
         }
         
-        // Load the target model (Eva) 
-        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/Eva/Eva.glb", (gltf) => {
-            let model = gltf.scene;
-            model.name = this.character;
-            model.visible = true;
-            
-            let skinnedMeshes = {};
-            model.traverse( o => {
-                if (o.isMesh || o.isSkinnedMesh) {
-                    o.castShadow = true;
-                    o.receiveShadow = true;
-                    o.frustumCulled = false;
-                    if ( o.skeleton ){ 
-                        this.skeleton = o.skeleton;
-                    }
-                    if (o.name == "Body")
-                            o.name == "BodyMesh";
-                    if(o.morphTargetDictionary)
-                    {
-                        this.morphTargets[o.name] = o.morphTargetDictionary;
-                        skinnedMeshes[o.name] = o;
-                    }
-                    o.material.side = THREE.FrontSide;
-                    
+       // Create body animation from mediapipe landmarks
+       if(bodyAnimation)
+        {
+            //bodyAnimation.name = UTILS.removeExtension(bodyAnimation.name);
+        
+            let tracks = [];        
+            // Remove position changes (only keep i == 0, hips)
+            for (let i = 0; i < bodyAnimation.tracks.length; i++) {
+                if(i && bodyAnimation.tracks[i].name.includes('position')) {
+                    continue;
                 }
-            } );
-            
-            // correct model
-            model.position.set(0,0.85,0);
-            model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
-            model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
-            model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
-            this.skeletonHelper = new THREE.SkeletonHelper(model);
-            this.skeletonHelper.name = "SkeletonHelper";
-
-            //Create animations
-            this.mixer = new THREE.AnimationMixer(model);
-            //Create body animation from mediapipe landmarks
-            if(this.bodyAnimation)
-            {
-                // trgUseCurrentPose: use current Bone obj quats,pos, and scale
-                // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
-                let retargeting = new AnimationRetargeting( skeletonAnim.skeleton, model, { trgUseCurrentPose: true, trgEmbedWorldTransforms:true } );
-                this.bodyAnimation = retargeting.retargetAnimation(this.bodyAnimation);
-                
-                this.validateAnimationClip();
-                this.mixer.clipAction(this.bodyAnimation).setEffectiveWeight(1.0).play();
-                this.mixer.setTime(0); // resets and automatically calls a this.mixer.update
+                tracks.push(bodyAnimation.tracks[i] );
             }
-            this.skeletonHelper.skeleton = this.skeleton; //= createSkeleton();
 
-            //Create face animation from mediapipe blendshapes
-            this.blendshapesManager = new BlendshapesManager(skinnedMeshes, this.morphTargets, this.mapNames);
-            let anim = this.blendshapesManager.createAnimationFromBlendshapes("au-animation", this.blendshapesArray);
-            this.faceAnimation = anim[0];
-            this.auAnimation = anim[1];
+            bodyAnimation.tracks = tracks;            
 
-            if( blendshapesAnim )
-                this.mixer.clipAction(blendshapesAnim.clip).setEffectiveWeight(1.0).play();
-            else if(this.faceAnimation )
-                this.mixer.clipAction(this.faceAnimation).setEffectiveWeight(1.0).play();
+            // Retarget NN animation              
+            forceBindPoseQuats(this.currentCharacter.skeletonHelper.skeleton); // TO DO: Fix bind pose of Eva
+            // trgUseCurrentPose: use current Bone obj quats,pos, and scale
+            // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
+            let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.model, { trgUseCurrentPose: true, trgEmbedWorldTransforms:true } ); // TO DO: change trgUseCurrentPose param
+            bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+            
+            this.validateAnimationClip(bodyAnimation);
+            this.currentCharacter.mixer.clipAction(bodyAnimation).setEffectiveWeight(1.0).play();
+            this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
 
-            // guizmo stuff
-            this.scene.add( model );
-            this.scene.add( this.skeletonHelper );
-            //this.scene.add( this.retargeting.srcSkeletonHelper );
-            this.gizmo = new Gizmo(this);
-            this.gizmo.begin(this.skeletonHelper);
-                    
-            this.startEdition();
-            this.gui.loadKeyframeClip(this.bodyAnimation, () => this.gui.init());
-            this.animation = this.bodyAnimation;
-      
-            this.setBoneSize(0.05);
-            this.animate();
-            if(this.bodyAnimation )
-                $('#loading').fadeOut();
-        });   
+        }
+        
+        // // Create face animation from mediapipe blendshapes
+        // this.blendshapesManager = new BlendshapesManager(skinnedMeshes, this.currentCharacter.morphTargets, this.mapNames);
+        // let anim = this.blendshapesManager.createAnimationFromBlendshapes("au-animation", this.blendshapesArray);
+        // this.faceAnimation = anim[0];
+        // this.auAnimation = anim[1];
+        // if(clip.blendshapesAnim) {
+        //     this.faceAnimation = clip.blendshapesAnim.clip;
+        // }
+        // if( blendshapesAnim )
+            //     this.mixer.clipAction(blendshapesAnim.clip).setEffectiveWeight(1.0).play();
+        // else if(this.faceAnimation )
+            //     this.mixer.clipAction(this.faceAnimation).setEffectiveWeight(1.0).play();
+        
+        // Load face and body animations
+        this.loadedAnimations[bodyAnimation.name].bodyAnimation = bodyAnimation;
+        this.loadedAnimations[bodyAnimation.name].faceAnimation = this.faceAnimation;
+
+        this.startEdition();
+        this.gui.loadKeyframeClip(bodyAnimation, () => this.gui.init());
+        this.animation = bodyAnimation;
+  
+        this.setBoneSize(0.05);
+        this.animate();
+        if(bodyAnimation )
+            $('#loading').fadeOut();
     }
 
     loadAnimationWithSkeleton(animation) {
         this.bodyAnimation = animation.clip || animation || this.bodyAnimation;
         this.BVHloader.load( 'models/kateBVH.bvh' , (result) => {
+            
             result.skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
             // loader does not correctly compute the skeleton boneInverses and matrixWorld 
             result.skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
@@ -1306,9 +1415,9 @@ class KeyframeEditor extends Editor{
             // skeleton.bones.map(x => x.scale.set(0.1, 0.1, 0.1));
             skeleton.bones[0].scale.set(0.1,0.1,0.1)
             skeleton.bones[0].position.set(0,0.85,0)
-            this.skeletonHelper = new THREE.SkeletonHelper( skeleton.bones[0] );
-            this.skeletonHelper.skeleton = this.skeleton = skeleton;
-            this.skeletonHelper.name = "SkeletonHelper";
+            let skeletonHelper = new THREE.SkeletonHelper( skeleton.bones[0] );
+            skeletonHelper.skeleton = skeleton;
+            skeletonHelper.name = "SkeletonHelper";
             // this.skeletonHelper.position.set(0, 0.85, 0);
 
             let boneContainer = new THREE.Group();
@@ -1320,26 +1429,30 @@ class KeyframeEditor extends Editor{
             this.scene.add(skeleton.bones[0])
             this.scene.add( this.skeletonHelper );
 
-            this.mixer = new THREE.AnimationMixer( this.skeletonHelper );
+            let mixer = new THREE.AnimationMixer( this.skeletonHelper );
             this.gui.loadKeyframeClip(this.bodyAnimation, () => this.gui.init());
             this.animation = this.bodyAnimation;
 
-            this.mixer.clipAction( this.bodyAnimation ).setEffectiveWeight( 1.0 ).play();
+            mixer.clipAction( this.bodyAnimation ).setEffectiveWeight( 1.0 ).play();
+            mixer.update(0);
+
+            this.loadedCharacters["Skeleton"] = {
+                skeletonHelper, mixer
+            }
+
+            this.changeCharacter("Skeleton");
             
-            this.mixer.update(0);
-            this.gizmo.begin(this.skeletonHelper);
-            this.setBoneSize(0.05);
             this.animate();
             $('#loading').fadeOut();
         } );
     }
 
     /** Validate body animation clip created using ML */
-    validateAnimationClip() {
+    validateAnimationClip(clip) {
 
         let newTracks = [];
-        let tracks = this.bodyAnimation.tracks;
-        let bones = this.skeleton.bones;
+        let tracks = clip.tracks;
+        let bones = this.currentCharacter.skeletonHelper.bones;
         let bonesNames = [];
         tracks.map((v) => { bonesNames.push(v.name.split(".")[0])});
 
@@ -1356,9 +1469,8 @@ class KeyframeEditor extends Editor{
             newTracks.push(track);
             
         }
-        this.bodyAnimation.tracks = [...this.bodyAnimation.tracks, ...newTracks] ;
+        clip.tracks = [...clip.tracks, ...newTracks] ;
     }
-
 
     onUpdateAnimationTime() {
         
@@ -1419,7 +1531,7 @@ class KeyframeEditor extends Editor{
             return;
 
         // mixer computes time * timeScale. We actually want to set the reaw animation (track) time, without any timeScale 
-        this.mixer.setTime(t / this.mixer.timeScale ); // already calls mixer.update
+        this.currentCharacter.mixer.setTime(t / this.currentCharacter.mixer.timeScale ); // already calls mixer.update
 
         // Update video
         this.video.currentTime = this.video.startTime + t;
@@ -1672,9 +1784,7 @@ class KeyframeEditor extends Editor{
             this.updateAnimationAction(this.activeTimeline.animationClip, idx, true);
             if(this.activeTimeline.onPreProcessTrack)
                 this.activeTimeline.onPreProcessTrack( track, track.idx );
-        } 
-
-            
+        }             
     }
 }
 
@@ -1736,7 +1846,7 @@ class ScriptEditor extends Editor{
         }
     }
 
-    loadModel(clip) {
+    loadModel(clip) { // TO DO: Change to use loadCharacter()
         // Load the target model (Eva) 
         UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/Eva/Eva.glb", (gltf) => {
             let model = gltf.scene;
@@ -1754,7 +1864,7 @@ class ScriptEditor extends Editor{
                         if (object.name == "Eyelashes")
                             object.castShadow = false;
                         else if (object.name == "Body")
-                            object.name == "BodyMesh";
+                            object.name == "BodyMesh"; // TO DO
                         if(object.material.map)
                             object.material.map.anisotropy = 16; 
 
