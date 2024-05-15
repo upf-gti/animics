@@ -123,7 +123,7 @@ class App {
                     if( inputVideo.srcObject ){ inputVideo.srcObject.getTracks().forEach(a => a.stop()); }
                     inputVideo.srcObject = null;
                                        
-                    // Show modal to redo or load the animation in the scene
+                    // Trim stage. Show modal to redo or load the animation in the scene
                     that.processVideo(true, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
 
                     console.log("Stopped recording");
@@ -181,6 +181,7 @@ class App {
             videoCanvas.height = height;
 
             MediaPipe.start( false, () => {
+                // directly to trim stage
                 that.processVideo( false, { blendshapesResults:[], landmarksResults:[] } );
                 $('#loading').fadeOut();
     
@@ -215,6 +216,7 @@ class App {
             videoObj.landmarks = MediaPipe.landmarks;
             videoObj.blendshapes = MediaPipe.blendshapes;
 
+            // undo any mirroring of the video
             document.getElementById("recording").style.cssText+= "transform: rotateY(0deg);\
             -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
             -moz-transform:rotateY(0deg); /* Firefox */"
@@ -265,7 +267,7 @@ class App {
 
     setEvents(live) {
         //TODO move to beginCapture
-        
+
         // Adjust video canvas
         let captureDiv = document.getElementById("capture");
         $(captureDiv).removeClass("hidden");
@@ -286,7 +288,7 @@ class App {
                 videoCanvas.classList.add("active");
 
                 if(this.mediaRecorder){ this.mediaRecorder.start(); }
-                console.log("Started recording");                
+                console.log("Started recording");
             }
             else { // stop video recording
                 
@@ -300,12 +302,12 @@ class App {
     }
     
     async processVideo(live, results) {
+        // TRIM VIDEO - be sure that only the sign is recorded
+        
         let captureDiv = document.getElementById("capture");
         $(captureDiv).removeClass("hidden");
 
-        // TRIM VIDEO - be sure that only the sign is recorded
         let canvas = document.getElementById("outputVideo");
-
         let video = document.getElementById("recording");
         video.classList.remove("hidden");
         video.style.width = canvas.offsetWidth + "px";
@@ -332,7 +334,7 @@ class App {
     
         // draw mediapipe results with trimming buttons on top.
         await VideoUtils.bind(video, canvas, ()=>{
-            // (re)start process video online
+            // (re)start process video online but let VideoUtils manage the render
             MediaPipe.setOptions( { autoDraw: false } );
             MediaPipe.processVideoOnline(video); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
 
