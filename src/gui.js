@@ -67,14 +67,14 @@ class Gui {
         
         
         // menubar.add("Project/");
-        if(this.editor.mode == this.editor.eModes.script)
+        if(this.editor.mode == this.editor.editionModes.SCRIPT)
             menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFile(), short: "CTRL+I"
         });
   
         // Export animation
         menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
        
-        if(this.editor.mode == this.editor.eModes.script) {
+        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
             menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
             });
         }
@@ -103,7 +103,7 @@ class Gui {
         menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
         menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
         
-        if(this.editor.mode == this.editor.eModes.script) {
+        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
             menubar.add("Timeline/Shortcuts/Create preset", { short: "Right click" });
             menubar.add("Timeline/Shortcuts/Add clip", { short: "CTRL+K" });
             menubar.add("Timeline/Shortcuts/Add preset", { short: "CTRL+P" });
@@ -148,7 +148,7 @@ class Gui {
         //         this.hideTimeline();
         // }});
 
-        if(this.editor.mode == this.editor.eModes.script) {
+        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
             // menubar.add("Help/");
             menubar.add("Help/Tutorial", {callback: () => window.open("docs/script_animation.html", "_blank")});
             menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank")});
@@ -508,7 +508,7 @@ class Gui {
                 p.clear();
                 p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
                 p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended", this.editor.clipName), { buttonClass: "accept" });
-                if(this.editor.mode == this.editor.eModes.script) {
+                if(this.editor.mode == this.editor.editionModes.SCRIPT) {
                     p.addButton( null, "Export BML", () => this.editor.export("", this.editor.clipName ), { buttonClass: "accept" });
                 }
                 p.addButton( null, "Export GLB", () => this.editor.export("GLB", this.editor.clipName), { buttonClass: "accept" });
@@ -628,13 +628,13 @@ class KeyframesGui extends Gui {
         // Create input selector widget (webcam or video)
         let selectContainer = new LX.Panel({id:"select-mode", height: "80px", weight: "50%"});
         selectContainer.sameLine();
-        let selected = this.editor.eModes.capture == this.captureMode ? "webcam" : "video";
+        let selected = this.editor.editionModes.CAPTURE == this.captureMode ? "webcam" : "video";
 
         selectContainer.addComboButtons("Input:", [
             {
                 value: 'webcam',
                 callback: (value, event) => {
-                    this.editor.mode = this.editor.eModes.capture;
+                    this.editor.mode = this.editor.editionModes.CAPTURE;
                     let inputEl = input.domEl.getElementsByTagName("input")[0];
                     inputEl.value = "";
                     input.domEl.classList.add("hidden");
@@ -647,7 +647,7 @@ class KeyframesGui extends Gui {
                     input.domEl.classList.remove("hidden");
                     inputEl.value = "";
                     inputEl.click();
-                    this.editor.mode = this.editor.eModes.video;
+                    this.editor.mode = this.editor.editionModes.VIDEO;
                 }
             }
         ], {selected: selected, width: "180px"});
@@ -662,7 +662,7 @@ class KeyframesGui extends Gui {
 
         }, { id: "video-input", placeholder: "No file selected", local: false, type: "buffer", read: false, width: "200px"} );
         
-        if(this.editor.eModes.capture == this.captureMode)
+        if(this.editor.editionModes.CAPTURE == this.captureMode)
             input.domEl.classList.add("hidden");
 
         else if(this.editor.videoName) {
@@ -769,7 +769,7 @@ class KeyframesGui extends Gui {
 
         this.curvesTimeline = new LX.CurvesTimeline("Action Units");
         this.curvesTimeline.setFramerate(30);
-        this.curvesTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.auAnimation.duration - 0.001) );
+        this.curvesTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.getCurrentBindedAnimation().auAnimation.duration - 0.001) );
         this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
@@ -887,7 +887,7 @@ class KeyframesGui extends Gui {
         let bodyArea = new LX.Area({className: "sidePanel", id: 'Body', scroll: true});  
         let faceArea = new LX.Area({className: "sidePanel", id: 'Face', scroll: true});  
         tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {this.editor.setAnimation(v)}}  );
-        if(this.editor.auAnimation) {
+        if(this.editor.getCurrentBindedAnimation().auAnimation) {
 
             tabs.add( "Face", faceArea, {onSelect: (e,v) => {
                 this.editor.setAnimation(v); 
@@ -1230,7 +1230,7 @@ class KeyframesGui extends Gui {
             if(boneSelected) {
 
                 let disabled = false;
-                if(this.editor.mode == this.editor.eModes.NMF)
+                if(this.editor.mode == this.editor.editionModes.NMF)
                     disabled = true;
                  
                 const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);

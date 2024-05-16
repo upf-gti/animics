@@ -149,7 +149,7 @@ class App {
 
     onLoadVideo( videoFile ) {
         this.mediaRecorder = null;
-        this.editor.mode = this.editor.eModes.video;
+        this.editor.mode = this.editor.editionModes.video;
 
         let url = "";
         if(typeof(videoFile) == 'string' && videoFile.includes("blob:"))

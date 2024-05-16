@@ -61,8 +61,8 @@ class Editor {
         this.showSkin = true; // defines if the model skin has to be rendered
         this.animLoop = true;
         
-        this.eModes = {capture: 0, video: 1, script: 2};
-        this.mode = this.eModes[mode];
+        this.editionModes = {CAPTURE: 0, VIDEO: 1, SCRIPT: 2};
+        this.mode = this.editionModes[mode];
 
         // Keep "private"
         this.__app = app;
@@ -117,7 +117,7 @@ class Editor {
                         e.stopImmediatePropagation();
                         if(this.activeTimeline.undo) {
                             this.activeTimeline.undo();
-                            if(this.mode == this.eModes.script) {
+                            if(this.mode == this.editionModes.SCRIPT) {
                                 this.gui.updateClipPanel();
                             }
                         }
@@ -364,6 +364,14 @@ class Editor {
         }
     }
 
+    getCurrentBindedAnimation() {
+        return this.bindedAnimations[this.currentAnimation][this.currentCharacter.name];
+    }
+
+    getCurrentAnimation() {
+        return this.loadedAnimations[this.currentAnimation];
+    }
+
     startEdition() {
         this.gui.showVideo = true
         this.gui.initEditionGUI();
@@ -495,11 +503,11 @@ class Editor {
     //     for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
 
     //         const track = this.activeTimeline.animationClip.tracks[i];
-    //         if(this.activeTimeline.selectedItems && this.activeTimeline.selectedItems.indexOf(track.name)< 0 && this.mode != this.eModes.script)
+    //         if(this.activeTimeline.selectedItems && this.activeTimeline.selectedItems.indexOf(track.name)< 0 && this.mode != this.editionModes.SCRIPT)
     //             continue;
-    //         let idx = this.mode == this.eModes.script ? track.idx : track.clipIdx;
+    //         let idx = this.mode == this.editionModes.SCRIPT ? track.idx : track.clipIdx;
     //         let value = null;
-    //         if(this.mode != this.eModes.script) {
+    //         if(this.mode != this.editionModes.SCRIPT) {
                 
     //             if(track.dim == 1)
     //                 value = 0;
@@ -545,98 +553,13 @@ class Editor {
     }
 
     updateAnimationAction(animation, idx, replace = false) {
-        if(!this.bodyAnimation) 
-            return;
-        const mixer = this.currentCharacter.mixer;
-
-        if(!mixer._actions.length) 
-            return;
-
-        if(typeof idx == 'number')
-            idx = [idx];
-
-        if(replace) {
-            this.animation.tracks = [];
-            for(let i = 0; i < animation.tracks.length; i++) {
-                const track = animation.tracks[i];
-                if(track.active) {
-                    switch(track.type) {
-                        case "position":
-                            this.animation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
-                            break;
-                        case "quaternion":
-                            this.animation.tracks.push(new THREE.QuaternionKeyframeTrack(track.fullname, track.times, track.values));
-                            break;
-                        case "scale":
-                            this.animation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
-                            break;
-                        default:
-                            this.animation.tracks.push(new THREE.NumberKeyframeTrack(track.fullname, track.times, track.values));
-                            break;
-                    } 
-                }
-            }
-            for(let i = 0; i< mixer._actions.length; i++) {
-                if(mixer._actions[i]._clip.name == animation.name) {
-                    this.currentCharacter.mixer.uncacheClip(mixer._actions[i]._clip)
-                    this.currentCharacter.mixer.uncacheAction(mixer._actions[i])
-                    this.currentCharacter.mixer.clipAction(this.animation).play();
-                }
-            }
-            
-            if(this.bodyAnimation.name == animation.name)
-                this.bodyAnimation = animation;
-            else if(this.faceAnimation.name == animation.name)
-                this.faceAnimation = animation;
-        }
-        else {
-            let valueDeletedInfo = null;
-            for(let i = 0; i< mixer._actions.length; i++) {
-                if(mixer._actions[i]._clip.name == animation.name) {
-                    for(let j = 0; j < idx.length; j++) {
-    
-                        const track = animation.tracks[idx[j]];
-                        if(!track.active)
-                            continue;
-
-                        if( mixer._actions[i]._interpolants[idx[j]].parameterPositions.length > track.times.length )
-                            valueDeletedInfo = track;
-
-                        // Update times
-                        mixer._actions[i]._interpolants[idx[j]].parameterPositions = track.times;
-                        // Update values
-                        mixer._actions[i]._interpolants[idx[j]].sampleValues = track.values;
-
-                        
-                    }
-                    if(this.bodyAnimation.name == animation.name)
-                        this.bodyAnimation = animation;
-                    else if(this.faceAnimation.name == animation.name) {
-                        this.faceAnimation = animation;
-                        
-                        //update timeline animation track if a value is deleted
-                        if(this.auAnimation.name == animation.name && valueDeletedInfo) {
-
-                            for(let a = 0; a < this.auAnimation.tracks.length; a++) {
-                                if(this.auAnimation.tracks[a].name == valueDeletedInfo.fullname) {
-                                    this.auAnimation.tracks[a].values = valueDeletedInfo.values;
-                                    this.auAnimation.tracks[a].times = valueDeletedInfo.times;
-                                }
-                            }
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-
     }
 
     removeAnimationData(animation, trackIdx, timeIdx) {
         
         if(this.activeTimeline.constructor.name == 'CurvesTimeline'){
             let track = animation.tracks[trackIdx];
-            this.blendshapesArray[timeIdx][track.type] = 0;
+            // this.blendshapesArray[timeIdx][track.type] = 0;
         }
         this.updateAnimationAction(animation, trackIdx);
         
@@ -660,17 +583,19 @@ class Editor {
         }
         switch(type) {
             case "Face":
+                this.animationMode = this.animationModes.FACE;
                 this.activeTimeline = this.gui.curvesTimeline;
                 if(!this.selectedAU) return;
                 this.gizmo.stop();
-                this.activeTimeline.setAnimationClip( this.auAnimation );
+                this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation );
                 this.activeTimeline.show();
                 this.setSelectedActionUnit(this.selectedAU);
                 
                 break;
             case "Body":
+                this.animationMode = this.animationModes.FACE;
                 this.activeTimeline = this.gui.keyFramesTimeline;
-                this.activeTimeline.setAnimationClip( this.bodyAnimation );
+                this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().bodyAnimation );
                 this.activeTimeline.show();            
                 break;
 
@@ -713,7 +638,7 @@ class Editor {
     export(type = null, name) {
         switch(type){
             case 'BVH':
-                BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.bodyAnimation);
+                BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation);
                 break;
             case 'GLB':
                 let options = {
@@ -732,12 +657,12 @@ class Editor {
                 break;
             case 'BVH extended':
                 let LOCAL_STORAGE = 1;
-                if(this.mode == this.eModes.script) {
-                    BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.animation, LOCAL_STORAGE );
+                if(this.mode == this.editionModes.SCRIPT) {
+                    BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE );
                     BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[0], this.currentCharacter.morphTargets.BodyMesh, this.animation, LOCAL_STORAGE);
                 }
                 else {
-                    BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.bodyAnimation, LOCAL_STORAGE);
+                    BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE);
                     BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.animation, LOCAL_STORAGE);
                 }
                 
@@ -758,9 +683,9 @@ class Editor {
     showPreview() {
         
         let url = "";
-        if(this.mode == this.eModes.capture || this.mode == this.eModes.video) {
+        if(this.mode == this.editionModes.CAPTURE || this.mode == this.editionModes.VIDEO) {
 
-            BVHExporter.copyToLocalStorage(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.bodyAnimation);
+            BVHExporter.copyToLocalStorage(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation);
             url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
         }
         else{
@@ -1019,13 +944,7 @@ class KeyframeEditor extends Editor{
         this.defaultScaleSnapValue = 1;
 
         this.showSkeleton = true;
-        //this.skeletonHelper = null;
         
-        this.bodyAnimation = null;
-        this.faceAnimation = null; //ThreeJS BS animation (used for the mixer): {values: [], times: []}
-        this.auAnimation = null; //ThreeJS mediapipe AU animation (used for the timeline): [ {AU1: w1_0, AU2: w2_0, ...}, {AU1: w1_1, AU2: w2_1, ...}, ... ]
-        this.landmarksArray = [];
-        this.blendshapesArray = [];
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
         
@@ -1036,12 +955,13 @@ class KeyframeEditor extends Editor{
         this.video = app.video;
         
         this.mapNames = MapNames.map_llnames[this.character];
-        this.mode = this.eModes[mode];
+        this.mode = this.editionModes[mode];
         this.gui = new KeyframesGui(this);
 
         this.video = document.getElementById("recording");
         this.video.startTime = 0;
- 
+        this.animationModes = {FACE: 0, BODY: 1};
+        this.animationMode = this.animationModes.BODY;
     }
 
     async initCharacters()
@@ -1115,104 +1035,6 @@ class KeyframeEditor extends Editor{
         this.loadedAnimations[data.name].bodyAnimation = bodyAnimation;
         this.loadedAnimations[data.name].faceAnimation = faceAnimation;
         this.loadedAnimations[data.name].type = "video";
-
-        // TO DO: Call these code somewhere
-        // //postProcessAnimation(this.bodyAnimation, this.landmarksArray);
-        // if (urlParams.get('skin') && urlParams.get('skin') == 'false') {
-        //     this.loadAnimationWithSkeleton(this.bodyAnimation);
-        // }
-        // else {
-        //     this.loadAnimationWithSkin({skeletonAnim: this.bodyAnimation, blendshapesAnim: this.faceAnimation, type: "video", name: data.name});
-        // }
-        
-        // this.gui.showVideo = true;
-    }
-
-    processLandmarks( landmarks ) {
-        
-        const [startTime, endTime] = this.trimTimes;
-
-        // Video is non duration-complete
-        if(endTime) {
-
-            let totalDt = 0;
-            let index = 1;
-    
-            // remove starting frames
-            while( totalDt < startTime ) {
-                const lm = landmarks[index];
-                totalDt += lm.dt * 0.001;
-                index++;
-            }
-    
-            if(totalDt > 0) {
-                landmarks = landmarks.slice(index - 1);
-            }
-    
-            // remove ending frames
-            index = 1;
-            while( totalDt < endTime && index < landmarks.length ) {
-                const lm = landmarks[index];
-                totalDt += lm.dt * 0.001;
-                index++;
-            }
-    
-            landmarks = landmarks.slice(0, index - 1);
-        }
-
-        this.nn.loadLandmarks( landmarks, 
-            offsets => {
-                this.trimTimes[0] += offsets[0];
-                this.trimTimes[1] += offsets[1];
-
-                this.video.startTime = this.trimTimes[0];
-                this.video.onended = function() {
-                    this.currentTime = this.startTime;
-                    this.play();
-                };
-            },
-            (err) => {
-                alert(err, "Try it again."); 
-                window.location.reload();
-            } 
-        );
-
-        return landmarks;
-    }
-
-    processBlendshapes( blendshapes ) {
-        
-        const [startTime, endTime] = this.trimTimes;
-
-        // Video is non duration-complete
-        if(endTime) {
-
-            let totalDt = 0;
-            let index = 1;
-    
-            // remove starting frames
-            while( totalDt < startTime ) {
-                const bs = blendshapes[index];
-                totalDt += bs.dt * 0.001;
-                index++;
-            }
-    
-            if(totalDt > 0) {
-                blendshapes = blendshapes.slice(index - 1);
-            }
-    
-            // remove ending frames
-            index = 1;
-            while( totalDt < endTime && index < blendshapes.length ) {
-                const bs = blendshapes[index];
-                totalDt += bs.dt * 0.001;
-                index++;
-            }
-    
-            blendshapes = blendshapes.slice(0, index - 1);
-        }
-
-        return blendshapes;
     }
 
     loadAnimation(name, animationData ) { // TO DO: Refactor params of loadAnimation...()
@@ -1305,74 +1127,6 @@ class KeyframeEditor extends Editor{
         this.gizmo.updateBones();
         this.gui.loadKeyframeClip(bodyAnimation, () => this.gui.init());
         if(bodyAnimation)
-            $('#loading').fadeOut();
-    }
-
-    loadAnimationWithSkin(animationData) {  // This function can be called from buildAnimation (NN) or loadAnimation (BVH)
-        
-        let bodyAnimation = animationData.skeletonAnim;
-        let skeleton = this.nnSkeleton;
-
-        let faceAnimation = animationData.blendshapesAnim;
-
-        // Check if it comes from loadAnimation
-        if(animationData.type == "bvh") {
-            skeleton = bodyAnimation.skeleton;
-            bodyAnimation = bodyAnimation.clip;
-        }
-        
-       // Create body animation from mediapipe landmarks
-       if(bodyAnimation)
-        {
-            //bodyAnimation.name = UTILS.removeExtension(bodyAnimation.name);
-        
-            let tracks = [];        
-            // Remove position changes (only keep i == 0, hips)
-            for (let i = 0; i < bodyAnimation.tracks.length; i++) {
-                if(i && bodyAnimation.tracks[i].name.includes('position')) {
-                    continue;
-                }
-                tracks.push(bodyAnimation.tracks[i] );
-            }
-
-            bodyAnimation.tracks = tracks;            
-
-            // Retarget NN animation              
-            forceBindPoseQuats(this.currentCharacter.skeletonHelper.skeleton); // TO DO: Fix bind pose of Eva
-            // trgUseCurrentPose: use current Bone obj quats,pos, and scale
-            // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
-            let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.model, { trgUseCurrentPose: true, trgEmbedWorldTransforms:true } ); // TO DO: change trgUseCurrentPose param
-            bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
-            
-            this.validateAnimationClip(bodyAnimation);
-            this.currentCharacter.mixer.clipAction(bodyAnimation).setEffectiveWeight(1.0).play();
-            this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
-        }
-        
-        // // Create face animation from mediapipe blendshapes
-        // this.blendshapesManager = new BlendshapesManager(skinnedMeshes, this.currentCharacter.morphTargets, this.mapNames);
-        // let anim = this.blendshapesManager.createAnimationFromBlendshapes("au-animation", this.blendshapesArray);
-        // this.faceAnimation = anim[0];
-        // this.auAnimation = anim[1];
-        // if(clip.blendshapesAnim) {
-        //     this.faceAnimation = clip.blendshapesAnim.clip;
-        // }
-        // if( blendshapesAnim )
-            //     this.mixer.clipAction(blendshapesAnim.clip).setEffectiveWeight(1.0).play();
-        // else if(this.faceAnimation )
-            //     this.mixer.clipAction(this.faceAnimation).setEffectiveWeight(1.0).play();
-        
-        // Load face and body animations
-        this.loadedAnimations[bodyAnimation.name].bodyAnimation = bodyAnimation;
-        this.loadedAnimations[bodyAnimation.name].faceAnimation = this.faceAnimation;
-
-        this.startEdition();
-        this.gui.loadKeyframeClip(bodyAnimation, () => this.gui.init());
-        this.animation = bodyAnimation;
-  
-        this.setBoneSize(0.05);
-        this.animate();
-        if(bodyAnimation )
             $('#loading').fadeOut();
     }
 
@@ -1521,6 +1275,96 @@ class KeyframeEditor extends Editor{
         this.gizmo.updateBones();
     }
 
+    updateAnimationAction(animation, idx, replace = false) {
+        if(this.animationMode == this.editionModes.SCRIPT) 
+            return;
+        
+        const mixer = this.currentCharacter.mixer;
+
+        if(!mixer._actions.length) 
+            return;
+
+        if(typeof idx == 'number')
+            idx = [idx];
+
+        if(replace) {
+            this.animation.tracks = [];
+            for(let i = 0; i < animation.tracks.length; i++) {
+                const track = animation.tracks[i];
+                if(track.active) {
+                    switch(track.type) {
+                        case "position":
+                            this.animation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
+                            break;
+                        case "quaternion":
+                            this.animation.tracks.push(new THREE.QuaternionKeyframeTrack(track.fullname, track.times, track.values));
+                            break;
+                        case "scale":
+                            this.animation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
+                            break;
+                        default:
+                            this.animation.tracks.push(new THREE.NumberKeyframeTrack(track.fullname, track.times, track.values));
+                            break;
+                    } 
+                }
+            }
+            for(let i = 0; i< mixer._actions.length; i++) {
+                if(mixer._actions[i]._clip.name == animation.name) {
+                    this.currentCharacter.mixer.uncacheClip(mixer._actions[i]._clip)
+                    this.currentCharacter.mixer.uncacheAction(mixer._actions[i])
+                    this.currentCharacter.mixer.clipAction(this.animation).play();
+                }
+            }
+            
+            if(this.animationMode = this.animationModes.BODY)
+                this.getCurrentBindedAnimation().bodyAnimation = animation;
+            else if(this.animationMode = this.animationModes.FACE)
+                this.getCurrentBindedAnimation().faceAnimation = animation;
+        }
+        else {
+            let valueDeletedInfo = null;
+            for(let i = 0; i< mixer._actions.length; i++) {
+                if(mixer._actions[i]._clip.name == animation.name) {
+                    for(let j = 0; j < idx.length; j++) {
+    
+                        const track = animation.tracks[idx[j]];
+                        if(!track.active)
+                            continue;
+
+                        if( mixer._actions[i]._interpolants[idx[j]].parameterPositions.length > track.times.length )
+                            valueDeletedInfo = track;
+
+                        // Update times
+                        mixer._actions[i]._interpolants[idx[j]].parameterPositions = track.times;
+                        // Update values
+                        mixer._actions[i]._interpolants[idx[j]].sampleValues = track.values;                        
+                    }
+
+                    if(this.getCurrentBindedAnimation().bodyAnimation.name == animation.name) {
+                        this.getCurrentBindedAnimation().bodyAnimation = animation;
+                    }
+                    else if(this.faceAnimation.name == animation.name) {
+                        this.faceAnimation = animation;
+                        
+                        //update timeline animation track if a value is deleted
+                        if(this.animationMode = this.animationModes.FACE && valueDeletedInfo) {
+
+                            let auAnimation = this.getCurrentBindedAnimation().auAnimation;
+                            for(let a = 0; a < auAnimation.tracks.length; a++) {
+                                if(auAnimation.tracks[a].name == valueDeletedInfo.fullname) {
+                                    auAnimation.tracks[a].values = valueDeletedInfo.values;
+                                    auAnimation.tracks[a].times = valueDeletedInfo.times;
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+
+    }
+
     /** -------------------- BONES INTERACTION -------------------- */
     getSelectedBone() {
         const idx = this.gizmo.selectedBone;
@@ -1655,32 +1499,34 @@ class KeyframeEditor extends Editor{
         
     }
 
-    
     updateBlendshapesProperties(name, value) {
         value = Number(value);
         let tracksIdx = [];                    
+        let faceAnimation = this.getCurrentBindedAnimation().faceAnimation;
+
         for(let i = 0; i < this.activeTimeline.tracksDrawn.length; i++) {
             let info = this.activeTimeline.tracksDrawn[i][0];
             if(info.type == name && info.active){
                 i = info.clipIdx;
                 let idx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], this.activeTimeline.currentTime, 0.01)
                 this.activeTimeline.animationClip.tracks[i].values[idx] = value;
-                this.auAnimation.tracks[i].values[idx] = value;
-                this.blendshapesArray[idx][name] = value;
-                let map = this.blendshapesManager.getBlendshapesMap(name);
+                this.getCurrentBindedAnimation().auAnimation.tracks[i].values[idx] = value;
+                // this.blendshapesArray[idx][name] = value;
+                let map = this.currentCharacter.blendshapesManager.getBlendshapesMap(name);
+                
                 for(let j = 0; j < map.length; j++){
-                    for(let t = 0; t < this.faceAnimation.tracks.length; t++) {
+                    for(let t = 0; t < faceAnimation.tracks.length; t++) {
                         
-                        if(this.faceAnimation.tracks[t].name == map[j]) {
-                            this.faceAnimation.tracks[t].values[idx] = value;
-                            this.faceAnimation.tracks[t].active = info.active;
+                        if(faceAnimation.tracks[t].name == map[j]) {
+                            faceAnimation.tracks[t].values[idx] = value;
+                            faceAnimation.tracks[t].active = info.active;
                             tracksIdx.push(t);
                             break;
                         }
                     }
                 }
                 // Update animation interpolants
-                this.updateAnimationAction(this.faceAnimation, tracksIdx );
+                this.updateAnimationAction(faceAnimation, tracksIdx );
                 return true;
             }
         }
@@ -1744,7 +1590,7 @@ class KeyframeEditor extends Editor{
         for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
 
             const track = this.activeTimeline.animationClip.tracks[i];
-            if(this.activeTimeline.selectedItems && this.activeTimeline.selectedItems.indexOf(track.name)< 0 && this.mode != this.eModes.script)
+            if(this.activeTimeline.selectedItems && this.activeTimeline.selectedItems.indexOf(track.name)< 0 && this.mode != this.editionModes.SCRIPT)
                 continue;
             let idx =  track.clipIdx;
             let value = null;
@@ -1771,14 +1617,12 @@ class ScriptEditor extends Editor{
         this.gizmo = null;        
         this.dominantHand = "Right";
         
-        this.blendshapesManager = null;
-
         this.onDrawTimeline = null;
 	    this.onDrawSettings = null;
 
         this.activeTimeline = null;
         // ------------------------------------------------------
-        this.mode = this.eModes.script;
+        this.mode = this.editionModes.SCRIPT;
         this.gui = new ScriptGui(this);  
         // this.getDictionaries();
         this.refreshSignsRepository = false;
@@ -1786,6 +1630,20 @@ class ScriptEditor extends Editor{
         this.repository = {signs: [], presets: []};
         this.localStorage = {signs: {id: "Local", type:"folder", children: []}, presets: {id: "Local", type:"folder", children: []}}
 
+    }
+
+    async initCharacters()
+    {
+    
+        // Load current character
+        this.loadCharacter(this.character);
+
+        while(!this.loadedCharacters[this.character]) {
+            await new Promise(r => setTimeout(r, 1000));            
+        }        
+
+        // Create gizmo
+        this.gizmo = new BMLController(this, skinnedMeshes, morphTargetDictionary);
     }
 
     onKeyDown(e) {
