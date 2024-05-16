@@ -753,7 +753,9 @@ class KeyframesGui extends Gui {
 
         for(let name in bsNames) {
     
-            inspector.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, callback: (v,e) => this.editor.updateBlendshapesProperties(name, v), signal: "@on_change_" + name});
+            inspector.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, 
+                callback: (v,e) => this.editor.updateBlendshapesProperties(name, v), 
+                signal: "@on_change_" + name});
         }
         
         return inspector;
@@ -1229,35 +1231,42 @@ class KeyframesGui extends Gui {
 
             if(boneSelected) {
 
-                let disabled = false;
-                if(this.editor.mode == this.editor.editionModes.NMF)
-                    disabled = true;
-                 
+     
                 const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
+                
+                let trackType = null;
+                if(this.keyFramesTimeline.selectedItems.length) {
+                    trackType = this.keyFramesTimeline.tracksPerItem[this.keyFramesTimeline.selectedItems[0]][0].type;
+                }
+
                 let active = this.editor.getGizmoMode();
-                if(!disabled) {
 
-                    const toolsValues = [ {value:"Joint", callback: (v,e) => this.editor.setGizmoTool(v)}, {value:"Follow", callback: (v,e) => this.editor.setGizmoTool(v)}] ;
-                    const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
-                    
-                    widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ), settings_title: "<i class='bi bi-gear-fill section-settings'></i>" });
-                    
-                    widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool(), nameWidth: "50%", width: "100%"});
-                    
-                    if( this.editor.getGizmoTool() == "Joint" ){
-                        const modesValues = [{value:"Translate", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}, {value:"Rotate", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}, {value:"Scale", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}];
-                        const _Modes = numTracks > 1 ? modesValues : [modesValues[1]];
-                        if( numTracks <= 1 ){ this.editor.setGizmoMode("Rotate"); }
-                        widgets.addComboButtons( "Mode", _Modes, { selected: this.editor.getGizmoMode(), nameWidth: "50%", width: "100%"});
+                const toolsValues = [ {value:"Joint", callback: (v,e) => this.editor.setGizmoTool(v)}, {value:"Follow", callback: (v,e) => this.editor.setGizmoTool(v)}] ;
+                const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
+                
+                widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ), settings_title: "<i class='bi bi-gear-fill section-settings'></i>" });
+                
+                widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool(), nameWidth: "50%", width: "100%"});
+                
+                if( this.editor.getGizmoTool() == "Joint" ){
+                    const modesValues = [{value:"Translate", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}, {value:"Rotate", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}, {value:"Scale", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}];
+                    const _Modes = numTracks > 1 ? modesValues : [modesValues[1]];
+                    if(trackType == "position") {
+                        this.editor.setGizmoMode("Translate");
                     }
+                    else if( numTracks <= 1 ){ 
+                        this.editor.setGizmoMode("Rotate"); 
+                    }
+                    widgets.addComboButtons( "Mode", _Modes, { selected: this.editor.getGizmoMode(), nameWidth: "50%", width: "100%"});
+                }
 
-                    const _Spaces = [{value: "Local", callback: (v,e) =>  this.editor.setGizmoSpace(v)}, {value: "World", callback: (v,e) =>  this.editor.setGizmoSpace(v)}]
-                    widgets.addComboButtons( "Space", _Spaces, { selected: this.editor.getGizmoSpace(), nameWidth: "50%", width: "100%"});
-    
-                    widgets.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
-    
-                    widgets.addSeparator();
-                }    
+                const _Spaces = [{value: "Local", callback: (v,e) =>  this.editor.setGizmoSpace(v)}, {value: "World", callback: (v,e) =>  this.editor.setGizmoSpace(v)}]
+                widgets.addComboButtons( "Space", _Spaces, { selected: this.editor.getGizmoSpace(), nameWidth: "50%", width: "100%"});
+
+                widgets.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
+
+                widgets.addSeparator();
+                
 
                 const innerUpdate = (attribute, value) => {
             
@@ -1284,19 +1293,19 @@ class KeyframesGui extends Gui {
                 // Only edit position for root bone
                 if(boneSelected.children.length && boneSelected.parent.constructor !== boneSelected.children[0].constructor) {
                     this.boneProperties['position'] = boneSelected.position;
-                    widgets.addVector3('Position', boneSelected.position.toArray(), (v) => innerUpdate("position", v), {disabled: this.editor.state || disabled || active != 'Translate', precision: 3, className: 'bone-position'});
+                    widgets.addVector3('Position', boneSelected.position.toArray(), (v) => innerUpdate("position", v), {disabled: this.editor.state || active != 'Translate', precision: 3, className: 'bone-position'});
 
                     this.boneProperties['scale'] = boneSelected.scale;
-                    widgets.addVector3('Scale', boneSelected.scale.toArray(), (v) => innerUpdate("scale", v), {disabled: this.editor.state || disabled || active != 'Scale', precision: 3, className: 'bone-scale'});
+                    widgets.addVector3('Scale', boneSelected.scale.toArray(), (v) => innerUpdate("scale", v), {disabled: this.editor.state || active != 'Scale', precision: 3, className: 'bone-scale'});
                 }
 
                 this.boneProperties['rotation'] = boneSelected.rotation;
                 let rot = boneSelected.rotation.toArray();
                 rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
-                widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-euler'});
+                widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-euler'});
 
                 this.boneProperties['quaternion'] = boneSelected.quaternion;
-                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: this.editor.state || disabled || active != 'Rotate', precision: 3, className: 'bone-quaternion'});
+                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-quaternion'});
             }
 
         };

@@ -3408,7 +3408,6 @@ class ClipsTimeline extends Timeline {
         if(this.onSelectClip)
             this.onSelectClip();
     }
-
     processCurrentClip( e, clipIndex, track, localX, multiple ) {
 
         e.multipleSelection = multiple;
@@ -3429,11 +3428,8 @@ class ClipsTimeline extends Timeline {
         this.lastClipsSelected.push( currentSelection );
         track.selected[clipIndex] = true;
 
-        // if( !multiple && this.onSetTime ) {
-        //     this.currentTime = track.clips[ clipIndex ].start;
-        //     LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        // 	this.onSetTime( this.currentTime );
-        // }
+        // if( !multiple && this.onSetTime )
+        // 	this.onSetTime( track.clips[ clipIndex ] );
 
         if( this.onSelectClip && this.onSelectClip(track.clips[ clipIndex ])) {
             // Event handled
@@ -3666,7 +3662,7 @@ class CurvesTimeline extends Timeline {
                     //convert to range track values
                     let value = (((localY - trackRange[1]) * (this.range[1] - this.range[0])) / (trackRange[0] - trackRange[1])) + this.range[0];
                     track.edited[keyIndex] = true;
-                    this.animationClip.tracks[ track.clipIdx ].values[ keyIndex ] = value;
+                    //this.animationClip.tracks[ track.clipIdx ].values[ keyIndex ] = value;
                     LX.emit( "@on_change_" + this.tracksDrawn[track.idx][0].type, value );
                 }
             }

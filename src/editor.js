@@ -1288,22 +1288,24 @@ class KeyframeEditor extends Editor{
             idx = [idx];
 
         if(replace) {
-            this.animation.tracks = [];
+            let newAnimation = animation.clone();
+            newAnimation.tracks = [];
+            
             for(let i = 0; i < animation.tracks.length; i++) {
                 const track = animation.tracks[i];
                 if(track.active) {
                     switch(track.type) {
                         case "position":
-                            this.animation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
+                            newAnimation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
                             break;
                         case "quaternion":
-                            this.animation.tracks.push(new THREE.QuaternionKeyframeTrack(track.fullname, track.times, track.values));
+                            newAnimation.tracks.push(new THREE.QuaternionKeyframeTrack(track.fullname, track.times, track.values));
                             break;
                         case "scale":
-                            this.animation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
+                            newAnimation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
                             break;
                         default:
-                            this.animation.tracks.push(new THREE.NumberKeyframeTrack(track.fullname, track.times, track.values));
+                            newAnimation.tracks.push(new THREE.NumberKeyframeTrack(track.fullname, track.times, track.values));
                             break;
                     } 
                 }
@@ -1312,14 +1314,18 @@ class KeyframeEditor extends Editor{
                 if(mixer._actions[i]._clip.name == animation.name) {
                     this.currentCharacter.mixer.uncacheClip(mixer._actions[i]._clip)
                     this.currentCharacter.mixer.uncacheAction(mixer._actions[i])
-                    this.currentCharacter.mixer.clipAction(this.animation).play();
+                    this.currentCharacter.mixer.clipAction(newAnimation).play();
                 }
             }
             
-            if(this.animationMode = this.animationModes.BODY)
+            if(this.animationMode = this.animationModes.BODY) {
                 this.getCurrentBindedAnimation().bodyAnimation = animation;
-            else if(this.animationMode = this.animationModes.FACE)
+            }
+            else if(this.animationMode = this.animationModes.FACE) {
                 this.getCurrentBindedAnimation().faceAnimation = animation;
+            }
+            this.setTime(this.activeTimeline.currentTime);
+
         }
         else {
             let valueDeletedInfo = null;
@@ -1340,14 +1346,15 @@ class KeyframeEditor extends Editor{
                         mixer._actions[i]._interpolants[idx[j]].sampleValues = track.values;                        
                     }
 
-                    if(this.getCurrentBindedAnimation().bodyAnimation.name == animation.name) {
+                    
+                    if(this.animationMode == this.animationModes.BODY) {
                         this.getCurrentBindedAnimation().bodyAnimation = animation;
                     }
-                    else if(this.faceAnimation.name == animation.name) {
-                        this.faceAnimation = animation;
+                    else if(this.animationMode == this.animationModes.FACE) {
+                        this.getCurrentBindedAnimation().faceAnimation = animation;
                         
                         //update timeline animation track if a value is deleted
-                        if(this.animationMode = this.animationModes.FACE && valueDeletedInfo) {
+                        if(valueDeletedInfo) {
 
                             let auAnimation = this.getCurrentBindedAnimation().auAnimation;
                             for(let a = 0; a < auAnimation.tracks.length; a++) {
@@ -1358,11 +1365,11 @@ class KeyframeEditor extends Editor{
                             }
                         }
                     }
+                    this.setTime(this.activeTimeline.currentTime);
                     return;
                 }
             }
         }
-
     }
 
     /** -------------------- BONES INTERACTION -------------------- */
