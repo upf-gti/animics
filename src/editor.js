@@ -117,7 +117,9 @@ class Editor {
                         e.stopImmediatePropagation();
                         if(this.activeTimeline.undo) {
                             this.activeTimeline.undo();
-                            this.gui.updateClipPanel();
+                            if(this.mode == this.eModes.script) {
+                                this.gui.updateClipPanel();
+                            }
                         }
                     }
                     break;
@@ -363,8 +365,8 @@ class Editor {
     }
 
     startEdition() {
-        this.gui.initEditionGUI();
         this.gui.showVideo = true
+        this.gui.initEditionGUI();
         this.animate();
     }
 
@@ -434,8 +436,8 @@ class Editor {
     pause() {
         this.state = !this.state;
         this.activeTimeline.active = !this.activeTimeline.active;
-        if(!this.state && this.mixer._actions[0])
-            this.mixer._actions[0].paused = false;
+        if(!this.state && this.currentCharacter.mixer._actions[0])
+            this.currentCharacter.mixer._actions[0].paused = false;
 
         if(this.onPause)
             this.onPause();
@@ -449,7 +451,7 @@ class Editor {
             return;
 
         // mixer computes time * timeScale. We actually want to set the reaw animation (track) time, without any timeScale 
-        this.mixer.setTime(t/this.mixer.timeScale); //already calls mixer.update
+        this.currentCharacter.mixer.setTime(t/this.currentCharacter.mixer.timeScale); //already calls mixer.update
     }
 
     clearAllTracks() {
@@ -545,7 +547,7 @@ class Editor {
     updateAnimationAction(animation, idx, replace = false) {
         if(!this.bodyAnimation) 
             return;
-        const mixer = this.mixer;
+        const mixer = this.currentCharacter.mixer;
 
         if(!mixer._actions.length) 
             return;
@@ -576,9 +578,9 @@ class Editor {
             }
             for(let i = 0; i< mixer._actions.length; i++) {
                 if(mixer._actions[i]._clip.name == animation.name) {
-                    this.mixer.uncacheClip(mixer._actions[i]._clip)
-                    this.mixer.uncacheAction(mixer._actions[i])
-                    this.mixer.clipAction(this.animation).play();
+                    this.currentCharacter.mixer.uncacheClip(mixer._actions[i]._clip)
+                    this.currentCharacter.mixer.uncacheAction(mixer._actions[i])
+                    this.currentCharacter.mixer.clipAction(this.animation).play();
                 }
             }
             
@@ -642,12 +644,12 @@ class Editor {
 
     setAnimationLoop(loop) {
         
-        for(let i = 0; i < this.mixer._actions.length; i++) {
+        for(let i = 0; i < this.currentCharacter.mixer._actions.length; i++) {
 
             if(loop)
-                this.mixer._actions[i].loop = THREE.LoopOnce;
+                this.currentCharacter.mixer._actions[i].loop = THREE.LoopOnce;
             else
-                this.mixer._actions[i].loop = THREE.LoopRepeat;
+                this.currentCharacter.mixer._actions[i].loop = THREE.LoopRepeat;
         }
         this.gizmo.updateTracks();
     }
@@ -684,7 +686,7 @@ class Editor {
         if(this.animLoop) {
             this.setTime(0.0, true);
         } else {
-            this.mixer.setTime(0);
+            this.currentCharacter.mixer.setTime(0);
             this.currentCharacter.mixer._actions[0].paused = true;
             let stateBtn = document.querySelector("[title=Play]");
             stateBtn.children[0].click();
@@ -1085,8 +1087,17 @@ class KeyframeEditor extends Editor{
         this.video.loop = false;
 
         // TO DO: Check if Trim is necessary
-        this.landmarksArray = this.processLandmarks( landmarks );
-        this.blendshapesArray = this.processBlendshapes( blendshapes );
+        this.nn.loadLandmarks( landmarks, 
+            offsets => {
+               
+            },
+            (err) => {
+                alert(err, "Try it again."); 
+                window.location.reload();
+            } 
+        );
+        // this.landmarksArray = this.processLandmarks( landmarks );
+        // this.blendshapesArray = this.processBlendshapes( blendshapes );
 
         // Mode for loading the animation
         const queryString = window.location.search;
@@ -1098,7 +1109,7 @@ class KeyframeEditor extends Editor{
         let bodyAnimation = createAnimationFromRotations(data, this.nn);
         
         // Create face animation from mediapipe action units
-        let faceAnimation = createAnimationFromActionUnits(this.blendshapesArray); // faceAnimation is an action units clip
+        let faceAnimation = createAnimationFromActionUnits(blendshapes); // faceAnimation is an action units clip
 
         this.loadedAnimations[data.name] = data;
         this.loadedAnimations[data.name].bodyAnimation = bodyAnimation;
@@ -1204,59 +1215,21 @@ class KeyframeEditor extends Editor{
         return blendshapes;
     }
 
-    loadAnimation( animation ) { // TO DO: Refactor params of loadAnimation...()
+    loadAnimation(name, animationData ) { // TO DO: Refactor params of loadAnimation...()
 
-        const innerOnLoad = result => {
+        let skeleton = animationData.skeletonAnim.skeleton;
+        skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+        // loader does not correctly compute the skeleton boneInverses and matrixWorld 
+        skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
+        skeleton = new THREE.Skeleton( skeleton.bones ); // will automatically compute boneInverses
 
-            let skeleton = result.skeletonAnim.skeleton;
-            skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
-            // loader does not correctly compute the skeleton boneInverses and matrixWorld 
-            skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
-            skeleton = new THREE.Skeleton( skeleton.bones ); // will automatically compute boneInverses
-
-            this.loadedAnimations[data.name] = {
-                name: animation.name,
-                bodyAnimation: result.skeletonAnim.clip,
-                faceAnimation: result.blendshapesAnim ?? null,
-                skeleton: skeleton,
-                type: "bvh"
-            }
-    
-            // TO DO: Call this code in other part 
-            // const queryString = window.location.search;
-            // const urlParams = new URLSearchParams(queryString);
-            // if(urlParams.get('skin') && urlParams.get('skin') == 'true' || extension == 'bvhe') {
-                
-            //     this.loadAnimationWithSkin(result);
-
-            // } else if(!result.skeleton) {
-
-            //     result.skeletonAnim.name = animation.name;
-            //     this.loadAnimationWithSkin(result);
-
-            // } else {
-                
-            //     this.loadAnimationWithSkeleton(result);
-            // }
+        this.loadedAnimations[name] = {
+            name: name,
+            bodyAnimation: animationData.skeletonAnim.clip,
+            faceAnimation: animationData.blendshapesAnim ?? null,
+            skeleton: skeleton,
+            type: "bvh"
         };
-
-        // Read the file and parse the data to extract the animation/s
-        const extension = UTILS.getExtension(animation.name);
-
-        let reader = new FileReader();
-        reader.onload = (e) => {
-            const text = e.currentTarget.result;
-            let data = null;
-            if(extension.includes('bvh')) {
-                data = { skeletonAnim: this.BVHloader.parse( text ) };
-            }
-            else {
-                data = this.BVHloader.parseExtended( text );
-            }
-
-            innerOnLoad(data);
-        };
-        reader.readAsText(animation);
     }
 
     bindAnimationToCharacter(animationName) {
@@ -1288,14 +1261,15 @@ class KeyframeEditor extends Editor{
                 if(i && bodyAnimation.tracks[i].name.includes('position')) {
                     continue;
                 }
-                tracks.push(bodyAnimation.tracks[i] );
+                tracks.push(bodyAnimation.tracks[i]);
+                tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
             }
 
             //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
             bodyAnimation.tracks = tracks;            
             let skeleton = animation.skeleton ?? this.nnSkeleton;
             // Retarget NN animation              
-            forceBindPoseQuats(this.currentCharacter.skeletonHelper.skeleton); // TO DO: Fix bind pose of Eva
+            //forceBindPoseQuats(this.currentCharacter.skeletonHelper.skeleton); // TO DO: Fix bind pose of Eva
             forceBindPoseQuats(skeleton); 
             // trgUseCurrentPose: use current Bone obj quats,pos, and scale
             // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
@@ -1308,10 +1282,10 @@ class KeyframeEditor extends Editor{
         }
               
         let faceAnimation = animation.faceAnimation;        
-        let auAnimation = faceAnimation.clone();
-
+        let auAnimation = null;
         if(faceAnimation) { // TO DO: Check if it's if-else or if-if
-
+            
+            auAnimation = faceAnimation.clone();
             if(animation.type == "video") {
                 faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
 
@@ -1328,6 +1302,7 @@ class KeyframeEditor extends Editor{
         }
 
         this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
+        this.gizmo.updateBones();
         this.gui.loadKeyframeClip(bodyAnimation, () => this.gui.init());
         if(bodyAnimation)
             $('#loading').fadeOut();
@@ -1372,7 +1347,6 @@ class KeyframeEditor extends Editor{
             this.validateAnimationClip(bodyAnimation);
             this.currentCharacter.mixer.clipAction(bodyAnimation).setEffectiveWeight(1.0).play();
             this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
-
         }
         
         // // Create face animation from mediapipe blendshapes
@@ -1427,9 +1401,9 @@ class KeyframeEditor extends Editor{
 
             this.scene.add( boneContainer );
             this.scene.add(skeleton.bones[0])
-            this.scene.add( this.skeletonHelper );
+            this.scene.add( skeletonHelper );
 
-            let mixer = new THREE.AnimationMixer( this.skeletonHelper );
+            let mixer = new THREE.AnimationMixer( skeletonHelper );
             this.gui.loadKeyframeClip(this.bodyAnimation, () => this.gui.init());
             this.animation = this.bodyAnimation;
 
@@ -1550,7 +1524,7 @@ class KeyframeEditor extends Editor{
     /** -------------------- BONES INTERACTION -------------------- */
     getSelectedBone() {
         const idx = this.gizmo.selectedBone;
-        return idx == undefined ? idx : this.skeletonHelper.bones[ idx ];
+        return idx == undefined ? idx : this.currentCharacter.skeletonHelper.bones[ idx ];
     }
 
     setBoneSize(newSize) {
@@ -1580,7 +1554,7 @@ class KeyframeEditor extends Editor{
 
     updateBoneProperties() {
                             
-        const bone = this.skeletonHelper.bones[this.gizmo.selectedBone];
+        const bone = this.currentCharacter.skeletonHelper.bones[this.gizmo.selectedBone];
         if(!bone)
         return;
         

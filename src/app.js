@@ -230,11 +230,28 @@ class App {
     }
 
     onLoadAnimation( animation ) {
-        this.editor.startEdition();
-
         const name = animation.name;
         this.editor.clipName = name;
-        this.editor.loadAnimation( animation );
+
+        // Read the file and parse the data to extract the animation/s
+        const extension = UTILS.getExtension(animation.name);
+
+        let reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.currentTarget.result;
+            let data = null;
+            if(extension.includes('bvh')) {
+                data = { skeletonAnim: this.editor.BVHloader.parse( text ) };
+            }
+            else {
+                data = this.editor.BVHloader.parseExtended( text );
+            }
+
+            this.editor.loadAnimation( name, data );
+            this.editor.bindAnimationToCharacter( name );
+            this.editor.startEdition();
+        };
+        reader.readAsText(animation);
     }
 
     onScriptProject(dataFile, mode) {

@@ -811,6 +811,9 @@ class KeyframesGui extends Gui {
         videoCanvas.height = 300;
         videoCanvas.width = 300 * aspectRatio;
         $(videoDiv).draggable({containment: this.canvasArea.root}).resizable({ aspectRatio: true, containment: this.canvasArea.root});
+        videoCanvas.classList.add("hidden");
+        videoCanvas.parentElement.style.display = "block";
+        this.updateMenubar();
     }
     
     changeCaptureGUIVisivility(hidden) {
@@ -1323,11 +1326,12 @@ class KeyframesGui extends Gui {
         this.clip.tracks = tracks;
         // this.timeline = new KeyFramesTimeline( this.editor.bodyAnimation, boneName);
         // this.keyFramesTimeline.show();
+        let duration = this.editor.bindedAnimations[this.editor.currentAnimation][this.editor.currentCharacter.name].bodyAnimation.duration;
         this.keyFramesTimeline.setAnimationClip(this.clip);
         this.keyFramesTimeline.setSelectedItems([boneName]);
         // this.keyFramesTimeline.resize([this.keyFramesTimeline.canvas.parentElement.clientWidth, this.keyFramesTimeline.canvas.parentElement.clientHeight]);
-        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.bodyAnimation.duration - 0.001) );
-        this.keyFramesTimeline.onSetDuration = (t) => {this.duration = this.keyFramesTimeline.duration = this.clip.duration = this.editor.bodyAnimation.duration = t};
+        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, duration - 0.001) );
+        this.keyFramesTimeline.onSetDuration = (t) => {this.duration = this.keyFramesTimeline.duration = this.clip.duration = duration = t};
         this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
 
         this.keyFramesTimeline.onSelectKeyFrame = (e, info, index) => {
