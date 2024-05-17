@@ -11,7 +11,7 @@ import { OrientationHelper } from "./libs/OrientationHelper.js";
 import { AnimationRetargeting, forceBindPoseQuats } from './retargeting.js'
 import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/GLTFLoader.js';
 import { GLTFExporter } from './exporters/GLTFExporoter.js' 
-import { BMLController } from "./controller2.js"
+import { BMLController } from "./controller.js"
 import { BlendshapesManager, createAnimationFromActionUnits } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 
@@ -328,13 +328,39 @@ class Editor {
             skeletonHelper.skeleton = skeleton;
 
             // Create mixer for animation
-            let mixer = new THREE.AnimationMixer(model);           
-            let blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
-
+            let mixer = new THREE.AnimationMixer(model);  
+           
             // Add loaded data to the character
             this.loadedCharacters[characterName] = {
-                name: characterName, model, morphTargets, mixer, skeletonHelper, blendshapesManager
+                name: characterName, model, morphTargets, skinnedMeshes, mixer, skeletonHelper
             };
+           
+            if(this.mode = this.editionModes.SCRIPT) {
+                let eyesTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffff00 , depthWrite: false }) );
+                eyesTarget.name = "eyesTarget";
+                eyesTarget.position.set(0, 2.5, 15); 
+                
+                let headTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xff0000 , depthWrite: false }) );
+                headTarget.name = "headTarget";
+                headTarget.position.set(0, 2.5, 15); 
+                
+                let neckTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0x00fff0 , depthWrite: false }) );
+                neckTarget.name = "neckTarget";
+                neckTarget.position.set(0, 2.5, 15); 
+
+                this.scene.add(eyesTarget);
+                this.scene.add(headTarget);
+                this.scene.add(neckTarget);
+                
+                model.eyesTarget = eyesTarget;
+                model.headTarget = headTarget;
+                model.neckTarget = neckTarget;
+
+                this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] );
+            }
+            else {
+                this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
+            }
 
             this.changeCharacter(characterName);
         });   
@@ -373,8 +399,7 @@ class Editor {
     }
 
     startEdition() {
-        this.gui.showVideo = true
-        this.gui.initEditionGUI();
+        this.gui.init();
         this.animate();
     }
 
@@ -416,7 +441,9 @@ class Editor {
                 this.onUpdateAnimationTime();
         }
        
-        this.gizmo.update(this.state, dt);
+        if(this.gizmo) {
+            this.gizmo.update(this.state, dt);
+        }
     }
 
     // Play all animations
@@ -590,7 +617,12 @@ class Editor {
             else
                 this.currentCharacter.mixer._actions[i].loop = THREE.LoopRepeat;
         }
-        this.gizmo.updateTracks();
+
+        if(this.gizmo) {
+            this.gizmo.updateTracks();
+        }
+
+        // TO DO: Update BML tracks
     }
 
     setAnimation(type) {
@@ -601,28 +633,32 @@ class Editor {
             currentTime = this.activeTimeline.currentTime;
         }
         
-        switch(type) {
-            case this.animationModes.FACE:
-                this.animationMode = this.animationModes.FACE;
-                this.activeTimeline = this.gui.curvesTimeline;
-                if(!this.selectedAU) return;
-                this.gizmo.stop();
-                this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation );
-                this.activeTimeline.show();
-                this.setSelectedActionUnit(this.selectedAU);
-                
-                break;
-            case this.animationModes.BODY:
-                this.animationMode = this.animationModes.BODY;
-                this.activeTimeline = this.gui.keyFramesTimeline;
-                this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().bodyAnimation );
-                this.activeTimeline.show();            
-                break;
+        if(this.mode == this.editionModes.SCRIPT) {
+            this.activeTimeline = this.gui.clipsTimeline;
+            this.activeTimeline.show();
+        }
+        else {
+            switch(type) {
+                case this.animationModes.FACE:
+                    this.animationMode = this.animationModes.FACE;
+                    this.activeTimeline = this.gui.curvesTimeline;
+                    if(!this.selectedAU) return;
+                    if (this.gizmo) { this.gizmo.stop(); }
+                    this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation );
+                    this.activeTimeline.show();
+                    this.setSelectedActionUnit(this.selectedAU);                    
+                    break;
 
-             default:
-                this.activeTimeline = this.gui.clipsTimeline;
-                this.activeTimeline.show();
-                break;
+                case this.animationModes.BODY:
+                    this.animationMode = this.animationModes.BODY;
+                    this.activeTimeline = this.gui.keyFramesTimeline;
+                    this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().bodyAnimation );
+                    this.activeTimeline.show();            
+                    break;
+
+                default:                   
+                    break;
+            }
         }
         
         this.activeTimeline.speed = this.currentCharacter.mixer.timeScale;
@@ -632,9 +668,10 @@ class Editor {
 
         this.activeTimeline.onSetSpeed = (v) => {
             this.currentCharacter.mixer.timeScale = v;
-            if ( this.video ){ this.video.playbackRate = v; }
+            if ( this.video ){ 
+                this.video.playbackRate = v; 
+            }
         }
-
     }
 
     onAnimationEnded() {
@@ -993,6 +1030,12 @@ class KeyframeEditor extends Editor{
         this.video.startTime = 0;
         this.animationModes = {FACE: 0, BODY: 1};
         this.animationMode = this.animationModes.BODY;
+    }
+    
+    startEdition() {
+        this.gui.showVideo = true
+        this.gui.initEditionGUI();
+        this.animate();
     }
 
     async initCharacters()
@@ -1679,12 +1722,9 @@ class ScriptEditor extends Editor{
         // Load current character
         this.loadCharacter(this.character);
 
-        while(!this.loadedCharacters[this.character]) {
+        while(!this.loadedCharacters[this.character] || !this.loadedCharacters[this.character].bmlManager.ECAcontroller) {
             await new Promise(r => setTimeout(r, 1000));            
-        }        
-
-        // Create gizmo
-        this.gizmo = new BMLController(this, this.currentCharacter.blendshapesManager.skinnedMeshes, this.currentCharacter.blendshapesManager.morphTargetDictionary);
+        }  
     }
 
     onKeyDown(e) {
@@ -1717,6 +1757,61 @@ class ScriptEditor extends Editor{
                     this.gui.createExportBMLDialog(); 
                 }
         }
+    }
+
+    loadAnimation(name, animationData) { 
+
+        this.loadedAnimations[name] = {
+            name: name,
+            scriptAnimation: animationData ??  {duration: 0, tracks:[]},
+            type: "script"
+        };
+    }
+
+    bindAnimationToCharacter(animationName) {
+        
+        let animation = this.loadedAnimations[animationName];
+        if(!animation) {
+            console.error(animationName + " not found");
+        }
+
+        this.currentAnimation = animationName;
+        
+        // Remove current animation clip
+        let mixer = this.currentCharacter.mixer.stopAllAction();
+        mixer.stopAllAction();
+
+        for(let i = 0; i < mixer._actions.length; i++) { //TO DO: Check if it changes actions length
+            mixer.uncacheAction(mixer._actions[i]);
+            mixer._actions.pop();
+        }
+
+        let scriptAnimation = animation.scriptAnimation;     
+        let mixerAnimation = null;   
+        
+        if(scriptAnimation) {
+
+            this.setAnimation();
+            this.gui.loadBMLClip(scriptAnimation);
+            this.activeTimeline.onUpdateTrack = this.updateTracks.bind(this);
+
+            mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(scriptAnimation, this.activeTimeline.framerate);
+
+            this.currentCharacter.mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();            
+        }
+
+        if(!this.bindedAnimations[animationName]) {
+            this.bindedAnimations[animationName] = {};
+        }
+        this.bindedAnimations[animationName][this.currentCharacter.name] = {
+            mixerAnimation
+        }
+
+        this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
+        
+        
+        if(mixerAnimation)
+            $('#loading').fadeOut();
     }
 
     loadModel(clip) { // TO DO: Change to use loadCharacter()
@@ -1810,7 +1905,7 @@ class ScriptEditor extends Editor{
                 this.setTime(this.activeTimeline.currentTime);
             }
             this.activeTimeline.onUpdateTrack = this.gizmo.updateTracks.bind(this.gizmo);
-            this.gizmo.begin(this.activeTimeline);
+            this.gizmo.updateTracks(this.activeTimeline);
             this.animate();
             $('#loading').fadeOut();
             
@@ -1873,40 +1968,14 @@ class ScriptEditor extends Editor{
         }
     }
 
-      /** BML ANIMATION */ 
+    /** BML ANIMATION */ 
     
-    updateTracks(tracks) {
+    updateTracks() {
 
-        if(!this.gizmo)
-            return;
-        this.gizmo.updateTracks();
-
-        if(tracks) {
-            for(let t = 0; t < tracks.length; t++) {
-                let [trackIdx, clipIdx] = tracks[t];
-                let clip = this.activeTimeline.animationClip.tracks[trackIdx].clips[clipIdx].toJSON();
-                if(this.animation.tracks.length == trackIdx)
-                    this.animation.tracks.push([clip]);
-                else
-                    this.animation.tracks[trackIdx][clipIdx] = clip;
-            }
-        }
-        // else if(trackIdx != null) {
-        //     for(let i = 0; i < this.activeTimeline.animationClip.tracks[trackIdx].clips.length; i++) {
-
-        //         this.animation.tracks[trackIdx][i] = this.activeTimeline.animationClip.tracks[trackIdx].clips[i];
-        //     }
-        // }
-         else {
-            for(let idx = 0; idx < this.activeTimeline.animationClip.tracks.length; idx++) {
-                for(let i = 0; i < this.activeTimeline.animationClip.tracks[idx].clips.length; i++) {
-
-                    this.animation.tracks[idx][i] = this.activeTimeline.animationClip.tracks[idx].clips[i].toJSON();
-                }
-            }
-        }
-        this.mixer.update(0);
-
+        let animationData = this.getCurrentAnimation();
+        animationData.scriptAnimation = this.activeTimeline.animationClip;
+       
+        this.bindAnimationToCharacter(this.currentAnimation);
     }
 
     clearAllTracks(showConfirmation = true) {

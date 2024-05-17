@@ -12,9 +12,8 @@ class Gui {
         this.timelineVisible = false;
         this.currentTime = 0;
         this.editor = editor;
-
+        this.duration = 0;
         this.create();
-
     }
 
     create() {
@@ -378,11 +377,15 @@ class Gui {
 
                     if(editor.scene.getObjectByName('Armature'))
                         editor.scene.getObjectByName('SkeletonHelper').visible = editor.showGUI;
-                    editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
+                    if(editor.mode != editor.editorModes.SCRIPT) {
+                        editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
+                    }
                     editor.scene.getObjectByName('Grid').visible = editor.showGUI;
                     
                     if(!editor.showGUI) {
-                        editor.gizmo.stop();
+                        if(editor.mode != editor.editorModes.SCRIPT) {
+                            editor.gizmo.stop();
+                        }
                         this.hideTimeline();
                         this.mainArea.extend();
 
@@ -404,7 +407,9 @@ class Gui {
                 selectable: true,
                 selected: true,
                 callback: (v) =>  {
-                    editor.gizmo.bonePoints.material.depthTest = !editor.gizmo.bonePoints.material.depthTest;
+                    if(editor.mode != editor.editorModes.SCRIPT) {
+                        editor.gizmo.bonePoints.material.depthTest = !editor.gizmo.bonePoints.material.depthTest;
+                    }
                 }
             },
     
@@ -424,21 +429,18 @@ class Gui {
         area.addOverlayButtons(canvasButtons, { float: "htc" } );
     }
     
-    
     openSettings( settings ) {
         
         let prevDialog = document.getElementById("settings-dialog");
         if(prevDialog) prevDialog.remove();
         
         const dialog = new LX.Dialog(UTILS.firstToUpperCase(settings), p => {
-            if(settings == 'gizmo') {
+            if(settings == 'gizmo' && editor.mode != editor.editorModes.SCRIPT) {
                 this.editor.gizmo.showOptions( p );
             }
         }, { id: 'settings-dialog', close: true, width: 380, height: 210, scroll: false, draggable: true});
-
     }
-    
-     
+         
     setBoneInfoState( enabled ) {
         for(const ip of $(".bone-position input, .bone-euler input, .bone-quaternion input")){
             enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
@@ -1642,7 +1644,7 @@ class ScriptGui extends Gui {
         this.clip = this.clipsTimeline.animationClip || clip ;
         this.duration = this.clip.duration || duration;
 
-        this.clipsTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.animation.duration - 0.001) );
+        this.clipsTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.duration - 0.001) );
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
@@ -1650,7 +1652,7 @@ class ScriptGui extends Gui {
            if(clip.stroke) clip.stroke+=offset;
            if(clip.strokeEnd) clip.strokeEnd+=offset;
            this.updateClipPanel(clip);
-           this.editor.gizmo.updateTracks();
+           this.editor.updateTracks();
            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
            if(clip.onChangeStart) 
                 clip.onChangeStart(offset);
@@ -1661,7 +1663,7 @@ class ScriptGui extends Gui {
             for(let i = 0; i < clipstToDelete.length; i++){
                 this.clipsTimeline.deleteClip({}, clipstToDelete[i], null);
             }
-            this.editor.gizmo.updateTracks();
+            this.editor.updateTracks();
             this.updateClipPanel();
         }
 
@@ -1907,7 +1909,7 @@ class ScriptGui extends Gui {
                 if(clip && clip.start + clip.duration > this.clipsTimeline.duration) {
                     this.clipsTimeline.setDuration(clip.start + clip.duration);
                 }
-                this.editor.gizmo.updateTracks(); 
+                this.editor.updateTracks(); 
                 this.editor.setTime(this.clipsTimeline.currentTime);
                                
                 if(this.curve) {
@@ -2160,7 +2162,7 @@ class ScriptGui extends Gui {
                 clip = null;  
                 // this.clipsTimeline.optimizeTracks(); 
                 updateTracks(); 
-                this.editor.gizmo.updateTracks();
+                this.editor.updateTracks();
                 this.updateClipPanel();
             }));
             

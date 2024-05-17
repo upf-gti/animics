@@ -149,7 +149,7 @@ class App {
 
     onLoadVideo( videoFile ) {
         this.mediaRecorder = null;
-        this.editor.mode = this.editor.editionModes.video;
+        this.editor.mode = this.editor.editionModes.VIDEO;
 
         let url = "";
         if(typeof(videoFile) == 'string' && videoFile.includes("blob:"))
@@ -270,18 +270,22 @@ class App {
                 } else {
                     data = JSON.parse(e.currentTarget.result);
                 }
-                let anim = data;
-                this.editor.clipName = anim.name;
-                this.editor.loadModel(anim);    
+                
+                let animation = data;
+                                
+                this.editor.loadAnimation( animation.name, animation );
+                this.editor.bindAnimationToCharacter( animation.name );
+                this.editor.startEdition();
+
+                //this.editor.loadModel(anim);    
             };
-    
         }
         else {
-            this.editor.clipName = "";
-            this.editor.loadModel();    
-        }
-
-        // this.editor.loadAnimation( animation );
+            let name = "New animation";
+            this.editor.loadAnimation(name, null );
+            this.editor.bindAnimationToCharacter( name );
+            this.editor.startEdition();
+        }        
     }
 
     setEvents(live) {
