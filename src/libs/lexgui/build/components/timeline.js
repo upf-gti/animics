@@ -63,6 +63,7 @@ class Timeline {
         this.canvas = options.canvas ?? document.createElement('canvas');
 
         this.duration = 1;
+        this.speed = 1;
         this.position = [options.x ?? 0, options.y ?? 0];
         this.size = [ options.width ?? 400, options.height ?? 100];
         
@@ -124,7 +125,6 @@ class Timeline {
                 return;
             this.resizeCanvas( [ bounding.width, bounding.height + this.header_offset ] );
         }
-
     }
 
     /**
@@ -162,6 +162,10 @@ class Timeline {
         header.addNumber("Duration", +this.duration.toFixed(3), (value, event) => {
             this.setDuration(value, false)}, {step: 0.01, min: 0, signal: "@on_set_duration"
         });    
+
+        header.addNumber("Speed", +this.speed.toFixed(3), (value, event) => {
+            this.setSpeed(value)}, {step: 0.01});    
+
 
         for(let i = 0; i < this.buttonsDrawn.length; i++) {
             let button = this.buttonsDrawn[i];
@@ -365,7 +369,7 @@ class Timeline {
     setAnimationClip( animation ) {
         this.animationClip = animation;
         this.duration = animation.duration;
-        this.speed = animation.speed || 1;
+        this.speed = animation.speed || this.speed;
         var w = Math.max(300, this.canvas.width);
         this.secondsToPixels = ( w - this.session.left_margin ) / this.duration;
         // if(this.secondsToPixels < 1)
@@ -568,9 +572,9 @@ class Timeline {
         this.drawTimeInfo(w);
 
         // Current time marker vertical line
-        let true_pos = Math.round( this.timeToX( this.currentTime ) ) + 0.5;
-        let quant_current_time = Math.round( this.currentTime * this.framerate ) / this.framerate;
-        let pos = Math.round( this.timeToX( quant_current_time ) ) + 0.5; //current_time is quantized
+        let truePos = Math.round( this.timeToX( this.currentTime ) ) + 0.5;
+        let quantCurrentTime = Math.round( this.currentTime * this.framerate ) / this.framerate;
+        let pos = Math.round( this.timeToX( quantCurrentTime ) ) + 0.5; //current_time is quantized
         if(pos >= this.session.left_margin)
         {
             // ctx.strokeStyle = "#ABA";
@@ -582,10 +586,10 @@ class Timeline {
             ctx.strokeStyle = ctx.fillStyle =  LX.getThemeColor("global-selected-light");
             ctx.globalAlpha = this.opacity;
             ctx.beginPath();
-            ctx.moveTo(true_pos, 0); ctx.lineTo(true_pos, this.canvas.height);//line
+            ctx.moveTo(truePos, 0); ctx.lineTo(truePos, this.canvas.height);//line
             ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(true_pos - 4, 0); ctx.lineTo(true_pos + 4, 0); ctx.lineTo(true_pos + 4, 10); ctx.lineTo(true_pos + 2, 12);ctx.lineTo(true_pos - 2, 12); ctx.lineTo(true_pos - 4, 10); //triangle
+            ctx.moveTo(truePos - 4, 0); ctx.lineTo(truePos + 4, 0); ctx.lineTo(truePos + 4, 10); ctx.lineTo(truePos + 2, 12);ctx.lineTo(truePos - 2, 12); ctx.lineTo(truePos - 4, 10); //triangle
             ctx.closePath();
             ctx.fill();
         }
@@ -679,6 +683,21 @@ class Timeline {
      */
     validateDuration(t) {
         return t;
+    }
+
+
+        /**
+     * @method setSpeed
+     * @param {Number} speed 
+     */
+
+    setSpeed(speed) {
+        this.speed = speed;
+        LX.emit( "@on_set_speed", +speed.toFixed(3));
+        
+
+        if( this.onSetSpeed ) 
+            this.onSetSpeed( speed );	 
     }
 
     // Converts distance in pixels to time
@@ -1654,7 +1673,7 @@ class KeyFramesTimeline extends Timeline {
         this.animationClip = {
             name: animation.name,
             duration: animation.duration,
-            speed: animation.speed ?? 1,
+            speed: animation.speed ?? this.speed,
             tracks: []
         };
 
@@ -1693,6 +1712,41 @@ class KeyFramesTimeline extends Timeline {
         this.resize();
     }
 
+    updateTrack(trackIdx, track) {
+        if(!this.animationClip)
+            return;
+        this.animationClip.tracks[trackIdx].values = track.values;
+        this.animationClip.tracks[trackIdx].times = track.times;
+        this.processTrack(trackIdx);
+
+    }
+
+    processTrack(trackIdx) {
+        if(!this.animationClip)
+            return;
+
+        let track = this.animationClip.tracks[trackIdx];
+
+        const [name, type] = this.getTrackName(track.fullname || track.name);
+
+        let trackInfo = {
+            fullname: track.name,
+            name: name, type: type,
+            dim: track.values.length/track.times.length,
+            selected: [], edited: [], hovered: [], active: true,
+            times: track.times,
+            values: track.values
+        };
+        
+        for(let i = 0; i < this.tracksPerItem[name].length; i++) {
+            if(this.tracksPerItem[name][i].fullname == trackInfo.fullname) {
+                trackInfo.idx = this.tracksPerItem[name][i].idx;
+                trackInfo.clipIdx = this.tracksPerItem[name][i].clipIdx;
+                this.tracksPerItem[name][i] = trackInfo;
+                return;
+            }
+        }
+    }
 
     optimizeTrack(trackIdx) {
         const track = this.animationClip.tracks[trackIdx];
@@ -2751,7 +2805,7 @@ class ClipsTimeline extends Timeline {
         this.animationClip = {
             name: animation.name,
             duration: animation.duration,
-            speed: animation.speed ?? 1,
+            speed: animation.speed ?? this.speed,
             tracks: []
         };
 
@@ -3662,7 +3716,7 @@ class CurvesTimeline extends Timeline {
                     //convert to range track values
                     let value = (((localY - trackRange[1]) * (this.range[1] - this.range[0])) / (trackRange[0] - trackRange[1])) + this.range[0];
                     track.edited[keyIndex] = true;
-                    //this.animationClip.tracks[ track.clipIdx ].values[ keyIndex ] = value;
+                    this.animationClip.tracks[ track.clipIdx ].values[ keyIndex ] = value;
                     LX.emit( "@on_change_" + this.tracksDrawn[track.idx][0].type, value );
                 }
             }
@@ -3959,7 +4013,7 @@ class CurvesTimeline extends Timeline {
         this.animationClip = {
             name: animation.name,
             duration: animation.duration,
-            speed: animation.speed ?? 1,
+            speed: animation.speed ?? this.speed,
             tracks: []
         };
         for( let i = 0; i < animation.tracks.length; ++i ) {

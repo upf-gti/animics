@@ -888,11 +888,11 @@ class KeyframesGui extends Gui {
 
         let bodyArea = new LX.Area({className: "sidePanel", id: 'Body', scroll: true});  
         let faceArea = new LX.Area({className: "sidePanel", id: 'Face', scroll: true});  
-        tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {this.editor.setAnimation(v)}}  );
+        tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {this.editor.setAnimation(this.editor.animationModes.BODY)}}  );
         if(this.editor.getCurrentBindedAnimation().auAnimation) {
 
             tabs.add( "Face", faceArea, {onSelect: (e,v) => {
-                this.editor.setAnimation(v); 
+                this.editor.setAnimation(this.editor.animationModes.BODY); 
                 this.updateActionUnitsPanel(this.editor.getSelectedActionUnit());
                 this.imageMap.resize();
             } });
@@ -919,10 +919,10 @@ class KeyframesGui extends Gui {
             widgets.clear();
             widgets.addTitle("Animation");
             widgets.addText("Name", this.editor.clipName || "", (v) => this.editor.clipName = v)
-            widgets.addNumber("Speed", this.editor.currentCharacter.mixer.timeScale, v => {
-                this.editor.currentCharacter.mixer.timeScale = v;
-                if ( this.editor.video ){ this.editor.video.playbackRate = v; }
-            }, {min: 0.1, max: 2, step: 0.01, precision: 2});
+            // widgets.addNumber("Speed", this.editor.currentCharacter.mixer.timeScale, v => {
+            //     this.editor.currentCharacter.mixer.timeScale = v;
+            //     if ( this.editor.video ){ this.editor.video.playbackRate = v; }
+            // }, {min: 0.1, max: 2, step: 0.01, precision: 2});
             widgets.addSeparator();
         }
         widgets.onRefresh(options);
@@ -1250,9 +1250,10 @@ class KeyframesGui extends Gui {
                 
                 if( this.editor.getGizmoTool() == "Joint" ){
                     const modesValues = [{value:"Translate", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}, {value:"Rotate", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}, {value:"Scale", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}];
-                    const _Modes = numTracks > 1 ? modesValues : [modesValues[1]];
+                    let _Modes = numTracks > 1 ? modesValues : [modesValues[1]];
                     if(trackType == "position") {
                         this.editor.setGizmoMode("Translate");
+                        _Modes = [modesValues[0]];
                     }
                     else if( numTracks <= 1 ){ 
                         this.editor.setGizmoMode("Rotate"); 

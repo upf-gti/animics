@@ -12,7 +12,8 @@ class BMLController {
         this.undoSteps = [];
 
         this.editor = editor;
-        fetch( "https://webglstudio.org/3Dcharacters/Eva/Eva.json" ).then(response => response.text()).then( (text) =>{
+        const currentCharacter = this.editor.currentCharacter;
+        fetch( "https://webglstudio.org/3Dcharacters/" + currentCharacter.name + "/" + currentCharacter.name + ".json" ).then(response => response.text()).then( (text) =>{
             let config = JSON.parse( text );
             let ECAcontroller = this.ECAcontroller = new CharacterController( {character: editor.scene.getObjectByName(editor.character), characterConfig: config} );
             ECAcontroller.start({autoblink: false});
@@ -28,7 +29,7 @@ class BMLController {
         
         this.skinnedMeshes = skinnedMeshes;
         this.morphTargetDictionary = morphTargetDictionary;
-        this.morphDictionary = editor.morphTargets;
+        this.morphDictionary = currentCharacter.morphTargets;
         this.morphTargets = [];
         this.morphTargets.length = Object.keys(this.morphDictionary).length; 
 

@@ -410,7 +410,8 @@ class Editor {
 
             this.currentCharacter.mixer.update(dt);
             this.currentTime = this.activeTimeline.currentTime = this.currentCharacter.mixer.time;
-            LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
+            //LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
+            this.activeTimeline.updateHeader();
             if(this.onUpdateAnimationTime)
                 this.onUpdateAnimationTime();
         }
@@ -529,25 +530,40 @@ class Editor {
 
     optimizeTrack(trackIdx, threshold = this.optimizeThreshold) {
         this.optimizeThreshold = this.activeTimeline.optimizeThreshold;
-        const track = this.animation.tracks[trackIdx];
+        let animation = null;
+        if(this.animationMode == this.animationModes.BODY) {
+            animation = this.getCurrentBindedAnimation().bodyAnimation;
+        }
+        else if(this.animationMode == this.animationModes.FACE) {
+            animation = this.getCurrentBindedAnimation().faceAnimation;
+        }
+        else {
+            return;
+        }
+        
+        const track = animation.tracks[trackIdx];
         track.optimize( this.optimizeThreshold );
-        this.updateAnimationAction(this.animation, trackIdx);
+        this.updateAnimationAction(animation, trackIdx);
+        if(this.activeTimeline.updateTrack) {
+            this.activeTimeline.updateTrack(trackIdx, track);
+        }
     }
 
     optimizeTracks(tracks) {
 
-        if(!this.activeTimeline.animationClip)
+        let animation = null;
+        if(this.animationMode == this.animationModes.BODY) {
+            animation = this.getCurrentBindedAnimation().bodyAnimation;
+        }
+        else if(this.animationMode == this.animationModes.FACE) {
+            animation = this.getCurrentBindedAnimation().faceAnimation;
+        }
+        else {
             return;
+        }
 
-        for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
-            const track = this.activeTimeline.animationClip.tracks[i];
-            if(track.optimize) {
-
-                track.optimize( this.optimizeThreshold );
-                this.updateAnimationAction(this.animation, i);
-    
-                // this.gui.keyFramesTimeline.onPreProcessTrack( track, i );
-            }
+        for( let i = 0; i < animation.tracks.length; ++i ) {
+            this.optimizeTrack(i);
         }
         this.activeTimeline.draw();
     }
@@ -578,11 +594,15 @@ class Editor {
     }
 
     setAnimation(type) {
+
+        let currentTime = 0;
         if(this.activeTimeline) {
-            this.activeTimeline.hide()
+            this.activeTimeline.hide();
+            currentTime = this.activeTimeline.currentTime;
         }
+        
         switch(type) {
-            case "Face":
+            case this.animationModes.FACE:
                 this.animationMode = this.animationModes.FACE;
                 this.activeTimeline = this.gui.curvesTimeline;
                 if(!this.selectedAU) return;
@@ -592,8 +612,8 @@ class Editor {
                 this.setSelectedActionUnit(this.selectedAU);
                 
                 break;
-            case "Body":
-                this.animationMode = this.animationModes.FACE;
+            case this.animationModes.BODY:
+                this.animationMode = this.animationModes.BODY;
                 this.activeTimeline = this.gui.keyFramesTimeline;
                 this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().bodyAnimation );
                 this.activeTimeline.show();            
@@ -604,6 +624,17 @@ class Editor {
                 this.activeTimeline.show();
                 break;
         }
+        
+        this.activeTimeline.speed = this.currentCharacter.mixer.timeScale;
+        this.activeTimeline.currentTime = currentTime;
+        this.setTime(currentTime, true);
+        this.activeTimeline.updateHeader();
+
+        this.activeTimeline.onSetSpeed = (v) => {
+            this.currentCharacter.mixer.timeScale = v;
+            if ( this.video ){ this.video.playbackRate = v; }
+        }
+
     }
 
     onAnimationEnded() {
@@ -1100,7 +1131,7 @@ class KeyframeEditor extends Editor{
             
             this.validateAnimationClip(bodyAnimation);
 
-            this.currentCharacter.mixer.clipAction(bodyAnimation).setEffectiveWeight(1.0).play();
+            this.currentCharacter.mixer.clipAction(bodyAnimation).setEffectiveWeight(1.0).play();            
         }
               
         let faceAnimation = animation.faceAnimation;        
@@ -1126,6 +1157,8 @@ class KeyframeEditor extends Editor{
         this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
         this.gizmo.updateBones();
         this.gui.loadKeyframeClip(bodyAnimation, () => this.gui.init());
+        this.setAnimation(this.animationMode);
+
         if(bodyAnimation)
             $('#loading').fadeOut();
     }
@@ -1325,7 +1358,7 @@ class KeyframeEditor extends Editor{
                 this.getCurrentBindedAnimation().faceAnimation = animation;
             }
             this.setTime(this.activeTimeline.currentTime);
-
+            
         }
         else {
             let valueDeletedInfo = null;
@@ -1395,8 +1428,8 @@ class KeyframeEditor extends Editor{
         if(!this.gizmo)
         throw("No gizmo attached to scene");
     
-        if(this.activeTimeline.name == "Action Units") {
-            this.setAnimation("Body");
+        if(this.animationMode != this.animationModes.BODY) {
+            this.setAnimation(this.animationModes.BODY);
         }
 
         this.gizmo.setBone(name);
@@ -1497,8 +1530,9 @@ class KeyframeEditor extends Editor{
 
     setSelectedActionUnit(au) {
         
-        if(this.activeTimeline.name != "Action Units")
-            this.setAnimation("Face");
+        if(this.animationMode != this.animationModes.FACE) {
+            this.setAnimation(this.animationModes.FACE);
+        }
 
         this.selectedAU = au;
         this.activeTimeline.setSelectedItems([au]);
@@ -1650,7 +1684,7 @@ class ScriptEditor extends Editor{
         }        
 
         // Create gizmo
-        this.gizmo = new BMLController(this, skinnedMeshes, morphTargetDictionary);
+        this.gizmo = new BMLController(this, this.currentCharacter.blendshapesManager.skinnedMeshes, this.currentCharacter.blendshapesManager.morphTargetDictionary);
     }
 
     onKeyDown(e) {
