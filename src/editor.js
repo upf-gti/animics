@@ -335,7 +335,7 @@ class Editor {
                 name: characterName, model, morphTargets, skinnedMeshes, mixer, skeletonHelper
             };
            
-            if(this.mode = this.editionModes.SCRIPT) {
+            if(this.mode == this.editionModes.SCRIPT) {
                 let eyesTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffff00 , depthWrite: false }) );
                 eyesTarget.name = "eyesTarget";
                 eyesTarget.position.set(0, 2.5, 15); 
@@ -727,11 +727,11 @@ class Editor {
                 let LOCAL_STORAGE = 1;
                 if(this.mode == this.editionModes.SCRIPT) {
                     BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE );
-                    BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[0], this.currentCharacter.morphTargets.BodyMesh, this.animation, LOCAL_STORAGE);
+                    BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[0], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation, LOCAL_STORAGE);
                 }
                 else {
                     BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE);
-                    BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.animation, LOCAL_STORAGE);
+                    BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation, LOCAL_STORAGE);
                 }
                 
                 let bvh = window.localStorage.getItem("bvhskeletonpreview");
@@ -1394,10 +1394,10 @@ class KeyframeEditor extends Editor{
                 }
             }
             
-            if(this.animationMode = this.animationModes.BODY) {
+            if(this.animationMode == this.animationModes.BODY) {
                 this.getCurrentBindedAnimation().bodyAnimation = animation;
             }
-            else if(this.animationMode = this.animationModes.FACE) {
+            else if(this.animationMode == this.animationModes.FACE) {
                 this.getCurrentBindedAnimation().faceAnimation = animation;
             }
             this.setTime(this.activeTimeline.currentTime);
@@ -1814,104 +1814,6 @@ class ScriptEditor extends Editor{
             $('#loading').fadeOut();
     }
 
-    loadModel(clip) { // TO DO: Change to use loadCharacter()
-        // Load the target model (Eva) 
-        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/Eva/Eva.glb", (gltf) => {
-            let model = gltf.scene;
-            model.name = this.character;
-            model.visible = true;
-            
-            let skinnedMeshes = {};
-             model.traverse( (object) => {
-                    if ( object.isMesh || object.isSkinnedMesh ) {
-                        object.material.side = THREE.FrontSide;
-                        object.frustumCulled = false;
-                        object.castShadow = true;
-                        object.receiveShadow = true;
-
-                        if (object.name == "Eyelashes")
-                            object.castShadow = false;
-                        else if (object.name == "Body")
-                            object.name == "BodyMesh"; // TO DO
-                        if(object.material.map)
-                            object.material.map.anisotropy = 16; 
-
-                        this.help = object.skeleton;
-                        if(object.morphTargetDictionary ) {
-
-                            this.morphTargets[object.name] = object.morphTargetDictionary;
-                            skinnedMeshes[object.name] = object;
-                        }
-                        
-                    } else if (object.isBone) {
-                        object.scale.set(1.0, 1.0, 1.0);
-                    }
-                } );
-            
-            // correct model
-            // model.position.set(0, 0.75, 0);            
-            model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
-            model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
-            model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
-            this.skeletonHelper = new THREE.SkeletonHelper(model);
-            this.skeletonHelper.name = "SkeletonHelper";
-
-            //Create animations
-            this.mixer = new THREE.AnimationMixer(model);
-            
-            this.skeletonHelper.skeleton = this.help; //= createSkeleton();
-
-            //Create face animation from mediapipe blendshapes
-            // this.blendshapesManager = new BlendshapesManager(skinnedMeshes, this.morphTargets, this.mapNames);
-            
-            // guizmo stuff
-            this.scene.add( model );
-            // this.scene.add( this.skeletonHelper );
-            //this.scene.add( this.retargeting.srcSkeletonHelper );
-            
-            // this.gui.createScriptTimeline();
-            // this.gui.updateMenubar();
-            // Behaviour Planner
-            this.eyesTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffff00 , depthWrite: false }) );
-            this.eyesTarget.name = "eyesTarget";
-            this.eyesTarget.position.set(0, 2.5, 15); 
-            this.headTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xff0000 , depthWrite: false }) );
-            this.headTarget.name = "headTarget";
-            this.headTarget.position.set(0, 2.5, 15); 
-            this.neckTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0x00fff0 , depthWrite: false }) );
-            this.neckTarget.name = "neckTarget";
-            this.neckTarget.position.set(0, 2.5, 15); 
-
-            this.scene.add(this.eyesTarget);
-            this.scene.add(this.headTarget);
-            this.scene.add(this.neckTarget);
-            
-            model.eyesTarget = this.eyesTarget;
-            model.headTarget = this.headTarget;
-            model.neckTarget = this.neckTarget;
-            
-            this.animation = clip || {duration:0, tracks:[]};
-            this.setAnimation();
-            this.gui.loadBMLClip(this.animation, () => this.gui.init());
-          
-            this.gizmo = new BMLController(this, skinnedMeshes, this.morphTargets);
-            this.gizmo.onUpdateTracks = () => {
-                if(this.mixer._actions.length) {
-                    this.mixer.stopAllAction();
-                    this.mixer.uncacheAction(this.mixer._actions[this.mixer._actions.length - 1]);
-                    this.mixer._actions.pop();
-                }
-                this.mixer.clipAction( this.animation  ).setEffectiveWeight( 1.0 ).play();
-                this.setTime(this.activeTimeline.currentTime);
-            }
-            this.activeTimeline.onUpdateTrack = this.gizmo.updateTracks.bind(this.gizmo);
-            this.gizmo.updateTracks(this.activeTimeline);
-            this.animate();
-            $('#loading').fadeOut();
-            
-        });   
-    }
-
     loadFile(file) {
         //load json (bml) file
         const extension = UTILS.getExtension(file.name);
@@ -2047,9 +1949,7 @@ class ScriptEditor extends Editor{
                         json.behaviours.push( data );
                         //json.indices.push(type.id);
                     }
-                }
-                
-                
+                }              
             }
         }
 
