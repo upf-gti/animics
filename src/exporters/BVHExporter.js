@@ -53,7 +53,7 @@ const BVHExporter = {
             bvh += "JOINT " + bone.name + "\n";
         }
 
-        const position = this.skeletonHelper.getBoneByName( bone.name ).position;
+        const position = this.skeleton.getBoneByName( bone.name ).position;
 
         bvh += tabs + "{\n";
         bvh += tabs + "\tOFFSET "   + position.x.toFixed(6) +
@@ -87,22 +87,22 @@ const BVHExporter = {
         return p.x.toFixed(6) + " " + p.y.toFixed(6) + " " + p.z.toFixed(6) + " ";
     },
 
-    export: function(action, skeletonHelper, clip, mode) {
+    export: function(action, skeleton, clip, mode) {
 
         var bvh = "";
         const framerate = 1 / 30;
         const numFrames = 1 + Math.floor(clip.duration / framerate);
 
-        this.skeletonHelper = skeletonHelper;
+        this.skeleton = skeleton;
 
         bvh += "HIERARCHY\n";
 
-        if (skeletonHelper.bones[0] == undefined) {
+        if (skeleton.bones[0] == undefined) {
             console.error("Can not export skeleton with no bones");
             return;
         }
 
-        bvh += this.exportBone(skeletonHelper.skeleton.bones[0], 0);
+        bvh += this.exportBone(skeleton.bones[0], 0);
         
         bvh += "MOTION\n";
         bvh += "Frames: " + numFrames + "\n";
@@ -153,7 +153,7 @@ const BVHExporter = {
         }
 
         for( var frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
-            bvh += getBoneFrameData(frameIdx * framerate, skeletonHelper.skeleton.bones[0]);
+            bvh += getBoneFrameData(frameIdx * framerate, skeleton.bones[0]);
             bvh += "\n";
         }
 
@@ -170,23 +170,23 @@ const BVHExporter = {
                 break;
         }
 
-        this.skeletonHelper = null;
+        this.skeleton = null;
     },
 
-    exportCustom: function(action, skeletonHelper, clip, mode) {
+    exportCustom: function(action, skeleton, clip, mode) {
 
         var bvh = "";
 
-        this.skeletonHelper = skeletonHelper;
+        this.skeleton = skeleton;
 
         bvh += "HIERARCHY\n";
 
-        if (skeletonHelper.bones[0] == undefined) {
+        if (skeleton.bones[0] == undefined) {
             console.error("Can not export skeleton with no bones");
             return;
         }
 
-        bvh += this.exportBone(skeletonHelper.skeleton.bones[0], 0);
+        bvh += this.exportBone(skeleton.bones[0], 0);
         
         bvh += "MOTION\n";
 
@@ -237,7 +237,7 @@ const BVHExporter = {
             return data;
         }
 
-        bvh += getBoneFrameData(skeletonHelper.skeleton.bones[0]);
+        bvh += getBoneFrameData(skeleton.bones[0]);
         switch(mode) {
             
             case LOCAL_STORAGE:
@@ -250,11 +250,11 @@ const BVHExporter = {
                 this.download(bvh, 'sign.bvh', 'text/plain');
                 break;
         }
-        this.skeletonHelper = null;
+        this.skeleton = null;
     },
 
-    copyToLocalStorage: function(action, skeletonHelper, clip) {
-        this.export(action, skeletonHelper, clip, LOCAL_STORAGE);
+    copyToLocalStorage: function(action, skeleton, clip) {
+        this.export(action, skeleton, clip, LOCAL_STORAGE);
     },
 
     exportMorphTargets: function(action, morphTargetDictionary, clip, mode) {

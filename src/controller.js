@@ -8,7 +8,7 @@ class BMLController {
 
         this.undoSteps = [];
 
-        fetch( "https://webglstudio.org/3Dcharacters/" + currentCharacter.name + "/" + currentCharacter.name + ".json" ).then(response => response.text()).then( (text) =>{
+        fetch( "https://webglstudio.org/3Dcharacters/" + currentCharacter.name + "/" + currentCharacter.name + "_mod" + ".json" ).then(response => response.text()).then( (text) =>{ // TO DO: remove "_mod"
             let config = JSON.parse( text );
             let ECAcontroller = this.ECAcontroller = new CharacterController( {character: currentCharacter.model, characterConfig: config} );
             ECAcontroller.start({autoblink: false});

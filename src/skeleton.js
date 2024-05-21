@@ -615,7 +615,7 @@ function createAnimationFromRotations(name, nn) {
     // clean data
     var names = quatData[quatData.length - 1];
     if(typeof(names[0]) != "string")
-        names = ["mixamorigHips.position","mixamorigHips.quaternion","mixamorigSpine.quaternion","mixamorigSpine1.quaternion","mixamorigSpine2.quaternion",
+        names = ["mixamorigHips.quaternion","mixamorigSpine.quaternion","mixamorigSpine1.quaternion","mixamorigSpine2.quaternion",
             "mixamorigNeck.quaternion","mixamorigHead.quaternion",
             "mixamorigLeftShoulder.quaternion","mixamorigLeftArm.quaternion","mixamorigLeftForeArm.quaternion","mixamorigLeftHand.quaternion",
                 "mixamorigLeftHandThumb1.quaternion","mixamorigLeftHandThumb2.quaternion","mixamorigLeftHandThumb3.quaternion",
@@ -633,48 +633,39 @@ function createAnimationFromRotations(name, nn) {
             "mixamorigRightUpLeg.quaternion","mixamorigRightLeg.quaternion","mixamorigRightFoot.quaternion"];
     // Not Used: "mixamorigLeftUpLeg.quaternion","mixamorigLeftLeg.quaternion","mixamorigLeftFoot.quaternion","mixamorigLeftToeBase.quaternion","mixamorigRightUpLeg.quaternion","mixamorigRightLeg.quaternion","mixamorigRightFoot.quaternion","mixamorigRightToeBase.quaternion"
     //names = retargetNames(names);
-    var numBones = quatData[0].length;
+    const numBones = quatData[0].length;
 
-    var tracks = [];
-    var quatValues = [];
-    var times = [];
-    var timeAccum = 0.0;
+    let tracks = [];
+    let quatValues = [];
+    let times = [];
+    let timeAccum = 0.0;
 
-    var quatIdx = 0;
-    var amount = 4;
-    var isPosition = false;
+    let quatIdx = 0;
+    let amount = 4;
 
+    tracks.push(new THREE.VectorKeyframeTrack("mixamorigHips.position", [0], []));
+   
     while(quatIdx < numBones) {
         
         quatValues = [];
         times = [];
         timeAccum = 0.0;
-        isPosition = names[Math.ceil(quatIdx/amount)].includes("position");
 
         // loop for all frames
-        for (var frameIdx = 0; frameIdx < quatData.length; ++frameIdx) {
+        for (let frameIdx = 0; frameIdx < quatData.length; ++frameIdx) {
             quatValues.push(quatData[frameIdx][quatIdx + 0]);
             quatValues.push(quatData[frameIdx][quatIdx + 1]);
             quatValues.push(quatData[frameIdx][quatIdx + 2]);
-            if(!isPosition)
-                quatValues.push(quatData[frameIdx][quatIdx + 3]);
+            quatValues.push(quatData[frameIdx][quatIdx + 3]);
 
             timeAccum += nn.getFrameDelta( frameIdx );
             times.push(timeAccum);
         }
-
-        var data = null;
-        var nameBone = names[Math.ceil(quatIdx/amount)];
-        if(isPosition) {
-            data = new THREE.VectorKeyframeTrack(names[Math.ceil(quatIdx / amount)], times, quatValues);
-            amount = 3;
-            quatIdx += amount;
-        }
-        else {
-            data = new THREE.QuaternionKeyframeTrack( names[Math.ceil(quatIdx / amount)], times, quatValues);
-            amount = 4;
-            quatIdx += amount;
-        }
+        
+        const nameBone = names[Math.ceil(quatIdx/amount)];
+        let data = new THREE.QuaternionKeyframeTrack( names[Math.ceil(quatIdx / amount)], times, quatValues);
+        amount = 4;
+        quatIdx += amount;
 
         if (!nameBone.includes("mixamorigHips.quaternion")) tracks.push(data); // set the hip static
     }

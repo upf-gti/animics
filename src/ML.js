@@ -96,7 +96,7 @@ class NN {
             
             if (outputNN.includes(NaN)) blankFrames.push(i); // track lost frames
             
-            quatData.push([0, 0.952298, 0, ... outputNN]); // add netral position to hip
+            quatData.push( outputNN ); // add netral position to hip
         }
                                         
         // Linear interpolation to solves blank frames

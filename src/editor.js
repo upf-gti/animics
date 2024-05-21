@@ -286,7 +286,7 @@ class Editor {
 
     loadCharacter(characterName) {
         // Load the target model (Eva) 
-        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/" + characterName + "/" + characterName +".glb", (gltf) => {
+        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/" + characterName + "/" + characterName + "_mod" +".glb", (gltf) => { // TO DO: remove "_mod"
             let model = gltf.scene;
             model.name = characterName;
             model.visible = true;
@@ -316,10 +316,10 @@ class Editor {
             } );
             
             // correct model -> TO DO: REMOVE
-            model.position.set(0,0.85,0);
-            model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
-            model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
-            model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
+            // model.position.set(0,0.85,0);
+            // model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
+            // model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
+            // model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
             //------------------------------------------------
             
             // Create skeleton helper
@@ -724,13 +724,15 @@ class Editor {
             );
                 break;
             case 'BVH extended':
+                let skeleton = this.currentCharacter.skeletonHelper.skeleton.clone();
+                skeleton.pose();
                 let LOCAL_STORAGE = 1;
                 if(this.mode == this.editionModes.SCRIPT) {
-                    BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE );
+                    BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE );
                     BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[0], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation, LOCAL_STORAGE);
                 }
                 else {
-                    BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE);
+                    BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE);
                     BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation, LOCAL_STORAGE);
                 }
                 
@@ -1092,10 +1094,6 @@ class KeyframeEditor extends Editor{
         );
         // this.landmarksArray = this.processLandmarks( landmarks );
         // this.blendshapesArray = this.processBlendshapes( blendshapes );
-
-        // Mode for loading the animation
-        const queryString = window.location.search;
-        const urlParams = new URLSearchParams(queryString);
 
         UTILS.makeLoading("");
 
