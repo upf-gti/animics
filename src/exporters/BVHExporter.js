@@ -53,7 +53,10 @@ const BVHExporter = {
             bvh += "JOINT " + bone.name + "\n";
         }
 
-        const position = this.skeleton.getBoneByName( bone.name ).position;
+        let position = this.skeleton.getBoneByName( bone.name ).getWorldPosition(new THREE.Vector3());
+        let parentPos = this.skeleton.getBoneByName( bone.name ).parent ? this.skeleton.getBoneByName( bone.name ).parent.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3();
+        
+        position.sub(parentPos);
 
         bvh += tabs + "{\n";
         bvh += tabs + "\tOFFSET "   + position.x.toFixed(6) +
@@ -134,13 +137,22 @@ const BVHExporter = {
                     const type = t.name.replaceAll(".bones").split(".")[1];
                     switch(type) {
                         case 'position':
-                            const pos = new THREE.Vector3();
-                            pos.fromArray(values.slice(0, 3));
+                            let pos = new THREE.Vector3();
+                            if(!values.length) {
+                                pos = bone.position;
+                            }
+                            else {
+                                pos.fromArray(values.slice(0, 3));
+                            }
                             data += this.posToString(pos);
                             break;
                         case 'quaternion':
                             const q = new THREE.Quaternion();
                             q.fromArray(values.slice(0, 4));
+                            let invWorldRot = this.skeleton.getBoneByName( bone.name ).getWorldQuaternion(new THREE.Quaternion()).invert();
+                            let wordlParentBindRot = this.skeleton.getBoneByName( bone.name ).parent.getWorldQuaternion(new THREE.Quaternion());
+                            q.premultiply(wordlParentBindRot).multiply(invWorldRot);
+
                             data += this.quatToEulerString(q);
                     }
                 }

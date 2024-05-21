@@ -432,7 +432,7 @@ class Editor {
             this.onAnimationEnded();
         }
         if (this.currentCharacter.mixer && this.state) {
-
+            this.bvhMixer.update(dt); // TO DO: REMOVE IT
             this.currentCharacter.mixer.update(dt);
             this.currentTime = this.activeTimeline.currentTime = this.currentCharacter.mixer.time;
             //LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
@@ -726,6 +726,10 @@ class Editor {
             case 'BVH extended':
                 let skeleton = this.currentCharacter.skeletonHelper.skeleton.clone();
                 skeleton.pose();
+                let bvhSkeletonHelper = new THREE.SkeletonHelper(skeleton.bones[0]);
+                this.scene.add(bvhSkeletonHelper);
+                this.scene.add(skeleton.bones[0]);
+
                 let LOCAL_STORAGE = 1;
                 if(this.mode == this.editionModes.SCRIPT) {
                     BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE );
@@ -1116,6 +1120,16 @@ class KeyframeEditor extends Editor{
         // loader does not correctly compute the skeleton boneInverses and matrixWorld 
         skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
         skeleton = new THREE.Skeleton( skeleton.bones ); // will automatically compute boneInverses
+        let bvhSkeletonHelper = new THREE.SkeletonHelper(skeleton.bones[0]);
+        bvhSkeletonHelper.skeleton = skeleton;
+        this.scene.add(bvhSkeletonHelper);
+        this.scene.add(skeleton.bones[0]);
+        this.bvhMixer = new THREE.AnimationMixer(bvhSkeletonHelper);
+        
+        animationData.skeletonAnim.clip.tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+
+        this.bvhMixer.clipAction( animationData.skeletonAnim.clip).setEffectiveWeight( 1.0 ).play();
+        this.bvhMixer.update(0);
 
         this.loadedAnimations[name] = {
             name: name,
