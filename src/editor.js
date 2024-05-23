@@ -1242,10 +1242,7 @@ class KeyframeEditor extends Editor{
             } );
             
             // correct model
-            model.position.set(0,0.85,0);
-            model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
-            model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
-            model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
+            // model.position.set(0,0.85,0);
             this.skeletonHelper = new THREE.SkeletonHelper(model);
             this.skeletonHelper.name = "SkeletonHelper";
 
@@ -1772,9 +1769,6 @@ class ScriptEditor extends Editor{
             
             // correct model
             // model.position.set(0, 0.75, 0);            
-            model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
-            model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
-            model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
             this.skeletonHelper = new THREE.SkeletonHelper(model);
             this.skeletonHelper.name = "SkeletonHelper";
 
