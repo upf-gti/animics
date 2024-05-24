@@ -2607,7 +2607,7 @@ class NodeTree {
         node.visible = node.visible ?? true;
         node.parent = parent;
         let is_parent = node.children.length > 0;
-        let is_selected = this.selected.indexOf( node ) > -1;
+        let is_selected = this.selected.indexOf( node ) > -1 || node.selected;
         
         if( this.options.only_folders ) {
             let has_folders = false;

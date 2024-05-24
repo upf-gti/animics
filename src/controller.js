@@ -63,6 +63,10 @@ class BMLController {
         for(let i = 0; i < scriptAnimation.tracks.length; i++) {
 
             let track = scriptAnimation.tracks[i];
+            if(track.active === false) {
+                continue;
+            }
+
             for(let j = 0; j < track.clips.length; j++){                
                 
                 let data = ANIM.clipToJSON( scriptAnimation.tracks[i].clips[j] );

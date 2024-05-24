@@ -762,22 +762,46 @@ class KeyframesGui extends Gui {
         }
         
         return inspector;
-    }
-  
+    } 
 
     /** Create timelines */
     createTimelines( area ) {
 
-        this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones");
+        this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
+            onChangePlayMode: (loop) => {
+                this.editor.animLoop = loop;
+                this.editor.setAnimationLoop(loop);
+            },
+            disableNewTracks: true
+        });
+     
         this.keyFramesTimeline.setFramerate(30);
-        // this.keyFramesTimeline.setScale(400);
+        this.keyFramesTimeline.onChangeState = (state) => {
+            if(state != this.editor.state) {
+                let playElement = document.querySelector("[title = Play]");
+                if ( playElement ){ playElement.children[0].click() }
+            }
+        }
 
-        this.curvesTimeline = new LX.CurvesTimeline("Action Units");
+        this.curvesTimeline = new LX.CurvesTimeline("Action Units", {
+            onChangePlayMode: (loop) => {
+                this.editor.animLoop = loop;
+                this.editor.setAnimationLoop(loop);
+            }, disableNewTracks: true
+        });
+        
         this.curvesTimeline.setFramerate(30);
         this.curvesTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.getCurrentBindedAnimation().auAnimation.duration - 0.001) );
         this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
+        
+        this.curvesTimeline.onChangeState = (state) => {
+            if(state != this.editor.state) {
+                let playElement = document.querySelector("[title = Play]");
+                if ( playElement ){ playElement.children[0].click() }
+            }
+        }
 
         this.timelineArea.attach(this.keyFramesTimeline.root);
         this.timelineArea.attach(this.curvesTimeline.root);
@@ -1489,10 +1513,10 @@ class ScriptGui extends Gui {
     createTimelines( area ) {
 
         this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
-            trackHeight: 30,
+           // trackHeight: 30,
             onAfterCreateTopBar: (panel) => {
                 panel.addButton("", "clearTracks", (value, event) =>  {
-                    this.editor.clearAllTracks()     
+                    this.editor.clearAllTracks();     
                 }, {icon: 'fa-solid fa-trash', width: "40px"});                
             },
             onChangePlayMode: (loop) => {
@@ -1507,32 +1531,7 @@ class ScriptGui extends Gui {
                 if ( playElement ){ playElement.children[0].click() }
             }
         }
-        // this.clipsTimeline.setScale(400);
-        // this.clipsTimeline.hide();
-        // this.clipsTimeline.addButtons([
-        //     {
-        //         name: 'Animation loop',
-        //         property: 'animLoop',
-        //         selectable: true,
-        //         selected: this.editor.animLoop,
-        //         width: '40px',
-        //         icon: 'fa-solid fa-person-walking-arrow-loop-left',
-        //         callback: (v) =>  {
-        //             this.editor.animLoop = !this.editor.animLoop;
-        //             this.editor.setAnimationLoop(this.editor.animLoop);
-                    
-        //         }
-        //     },
-        //     {
-        //         name: 'Clear all tracks',
-        //         property: 'clearTracks',
-        //         width: '40px',
-        //         icon: 'fa-solid fa-trash',
-        //         callback: (v) =>  {
-        //             this.editor.clearAllTracks()     
-        //         }
-        //     }
-        // ])
+        this.clipsTimeline.onChangeTrackVisibility = (v) => { this.editor.updateTracks(); }
         this.timelineArea.attach(this.clipsTimeline.root);
         this.clipsTimeline.canvas.tabIndex = 1;
     }

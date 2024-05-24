@@ -84,7 +84,7 @@ class Editor {
 
         document.addEventListener( 'keydown', (e) => {
             switch ( e.key ) {
-                case " ": // Spacebar
+                case " ": // Spacebar                    
                     if(e.target.constructor.name != 'HTMLInputElement') {
 
                         e.preventDefault();
@@ -356,6 +356,7 @@ class Editor {
                 model.headTarget = headTarget;
                 model.neckTarget = neckTarget;
 
+                skeletonHelper.visible = false;
                 this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] );
             }
             else {
@@ -449,7 +450,7 @@ class Editor {
     // Play all animations
     play() {
         this.state = true;
-        this.activeTimeline.active = false;
+        //this.activeTimeline.active = false;
         if(this.onPlay)
             this.onPlay();
     }
@@ -461,7 +462,7 @@ class Editor {
         
         let t = 0.0;
         this.setTime(0);
-        this.activeTimeline.active = true;
+        // this.activeTimeline.active = true;
         this.activeTimeline.currentTime = t;
         this.activeTimeline.onSetTime(t);
         
@@ -471,7 +472,7 @@ class Editor {
 
     pause() {
         this.state = !this.state;
-        this.activeTimeline.active = !this.activeTimeline.active;
+        // this.activeTimeline.active = !this.activeTimeline.active;
         if(!this.state && this.currentCharacter.mixer._actions[0])
             this.currentCharacter.mixer._actions[0].paused = false;
 
@@ -1807,7 +1808,7 @@ class ScriptEditor extends Editor{
             this.gui.loadBMLClip(scriptAnimation);
             this.activeTimeline.onUpdateTrack = this.updateTracks.bind(this);
 
-            mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(scriptAnimation, this.activeTimeline.framerate);
+            mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(this.activeTimeline.animationClip, this.activeTimeline.framerate);
 
             this.currentCharacter.mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();            
         }

@@ -44,7 +44,7 @@ class Timeline {
         this.framerate = 30;
         this.opacity = options.opacity || 1;
         this.sidebarWidth = 0// 200;
-        this.topMargin = 47;
+        this.topMargin = 40;
         this.renderOutFrames = false;
         this.lastMouse = [];
         this.lastKeyFramesSelected = [];
@@ -271,7 +271,7 @@ class Timeline {
                     t.children.push({'id': id, 'skipVisibility': this.skipVisibility, visible: track.active, selected: track.isSelected, 'children':[], actions : this.skipLock ? null : [{
                         'name':'Lock edition',
                         'icon': 'fa-solid '+ (track.locked ? 'fa-lock' : 'fa-lock-open'),                       
-                        'callback': (el, node) => {
+                        'callback': (node, el) => {
                             // TO DO (apply functionality)
                             let value = el.classList.contains('fa-lock');
                          
@@ -427,7 +427,7 @@ class Timeline {
         ctx.save();
 
         ctx.fillStyle = Timeline.BACKGROUND_COLOR;
-        ctx.fillRect( this.session.left_margin,0, canvas.width, h );
+        ctx.fillRect( this.session.left_margin, 0, canvas.width, h );
         ctx.strokeStyle = LX.Timeline.FONT_COLOR;
 
         if(this.secondsToPixels > 200 )
@@ -887,6 +887,8 @@ class Timeline {
             if( e.button == 0 && this.onMouseUp ) {
                 this.onMouseUp(e, time);
             }
+            this.unSelectAllTracks();
+            this.updateLeftPanel();
         }
     
 
@@ -961,8 +963,9 @@ class Timeline {
         this.lastMouse[0] = x;
         this.lastMouse[1] = y;
 
-        if( !is_inside && !this.grabbing && !(e.metaKey || e.altKey ) )
+        if( !is_inside && !this.grabbing && !(e.metaKey || e.altKey ) ) {           
             return true;
+        }
 
         if( this.onMouse && this.onMouse( e, time, this ) )
             return;
@@ -990,6 +993,8 @@ class Timeline {
                         this.pasteContent();
                     break;
                 case ' ':
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
                     this.changeState();
                     break; 
             }
@@ -1154,7 +1159,7 @@ class Timeline {
             
             // Overwrite clip color state depending on its state
             ctx.globalAlpha = trackAlpha;
-            ctx.fillStyle = track.hovered[j] ? Timeline.COLOR_HOVERED : (clip.clipColor || Timeline.COLOR);
+            ctx.fillStyle = clip.clipColor || (track.hovered[j] ? Timeline.COLOR_HOVERED : (Timeline.COLOR));
             if(track.selected[j] && !clip.clipColor) {
                 ctx.fillStyle = Timeline.TRACK_SELECTED;
             }
@@ -1189,13 +1194,13 @@ class Timeline {
                 }
             }
             
-            ctx.fillStyle = Timeline.FONT_COLOR; // clip.color || Timeline.FONT_COLOR;
+            ctx.fillStyle = clip.color || Timeline.FONT_COLOR; // clip.color || Timeline.FONT_COLOR;
             //ctx.font = "12px" + Timeline.FONT;
 
             // Overwrite style and draw clip selection area if it's selected
             ctx.globalAlpha = clip.hidden ? trackAlpha * 0.5 : trackAlpha;
             
-            if(this.selectedClip == clip || track.selected[j]) {
+            if(this.selectedClip == clip || track.selected[j] || track.hovered[j]) {
                 ctx.strokeStyle = ctx.shadowColor = track.clips[j].clipColor || Timeline.TRACK_SELECTED;
                 ctx.shadowBlur = 10;
                 ctx.shadowOffsetX = 1.5;
@@ -1213,8 +1218,9 @@ class Timeline {
             }
 
             // Overwrite style with small font size if it's zoomed out
-            if( this.secondsToPixels < 200)
+            if( this.secondsToPixels < 200) {
                 ctx.font = this.secondsToPixels*0.06  +"px" + Timeline.FONT;
+            }
 
             const text = clip.id.replaceAll("_", " ").replaceAll("-", " ");
             const textInfo = ctx.measureText( text );
@@ -1224,6 +1230,7 @@ class Timeline {
                 ctx.fillText( text, x + (w - textInfo.width)*0.5,  y + offset + trackHeight * 0.5);
             }
 
+            ctx.fillStyle = track.hovered[j] ? "white" : Timeline.FONT_COLOR;
             // Draw resize bounding
             ctx.roundRect(x + w - 8 , y + offset , 8, trackHeight, {tl: 4, bl: 4, tr:4, br:4}, true);           
         }
@@ -1715,7 +1722,7 @@ class KeyFramesTimeline extends Timeline {
             track.selected[newIdx] = true;
 
         }
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
+        //LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
         // Update time
         if(this.onSetTime)
             this.onSetTime(this.currentTime);
@@ -2582,7 +2589,6 @@ class ClipsTimeline extends Timeline {
         panel.attach(p.root)
         p.root.style.overflowY = "scroll";
         p.root.addEventListener("scroll", (e) => {
-           console.log(e.currentTarget.scrollTop)
             this.currentScroll = e.currentTarget.scrollTop / (e.currentTarget.scrollHeight - e.currentTarget.clientHeight);
          })
         // for(let i = 0; i < this.animationClip.tracks.length; i++) {
