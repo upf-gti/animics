@@ -286,7 +286,7 @@ class Editor {
 
     loadCharacter(characterName) {
         // Load the target model (Eva) 
-        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/" + characterName + "/" + characterName + "_mod" +".glb", (gltf) => { // TO DO: remove "_mod"
+        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/" + characterName + "/" + characterName +".glb", (gltf) => { 
             let model = gltf.scene;
             model.name = characterName;
             model.visible = true;
@@ -432,11 +432,11 @@ class Editor {
             this.onAnimationEnded();
         }
         if (this.currentCharacter.mixer && this.state) {
-            this.bvhMixer.update(dt); // TO DO: REMOVE IT
+            //this.bvhMixer.update(dt); // TO DO: REMOVE IT
             this.currentCharacter.mixer.update(dt);
             this.currentTime = this.activeTimeline.currentTime = this.currentCharacter.mixer.time;
-            //LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
-            this.activeTimeline.updateHeader();
+            LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
+            //this.activeTimeline.updateHeader();
             if(this.onUpdateAnimationTime)
                 this.onUpdateAnimationTime();
         }
@@ -1124,12 +1124,12 @@ class KeyframeEditor extends Editor{
         bvhSkeletonHelper.skeleton = skeleton;
         this.scene.add(bvhSkeletonHelper);
         this.scene.add(skeleton.bones[0]);
-        this.bvhMixer = new THREE.AnimationMixer(bvhSkeletonHelper);
+        //this.bvhMixer = new THREE.AnimationMixer(bvhSkeletonHelper);
         
         animationData.skeletonAnim.clip.tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
 
-        this.bvhMixer.clipAction( animationData.skeletonAnim.clip).setEffectiveWeight( 1.0 ).play();
-        this.bvhMixer.update(0);
+        //this.bvhMixer.clipAction( animationData.skeletonAnim.clip).setEffectiveWeight( 1.0 ).play();
+        //this.bvhMixer.update(0);
 
         this.loadedAnimations[name] = {
             name: name,

@@ -170,6 +170,7 @@ class Gui {
                         this.editor.play(this.editor, domEl);
                     }
                     domEl.classList.toggle('fa-play'), domEl.classList.toggle('fa-pause');
+                    if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) { this.editor.activeTimeline.changeState() };
                 }
             },
             {
@@ -1487,34 +1488,51 @@ class ScriptGui extends Gui {
     /** Create timelines */
     createTimelines( area ) {
 
-        this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {trackHeight: 30});
+        this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
+            trackHeight: 30,
+            onAfterCreateTopBar: (panel) => {
+                panel.addButton("", "clearTracks", (value, event) =>  {
+                    this.editor.clearAllTracks()     
+                }, {icon: 'fa-solid fa-trash', width: "40px"});                
+            },
+            onChangePlayMode: (loop) => {
+                this.editor.animLoop = loop;
+                this.editor.setAnimationLoop(loop);
+            }
+        });
         this.clipsTimeline.setFramerate(30);
+        this.clipsTimeline.onChangeState = (state) => {
+            if(state != this.editor.state) {
+                let playElement = document.querySelector("[title = Play]");
+                if ( playElement ){ playElement.children[0].click() }
+            }
+        }
         // this.clipsTimeline.setScale(400);
         // this.clipsTimeline.hide();
-        this.clipsTimeline.addButtons([
-            {
-                name: 'Animation loop',
-                property: 'animLoop',
-                selectable: true,
-                selected: this.editor.animLoop,
-                width: '40px',
-                icon: 'fa-solid fa-person-walking-arrow-loop-left',
-                callback: (v) =>  {
-                    this.editor.animLoop = !this.editor.animLoop;
-                    this.editor.setAnimationLoop(this.editor.animLoop);
+        // this.clipsTimeline.addButtons([
+        //     {
+        //         name: 'Animation loop',
+        //         property: 'animLoop',
+        //         selectable: true,
+        //         selected: this.editor.animLoop,
+        //         width: '40px',
+        //         icon: 'fa-solid fa-person-walking-arrow-loop-left',
+        //         callback: (v) =>  {
+        //             this.editor.animLoop = !this.editor.animLoop;
+        //             this.editor.setAnimationLoop(this.editor.animLoop);
                     
-                }
-            },
-            {
-                name: 'Clear all tracks',
-                property: 'clearTracks',
-                width: '40px',
-                icon: 'fa-solid fa-trash',
-                callback: (v) =>  {
-                    this.editor.clearAllTracks()     
-                }
-            }
-        ])
+        //         }
+        //     },
+        //     {
+        //         name: 'Clear all tracks',
+        //         property: 'clearTracks',
+        //         width: '40px',
+        //         icon: 'fa-solid fa-trash',
+        //         callback: (v) =>  {
+        //             this.editor.clearAllTracks()     
+        //         }
+        //     }
+        // ])
         this.timelineArea.attach(this.clipsTimeline.root);
         this.clipsTimeline.canvas.tabIndex = 1;
     }
