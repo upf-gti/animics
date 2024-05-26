@@ -667,6 +667,7 @@ class Editor {
         this.activeTimeline.updateHeader();
 
         this.activeTimeline.onSetSpeed = (v) => {
+            v = Math.min( 16, Math.max( 0.1, v ) );
             this.currentCharacter.mixer.timeScale = v;
             if ( this.video ){ 
                 this.video.playbackRate = v; 
@@ -705,10 +706,6 @@ class Editor {
 
     export(type = null, name) {
         switch(type){
-            case 'BVH':
-                let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation);
-                UTILS.download(bvh, name, "text/plain");
-                break;
             case 'GLB':
                 let options = {
                     binary: true,
@@ -721,13 +718,17 @@ class Editor {
                 this.GLTFExporter.parse(model, 
                     ( gltf ) => UTILS.download(gltf, (name || this.clipName) + '.glb', 'arraybuffer' ), // called when the gltf has been generated
                     ( error ) => { console.log( 'An error happened:', error ); }, // called when there is an error in the generation
-                options
-            );
+                    options
+                );
+                break;
+            case 'BVH':
+                let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation);
+                UTILS.download(bvh, name, "text/plain");
+                // bvhexport sets avatar to bindpose. Avoid user seeing this
+                this.currentCharacter.mixer.update(0);
                 break;
             case 'BVH extended':
-                let skeleton = this.currentCharacter.skeletonHelper.skeleton.clone();
-                skeleton.pose();
-
+                let skeleton = this.currentCharacter.skeletonHelper.skeleton;
                 let bvhPose = null;
                 let bvhFace = null;
                 if(this.mode == this.editionModes.SCRIPT) {
@@ -739,7 +740,10 @@ class Editor {
                     bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation);
                 }
                 
-                UTILS.download(bvhPose + bvhFace, (name || this.clipName) + ".bvhe", "text/plain" )
+                UTILS.download(bvhPose + bvhFace, (name || this.clipName) + ".bvhe", "text/plain" );
+
+                // bvhexport sets avatar to bindpose. Avoid user seeing this
+                this.currentCharacter.mixer.update(0);
                 break;
 
             default:
@@ -1010,7 +1014,7 @@ class KeyframeEditor extends Editor{
     
     constructor(app, mode) {
                 
-        super(app);
+        super(app, mode);
 
         this.defaultTranslationSnapValue = 1;
         this.defaultRotationSnapValue = 30; // Degrees
@@ -1028,7 +1032,6 @@ class KeyframeEditor extends Editor{
         this.video = app.video;
         
         this.mapNames = MapNames.map_llnames[this.character];
-        this.mode = this.editionModes[mode];
         this.gui = new KeyframesGui(this);
 
         this.video = document.getElementById("recording");
@@ -1699,7 +1702,7 @@ class ScriptEditor extends Editor{
     
     constructor(app) {
                 
-        super(app);
+        super(app, "SCRIPT");
         // -------------------- SCRIPT MODE --------------------
         this.gizmo = null;        
         this.dominantHand = "Right";
@@ -1709,7 +1712,6 @@ class ScriptEditor extends Editor{
 
         this.activeTimeline = null;
         // ------------------------------------------------------
-        this.mode = this.editionModes.SCRIPT;
         this.gui = new ScriptGui(this);  
         // this.getDictionaries();
         this.refreshSignsRepository = false;

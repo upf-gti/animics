@@ -378,13 +378,13 @@ class Gui {
 
                     if(editor.scene.getObjectByName('Armature'))
                         editor.scene.getObjectByName('SkeletonHelper').visible = editor.showGUI;
-                    if(editor.mode != editor.editorModes.SCRIPT) {
+                    if(editor.mode != editor.editionModes.SCRIPT) {
                         editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
                     }
                     editor.scene.getObjectByName('Grid').visible = editor.showGUI;
                     
                     if(!editor.showGUI) {
-                        if(editor.mode != editor.editorModes.SCRIPT) {
+                        if(editor.mode != editor.editionModes.SCRIPT) {
                             editor.gizmo.stop();
                         }
                         this.hideTimeline();
@@ -408,7 +408,7 @@ class Gui {
                 selectable: true,
                 selected: true,
                 callback: (v) =>  {
-                    if(editor.mode != editor.editorModes.SCRIPT) {
+                    if(editor.mode != editor.editionModes.SCRIPT) {
                         editor.gizmo.bonePoints.material.depthTest = !editor.gizmo.bonePoints.material.depthTest;
                     }
                 }
@@ -436,7 +436,7 @@ class Gui {
         if(prevDialog) prevDialog.remove();
         
         const dialog = new LX.Dialog(UTILS.firstToUpperCase(settings), p => {
-            if(settings == 'gizmo' && editor.mode != editor.editorModes.SCRIPT) {
+            if(settings == 'gizmo' && editor.mode != editor.editionModes.SCRIPT) {
                 this.editor.gizmo.showOptions( p );
             }
         }, { id: 'settings-dialog', close: true, width: 380, height: 210, scroll: false, draggable: true});

@@ -74,6 +74,7 @@ const BVHExporter = {
         const numFrames = 1 + Math.floor(clip.duration / framerate);
 
         this.skeleton = skeleton;
+        skeleton.pose(); // needs to be in bind pose (tpose)
 
         bvh += "HIERARCHY\n";
 
@@ -124,13 +125,12 @@ const BVHExporter = {
                     case 'position':
                         // threejs animation clips store a position which will be attached to the bone each frame.
                         // However, BVH position track stores the translation from the bone's offset defined in HERIARCHY
-                        // TODO: bone.position might not be the same as bone offset of HERIARCHY.
                         if(values.length) {
                             pos.fromArray(values.slice(0, 3));
                             pos.sub(bone.position);
                         }
                         break;
-                    case 'quaternion':
+                    case 'quaternion': // retarget animation quaternion to the bvh bind posed skeleton
                         quat.fromArray(values.slice(0, 4));
                         let invWorldRot = this.skeleton.getBoneByName( bone.name ).getWorldQuaternion(new THREE.Quaternion()).invert();
                         let wordlParentBindRot = this.skeleton.getBoneByName( bone.name ).parent.getWorldQuaternion(new THREE.Quaternion());
@@ -236,6 +236,10 @@ const BVHExporter = {
 
     exportMorphTargets: function(action, morphTargetDictionary, clip) {
 
+        if ( !action || !morphTargetDictionary || !clip ){
+            return "";
+        }
+        
         let bvh = "";
         const framerate = 1 / 30;
         const numFrames = 1 + Math.floor(clip.duration / framerate);
