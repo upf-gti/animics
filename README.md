@@ -75,4 +75,11 @@ We would like to extend our gratitude to the creators and maintainers of these l
 - Alex Rodríguez [@jxarco](https://github.com/jxarco)
 - Jaume Pozo [@japopra](https://github.com/japopra)  
 
-This application was developed using funding from the European SignON project (https://signon-project.eu/) and is intended to serve as a tool for creating animations to be used within the project.
+
+## Support
+
+This project is being developed with partial financial support of:
+
+| EMERALD Project (2023-2026) | SignON Project (2021-2023) |
+| --- | --- |
+| ![miciu](./data/imgs/marco_EMERALD.png) | ![logomaxr](./data/imgs/marco_SignON.png) |
