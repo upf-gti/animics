@@ -249,7 +249,7 @@ class App {
 
             this.editor.loadAnimation( name, data );
             this.editor.bindAnimationToCharacter( name );
-            this.editor.startEdition();
+            this.editor.startEdition(false);
         };
         reader.readAsText(animation);
     }
@@ -275,7 +275,7 @@ class App {
                                 
                 this.editor.loadAnimation( animation.name, animation );
                 this.editor.bindAnimationToCharacter( animation.name );
-                this.editor.startEdition();
+                this.editor.startEdition(false);
 
                 //this.editor.loadModel(anim);    
             };
@@ -284,7 +284,7 @@ class App {
             let name = "New animation";
             this.editor.loadAnimation(name, null );
             this.editor.bindAnimationToCharacter( name );
-            this.editor.startEdition();
+            this.editor.startEdition(true);
         }        
     }
 

@@ -1850,11 +1850,12 @@ class ScriptGui extends Gui {
             await callback();
     }
 
-    init() {
+    init( showGuide = true) {
         this.createSidePanel();
         this.updateMenubar();
-        if(this.duration <= 0)
+        if(showGuide) {
             this.showGuide();
+        }
         this.showTimeline();
         // Canvas UI buttons
         this.createSceneUI(this.canvasArea);

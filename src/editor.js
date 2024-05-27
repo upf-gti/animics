@@ -157,7 +157,7 @@ class Editor {
                             this.activeTimeline.selectAll();
                     }
                     break;
-                case 'i': case 'I':
+                case 'i': case 'I':case 'o': case 'O':
                     if(e.ctrlKey) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
@@ -399,8 +399,8 @@ class Editor {
         return this.loadedAnimations[this.currentAnimation];
     }
 
-    startEdition() {
-        this.gui.init();
+    startEdition(showGuide = true) {
+        this.gui.init(showGuide);
         this.animate();
     }
 

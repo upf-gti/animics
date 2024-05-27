@@ -70,7 +70,7 @@ class Timeline {
 
         this.duration = 1;
         this.speed = 1;
-        this.position = [options.x ?? 0, options.y ?? 0];
+        this.position = [0, 0];
         this.size = [ options.width ?? 400, options.height ?? 100];
         
         this.currentScroll = 0; //in percentage
@@ -407,6 +407,8 @@ class Timeline {
         
         //this.updateHeader();
         this.updateLeftPanel();
+        
+        return this.animationClip;
     }
 
     drawTimeInfo (w, h = this.topMargin) {
@@ -810,13 +812,18 @@ class Timeline {
         let current_grabbing_timeline = localY < this.topMargin && localX > this.session.left_margin && 
         localX > (timeX - 6) && localX < (timeX + 6);
 
-        if( current_grabbing_timeline )
+        if( current_grabbing_timeline ) {
             this.canvas.style.cursor = "col-resize";
+        }
         else if(this.movingKeys) {
             this.canvas.style.cursor = "grabbing";    
         }
-         else 
+        else if(e.shiftKey) {
+            this.canvas.style.cursor = "crosshair";
+        }
+        else {
             this.canvas.style.cursor = "default";
+        }
 
         if( e.type == "wheel" ) {
             if(e.shiftKey)
@@ -997,6 +1004,10 @@ class Timeline {
                     e.stopImmediatePropagation();
                     this.changeState();
                     break; 
+
+                case "Shift":
+                    this.canvas.style.cursor = "crosshair";
+                    break;
             }
         }
     }
@@ -2796,7 +2807,7 @@ class ClipsTimeline extends Timeline {
             if(this.onSelectClip)
                 this.onSelectClip(null);
         }
-        else if (track && this.dragClipMode == "duration") {
+        else if (track && (this.dragClipMode == "duration" || this.dragClipMode == "fadein" || this.dragClipMode == "fadeout" )) {
             let clips = this.getClipsInRange(track, time, time, 0.1);
             if(!clips) {
                 return;
@@ -2880,9 +2891,9 @@ class ClipsTimeline extends Timeline {
                         clip.fadeout = Math.max(Math.min((clip.fadeout || clip.start+clip.duration) + delta, clip.start+clip.duration), clip.start);
                     else if( this.dragClipMode == "duration" ) {
                         clip.duration += delta;
-                        if(delta < 0) {
-                            clip.fadein = Math.min(Math.max((clip.fadein || 0) + delta, clip.start), clip.start+clip.duration);
-                        }
+                        // if(delta < 0) {
+                        //     clip.fadein = Math.min(Math.max((clip.fadein || 0) + delta, clip.start), clip.start+clip.duration);
+                        // }
                         clip.fadeout = Math.max(Math.min((clip.fadeout || clip.start+clip.duration) + delta, clip.start+clip.duration), clip.start);
 
                         if(this.onContentMoved) {
@@ -2921,21 +2932,30 @@ class ClipsTimeline extends Timeline {
                 let clip = e.track.clips[clips[0]];
                 if(!clip) {
                     return;
-
                 }
-                const x = this.timeToX(clip.start+clip.duration);
-                if(Math.abs(e.localX - x) < 8) {
+                
+                const durationX = this.timeToX(clip.start + clip.duration);
+                const fadeinX = this.timeToX(clip.fadein);
+                const fadeoutX = this.timeToX(clip.fadeout);
+                if(Math.abs(e.localX - durationX) < 8) {
                     this.canvas.style.cursor = "col-resize";
                     this.dragClipMode = "duration";
-                }else {
+                }
+                else if(Math.abs(e.localX - fadeinX) < 8) {
+                    this.canvas.style.cursor = "e-resize";
+                    this.dragClipMode = "fadein";
+                }
+                else if(Math.abs(e.localX - fadeoutX) < 8) {
+                    this.canvas.style.cursor = "e-resize";
+                    this.dragClipMode = "fadeout";
+                }
+                else {
                     this.dragClipMode = "";
                 }
             }
             else {
                 removeHover();
             }
-
-            
         }
         else {
             removeHover();
@@ -3128,8 +3148,14 @@ class ClipsTimeline extends Timeline {
         let newStart = this.currentTime + offsetTime + clip.start;
         if(clip.fadein != undefined)
             clip.fadein += (newStart - clip.start);
+        else
+            clip.fadein = 0;
+
         if(clip.fadeout != undefined)
             clip.fadeout += (newStart - clip.start);
+        else
+            clip.fadeout = clip.duration;
+
         clip.start = newStart;
 
         // Time slot with other clip?
@@ -3875,7 +3901,6 @@ class CurvesTimeline extends Timeline {
         let track = e.track;
 
         if(e.shiftKey) {
-
             this.boxSelection = true;
             this.boxSelectionStart = [localX, localY - this.topMargin];
             e.multipleSelection = true;
