@@ -286,7 +286,7 @@ class Editor {
 
     loadCharacter(characterName) {
         // Load the target model (Eva) 
-        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/" + characterName + "/" + characterName +".glb", (gltf) => { 
+        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/" + characterName + "/" + characterName + ".glb", (gltf) => {
             let model = gltf.scene;
             model.name = characterName;
             model.visible = true;
@@ -433,7 +433,6 @@ class Editor {
             this.onAnimationEnded();
         }
         if (this.currentCharacter.mixer && this.state) {
-            //this.bvhMixer.update(dt); // TO DO: REMOVE IT
             this.currentCharacter.mixer.update(dt);
             this.currentTime = this.activeTimeline.currentTime = this.currentCharacter.mixer.time;
             LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
@@ -487,7 +486,7 @@ class Editor {
         if(this.state && !force)
             return;
 
-        // mixer computes time * timeScale. We actually want to set the reaw animation (track) time, without any timeScale 
+        // mixer computes time * timeScale. We actually want to set the raw animation (track) time, without any timeScale 
         this.currentCharacter.mixer.setTime(t/this.currentCharacter.mixer.timeScale); //already calls mixer.update
     }
 
@@ -668,6 +667,7 @@ class Editor {
         this.activeTimeline.updateHeader();
 
         this.activeTimeline.onSetSpeed = (v) => {
+            v = Math.min( 16, Math.max( 0.1, v ) );
             this.currentCharacter.mixer.timeScale = v;
             if ( this.video ){ 
                 this.video.playbackRate = v; 
@@ -706,9 +706,6 @@ class Editor {
 
     export(type = null, name) {
         switch(type){
-            case 'BVH':
-                BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation);
-                break;
             case 'GLB':
                 let options = {
                     binary: true,
@@ -719,37 +716,40 @@ class Editor {
                 }
                 let model = this.currentCharacter.mixer._root.getChildByName('Armature');
                 this.GLTFExporter.parse(model, 
-                    ( gltf ) => BVHExporter.download(gltf, (name || this.clipName) + '.glb', 'arraybuffer' ), // called when the gltf has been generated
+                    ( gltf ) => UTILS.download(gltf, (name || this.clipName) + '.glb', 'arraybuffer' ), // called when the gltf has been generated
                     ( error ) => { console.log( 'An error happened:', error ); }, // called when there is an error in the generation
-                options
-            );
+                    options
+                );
+                break;
+            case 'BVH':
+                let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation);
+                UTILS.download(bvh, name, "text/plain");
+                // bvhexport sets avatar to bindpose. Avoid user seeing this
+                this.currentCharacter.mixer.update(0);
                 break;
             case 'BVH extended':
-                let skeleton = this.currentCharacter.skeletonHelper.skeleton.clone();
-                skeleton.pose();
-                let bvhSkeletonHelper = new THREE.SkeletonHelper(skeleton.bones[0]);
-                this.scene.add(bvhSkeletonHelper);
-                this.scene.add(skeleton.bones[0]);
-
-                let LOCAL_STORAGE = 1;
+                let skeleton = this.currentCharacter.skeletonHelper.skeleton;
+                let bvhPose = null;
+                let bvhFace = null;
                 if(this.mode == this.editionModes.SCRIPT) {
-                    BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE );
-                    BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[0], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation, LOCAL_STORAGE);
+                    bvhPose = BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().bodyAnimation);
+                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[0], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation);
                 }
                 else {
-                    BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().bodyAnimation, LOCAL_STORAGE);
-                    BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation, LOCAL_STORAGE);
+                    bvhPose = BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().bodyAnimation);
+                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().faceAnimation);
                 }
                 
-                let bvh = window.localStorage.getItem("bvhskeletonpreview");
-                bvh += window.localStorage.getItem("bvhblendshapespreview");
-                BVHExporter.download(bvh, (name || this.clipName) + ".bvhe")
+                UTILS.download(bvhPose + bvhFace, (name || this.clipName) + ".bvhe", "text/plain" );
+
+                // bvhexport sets avatar to bindpose. Avoid user seeing this
+                this.currentCharacter.mixer.update(0);
                 break;
 
             default:
                 let json = this.exportBML();
                 if(!json) return;
-                BVHExporter.download(JSON.stringify(json), (name || this.clipName) + '.bml', "application/json");
+                UTILS.download(JSON.stringify(json), (name || this.clipName) + '.bml', "application/json");
                 console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
                 break;
         }
@@ -760,7 +760,9 @@ class Editor {
         let url = "";
         if(this.mode == this.editionModes.CAPTURE || this.mode == this.editionModes.VIDEO) {
 
-            BVHExporter.copyToLocalStorage(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation);
+            let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().bodyAnimation);
+            window.localStorage.setItem('bvhskeletonpreview', bvh);
+            // window.localStorage.setItem('bvhblendshapespreview', bvh);
             url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
         }
         else{
@@ -1012,7 +1014,7 @@ class KeyframeEditor extends Editor{
     
     constructor(app, mode) {
                 
-        super(app);
+        super(app, mode);
 
         this.defaultTranslationSnapValue = 1;
         this.defaultRotationSnapValue = 30; // Degrees
@@ -1030,7 +1032,6 @@ class KeyframeEditor extends Editor{
         this.video = app.video;
         
         this.mapNames = MapNames.map_llnames[this.character];
-        this.mode = this.editionModes[mode];
         this.gui = new KeyframesGui(this);
 
         this.video = document.getElementById("recording");
@@ -1121,16 +1122,8 @@ class KeyframeEditor extends Editor{
         // loader does not correctly compute the skeleton boneInverses and matrixWorld 
         skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
         skeleton = new THREE.Skeleton( skeleton.bones ); // will automatically compute boneInverses
-        let bvhSkeletonHelper = new THREE.SkeletonHelper(skeleton.bones[0]);
-        bvhSkeletonHelper.skeleton = skeleton;
-        this.scene.add(bvhSkeletonHelper);
-        this.scene.add(skeleton.bones[0]);
-        //this.bvhMixer = new THREE.AnimationMixer(bvhSkeletonHelper);
         
         animationData.skeletonAnim.clip.tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
-
-        //this.bvhMixer.clipAction( animationData.skeletonAnim.clip).setEffectiveWeight( 1.0 ).play();
-        //this.bvhMixer.update(0);
 
         this.loadedAnimations[name] = {
             name: name,
@@ -1709,7 +1702,7 @@ class ScriptEditor extends Editor{
     
     constructor(app) {
                 
-        super(app);
+        super(app, "SCRIPT");
         // -------------------- SCRIPT MODE --------------------
         this.gizmo = null;        
         this.dominantHand = "Right";
@@ -1719,7 +1712,6 @@ class ScriptEditor extends Editor{
 
         this.activeTimeline = null;
         // ------------------------------------------------------
-        this.mode = this.editionModes.SCRIPT;
         this.gui = new ScriptGui(this);  
         // this.getDictionaries();
         this.refreshSignsRepository = false;

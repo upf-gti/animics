@@ -98,7 +98,25 @@ const UTILS = {
 		$("#loading").removeClass("hidden");
 		$("#loading").css({ background: "rgba(17,17,17," + opacity + ")" })
 		$("#loading").fadeIn();
-	}
+	},
+
+	// Function to download data to a file
+	download: function(data, filename, type = "text/plain") {
+        let file = new Blob([data], {type: type});
+        if (window.navigator.msSaveOrOpenBlob) // IE10+
+            window.navigator.msSaveOrOpenBlob(file, filename);
+        else { // Others
+            let a = document.createElement("a");
+            let url = URL.createObjectURL(file);
+            a.href = url;
+            a.download = filename;
+            a.click();
+            setTimeout(function() {
+                window.URL.revokeObjectURL(url);  
+            }, 0); 
+        }
+    }
+
 };
 
 const ShaderChunk = {

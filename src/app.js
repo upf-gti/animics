@@ -24,20 +24,20 @@ class App {
         let callback;
         switch(mode) {
             case 'capture': 
-                this.editor = new KeyframeEditor(this, mode);
+                this.editor = new KeyframeEditor(this, "CAPTURE");
                 callback = this.onBeginCapture.bind(this);
                 break;
             case 'video': 
                 this.video = settings.data;
-                this.editor = new KeyframeEditor(this, "video");
+                this.editor = new KeyframeEditor(this, "VIDEO");
                 callback = this.onLoadVideo.bind(this, settings.data );
                 break;
             case 'bvh': case 'bvhe':
-                this.editor = new KeyframeEditor(this, "video");
+                this.editor = new KeyframeEditor(this, "VIDEO");
                 callback = this.onLoadAnimation.bind(this, settings.data );
                 break;
             case 'bml': case 'json': case 'sigml': case 'script':
-                this.editor = new ScriptEditor(this, 'script');
+                this.editor = new ScriptEditor(this, 'SCRIPT');
                 callback = this.onScriptProject.bind(this, settings.data, mode );
                 break;
             default:

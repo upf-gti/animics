@@ -1,34 +1,11 @@
 import * as THREE from "three";
 
-const DOWNLOAD      = 0;
-const LOCAL_STORAGE = 1;
-const LOG           = 1;
-
 const BVHExporter = {
-
-    // Function to download data to a file
-    download: function(data, filename, type) {
-        var file = new Blob([data], {type: type});
-        if (window.navigator.msSaveOrOpenBlob) // IE10+
-            window.navigator.msSaveOrOpenBlob(file, filename);
-        else { // Others
-            var a = document.createElement("a"),
-            url = URL.createObjectURL(file);
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(function() {
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);  
-            }, 0); 
-        }
-    },
 
     getTabs: function(level) {
         
-        var tabs = "";
-        for (var i = 0; i < level; ++i) {
+        let tabs = "";
+        for (let i = 0; i < level; ++i) {
             tabs += "\t";
         }
         return tabs;
@@ -36,13 +13,13 @@ const BVHExporter = {
 
     exportBone: function(bone, level) {
 
-        var isEndSite = bone.children.length == 0;
+        let isEndSite = bone.children.length == 0;
 
-        var tabs = this.getTabs(level);
-        var bvh = tabs;
+        let tabs = this.getTabs(level);
+        let bvh = tabs;
         if(bone.type != 'Bone')
             return "";
-        var exportPos = false;
+        let exportPos = false;
         if (!bone.parent || bone.parent.type != 'Bone') {
             bvh += "ROOT " + bone.name + "\n";
             exportPos = true;
@@ -71,7 +48,7 @@ const BVHExporter = {
             }
         }
 
-        for (var i = 0; i < bone.children.length; ++i) {
+        for (let i = 0; i < bone.children.length; ++i) {
             bvh += this.exportBone(bone.children[i], level + 1);
         }
 
@@ -81,7 +58,7 @@ const BVHExporter = {
     },
 
     quatToEulerString: function(q) {
-        var euler = new THREE.Euler();
+        let euler = new THREE.Euler();
         euler.setFromQuaternion(q);
         return THREE.Math.radToDeg(euler.x).toFixed(6) + " " + THREE.Math.radToDeg(euler.y).toFixed(6) + " " + THREE.Math.radToDeg(euler.z).toFixed(6) + " ";
     },
@@ -90,13 +67,14 @@ const BVHExporter = {
         return p.x.toFixed(6) + " " + p.y.toFixed(6) + " " + p.z.toFixed(6) + " ";
     },
 
-    export: function(action, skeleton, clip, mode) {
+    export: function(action, skeleton, clip) {
 
-        var bvh = "";
+        let bvh = "";
         const framerate = 1 / 30;
         const numFrames = 1 + Math.floor(clip.duration / framerate);
 
         this.skeleton = skeleton;
+        skeleton.pose(); // needs to be in bind pose (tpose)
 
         bvh += "HIERARCHY\n";
 
@@ -115,79 +93,79 @@ const BVHExporter = {
 
         const getBoneFrameData = (time, bone) => {
 
-            var data = "";
+            let data = "";
 
             // End site
             if(!bone.children.length)
             return data;
 
-            const tracks = clip.tracks.filter( t => t.name.replaceAll(".bones").split(".")[0].includes(bone.name) );
+            // const tracks = clip.tracks.filter( t => t.name.replaceAll(".bones").split(".")[0].includes(bone.name) );
+            const tracks = clip.tracks.filter( t => {
+                let name = t.name.replaceAll(".bones");
+                let idx = name.lastIndexOf("."); 
+                if ( idx >= 0 ){
+                    name = name.slice( 0, idx );
+                }
+                return name === bone.name; 
+            } );
             
+            const pos = new THREE.Vector3(0,0,0);
+            const quat = new THREE.Quaternion(0,0,0,1);
+
             // No animation info            
-            if(!tracks.length)
-                data += this.quatToEulerString(bone.quaternion);
-            else {
-                for(var i = 0; i < tracks.length; ++i) {
+            for(let i = 0; i < tracks.length; ++i) {
 
-                    const t = tracks[i];
-                    const trackIndex = clip.tracks.indexOf( t );
-                    const interpolant = interpolants[ trackIndex ];
-                    const values = interpolant.evaluate(time);
-    
-                    const type = t.name.replaceAll(".bones").split(".")[1];
-                    switch(type) {
-                        case 'position':
-                            let pos = new THREE.Vector3();
-                            if(!values.length) {
-                                pos = bone.position;
-                            }
-                            else {
-                                pos.fromArray(values.slice(0, 3));
-                            }
-                            data += this.posToString(pos);
-                            break;
-                        case 'quaternion':
-                            const q = new THREE.Quaternion();
-                            q.fromArray(values.slice(0, 4));
-                            let invWorldRot = this.skeleton.getBoneByName( bone.name ).getWorldQuaternion(new THREE.Quaternion()).invert();
-                            let wordlParentBindRot = this.skeleton.getBoneByName( bone.name ).parent.getWorldQuaternion(new THREE.Quaternion());
-                            q.premultiply(wordlParentBindRot).multiply(invWorldRot);
-
-                            data += this.quatToEulerString(q);
-                    }
+                const t = tracks[i];
+                const trackIndex = clip.tracks.indexOf( t );
+                const interpolant = interpolants[ trackIndex ];
+                const values = interpolant.evaluate(time);
+                
+                const type = t.name.replaceAll(".bones").split(".")[1];
+                switch(type) {
+                    case 'position':
+                        // threejs animation clips store a position which will be attached to the bone each frame.
+                        // However, BVH position track stores the translation from the bone's offset defined in HERIARCHY
+                        if(values.length) {
+                            pos.fromArray(values.slice(0, 3));
+                            pos.sub(bone.position);
+                        }
+                        break;
+                    case 'quaternion': // retarget animation quaternion to the bvh bind posed skeleton
+                        quat.fromArray(values.slice(0, 4));
+                        let invWorldRot = this.skeleton.getBoneByName( bone.name ).getWorldQuaternion(new THREE.Quaternion()).invert();
+                        let wordlParentBindRot = this.skeleton.getBoneByName( bone.name ).parent.getWorldQuaternion(new THREE.Quaternion());
+                        quat.premultiply(wordlParentBindRot).multiply(invWorldRot);
+                        break;
                 }
             }
 
+            // TODO: check for channels in bone heriarchy to acurately determine which attributes and in which order should appear
+            // add position track if root
+            if ( !bone.parent || !bone.parent.isBone ){ 
+                data += this.posToString(pos); 
+            }
+            data += this.quatToEulerString(quat);
+
+            // process and append children's data (following HIERARCHY) 
             for (const b of bone.children)
                 data += getBoneFrameData(time, b);
 
             return data;
         }
 
-        for( var frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
+        for( let frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
             bvh += getBoneFrameData(frameIdx * framerate, skeleton.bones[0]);
             bvh += "\n";
         }
 
-        switch(mode) {
-            
-            case LOCAL_STORAGE:
-                window.localStorage.setItem('bvhskeletonpreview', bvh);
-                break;
-            case LOG:
-                console.log(bvh);
-                break;
-            default:
-                this.download(bvh, 'sign.bvh', 'text/plain');
-                break;
-        }
-
         this.skeleton = null;
+        
+        return bvh;
     },
 
-    exportCustom: function(action, skeleton, clip, mode) {
+    exportCustom: function(action, skeleton, clip) {
 
-        var bvh = "";
+        let bvh = "";
 
         this.skeleton = skeleton;
 
@@ -206,7 +184,7 @@ const BVHExporter = {
 
         const getBoneFrameData = (bone) => {
 
-            var data = "";
+            let data = "";
 
             // End site
             if(!bone.children.length)
@@ -218,7 +196,7 @@ const BVHExporter = {
                 data += "\n" + bone.name;
             }
 
-            for(var i = 0; i < tracks.length; ++i) {
+            for(let i = 0; i < tracks.length; ++i) {
 
                 const t = tracks[i];
                 const type = t.name.replaceAll(".bones").split(".")[1];
@@ -250,28 +228,19 @@ const BVHExporter = {
         }
 
         bvh += getBoneFrameData(skeleton.bones[0]);
-        switch(mode) {
-            
-            case LOCAL_STORAGE:
-                window.localStorage.setItem('bvhskeletonpreview', bvh);
-                break;
-            case LOG:
-                console.log(bvh);
-                break;
-            default:
-                this.download(bvh, 'sign.bvh', 'text/plain');
-                break;
-        }
+        
         this.skeleton = null;
+
+        return bvh;
     },
 
-    copyToLocalStorage: function(action, skeleton, clip) {
-        this.export(action, skeleton, clip, LOCAL_STORAGE);
-    },
+    exportMorphTargets: function(action, morphTargetDictionary, clip) {
 
-    exportMorphTargets: function(action, morphTargetDictionary, clip, mode) {
-
-        var bvh = "";
+        if ( !action || !morphTargetDictionary || !clip ){
+            return "";
+        }
+        
+        let bvh = "";
         const framerate = 1 / 30;
         const numFrames = 1 + Math.floor(clip.duration / framerate);
 
@@ -292,7 +261,7 @@ const BVHExporter = {
 
         const getMorphTargetFrameData = (time, morphTarget) => {
 
-            var data = "";
+            let data = "";
             for(let idx = 0; idx < morphTarget.length; idx++)
             {
                 const tracks = clip.tracks.filter( t => t.name.includes('[' + morphTarget[idx] + ']') );
@@ -300,7 +269,7 @@ const BVHExporter = {
                 if(!tracks.length)
                     console.warn("No tracks for " + morphTarget)
                 else {
-                    for(var i = 0; i < tracks.length; ++i) {
+                    for(let i = 0; i < tracks.length; ++i) {
     
                         const t = tracks[i];
                         const trackIndex = clip.tracks.indexOf( t );
@@ -314,23 +283,12 @@ const BVHExporter = {
             return data;
         }
 
-        for( var frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
+        for( let frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
             bvh += getMorphTargetFrameData(frameIdx * framerate, morphTargets);
             bvh += "\n";
         }
 
-        switch(mode) {
-            
-            case LOCAL_STORAGE:
-                window.localStorage.setItem('bvhblendshapespreview', bvh);
-                break;
-            case LOG:
-                console.log(bvh);
-                break;
-            default:
-                this.download(bvh, 'NMFsign.bvhe', 'text/plain');
-                break;
-        }
+        return bvh;
     },
 };
 
