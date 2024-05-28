@@ -787,9 +787,15 @@ class KeyframesGui extends Gui {
                 if ( playElement ){ playElement.children[0].click() }
             }
         }
-
-        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime( t );
-        this.keyFramesTimeline.onSetDuration = (t) => {this.duration = this.keyFramesTimeline.duration = this.clip.duration = duration = t};
+        this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
+        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t);
+        this.keyFramesTimeline.onSetDuration = (t) => { 
+            let currentBinded = this.editor.getCurrentBindedAnimation();
+            currentBinded.mixerBodyAnimation.duration = t;
+            currentBinded.mixerFaceAnimation.duration = t;
+            currentBinded.auAnimation.duration = t;
+            this.curvesTimeline.duration = t;
+        };
         this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
 
         this.keyFramesTimeline.onSelectKeyFrame = (e, info, index) => {
@@ -870,6 +876,10 @@ class KeyframesGui extends Gui {
                 )
             }
             else {
+                if(!e.track) {
+                    return;
+                }
+                
                 let [name, type] = [e.track.name, e.track.type]
                 if(that.boneProperties[type]) {
                     
@@ -925,7 +935,15 @@ class KeyframesGui extends Gui {
         });
         
         this.curvesTimeline.setFramerate(30);
+        this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => this.editor.setTime(t);
+        this.curvesTimeline.onSetDuration = (t) => { 
+            let currentBinded = this.editor.getCurrentBindedAnimation();
+            currentBinded.mixerBodyAnimation.duration = t;
+            currentBinded.mixerFaceAnimation.duration = t;
+            currentBinded.auAnimation.duration = t;
+            this.keyFramesTimeline.duration = t;
+        };
         this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };

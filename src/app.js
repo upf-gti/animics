@@ -222,7 +222,6 @@ class App {
             -moz-transform:rotateY(0deg); /* Firefox */"
     
             // Creates the scene and loads the animation. Changes ui to edition
-            this.editor.trimTimes = [videoObj.startTime, videoObj.endTime];
             this.editor.buildAnimation( videoObj );
             this.editor.bindAnimationToCharacter( videoObj.name );
             this.editor.startEdition();

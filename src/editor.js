@@ -384,7 +384,8 @@ class Editor {
         this.currentCharacter = this.loadedCharacters[characterName];
         this.scene.add( this.currentCharacter.model );
         this.scene.add( this.currentCharacter.skeletonHelper );
-        
+        this.setPlaybackRate(this.activeTimeline.speed);
+
         // Gizmo stuff
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
@@ -402,6 +403,14 @@ class Editor {
     startEdition(showGuide = true) {
         this.gui.init(showGuide);
         this.animate();
+    }
+
+    setPlaybackRate(v){
+        v = Math.min( 16, Math.max( 0.1, v ) );
+        this.currentCharacter.mixer.timeScale = v;
+        if(this.mode != this.editionModes.SCRIPT && this.video) {
+            this.video.playbackRate = v; 
+        }
     }
 
     /** -------------------- UPDATES, RENDER AND EVENTS -------------------- */
@@ -428,7 +437,10 @@ class Editor {
 
     update(dt) {
 
-        if(this.currentTime > this.activeTimeline.duration) {
+        if (this.video.src && this.video.currentTime >= this.video.endTime ) {
+            this.video.pause(); // stop video on last frame until loop
+        }
+        if (this.currentTime > this.activeTimeline.duration) {
             this.currentTime = this.activeTimeline.currentTime = 0.0;
             this.onAnimationEnded();
         }
@@ -656,6 +668,7 @@ class Editor {
             switch(type) {
                 case this.animationModes.FACE:
                     this.animationMode = this.animationModes.FACE;
+                    this.gui.curvesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                     this.activeTimeline = this.gui.curvesTimeline;
                     if(!this.selectedAU) return;
                     if (this.gizmo) { this.gizmo.stop(); }
@@ -663,9 +676,10 @@ class Editor {
                     this.activeTimeline.show();
                     this.setSelectedActionUnit(this.selectedAU);                    
                     break;
-
+                    
                 case this.animationModes.BODY:
                     this.animationMode = this.animationModes.BODY;
+                    this.gui.keyFramesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                     this.activeTimeline = this.gui.keyFramesTimeline;
                     this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().skeletonAnimation, false );
                     this.activeTimeline.show();            
@@ -681,18 +695,14 @@ class Editor {
         this.setTime(currentTime, true);
         this.activeTimeline.updateHeader();
 
-        this.activeTimeline.onSetSpeed = (v) => {
-            v = Math.min( 16, Math.max( 0.1, v ) );
-            this.currentCharacter.mixer.timeScale = v;
-            if ( this.video ){ 
-                this.video.playbackRate = v; 
-            }
-        }
     }
 
     onAnimationEnded() {
 
         if(this.animLoop) {
+            if (this.video.paused) {
+                this.video.play();
+            }
             this.setTime(0.0, true);
         } else {
             this.currentCharacter.mixer.setTime(0);
@@ -1044,7 +1054,6 @@ class KeyframeEditor extends Editor{
         this.nnSkeleton = null;
 
         this.retargeting = null;
-        this.video = app.video;
         
         this.mapNames = MapNames.map_llnames[this.character];
         this.gui = new KeyframesGui(this);
@@ -1162,7 +1171,10 @@ class KeyframeEditor extends Editor{
         }
 
         this.currentAnimation = animationName;
-        
+        this.video.src = animation.videoBlob;
+        this.video.startTime = animation.startTime ?? 0;
+        this.video.endTime = animation.endTime ?? 1;
+
         // Remove current animation clip
         let mixer = this.currentCharacter.mixer.stopAllAction();
         mixer.stopAllAction();
@@ -1343,8 +1355,14 @@ class KeyframeEditor extends Editor{
         this.gizmo.updateBones();
     }
 
-    updateAnimationAction(timelineAnimation, trackIdxs) {
-        // TO DO: this function is being called from updateBlendshapesProperties with the mixerFaceAnimation (which is not a timelineAnimation but a threejsAnimation)
+    /**
+     * This function updates the mixer animation actions so the edited tracks are assigned to the interpolants  
+     * @param {animation} editedAnimation for body it is the timeline skeletonAnimation. For face it is the mixerFaceAnimation with the updated blendshape values
+     * @param {Number or Array of Numbers} trackIdxs 
+     * @returns 
+     */
+    updateAnimationAction(editedAnimation, trackIdxs) {
+        // for bones editedAnimation is the timeline skeletonAnimationTO DO: this function is being called from updateBlendshapesProperties with the mixerFaceAnimation (which is not a timelineAnimation but a threejsAnimation)
         if(this.animationMode == this.editionModes.SCRIPT) { 
             return;
         }
@@ -1360,10 +1378,10 @@ class KeyframeEditor extends Editor{
         }
                      
         for(let i = 0; i< mixer._actions.length; i++) {
-            if(mixer._actions[i]._clip.name == timelineAnimation.name) { // name == ("bodyAnimation" || "faceAnimation")
+            if(mixer._actions[i]._clip.name == editedAnimation.name) { // name == ("bodyAnimation" || "faceAnimation")
                 for(let j = 0; j < trackIdxs.length; j++) {
                     const trackIdx = trackIdxs[j];
-                    const track = timelineAnimation.tracks[trackIdx];
+                    const track = editedAnimation.tracks[trackIdx];
                     const interpolant = mixer._actions[i]._interpolants[trackIdx];
                     const mixerClip = mixer._actions[i]._clip;
                                        
