@@ -437,8 +437,10 @@ class Editor {
 
     update(dt) {
 
-        if (this.video.src && this.video.currentTime >= this.video.endTime ) {
-            this.video.pause(); // stop video on last frame until loop
+        if (this.mode != this.editionModes.SCRIPT) {
+            if (this.video.src && this.video.currentTime >= this.video.endTime ) {
+                this.video.pause(); // stop video on last frame until loop
+            }
         }
         if (this.currentTime > this.activeTimeline.duration) {
             this.currentTime = this.activeTimeline.currentTime = 0.0;
@@ -652,6 +654,11 @@ class Editor {
         // TO DO: Update BML tracks
     }
 
+    /**
+     * hides/show timelines depending on the type sent (BODY, FACE). DOES NOT set the character.mixer animations
+     * @param {animationModes} type 
+     * @returns 
+     */
     setAnimation(type) {
 
         let currentTime = 0;
@@ -700,7 +707,7 @@ class Editor {
     onAnimationEnded() {
 
         if(this.animLoop) {
-            if (this.video.paused) {
+            if (this.mode != this.editionModes.SCRIPT && this.video.paused) {
                 this.video.play();
             }
             this.setTime(0.0, true);
@@ -1163,11 +1170,16 @@ class KeyframeEditor extends Editor{
         };
     }
 
+    /**
+     * KeyframeEditor: fetches a loaded animation and applies it to the character. The first time an animation is binded, it is processed and saved. Afterwards, this functino just changes between existing animations 
+     * @param {String} animationName 
+     */
     bindAnimationToCharacter(animationName) {
         
         let animation = this.loadedAnimations[animationName];
         if(!animation) {
-            console.error(animationName + " not found");
+            console.warn(animationName + " not found");
+            return false;
         }
 
         this.currentAnimation = animationName;
@@ -1176,83 +1188,88 @@ class KeyframeEditor extends Editor{
         this.video.endTime = animation.endTime ?? 1;
 
         // Remove current animation clip
-        let mixer = this.currentCharacter.mixer.stopAllAction();
+        let mixer = this.currentCharacter.mixer;
         mixer.stopAllAction();
 
-        for(let i = 0; i < mixer._actions.length; i++) { //TO DO: Check if it changes actions length
-            mixer.uncacheAction(mixer._actions[i]);
-            //this.mixer._actions.pop();
+        while(mixer._actions.length){
+            mixer.uncacheClip(mixer._actions[0]._clip); // removes action
         }
+        this.currentCharacter.skeletonHelper.skeleton.pose(); // for some reason, mixer.stopAllAction makes bone.position and bone.quaternions undefined. Ensure they have some values
 
-        let bodyAnimation = animation.bodyAnimation;        
-        let skeletonAnimation = null;
-        if(bodyAnimation) {
-        
-            let tracks = [];        
-            // Remove position changes (only keep i == 0, hips)
-            for (let i = 0; i < bodyAnimation.tracks.length; i++) {
+        // if not yet binded, create it. Otherwise just change to the existing animation
+        if ( !this.bindedAnimations[animationName] || !this.bindedAnimations[animationName][this.currentCharacter.name] ) {
+            let bodyAnimation = animation.bodyAnimation;        
+            let skeletonAnimation = null;
+            if(bodyAnimation) {
+            
+                let tracks = [];        
+                // Remove position changes (only keep i == 0, hips)
+                for (let i = 0; i < bodyAnimation.tracks.length; i++) {
 
-                if(i && bodyAnimation.tracks[i].name.includes('position')) {
-                    continue;
+                    if(i && bodyAnimation.tracks[i].name.includes('position')) {
+                        continue;
+                    }
+                    tracks.push(bodyAnimation.tracks[i]);
+                    tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
                 }
-                tracks.push(bodyAnimation.tracks[i]);
-                tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
+
+                //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+                bodyAnimation.tracks = tracks;            
+                let skeleton = animation.skeleton ?? this.nnSkeleton;
+                // Retarget NN animation              
+                //forceBindPoseQuats(this.currentCharacter.skeletonHelper.skeleton); // TO DO: Fix bind pose of Eva
+                forceBindPoseQuats(skeleton); 
+                // trgUseCurrentPose: use current Bone obj quats,pos, and scale
+                // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
+                let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.model, { trgUseCurrentPose: true, trgEmbedWorldTransforms: true } ); // TO DO: change trgUseCurrentPose param
+                bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+                
+                this.validateAnimationClip(bodyAnimation);
+
+                // Set animation to the timeline and get the formated one
+                skeletonAnimation = this.gui.keyFramesTimeline.setAnimationClip( bodyAnimation );
+                this.gui.keyFramesTimeline.setSelectedItems([this.currentCharacter.skeletonHelper.bones[0].name]);
+
+                bodyAnimation.name = "bodyAnimation";   // mixer
+                skeletonAnimation.name = "bodyAnimation";  // timeline
             }
+                
+            let faceAnimation = animation.faceAnimation;        
+            let auAnimation = null;
+            if(faceAnimation) { // TO DO: Check if it's if-else or if-if
+                
+                // Set animation to the timeline and get the formated one
+                auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation );
+                if(animation.type == "video") {
+                    faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
+                }
 
-            //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
-            bodyAnimation.tracks = tracks;            
-            let skeleton = animation.skeleton ?? this.nnSkeleton;
-            // Retarget NN animation              
-            //forceBindPoseQuats(this.currentCharacter.skeletonHelper.skeleton); // TO DO: Fix bind pose of Eva
-            forceBindPoseQuats(skeleton); 
-            // trgUseCurrentPose: use current Bone obj quats,pos, and scale
-            // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
-            let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.model, { trgUseCurrentPose: true, trgEmbedWorldTransforms: true } ); // TO DO: change trgUseCurrentPose param
-            bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
-            
-            this.validateAnimationClip(bodyAnimation);
-
-            // Set animation to the timeline and get the formated one
-            skeletonAnimation = this.gui.keyFramesTimeline.setAnimationClip( bodyAnimation );
-            this.gui.keyFramesTimeline.setSelectedItems([this.currentCharacter.skeletonHelper.bones[0].name]);
-
-            this.currentCharacter.mixer.clipAction(bodyAnimation).setEffectiveWeight(1.0).play();          
-            bodyAnimation.name = "bodyAnimation";   // mixer
-            skeletonAnimation.name = "bodyAnimation";  // timeline
-        }
-              
-        let faceAnimation = animation.faceAnimation;        
-        let auAnimation = null;
-        if(faceAnimation) { // TO DO: Check if it's if-else or if-if
-            
-            // Set animation to the timeline and get the formated one
-            auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation );
-            if(animation.type == "video") {
-                faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
+                faceAnimation.name = "faceAnimation";   // mixer
+                auAnimation.name = "faceAnimation";  // timeline
             }
-            this.currentCharacter.mixer.clipAction(faceAnimation).setEffectiveWeight(1.0).play();
-
-            faceAnimation.name = "faceAnimation";   // mixer
-            auAnimation.name = "faceAnimation";  // timeline
+            
+            if(!this.bindedAnimations[animationName]) {
+                this.bindedAnimations[animationName] = {};
+            }
+            this.bindedAnimations[animationName][this.currentCharacter.name] = {
+                mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation, // for threejs mixer 
+                skeletonAnimation, auAnimation // from gui timeline
+            }
         }
+
+        let bindedAnim = this.bindedAnimations[animationName][this.currentCharacter.name];
+        mixer.clipAction(bindedAnim.mixerFaceAnimation).setEffectiveWeight(1.0).play(); // already handles nulls and undefines
+        mixer.clipAction(bindedAnim.mixerBodyAnimation).setEffectiveWeight(1.0).play();
         
-        if(!this.bindedAnimations[animationName]) {
-            this.bindedAnimations[animationName] = {};
-        }
-        this.bindedAnimations[animationName][this.currentCharacter.name] = {
-            mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation, // for threejs mixer 
-            skeletonAnimation, auAnimation // from gui timeline
-        }
-
-        this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
-        this.gizmo.updateBones();
-
-
-        //this.gui.loadKeyframeClip(bodyAnimation, () => this.gui.init());
         this.setAnimation(this.animationMode);
+        this.gizmo.updateBones();
+        // mixer.setTime(0);
+        this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
 
-        if(bodyAnimation)
+        if(bindedAnim.mixerBodyAnimation) {
             $('#loading').fadeOut();
+        }
+        return true;
     }
 
     /** Validate body animation clip created using ML */
@@ -1410,109 +1427,6 @@ class KeyframeEditor extends Editor{
         }
         
     }    
-
-    old_updateAnimationAction(animation, idx, replace = false) {
-        if(this.animationMode == this.editionModes.SCRIPT) 
-            return;
-        
-        const mixer = this.currentCharacter.mixer;
-
-        if(!mixer._actions.length) 
-            return;
-
-        if(typeof idx == 'number')
-            idx = [idx];
-
-        if(replace) {
-            let newAnimation = animation.clone();
-            newAnimation.tracks = [];
-            
-            for(let i = 0; i < animation.tracks.length; i++) {
-                const track = animation.tracks[i];
-                if(track.active) {
-                    switch(track.type) {
-                        case "position":
-                            newAnimation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
-                            break;
-                        case "quaternion":
-                            newAnimation.tracks.push(new THREE.QuaternionKeyframeTrack(track.fullname, track.times, track.values));
-                            break;
-                        case "scale":
-                            newAnimation.tracks.push(new THREE.VectorKeyframeTrack(track.fullname, track.times, track.values));
-                            break;
-                        default:
-                            newAnimation.tracks.push(new THREE.NumberKeyframeTrack(track.fullname, track.times, track.values));
-                            break;
-                    } 
-                }
-            }
-            for(let i = 0; i< mixer._actions.length; i++) {
-                if(mixer._actions[i]._clip.name == animation.name) {
-                    this.currentCharacter.mixer.uncacheClip(mixer._actions[i]._clip)
-                    this.currentCharacter.mixer.uncacheAction(mixer._actions[i])
-                    this.currentCharacter.mixer.clipAction(newAnimation).play();
-                }
-            }
-            
-            if(this.animationMode == this.animationModes.BODY) {
-                this.getCurrentBindedAnimation().mixerBodyAnimation = animation;
-            }
-            else if(this.animationMode == this.animationModes.FACE) {
-                this.getCurrentBindedAnimation().mixerFaceAnimation = animation;
-            }
-            this.setTime(this.activeTimeline.currentTime);
-            
-        }
-        else {
-            let valueDeletedInfo = null;
-            let mixerBodyAnimation = this.getCurrentBindedAnimation().mixerBodyAnimation;
-           
-            for(let i = 0; i< mixer._actions.length; i++) {
-                if(mixer._actions[i]._clip.name == animation.name) {
-                    for(let j = 0; j < idx.length; j++) {
-    
-                        const track = animation.tracks[idx[j]];
-                       
-                        
-                        if(!track.active)
-                            continue;
-                        mixer._actions[i]._clip.tracks[idx[j]] = mixerBodyAnimation.tracks[idx[j]];
-                        mixer._actions[i]._clip.tracks[idx[j]]._interpolants = mixer._actions[i]._clip.tracks[idx[j]].createInterpolant();
-
-                        if( mixer._actions[i]._interpolants[idx[j]].parameterPositions.length > track.times.length )
-                            valueDeletedInfo = track;
-
-                        // Update times
-                        mixer._actions[i]._interpolants[idx[j]].parameterPositions = mixer._actions[i]._clip.tracks[idx[j]].times = track.times;
-                        // Update values
-                        mixer._actions[i]._interpolants[idx[j]].sampleValues = mixer._actions[i]._clip.tracks[idx[j]].values = track.values;                        
-                    }
-
-                    
-                    if(this.animationMode == this.animationModes.BODY) {
-                        this.getCurrentBindedAnimation().bodyAnimation = animation;
-                    }
-                    else if(this.animationMode == this.animationModes.FACE) {
-                        this.getCurrentBindedAnimation().faceAnimation = animation;
-                        
-                        //update timeline animation track if a value is deleted
-                        if(valueDeletedInfo) {
-
-                            let auAnimation = this.getCurrentBindedAnimation().auAnimation;
-                            for(let a = 0; a < auAnimation.tracks.length; a++) {
-                                if(auAnimation.tracks[a].name == valueDeletedInfo.fullname) {
-                                    auAnimation.tracks[a].values = valueDeletedInfo.values;
-                                    auAnimation.tracks[a].times = valueDeletedInfo.times;
-                                }
-                            }
-                        }
-                    }
-                    this.setTime(this.activeTimeline.currentTime);
-                    return;
-                }
-            }
-        }
-    }
 
     /** -------------------- BONES INTERACTION -------------------- */
     getSelectedBone() {
@@ -1749,10 +1663,10 @@ class ScriptEditor extends Editor{
         
         this.onDrawTimeline = null;
 	    this.onDrawSettings = null;
-
-        this.activeTimeline = null;
-        // ------------------------------------------------------
+        
         this.gui = new ScriptGui(this);  
+        this.activeTimeline = this.gui.clipsTimeline;
+        // ------------------------------------------------------
         // this.getDictionaries();
         this.refreshSignsRepository = false;
         this.refreshPresetsRepository = false;
@@ -1813,22 +1727,26 @@ class ScriptEditor extends Editor{
         };
     }
 
+    /**
+     * ScriptEditor  
+     * @param {String} animationName 
+    */    
     bindAnimationToCharacter(animationName) {
         
         let animation = this.loadedAnimations[animationName];
         if(!animation) {
             console.error(animationName + " not found");
+            return false;
         }
 
         this.currentAnimation = animationName;
         
         // Remove current animation clip
-        let mixer = this.currentCharacter.mixer.stopAllAction();
+        let mixer = this.currentCharacter.mixer;
         mixer.stopAllAction();
 
-        for(let i = 0; i < mixer._actions.length; i++) { //TO DO: Check if it changes actions length
-            mixer.uncacheAction(mixer._actions[i]);
-            mixer._actions.pop();
+        while (mixer._actions.length) {
+            mixer.uncacheAction(mixer._actions[0]._clip); // removes action
         }
 
         let scriptAnimation = animation.scriptAnimation;     
@@ -1836,27 +1754,28 @@ class ScriptEditor extends Editor{
         
         if(scriptAnimation) {
 
-            this.setAnimation();
             this.gui.loadBMLClip(scriptAnimation);
             this.activeTimeline.onUpdateTrack = this.updateTracks.bind(this);
-
+            
             mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(this.activeTimeline.animationClip, this.activeTimeline.framerate);
-
-            this.currentCharacter.mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();            
+            mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();            
         }
-
+        
         if(!this.bindedAnimations[animationName]) {
             this.bindedAnimations[animationName] = {};
         }
         this.bindedAnimations[animationName][this.currentCharacter.name] = {
             mixerAnimation
         }
+    
+        this.setAnimation();
+        mixer.setTime(0); // resets and automatically calls a this.mixer.update
 
-        this.currentCharacter.mixer.setTime(0); // resets and automatically calls a this.mixer.update
-        
-        
-        if(mixerAnimation)
+        if(mixerAnimation) {
             $('#loading').fadeOut();
+        }
+
+        return true;
     }
 
     loadFile(file) {

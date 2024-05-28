@@ -806,12 +806,6 @@ class KeyframesGui extends Gui {
 
                 return false;
             }
-
-            // Change gizmo mode and dont handle
-            // return false;
-
-            this.showKeyFrameOptions(e, info, index);
-
             return true; // Handled
         };
         
@@ -1533,11 +1527,6 @@ class KeyframesGui extends Gui {
                 return false;
             }
 
-            // Change gizmo mode and dont handle
-            // return false;
-
-            this.showKeyFrameOptions(e, info, index);
-
             return true; // Handled
         };
         var that = this;
@@ -1678,6 +1667,10 @@ class ScriptGui extends Gui {
             }
         });
         this.clipsTimeline.setFramerate(30);
+        this.clipsTimeline.onSetDuration = (t) => { 
+            let currentBinded = this.editor.getCurrentBindedAnimation();
+            currentBinded.mixerAnimation.duration = t;
+        };
         this.clipsTimeline.onChangeState = (state) => {
             if(state != this.editor.state) {
                 let playElement = document.querySelector("[title = Play]");

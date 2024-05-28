@@ -81,7 +81,7 @@ class App {
 
                 if(!videoElement.srcObject){ videoElement.srcObject = stream; }
 
-                videoElement.addEventListener( "loadedmetadata", function (e) {
+                videoElement.onloadedmetadata = ( function(e) {
                     // this === videoElement
                     console.log(this.videoWidth)
                     console.log(this.videoHeight);
@@ -93,7 +93,7 @@ class App {
                     
                     videoCanvas.width  = width;
                     videoCanvas.height = height;
-                }, false );
+                } ).bind(videoElement);
                 
                 // setup mediarecorder but do not start it yet (setEvents deals with starting/stopping the recording)
                 that.mediaRecorder = new MediaRecorder(videoElement.srcObject);
@@ -168,7 +168,7 @@ class App {
         else{ video.name = "video_" + Math.floor( performance.now()*1000 ).toString() + videoFile.type.replace("video/", "." ); }
         
         let that = this;
-        video.addEventListener( "loadedmetadata", function (e) {
+        video.onloadedmetadata = ( function (e) {
             // this === videoElement
             let videoCanvas = document.getElementById("outputVideo");
             
@@ -186,7 +186,7 @@ class App {
                 $('#loading').fadeOut();
     
             }, that.editor.gui.updateCaptureGUI.bind(that.editor.gui) );
-        }, false );
+        } ).bind(video);
 
     }
 
@@ -220,6 +220,9 @@ class App {
             document.getElementById("recording").style.cssText+= "transform: rotateY(0deg);\
             -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
             -moz-transform:rotateY(0deg); /* Firefox */"
+
+            document.getElementById("inputVideo").onloadedmetadata = null;
+            document.getElementById("recording").onloadedmetadata = null;
     
             // Creates the scene and loads the animation. Changes ui to edition
             this.editor.buildAnimation( videoObj );
@@ -399,12 +402,11 @@ class App {
                 }
                 else {
                     console.log("Not upload. Not BVH found.");
-   
                 }
 
-            this.editor.gui.prompt.close();
-         }, {input: false})
-    }
+                this.editor.gui.prompt.close();
+            }, {input: false})
+        }
 
 
         this.editor.gui.prompt = LX.prompt( "Please, enter the name of the sign performed and the language. (Example: Dog in Irish Sign Language &#8594; dog_ISL)", "Animation name", async (name) => {

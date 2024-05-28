@@ -154,7 +154,7 @@ const MediaPipe = {
     async processFrame(videoElement){
         // if ( !videoElement || videoElement.width < 0.001 || videoElement.height < 0.001 ){ return; }
         // take same image for face, pose, hand detectors and ui 
-
+        if ( !videoElement.duration ){ return; }
         let image = await createImageBitmap( videoElement );
 
         const time = performance.now()//Date.now();
@@ -327,18 +327,17 @@ const MediaPipe = {
         
         let listener = async () => {
             let videoElement = this.currentVideoProcessing.videoElement;
+            await this.processFrame(videoElement);
  
-            let val = videoElement.currentTime + this.currentVideoProcessing.dt;
-            if (val < this.currentVideoProcessing.endTime){
-                videoElement.currentTime = val;
+            let nextCurrentTime = videoElement.currentTime + this.currentVideoProcessing.dt;
+            if (nextCurrentTime <= this.currentVideoProcessing.endTime){
+                videoElement.currentTime = nextCurrentTime;
             }
             else {
                 this.stopRecording();
                 if ( this.currentVideoProcessing.onEnded ){ this.currentVideoProcessing.onEnded(); }
                 this.stopVideoProcessing();
             }
-
-            await this.processFrame(videoElement);
         };
         
         this.startRecording();

@@ -86,7 +86,7 @@ class BMLController {
             }
         }    
 
-        // Send BLM instructions to character controller to apply them
+        // Send BML instructions to character controller to apply them
         this.ECAcontroller.reset();
         this.ECAcontroller.time = 0;
         this.ECAcontroller.processMsg(json);
@@ -124,15 +124,14 @@ class BMLController {
         
         if(scriptAnimation.duration || scriptAnimation.tracks.length) {
             // Create threejs tracks for computed bs weights by character controller
-            for(let skinnedMesh in this.morphTargetDictionary) {
-                                
+            for(let skinnedMesh in this.morphTargetDictionary) {              
+                if(!values[skinnedMesh]) {
+                    continue
+                }
+
                 for(let morph in this.morphTargetDictionary[skinnedMesh]){
                     let i = this.morphTargetDictionary[skinnedMesh][morph];
                     let v = [];
-                    if(!values[skinnedMesh]) {
-                        console.error("Character skinned mesh not found:", skinnedMesh);
-                        continue
-                    }
                     
                     values[skinnedMesh].forEach(element => {
                         v.push(element[i]);
@@ -140,7 +139,6 @@ class BMLController {
                     const mesh = this.skinnedMeshes[skinnedMesh];
                     
                     tracks.push(new THREE.NumberKeyframeTrack(mesh.name + '.morphTargetInfluences['+ morph +']', times, v));                
-                    
                 }
             }
             // Create threejs tracks for computed bones' positions and rotations by character controller
@@ -151,7 +149,7 @@ class BMLController {
            
         // Create threejs animation clip from created tracks
         const animation = new THREE.AnimationClip(scriptAnimation.name, scriptAnimation.duration, tracks);
-        console.log(animation )
+        console.log(animation);
       
         if(this.onUpdateTracks)
             this.onUpdateTracks();
