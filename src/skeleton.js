@@ -644,6 +644,7 @@ function createAnimationFromRotations(name, nn) {
     let amount = 4;
 
     tracks.push(new THREE.VectorKeyframeTrack("mixamorigHips.position", [0], []));
+    tracks.push(new THREE.VectorKeyframeTrack("mixamorigHips.quaternion", [0], []));
    
     while(quatIdx < numBones) {
         

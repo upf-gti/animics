@@ -244,7 +244,7 @@ BlendshapesManager.faceAreas =  [
     "Mouth"
 ]
 
-function createAnimationFromActionUnits(data) {
+function createAnimationFromActionUnits(name, data) {
 
     let times = [];
     let auValues = {};
@@ -294,7 +294,7 @@ function createAnimationFromActionUnits(data) {
     // the length from the array of tracks
     const length = -1;
 
-    let auAnimation = new THREE.AnimationClip("au-animation", length, auTracks);
+    let auAnimation = new THREE.AnimationClip( name ?? "auAnimation", length, auTracks);
     return auAnimation;
 }
 

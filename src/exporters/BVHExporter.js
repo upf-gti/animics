@@ -266,8 +266,10 @@ const BVHExporter = {
             {
                 const tracks = clip.tracks.filter( t => t.name.includes('[' + morphTarget[idx] + ']') );
                 // No animation info            
-                if(!tracks.length)
-                    console.warn("No tracks for " + morphTarget)
+                if(!tracks.length){
+                    data = "0.000 "; // TO DO consider removing the blendshape instead of filling with 0
+                    // console.warn("No tracks for " + morphTarget[idx])
+                }
                 else {
                     for(let i = 0; i < tracks.length; ++i) {
     
@@ -275,7 +277,7 @@ const BVHExporter = {
                         const trackIndex = clip.tracks.indexOf( t );
                         const interpolant = interpolants[ trackIndex ];
                         const values = interpolant.evaluate(time);
-                        data += values[0] + " ";
+                        data += values[0].toFixed(3) + " ";
                     }
                 }
             }

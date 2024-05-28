@@ -605,6 +605,7 @@ class KeyframesGui extends Gui {
     }
 
     init() {
+        this.hideCaptureArea();
         this.createSidePanel();
      
         // automatic optimization of keyframes
@@ -614,6 +615,9 @@ class KeyframesGui extends Gui {
         this.showTimeline();
         // Canvas UI buttons
         this.createSceneUI(this.canvasArea);
+        
+        this.initEditionGUI();
+
     }
 
     /** -------------------- CAPTURE GUI (app) --------------------  */
@@ -767,6 +771,7 @@ class KeyframesGui extends Gui {
     /** Create timelines */
     createTimelines( area ) {
 
+        /* Keyframes Timeline */
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
             onChangePlayMode: (loop) => {
                 this.editor.animLoop = loop;
@@ -783,6 +788,135 @@ class KeyframesGui extends Gui {
             }
         }
 
+        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime( t );
+        this.keyFramesTimeline.onSetDuration = (t) => {this.duration = this.keyFramesTimeline.duration = this.clip.duration = duration = t};
+        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
+
+        this.keyFramesTimeline.onSelectKeyFrame = (e, info, index) => {
+            if(e.button != 2) {
+                //this.editor.gizmo.mustUpdate = true
+                this.editor.gizmo.update(true);
+                this.updateSkeletonPanel({itemSelected:info[0]});
+
+                return false;
+            }
+
+            // Change gizmo mode and dont handle
+            // return false;
+
+            this.showKeyFrameOptions(e, info, index);
+
+            return true; // Handled
+        };
+        
+        let that = this;
+        this.keyFramesTimeline.showContextMenu = function ( e ) {
+            
+            e.preventDefault();
+            e.stopPropagation();
+
+            let actions = [];
+            //let track = this.NMFtimeline.clip.tracks[0];
+            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
+                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value)
+                {
+                    actions.push(
+                        {
+                            title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
+                            callback: () => {
+                                let [id, trackIdx, keyIdx] = this.lastKeyFramesSelected[0];
+                                    this.pasteKeyFrameValue(e, this.tracksPerItem[id][trackIdx], keyIdx);
+                            }
+                        }
+                    )
+                }
+                actions.push(
+                    {
+                        title: "Copy",// + " <i class='bi bi-clipboard-fill float-right'></i>",
+                        callback: () => {
+                            let toCopy = {};
+                            for(let i = 0; i < this.lastKeyFramesSelected.length; i++){
+                                let [id, trackIdx, keyIdx] = this.lastKeyFramesSelected[i];
+                                if(toCopy[this.tracksPerItem[id][trackIdx].clipIdx]) {
+                                    toCopy[this.tracksPerItem[id][trackIdx].clipIdx].idxs.push(keyIdx);
+                                } else {
+                                    toCopy[this.tracksPerItem[id][trackIdx].clipIdx] = {idxs : [keyIdx]};
+                                    toCopy[this.tracksPerItem[id][trackIdx].clipIdx].track = this.tracksPerItem[id][trackIdx]
+                                }                
+                                if(i == 0) {
+                                    this.copyKeyFrameValue(this.tracksPerItem[id][trackIdx], keyIdx)
+                                }
+                            }
+                            for(let clipIdx in toCopy) {
+                                
+                                this.copyKeyFrames(toCopy[clipIdx].track, toCopy[clipIdx].idxs)
+                            }
+                           
+                        }
+                    }
+                )
+                actions.push(
+                    {
+                        title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
+                        callback: () => {
+                            let keyframesToDelete = this.lastKeyFramesSelected;
+                            e.multipleSelection = keyframesToDelete.length > 1 ?? false;
+                            for(let i = 0; i < keyframesToDelete.length; i++){
+                                this.deleteKeyFrame(e, keyframesToDelete[i][1], keyframesToDelete[i][2]);
+                            }
+                            // that.editor.optimizeTracks(this.animationClip.tracks);
+                        }
+                    }
+                )
+            }
+            else {
+                let [name, type] = [e.track.name, e.track.type]
+                if(that.boneProperties[type]) {
+                    
+                    actions.push(
+                        {
+                            title: "Add",
+                            callback: () => this.addKeyFrame( e.track, that.boneProperties[type].toArray() )
+                        }
+                    )
+                }
+
+                if(this.clipboard && this.clipboard.keyframes)
+                {
+                    actions.push(
+                        {
+                            title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
+                            callback: () => {
+                                let currentTime = this.currentTime;
+                                for(let clipIdx in this.clipboard.keyframes) {
+                                    let indices = Object.keys( this.clipboard.keyframes[clipIdx].values)
+                                    this.pasteKeyFrames(e, clipIdx, indices);
+                                    this.currentTime = currentTime;
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+            
+            LX.addContextMenu("Options", e, (m) => {
+                for(let i = 0; i < actions.length; i++) {
+                    m.add(actions[i].title,  actions[i].callback )
+                }
+            });
+
+        }
+
+        this.keyFramesTimeline.onItemUnselected = () => this.editor.gizmo.stop();
+        this.keyFramesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
+        this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
+        this.keyFramesTimeline.onGetOptimizeThreshold = () => { return this.editor.optimizeThreshold; }
+        this.keyFramesTimeline.onChangeTrackVisibility = (e, t, n) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, null, true)}
+        this.keyFramesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
+        this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { this.editor.updateActionUnitsPanel(this.keyFramesTimeline.animationClip, idx)}
+        this.editor.activeTimeline = this.keyFramesTimeline;
+
+        /* Curves Timeline */
         this.curvesTimeline = new LX.CurvesTimeline("Action Units", {
             onChangePlayMode: (loop) => {
                 this.editor.animLoop = loop;
@@ -791,7 +925,7 @@ class KeyframesGui extends Gui {
         });
         
         this.curvesTimeline.setFramerate(30);
-        this.curvesTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.editor.getCurrentBindedAnimation().auAnimation.duration - 0.001) );
+        this.curvesTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
@@ -1153,16 +1287,17 @@ class KeyframesGui extends Gui {
                             console.log("Selected: ", event.node); 
                         else {
                             itemSelected = event.node.id;
-                            this.updateSkeletonPanel({itemSelected: itemSelected});
-                
-                            if(!this.editor)
+                            
+                            if(!this.editor){
                                 throw("No editor attached");
-                
-                            this.editor.setSelectedBone( itemSelected );
+                            }
 
+                            this.editor.setSelectedBone( itemSelected );
+                            
                             this.editor.activeTimeline = this.keyFramesTimeline;
                             this.keyFramesTimeline.setSelectedItems( [itemSelected] );
                             this.showTimeline();
+                            this.updateSkeletonPanel({itemSelected: itemSelected});
                             
                             console.log(itemSelected + " selected"); 
                         }
@@ -1268,7 +1403,7 @@ class KeyframesGui extends Gui {
 
                 let active = this.editor.getGizmoMode();
 
-                const toolsValues = [ {value:"Joint", callback: (v,e) => this.editor.setGizmoTool(v)}, {value:"Follow", callback: (v,e) => this.editor.setGizmoTool(v)}] ;
+                const toolsValues = [ {value:"Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh(options);} }, {value:"Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh(options);} }] ;
                 const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
                 
                 widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ), settings_title: "<i class='bi bi-gear-fill section-settings'></i>" });
@@ -1300,15 +1435,15 @@ class KeyframesGui extends Gui {
             
                     if(attribute == 'quaternion') {
                         boneSelected.quaternion.fromArray( value ).normalize(); 
-                        // widgets.widgets['Quaternion'].setValue(quat.toArray());
+                        // widgets.widgets['Quaternion'].set(quat.toArray(), true);
 
                         let rot = boneSelected.rotation.toArray();
                         rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
-                        widgets.widgets['Rotation (XYZ)'].setValue( rot );
+                        widgets.widgets['Rotation (XYZ)'].set( rot, true ); // skip onchange event
                     }
                     if(attribute == 'rotation') {
                         boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
-                        widgets.widgets['Quaternion'].setValue(boneSelected.quaternion.toArray());
+                        widgets.widgets['Quaternion'].set(boneSelected.quaternion.toArray(), true ); // skip onchange event
                     }
                     this.editor.gizmo.onGUI(attribute);
                 };
@@ -1367,7 +1502,7 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.setAnimationClip(this.clip);
         this.keyFramesTimeline.setSelectedItems([boneName]);
         // this.keyFramesTimeline.resize([this.keyFramesTimeline.canvas.parentElement.clientWidth, this.keyFramesTimeline.canvas.parentElement.clientHeight]);
-        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, duration - 0.001) );
+        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.keyFramesTimeline.onSetDuration = (t) => {this.duration = this.keyFramesTimeline.duration = this.clip.duration = duration = t};
         this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
 
@@ -1661,7 +1796,7 @@ class ScriptGui extends Gui {
         this.clip = this.clipsTimeline.animationClip || clip ;
         this.duration = this.clip.duration || duration;
 
-        this.clipsTimeline.onSetTime = (t) => this.editor.setTime( Math.clamp(t, 0, this.duration - 0.001) );
+        this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {

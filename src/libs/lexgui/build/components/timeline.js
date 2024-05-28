@@ -389,10 +389,11 @@ class Timeline {
     /**
      * @method setAnimationClip
      * @param {*} animation 
+     * @param {boolean} needsToProcess
      * TODO
      */
 
-    setAnimationClip( animation ) {
+    setAnimationClip( animation, needsToProcess = true ) {
         this.animationClip = animation;
         this.duration = animation.duration;
         this.speed = animation.speed || this.speed;
@@ -402,7 +403,7 @@ class Timeline {
         //     this.secondsToPixels = 100;
         // this.session.start_time = -50 / this.secondsToPixels;
 
-        if(this.animationClip && this.animationClip.tracks.length)
+        if(needsToProcess && this.animationClip && this.animationClip.tracks.length)
             this.processTracks(animation);
         
         //this.updateHeader();
