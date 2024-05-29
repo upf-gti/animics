@@ -1667,6 +1667,7 @@ class ScriptGui extends Gui {
             }
         });
         this.clipsTimeline.setFramerate(30);
+        this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.clipsTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             currentBinded.mixerAnimation.duration = t;
@@ -1677,137 +1678,7 @@ class ScriptGui extends Gui {
                 if ( playElement ){ playElement.children[0].click() }
             }
         }
-        this.clipsTimeline.onChangeTrackVisibility = (v) => { this.editor.updateTracks(); }
-        this.timelineArea.attach(this.clipsTimeline.root);
-        this.clipsTimeline.canvas.tabIndex = 1;
-    }
-    
-    async dataToBMLClips(data, callback, breakdown = true) {
 
-        let clips = [];
-        let globalStart = 10000;
-        let globalEnd = -10000;
-        let auxClips = [];
-        let gloss = "";
-
-        if(data && data.behaviours) {
-            for(let i = 0; i < data.behaviours.length; i++) {
-                let clipClass = null;
-                if(!data.indices){
-                    switch(data.behaviours[i].type) {
-                        case "gaze":
-                            clipClass = ANIM.GazeClip;
-                            break;
-                        case "gazeShift":
-                            clipClass = ANIM.GazeClip;
-                            break;
-                        case "head":
-                            clipClass = ANIM.HeadClip;
-                            break;
-                        case "headDirectionShift":
-                            clipClass = ANIM.HeadClip;
-                            break;
-                        case "face":
-                            clipClass = ANIM.FaceLexemeClip;
-                            break;
-                        case "faceLexeme":
-                            clipClass = ANIM.FaceLexemeClip;
-                            break;
-                        case "faceFACS":
-                            clipClass = ANIM.FaceFACSClip;
-                            break;
-                        case "faceEmotion":
-                            clipClass = ANIM.FaceEmotionClip;
-                            break;
-                        case "faceVA":
-                            break;
-                        case "faceShift":
-                            clipClass = ANIM.FaceLexemeClip;
-                            break;
-                        case "speech":
-                            clipClass = ANIM.MouthingClip;
-                            break;
-                        case "gesture":
-                        {
-                            if(data.behaviours[i].handConstellation)
-                                clipClass = ANIM.HandConstellationClip;
-                            else if(data.behaviours[i].bodyMovement)
-                                clipClass = ANIM.BodyMovementClip;
-                            else if(data.behaviours[i].elbowRaise)
-                                clipClass = ANIM.ElbowRaiseClip;
-                            else if(data.behaviours[i].shoulderRaise || data.behaviours[i].shoulderHunch)
-                                clipClass = ANIM.ShoulderClip;
-                            else if(data.behaviours[i].locationBodyArm)
-                                clipClass = ANIM.ArmLocationClip;
-                            else if(data.behaviours[i].palmor)
-                                clipClass = ANIM.PalmOrientationClip;
-                            else if(data.behaviours[i].extfidir)
-                                clipClass = ANIM.HandOrientationClip;
-                            else if(data.behaviours[i].handshape)
-                                clipClass = ANIM.HandshapeClip;
-                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "directed")
-                                clipClass = ANIM.DirectedMotionClip;
-                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "circular")
-                                clipClass = ANIM.CircularMotionClip;
-                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "wrist")
-                                clipClass = ANIM.WristMotionClip;
-                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "fingerplay")
-                                clipClass = ANIM.FingerplayMotionClip;
-                            break;
-                        }                       
-                    }
-                }
-                else {
-                    clipClass = ANIM.clipTypes[data.indices[i]];
-                }
-
-                if(this.mode == ClipModes.Glosses) {
-                    if((data.behaviours[i].gloss || i == data.behaviours.length - 1) && clips.length)  {
-                        auxClips.push(new ANIM.SuperClip( {start: globalStart, duration: globalEnd - globalStart, type: "glossa", id: gloss, clips}));
-                        clips = [];
-                        globalStart = 10000;
-                        globalEnd = -10000;
-                    }
-                    if(data.behaviours[i].gloss)
-                        gloss = data.behaviours[i].gloss;                    
-                }        
-
-                if(!clipClass)
-                    continue;
-
-                globalStart = Math.min(globalStart, data.behaviours[i].start >= 0 ? data.behaviours[i].start : globalStart);
-                globalEnd = Math.max(globalEnd, data.behaviours[i].end || globalEnd);
-                
-                // if(breakdown)
-                //     clips.push(new clipClass( data.behaviours[i]));
-                // else
-                //     clips.push(new clipClass( data.behaviours[i]));
-                
-                clips.push(new clipClass( data.behaviours[i]));                               
-            }
-        }
-        return {clips: auxClips.length ? auxClips : clips, duration: globalEnd - globalStart}
-    }
-    async loadBMLClip(clip, callback) { 
-        
-        let {clips, duration} = await this.dataToBMLClips(clip, callback);
-
-        switch(this.mode) {
-            case ClipModes.Phrase:
-                this.clipsTimeline.addClip(new ANIM.SuperClip( {duration: duration, type: "glossa", id: clip.name, clips}));
-                break;
-            case ClipModes.Glosses:
-                this.clipsTimeline.addClips(clips);
-                break;
-            case ClipModes.Actions:
-                this.clipsTimeline.addClips(clips);
-                break;
-        }
-    
-        this.clip = this.clipsTimeline.animationClip || clip ;
-        this.duration = this.clip.duration || duration;
-
-        this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
@@ -1992,8 +1863,136 @@ class ScriptGui extends Gui {
 
         }
 
-        if(callback)
-            await callback();
+        this.clipsTimeline.onUpdateTrack = this.editor.updateTracks.bind(this.editor); 
+        this.clipsTimeline.onChangeTrackVisibility = (v) => { this.editor.updateTracks(); }
+        this.timelineArea.attach(this.clipsTimeline.root);
+        this.clipsTimeline.canvas.tabIndex = 1;
+    }
+    
+    dataToBMLClips(data) {
+
+        let clips = [];
+        let globalStart = 10000;
+        let globalEnd = -10000;
+        let auxClips = [];
+        let gloss = "";
+
+        if(data && data.behaviours) {
+            for(let i = 0; i < data.behaviours.length; i++) {
+                let clipClass = null;
+                if(!data.indices){
+                    switch(data.behaviours[i].type) {
+                        case "gaze":
+                            clipClass = ANIM.GazeClip;
+                            break;
+                        case "gazeShift":
+                            clipClass = ANIM.GazeClip;
+                            break;
+                        case "head":
+                            clipClass = ANIM.HeadClip;
+                            break;
+                        case "headDirectionShift":
+                            clipClass = ANIM.HeadClip;
+                            break;
+                        case "face":
+                            clipClass = ANIM.FaceLexemeClip;
+                            break;
+                        case "faceLexeme":
+                            clipClass = ANIM.FaceLexemeClip;
+                            break;
+                        case "faceFACS":
+                            clipClass = ANIM.FaceFACSClip;
+                            break;
+                        case "faceEmotion":
+                            clipClass = ANIM.FaceEmotionClip;
+                            break;
+                        case "faceVA":
+                            break;
+                        case "faceShift":
+                            clipClass = ANIM.FaceLexemeClip;
+                            break;
+                        case "speech":
+                            clipClass = ANIM.MouthingClip;
+                            break;
+                        case "gesture":
+                        {
+                            if(data.behaviours[i].handConstellation)
+                                clipClass = ANIM.HandConstellationClip;
+                            else if(data.behaviours[i].bodyMovement)
+                                clipClass = ANIM.BodyMovementClip;
+                            else if(data.behaviours[i].elbowRaise)
+                                clipClass = ANIM.ElbowRaiseClip;
+                            else if(data.behaviours[i].shoulderRaise || data.behaviours[i].shoulderHunch)
+                                clipClass = ANIM.ShoulderClip;
+                            else if(data.behaviours[i].locationBodyArm)
+                                clipClass = ANIM.ArmLocationClip;
+                            else if(data.behaviours[i].palmor)
+                                clipClass = ANIM.PalmOrientationClip;
+                            else if(data.behaviours[i].extfidir)
+                                clipClass = ANIM.HandOrientationClip;
+                            else if(data.behaviours[i].handshape)
+                                clipClass = ANIM.HandshapeClip;
+                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "directed")
+                                clipClass = ANIM.DirectedMotionClip;
+                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "circular")
+                                clipClass = ANIM.CircularMotionClip;
+                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "wrist")
+                                clipClass = ANIM.WristMotionClip;
+                            else if(data.behaviours[i].motion && data.behaviours[i].motion.toLowerCase() == "fingerplay")
+                                clipClass = ANIM.FingerplayMotionClip;
+                            break;
+                        }                       
+                    }
+                }
+                else {
+                    clipClass = ANIM.clipTypes[data.indices[i]];
+                }
+
+                if(this.mode == ClipModes.Glosses) {
+                    if((data.behaviours[i].gloss || i == data.behaviours.length - 1) && clips.length)  {
+                        auxClips.push(new ANIM.SuperClip( {start: globalStart, duration: globalEnd - globalStart, type: "glossa", id: gloss, clips}));
+                        clips = [];
+                        globalStart = 10000;
+                        globalEnd = -10000;
+                    }
+                    if(data.behaviours[i].gloss)
+                        gloss = data.behaviours[i].gloss;                    
+                }        
+
+                if(!clipClass)
+                    continue;
+
+                globalStart = Math.min(globalStart, data.behaviours[i].start >= 0 ? data.behaviours[i].start : globalStart);
+                globalEnd = Math.max(globalEnd, data.behaviours[i].end || globalEnd);
+                
+                // if(breakdown)
+                //     clips.push(new clipClass( data.behaviours[i]));
+                // else
+                //     clips.push(new clipClass( data.behaviours[i]));
+                
+                clips.push(new clipClass( data.behaviours[i]));                               
+            }
+        }
+        return {clips: auxClips.length ? auxClips : clips, duration: globalEnd - globalStart}
+    }
+
+    loadBMLClip(clip) {         
+        let {clips, duration} = this.dataToBMLClips(clip);
+
+        switch(this.mode) {
+            case ClipModes.Phrase:
+                this.clipsTimeline.addClip(new ANIM.SuperClip( {duration: duration, type: "glossa", id: clip.name, clips}));
+                break;
+            case ClipModes.Glosses:
+                this.clipsTimeline.addClips(clips);
+                break;
+            case ClipModes.Actions:
+                this.clipsTimeline.addClips(clips);
+                break;
+        }
+    
+        this.clip = this.clipsTimeline.animationClip || clip ;
+        this.duration = this.clip.duration || duration;
     }
 
     init( showGuide = true) {
@@ -2845,7 +2844,7 @@ class ScriptGui extends Gui {
                 if(asset.type == "bml" && !asset.bml) {
                     this.editor.fileToBML(asset, async (data) =>  {
                         asset = data;
-                        let {clips, duration} = await this.dataToBMLClips(asset.bml);
+                        let {clips, duration} = this.dataToBMLClips(asset.bml);
                         preset.clips = clips;
                         let presetClip = new ANIM.FacePresetClip(preset);
                         this.clipsTimeline.addClips(presetClip.clips);
@@ -3054,14 +3053,9 @@ class ScriptGui extends Gui {
                 asset.bml.name = asset.id;
                 const modal = this.createAnimation();
 
-                const loadClip = async  () => {
-                    return new Promise((resolve) => {
-                    setTimeout(() => {
-                        resolve(this.loadBMLClip(asset.bml, null));
-                    }, 100)
-                  });}
                 
-                await loadClip().then(() => modal.close());
+                this.loadBMLClip(asset.bml)
+                modal.close();
     
                 asset_browser.clear();
                 dialog.close();

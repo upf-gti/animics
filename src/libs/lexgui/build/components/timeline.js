@@ -3606,7 +3606,7 @@ class ClipsTimeline extends Timeline {
     addNewTrack() {
 
         if(!this.animationClip)
-            this.animationClip = {tracks:[]};
+            this.animationClip = {duration:0, tracks:[]};
 
         let trackInfo = {
             idx: this.animationClip.tracks.length,

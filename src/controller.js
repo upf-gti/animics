@@ -150,10 +150,7 @@ class BMLController {
         // Create threejs animation clip from created tracks
         const animation = new THREE.AnimationClip(scriptAnimation.name, scriptAnimation.duration, tracks);
         console.log(animation);
-      
-        if(this.onUpdateTracks)
-            this.onUpdateTracks();
-        
+              
         return animation;
     }
     
