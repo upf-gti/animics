@@ -3,6 +3,7 @@ import { KeyframeEditor, ScriptEditor } from "./editor.js";
 import { VideoUtils } from "./video.js";
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { LX } from 'lexgui';
+import { VideoEditor } from 'lexgui/components/videoeditor.js';
 import { UTILS } from "./utils.js";
 
 class App {
@@ -169,17 +170,17 @@ class App {
         
         let that = this;
         video.onloadedmetadata = ( function (e) {
-            // this === videoElement
-            let videoCanvas = document.getElementById("outputVideo");
+            // // this === videoElement
+            // let videoCanvas = document.getElementById("outputVideo");
             
-            let aspect = this.videoWidth/this.videoHeight;
+            // let aspect = this.videoWidth/this.videoHeight;
 
-            let height = 802;
-            let width = height*aspect;
+            // let height = 802;
+            // let width = height*aspect;
 
-            videoCanvas.width  = width;
-            videoCanvas.height = height;
-
+            // videoCanvas.width  = width;
+            // videoCanvas.height = height;
+            that.editor.gui.createVideoEditor();
             MediaPipe.start( false, () => {
                 // directly to trim stage
                 that.processVideo( false, { blendshapesResults:[], landmarksResults:[] } );
@@ -335,43 +336,44 @@ class App {
         let canvas = document.getElementById("outputVideo");
         let video = document.getElementById("recording");
         video.classList.remove("hidden");
-        video.style.width = canvas.offsetWidth + "px";
-        video.style.height = canvas.offsetHeight + "px";
-        video.width = canvas.offsetWidth;
-        video.height = canvas.offsetHeight;
-        video.play();
-        if(live){
-            video.style.cssText+= "transform: rotateY(180deg);\
-                            -webkit-transform:rotateY(180deg); /* Safari and Chrome */\
-                            -moz-transform:rotateY(180deg); /* Firefox */"
-        }else{
-            video.style.cssText+= "transform: rotateY(0deg);\
-                            -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-                            -moz-transform:rotateY(0deg); /* Firefox */"
-        }
+        // video.style.width = canvas.offsetWidth + "px";
+        // video.style.height = canvas.offsetHeight + "px";
+        // video.width = canvas.offsetWidth;
+        // video.height = canvas.offsetHeight;
+        // video.play();
+        // if(live){
+        //     video.style.cssText+= "transform: rotateY(180deg);\
+        //                     -webkit-transform:rotateY(180deg); /* Safari and Chrome */\
+        //                     -moz-transform:rotateY(180deg); /* Firefox */"
+        // }else{
+        //     video.style.cssText+= "transform: rotateY(0deg);\
+        //                     -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
+        //                     -moz-transform:rotateY(0deg); /* Firefox */"
+        // }
 
-        // Hide capture buttons
-        document.getElementById("select-mode").innerHTML = "";
-        let capture = document.getElementById("capture_btn");
-        capture.style.display = "none";
-        capture.disabled = true;
-        capture.classList.remove("stop");
-    
-        // draw mediapipe results with trimming buttons on top.
-        await VideoUtils.bind(video, canvas, ()=>{
-            // (re)start process video online but let VideoUtils manage the render
-            MediaPipe.setOptions( { autoDraw: false } );
-            MediaPipe.processVideoOnline(video); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
+        // // Hide capture buttons
+        // document.getElementById("select-mode").innerHTML = "";
+        // let capture = document.getElementById("capture_btn");
+        // capture.style.display = "none";
+        // capture.disabled = true;
+        // capture.classList.remove("stop");
+       
 
-            // Show trim stage buttons
-            let trimBtn = document.getElementById("trim_btn");
-            trimBtn.style.display = "block";
-            let redoBtn = document.getElementById("redo_btn");
-            redoBtn.style.display = "block";
+        // // draw mediapipe results with trimming buttons on top.
+        // await VideoUtils.bind(video, canvas, ()=>{
+        //     // (re)start process video online but let VideoUtils manage the render
+        //     MediaPipe.setOptions( { autoDraw: false } );
+        //     MediaPipe.processVideoOnline(video); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
 
-        });
-        VideoUtils.onSetTime = this.editor.updateCaptureDataTime.bind(this.editor, results);
-        VideoUtils.onRender = () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); } }
+        //     // Show trim stage buttons
+        //     let trimBtn = document.getElementById("trim_btn");
+        //     trimBtn.style.display = "block";
+        //     let redoBtn = document.getElementById("redo_btn");
+        //     redoBtn.style.display = "block";
+
+        // });
+        // VideoUtils.onSetTime = this.editor.updateCaptureDataTime.bind(this.editor, results);
+        // VideoUtils.onRender = () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); } }
 
     }
 

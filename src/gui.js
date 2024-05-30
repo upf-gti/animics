@@ -53,10 +53,7 @@ class Gui {
     createMenubar(area) {
 
         this.menubar = area.addMenubar( m => {
-
-            m.setButtonImage("SignON", "data/imgs/animics_logo.png", null, {float: "left"});
-            
-
+            m.setButtonImage("SignON", "data/imgs/animics_logo.png", null, {float: "left"});            
         });
     }
 
@@ -623,129 +620,176 @@ class KeyframesGui extends Gui {
     /** -------------------- CAPTURE GUI (app) --------------------  */
     createCaptureArea(area) {
 
-        // Create capture info area
-        let mainCapture = document.getElementById("capture");
-        let captureArea = document.getElementById("capture-area");
+        // let video = document.getElementById("recording");
+
+        // let caparea = new LX.Area({id: "capture-area2"});
+        // area.attach(caparea);
+        // // split main area
+        // let [leftArea, rightArea] = caparea.split({sizes:["75%","25%"], minimizable: true});
+        // caparea.extend();
+        
+        // const videoEditor = new LX.VideoEditor(leftArea, {video})
+        // //videoEditor.onSetTime = this.editor.updateCaptureDataTime.bind(this.editor, results);
+
+        // let panel = new LX.Panel();
+        // panel = rightArea.addPanel(panel);  
+
+        // // Create capture info area
+        // let mainCapture = document.getElementById("capture");
+        // let captureArea = document.getElementById("capture-area");
 
         // Create video area
-        let videoArea = document.getElementById("video-area");
-        videoArea.classList.add("video-area");
-        videoArea.style.paddingTop = "0px";
+        // let videoArea = document.getElementById("video-area");
+        // videoArea.classList.add("video-area");
+        // videoArea.style.paddingTop = "0px";
   
         // Create input selector widget (webcam or video)
-        let selectContainer = new LX.Panel({id:"select-mode", height: "80px", weight: "50%"});
-        selectContainer.sameLine();
-        let selected = this.editor.editionModes.CAPTURE == this.captureMode ? "webcam" : "video";
+        // let selectContainer = new LX.Panel({id:"select-mode", height: "80px", weight: "50%"});
+        // selectContainer.sameLine();
+        // let selected = this.editor.editionModes.CAPTURE == this.captureMode ? "webcam" : "video";
 
-        selectContainer.addComboButtons("Input:", [
-            {
-                value: 'webcam',
-                callback: (value, event) => {
-                    this.editor.mode = this.editor.editionModes.CAPTURE;
-                    let inputEl = input.domEl.getElementsByTagName("input")[0];
-                    inputEl.value = "";
-                    input.domEl.classList.add("hidden");
-                    this.editor.getApp().onBeginCapture();
-                }
-            }, {
-                value: 'video',
-                callback: (value, event) => {
-                    let inputEl = input.domEl.getElementsByTagName("input")[0];
-                    input.domEl.classList.remove("hidden");
-                    inputEl.value = "";
-                    inputEl.click();
-                    this.editor.mode = this.editor.editionModes.VIDEO;
-                }
-            }
-        ], {selected: selected, width: "180px"});
+        // selectContainer.addComboButtons("Input:", [
+        //     {
+        //         value: 'webcam',
+        //         callback: (value, event) => {
+        //             this.editor.mode = this.editor.editionModes.CAPTURE;
+        //             let inputEl = input.domEl.getElementsByTagName("input")[0];
+        //             inputEl.value = "";
+        //             input.domEl.classList.add("hidden");
+        //             this.editor.getApp().onBeginCapture();
+        //         }
+        //     }, {
+        //         value: 'video',
+        //         callback: (value, event) => {
+        //             let inputEl = input.domEl.getElementsByTagName("input")[0];
+        //             input.domEl.classList.remove("hidden");
+        //             inputEl.value = "";
+        //             inputEl.click();
+        //             this.editor.mode = this.editor.editionModes.VIDEO;
+        //         }
+        //     }
+        // ], {selected: selected, width: "180px"});
 
-        let input = selectContainer.addFile( "File:", (value, event) => {
-            if(!value.type.includes("video")) {
-                LX.message("Format not accepted");
-                return;
+        // let input = selectContainer.addFile( "File:", (value, event) => {
+        //     if(!value.type.includes("video")) {
+        //         LX.message("Format not accepted");
+        //         return;
 
-            }
-            this.editor.getApp().onLoadVideo( value );
+        //     }
+        //     this.editor.getApp().onLoadVideo( value );
 
-        }, { id: "video-input", placeholder: "No file selected", local: false, type: "buffer", read: false, width: "200px"} );
+        // }, { id: "video-input", placeholder: "No file selected", local: false, type: "buffer", read: false, width: "200px"} );
         
-        if(this.editor.editionModes.CAPTURE == this.captureMode)
-            input.domEl.classList.add("hidden");
+        // if(this.editor.editionModes.CAPTURE == this.captureMode)
+        //     input.domEl.classList.add("hidden");
 
-        else if(this.editor.videoName) {
-            input.domEl.getElementsByTagName("input")[0].value = this.editor.video;        
-        }
-        selectContainer.endLine("center");
-        videoArea.prepend(selectContainer.root);
+        // else if(this.editor.videoName) {
+        //     input.domEl.getElementsByTagName("input")[0].value = this.editor.video;        
+        // }
+        // selectContainer.endLine("center");
+        // videoArea.prepend(selectContainer.root);
 
-        // Create expand area button
-        let i = document.createElement("i");
-        i.id = "expand-capture-gui";
-        i.style = "position: relative;top: 35px;left: -19px; width: 0px;";
-        i.className = "fas fa-solid fa-circle-info drop-icon";//"fas fa-solid fa-circle-chevron-left drop-icon";
-        i.addEventListener("click", () => this.changeCaptureGUIVisivility());
+        // // Create expand area button
+        // let i = document.createElement("i");
+        // i.id = "expand-capture-gui";
+        // i.style = "position: relative;top: 35px;left: -19px; width: 0px;";
+        // i.className = "fas fa-solid fa-circle-info drop-icon";//"fas fa-solid fa-circle-chevron-left drop-icon";
+        // i.addEventListener("click", () => this.changeCaptureGUIVisivility());
 
-        // Create expanded AU info area
-        let inspector = new LX.Panel({id:"capture-inspector", width: "800px"});
-        inspector.root.hidden = true;
-        inspector.root.style.padding = "5px";
-        inspector.addBlank();
-        inspector.addTitle("User positioning");
-        inspector.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto" }) 
+        // // Create expanded AU info area
+        // let inspector = new LX.Panel({id:"capture-inspector", width: "800px"});
+        // inspector.root.hidden = true;
+        // inspector.root.style.padding = "5px";
+        // inspector.addBlank();
+        // inspector.addTitle("User positioning");
+        // inspector.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto" }) 
         
-        inspector.addProgress('Distance to the camera', 0, {min:0, max:1, id: 'progressbar-torso'});
-        inspector.addProgress('Left Hand visibility', 0, {min:0, max:1, id: 'progressbar-lefthand'});
-        inspector.addProgress('Right Hand visibility', 0, {min:0, max:1, id: 'progressbar-righthand'});
+        // inspector.addProgress('Distance to the camera', 0, {min:0, max:1, id: 'progressbar-torso'});
+        // inspector.addProgress('Left Hand visibility', 0, {min:0, max:1, id: 'progressbar-lefthand'});
+        // inspector.addProgress('Right Hand visibility', 0, {min:0, max:1, id: 'progressbar-righthand'});
         
-        inspector.branch("Blendshapes weights");
-        inspector = this.createBlendShapesInspector(this.editor.mapNames, {inspector: inspector});
-        inspector.root.style.maxHeight = "calc(100% - 57px)";
-        inspector.root.style.overflowY = "scroll";
-        inspector.root.style.flexWrap = "wrap";
-        this.bsInspector = inspector;
-        captureArea.appendChild(i);
-        captureArea.appendChild(this.bsInspector.root)
+        // inspector.branch("Blendshapes weights");
+        // inspector = this.createBlendShapesInspector(this.editor.mapNames, {inspector: inspector});
+        // inspector.root.style.maxHeight = "calc(100% - 57px)";
+        // inspector.root.style.overflowY = "scroll";
+        // inspector.root.style.flexWrap = "wrap";
+        // this.bsInspector = inspector;
+        // captureArea.appendChild(i);
+        // captureArea.appendChild(this.bsInspector.root)
 
-        // Create bottom buttons
-        const buttonContainer = document.createElement('div');
-        buttonContainer.id = "capture-buttons";
-        buttonContainer.style.display = "flex";
-        buttonContainer.style.padding = "10px";
-        buttonContainer.style.minHeight =  "84px";
-        const buttons = [
-            {
-                id: "capture_btn",
-                text: " <i class='bi bi-record-circle' style= 'margin:5px; font-size:initial;'></i> Start recording"
-            },
-            {
-                id: "trim_btn",
-                text: "Convert to animation",
-                display: "none",
-                callback: () => VideoUtils.unbind( (start, end) => window.global.app.onVideoTrimmed(start, end) )
-            },
-            {
-                id: "redo_btn",
-                text: " <i class='fa fa-redo'></i>",
-                title: "Redo video",
-                display: "none",
-                callback: async () => { window.location.reload(); }
-            }
-        ];
+        // // Create bottom buttons
+        // const buttonContainer = document.createElement('div');
+        // buttonContainer.id = "capture-buttons";
+        // buttonContainer.style.display = "flex";
+        // buttonContainer.style.padding = "10px";
+        // buttonContainer.style.minHeight =  "84px";
+        // const buttons = [
+        //     {
+        //         id: "capture_btn",
+        //         text: " <i class='bi bi-record-circle' style= 'margin:5px; font-size:initial;'></i> Start recording"
+        //     },
+        //     {
+        //         id: "trim_btn",
+        //         text: "Convert to animation",
+        //         display: "none",
+        //         callback: () => VideoUtils.unbind( (start, end) => window.global.app.onVideoTrimmed(start, end) )
+        //     },
+        //     {
+        //         id: "redo_btn",
+        //         text: " <i class='fa fa-redo'></i>",
+        //         title: "Redo video",
+        //         display: "none",
+        //         callback: async () => { window.location.reload(); }
+        //     }
+        // ];
 
-        for(let b of buttons) {
-            const button = document.createElement("button");
-            button.id = b.id;
-            button.title = b.title || "";
-            button.style.display = b.display || "block";
-            button.innerHTML = b.text;
-            button.classList.add("btn-primary", "captureButton");
-            if(b.styles) Object.assign(button.style, b.styles);
-            if(b.callback) button.addEventListener('click', b.callback);
-            buttonContainer.appendChild(button);
-        }
-        captureArea.appendChild(buttonContainer);
-        videoArea.appendChild(buttonContainer);
+        // for(let b of buttons) {
+        //     const button = document.createElement("button");
+        //     button.id = b.id;
+        //     button.title = b.title || "";
+        //     button.style.display = b.display || "block";
+        //     button.innerHTML = b.text;
+        //     button.classList.add("btn-primary", "captureButton");
+        //     if(b.styles) Object.assign(button.style, b.styles);
+        //     if(b.callback) button.addEventListener('click', b.callback);
+        //     buttonContainer.appendChild(button);
+        // }
+        // captureArea.appendChild(buttonContainer);
+        // videoArea.appendChild(buttonContainer);
 
+    }
+
+    createVideoEditor(mainArea = this.mainArea) {
+
+        let video = document.getElementById("recording");
+
+        let area = new LX.Area({id: "capture-area2"});
+        mainArea.attach(area);
+        // split main area
+        let [leftArea, rightArea] = area.split({sizes:["75%","25%"], minimizable: true});
+        area.extend();
+        
+        const videoArea = new LX.Area({id:'video-area'});
+        videoArea.attach(video);
+  
+        const videoEditor = new LX.VideoEditor(leftArea, {videoArea, video})
+        
+        const canvas = document.createElement('canvas');
+        canvas.id = "outputVideo";
+
+        canvas.width = video.clientWidth;
+        canvas.height = video.clientHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = LX.getThemeColor("global-selected-light");
+        ctx.font = "40px Arial";
+        ctx.fillText("I'm a canvas above the video!", canvas.width/2, 100);
+        
+        canvas.style.position = "absolute";
+        canvas.style.left = "0";
+        videoArea.attach(canvas);
+  
+        let panel = new LX.Panel();
+        panel = rightArea.addPanel(panel);      
     }
 
     createBlendShapesInspector(bsNames, options = {}) {
