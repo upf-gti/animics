@@ -342,13 +342,8 @@ const VideoUtils = {
         
         this.ctx.clearRect(0, 0, this.width, this.height);
 
-        this.video.startTime = this.startTime;
-        this.video.onended = function() {
-            this.currentTime = this.startTime;
-            this.play();
-        };
-            
-        // this.video.onended = null;
+        this.video.startTime = this.startTime;            
+        this.video.onended = null;
         // this.video.loop = true;
         this.video.pause();    
         this.video.currentTime = this.startTime;

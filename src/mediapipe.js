@@ -334,9 +334,10 @@ const MediaPipe = {
                 videoElement.currentTime = nextCurrentTime;
             }
             else {
+                let cvp = this.currentVideoProcessing;
                 this.stopRecording();
-                if ( this.currentVideoProcessing.onEnded ){ this.currentVideoProcessing.onEnded(); }
                 this.stopVideoProcessing();
+                if ( cvp.onEnded ){ cvp.onEnded(); }
             }
         };
         

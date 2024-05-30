@@ -222,7 +222,13 @@ class App {
             -moz-transform:rotateY(0deg); /* Firefox */"
 
             document.getElementById("inputVideo").onloadedmetadata = null;
-            document.getElementById("recording").onloadedmetadata = null;
+            
+            let videoRecording = document.getElementById("recording");
+            videoRecording.onloadedmetadata = null;
+            videoRecording.onended = null;
+            videoRecording.autoplay = false;
+            videoRecording.pause();
+            videoRecording.currentTime = videoObj.startTime;
     
             // Creates the scene and loads the animation. Changes ui to edition
             this.editor.buildAnimation( videoObj );
