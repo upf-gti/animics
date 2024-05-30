@@ -346,7 +346,12 @@ class VideoEditor {
         }
         this.video.loop = true;
         this._loadVideo(options);
-        videoArea.attach(video);
+        if(options.videoArea) {
+            videoArea.attach(options.videoArea);
+        }
+        else {
+            videoArea.attach(video);
+        }
 
         // Create playing timeline area and attach panels
         let [topArea, bottomArea] = controlsArea.split({ type: 'vertical', sizes:["50%", null], minimizable: false, resize: false });
