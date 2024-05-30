@@ -76,7 +76,7 @@ class BMLController {
                     if(data[3].type == "glossa") {
                         for(let actions in json) {
                             if(data[3][actions])
-                                json[actions] = [...json[actions], ...data[3][actions]];
+                                json[actions] = json[actions].concat(data[3][actions]);
                         }
                     }
                     else {

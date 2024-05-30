@@ -1686,10 +1686,11 @@ class ScriptGui extends Gui {
            if(clip.stroke) clip.stroke+=offset;
            if(clip.strokeEnd) clip.strokeEnd+=offset;
            this.updateClipPanel(clip);
-           this.editor.updateTracks();
            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
-           if(clip.onChangeStart) 
-                clip.onChangeStart(offset);
+           if(clip.onChangeStart)  {
+               clip.onChangeStart(offset);
+           }
+           this.editor.updateTracks();
         };
 
         this.clipsTimeline.deleteContent = () => {
@@ -1869,13 +1870,16 @@ class ScriptGui extends Gui {
         this.clipsTimeline.canvas.tabIndex = 1;
     }
     
-    dataToBMLClips(data) {
+    dataToBMLClips(data, mode) {
+        //assuming data.behaviours starts at 0, like it is in "local time"
 
         let clips = [];
-        let globalStart = 10000;
-        let globalEnd = -10000;
-        let auxClips = [];
+        let globalStart = 9999999;
+        let globalEnd = -9999999;
+        let glossStart = 9999999;
+        let glossClips = [];
         let gloss = "";
+        let unnamedGlosses = 0;
 
         if(data && data.behaviours) {
             for(let i = 0; i < data.behaviours.length; i++) {
@@ -1948,48 +1952,46 @@ class ScriptGui extends Gui {
                     clipClass = ANIM.clipTypes[data.indices[i]];
                 }
 
-                if(this.mode == ClipModes.Glosses) {
-                    if((data.behaviours[i].gloss || i == data.behaviours.length - 1) && clips.length)  {
-                        auxClips.push(new ANIM.SuperClip( {start: globalStart, duration: globalEnd - globalStart, type: "glossa", id: gloss, clips}));
+                if(clipClass){
+                    glossStart = Math.min(glossStart, data.behaviours[i].start >= 0 ? data.behaviours[i].start : glossStart);
+                    globalStart = Math.min(globalStart, data.behaviours[i].start >= 0 ? data.behaviours[i].start : globalStart);
+                    globalEnd = Math.max(globalEnd, data.behaviours[i].end || globalEnd);
+                                  
+                    clips.push(new clipClass( data.behaviours[i]));        
+                    
+                }
+
+                if(mode == ClipModes.Glosses) {
+
+                    // save previous gloss clips before changing to new one (or end of behaviours)
+                    if((data.behaviours[i].gloss || i == data.behaviours.length - 1)) {
+                        if ( clips.length ){
+                            if ( !gloss || !gloss.length){
+                                gloss = "UNNAMED_" + (unnamedGlosses++).toString(); 
+                            }
+                            let duration = globalEnd - glossStart;
+                            glossClips.push(new ANIM.SuperClip( {start: glossStart, duration: (duration > 0) ? duration : 0, type: "glossa", id: gloss, clips, clipTimeMode: ANIM.SuperClip.clipTimeModes.GLOBAL}));
+                        }
                         clips = [];
-                        globalStart = 10000;
-                        globalEnd = -10000;
-                    }
-                    if(data.behaviours[i].gloss)
+                        glossStart = 9999999;
                         gloss = data.behaviours[i].gloss;                    
+                    }
                 }        
-
-                if(!clipClass)
-                    continue;
-
-                globalStart = Math.min(globalStart, data.behaviours[i].start >= 0 ? data.behaviours[i].start : globalStart);
-                globalEnd = Math.max(globalEnd, data.behaviours[i].end || globalEnd);
-                
-                // if(breakdown)
-                //     clips.push(new clipClass( data.behaviours[i]));
-                // else
-                //     clips.push(new clipClass( data.behaviours[i]));
-                
-                clips.push(new clipClass( data.behaviours[i]));                               
             }
         }
-        return {clips: auxClips.length ? auxClips : clips, duration: globalEnd - globalStart}
+
+        clips = glossClips.length ? glossClips : clips;
+        let duration = Math.max( 0, globalEnd - globalStart );
+        if (mode == ClipModes.Phrase){
+            clips = [ new ANIM.SuperClip( {duration: duration, type: "glossa", id: data.name ?? "UNNAMED", clips, clipTimeMode: ANIM.SuperClip.clipTimeModes.GLOBAL} ) ]; 
+        }
+        return {clips: clips, duration: duration};
     }
 
     loadBMLClip(clip) {         
-        let {clips, duration} = this.dataToBMLClips(clip);
+        let {clips, duration} = this.dataToBMLClips(clip, this.mode);
 
-        switch(this.mode) {
-            case ClipModes.Phrase:
-                this.clipsTimeline.addClip(new ANIM.SuperClip( {duration: duration, type: "glossa", id: clip.name, clips}));
-                break;
-            case ClipModes.Glosses:
-                this.clipsTimeline.addClips(clips);
-                break;
-            case ClipModes.Actions:
-                this.clipsTimeline.addClips(clips);
-                break;
-        }
+        this.clipsTimeline.addClips(clips);
     
         this.clip = this.clipsTimeline.animationClip || clip ;
         this.duration = this.clip.duration || duration;

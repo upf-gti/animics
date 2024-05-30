@@ -1727,7 +1727,8 @@ class ScriptEditor extends Editor{
 
         this.loadedAnimations[name] = {
             name: name,
-            scriptAnimation: animationData ??  {duration: 0, tracks:[]},
+            inputAnimation: animationData, // bml file imported
+            scriptAnimation: null, // if null, bind will take care.        ??  {duration: 0, tracks:[]},
             type: "script"
         };
     }
@@ -1744,7 +1745,6 @@ class ScriptEditor extends Editor{
             return false;
         }
 
-        
         // Remove current animation clip
         let mixer = this.currentCharacter.mixer;
         mixer.stopAllAction();
@@ -1753,21 +1753,22 @@ class ScriptEditor extends Editor{
             mixer.uncacheAction(mixer._actions[0]._clip); // removes action
         }
 
-        let scriptAnimation = animation.scriptAnimation;     
-        let mixerAnimation = null;   
-        
-        if(scriptAnimation) {
-
-            this.gui.clipsTimeline.setAnimationClip(scriptAnimation, false);
-            
-            this.gui.clip = this.gui.clipsTimeline.animationClip;
-            this.gui.duration = this.gui.clip.duration;
-
-            mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(this.activeTimeline.animationClip, this.activeTimeline.framerate);
-            mixerAnimation.name = animationName;
-            scriptAnimation.name = animationName;
-            mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();            
+        // load animation for the first time
+        if (!animation.scriptAnimation){
+            this.gui.clipsTimeline.setAnimationClip(null, true); //generate empty animation. Cannot process bml input 
+            this.gui.loadBMLClip(animation.inputAnimation); // process bml and add clips
+            animation.scriptAnimation = this.gui.clipsTimeline.animationClip;
         }
+        else{
+            this.gui.clipsTimeline.setAnimationClip(animation.scriptAnimation, false);
+            this.gui.clip = this.gui.clipsTimeline.animationClip;
+            this.gui.duration = this.gui.clip.duration;    
+        }
+        
+        let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(this.activeTimeline.animationClip, this.activeTimeline.framerate);
+        mixerAnimation.name = animationName;
+        animation.scriptAnimation.name = animationName;
+        mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();            
         
         if(!this.bindedAnimations[animationName]) {
             this.bindedAnimations[animationName] = {};
@@ -1879,18 +1880,20 @@ class ScriptEditor extends Editor{
     }
 
     exportBML() {
+        let currentAnim = this.getCurrentAnimation();
+        let scriptAnim = currentAnim.scriptAnimation;
 
         let json =  {
             behaviours: [],
             //indices: [],
-            name : this.clipName || "BML animation",
-            duration: this.animation.duration,
+            name : currentAnim ? currentAnim.name : "BML animation",
+            duration: scriptAnim ? scriptAnim.duration : 0,
         }
 
         let empty = true;
-        if(this.activeTimeline.animationClip.tracks.length) {
-            for(let i = 0; i < this.activeTimeline.animationClip.tracks.length; i++) {
-                if(this.activeTimeline.animationClip.tracks[i].clips.length){
+        if(scriptAnim) {
+            for(let i = 0; i < scriptAnim.tracks.length; i++) {
+                if(scriptAnim.tracks[i].clips.length){
                     empty = false;
                     break;
                 }
@@ -1898,13 +1901,13 @@ class ScriptEditor extends Editor{
         }
         if(empty) {
             alert("You can't export an animation with empty tracks.")
-            return;
+            return null;
         }
        
-        for(let i = 0; i < this.activeTimeline.animationClip.tracks.length; i++ ) {
-            for(let j = 0; j < this.activeTimeline.animationClip.tracks[i].clips.length; j++) {
-                let data = this.activeTimeline.animationClip.tracks[i].clips[j];
-                let type = ANIM[data.constructor.name];
+        for(let i = 0; i < scriptAnim.tracks.length; i++ ) {
+            for(let j = 0; j < scriptAnim.tracks[i].clips.length; j++) {
+                let data = scriptAnim.tracks[i].clips[j];
+                // let type = ANIM[data.constructor.name];
                 if(data.toJSON) data = data.toJSON();
                 if(data)
                 {
@@ -1913,7 +1916,7 @@ class ScriptEditor extends Editor{
                        
                         for(let action in actions) {
                             if(data[action])
-                                json.behaviours = [...json.behaviours, ...data[action]];
+                                json.behaviours = json.behaviours.concat(data[action]);
                             //json.indices.push(type.id);
                         }
                     }

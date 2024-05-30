@@ -4510,6 +4510,7 @@ MouthingClip.prototype.showInfo = function(panel, callback)
 SuperClip.type = "super";
 SuperClip.id = ANIM.SUPERCLIP ? ANIM.SUPERCLIP: ANIM.clipTypes.length;
 SuperClip.clipColor = "#9398AB";
+SuperClip.clipTimeModes = { LOCAL: 0, GLOBAL: 1 };
 
 function SuperClip(o)
 {
@@ -4542,6 +4543,12 @@ SuperClip.prototype.configure = function(o)
 	this.type = o.type || SuperClip.type;
 	this.id = o.id || this.id;
 	this.clips = o.clips || [];
+
+	if(o.clipTimeMode == SuperClip.clipTimeModes.GLOBAL){
+		for(let i = 0; i < this.clips.length; ++i){
+			this.changeTimeModeOfClip(this.clips[i], SuperClip.clipTimeModes.LOCAL);
+		}
+	}
 }
 
 SuperClip.prototype.toJSON = function()
@@ -4563,26 +4570,13 @@ SuperClip.prototype.toJSON = function()
 		for(let c = 0; c < subclips.length; c++) {
 	
 			let data = ANIM.clipToJSON( subclips[c] );
-			if(data)
-			{
-				// data[1] = data[3].start += offset;
-			
-				// if(data[3].attackPeak != null)
-				// 	data[3].attackPeak += offset;
-				// if(data[3].startStroke != null)
-				// 	data[3].startStroke += offset;
-				// if(data[3].stroke != null)
-				// 	data[3].stroke += offset;
-				// if(data[3].endStroke != null)
-				// 	data[3].endStroke += offset;
-				// if(data[3].ready != null)
-				// 	data[3].ready += offset;
-				// if(data[3].relax != null)
-				// 	data[3].relax += offset;
-				// data[3].end = (data[3].end + offset) || (data[3].start + data[3].duration);
-				if(!json[data[3].type])
-					json[data[3].type] = [];
-				json[data[3].type].push( data[3] );
+			if(data && data[3])
+			{	
+				data = data[3];	
+				this.changeTimeModeOfClip(data, SuperClip.clipTimeModes.GLOBAL);
+				if(!json[data.type])
+					json[data.type] = [];
+				json[data.type].push( data );
 			}
 		}
 	}
@@ -4638,29 +4632,32 @@ SuperClip.prototype.showInfo = function(panel, callback)
 
 }
 
+/**
+ * Inplace operation. Takes some data (a clip or something resembling a clip) and modifies its time attributes to make it either LOCAL or GLOBAL, using the superclip.start attribute 
+ * @param {*} clip 
+ * @param {SuperClip.clipTimeMode} targetMode The clip will be transformed into targetMode time space. It assumes the clip is already in the opposite time space
+ */
+SuperClip.prototype.changeTimeModeOfClip = function( clip, targetMode ){
+	let offset = targetMode == SuperClip.clipTimeModes.GLOBAL ? this.start : -this.start;
+	clip.start += offset;
+	if(clip.attackPeak != null)
+		clip.fadein = clip.attackPeak += offset;
+	if(clip.startStroke != null)
+		clip.fadein = clip.startStroke += offset;
+	if(clip.stroke != null)
+	clip.stroke += offset;
+	if(clip.endStroke != null)
+		clip.fadeout = clip.endStroke += offset;
+	if(clip.ready != null)
+		clip.ready += offset;
+	if(clip.relax != null)
+		clip.fadeout = clip.relax += offset;
+
+	clip.end = (clip.end + offset) || (clip.start + clip.duration);
+}
+
 SuperClip.prototype.onChangeStart = function(offset) 
 {
-	if(this.clips) {
-
-		for(let c = 0; c < this.clips.length; c++) {	
-			this.clips[c].start += offset;
-		
-			if(this.clips[c].attackPeak != null)
-				this.clips[c].fadein = this.clips[c].attackPeak += offset;
-			if(this.clips[c].startStroke != null)
-				this.clips[c].fadein = this.clips[c].startStroke += offset;
-			if(this.clips[c].stroke != null)
-			this.clips[c].stroke += offset;
-			if(this.clips[c].endStroke != null)
-				this.clips[c].fadeout = this.clips[c].endStroke += offset;
-			if(this.clips[c].ready != null)
-				this.clips[c].ready += offset;
-			if(this.clips[c].relax != null)
-				this.clips[c].fadeout = this.clips[c].relax += offset;
-
-			this.clips[c].end = (this.clips[c].end + offset) || (this.clips[c].start + this.clips[c].duration);			
-		}
-	}
 }
 
 //helpers **************************
