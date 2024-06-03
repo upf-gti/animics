@@ -667,7 +667,7 @@ class Editor {
     setAnimation(type) {
 
         let currentTime = 0;
-        if(this.activeTimeline) {
+        if(this.activeTimeline && this.animationMode != type) {
             this.activeTimeline.hide();
             currentTime = this.activeTimeline.currentTime;
         }
@@ -1440,7 +1440,7 @@ class KeyframeEditor extends Editor{
                     const interpolant = mixer._actions[i]._interpolants[trackIdx];
                     const mixerClip = mixer._actions[i]._clip;
                                        
-                    if(!track.locked) // TO DO: Check it!!!!! :(
+                    if(track.locked) // TO DO: Check it!!!!! :(
                         continue;
                     
                     // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
