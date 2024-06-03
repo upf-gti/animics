@@ -34,11 +34,11 @@ class App {
                 break;
             case 'bvh': case 'bvhe':
                 this.editor = new KeyframeEditor(this, "VIDEO");
-                callback = this.onLoadAnimation.bind(this, settings.data );
+                callback = this.onLoadAnimations.bind(this, settings.data );
                 break;
             case 'bml': case 'json': case 'sigml': case 'script':
                 this.editor = new ScriptEditor(this, 'SCRIPT');
-                callback = this.onScriptProject.bind(this, settings.data, mode );
+                callback = this.onScriptProject.bind(this, settings.data );
                 break;
             default:
                 alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
@@ -147,9 +147,12 @@ class App {
 
     }
 
-    onLoadVideo( videoFile ) {
+    onLoadVideo( videoFiles ) {
+        if (!videoFiles || !videoFiles.length){
+            return;
+        }
+        let videoFile = videoFiles[0];
         this.mediaRecorder = null;
-        this.editor.mode = this.editor.editionModes.VIDEO;
 
         let url = "";
         if(typeof(videoFile) == 'string' && videoFile.includes("blob:"))
@@ -237,16 +240,19 @@ class App {
         } )
     }
 
-    onLoadAnimation( animation ) {
-        const name = animation.name;
-        this.editor.clipName = name;
+    async onLoadAnimations( animationFiles ) {
+        this.filesProcessed = 0;
+        this.filesData = animationFiles;
 
-        // Read the file and parse the data to extract the animation/s
-        const extension = UTILS.getExtension(animation.name);
+        const innerErrorOnFileProcessing = (idx, e) => {
+            console.warn( this.filesData[idx].name + " could not be processed correctly" );
+            this.filesProcessed++; // this only works if NOT multi-threaded
+        }
 
-        let reader = new FileReader();
-        reader.onload = (e) => {
+        const innerFileProcess = (idx, e) => { 
             const text = e.currentTarget.result;
+            const file = this.filesData[idx];
+            const extension = UTILS.getExtension(file.name).toLowerCase();
             let data = null;
             if(extension.includes('bvh')) {
                 data = { skeletonAnim: this.editor.BVHloader.parse( text ) };
@@ -255,45 +261,91 @@ class App {
                 data = this.editor.BVHloader.parseExtended( text );
             }
 
-            this.editor.loadAnimation( name, data );
-            this.editor.bindAnimationToCharacter( name );
-            this.editor.startEdition(false);
-        };
-        reader.readAsText(animation);
+            this.editor.loadAnimation( file.name, data );
+            this.filesProcessed++; // this only works if NOT multi-threaded                    
+        }
+
+        // launch all file reads. TO DO: check if this explodes on multiple larges filereads. Check if synchronous one-at-a-time is better
+        for( let i = 0; i < this.filesData.length; ++i){
+            const fr = this.filesData[i].fr = new FileReader();                
+            fr.readAsText( this.filesData[i] );
+            fr.onabort = fr.onerror = innerErrorOnFileProcessing.bind(this, i); // just in case
+            fr.onload = innerFileProcess.bind(this, i); // each file reader is assigned to its filesData index
+        }
+
+        // wait until every file has been read and loaded into the editor
+        while(this.filesProcessed < this.filesData.length) {
+            await new Promise(r => setTimeout(r, 500));            
+        }        
+
+        if (this.filesData.length == 0){
+            let name = "Animation" + Math.floor(performance.now()).toString();
+            this.editor.loadAnimation(name, null );
+            this.editor.bindAnimationToCharacter(name);
+        }else{
+            this.editor.bindAnimationToCharacter(this.filesData[0].name)
+        }
+        this.editor.startEdition(!this.filesData.length);
+
     }
 
-    onScriptProject(dataFile, mode) {
-        
-        if(dataFile)
-        {
-            const fr = new FileReader();
-          
-            fr.readAsText( dataFile );
-            fr.onload = e => { 
-                let data = e.currentTarget.result;
-                if(mode == 'sigml') {
+    
+    async onScriptProject(scriptFiles) {
+        this.filesProcessed = 0;
+        this.filesData = scriptFiles;
+
+        const innerErrorOnFileProcessing = (idx, e) => {
+            console.warn( this.filesData[idx].name + " could not be processed correctly" );
+            this.filesProcessed++; // this only works if NOT multi-threaded
+        }
+
+        const innerFileProcess = (idx, e) => { 
+            let data = null;
+            const file = this.filesData[idx];
+            const extension = UTILS.getExtension(file.name).toLowerCase();
+            
+            try{
+                if(extension == 'sigml') {
                     data = sigmlStringToBML(e.currentTarget.result);
                     data.behaviours = data.data;
                     delete data.data;
                 } else {
                     data = JSON.parse(e.currentTarget.result);
-                }
-                
-                let animation = data;
-                                
-                this.editor.loadAnimation( animation.name, animation );
-                this.editor.bindAnimationToCharacter( animation.name );
-                this.editor.startEdition(false);
+                    if ( Array.isArray(data) ) {
+                        data = { behaviours: data };
+                    }
+                }    
+            } catch( error ){
+                innerErrorOnFileProcessing(idx, error);
+                return;
+            }
 
-                //this.editor.loadModel(anim);    
-            };
+            this.filesProcessed++; // this only works if NOT multi-threaded                    
+            let animation = data;
+            this.editor.loadAnimation( file.name, animation );
         }
-        else {
+        // launch all file reads. TO DO: check if this explodes on multiple larges filereads. Check if synchronous one-at-a-time is better
+        for( let i = 0; i < this.filesData.length; ++i){
+            const fr = this.filesData[i].fr = new FileReader();                
+            fr.readAsText( this.filesData[i] );
+            fr.onabort = fr.onerror = innerErrorOnFileProcessing.bind(this, i); // just in case
+            fr.onload = innerFileProcess.bind(this, i); // each file reader is assigned to its filesData index
+        }
+
+        // wait until every file has been read and loaded into the editor
+        while(this.filesProcessed < this.filesData.length) {
+            await new Promise(r => setTimeout(r, 500));            
+        }        
+
+        if (this.filesData.length == 0){
             let name = "New animation";
             this.editor.loadAnimation(name, null );
-            this.editor.bindAnimationToCharacter( name );
-            this.editor.startEdition(true);
-        }        
+            this.editor.bindAnimationToCharacter(name);
+        }else{
+            this.editor.bindAnimationToCharacter(this.filesData[0].name)
+        }
+        this.editor.startEdition(!this.filesData.length);
+
     }
 
     setEvents(live) {

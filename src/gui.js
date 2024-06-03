@@ -791,6 +791,7 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.keyFramesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
+            if (!currentBinded){ return; }
             currentBinded.mixerBodyAnimation.duration = t;
             currentBinded.mixerFaceAnimation.duration = t;
             currentBinded.auAnimation.duration = t;
@@ -933,6 +934,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.curvesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
+            if (!currentBinded){ return; }
             currentBinded.mixerBodyAnimation.duration = t;
             currentBinded.mixerFaceAnimation.duration = t;
             currentBinded.auAnimation.duration = t;
@@ -1670,6 +1672,7 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.clipsTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
+            if (!currentBinded){ return; }
             currentBinded.mixerAnimation.duration = t;
         };
         this.clipsTimeline.onChangeState = (state) => {

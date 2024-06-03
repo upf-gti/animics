@@ -768,15 +768,16 @@ class Editor {
                 let skeleton = this.currentCharacter.skeletonHelper.skeleton;
                 let bvhPose = null;
                 let bvhFace = null;
+                let bindedAnim = this.getCurrentBindedAnimation();
                 if(this.mode == this.editionModes.SCRIPT) {
-                    bvhPose = BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().mixerBodyAnimation);
-                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[0], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().mixerFaceAnimation);
-                }
+                    bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation), skeleton, bindedAnim.mixerBodyAnimation);
+                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, bindedAnim.mixerFaceAnimation);
+                } 
                 else {
-                    bvhPose = BVHExporter.export(this.currentCharacter.mixer._actions[0], skeleton, this.getCurrentBindedAnimation().mixerBodyAnimation);
-                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer._actions[1], this.currentCharacter.morphTargets.BodyMesh, this.getCurrentBindedAnimation().mixerFaceAnimation);
+                    bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation), skeleton, bindedAnim.mixerBodyAnimation);
+                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, bindedAnim.mixerFaceAnimation);
                 }
-                
+                                
                 UTILS.download(bvhPose + bvhFace, (name || this.clipName) + ".bvhe", "text/plain" );
 
                 // bvhexport sets avatar to bindpose. Avoid user seeing this
@@ -1111,14 +1112,17 @@ class KeyframeEditor extends Editor{
     }
 
     onKeyDown(e) {
-
+        
     }
     /** -------------------- CREATE ANIMATIONS FROM MEDIAPIPE -------------------- */
-
+    
+    setVideoVisibility( visibility ){
+        document.getElementById("capture").style.display = visibility ? "" : "none";
+    }
     /**Create face and body animations from mediapipe and load character*/
     buildAnimation(data) {
 
-        let {landmarks, blendshapes} = data;
+        let {landmarks, blendshapes} = data ?? {};
         
         // Remove loop mode for the display video
         this.video.sync = true;
@@ -1154,23 +1158,31 @@ class KeyframeEditor extends Editor{
     // load animation from bvh file
     loadAnimation(name, animationData ) { // TO DO: Refactor params of loadAnimation...()
 
-        let skeleton = animationData.skeletonAnim.skeleton;
-        skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
-        // loader does not correctly compute the skeleton boneInverses and matrixWorld 
-        skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
-        skeleton = new THREE.Skeleton( skeleton.bones ); // will automatically compute boneInverses
+        let skeleton = null;
+        let bodyAnimation = null;
+        let faceAnimation = null;
+        if ( animationData && animationData.skeletonAnim ){
+            skeleton = animationData.skeletonAnim.skeleton;
+            skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+            // loader does not correctly compute the skeleton boneInverses and matrixWorld 
+            skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
+            skeleton = new THREE.Skeleton( skeleton.bones ); // will automatically compute boneInverses
+            
+            animationData.skeletonAnim.clip.tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );     
+            animationData.skeletonAnim.clip.name = "bodyAnimation";
+            bodyAnimation = animationData.skeletonAnim.clip;
+        }
         
-        animationData.skeletonAnim.clip.tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
-
-        animationData.skeletonAnim.clip.name = "bodyAnimation";
-        if (animationData.blendshapesAnim){
-            animationData.blendshapesAnim.name = "faceAnimation";
-        };
+        if ( animationData && animationData.blendshapesAnim ){
+            animationData.blendshapesAnim.name = "faceAnimation";       
+            faceAnimation = animationData.blendshapesAnim;
+        }
+        
         this.loadedAnimations[name] = {
             name: name,
-            bodyAnimation: animationData.skeletonAnim.clip,
-            faceAnimation: animationData.blendshapesAnim ?? null,
-            skeleton: skeleton,
+            bodyAnimation: bodyAnimation ?? new THREE.AnimationClip( "bodyAnimation", -1, [] ),
+            faceAnimation: faceAnimation ?? new THREE.AnimationClip( "faceAnimation", -1, [] ),
+            skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
             type: "bvh"
         };
     }
@@ -1188,9 +1200,21 @@ class KeyframeEditor extends Editor{
         }
 
         this.currentAnimation = animationName;
-        this.video.src = animation.videoBlob;
-        this.video.startTime = animation.startTime ?? 0;
-        this.video.endTime = animation.endTime ?? 1;
+
+        if ( animationName != this.currentAnimation ){
+            this.gui.keyFramesTimeline.unSelectAllKeyFrames();
+            this.gui.keyFramesTimeline.unHoverAll();
+            this.gui.keyFramesTimeline.currentTime = 0;
+            // this.gui.keyFramesTimeline.lastKeyFramesSelected = [];
+            // this.gui.keyFramesTimeline.lastHovered = null;
+            // this.gui.keyFramesTimeline.selectedItems = null;
+            this.gui.curvesTimeline.unSelectAllKeyFrames();
+            this.gui.curvesTimeline.unHoverAll();
+            this.gui.curvesFramesTimeline.currentTime = 0;
+            // this.gui.curvesFramesTimeline.lastKeyFramesSelected = [];
+            // this.gui.curvesFramesTimeline.lastHovered = null;
+            // this.gui.curvesFramesTimeline.selectedItems =null;
+        }
 
         // Remove current animation clip
         let mixer = this.currentCharacter.mixer;
@@ -1269,7 +1293,16 @@ class KeyframeEditor extends Editor{
         this.setAnimation(this.animationMode);
         this.gizmo.updateBones();
         // mixer.setTime(0);
-        this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
+
+        if ( animation.type == "video" ){
+            this.setVideoVisibility(true);
+            this.video.src = animation.videoBlob;
+            this.video.startTime = animation.startTime ?? 0;
+            this.video.endTime = animation.endTime ?? 1;
+            this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
+        }else{
+            this.setVideoVisibility(false);
+        }
 
         if(bindedAnim.mixerBodyAnimation) {
             $('#loading').fadeOut();
@@ -1291,15 +1324,15 @@ class KeyframeEditor extends Editor{
             
             let name = bones[i].name;
             if(bonesNames.indexOf( name ) > -1)
-                continue
-            let times = [tracks[0].times[0]];
+                continue;
+            let times = [0];
             let values = [bones[i].quaternion.x, bones[i].quaternion.y, bones[i].quaternion.z, bones[i].quaternion.w];
             
             let track = new THREE.QuaternionKeyframeTrack(name + '.quaternion', times, values);
             newTracks.push(track);
             
         }
-        clip.tracks = [...clip.tracks, ...newTracks] ;
+        clip.tracks = clip.tracks.concat(newTracks);
     }
 
     onUpdateAnimationTime() {
@@ -1745,6 +1778,27 @@ class ScriptEditor extends Editor{
             return false;
         }
 
+        //TO DO: make this pretty inside the clipsTimeline class
+        if ( animationName != this.currentAnimation ){
+            this.gui.clipsTimeline.currentTime = 0;
+            this.gui.clipsTimeline.unSelectAllClips();
+            this.gui.clipsTimeline.unHoverAll();
+
+            // this.gui.clipsTimeline.lastClipsSelected = [];
+            // this.gui.clipsTimeline.lastHovered = null;
+            // this.gui.clipsTimeline.selectedClip = null;
+            // this.gui.clipsTimeline.timelineClickedClips = null;
+            // this.gui.clipsTimeline.timelineClickedClipsTime = null;
+
+// this.gui.keyFramesTimeline.lastKeyFramesSelected
+// this.gui.keyFramesTimeline.lastHovered
+// this.gui.keyFramesTimeline.selectedItems
+// this.gui.curvesFramesTimeline.lastKeyFramesSelected
+// this.gui.curvesFramesTimeline.lastHovered
+// this.gui.curvesFramesTimeline.selectedItems
+        }
+        this.currentAnimation = animationName;
+
         // Remove current animation clip
         let mixer = this.currentCharacter.mixer;
         mixer.stopAllAction();
@@ -1756,14 +1810,15 @@ class ScriptEditor extends Editor{
         // load animation for the first time
         if (!animation.scriptAnimation){
             this.gui.clipsTimeline.setAnimationClip(null, true); //generate empty animation. Cannot process bml input 
-            this.gui.loadBMLClip(animation.inputAnimation); // process bml and add clips
             animation.scriptAnimation = this.gui.clipsTimeline.animationClip;
+            this.gui.loadBMLClip(animation.inputAnimation); // process bml and add clips
         }
-        else{
-            this.gui.clipsTimeline.setAnimationClip(animation.scriptAnimation, false);
-            this.gui.clip = this.gui.clipsTimeline.animationClip;
-            this.gui.duration = this.gui.clip.duration;    
-        }
+        // when just updating the mixer animation, this should not be necessary
+        // else{ 
+        //     this.gui.clipsTimeline.setAnimationClip(animation.scriptAnimation, false); 
+        //     this.gui.clip = this.gui.clipsTimeline.animationClip;
+        //     this.gui.duration = this.gui.clip.duration;    
+        // }
         
         let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(this.activeTimeline.animationClip, this.activeTimeline.framerate);
         mixerAnimation.name = animationName;
@@ -1777,7 +1832,6 @@ class ScriptEditor extends Editor{
             mixerAnimation
         }
     
-        this.currentAnimation = animationName;
         this.setAnimation();
         // mixer.setTime(0); // resets and automatically calls a this.mixer.update
 

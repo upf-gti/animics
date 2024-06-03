@@ -56,18 +56,52 @@
 			return app;
 		}
 	
-		const onLoadFile = function( file ){
-			if(!file){ return null; }
-			console.log(file);
+		const onLoadFiles = function( files ){
+			if(!files || !files.length){ return null; }
+			console.log(files);
 
-			// MIME type is video
-			if(file.type.startsWith("video/")){ return createApp({mode: "video", data: file}); }
+			let mode = null;
+			let resultFiles = [];
+			
+			const animExtensions = ['bvh','bvhe'];
+			const scriptExtensions = ['json', 'bml', 'sigml'];
 
-			// other valid file formats
-			const extension = UTILS.getExtension(file.name).toLowerCase(); 
-			const formats = ['json', 'bml', 'sigml', 'bvh','bvhe'];
-			if(formats.indexOf(extension) >= 0) { return createApp({mode: extension, data: file}); }
+			// first valid file will determine the mode. Following files must be of the same format
+			for(let i = 0; i < files.length; ++i){
+				// MIME type is video
+				if(files[i].type.startsWith("video/")) { 
+					if (!mode) { mode = "video"; }
+					
+					if ( mode == "video" ){
+						resultFiles.push( files[i] );
+					}
+					continue;
+				}
 
+				// other valid file formats
+				const extension = UTILS.getExtension(files[i].name).toLowerCase();
+								
+				if(animExtensions.includes(extension)) { 
+					if (!mode) { mode = "bvh"; }
+					
+					if ( mode == "bvh"){
+						resultFiles.push( files[i] );
+					}
+				}
+
+				if(scriptExtensions.includes(extension)) { 
+					if (!mode) { mode = "script"; }
+
+					if ( mode == "script"){
+						resultFiles.push( files[i] );
+					}
+				}
+			}
+
+			if ( resultFiles.length ){
+				return createApp({mode: mode, data: resultFiles});
+			}	
+				
 			alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
 			return null;
 		}
@@ -78,7 +112,7 @@
 		dialog.ondrop = (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			onLoadFile( e.dataTransfer.files[0] );
+			onLoadFiles( e.dataTransfer.files );
 		};
 	
 		$("#keyframe-project").click(() => {
@@ -91,7 +125,7 @@
 			const input = document.createElement('input');
 			input.type = 'file';
 			input.click();
-			input.onchange = (e) => { onLoadFile(e.currentTarget.files[0]); };
+			input.onchange = (e) => { onLoadFiles(e.currentTarget.files); };
 		});
 				
 	</script>
