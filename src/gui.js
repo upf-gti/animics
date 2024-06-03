@@ -82,6 +82,62 @@ class Gui {
             this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
         }});
 
+        // Export animation
+        menubar.add("Project/Export all animations", {icon: "fa fa-file-export"});
+        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
+            // menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
+            // });
+        }
+
+        menubar.add("Project/Export all animations/Export extended BVH", {callback: () => {
+            
+            
+            let options = { modal : true};
+
+            let value = "";
+
+            const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
+                let animations = this.editor.getAnimationsToExport();
+                for(let animationName in animations) {
+                    let animation = animations[animationName];
+                    animation.export = animation.export === undefined ? true : animation.export;
+                    p.sameLine();
+                    p.addCheckbox(animationName || options.input, animation.export, (v) => animation.export = v);
+                    p.addText(null, animationName || options.input , (v) => {
+                        delete animations[animationName];
+                        animations[v] = animation; 
+                    }, {placeholder: "..."} );
+                    p.endLine();
+                }
+               
+                p.sameLine(2);
+                p.addButton(null, options.accept || "OK", () => { 
+                    if(options.required && value === '') {
+
+                        text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
+                        dialog.close() ;
+                        //LX.prompt(text, title, callback, options);
+                    }else {
+
+                        // for(let animationName in animations) {
+                        //     let animation = animations[animationName];
+                        //     if(!animation.export) {
+                        //         continue;                            
+                        //     }
+                        // }
+                        this.editor.export("BVH extended")
+                        dialog.close() ;
+                    }
+                    
+                }, { buttonClass: "accept" });
+                p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+            }, options);
+
+            // Focus text prompt
+            if(options.input !== false)
+                dialog.root.querySelector('input').focus();
+        }});
+        
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
         menubar.add("Project/Export scene/Export GLB", {callback: () => 
             this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", v), {input: this.editor.clipName, required: true} )     

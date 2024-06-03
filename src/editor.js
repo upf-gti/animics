@@ -401,6 +401,19 @@ class Editor {
         return this.loadedAnimations[this.currentAnimation];
     }
 
+    getAnimationsToExport() {
+        this.toExport = {};
+        for(let animationName in this.bindedAnimations) {
+            let animation = this.bindedAnimations[animationName];
+
+            if(animation[this.currentCharacter.name]) {
+                animation[this.currentCharacter.name].export = true;
+                this.toExport[animationName] = animation[this.currentCharacter.name];
+            }
+        }
+        return this.toExport;
+    }
+
     startEdition(showGuide = true) {
         this.gui.init(showGuide);
         this.animate();
@@ -758,27 +771,48 @@ class Editor {
                     options
                 );
                 break;
-            case 'BVH':
-                let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
-                UTILS.download(bvh, name, "text/plain");
-                // bvhexport sets avatar to bindpose. Avoid user seeing this
-                this.currentCharacter.mixer.update(0);
-                break;
-            case 'BVH extended':
+            
+            case 'BVH': case 'BVH extended':
                 let skeleton = this.currentCharacter.skeletonHelper.skeleton;
-                let bvhPose = null;
-                let bvhFace = null;
                 let bindedAnim = this.getCurrentBindedAnimation();
-                if(this.mode == this.editionModes.SCRIPT) {
-                    bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation), skeleton, bindedAnim.mixerBodyAnimation);
-                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, bindedAnim.mixerFaceAnimation);
-                } 
-                else {
-                    bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation), skeleton, bindedAnim.mixerBodyAnimation);
-                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, bindedAnim.mixerFaceAnimation);
+
+                if(!this.toExport || this.toExport.length) {
+                    bindedAnim.export = true;
+                    this.toExport = [bindedAnim];
                 }
-                                
-                UTILS.download(bvhPose + bvhFace, (name || this.clipName) + ".bvhe", "text/plain" );
+
+                for(let animationName in this.toExport) {
+                    let animation = this.toExport[animationName];
+                    if(!animation.export) {
+                        continue;
+                    }
+                    let bvhPose = null;
+                    let bvhFace = null;
+                    
+                    if(this.mode == this.editionModes.SCRIPT) {
+                        bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(animation.mixerBodyAnimation), skeleton, animation.mixerBodyAnimation);
+                        bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(animation.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                    } 
+                    else {
+                        bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(animation.mixerBodyAnimation), skeleton, animation.mixerBodyAnimation);
+                        bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(animation.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                    }
+                    
+                    // Check if it already has extension
+                    let clipName = name || this.clipName || animationName;
+                    const extension = clipName.split(".");
+                    if(!extension[1]) {
+                        if(type == 'BVH') {
+                            clipName += '.bvh';
+                        }
+                        else if(type == 'BVH extended') {
+                            clipName += '.bvhe';
+                        }
+                    }
+                    
+                    UTILS.download(bvhPose + bvhFace, clipName, "text/plain" );
+                }
+
 
                 // bvhexport sets avatar to bindpose. Avoid user seeing this
                 this.currentCharacter.mixer.update(0);

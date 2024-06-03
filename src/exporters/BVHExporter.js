@@ -258,7 +258,9 @@ const BVHExporter = {
         bvh += "Frame Time: " + framerate + "\n";
 
         const interpolants = action._interpolants;
-
+        if(!interpolants.length) {
+            return bvh;
+        }
         const getMorphTargetFrameData = (time, morphTarget) => {
 
             let data = "";
@@ -284,7 +286,7 @@ const BVHExporter = {
 
             return data;
         }
-
+        
         for( let frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
             bvh += getMorphTargetFrameData(frameIdx * framerate, morphTargets);
             bvh += "\n";
