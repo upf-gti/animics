@@ -266,7 +266,8 @@ const MediaPipe = {
      * sets mediapipe to process videoElement on each rendered frame. It does not automatically start recording. 
      * Hardware capabilities affect the rate at which frames can be displayed and processed
      */
-    async processVideoOnline( videoElement ){
+    async processVideoOnline( videoElement, live = false ){
+        this.live = live;
         this.stopVideoProcessing(); // stop previous video processing, if any
         
         this.currentVideoProcessing = {
@@ -314,14 +315,17 @@ const MediaPipe = {
      * @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
      * @param {Function} onEnded 
      */
-    async processVideoOffline( videoElement,  startTime = -1, endTime = -1, dt = 0.04, onEnded = null ){ // dt=seconds, default 25 fps
+    async processVideoOffline( videoElement,  startTime = -1, endTime = -1, dt = 0.04, onEnded = null, live = false ){ // dt=seconds, default 25 fps
         // PROBLEMS: still reading speed (browser speed). Captures frames at specified fps (dt) instead of the actual available video frames
         // PROS: Ensures current time has loaded correctly before sending to mediapipe. Better support than requestVideoCallback
-        
+        this.live = live;
         this.stopVideoProcessing(); // stop previous video processing, if any
 
         videoElement.pause();
         startTime = Math.max( Math.min( videoElement.duration, startTime ), 0 );
+        if ( endTime < -0.001 ){ 
+            endTime = videoElement.duration; 
+        }
         endTime = Math.max( Math.min( videoElement.duration, endTime ), startTime );
         dt = Math.max( dt, 0.001 );
         

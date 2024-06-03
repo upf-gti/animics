@@ -30,7 +30,7 @@ class App {
             case 'video': 
                 this.video = settings.data;
                 this.editor = new KeyframeEditor(this, "VIDEO");
-                callback = this.onLoadVideo.bind(this, settings.data );
+                callback = this.onLoadVideos.bind(this, settings.data );
                 break;
             case 'bvh': case 'bvhe':
                 this.editor = new KeyframeEditor(this, "VIDEO");
@@ -124,7 +124,7 @@ class App {
                     inputVideo.srcObject = null;
                                        
                     // Trim stage. Show modal to redo or load the animation in the scene
-                    that.processVideo(true, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
+                    that.videoToTrimStage(true, {blendshapesResults: MediaPipe.blendshapes, landmarksResults: MediaPipe.landmarks});
 
                     console.log("Stopped recording");
                 }
@@ -140,19 +140,17 @@ class App {
         // Run mediapipe to extract landmarks. Not recording yet, but providing feedback to the user
         MediaPipe.start( true, () => {
             this.setEvents(true);
-            MediaPipe.processVideoOnline( document.getElementById("inputVideo") );
+            MediaPipe.processVideoOnline( document.getElementById("inputVideo"), this.editor.mode == this.editor.editionModes.CAPTURE );
             $('#loading').fadeOut();
             
         }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui));
 
     }
 
-    onLoadVideo( videoFiles ) {
-        if (!videoFiles || !videoFiles.length){
-            return;
+    onLoadSingleVideo( videoFile ) {
+        if ( !videoFile ){ 
+            return; 
         }
-        let videoFile = videoFiles[0];
-        this.mediaRecorder = null;
 
         let url = "";
         if(typeof(videoFile) == 'string' && videoFile.includes("blob:"))
@@ -185,12 +183,121 @@ class App {
 
             MediaPipe.start( false, () => {
                 // directly to trim stage
-                that.processVideo( false, { blendshapesResults:[], landmarksResults:[] } );
+                that.videoToTrimStage( false, { blendshapesResults:[], landmarksResults:[] } );
                 $('#loading').fadeOut();
     
             }, that.editor.gui.updateCaptureGUI.bind(that.editor.gui) );
         } ).bind(video);
 
+    }
+
+    /**
+     * 
+     * @param {File} videos 
+     */
+    onLoadVideos( videoFiles ){
+
+        if ( videoFiles && videoFiles.length == 1 ){
+            this.onLoadSingleVideo(videoFiles[0]);
+            return;
+        }
+
+        this.videoProcessingCommon = {
+            onVideoProcessEndedFn: null,
+            videosToProcess: [], // array of videoObj (same as in onVideoTrimmed)
+            videosProcessed: 0
+        };
+        videoFiles = videoFiles ?? [];
+        for( let i = 0; i < videoFiles.length; ++i ){
+            let url = "";
+            if(typeof(videoFiles[i]) == 'string' && videoFiles[i].includes("blob:")){
+                url = videoFiles[i];
+            }
+            else {
+                url = URL.createObjectURL(videoFiles[i]);
+            }
+    
+            this.videoProcessingCommon.videosToProcess.push( {
+                name: videoFiles[i].name,
+                videoBlob: url,
+                startTime: 0,
+                endTime: -1,
+                dt: 1/25,
+                landmarks: null,
+                blendshapes: null,
+                live: false // whether it is a recording from live input. Used to mirror canvas
+            } );
+        }
+
+        // ------------- Show only the "processing video" elements -------------
+        // Hide trim stage buttons
+        let trimBtn = document.getElementById("trim_btn");
+        trimBtn.classList.add("hidden");
+        let redoBtn = document.getElementById("redo_btn");
+        redoBtn.classList.add("hidden");
+ 
+        let captureDiv = document.getElementById("capture");
+        $(captureDiv).removeClass("hidden");
+        document.getElementById("select-mode").innerHTML = "";
+
+        let canvas = document.getElementById("outputVideo");
+        let video = document.getElementById("recording");
+        video.classList.remove("hidden");
+        video.style.width = canvas.offsetWidth + "px";
+        video.style.height = canvas.offsetHeight + "px";
+        video.width = canvas.offsetWidth;
+        video.height = canvas.offsetHeight;
+
+        // Hide capture buttons
+        document.getElementById("select-mode").innerHTML = "";
+        let capture = document.getElementById("capture_btn");
+        capture.style.display = "none";
+        capture.disabled = true;
+        capture.classList.remove("stop");
+        
+        video.style.cssText+= "transform: rotateY(0deg);\
+                    -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
+                    -moz-transform:rotateY(0deg); /* Firefox */";
+        // ---------------------------------------------
+       
+        if ( !this.videoProcessingCommon.videosToProcess.length ){
+            let name = "NewAnimation_" + Math.floor(performance.now()).toString();
+            this.editor.loadAnimation( name, null );
+            this.editor.bindAnimationToCharacter( name );
+            this.editor.startEdition();            
+        }
+
+        this.videoProcessingCommon.onVideoProcessEndedFn = () =>{
+            let common = this.videoProcessingCommon;
+
+            this.editor.buildAnimation( common.videosToProcess[common.videosProcessed] );
+            common.videosProcessed++;
+            if ( common.videosProcessed >= common.videosToProcess.length ){
+                let a = Object.keys( this.editor.loadedAnimations );
+                // Creates the scene and loads the animation. Changes ui to edition
+
+                let name = "";
+                if ( !a.length ){
+                    let name = "NewAnimation_" + Math.floor(performance.now()).toString();
+                    this.editor.loadAnimation( name, null );
+                }else{
+                    name = a[0];
+                }
+                this.editor.bindAnimationToCharacter( name );
+                this.editor.startEdition();
+            }else{
+                UTILS.makeLoading("Processing video " + (this.videoProcessingCommon.videosProcessed +1) + "/" + this.videoProcessingCommon.videosToProcess.length.toString(), 0.5 )
+                this.processVideo( common.videosToProcess[common.videosProcessed], common.onVideoProcessEndedFn )
+            }
+        }
+        
+        UTILS.makeLoading("Loading Mediapipe", 1 )
+        MediaPipe.start( false, () => {
+            // directly to process stage
+            UTILS.makeLoading("Processing video " + (this.videoProcessingCommon.videosProcessed+1) + "/" + this.videoProcessingCommon.videosToProcess.length.toString(), 0.5 )
+            this.processVideo( this.videoProcessingCommon.videosToProcess[0], this.videoProcessingCommon.onVideoProcessEndedFn );
+        } );
+        
     }
 
     // after video has been trimmed by VideoUtils and has been unbinded
@@ -203,6 +310,7 @@ class App {
             dt: 1/25,
             landmarks: null,
             blendshapes: null,
+            live: this.editor.mode == this.editor.editionModes.CAPTURE
         }
 
         // Hide trim stage buttons
@@ -211,33 +319,64 @@ class App {
         let redoBtn = document.getElementById("redo_btn");
         redoBtn.classList.add("hidden");
 
-
-        // stops any processVideoOnline and starts processing video with these parameters
         UTILS.makeLoading("Processing video", 0.5 )
-        MediaPipe.setOptions( { autoDraw: true } );
-        MediaPipe.processVideoOffline( document.getElementById("recording"), videoObj.startTime, videoObj.endTime, videoObj.dt, () =>{
-            videoObj.landmarks = MediaPipe.landmarks;
-            videoObj.blendshapes = MediaPipe.blendshapes;
-
-            // undo any mirroring of the video
-            document.getElementById("recording").style.cssText+= "transform: rotateY(0deg);\
-            -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-            -moz-transform:rotateY(0deg); /* Firefox */"
-
-            document.getElementById("inputVideo").onloadedmetadata = null;
-            
-            let videoRecording = document.getElementById("recording");
-            videoRecording.onloadedmetadata = null;
-            videoRecording.onended = null;
-            videoRecording.autoplay = false;
-            videoRecording.pause();
-            videoRecording.currentTime = videoObj.startTime;
-    
-            // Creates the scene and loads the animation. Changes ui to edition
+        this.processVideo( videoObj, () =>{
             this.editor.buildAnimation( videoObj );
             this.editor.bindAnimationToCharacter( videoObj.name );
             this.editor.startEdition();
         } )
+    }
+
+    /**
+     * send video obj (custom obj) with name, url, start/end times so mediapipe can process it. 
+     * @param {*} videoObj 
+     * @param {*} onEnded 
+     */
+    processVideo( videoObj, onEnded = null ){        
+        let domVideo = document.getElementById("recording");
+        domVideo.onloadedmetadata = ( function (e) {
+            // this === videoElement
+            let videoCanvas = document.getElementById("outputVideo");
+            
+            let aspect = this.videoWidth/this.videoHeight;
+
+            let height = 802;
+            let width = height*aspect;
+
+            videoCanvas.width  = width;
+            videoCanvas.height = height;
+        } ).bind(domVideo); 
+
+        domVideo.onloadeddata = ( (videoObj, onEnded) =>{
+            videoObj.endTime = videoObj.endTime < -0.001 ? domVideo.duration : videoObj.endTime;
+            // stops any processVideoOnline (and offline) and starts processing video with these parameters
+            MediaPipe.setOptions( { autoDraw: true } );
+            MediaPipe.processVideoOffline( document.getElementById("recording"), videoObj.startTime, videoObj.endTime, videoObj.dt, () =>{
+                videoObj.landmarks = MediaPipe.landmarks;
+                videoObj.blendshapes = MediaPipe.blendshapes;
+    
+                document.getElementById("inputVideo").onloadedmetadata = null;
+                
+                let videoRecording = document.getElementById("recording");
+                // undo any mirroring of the video
+                videoRecording.style.cssText+= "transform: rotateY(0deg);\
+                -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
+                -moz-transform:rotateY(0deg); /* Firefox */"
+                videoRecording.onloadedmetadata = null;
+                videoRecording.onloadeddata = null;
+                videoRecording.onended = null;
+                videoRecording.autoplay = false;
+                videoRecording.pause();
+
+                if (onEnded){ 
+                    onEnded(); 
+                }
+
+            }, videoObj.live )
+        } ).bind( this, videoObj, onEnded );
+
+        domVideo.src = videoObj.videoBlob;
+
     }
 
     async onLoadAnimations( animationFiles ) {
@@ -383,8 +522,7 @@ class App {
             }
         };    
     }
-    
-    async processVideo(live, results) {
+    async videoToTrimStage(live, results) { 
         // TRIM VIDEO - be sure that only the sign is recorded
         
         let captureDiv = document.getElementById("capture");
@@ -419,7 +557,7 @@ class App {
         await VideoUtils.bind(video, canvas, ()=>{
             // (re)start process video online but let VideoUtils manage the render
             MediaPipe.setOptions( { autoDraw: false } );
-            MediaPipe.processVideoOnline(video); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
+            MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
 
             // Show trim stage buttons
             let trimBtn = document.getElementById("trim_btn");

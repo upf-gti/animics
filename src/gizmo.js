@@ -521,7 +521,7 @@ class Gizmo {
         //this.mustUpdate = false; 
     }
 
-    updateBones( dt ) {
+    updateBones( ) {
 
         if(!this.bonePoints)
             return;

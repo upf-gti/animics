@@ -438,15 +438,17 @@ class Editor {
 
     update(dt) {
 
-        if (this.mode != this.editionModes.SCRIPT) {
-            if (this.video.src && this.video.currentTime >= this.video.endTime ) {
-                this.video.pause(); // stop video on last frame until loop
-            }
-        }
         if (this.currentTime > this.activeTimeline.duration) {
             this.currentTime = this.activeTimeline.currentTime = 0.0;
             this.onAnimationEnded();
         }
+        // the user increased the duration of the animation but the video is trimmed. Keep it paused at endTime until loop
+        if (this.mode != this.editionModes.SCRIPT) {
+            if (this.video.sync && this.video.currentTime >= this.video.endTime ) {
+                this.video.pause(); // stop video on last frame until loop
+            }
+        }
+
         if (this.currentCharacter.mixer && this.state) {
             this.currentCharacter.mixer.update(dt);
             this.currentTime = this.activeTimeline.currentTime = this.currentCharacter.mixer.time;
@@ -712,7 +714,8 @@ class Editor {
     onAnimationEnded() {
 
         if(this.animLoop) {
-            if (this.mode != this.editionModes.SCRIPT && this.video.paused) {
+            // user increased the duration of the animation. But the video is "trimmed" so it was paused at the endTime until the loop were reached
+            if (this.mode != this.editionModes.SCRIPT && this.video.paused) { 
                 this.video.play();
             }
             this.setTime(0.0, true);
@@ -1117,7 +1120,7 @@ class KeyframeEditor extends Editor{
     /** -------------------- CREATE ANIMATIONS FROM MEDIAPIPE -------------------- */
     
     setVideoVisibility( visibility ){
-        document.getElementById("capture").style.display = visibility ? "" : "none";
+        document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
     }
     /**Create face and body animations from mediapipe and load character*/
     buildAnimation(data) {
@@ -1295,12 +1298,19 @@ class KeyframeEditor extends Editor{
         // mixer.setTime(0);
 
         if ( animation.type == "video" ){
+            this.video.sync = true;
             this.setVideoVisibility(true);
+            this.video.onloadeddata = () =>{
+                this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
+                if ( this.activeTimeline.playing ){
+                    this.video.play();
+                }            
+            }
             this.video.src = animation.videoBlob;
             this.video.startTime = animation.startTime ?? 0;
             this.video.endTime = animation.endTime ?? 1;
-            this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
         }else{
+            this.video.sync = false;
             this.setVideoVisibility(false);
         }
 
@@ -1358,7 +1368,7 @@ class KeyframeEditor extends Editor{
     // Stop all animations 
     onStop() {
 
-        this.gizmo.updateBones(t);
+        this.gizmo.updateBones();
         if(this.video.sync) {
             this.video.pause();
             this.video.currentTime = this.video.startTime;
@@ -1393,7 +1403,7 @@ class KeyframeEditor extends Editor{
         if(this.state && !force)
             return;
 
-        // mixer computes time * timeScale. We actually want to set the reaw animation (track) time, without any timeScale 
+        // mixer computes time * timeScale. We actually want to set the raw animation (track) time, without any timeScale 
         this.currentCharacter.mixer.setTime(t / this.currentCharacter.mixer.timeScale ); // already calls mixer.update
 
         // Update video

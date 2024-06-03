@@ -136,9 +136,10 @@ class Gui {
         menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
         if(this.showVideo)
             menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
+                this.editor.setVideoVisibility( v );
                 this.showVideo = v;
-                const tl = document.getElementById("capture");
-                tl.style.display = this.showVideo ? "flex": "none";
+                // const tl = document.getElementById("capture");
+                // tl.style.display = this.showVideo ? "flex": "none";
             }});
         // menubar.add("View/Show timeline", { type: "checkbox", checked: this.timelineVisible, callback: (v) => {
         //     if(v)
