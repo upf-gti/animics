@@ -788,14 +788,24 @@ class Editor {
                     }
                     let bvhPose = null;
                     let bvhFace = null;
+                    let bodyAction = this.currentCharacter.mixer.existingAction(animation.mixerBodyAnimation);
+                    let faceAction = this.currentCharacter.mixer.existingAction(animation.mixerFaceAnimation);
                     
+                    if(!bodyAction && animation.mixerBodyAnimation) {
+                        bodyAction = this.currentCharacter.mixer.clipAction(animation.mixerBodyAnimation);     
+                        bodyActionToDeleted = true;                   
+                    }
+                    if(!faceAction && animation.mixerFaceAnimation) {
+                        faceAction = this.currentCharacter.mixer.clipAction(animation.mixerFaceAnimation);                        
+                    }
+
                     if(this.mode == this.editionModes.SCRIPT) {
-                        bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(animation.mixerBodyAnimation), skeleton, animation.mixerBodyAnimation);
-                        bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(animation.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                        bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
+                        bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
                     } 
                     else {
-                        bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(animation.mixerBodyAnimation), skeleton, animation.mixerBodyAnimation);
-                        bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(animation.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                        bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
+                        bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
                     }
                     
                     // Check if it already has extension
@@ -803,19 +813,18 @@ class Editor {
                     const extension = clipName.split(".");
                     if(!extension[1]) {
                         if(type == 'BVH') {
-                            clipName += '.bvh';
+                            clipName = extension[0] + '.bvh';
                         }
                         else if(type == 'BVH extended') {
-                            clipName += '.bvhe';
+                            clipName = extension[0] + '.bvhe';
                         }
                     }
                     
                     UTILS.download(bvhPose + bvhFace, clipName, "text/plain" );
                 }
 
-
                 // bvhexport sets avatar to bindpose. Avoid user seeing this
-                this.currentCharacter.mixer.update(0);
+                this.bindAnimationToCharacter(this.currentAnimation);
                 break;
 
             default:

@@ -111,7 +111,7 @@ class Gui {
                 }
                
                 p.sameLine(2);
-                p.addButton(null, options.accept || "OK", () => { 
+                p.addButton("", options.accept || "OK", () => { 
                     if(options.required && value === '') {
 
                         text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
