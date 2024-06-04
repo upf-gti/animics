@@ -89,58 +89,13 @@ class Gui {
             // });
         }
 
-        menubar.add("Project/Export all animations/Export extended BVH", {callback: () => {
-            
-            
-            let options = { modal : true};
-
-            let value = "";
-
-            const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
-                let animations = this.editor.getAnimationsToExport();
-                for(let animationName in animations) {
-                    let animation = animations[animationName];
-                    animation.export = animation.export === undefined ? true : animation.export;
-                    p.sameLine();
-                    p.addCheckbox(animationName || options.input, animation.export, (v) => animation.export = v);
-                    p.addText(null, animationName || options.input , (v) => {
-                        delete animations[animationName];
-                        animations[v] = animation; 
-                    }, {placeholder: "..."} );
-                    p.endLine();
-                }
-               
-                p.sameLine(2);
-                p.addButton("", options.accept || "OK", () => { 
-                    if(options.required && value === '') {
-
-                        text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
-                        dialog.close() ;
-                        //LX.prompt(text, title, callback, options);
-                    }else {
-
-                        // for(let animationName in animations) {
-                        //     let animation = animations[animationName];
-                        //     if(!animation.export) {
-                        //         continue;                            
-                        //     }
-                        // }
-                        this.editor.export("BVH extended")
-                        dialog.close() ;
-                    }
-                    
-                }, { buttonClass: "accept" });
-                p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
-            }, options);
-
-            // Focus text prompt
-            if(options.input !== false)
-                dialog.root.querySelector('input').focus();
+        menubar.add("Project/Export all animations/Export extended BVH", {callback: () => {            
+            this.showExportAnimationsDialog(this.editor.export("BVH extended").bind(this));            
         }});
         
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
         menubar.add("Project/Export scene/Export GLB", {callback: () => 
-            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", v), {input: this.editor.clipName, required: true} )     
+            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", true, v), {input: this.editor.clipName, required: true} )     
         });
 
         // Save animation
@@ -380,6 +335,48 @@ class Gui {
             
     }
 
+    showExportAnimationsDialog(callback) {
+        let options = { modal : true};
+
+        let value = "";
+
+        const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
+            let animations = this.editor.getAnimationsToExport();
+            for(let animationName in animations) {
+                let animation = animations[animationName];
+                animation.export = animation.export === undefined ? true : animation.export;
+                p.sameLine();
+                p.addCheckbox(animationName || options.input, animation.export, (v) => animation.export = v);
+                p.addText(null, animationName || options.input , (v) => {
+                    delete animations[animationName];
+                    animations[v] = animation; 
+                }, {placeholder: "..."} );
+                p.endLine();
+            }
+           
+            p.sameLine(2);
+            p.addButton("", options.accept || "OK", () => { 
+                if(options.required && value === '') {
+
+                    text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
+                    dialog.close() ;
+                }else {
+
+                    if(callback) {
+                        callback();
+                    }
+                    dialog.close() ;
+                }
+                
+            }, { buttonClass: "accept" });
+            p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+        }, options);
+
+        // Focus text prompt
+        if(options.input !== false)
+            dialog.root.querySelector('input').focus();
+    }
+
     createSceneUI(area) {
 
         $(this.editor.orientationHelper.domElement).show();
@@ -566,11 +563,11 @@ class Gui {
             p.addButton(null, "Export", () => {
                 p.clear();
                 p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
-                p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended", this.editor.clipName), { buttonClass: "accept" });
+                p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended"), { buttonClass: "accept" });
                 if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-                    p.addButton( null, "Export BML", () => this.editor.export("", this.editor.clipName ), { buttonClass: "accept" });
+                    p.addButton( null, "Export BML", () => this.editor.export(""), { buttonClass: "accept" });
                 }
-                p.addButton( null, "Export GLB", () => this.editor.export("GLB", this.editor.clipName), { buttonClass: "accept" });
+                p.addButton( null, "Export GLB", () => this.editor.export("GLB"), { buttonClass: "accept" });
             });
             p.addButton(null, "Discard", () => {
 
@@ -3441,7 +3438,7 @@ class ScriptGui extends Gui {
     }
 
     createExportBMLDialog() {
-        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", v), {input: this.editor.clipName, required: true} )  
+        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", true, v), {input: this.editor.clipName, required: true} )  
     }
 
     showSourceCode (asset) 

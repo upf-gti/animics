@@ -144,7 +144,7 @@ class Editor {
                         if(e.altKey) {
                             e.preventDefault();
                             e.stopImmediatePropagation();
-                            LX.prompt("File name", "Export GLB", (v) => this.export("GLB", v), {input: this.clipName, required: true} )     
+                            LX.prompt("File name", "Export GLB", (v) => this.export("GLB", true, v), {input: this.clipName, required: true} )     
                         }
                     }
                     break;
@@ -754,17 +754,39 @@ class Editor {
         this.gui.resize(width, height);
     }
 
-    export(type = null, name) {
+    export(type = null, download = true, name = null) {
+        let bindedAnim = this.getCurrentBindedAnimation();
+        let files = [];
+        if(!this.toExport || this.toExport.length) {
+            bindedAnim.export = true;
+            this.toExport = [bindedAnim];
+        }
+
         switch(type){
             case 'GLB':
                 let options = {
                     binary: true,
                     animations: []
                 };
-                for(let i = 0; i < this.currentCharacter.mixer._actions.length; i++) {
-                    options.animations.push(this.currentCharacter.mixer._actions[i]._clip);
+
+                for(let animationName in this.toExport) {
+
+                    let animation = this.toExport[animationName];
+                    if(!animation.export) {
+                        continue;
+                    }
+                    
+                    if(animation.mixerBodyAnimation) {
+                        animation.mixerBodyAnimation.name = animationName + '_' + animation.mixerBodyAnimation.name;
+                        options.animations.push(animation.mixerBodyAnimation);
+                    }
+                    if(animation.mixerFaceAnimation) {
+                        animation.mixerFaceAnimation.name = animationName + '_' + animation.mixerFaceAnimation.name;
+                        options.animations.push(animation.mixerFaceAnimation);                       
+                    }
                 }
                 let model = this.currentCharacter.mixer._root.getChildByName('Armature');
+
                 this.GLTFExporter.parse(model, 
                     ( gltf ) => UTILS.download(gltf, (name || this.clipName) + '.glb', 'arraybuffer' ), // called when the gltf has been generated
                     ( error ) => { console.log( 'An error happened:', error ); }, // called when there is an error in the generation
@@ -774,13 +796,7 @@ class Editor {
             
             case 'BVH': case 'BVH extended':
                 let skeleton = this.currentCharacter.skeletonHelper.skeleton;
-                let bindedAnim = this.getCurrentBindedAnimation();
-
-                if(!this.toExport || this.toExport.length) {
-                    bindedAnim.export = true;
-                    this.toExport = [bindedAnim];
-                }
-
+                
                 for(let animationName in this.toExport) {
                     let animation = this.toExport[animationName];
                     if(!animation.export) {
@@ -793,7 +809,6 @@ class Editor {
                     
                     if(!bodyAction && animation.mixerBodyAnimation) {
                         bodyAction = this.currentCharacter.mixer.clipAction(animation.mixerBodyAnimation);     
-                        bodyActionToDeleted = true;                   
                     }
                     if(!faceAction && animation.mixerFaceAnimation) {
                         faceAction = this.currentCharacter.mixer.clipAction(animation.mixerFaceAnimation);                        
@@ -819,12 +834,13 @@ class Editor {
                             clipName = extension[0] + '.bvhe';
                         }
                     }
-                    
-                    UTILS.download(bvhPose + bvhFace, clipName, "text/plain" );
-                }
-
-                // bvhexport sets avatar to bindpose. Avoid user seeing this
-                this.bindAnimationToCharacter(this.currentAnimation);
+                    if(download) {
+                        UTILS.download(bvhPose + bvhFace, clipName, "text/plain" );
+                    }
+                    else {
+                        files.push({name: clipName, url: UTILS.dataToFile(bvhPose + bvhFace, clipName, "text/plain")});
+                    }
+                }                
                 break;
 
             default:
@@ -833,48 +849,64 @@ class Editor {
                 UTILS.download(JSON.stringify(json), (name || this.clipName) + '.bml', "application/json");
                 console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
                 break;
-        }
+
+            }
+            // bvhexport sets avatar to bindpose. Avoid user seeing this
+            this.bindAnimationToCharacter(this.currentAnimation);
+            return files;
     }
 
     showPreview() {
         
-        let url = "";
-        if(this.mode == this.editionModes.CAPTURE || this.mode == this.editionModes.VIDEO) {
-
-            let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
-            window.localStorage.setItem('bvhskeletonpreview', bvh);
-            // window.localStorage.setItem('bvhblendshapespreview', bvh);
-            url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
-        }
-        else{
-            url = "https://webglstudio.org/projects/signon/performs";
-            let json = this.exportBML();
-            if(!json) return;
-            const sendData = () => {
-                if(this.performsApp && this.performsApp.ECAcontroller)
-                    this.realizer.postMessage(JSON.stringify([{type: "bml", data: json.behaviours}]));
-                else {
-                    setTimeout(sendData, 1000)
-                }
+        const sendData = (msg) => {
+            if(this.performsApp && this.performsApp.ECAcontroller)
+                this.realizer.postMessage(msg);
+            else {
+                setTimeout(sendData.bind(msg), 1000)
             }
-           
+        }
+        
+        const openPreview = () => {
             if(!this.realizer || this.realizer.closed) {
                 this.realizer = window.open(url, "Preview");
                 this.realizer.onload = (e, d) => {
                     this.performsApp = e.currentTarget.global.app;
-                    sendData();
+                    sendData(data);
                 }
     
                 this.realizer.addEventListener("beforeunload", () => {
                     this.realizer = null
                 });
             }
-            else 
-                sendData();
+            else {
+                sendData(data);       
+            }  
+        }
+        let url = "https://webglstudio.org/users/evalls/performs";//"https://webglstudio.org/projects/signon/performs"; // TO DO: Change to the oficial URL
+        let data = [];
+        if(this.mode == this.editionModes.SCRIPT) {
+            
+            const json = this.exportBML();
+            if(!json)  {
+                return;
+            }
 
-           
+            data = JSON.stringify([{type: "bml", data: json.behaviours}]);
+            openPreview();
+        }
+        else{
+            this.gui.showExportAnimationsDialog(() => {
+                const files = this.export("BVH extended", false);
+                data = {type: "bvh", data: files};
+                openPreview();
+            })
+            // let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
+            // window.localStorage.setItem('bvhskeletonpreview', bvh);
+            // // window.localStorage.setItem('bvhblendshapespreview', bvh);
+            // url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
         }
 
+        
     }
 
     login(session, callback) {
