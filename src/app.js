@@ -139,7 +139,36 @@ class App {
     
         // Run mediapipe to extract landmarks. Not recording yet, but providing feedback to the user
         MediaPipe.start( true, () => {
-            this.setEvents(true);
+            // Adjust video canvas
+            let captureDiv = document.getElementById("capture");
+            $(captureDiv).removeClass("hidden");
+            let videoCanvas = document.getElementById("outputVideo");
+            
+            // configurate buttons
+            let capture = document.getElementById("capture_btn");
+            capture.onclick = () => {
+                
+                if (!this.recording) { // start video recording
+                    
+                    this.recording = true;
+
+                    capture.innerHTML = " <i class='fa fa-stop' style= 'margin:5px; font-size:initial;'></i>"//"Stop" + " <i class='bi bi-stop-fill'></i>"
+                    document.getElementById("select-mode").innerHTML = ""; // remove upper menu to select cam or video inputs
+                    capture.classList.add("stop");
+                    videoCanvas.classList.add("active");
+
+                    if(this.mediaRecorder){ this.mediaRecorder.start(); }
+                    console.log("Started recording");
+                }
+                else { // stop video recording
+                    
+                    this.recording = false;
+                    MediaPipe.stopVideoProcessing();
+                    if(this.mediaRecorder){ this.mediaRecorder.stop(); }
+                                        
+                }
+            };  
+
             MediaPipe.processVideoOnline( document.getElementById("inputVideo"), this.editor.mode == this.editor.editionModes.CAPTURE );
             $('#loading').fadeOut();
             
@@ -487,41 +516,6 @@ class App {
 
     }
 
-    setEvents(live) {
-        //TODO move to beginCapture
-
-        // Adjust video canvas
-        let captureDiv = document.getElementById("capture");
-        $(captureDiv).removeClass("hidden");
-        let videoCanvas = document.getElementById("outputVideo");
-        let videoElement = document.getElementById("inputVideo");
-        
-        // configurate buttons
-        let capture = document.getElementById("capture_btn");
-        capture.onclick = () => {
-            
-            if (!this.recording) { // start video recording
-                
-                this.recording = true;
-
-                capture.innerHTML = " <i class='fa fa-stop' style= 'margin:5px; font-size:initial;'></i>"//"Stop" + " <i class='bi bi-stop-fill'></i>"
-                document.getElementById("select-mode").innerHTML = "";
-                capture.classList.add("stop");
-                videoCanvas.classList.add("active");
-
-                if(this.mediaRecorder){ this.mediaRecorder.start(); }
-                console.log("Started recording");
-            }
-            else { // stop video recording
-                
-                this.recording = false;
-                MediaPipe.stopVideoProcessing();
-                if(this.mediaRecorder){ this.mediaRecorder.stop(); }
-                
-                
-            }
-        };    
-    }
     async videoToTrimStage(live, results) { 
         // TRIM VIDEO - be sure that only the sign is recorded
         

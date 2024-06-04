@@ -361,68 +361,6 @@ const VideoUtils = {
         this.endTime = null;   
     },
 
-    // This is a version for trimming the video using
-    // MediaRecorder: the video is not synced with the original trim
-    // so by now don't trim and play only the right slice of video
-    unbindAndTrim: function(callback) {
-
-        // Reset some stuff
-        document.body.onkeydown = null;
-        this.video.onended = null;
-
-        let durationInMs = (this.endTime - this.startTime) * 1000;
-        let chunks = [];
-        let recorder = new MediaRecorder(this.video.captureStream(), { mimeType: 'video/webm;codecs=vp8' });
-
-        recorder.ondataavailable = (e) => {
-            if(chunks.length)
-            return;
-            console.log("Data available");
-            chunks.push( e.data );
-            recorder.stop();
-        };
-
-        recorder.onstop = (e) => {
-
-            let blob = new Blob(chunks, { "type": 'video/webm;codecs=vp8' });
-            const url = URL.createObjectURL( blob );
-            this.video.src = url;
-
-            let video = this.video;
-
-            video.addEventListener('loadeddata', async () => {
-                while(video.duration === Infinity) {
-                    await new Promise(r => setTimeout(r, 1000));
-                    video.currentTime = 10000000*Math.random();
-                }
-
-                console.log( "Trimmed duration: " + video.duration );
-
-                this.video.loop = true;
-                this.video.pause();    
-                this.video.currentTime = 0;
-
-                if(callback)
-                    callback( this.startTime, this.endTime );
-
-                this.video = null;
-                this.width = null;
-                this.height = null;
-                this.ctx = null;
-
-                this.ratio = null;
-                this.startTime = null;
-                this.endTime = null;   
-            });
-        };
-
-        console.log("Original duration: " + durationInMs/1000);
-        this.video.currentTime = this.startTime;
-        recorder.start( durationInMs + 0.06 );
-        this.video.play();
-        this.trimming = true;
-        this.recorder = recorder;
-    }
 }
 
 export { VideoUtils };

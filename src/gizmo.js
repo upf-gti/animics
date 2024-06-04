@@ -22,22 +22,11 @@ class Gizmo {
         window.trans = transform;
         transform.setSpace( 'local' );
         transform.setMode( 'rotate' );
-        transform.addEventListener( 'change', editor.render );
 
         transform.addEventListener( 'objectChange', e => {
-            
             if(this.selectedBone != null) {    
-                
-                // This should be in update. However transform glitches for some reason
-                if ( this.toolSelected == Gizmo.Tools.joint && this.jointRestrictionChain ){ // enforce constraint even with joint tool
-                   this.ikSolver._applyConstraint( this.jointRestrictionChain, 1, this.skeleton.bones[this.selectedBone].quaternion ); // a bit illegal
-                }
-
-                // ik tool update on this.update. Compute ik once per frame only
-
-                editor.updateBoneProperties();
+                this.updateBones();
             }
-            this.updateBones();
         });
 
         transform.addEventListener( 'mouseUp', e => {
@@ -58,7 +47,6 @@ class Gizmo {
                 return;
             }
 
-            
             if(enabled) {
                 if ( this.toolSelected == Gizmo.Tools.ik ){
                     if ( !this.ikSelectedChain ){
@@ -88,8 +76,6 @@ class Gizmo {
                     } ] );
                 }
             }
-
-
         });
 
         let scene = editor.scene;
@@ -515,7 +501,6 @@ class Gizmo {
         if ( this.ikSelectedChain ){
             this.ikSolver.update(); 
             this.updateBones();
-            this.editor.updateBoneProperties();
         }
         //this.transform.attach( this.skeletonHelper.bones[this.selectedBone] );
         //this.mustUpdate = false; 

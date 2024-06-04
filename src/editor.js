@@ -1347,7 +1347,6 @@ class KeyframeEditor extends Editor{
 
     onUpdateAnimationTime() {
         
-        this.updateBoneProperties();
         this.updateCaptureDataTime();
     }
 
@@ -1505,18 +1504,6 @@ class KeyframeEditor extends Editor{
 
         this.gizmo.setBone(name);
         this.gizmo.mustUpdate = true;
-    }
-
-    updateBoneProperties() {
-                            
-        const bone = this.currentCharacter.skeletonHelper.bones[this.gizmo.selectedBone];
-        if(!bone)
-        return;
-        
-        for( const p in this.boneProperties ) {
-            // @eg: p as position, element.setValue( bone.position.toArray() )
-            this.boneProperties[p].copy( bone[p]);
-        }
     }
 
     /** -------------------- GIZMO INTERACTION -------------------- */
