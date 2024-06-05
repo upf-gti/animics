@@ -1049,7 +1049,6 @@ class KeyframesGui extends Gui {
         $(videoDiv).draggable({containment: this.canvasArea.root}).resizable({ aspectRatio: true, containment: this.canvasArea.root});
         videoCanvas.classList.add("hidden");
         videoCanvas.parentElement.style.display = "block";
-        this.updateMenubar();
     }
     
     changeCaptureGUIVisivility(hidden) {
