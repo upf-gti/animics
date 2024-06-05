@@ -32,7 +32,6 @@ THREE.KeyframeTrack.prototype.optimize = function( threshold = 0.0025 ) {
 		const timeNext = times[ i + 1 ];
 
 		// remove adjacent keyframes scheduled at the same time
-
 		if ( time !== timeNext && ( i !== 1 || time !== times[ 0 ] ) ) {
 			if ( ! smoothInterpolation ) {
 
@@ -115,57 +114,92 @@ BVHLoader.prototype.parseExtended = function(text) {
 		if ( firstLine == 'HIERARCHY' ) {
 
 			boneRoot = readNode( lines, nextLine( lines ), bonesList );
-			firstLine = nextLine( lines )
-
-		}
-
-		if ( firstLine == 'BLENDSHAPES' )	{
-			//console.error( 'THREE.BVHLoader: HIERARCHY expected.' );
-			const bsList = []; // collects flat array of all blendshapes
-			bs = readBlendshape( lines, nextLine( lines ), bsList );
+			firstLine = nextLine( lines );
 			
-		}
-		
+			// read motion data
+			if ( firstLine !== 'MOTION' ) {
 
-		// read motion data
+				console.error( 'THREE.BVHLoader: MOTION expected.' );
 
-		if ( nextLine( lines ) !== 'MOTION' ) {
+			}
 
-			console.error( 'THREE.BVHLoader: MOTION expected.' );
+			// number of frames
+			let tokens = nextLine( lines ).split( /[\s]+/ );
+			const numFrames = parseInt( tokens[ 1 ] );
 
-		}
+			if ( isNaN( numFrames ) ) {
 
-		// number of frames
+				console.error( 'THREE.BVHLoader: Failed to read number of frames.' );
+			}
 
-		let tokens = nextLine( lines ).split( /[\s]+/ );
-		const numFrames = parseInt( tokens[ 1 ] );
-
-		if ( isNaN( numFrames ) ) {
-
-			console.error( 'THREE.BVHLoader: Failed to read number of frames.' );
-
-		}
-
-		// frame time
-
-		tokens = nextLine( lines ).split( /[\s]+/ );
-		const frameTime = parseFloat( tokens[ 2 ] );
-
-		if ( isNaN( frameTime ) ) {
-
-			console.error( 'THREE.BVHLoader: Failed to read frame time.' );
-
-		}
-
-		// read frame data line by line /**CHANGE IT TO SUPPORT BLENDSHAPES ANIMATION */
-
-		for ( let i = 0; i < numFrames; i ++ ) {
-
+			// frame time
 			tokens = nextLine( lines ).split( /[\s]+/ );
-			if(boneRoot)
-				readFrameBoneData( tokens, i * frameTime, boneRoot );
-			readFrameBSData( tokens, i * frameTime, bs );
+			const frameTime = parseFloat( tokens[ 2 ] );
 
+			if ( isNaN( frameTime ) ) {
+
+				console.error( 'THREE.BVHLoader: Failed to read frame time.' );
+
+			}
+
+			// read frame data line by line /**CHANGE IT TO SUPPORT BLENDSHAPES ANIMATION */
+			for ( let i = 0; i < numFrames; i ++ ) {
+
+				tokens = nextLine( lines ).split( /[\s]+/ );
+				if(boneRoot) {
+					readFrameBoneData( tokens, i * frameTime, boneRoot );
+				}
+			}
+
+		}
+
+		if(lines.length > 1) {
+
+			firstLine = nextLine( lines )
+			if ( firstLine == 'BLENDSHAPES' )	{
+				//console.error( 'THREE.BVHLoader: HIERARCHY expected.' );
+				const bsList = []; // collects flat array of all blendshapes
+				bs = readBlendshape( lines, nextLine( lines ), bsList );
+				firstLine = nextLine( lines );
+
+				// read motion data
+				if ( firstLine !== 'MOTION' ) {
+		
+					console.error( 'THREE.BVHLoader: MOTION expected.' );
+				}
+		
+				// number of frames
+				let tokens = nextLine( lines ).split( /[\s]+/ );
+				const numFrames = parseInt( tokens[ 1 ] );
+		
+				if ( isNaN( numFrames ) ) {
+		
+					console.error( 'THREE.BVHLoader: Failed to read number of frames.' );
+		
+				}
+		
+				// frame time
+				tokens = nextLine( lines ).split( /[\s]+/ );
+				const frameTime = parseFloat( tokens[ 2 ] );
+		
+				if ( isNaN( frameTime ) ) {
+		
+					console.error( 'THREE.BVHLoader: Failed to read frame time.' );
+		
+				}
+		
+				// read frame data line by line /**CHANGE IT TO SUPPORT BLENDSHAPES ANIMATION */
+		
+				for ( let i = 0; i < numFrames; i ++ ) {
+		
+					tokens = nextLine( lines ).split( /[\s]+/ );
+					if(bs) {
+						readFrameBSData( tokens, i * frameTime, bs );
+					}
+	
+				}
+			}
+			
 		}
 
 		return {bones: bonesList, blendshapes: bs};
@@ -191,17 +225,17 @@ BVHLoader.prototype.parseExtended = function(text) {
 
 		const keyframe = {
 			time: frameTime,
-			position: new Vector3(),
-			rotation: new Quaternion()
+			position: new THREE.Vector3(),
+			rotation: new THREE.Quaternion()
 		};
 
 		bone.frames.push( keyframe );
 
-		const quat = new Quaternion();
+		const quat = new THREE.Quaternion();
 
-		const vx = new Vector3( 1, 0, 0 );
-		const vy = new Vector3( 0, 1, 0 );
-		const vz = new Vector3( 0, 0, 1 );
+		const vx = new THREE.Vector3( 1, 0, 0 );
+		const vy = new THREE.Vector3( 0, 1, 0 );
+		const vz = new THREE.Vector3( 0, 0, 1 );
 
 		// parse values for each channel in node
 
@@ -326,7 +360,7 @@ BVHLoader.prototype.parseExtended = function(text) {
 
 		}
 
-		const offset = new Vector3(
+		const offset = new THREE.Vector3(
 			parseFloat( tokens[ 1 ] ),
 			parseFloat( tokens[ 2 ] ),
 			parseFloat( tokens[ 3 ] )
@@ -425,7 +459,7 @@ BVHLoader.prototype.parseExtended = function(text) {
 	*/
 	function toTHREEBone( source, list ) {
 
-		const bone = new Bone();
+		const bone = new THREE.Bone();
 		list.push( bone );
 
 		bone.position.add( source.offset );
@@ -493,52 +527,54 @@ BVHLoader.prototype.parseExtended = function(text) {
 
 			if ( scope.animateBonePositions ) {
 
-				boneTracks.push( new VectorKeyframeTrack( bone.name + '.position', times, positions ) );
+				boneTracks.push( new THREE.VectorKeyframeTrack( bone.name + '.position', times, positions ) );
 
 			}
 
 			if ( scope.animateBoneRotations ) {
 
-				boneTracks.push( new QuaternionKeyframeTrack( bone.name + '.quaternion', times, rotations ) );
+				boneTracks.push( new THREE.QuaternionKeyframeTrack( bone.name + '.quaternion', times, rotations ) );
 
 			}
 
 		}
 
 		const bsTracks = [];
-		for ( let i = 0; i < blendshapes.length; i ++ ) {
-
-			const bs = blendshapes[ i ];
-			// track data
-
-			const times = [];
-			const weights = [];
-
-			for ( let j = 0; j < bs.frames.length; j ++ ) {
-				const frame = bs.frames[ j ];
-
-				times.push( frame.time );
-
-				// the animation system animates the morphInfluences property,
-				// so we have to add the blendhsape weight to all values
-
-				weights.push( frame.weight );
-			}
-			
-			if( bs.meshes.length ) {
-
-				for( let b = 0; b < bs.meshes.length; b++) {
-					
-					bsTracks.push( new THREE.NumberKeyframeTrack( bs.meshes[b] + '.morphTargetInfluences[' + bs.name + ']', times, weights ) );
+		if(blendshapes) {
+			for ( let i = 0; i < blendshapes.length; i ++ ) {
+	
+				const bs = blendshapes[ i ];
+				// track data
+	
+				const times = [];
+				const weights = [];
+	
+				for ( let j = 0; j < bs.frames.length; j ++ ) {
+					const frame = bs.frames[ j ];
+	
+					times.push( frame.time );
+	
+					// the animation system animates the morphInfluences property,
+					// so we have to add the blendhsape weight to all values
+	
+					weights.push( frame.weight );
 				}
+				
+				if( bs.meshes.length ) {
+	
+					for( let b = 0; b < bs.meshes.length; b++) {
+						
+						bsTracks.push( new THREE.NumberKeyframeTrack( bs.meshes[b] + '.morphTargetInfluences[' + bs.name + ']', times, weights ) );
+					}
+				}
+				else {
+	
+					bsTracks.push( new THREE.NumberKeyframeTrack( 'Body' + '.morphTargetInfluences[' + bs.name + ']', times, weights ) );
+				}	
+				
 			}
-			else {
-
-				bsTracks.push( new THREE.NumberKeyframeTrack( 'Body' + '.morphTargetInfluences[' + bs.name + ']', times, weights ) );
-			}	
-			
 		}
-		return { skeletonClip: new THREE.AnimationClip( 'bsAnimation', - 1, bsTracks ), blendshapesClip: new THREE.AnimationClip( 'bsAnimation', - 1, bsTracks )};
+		return { skeletonClip: new THREE.AnimationClip( 'skeletonAnimation', - 1, boneTracks ), blendshapesClip: new THREE.AnimationClip( 'bsAnimation', - 1, bsTracks )};
 
 	}
 
@@ -569,12 +605,11 @@ BVHLoader.prototype.parseExtended = function(text) {
 
 	return {
 		skeletonAnim: {
-			skeleton: skeletonClip.length ? new THREE.Skeleton( threeBones ) : null,
+			skeleton: skeletonClip.tracks.length ? new THREE.Skeleton( threeBones ) : null,
 			clip: skeletonClip
 		},
 		blendshapesAnim: {
 			clip: blendshapesClip
 		}
-	};
-		
+	};		
 }

@@ -236,7 +236,7 @@ const BVHExporter = {
 
     exportMorphTargets: function(action, morphTargetDictionary, clip) {
 
-        if ( !action || !morphTargetDictionary || !clip ){
+        if ( !action || !morphTargetDictionary || !clip || !clip.tracks.length ){
             return "";
         }
         
@@ -269,18 +269,17 @@ const BVHExporter = {
                 const tracks = clip.tracks.filter( t => t.name.includes('[' + morphTarget[idx] + ']') );
                 // No animation info            
                 if(!tracks.length){
-                    data = "0.000 "; // TO DO consider removing the blendshape instead of filling with 0
+                    data += "0.000 "; // TO DO consider removing the blendshape instead of filling with 0
                     // console.warn("No tracks for " + morphTarget[idx])
                 }
                 else {
-                    for(let i = 0; i < tracks.length; ++i) {
-    
-                        const t = tracks[i];
-                        const trackIndex = clip.tracks.indexOf( t );
-                        const interpolant = interpolants[ trackIndex ];
-                        const values = interpolant.evaluate(time);
-                        data += values[0].toFixed(3) + " ";
-                    }
+                   
+                    const t = tracks[0];
+                    const trackIndex = clip.tracks.indexOf( t );
+                    const interpolant = interpolants[ trackIndex ];
+                    const values = interpolant.evaluate(time);
+                    data += values[0].toFixed(3) + " ";
+                    
                 }
             }
 

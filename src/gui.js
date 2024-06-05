@@ -79,7 +79,7 @@ class Gui {
         }
 
         menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
+            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", true, v), {input: this.editor.clipName, required: true } );      
         }});
 
         // Export animation

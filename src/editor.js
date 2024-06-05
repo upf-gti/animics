@@ -838,7 +838,7 @@ class Editor {
                         UTILS.download(bvhPose + bvhFace, clipName, "text/plain" );
                     }
                     else {
-                        files.push({name: clipName, url: UTILS.dataToFile(bvhPose + bvhFace, clipName, "text/plain")});
+                        files.push({name: clipName, data: UTILS.dataToFile(bvhPose + bvhFace, clipName, "text/plain")});
                     }
                 }                
                 break;
@@ -859,7 +859,7 @@ class Editor {
     showPreview() {
         
         const sendData = (msg) => {
-            if(this.performsApp && this.performsApp.ECAcontroller)
+            if(this.performsApp)
                 this.realizer.postMessage(msg);
             else {
                 setTimeout(sendData.bind(msg), 1000)
@@ -897,7 +897,7 @@ class Editor {
         else{
             this.gui.showExportAnimationsDialog(() => {
                 const files = this.export("BVH extended", false);
-                data = {type: "bvh", data: files};
+                data = {type: "bvhe", data: files};
                 openPreview();
             })
             // let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
