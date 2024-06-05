@@ -862,7 +862,7 @@ class Editor {
             if(this.performsApp)
                 this.realizer.postMessage(msg);
             else {
-                setTimeout(sendData.bind(msg), 1000)
+                setTimeout(sendData.bind(this, msg), 1000)
             }
         }
         

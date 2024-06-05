@@ -90,7 +90,7 @@ class Gui {
         }
 
         menubar.add("Project/Export all animations/Export extended BVH", {callback: () => {            
-            this.showExportAnimationsDialog(this.editor.export("BVH extended").bind(this));            
+            this.showExportAnimationsDialog(() => this.editor.export("BVH extended"));            
         }});
         
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
