@@ -610,12 +610,10 @@ function createAnimation(name, landmarks) {
 
 function createAnimationFromRotations(name, nn) {
 
-    var quatData = nn.getQuaternions(); // ML regression of the quaternions
+    let quatData = nn.getQuaternions(); // ML regression of the quaternions
     
     // clean data
-    var names = quatData[quatData.length - 1];
-    if(typeof(names[0]) != "string")
-        names = ["mixamorigHips.quaternion","mixamorigSpine.quaternion","mixamorigSpine1.quaternion","mixamorigSpine2.quaternion",
+    let names = ["mixamorigHips.quaternion","mixamorigSpine.quaternion","mixamorigSpine1.quaternion","mixamorigSpine2.quaternion",
             "mixamorigNeck.quaternion","mixamorigHead.quaternion",
             "mixamorigLeftShoulder.quaternion","mixamorigLeftArm.quaternion","mixamorigLeftForeArm.quaternion","mixamorigLeftHand.quaternion",
                 "mixamorigLeftHandThumb1.quaternion","mixamorigLeftHandThumb2.quaternion","mixamorigLeftHandThumb3.quaternion",

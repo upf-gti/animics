@@ -392,7 +392,6 @@ class Timeline {
      * @param {boolean} needsToProcess
      * TODO
      */
-
     setAnimationClip( animation, needsToProcess = true ) {
         if(!animation || !animation.tracks || needsToProcess) { 
             this.processTracks(animation); // generate default animationclip or process the user's one

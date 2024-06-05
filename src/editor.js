@@ -1153,8 +1153,8 @@ class KeyframeEditor extends Editor{
         let faceAnimation = createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
 
         this.loadedAnimations[data.name] = data;
-        this.loadedAnimations[data.name].bodyAnimation = bodyAnimation;
-        this.loadedAnimations[data.name].faceAnimation = faceAnimation;
+        this.loadedAnimations[data.name].bodyAnimation = bodyAnimation; // bones AnimationClip
+        this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units AnimationClip
         this.loadedAnimations[data.name].type = "video";
     }
 
@@ -1208,15 +1208,9 @@ class KeyframeEditor extends Editor{
             this.gui.keyFramesTimeline.unSelectAllKeyFrames();
             this.gui.keyFramesTimeline.unHoverAll();
             this.gui.keyFramesTimeline.currentTime = 0;
-            // this.gui.keyFramesTimeline.lastKeyFramesSelected = [];
-            // this.gui.keyFramesTimeline.lastHovered = null;
-            // this.gui.keyFramesTimeline.selectedItems = null;
             this.gui.curvesTimeline.unSelectAllKeyFrames();
             this.gui.curvesTimeline.unHoverAll();
             this.gui.curvesFramesTimeline.currentTime = 0;
-            // this.gui.curvesFramesTimeline.lastKeyFramesSelected = [];
-            // this.gui.curvesFramesTimeline.lastHovered = null;
-            // this.gui.curvesFramesTimeline.selectedItems =null;
         }
 
         // Remove current animation clip
@@ -1258,8 +1252,8 @@ class KeyframeEditor extends Editor{
                 
                 this.validateAnimationClip(bodyAnimation);
 
-                // Set animation to the timeline and get the formated one
-                skeletonAnimation = this.gui.keyFramesTimeline.setAnimationClip( bodyAnimation );
+                // Set keyframe animation to the timeline and get the timeline-formated one
+                skeletonAnimation = this.gui.keyFramesTimeline.setAnimationClip( bodyAnimation, true );
                 this.gui.keyFramesTimeline.setSelectedItems([this.currentCharacter.skeletonHelper.bones[0].name]);
 
                 bodyAnimation.name = "bodyAnimation";   // mixer
@@ -1270,8 +1264,8 @@ class KeyframeEditor extends Editor{
             let auAnimation = null;
             if(faceAnimation) { // TO DO: Check if it's if-else or if-if
                 
-                // Set animation to the timeline and get the formated one
-                auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation );
+                // Set keyframe animation to the timeline and get the timeline-formated one
+                auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation, true );
                 if(animation.type == "video") {
                     faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
                 }
@@ -1289,10 +1283,12 @@ class KeyframeEditor extends Editor{
             }
         }
 
+        // set mixer animations
         let bindedAnim = this.bindedAnimations[animationName][this.currentCharacter.name];
         mixer.clipAction(bindedAnim.mixerFaceAnimation).setEffectiveWeight(1.0).play(); // already handles nulls and undefines
         mixer.clipAction(bindedAnim.mixerBodyAnimation).setEffectiveWeight(1.0).play();
         
+        // set timeline animations
         this.setAnimation(this.animationMode);
         this.gizmo.updateBones();
         // mixer.setTime(0);
@@ -1329,9 +1325,7 @@ class KeyframeEditor extends Editor{
         let bonesNames = [];
         tracks.map((v) => { bonesNames.push(v.name.split(".")[0])});
 
-        for(let i = 0; i < bones.length; i++)
-        {
-            
+        for(let i = 0; i < bones.length; i++) {
             let name = bones[i].name;
             if(bonesNames.indexOf( name ) > -1)
                 continue;
@@ -1757,8 +1751,8 @@ class ScriptEditor extends Editor{
 
         this.loadedAnimations[name] = {
             name: name,
-            inputAnimation: animationData, // bml file imported
-            scriptAnimation: null, // if null, bind will take care.        ??  {duration: 0, tracks:[]},
+            inputAnimation: animationData, // bml file imported. This needs to be converted by the timeline's setAnimationClip.
+            scriptAnimation: null, // if null, bind will take care. 
             type: "script"
         };
     }
@@ -1775,24 +1769,10 @@ class ScriptEditor extends Editor{
             return false;
         }
 
-        //TO DO: make this pretty inside the clipsTimeline class
         if ( animationName != this.currentAnimation ){
             this.gui.clipsTimeline.currentTime = 0;
             this.gui.clipsTimeline.unSelectAllClips();
             this.gui.clipsTimeline.unHoverAll();
-
-            // this.gui.clipsTimeline.lastClipsSelected = [];
-            // this.gui.clipsTimeline.lastHovered = null;
-            // this.gui.clipsTimeline.selectedClip = null;
-            // this.gui.clipsTimeline.timelineClickedClips = null;
-            // this.gui.clipsTimeline.timelineClickedClipsTime = null;
-
-// this.gui.keyFramesTimeline.lastKeyFramesSelected
-// this.gui.keyFramesTimeline.lastHovered
-// this.gui.keyFramesTimeline.selectedItems
-// this.gui.curvesFramesTimeline.lastKeyFramesSelected
-// this.gui.curvesFramesTimeline.lastHovered
-// this.gui.curvesFramesTimeline.selectedItems
         }
         this.currentAnimation = animationName;
 
@@ -1804,11 +1784,12 @@ class ScriptEditor extends Editor{
             mixer.uncacheAction(mixer._actions[0]._clip); // removes action
         }
 
-        // load animation for the first time
+        // create timeline animation for the first time
         if (!animation.scriptAnimation){
             this.gui.clipsTimeline.setAnimationClip(null, true); //generate empty animation. Cannot process bml input 
             animation.scriptAnimation = this.gui.clipsTimeline.animationClip;
             this.gui.loadBMLClip(animation.inputAnimation); // process bml and add clips
+            delete animation.inputAnimation;
         }
         // when just updating the mixer animation, this should not be necessary
         // else{ 

@@ -163,8 +163,8 @@ class AnimationRetargeting {
     }
 
     precomputeRetargetingQuats(){
-        //BASIC ALGORITHM --> trglocal = invTrgWorldParent * srcWorldParent * srcLocal * invSrcWorld * trgWorld
-        // trglocal = invTrgWorldParent * invTrgEmbedded * srcEmbedded * srcWorldParent * srcLocal * invSrcWorld * invSrcEmbedded * trgEmbedded * trgWorld
+        //BASIC ALGORITHM --> trglocal = invTrgBindWorldParent * srcBindWorldParent * srcLocal * invSrcBindWorld * trgBindWorld
+        // trglocal = invTrgBindWorldParent * invTrgEmbedded * srcEmbedded * srcBindWorldParent * srcLocal * invSrcBindWorld * invSrcEmbedded * trgEmbedded * trgBindWorld
 
         let left = new Array( this.srcBindPose.bones.length ); // invTrgWorldParent * invTrgEmbedded * srcEmbedded * srcWorldParent
         let right = new Array( this.srcBindPose.bones.length ); // invSrcWorld * invSrcEmbedded * trgEmbedded * trgWorld
@@ -178,14 +178,14 @@ class AnimationRetargeting {
             }
 
             let resultQuat = new THREE.Quaternion(0,0,0,1);
-            resultQuat.copy( this.trgBindPose.transformsWorld[ trgIndex ].q ); // trgWorld
+            resultQuat.copy( this.trgBindPose.transformsWorld[ trgIndex ].q ); // trgBindWorld
             if ( this.trgBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.forward.q ); } // trgEmbedded
             if ( this.srcBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.inverse.q ); } // invSrcEmbedded
-            resultQuat.premultiply( this.srcBindPose.transformsWorldInverses[ srcIndex ].q ); // invSrcWorld
+            resultQuat.premultiply( this.srcBindPose.transformsWorldInverses[ srcIndex ].q ); // invSrcBindWorld
             right[ srcIndex ] = resultQuat;
 
             resultQuat = new THREE.Quaternion(0,0,0,1);
-            // srcWorldParent
+            // srcBindWorldParent
             if ( this.srcBindPose.bones[ srcIndex ].parent ){ 
                 let parentIdx = this.srcBindPose.parentIndices[ srcIndex ];
                 resultQuat.premultiply( this.srcBindPose.transformsWorld[ parentIdx ].q ); 
@@ -194,7 +194,7 @@ class AnimationRetargeting {
             if ( this.srcBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.forward.q ); } // srcEmbedded
             if ( this.trgBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.inverse.q ); } // invTrgEmbedded
 
-            // invTrgWorldParent
+            // invTrgBindWorldParent
             if ( this.trgBindPose.bones[ trgIndex ].parent ){ 
                 let parentIdx = this.trgBindPose.parentIndices[ trgIndex ];
                 resultQuat.premultiply( this.trgBindPose.transformsWorldInverses[ parentIdx ].q ); 
@@ -214,8 +214,8 @@ class AnimationRetargeting {
      */
     _retargetQuaternion( srcIndex, srcLocalQuat, resultQuat = null ){
         if ( !resultQuat ){ resultQuat = new THREE.Quaternion(0,0,0,1); }
-        //BASIC ALGORITHM --> trglocal = invTrgWorldParent * srcWorldParent * srcLocal * invSrcWorld * trgWorld
-        // trglocal = invTrgWorldParent * invTrgEmbedded * srcEmbedded * srcWorldParent * srcLocal * invSrcWorld * invSrcEmbedded * trgEmbedded * trgWorld
+        //BASIC ALGORITHM --> trglocal = invTrgBindWorldParent * srcBindWorldParent * srcLocal * invSrcBindWorld * trgBindWorld
+        // trglocal = invTrgBindWorldParent * invTrgEmbedded * srcEmbedded * srcBindWorldParent * srcLocal * invSrcBindWorld * invSrcEmbedded * trgEmbedded * trgBindWorld
         
         // In this order because resultQuat and srcLocalQuat might be the same Quaternion instance
         resultQuat.copy( srcLocalQuat ); // srcLocal
