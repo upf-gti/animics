@@ -115,7 +115,12 @@ const UTILS = {
                 window.URL.revokeObjectURL(url);  
             }, 0); 
         }
-    }
+    },
+
+	dataToFile: function(data, filename, type = "text/plain") {
+		const file = new Blob([data], {type: type});
+		return file;
+	}
 
 };
 

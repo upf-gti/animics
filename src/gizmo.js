@@ -34,6 +34,8 @@ class Gizmo {
                 return;
             }
             this.updateTracks();
+            const bone = this.skeleton.bones[this.selectedBone] ? this.skeleton.bones[this.selectedBone].name : "";
+            this.editor.gui.updateSkeletonPanel({itemSelected: bone});
         } );
 
         transform.addEventListener( 'dragging-changed', e => {

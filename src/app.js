@@ -459,6 +459,14 @@ class App {
 
     
     async onScriptProject(scriptFiles) {
+        if (!scriptFiles || !scriptFiles.length){
+            let name = "New animation";
+            this.editor.loadAnimation(name, null );
+            this.editor.bindAnimationToCharacter(name);
+            this.editor.startEdition(true);
+            return;
+        }
+
         this.filesProcessed = 0;
         this.filesData = scriptFiles;
 
@@ -492,6 +500,7 @@ class App {
             let animation = data;
             this.editor.loadAnimation( file.name, animation );
         }
+
         // launch all file reads. TO DO: check if this explodes on multiple larges filereads. Check if synchronous one-at-a-time is better
         for( let i = 0; i < this.filesData.length; ++i){
             const fr = this.filesData[i].fr = new FileReader();                
@@ -505,15 +514,8 @@ class App {
             await new Promise(r => setTimeout(r, 500));            
         }        
 
-        if (this.filesData.length == 0){
-            let name = "New animation";
-            this.editor.loadAnimation(name, null );
-            this.editor.bindAnimationToCharacter(name);
-        }else{
-            this.editor.bindAnimationToCharacter(this.filesData[0].name)
-        }
+        this.editor.bindAnimationToCharacter(this.filesData[0].name)
         this.editor.startEdition(!this.filesData.length);
-
     }
 
     async videoToTrimStage(live, results) { 

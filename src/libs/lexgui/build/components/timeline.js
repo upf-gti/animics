@@ -404,10 +404,10 @@ class Timeline {
         this.speed = this.animationClip.speed ?? this.speed;
         var w = Math.max(300, this.canvas.width);
         this.secondsToPixels = ( w - this.session.left_margin ) / this.duration;
-        
+        this.pixelsToSeconds = 1 / this.secondsToPixels;
         //this.updateHeader();
         this.updateLeftPanel();
-        
+        this.draw(this.currentTime);
         return this.animationClip;
     }
 

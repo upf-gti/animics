@@ -125,16 +125,20 @@ const BVHExporter = {
                     case 'position':
                         // threejs animation clips store a position which will be attached to the bone each frame.
                         // However, BVH position track stores the translation from the bone's offset defined in HERIARCHY
-                        if(values.length) {
+                        if (values.length) {
                             pos.fromArray(values.slice(0, 3));
                             pos.sub(bone.position);
                         }
                         break;
                     case 'quaternion': // retarget animation quaternion to the bvh bind posed skeleton
-                        quat.fromArray(values.slice(0, 4));
-                        let invWorldRot = this.skeleton.getBoneByName( bone.name ).getWorldQuaternion(new THREE.Quaternion()).invert();
-                        let wordlParentBindRot = this.skeleton.getBoneByName( bone.name ).parent.getWorldQuaternion(new THREE.Quaternion());
-                        quat.premultiply(wordlParentBindRot).multiply(invWorldRot);
+                        if (values.length) {
+                            quat.fromArray(values.slice(0, 4));
+                            let invWorldRot = this.skeleton.getBoneByName( bone.name ).getWorldQuaternion(new THREE.Quaternion()).invert();
+                            let wordlParentBindRot = this.skeleton.getBoneByName( bone.name ).parent.getWorldQuaternion(new THREE.Quaternion());
+                            quat.premultiply(wordlParentBindRot).multiply(invWorldRot);
+                        }else{
+                            quat.set(0,0,0,1);
+                        }
                         break;
                 }
             }
@@ -236,7 +240,7 @@ const BVHExporter = {
 
     exportMorphTargets: function(action, morphTargetDictionary, clip) {
 
-        if ( !action || !morphTargetDictionary || !clip ){
+        if ( !action || !morphTargetDictionary || !clip || !clip.tracks.length ){
             return "";
         }
         
@@ -258,7 +262,9 @@ const BVHExporter = {
         bvh += "Frame Time: " + framerate + "\n";
 
         const interpolants = action._interpolants;
-
+        if(!interpolants.length) {
+            return bvh;
+        }
         const getMorphTargetFrameData = (time, morphTarget) => {
 
             let data = "";
@@ -267,24 +273,23 @@ const BVHExporter = {
                 const tracks = clip.tracks.filter( t => t.name.includes('[' + morphTarget[idx] + ']') );
                 // No animation info            
                 if(!tracks.length){
-                    data = "0.000 "; // TO DO consider removing the blendshape instead of filling with 0
+                    data += "0.000 "; // TO DO consider removing the blendshape instead of filling with 0
                     // console.warn("No tracks for " + morphTarget[idx])
                 }
                 else {
-                    for(let i = 0; i < tracks.length; ++i) {
-    
-                        const t = tracks[i];
-                        const trackIndex = clip.tracks.indexOf( t );
-                        const interpolant = interpolants[ trackIndex ];
-                        const values = interpolant.evaluate(time);
-                        data += values[0].toFixed(3) + " ";
-                    }
+                   
+                    const t = tracks[0];
+                    const trackIndex = clip.tracks.indexOf( t );
+                    const interpolant = interpolants[ trackIndex ];
+                    const values = interpolant.evaluate(time);
+                    data += values[0].toFixed(3) + " ";
+                    
                 }
             }
 
             return data;
         }
-
+        
         for( let frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
             bvh += getMorphTargetFrameData(frameIdx * framerate, morphTargets);
             bvh += "\n";

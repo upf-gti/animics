@@ -79,12 +79,23 @@ class Gui {
         }
 
         menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", v), {input: this.editor.clipName, required: true } );      
+            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", true, v), {input: this.editor.clipName, required: true } );      
         }});
 
+        // Export animation
+        menubar.add("Project/Export all animations", {icon: "fa fa-file-export"});
+        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
+            // menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
+            // });
+        }
+
+        menubar.add("Project/Export all animations/Export extended BVH", {callback: () => {            
+            this.showExportAnimationsDialog(() => this.editor.export("BVH extended"));            
+        }});
+        
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
         menubar.add("Project/Export scene/Export GLB", {callback: () => 
-            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", v), {input: this.editor.clipName, required: true} )     
+            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", true, v), {input: this.editor.clipName, required: true} )     
         });
 
         // Save animation
@@ -325,6 +336,48 @@ class Gui {
             
     }
 
+    showExportAnimationsDialog(callback) {
+        let options = { modal : true};
+
+        let value = "";
+
+        const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
+            let animations = this.editor.getAnimationsToExport();
+            for(let animationName in animations) {
+                let animation = animations[animationName];
+                animation.export = animation.export === undefined ? true : animation.export;
+                p.sameLine();
+                p.addCheckbox(animationName || options.input, animation.export, (v) => animation.export = v);
+                p.addText(null, animationName || options.input , (v) => {
+                    delete animations[animationName];
+                    animations[v] = animation; 
+                }, {placeholder: "..."} );
+                p.endLine();
+            }
+           
+            p.sameLine(2);
+            p.addButton("", options.accept || "OK", () => { 
+                if(options.required && value === '') {
+
+                    text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
+                    dialog.close() ;
+                }else {
+
+                    if(callback) {
+                        callback();
+                    }
+                    dialog.close() ;
+                }
+                
+            }, { buttonClass: "accept" });
+            p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+        }, options);
+
+        // Focus text prompt
+        if(options.input !== false)
+            dialog.root.querySelector('input').focus();
+    }
+
     createSceneUI(area) {
 
         $(this.editor.orientationHelper.domElement).show();
@@ -511,11 +564,11 @@ class Gui {
             p.addButton(null, "Export", () => {
                 p.clear();
                 p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
-                p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended", this.editor.clipName), { buttonClass: "accept" });
+                p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended"), { buttonClass: "accept" });
                 if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-                    p.addButton( null, "Export BML", () => this.editor.export("", this.editor.clipName ), { buttonClass: "accept" });
+                    p.addButton( null, "Export BML", () => this.editor.export(""), { buttonClass: "accept" });
                 }
-                p.addButton( null, "Export GLB", () => this.editor.export("GLB", this.editor.clipName), { buttonClass: "accept" });
+                p.addButton( null, "Export GLB", () => this.editor.export("GLB"), { buttonClass: "accept" });
             });
             p.addButton(null, "Discard", () => {
 
@@ -774,6 +827,11 @@ class KeyframesGui extends Gui {
 
         /* Keyframes Timeline */
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
+            onBeforeCreateTopBar: (panel) => {
+                panel.addDropdown("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+                    this.editor.bindAnimationToCharacter(v);
+                }, {signal: "@on_animation_loaded"})
+            },
             onChangePlayMode: (loop) => {
                 this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
@@ -1081,7 +1139,7 @@ class KeyframesGui extends Gui {
 
         bodyArea.split({type: "vertical", resize: false, sizes: "auto"});
         let [bodyTop, bodyBottom] = bodyArea.sections;
-        this.createSkeletonPanel( bodyTop, 'root', {firstBone: true} );
+        this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
         
     }
@@ -1279,16 +1337,16 @@ class KeyframesGui extends Gui {
         this.facePanel.root.querySelector("[data-name='"+area+"']").click();
     }
 
-    createSkeletonPanel(root, itemSelected = this.itemSelected, options) {
+    createSkeletonPanel(root, options) {
 
         let skeletonPanel = new LX.Panel({id:"skeleton"});
         root.attach(skeletonPanel);
 
         options = options || {};
         this.boneProperties = {};
-        this.itemSelected = itemSelected;
+        let itemSelected = this.itemSelected = options.itemSelected ?? this.itemSelected;
         
-        var mytree = this.updateNodeTree();
+        const mytree = this.updateNodeTree();
     
         let litetree = skeletonPanel.addTree("Skeleton bones", mytree, { 
             // icons: tree_icons, 
@@ -1351,7 +1409,10 @@ class KeyframesGui extends Gui {
         
         const rootBone = this.editor.currentCharacter.skeletonHelper.bones[0];
         
-        let mytree = { 'id': rootBone.name };
+        let mytree = { 
+            id: rootBone.name, 
+            selected: rootBone.name == this.itemSelected 
+        };
         let children = [];
         
         const addChildren = (bone, array) => {
@@ -1362,7 +1423,8 @@ class KeyframesGui extends Gui {
                 let child = {
                     id: b.name,
                     children: [],
-                    closed: true
+                    closed: true,
+                    selected: b.name == this.itemSelected
                 }
                 
                 array.push( child );
@@ -1377,13 +1439,13 @@ class KeyframesGui extends Gui {
         return mytree;
     }
 
-    createBonePanel(root, itemSelected = this.itemSelected, options) {
+    createBonePanel(root, options = {}) {
 
         let bonePanel = new LX.Panel({id:"bone"});
         root.attach(bonePanel);
         // Editor widgets 
         this.bonePanel = bonePanel;
-      
+        options.itemSelected = options.itemSelected ?? this.itemSelected;
         this.updateSkeletonPanel(options);
 
         // // update scroll position
@@ -1411,9 +1473,11 @@ class KeyframesGui extends Gui {
      
                 const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
                 
-                let trackType = null;
+                let trackType = this.editor.getGizmoMode();
+                let tracks = null;
                 if(this.keyFramesTimeline.selectedItems.length) {
-                    trackType = this.keyFramesTimeline.tracksPerItem[this.keyFramesTimeline.selectedItems[0]][0].type;
+                    tracks = this.keyFramesTimeline.tracksPerItem[this.keyFramesTimeline.selectedItems[0]];
+                    // trackType = this.keyFramesTimeline.tracksPerItem[this.keyFramesTimeline.selectedItems[0]][0].type;
                 }
 
                 let active = this.editor.getGizmoMode();
@@ -1426,14 +1490,69 @@ class KeyframesGui extends Gui {
                 widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool(), nameWidth: "50%", width: "100%"});
                 
                 if( this.editor.getGizmoTool() == "Joint" ){
-                    const modesValues = [{value:"Translate", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}, {value:"Rotate", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}, {value:"Scale", callback: (v,e) => {this.editor.setGizmoMode(v); widgets.onRefresh(options);}}];
-                    let _Modes = numTracks > 1 ? modesValues : [modesValues[1]];
+                    
+                    let _Modes = [];
+                    
+                    for(let i = 0; i < tracks.length; i++) {
+                        if(this.keyFramesTimeline.lastKeyFramesSelected.length && this.keyFramesTimeline.lastKeyFramesSelected[0][1] == tracks[i].idx) {
+                            trackType = tracks[i].type;                            
+                        }
+
+                        if(tracks[i].type == "position") {
+                            const mode = {
+                                value: "Translate", 
+                                callback: (v,e) => {
+                                
+                                    const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
+                                    if( frame!= undefined) {
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], [tracks[i].name, tracks[i].idx, frame], frame)
+                                    }
+                                    this.editor.setGizmoMode(v); 
+                                    widgets.onRefresh(options);
+                                }
+                            }
+                            _Modes.push(mode);
+                        }
+                        else if(tracks[i].type == "quaternion" ){ 
+                            const mode = {
+                                value: "Rotate", 
+                                callback: (v,e) => {
+                                
+                                    const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
+                                    if( frame!= undefined) {
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], [tracks[i].name, tracks[i].idx, frame], frame)
+                                    }
+                                    this.editor.setGizmoMode(v); 
+                                    widgets.onRefresh(options);
+                                }
+                            }
+                            _Modes.push(mode);
+                        }
+                        else if(tracks[i].type == "scale") {
+                            const mode = {
+                                value: "Scale", 
+                                callback: (v,e) => {
+                                
+                                    const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
+                                    if( frame!= undefined) {
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], [tracks[i].name, tracks[i].idx, frame], frame)
+                                    }
+                                    this.editor.setGizmoMode(v); 
+                                    widgets.onRefresh(options);
+                                }
+                            }
+                            _Modes.push(mode);
+                        }                        
+                    }
+
                     if(trackType == "position") {
                         this.editor.setGizmoMode("Translate");
-                        _Modes = [modesValues[0]];
                     }
-                    else if( numTracks <= 1 ){ 
+                    else if(trackType == "quaternion" || numTracks <= 1 ){ 
                         this.editor.setGizmoMode("Rotate"); 
+                    }
+                    else if(trackType == "scale") {
+                        this.editor.setGizmoMode("Scale");
                     }
                     widgets.addComboButtons( "Mode", _Modes, { selected: this.editor.getGizmoMode(), nameWidth: "50%", width: "100%"});
                 }
@@ -1456,10 +1575,15 @@ class KeyframesGui extends Gui {
                         rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
                         widgets.widgets['Rotation (XYZ)'].set( rot, true ); // skip onchange event
                     }
-                    if(attribute == 'rotation') {
+                    else if(attribute == 'rotation') {
                         boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
                         widgets.widgets['Quaternion'].set(boneSelected.quaternion.toArray(), true ); // skip onchange event
                     }
+                    else if(attribute == 'position') {
+                        boneSelected.position.fromArray( value ); 
+
+                    }
+
                     this.editor.gizmo.onGUI(attribute);
                 };
 
@@ -3315,7 +3439,7 @@ class ScriptGui extends Gui {
     }
 
     createExportBMLDialog() {
-        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", v), {input: this.editor.clipName, required: true} )  
+        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", true, v), {input: this.editor.clipName, required: true} )  
     }
 
     showSourceCode (asset) 

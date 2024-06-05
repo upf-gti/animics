@@ -144,7 +144,7 @@ class Editor {
                         if(e.altKey) {
                             e.preventDefault();
                             e.stopImmediatePropagation();
-                            LX.prompt("File name", "Export GLB", (v) => this.export("GLB", v), {input: this.clipName, required: true} )     
+                            LX.prompt("File name", "Export GLB", (v) => this.export("GLB", true, v), {input: this.clipName, required: true} )     
                         }
                     }
                     break;
@@ -399,6 +399,19 @@ class Editor {
 
     getCurrentAnimation() {
         return this.loadedAnimations[this.currentAnimation];
+    }
+
+    getAnimationsToExport() {
+        this.toExport = {};
+        for(let animationName in this.bindedAnimations) {
+            let animation = this.bindedAnimations[animationName];
+
+            if(animation[this.currentCharacter.name]) {
+                animation[this.currentCharacter.name].export = true;
+                this.toExport[animationName] = animation[this.currentCharacter.name];
+            }
+        }
+        return this.toExport;
     }
 
     startEdition(showGuide = true) {
@@ -669,7 +682,7 @@ class Editor {
     setAnimation(type) {
 
         let currentTime = 0;
-        if(this.activeTimeline) {
+        if(this.activeTimeline && this.animationMode != type) {
             this.activeTimeline.hide();
             currentTime = this.activeTimeline.currentTime;
         }
@@ -744,47 +757,93 @@ class Editor {
         this.gui.resize(width, height);
     }
 
-    export(type = null, name) {
+    export(type = null, download = true, name = null) {
+        let bindedAnim = this.getCurrentBindedAnimation();
+        let files = [];
+        if(!this.toExport || this.toExport.length) {
+            bindedAnim.export = true;
+            this.toExport = [bindedAnim];
+        }
+
         switch(type){
             case 'GLB':
                 let options = {
                     binary: true,
                     animations: []
                 };
-                for(let i = 0; i < this.currentCharacter.mixer._actions.length; i++) {
-                    options.animations.push(this.currentCharacter.mixer._actions[i]._clip);
+
+                for(let animationName in this.toExport) {
+
+                    let animation = this.toExport[animationName];
+                    if(!animation.export) {
+                        continue;
+                    }
+                    
+                    if(animation.mixerBodyAnimation) {
+                        animation.mixerBodyAnimation.name = animationName + '_' + animation.mixerBodyAnimation.name;
+                        options.animations.push(animation.mixerBodyAnimation);
+                    }
+                    if(animation.mixerFaceAnimation) {
+                        animation.mixerFaceAnimation.name = animationName + '_' + animation.mixerFaceAnimation.name;
+                        options.animations.push(animation.mixerFaceAnimation);                       
+                    }
                 }
                 let model = this.currentCharacter.mixer._root.getChildByName('Armature');
+
                 this.GLTFExporter.parse(model, 
                     ( gltf ) => UTILS.download(gltf, (name || this.clipName) + '.glb', 'arraybuffer' ), // called when the gltf has been generated
                     ( error ) => { console.log( 'An error happened:', error ); }, // called when there is an error in the generation
                     options
                 );
                 break;
-            case 'BVH':
-                let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
-                UTILS.download(bvh, name, "text/plain");
-                // bvhexport sets avatar to bindpose. Avoid user seeing this
-                this.currentCharacter.mixer.update(0);
-                break;
-            case 'BVH extended':
+            
+            case 'BVH': case 'BVH extended':
                 let skeleton = this.currentCharacter.skeletonHelper.skeleton;
-                let bvhPose = null;
-                let bvhFace = null;
-                let bindedAnim = this.getCurrentBindedAnimation();
-                if(this.mode == this.editionModes.SCRIPT) {
-                    bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation), skeleton, bindedAnim.mixerBodyAnimation);
-                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, bindedAnim.mixerFaceAnimation);
-                } 
-                else {
-                    bvhPose = BVHExporter.export(this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation), skeleton, bindedAnim.mixerBodyAnimation);
-                    bvhFace = BVHExporter.exportMorphTargets(this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation), this.currentCharacter.morphTargets.BodyMesh, bindedAnim.mixerFaceAnimation);
-                }
-                                
-                UTILS.download(bvhPose + bvhFace, (name || this.clipName) + ".bvhe", "text/plain" );
+                
+                for(let animationName in this.toExport) {
+                    let animation = this.toExport[animationName];
+                    if(!animation.export) {
+                        continue;
+                    }
+                    let bvhPose = null;
+                    let bvhFace = null;
+                    let bodyAction = this.currentCharacter.mixer.existingAction(animation.mixerBodyAnimation);
+                    let faceAction = this.currentCharacter.mixer.existingAction(animation.mixerFaceAnimation);
+                    
+                    if(!bodyAction && animation.mixerBodyAnimation) {
+                        bodyAction = this.currentCharacter.mixer.clipAction(animation.mixerBodyAnimation);     
+                    }
+                    if(!faceAction && animation.mixerFaceAnimation) {
+                        faceAction = this.currentCharacter.mixer.clipAction(animation.mixerFaceAnimation);                        
+                    }
 
-                // bvhexport sets avatar to bindpose. Avoid user seeing this
-                this.currentCharacter.mixer.update(0);
+                    if(this.mode == this.editionModes.SCRIPT) {
+                        bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
+                        bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                    } 
+                    else {
+                        bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
+                        bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                    }
+                    
+                    // Check if it already has extension
+                    let clipName = name || this.clipName || animationName;
+                    const extension = clipName.split(".");
+                    if(!extension[1]) {
+                        if(type == 'BVH') {
+                            clipName = extension[0] + '.bvh';
+                        }
+                        else if(type == 'BVH extended') {
+                            clipName = extension[0] + '.bvhe';
+                        }
+                    }
+                    if(download) {
+                        UTILS.download(bvhPose + bvhFace, clipName, "text/plain" );
+                    }
+                    else {
+                        files.push({name: clipName, data: UTILS.dataToFile(bvhPose + bvhFace, clipName, "text/plain")});
+                    }
+                }                
                 break;
 
             default:
@@ -793,48 +852,64 @@ class Editor {
                 UTILS.download(JSON.stringify(json), (name || this.clipName) + '.bml', "application/json");
                 console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
                 break;
-        }
+
+            }
+            // bvhexport sets avatar to bindpose. Avoid user seeing this
+            this.bindAnimationToCharacter(this.currentAnimation);
+            return files;
     }
 
     showPreview() {
         
-        let url = "";
-        if(this.mode == this.editionModes.CAPTURE || this.mode == this.editionModes.VIDEO) {
-
-            let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
-            window.localStorage.setItem('bvhskeletonpreview', bvh);
-            // window.localStorage.setItem('bvhblendshapespreview', bvh);
-            url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
-        }
-        else{
-            url = "https://webglstudio.org/projects/signon/performs";
-            let json = this.exportBML();
-            if(!json) return;
-            const sendData = () => {
-                if(this.performsApp && this.performsApp.ECAcontroller)
-                    this.realizer.postMessage(JSON.stringify([{type: "bml", data: json.behaviours}]));
-                else {
-                    setTimeout(sendData, 1000)
-                }
+        const sendData = (msg) => {
+            if(this.performsApp)
+                this.realizer.postMessage(msg);
+            else {
+                setTimeout(sendData.bind(this, msg), 1000)
             }
-           
+        }
+        
+        const openPreview = () => {
             if(!this.realizer || this.realizer.closed) {
                 this.realizer = window.open(url, "Preview");
                 this.realizer.onload = (e, d) => {
                     this.performsApp = e.currentTarget.global.app;
-                    sendData();
+                    sendData(data);
                 }
     
                 this.realizer.addEventListener("beforeunload", () => {
                     this.realizer = null
                 });
             }
-            else 
-                sendData();
+            else {
+                sendData(data);       
+            }  
+        }
+        let url = "https://webglstudio.org/users/evalls/performs";//"https://webglstudio.org/projects/signon/performs"; // TO DO: Change to the oficial URL
+        let data = [];
+        if(this.mode == this.editionModes.SCRIPT) {
+            
+            const json = this.exportBML();
+            if(!json)  {
+                return;
+            }
 
-           
+            data = JSON.stringify([{type: "bml", data: json.behaviours}]);
+            openPreview();
+        }
+        else{
+            this.gui.showExportAnimationsDialog(() => {
+                const files = this.export("BVH extended", false);
+                data = {type: "bvhe", data: files};
+                openPreview();
+            })
+            // let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
+            // window.localStorage.setItem('bvhskeletonpreview', bvh);
+            // // window.localStorage.setItem('bvhblendshapespreview', bvh);
+            // url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
         }
 
+        
     }
 
     login(session, callback) {
@@ -1443,8 +1518,9 @@ class KeyframeEditor extends Editor{
                     const interpolant = mixer._actions[i]._interpolants[trackIdx];
                     const mixerClip = mixer._actions[i]._clip;
                                        
-                    if(!track.locked) // TO DO: Check it!!!!! :(
+                    if(track.locked){
                         continue;
+                    }
                     
                     // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
                     // _clip is the same clip (pointer) sent in mixer.clipAction. 
