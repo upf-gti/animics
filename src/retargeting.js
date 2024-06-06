@@ -35,6 +35,7 @@ class AnimationRetargeting {
         this.boneMap = this.computeBoneMap( this.srcSkeleton, this.trgSkeleton, options.boneNameMap ); // { idxMap: [], nameMape:{} }
 
         this.precomputedQuats = this.precomputeRetargetingQuats();
+        this.precomputedPosition = this.precomputeRetargetingPosition();
     }
 
     /**
@@ -162,9 +163,26 @@ class AnimationRetargeting {
         return result
     }
 
+    precomputeRetargetingPosition(){
+        // Asumes the first bone in the skeleton is the root
+        const srcBoneIndex = 0;    
+        const trgBoneIndex = this.boneMap.idxMap[ srcBoneIndex ] ;    
+        if ( trgBoneIndex < 0 ){
+            return null;
+        } 
+         
+        // Computes the posiiton difference between the roots (Hip bone)
+        const srcPosition = this.srcBindPose.bones[srcBoneIndex].getWorldPosition(new THREE.Vector3());
+        const trgPosition = this.trgBindPose.bones[trgBoneIndex].getWorldPosition(new THREE.Vector3());
+        let offset =  new THREE.Vector3();
+        offset.subVectors(trgPosition, srcPosition);
+
+        return offset;
+    }
+
     precomputeRetargetingQuats(){
-        //BASIC ALGORITHM --> trglocal = invTrgBindWorldParent * srcBindWorldParent * srcLocal * invSrcBindWorld * trgBindWorld
-        // trglocal = invTrgBindWorldParent * invTrgEmbedded * srcEmbedded * srcBindWorldParent * srcLocal * invSrcBindWorld * invSrcEmbedded * trgEmbedded * trgBindWorld
+        //BASIC ALGORITHM --> trglocal = invTrgWorldParent * srcWorldParent * srcLocal * invSrcWorld * trgWorld
+        // trglocal = invTrgWorldParent * invTrgEmbedded * srcEmbedded * srcWorldParent * srcLocal * invSrcWorld * invSrcEmbedded * trgEmbedded * trgWorld
 
         let left = new Array( this.srcBindPose.bones.length ); // invTrgWorldParent * invTrgEmbedded * srcEmbedded * srcWorldParent
         let right = new Array( this.srcBindPose.bones.length ); // invSrcWorld * invSrcEmbedded * trgEmbedded * trgWorld
@@ -178,14 +196,14 @@ class AnimationRetargeting {
             }
 
             let resultQuat = new THREE.Quaternion(0,0,0,1);
-            resultQuat.copy( this.trgBindPose.transformsWorld[ trgIndex ].q ); // trgBindWorld
+            resultQuat.copy( this.trgBindPose.transformsWorld[ trgIndex ].q ); // trgWorld
             if ( this.trgBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.forward.q ); } // trgEmbedded
             if ( this.srcBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.inverse.q ); } // invSrcEmbedded
-            resultQuat.premultiply( this.srcBindPose.transformsWorldInverses[ srcIndex ].q ); // invSrcBindWorld
+            resultQuat.premultiply( this.srcBindPose.transformsWorldInverses[ srcIndex ].q ); // invSrcWorld
             right[ srcIndex ] = resultQuat;
 
             resultQuat = new THREE.Quaternion(0,0,0,1);
-            // srcBindWorldParent
+            // srcWorldParent
             if ( this.srcBindPose.bones[ srcIndex ].parent ){ 
                 let parentIdx = this.srcBindPose.parentIndices[ srcIndex ];
                 resultQuat.premultiply( this.srcBindPose.transformsWorld[ parentIdx ].q ); 
@@ -194,7 +212,7 @@ class AnimationRetargeting {
             if ( this.srcBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.forward.q ); } // srcEmbedded
             if ( this.trgBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.inverse.q ); } // invTrgEmbedded
 
-            // invTrgBindWorldParent
+            // invTrgWorldParent
             if ( this.trgBindPose.bones[ trgIndex ].parent ){ 
                 let parentIdx = this.trgBindPose.parentIndices[ trgIndex ];
                 resultQuat.premultiply( this.trgBindPose.transformsWorldInverses[ parentIdx ].q ); 
@@ -214,8 +232,8 @@ class AnimationRetargeting {
      */
     _retargetQuaternion( srcIndex, srcLocalQuat, resultQuat = null ){
         if ( !resultQuat ){ resultQuat = new THREE.Quaternion(0,0,0,1); }
-        //BASIC ALGORITHM --> trglocal = invTrgBindWorldParent * srcBindWorldParent * srcLocal * invSrcBindWorld * trgBindWorld
-        // trglocal = invTrgBindWorldParent * invTrgEmbedded * srcEmbedded * srcBindWorldParent * srcLocal * invSrcBindWorld * invSrcEmbedded * trgEmbedded * trgBindWorld
+        //BASIC ALGORITHM --> trglocal = invTrgWorldParent * srcWorldParent * srcLocal * invSrcWorld * trgWorld
+        // trglocal = invTrgWorldParent * invTrgEmbedded * srcEmbedded * srcWorldParent * srcLocal * invSrcWorld * invSrcEmbedded * trgEmbedded * trgWorld
         
         // In this order because resultQuat and srcLocalQuat might be the same Quaternion instance
         resultQuat.copy( srcLocalQuat ); // srcLocal
@@ -248,10 +266,22 @@ class AnimationRetargeting {
         if ( boneIndex < 0 || this.boneMap.idxMap[ boneIndex ] < 0 ){
             return null;
         } 
-        // TODO
+        // Retargets the root bone posiiton
+        let srcValues = srcTrack.values;
+        let trgValues = new Float32Array( srcValues.length );
+        if( boneIndex == 0 ) { // asume the first bone is the root
+            const offset = this.precomputedPosition;
+            let pos = new THREE.Vector3();
 
+            for( let i = 0; i < srcValues.length; i+=3 ){
+                pos.set( srcValues[i], srcValues[i+1], srcValues[i+2]);
+                trgValues[i]   = pos.x + offset.x;
+                trgValues[i+1] = pos.y + offset.y;
+                trgValues[i+2] = pos.z + offset.z;
+            }
+        }
         // TODO missing interpolation mode. Assuming always linear. Also check if arrays are copied or referenced
-        return new THREE.VectorKeyframeTrack( this.boneMap.nameMap[ boneName ] + ".position", srcTrack.times, srcTrack.values ); 
+        return new THREE.VectorKeyframeTrack( this.boneMap.nameMap[ boneName ] + ".position", srcTrack.times, trgValues ); 
     }
     
     /**
