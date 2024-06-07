@@ -8,7 +8,7 @@ import { Gizmo } from "./gizmo.js";
 import { UTILS } from "./utils.js"
 import { NN } from "./ML.js"
 import { OrientationHelper } from "./libs/OrientationHelper.js";
-import { AnimationRetargeting, forceBindPoseQuats } from './retargeting.js'
+import { AnimationRetargeting, findIndexOfBoneByName, forceBindPoseQuats } from './retargeting.js'
 import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/GLTFLoader.js';
 import { GLTFExporter } from './exporters/GLTFExporoter.js' 
 import { BMLController } from "./controller.js"
@@ -158,7 +158,7 @@ class Editor {
                     }
                     break;
                 case 'i': case 'I':case 'o': case 'O':
-                    if(e.ctrlKey) {
+                    if(e.ctrlKey && !e.shiftKey) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
                         this.gui.importFile();
@@ -1325,8 +1325,14 @@ class KeyframeEditor extends Editor{
                 let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.model, { trgUseCurrentPose: true, trgEmbedWorldTransforms: true } ); // TO DO: change trgUseCurrentPose param
                 bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
                 
-                this.validateAnimationClip(bodyAnimation);
+                this.validateBodyAnimationClip(bodyAnimation);
 
+                // set track value dimensions. Necessary for the timeline
+                for( let i = 0; i < bodyAnimation.tracks.length; ++i ){
+                    let t = bodyAnimation.tracks[i]; 
+                    if ( t.name.endsWith(".quaternion") ){ t.dim = 4; }
+                    else{ t.dim = 3; }
+                }
                 // Set keyframe animation to the timeline and get the timeline-formated one
                 skeletonAnimation = this.gui.keyFramesTimeline.setAnimationClip( bodyAnimation, true );
                 this.gui.keyFramesTimeline.setSelectedItems([this.currentCharacter.skeletonHelper.bones[0].name]);
@@ -1339,7 +1345,11 @@ class KeyframeEditor extends Editor{
             let auAnimation = null;
             if(faceAnimation) { // TO DO: Check if it's if-else or if-if
                 
-                // Set keyframe animation to the timeline and get the timeline-formated one
+                // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
+                for( let i = 0; i < faceAnimation.tracks.length; ++i ){
+                    faceAnimation.tracks[i].dim = 1;
+                }
+                // Set keyframe animation to the timeline and get the timeline-formated one.
                 auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation, true );
                 if(animation.type == "video") {
                     faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
@@ -1391,27 +1401,47 @@ class KeyframeEditor extends Editor{
         return true;
     }
 
-    /** Validate body animation clip created using ML */
-    validateAnimationClip(clip) {
+    /** Validate body animation clip created using ML 
+     * THREEJS AnimationClips CANNOT have tracks with 0 entries
+    */
+    validateBodyAnimationClip(clip) {
 
-        let newTracks = [];
         let tracks = clip.tracks;
         let bones = this.currentCharacter.skeletonHelper.bones;
-        let bonesNames = [];
-        tracks.map((v) => { bonesNames.push(v.name.split(".")[0])});
 
-        for(let i = 0; i < bones.length; i++) {
-            let name = bones[i].name;
-            if(bonesNames.indexOf( name ) > -1)
-                continue;
-            let times = [0];
-            let values = [bones[i].quaternion.x, bones[i].quaternion.y, bones[i].quaternion.z, bones[i].quaternion.w];
-            
-            let track = new THREE.QuaternionKeyframeTrack(name + '.quaternion', times, values);
-            newTracks.push(track);
-            
+        let quatCheck = new Array(bones.length);
+        quatCheck.fill(false);
+        let posCheck = false; //root only
+
+        // ensure each track has at least one valid entry. Default to current avatar pose
+        for( let i = 0; i < tracks.length; ++i ){
+            let t = tracks[i];
+            let trackBoneName = t.name.substr(0, t.name.lastIndexOf("."));
+            let boneIdx = findIndexOfBoneByName( this.currentCharacter.skeletonHelper.skeleton, trackBoneName );
+            if ( boneIdx < 0 ){ continue; }
+            let bone = bones[ boneIdx ];
+            if ( !t.values.length || !t.times.length ){
+                t.times = new Float32Array([0]);
+                if ( t.name.endsWith(".position") ){ t.values = new Float32Array( bone.position.toArray() ); }
+                else if ( t.name.endsWith(".quaternion") ){ t.values = new Float32Array( bone.quaternion.toArray() ); }
+                else if ( t.name.endsWith(".scale") ){ t.values = new Float32Array( bone.scale.toArray() ); }
+            }
+
+            if ( t.name.endsWith(".quaternion") ){ quatCheck[boneIdx] = true; }
+            if ( t.name.endsWith(".position") && boneIdx==0 ){ posCheck = true; }
         }
-        clip.tracks = clip.tracks.concat(newTracks);
+
+        // ensure every bone has its track
+        if ( !posCheck ){
+            let track = new THREE.VectorKeyframeTrack(bones[0].name + '.position', [0], bones[0].position.toArray());
+            clip.tracks.push(track);
+        }
+        for( let i = 0; i < quatCheck.length; ++i ){
+            if ( !quatCheck[i] ){
+                let track = new THREE.QuaternionKeyframeTrack(bones[i].name + '.quaternion', [0], bones[i].quaternion.toArray());
+                clip.tracks.push(track);    
+            }
+        }
     }
 
     onUpdateAnimationTime() {
@@ -1489,13 +1519,16 @@ class KeyframeEditor extends Editor{
     }
 
     /**
-     * This function updates the mixer animation actions so the edited tracks are assigned to the interpolants  
+     * This function updates the mixer animation actions so the edited tracks are assigned to the interpolants.
+     * WARNING It uses the editedAnimation tracks directly, without cloning them 
      * @param {animation} editedAnimation for body it is the timeline skeletonAnimation. For face it is the mixerFaceAnimation with the updated blendshape values
      * @param {Number or Array of Numbers} trackIdxs 
      * @returns 
      */
     updateAnimationAction(editedAnimation, trackIdxs) {
-        // for bones editedAnimation is the timeline skeletonAnimationTO DO: this function is being called from updateBlendshapesProperties with the mixerFaceAnimation (which is not a timelineAnimation but a threejsAnimation)
+        // for bones editedAnimation is the timeline skeletonAnimation
+        // for blendshapes editedAnimation is the threejs mixerFaceAnimation
+    
         if(this.animationMode == this.editionModes.SCRIPT) { 
             return;
         }
@@ -1512,11 +1545,11 @@ class KeyframeEditor extends Editor{
                      
         for(let i = 0; i< mixer._actions.length; i++) {
             if(mixer._actions[i]._clip.name == editedAnimation.name) { // name == ("bodyAnimation" || "faceAnimation")
+                const mixerClip = mixer._actions[i]._clip;
                 for(let j = 0; j < trackIdxs.length; j++) {
                     const trackIdx = trackIdxs[j];
                     const track = editedAnimation.tracks[trackIdx];
                     const interpolant = mixer._actions[i]._interpolants[trackIdx];
-                    const mixerClip = mixer._actions[i]._clip;
                                        
                     if(track.locked){
                         continue;
@@ -1530,13 +1563,9 @@ class KeyframeEditor extends Editor{
                     interpolant.sampleValues = mixerClip.tracks[trackIdx].values = track.values;                        
                 }
 
-                // // _clip === clip (pointer) sent in mixer.clipAction === currentBindedAnimation.mixerBodyAnimation/mixerFaceAnimation. So these should not be necessary 
-                // if(this.animationMode == this.animationModes.BODY) {
-                //     this.getCurrentBindedAnimation().mixerBodyAnimation = mixer._actions[i]._clip;
-                // }
-                // else if(this.animationMode == this.animationModes.FACE) {
-                //     this.getCurrentBindedAnimation().mixerFaceAnimation = mixer._actions[i]._clip; 
-                // }
+                // mixer.stopAllAction();
+                // mixer.uncacheAction(mixerClip);
+                // mixer.clipAction(mixerClip).setEffectiveWeight(1.0).play();
                 
                 this.setTime(this.activeTimeline.currentTime);
                 return;
