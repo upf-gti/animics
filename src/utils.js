@@ -40,8 +40,15 @@ const UTILS = {
 		return string.charAt(0).toUpperCase() + string.slice(1);
 	},
 	
-	concatTypedArray (Arrays, ArrayType){
-		return Arrays.reduce((acc, arr) => new ArrayType([...acc, ...arr]), []);
+	concatTypedArray(arrays, ArrayType){
+		let size = arrays.reduce((acc,arr) => acc + arr.length, 0);
+		let result = new ArrayType( size ); // generate just one array
+		let offset = 0;
+		for( let i = 0; i < arrays.length; ++i ){
+			result.set(arrays[i], offset ); // copy values
+			offset += arrays[i].length;
+		}
+		return result;
 	},
 
 	// Function to find consecutive ranges
