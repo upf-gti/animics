@@ -169,7 +169,7 @@ class Editor {
         } );
        
         window.onbeforeunload =  (e) => {
-            if(!this.animation || !this.animation.tracks.length)
+            if(!this.currentAnimation || !this.loadedAnimations[this.currentAnimation])
                 return;
             e.preventDefault();
             e.returnValue = ""
