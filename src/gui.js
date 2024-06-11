@@ -348,7 +348,7 @@ class Gui {
                 animation.export = animation.export === undefined ? true : animation.export;
                 p.sameLine();
                 p.addCheckbox(animationName || options.input, animation.export, (v) => animation.export = v);
-                p.addText(null, animationName || options.input , (v) => {
+                p.addText(null, animationName.split('.')[0] || options.input , (v) => {
                     delete animations[animationName];
                     animations[v] = animation; 
                 }, {placeholder: "..."} );

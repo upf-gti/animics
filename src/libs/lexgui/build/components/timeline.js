@@ -1412,8 +1412,8 @@ Timeline.TRACK_SELECTED_LIGHT = LX.getThemeColor("global-selected-light");
 Timeline.FONT = LX.getThemeColor("global-font");
 Timeline.FONT_COLOR = LX.getThemeColor("global-text");
 Timeline.COLOR = LX.getThemeColor("global-selected-dark");//"#5e9fdd";
-Timeline.COLOR_HOVERED = LX.getThemeColor("global-selected");
-Timeline.COLOR_SELECTED = "rgba(250,250,20,1)"///"rgba(250,250,20,1)";
+Timeline.COLOR_SELECTED = Timeline.COLOR_HOVERED = "rgba(250,250,20,1)";///"rgba(250,250,20,1)";
+// Timeline.COLOR_HOVERED = LX.getThemeColor("global-selected");
 Timeline.COLOR_UNACTIVE = "rgba(250,250,250,0.7)";
 Timeline.COLOR_LOCK = "rgba(255,125,125,0.7)";
 Timeline.COLOR_EDITED = "white"//"rgba(125,250,250, 1)";
@@ -4727,7 +4727,6 @@ class CurvesTimeline extends Timeline {
     }
 
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
-        getTrackName
         // Update animationClip information
         const clipIdx = track.clipIdx;
 

@@ -1197,6 +1197,7 @@ class KeyframeEditor extends Editor{
     setVideoVisibility( visibility ){
         document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
     }
+
     /**Create face and body animations from mediapipe and load character*/
     buildAnimation(data) {
 
@@ -1254,6 +1255,16 @@ class KeyframeEditor extends Editor{
         if ( animationData && animationData.blendshapesAnim ){
             animationData.blendshapesAnim.name = "faceAnimation";       
             faceAnimation = animationData.blendshapesAnim;
+        }
+        else {
+            let names = {}
+            for(let name in this.currentCharacter.blendshapesManager.mapNames) {
+                names[name] = 0;
+            }
+            names.dt = 0;
+            let data = [names];
+            faceAnimation = createAnimationFromActionUnits("faceAnimation", data); // faceAnimation is an action units clip
+            faceAnimation.duration = bodyAnimation.duration;
         }
         
         this.loadedAnimations[name] = {
@@ -1351,12 +1362,14 @@ class KeyframeEditor extends Editor{
                 }
                 // Set keyframe animation to the timeline and get the timeline-formated one.
                 auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation, true );
-                if(animation.type == "video") {
+                // if(animation.type == "video" || animation.type == "video") {
                     faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
-                }
+                // }
 
                 faceAnimation.name = "faceAnimation";   // mixer
                 auAnimation.name = "faceAnimation";  // timeline
+                this.validateFaceAnimationClip(faceAnimation);
+
             }
             
             if(!this.bindedAnimations[animationName]) {
@@ -1442,6 +1455,42 @@ class KeyframeEditor extends Editor{
                 clip.tracks.push(track);    
             }
         }
+    }
+
+    /** Validate face animation clip created using Mediapipe 
+     * THREEJS AnimationClips CANNOT have tracks with 0 entries
+    */
+    validateFaceAnimationClip(clip) {
+
+        let tracks = clip.tracks;
+        let blendshapes = this.currentCharacter.morphTargets;
+
+        let bsCheck = new Array(blendshapes.length);
+        bsCheck.fill(false);
+
+        // ensure each track has at least one valid entry. Default to current avatar pose
+        for( let i = 0; i < tracks.length; ++i ){
+            let t = tracks[i];
+            let trackBSName = t.name.substr(0, t.name.lastIndexOf("."));
+            // Find blendshape index
+            if ( !t.values.length || !t.times.length ){
+                t.times = new Float32Array([0]);
+                // if ( t.name.endsWith(".position") ){ t.values = new Float32Array( bone.position.toArray() ); }
+                // else if ( t.name.endsWith(".quaternion") ){ t.values = new Float32Array( bone.quaternion.toArray() ); }
+                // else if ( t.name.endsWith(".scale") ){ t.values = new Float32Array( bone.scale.toArray() ); }
+            }
+
+            // if ( t.name.endsWith(".quaternion") ){ quatCheck[boneIdx] = true; }
+            // if ( t.name.endsWith(".position") && boneIdx==0 ){ posCheck = true; }
+        }
+
+        // ensure every blendshape has its track        
+        // for( let i = 0; i < bsCheck.length; ++i ){
+        //     if ( !bsCheck[i] ){
+        //         let track = new THREE.QuaternionKeyframeTrack(bones[i].name + '.quaternion', [0], bones[i].quaternion.toArray());
+        //         clip.tracks.push(track);    
+        //     }
+        // }
     }
 
     onUpdateAnimationTime() {
@@ -1762,7 +1811,6 @@ class KeyframeEditor extends Editor{
                 if(track.name == this.selectedAU) {
                     let tidx = null;
                     let tidxend = null;
-                    let dt = track.times[1] - track.times[0];
                     for(let j = 0; j < track.times.length; j++) {
                         if(track.times[j] <= t + 0.01) {
                             tidx = j;
@@ -1775,8 +1823,13 @@ class KeyframeEditor extends Editor{
                     // let tidx = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.01);
                     if(tidx < 0 || tidx == undefined)
                         continue;
-                    let f = (Math.abs(t - track.times[tidx]) / (track.times[tidxend] - track.times[tidx]) );
-                    let value = (1 - f)*track.values[tidx] + f*track.values[tidxend];
+
+                    let value = track.values[tidx];
+
+                    if(tidxend != undefined) {
+                        let f = (Math.abs(t - track.times[tidx]) / (track.times[tidxend] - track.times[tidx]) );
+                        value = (1 - f)*value+ f*track.values[tidxend];
+                    }
                     bs[track.type] = value;
 
                 }
