@@ -197,10 +197,15 @@ const MediaPipe = {
 
         const results = {
             dt: dt, 
-            RLM: null, 
+            FLM: null,
+
+            RLM: null, // image 2d landmarks each landmarks with { x, y, z, visibility } 
             LLM: null, 
-            FLM: null, 
             PLM: null, 
+            
+            RWLM: null, // world 3d landmarks each landmarks with { x, y, z, visibility }
+            LWLM: null, 
+            PWLM: null, 
             distanceToCamera: 0,
             rightHandVisibility: 0, 
             leftHandVisibility: 0
@@ -209,9 +214,10 @@ const MediaPipe = {
         if ( handsData ){
             for ( let i = 0; i < handsData.handednesses.length; ++i ){
                 let h = handsData.handednesses[i][0];
-                let landmarks = handsData.landmarks[ i ]; // handsData.worldLandmarks[ i ];
-                if ( h.categoryName == 'Left' ){ results.LLM = landmarks; }
-                else{ results.RLM = landmarks; }
+                let landmarks = handsData.landmarks[ i ]
+                let worldLandmarks = handsData.worldLandmarks[ i ];
+                if ( h.categoryName == 'Left' ){ results.LLM = landmarks; results.LWLM = worldLandmarks; }
+                else{ results.RLM = landmarks; results.RWLM = worldLandmarks; }
             }
         }
 
@@ -220,11 +226,13 @@ const MediaPipe = {
         }
 
         if ( poseData && poseData.landmarks.length ){
-            const lm = poseData.landmarks[0];
-            results.PLM = lm;
-            results.distanceToCamera = (lm[23].visibility + lm[24].visibility)*0.5;
-            results.leftHandVisibility = !!results.LLM * (lm[15].visibility + lm[17].visibility + lm[19].visibility)/3;
-            results.rightHandVisibility = !!results.RLM * (lm[16].visibility + lm[18].visibility + lm[20].visibility)/3;
+            const landmarks = poseData.landmarks[0];
+            const worldLandmarks = poseData.worldLandmarks[0];
+            results.PLM = landmarks;
+            results.PWLM = worldLandmarks;
+            results.distanceToCamera = (landmarks[23].visibility + landmarks[24].visibility)*0.5;
+            results.leftHandVisibility = !!results.LLM * (landmarks[15].visibility + landmarks[17].visibility + landmarks[19].visibility)/3;
+            results.rightHandVisibility = !!results.RLM * (landmarks[16].visibility + landmarks[18].visibility + landmarks[20].visibility)/3;
         }
                 
         return results;

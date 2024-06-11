@@ -112,7 +112,10 @@
 		dialog.ondrop = (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			onLoadFiles( e.dataTransfer.files );
+			if ( onLoadFiles( e.dataTransfer.files ) ){
+				$("#page-top")[0].ondrop = null;
+			}
+			
 		};
 	
 		$("#keyframe-project").click(() => {
