@@ -2182,6 +2182,10 @@ class KeyFramesTimeline extends Timeline {
 
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
 
+        if(!track) {
+            return;
+        }
+
         // Update animationClip information
         let clipIdx = track.clipIdx;
 
@@ -4727,6 +4731,11 @@ class CurvesTimeline extends Timeline {
     }
 
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
+       
+        if(!track) {
+            return;
+        }
+        
         // Update animationClip information
         const clipIdx = track.clipIdx;
 

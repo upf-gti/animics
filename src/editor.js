@@ -1595,21 +1595,49 @@ class KeyframeEditor extends Editor{
         for(let i = 0; i< mixer._actions.length; i++) {
             if(mixer._actions[i]._clip.name == editedAnimation.name) { // name == ("bodyAnimation" || "faceAnimation")
                 const mixerClip = mixer._actions[i]._clip;
+                let mapTrackIdxs = {};
+
+                // If the editedAnimation is an auAnimation, the tracksIdx have to be mapped to the mixerAnimation tracks indices
+                if(editedAnimation.name == "faceAnimation" && editedAnimation === this.getCurrentBindedAnimation().auAnimation) {
+                    for(let j = 0; j < trackIdxs.length; j++) {
+                        const trackIdx = trackIdxs[j];
+                        const track = editedAnimation.tracks[trackIdx];
+
+                        let bsNames =  this.currentCharacter.blendshapesManager.mapNames[track.type];
+                        if(typeof(bsNames) == 'string') {
+                            bsNames = [bsNames];
+                        }
+
+                        for(let b = 0; b < bsNames.length; b++) {
+                            for(let t = 0; t < mixerClip.tracks.length; t++) {
+                                if(mixerClip.tracks[t].name.includes("[" + bsNames[b] + "]")) {
+                                    mapTrackIdxs[trackIdx] = [...mapTrackIdxs[trackIdx] ?? [] , t];
+                                    break;
+                                }
+                            }
+                        }
+                    }                    
+                }
+
                 for(let j = 0; j < trackIdxs.length; j++) {
                     const trackIdx = trackIdxs[j];
+                    const mapTrackIdx = mapTrackIdxs[trackIdx] || [trackIdx];
                     const track = editedAnimation.tracks[trackIdx];
-                    const interpolant = mixer._actions[i]._interpolants[trackIdx];
-                                       
                     if(track.locked){
                         continue;
                     }
                     
-                    // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
-                    // _clip is the same clip (pointer) sent in mixer.clipAction. 
-                    // Update times
-                    interpolant.parameterPositions = mixerClip.tracks[trackIdx].times = track.times;
-                    // Update values
-                    interpolant.sampleValues = mixerClip.tracks[trackIdx].values = track.values;                        
+                    for(let t = 0; t < mapTrackIdx.length; t++) {
+
+                        const interpolant = mixer._actions[i]._interpolants[mapTrackIdx[t]];                                           
+                       
+                        // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
+                        // _clip is the same clip (pointer) sent in mixer.clipAction. 
+                        // Update times
+                        interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = track.times;
+                        // Update values
+                        interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = track.values;                        
+                    }
                 }
 
                 // mixer.stopAllAction();
