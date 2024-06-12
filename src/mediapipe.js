@@ -182,6 +182,18 @@ const MediaPipe = {
         image.close();
 
         if ( this.recording ){
+            if ( results.landmarksResults.PWLM ){ 
+                let ps = results.landmarksResults.PWLM; 
+                for( let i = 0; i < ps.length; ++i ){ ps[i].y *= -1; ps[i].z *= -1; }
+            }
+            if ( results.landmarksResults.LWLM ){ 
+                let ps = results.landmarksResults.LWLM; 
+                for( let i = 0; i < ps.length; ++i ){ ps[i].y *= -1; ps[i].z *= -1; }
+            }
+            if ( results.landmarksResults.RWLM ){ 
+                let ps = results.landmarksResults.RWLM; 
+                for( let i = 0; i < ps.length; ++i ){ ps[i].y *= -1; ps[i].z *= -1; }
+            }
             this.landmarks.push( results.landmarksResults );
             this.blendshapes.push( results.blendshapesResults );
         }
