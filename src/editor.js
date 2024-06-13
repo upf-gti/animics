@@ -315,13 +315,6 @@ class Editor {
                 }
             } );
             
-            // correct model -> TO DO: REMOVE
-            // model.position.set(0,0.85,0);
-            // model.rotateOnAxis(new THREE.Vector3(1,0,0), -Math.PI/2);
-            // model.getObjectByName("mixamorig_RightHand").scale.set( 0.85, 0.85, 0.85 );
-            // model.getObjectByName("mixamorig_LeftHand").scale.set( 0.85, 0.85, 0.85 );
-            //------------------------------------------------
-            
             // Create skeleton helper
             let skeletonHelper = new THREE.SkeletonHelper(model);
             skeletonHelper.name = "SkeletonHelper";            
@@ -1141,7 +1134,8 @@ class KeyframeEditor extends Editor{
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
         
-        this.nn = new NN("data/ML/model.json");
+        // TO DO remove NN stuff
+        // this.nn = new NN("data/ML/model.json");
         this.nnSkeleton = null;
 
         this.retargeting = null;
@@ -1206,6 +1200,7 @@ class KeyframeEditor extends Editor{
         this.video.sync = true;
         this.video.loop = false;
 
+        // TO DO remove old ML solution
         // --------------------------------- OLD BODY ML SOLUTION ---------------------------------
         // this.nn.loadLandmarks( landmarks, 
         //     offsets => {
@@ -1235,7 +1230,7 @@ class KeyframeEditor extends Editor{
     }
 
     // load animation from bvh file
-    loadAnimation(name, animationData ) { // TO DO: Refactor params of loadAnimation...()
+    loadAnimation(name, animationData) {
 
         let skeleton = null;
         let bodyAnimation = null;
@@ -1267,7 +1262,7 @@ class KeyframeEditor extends Editor{
     }
 
     // Array of objects. Each object is a frame with all world landmarks. See mediapipe.js detections
-    createAnimationFromWorldLandmarks( worldLandmarksArray, skeleton ){
+    createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton ){
         function getTwistQuaternion( q, normAxis, outTwist ){
             let dot =  q.x * normAxis.x + q.y * normAxis.y + q.z * normAxis.z;
             outTwist.set( dot * normAxis.x, dot * normAxis.y, dot * normAxis.z, q.w )
@@ -1275,135 +1270,136 @@ class KeyframeEditor extends Editor{
             return outTwist;
         }
 
-        function computeSpine( skeleton, bodyLandmarks ){
+        function computeSpine( skeleton, bindQuats, bodyLandmarks ){
             if ( !bodyLandmarks ){ return; }
+            //bodyLandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
-            let boneHips = skeleton.bones[ 0 ];
-            let boneSpine0 = skeleton.bones[ 1 ]; // connected to hips
-            let boneSpine1 = skeleton.bones[ 2 ];
-            let boneSpine2 = skeleton.bones[ 3 ];
-            let boneLeftLeg = skeleton.bones[ 57 ]; // connected to hips
-            let boneRightLeg = skeleton.bones[ 62 ]; // connected to hips
+            const boneHips = skeleton.bones[ 0 ];
+            boneHips.quaternion.copy( bindQuats[ 0 ] );
+            const boneSpine0 = skeleton.bones[ 1 ]; // connected to hips
+            boneSpine0.quaternion.copy( bindQuats[ 1 ] );
+            const boneSpine1 = skeleton.bones[ 2 ];
+            boneSpine1.quaternion.copy( bindQuats[ 2 ] );
+            const boneSpine2 = skeleton.bones[ 3 ];
+            boneSpine2.quaternion.copy( bindQuats[ 3 ] );
+            const boneLeftLeg = skeleton.bones[ 57 ]; // connected to hips
+            const boneRightLeg = skeleton.bones[ 62 ]; // connected to hips
     
+
             boneHips.updateWorldMatrix( true, true );
     
-            let landmarkHipsLeft = bodyLandmarks[ 23 ];
-            let landmarkHipsRight = bodyLandmarks[ 24 ];
-            let landmarkShoulderLeft = bodyLandmarks[ 11 ];
-            let landmarkShoulderRight = bodyLandmarks[ 12 ];
-            let landmarkHipsMid = new THREE.Vector3(0,0,0);
-            let landmarkShoulderMid = new THREE.Vector3(0,0,0);
+            const landmarkHipsLeft = bodyLandmarks[ 23 ];
+            const landmarkHipsRight = bodyLandmarks[ 24 ];
+            const landmarkShoulderLeft = bodyLandmarks[ 11 ];
+            const landmarkShoulderRight = bodyLandmarks[ 12 ];
+            const landmarkHipsMid = new THREE.Vector3(0,0,0);
+            const landmarkShoulderMid = new THREE.Vector3(0,0,0);
             let dirHipsPred = ( new THREE.Vector3() ).subVectors( landmarkHipsRight, landmarkHipsLeft ); 
             let dirShoulderPred = ( new THREE.Vector3() ).subVectors( landmarkShoulderRight, landmarkShoulderLeft ); 
             landmarkHipsMid.addScaledVector( dirHipsPred, 0.5).add( landmarkHipsLeft );
             landmarkShoulderMid.addScaledVector( dirShoulderPred, 0.5).add( landmarkShoulderLeft );
             let dirSpinePred = ( new THREE.Vector3() ).subVectors( landmarkShoulderMid, landmarkHipsMid ).normalize();
     
-            let s = new THREE.Vector3();
-            let p = new THREE.Vector3();
-            let invWorldQuat = new THREE.Quaternion();
-            let m = null;
-    
-           
+            const dirBone = new THREE.Vector3();
+            const _ignoreVec3 = new THREE.Vector3();
+            const invWorldQuat = new THREE.Quaternion();
+            const qq = new THREE.Quaternion();
+            const tempQuat = new THREE.Quaternion();
+            
             // hips
-            m = boneHips.matrixWorld;
-            m.decompose( p, invWorldQuat, s );
+            boneHips.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 );
             invWorldQuat.invert();
     
-            let dirPred = dirHipsPred.clone().applyQuaternion( invWorldQuat ).normalize();
-            let dirBone = new THREE.Vector3();
-            dirBone.subVectors( boneRightLeg.position, boneLeftLeg.position ).normalize();
-            let qq = new THREE.Quaternion();
-            qq.setFromUnitVectors( dirBone, dirPred ).normalize();
-            // qq.set(0,0,0,1)
-            let twist = getTwistQuaternion( qq, dirBone, new THREE.Quaternion() );
-            qq.multiply( twist.clone().invert() );
+            dirHipsPred.applyQuaternion( invWorldQuat ).normalize(); // world direction to local hips space
+            dirBone.subVectors( boneRightLeg.position, boneLeftLeg.position ).normalize(); // Local hips space
+            qq.setFromUnitVectors( dirBone, dirHipsPred ).normalize();
+            let twist = getTwistQuaternion( qq, dirBone, tempQuat ); // remove unwanted roll forward/backward
+            qq.multiply( twist.invert() );
             boneHips.quaternion.multiply( qq );
-            
+            invWorldQuat.premultiply( qq.invert() );
 
-            dirPred = dirSpinePred.clone().applyQuaternion( invWorldQuat ).applyQuaternion( qq.clone().invert() );
+            // spine
+            dirSpinePred.applyQuaternion( invWorldQuat ); // world direction to local hips space
             boneSpine2.updateWorldMatrix( true, false );
-            let m_spine = boneSpine2.matrixWorld;
-            m_spine.decompose( dirBone, new THREE.Quaternion(), s );
-            dirBone.applyMatrix4( boneHips.matrixWorld.clone().invert() );
-            let qqq = new THREE.Quaternion();
-            qqq.setFromUnitVectors( dirBone, dirPred ).normalize();
+            dirBone.setFromMatrixPosition( boneSpine2.matrixWorld ); // world position of shoulders union
+            dirBone.applyMatrix4( boneHips.matrixWorld.clone().invert() ); //world position to local direction hips space
+            qq.setFromUnitVectors( dirBone, dirSpinePred ).normalize();
+            // divide final rotation into for offset (one for each hips-spine bone) (nlerp with identityQuat)
             let f= 1.0/4.0;
-            qqq.x = qqq.x * f;
-            qqq.y = qqq.y * f;
-            qqq.z = qqq.z * f;
-            qqq.w = qqq.w * f + 1 * (1-f);
-            qqq.normalize();
-            boneHips.quaternion.multiply(qqq);
+            qq.x = qq.x * f;
+            qq.y = qq.y * f;
+            qq.z = qq.z * f;
+            qq.w = qq.w * f + 1 * (1-f);
+            qq.normalize();
+            boneHips.quaternion.multiply(qq);
     
-            qqq.multiply( boneSpine0.quaternion ).premultiply( boneSpine0.quaternion.clone().invert() );
-            boneSpine0.quaternion.multiply( qqq );
+            // move qq from left_spine0_Quat to right_spine_Quat.  
+            // Q = (hips * qq) * spine0Quat = hips * (qq * spine0Quat) = hips * spine0Quat * qq'
+            qq.multiply( boneSpine0.quaternion ).premultiply( tempQuat.copy( boneSpine0.quaternion ).invert() );
+            boneSpine0.quaternion.multiply( qq );
     
-            qqq.multiply( boneSpine1.quaternion ).premultiply( boneSpine1.quaternion.clone().invert() );
-            boneSpine1.quaternion.multiply( qqq );
-    
-            qqq.multiply( boneSpine2.quaternion ).premultiply( boneSpine2.quaternion.clone().invert() );
-            boneSpine2.quaternion.multiply( qqq );
-            
-    
+            // Q = (spine0Quat * qq') * spine1Quat = spine0Quat * (qq' * spine1Quat) = spine0Quat * spine1Quat * qq''
+            qq.multiply( boneSpine1.quaternion ).premultiply( tempQuat.copy( boneSpine1.quaternion ).invert() );
+            boneSpine1.quaternion.multiply( qq );
+
+            // // Q = (spine1Quat * qq'') * spine2Quat = spine1Quat * (qq'' * spine2Quat) = spine1Quat * spine2Quat * qq'''
+            // qq.multiply( boneSpine2.quaternion ).premultiply( tempQuat.copy( boneSpine2.quaternion ).invert() );
+            // boneSpine2.quaternion.multiply( qq );
+            boneSpine2.quaternion.premultiply( qq );
         }
     
-        function computeQuatHead( skeleton, bodyLandmarks ){
+        function computeQuatHead( skeleton, bindQuats, bodyLandmarks ){
             if ( !bodyLandmarks ){ return; }
+            //bodyLandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
-            let s = new THREE.Vector3();
-            let p = new THREE.Vector3();
-            let invWorldQuat = new THREE.Quaternion();
-            let boneSrc = skeleton.bones[ 5 ];
-            let boneTrg = skeleton.bones[ 8 ];
-            boneSrc.updateWorldMatrix( true, false );
-    
-            let m = boneSrc.matrixWorld;
-            m.decompose( p, invWorldQuat, s );
-            invWorldQuat.invert();
-    
-            let earsDirPred = new THREE.Vector3();
-            earsDirPred.subVectors( bodyLandmarks[8], bodyLandmarks[7] ).normalize();
-    
-            let earNoseDirPred = new THREE.Vector3();
-            earNoseDirPred.subVectors( bodyLandmarks[0], bodyLandmarks[7] ).normalize();
-    
-            let dirPred = new THREE.Vector3();
-            dirPred.crossVectors( earsDirPred, earNoseDirPred ).normalize();
-            dirPred.applyQuaternion( invWorldQuat ).normalize();
-    
-            // avatar bone local space direction
-            let dirBone = boneTrg.position.clone().normalize();
-    
-            // move bone to predicted direction
+            let tempVec3 = new THREE.Vector3();
             let qq = new THREE.Quaternion();
-            let twist = new THREE.Quaternion();
-            qq.setFromUnitVectors( dirBone, dirPred );
-            getTwistQuaternion( qq, dirBone, twist ); // remove twist from phalanges
-            boneSrc.quaternion.multiply( qq ).multiply( twist.invert() ).normalize();
-            
-            let qqq = new THREE.Quaternion();
-            let forwardHead = new THREE.Vector3();
-            forwardHead.subVectors( bodyLandmarks[8], bodyLandmarks[7] ).multiplyScalar(0.5).add( bodyLandmarks[7] );
-            forwardHead.sub( bodyLandmarks[0] ).multiplyScalar(-1);
-            forwardHead.y = 0;
-            forwardHead.normalize();
-            let angle = Math.acos( forwardHead.dot(new THREE.Vector3(-1,0,0) ) );
-            angle -= Math.PI/2;
-            qqq.setFromAxisAngle( dirBone, angle );
-            boneSrc.quaternion.multiply( qqq ).normalize();
+
+            const boneHead = skeleton.bones[ 5 ]; // head
+            boneHead.quaternion.copy( bindQuats[ 5 ] );
+            const boneHeadTop = skeleton.bones[ 8 ]; // head top, must be a children of head
+            boneHead.updateWorldMatrix( true, false );
+            // avatar bone local space direction
+            let headBoneDir = boneHeadTop.position.clone().normalize();
     
+            // world space
+            let earsDirPred = (new THREE.Vector3()).subVectors( bodyLandmarks[8], bodyLandmarks[7] ).normalize();
+            let earNoseDirPred = (new THREE.Vector3()).subVectors( bodyLandmarks[0], bodyLandmarks[7] ).normalize();
+            let upHeadDirPred = (new THREE.Vector3()).crossVectors( earsDirPred, earNoseDirPred ).normalize(); // will change to local
+            let forwardHeadDirPred = (new THREE.Vector3()).crossVectors( upHeadDirPred, earsDirPred ).normalize();
             
+            boneHead.matrixWorld.decompose( tempVec3, qq, tempVec3 );
+            qq.invert(); // invWorldQuat
+            upHeadDirPred.applyQuaternion( qq ).normalize(); // local space
+        
+            // move head to predicted direction (SWING)
+            qq.setFromUnitVectors( headBoneDir, upHeadDirPred );
+            boneHead.quaternion.multiply( qq )
+            getTwistQuaternion( qq, headBoneDir, qq ); // unwanted twist from the swing operation
+            boneHead.quaternion.multiply( qq.invert() ).normalize(); // remove twist
+            
+            // compute head roll (TWIST)
+            tempVec3.set(-1,0,0); // because of mediapipe points
+            let angle = Math.acos( forwardHeadDirPred.dot( tempVec3 ) ); // computing in world space
+            angle -= Math.PI/2;
+            qq.setFromAxisAngle( headBoneDir, angle ); // angle does not which space is in
+            boneHead.quaternion.multiply( qq ).normalize();
         }
     
         function computeQuatArm( skeleton, bodyLandmarks, isLeft = false ){
             if ( !bodyLandmarks ){ return; }
+            //bodyLandmarks is an array of {x,y,z,visiblity} (mediapipe)
+
             let landmarks = isLeft? [ 11,13,15 ] : [ 12,14,16 ];
-            let boneIdxs = isLeft? [ 10,11,12 ] : [ 34,35,36 ] 
+            let boneIdxs = isLeft? [ 10,11,12 ] : [ 34,35,36 ]; // [arm, elbow, wrist]
     
-            let s = new THREE.Vector3();
-            let p = new THREE.Vector3();
+            let _ignoreVec3 = new THREE.Vector3();
             let invWorldQuat = new THREE.Quaternion();
+            let dirPred = new THREE.Vector3();
+            let dirBone = new THREE.Vector3();
+            let qq = new THREE.Quaternion();
+            let twist = new THREE.Quaternion();
+
             for( let i = 0; i < (landmarks.length-1); ++i ){
                 let boneSrc = skeleton.bones[ boneIdxs[ i ] ];
                 let boneTrg = skeleton.bones[ boneIdxs[ i+1 ] ];
@@ -1411,24 +1407,21 @@ class KeyframeEditor extends Editor{
                 let landmarkTrg = bodyLandmarks[ landmarks[i+1] ];
                 boneSrc.updateWorldMatrix( true, false );
     
-                let m = boneSrc.matrixWorld;
-                m.decompose( p, invWorldQuat, s );
+                boneSrc.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 );
                 invWorldQuat.invert();
     
                 // world mediapipe phalange direction to local space
-                let dirPred = new THREE.Vector3();
                 dirPred.subVectors( landmarkTrg, landmarkSrc );
                 dirPred.applyQuaternion( invWorldQuat ).normalize();
     
                 // avatar bone local space direction
-                let dirBone = boneTrg.position.clone().normalize();
+                dirBone.copy( boneTrg.position ).normalize();
     
                 // move bone to predicted direction
-                let qq = new THREE.Quaternion();
-                let twist = new THREE.Quaternion();
                 qq.setFromUnitVectors( dirBone, dirPred );
+                boneSrc.quaternion.multiply( qq );
                 getTwistQuaternion( qq, dirBone, twist ); // remove twist from phalanges
-                boneSrc.quaternion.multiply( qq ).multiply( twist.invert() ).normalize();
+                boneSrc.quaternion.multiply( twist.invert() ).normalize();
             }
         }
 
@@ -1436,72 +1429,58 @@ class KeyframeEditor extends Editor{
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
-            let boneHandIdx = isLeft? 12: 36;
-            let boneMidIdx = isLeft? 21: 45;
-            let boneThumbdIdx = isLeft? 13: 53;
-            let bonePinkyIdx = isLeft? 29: 37;
-            let boneIndexIdx = isLeft? 17: 49;
+            const boneHand = isLeft? skeleton.bones[ 12 ]:  skeleton.bones[ 36 ];
+            const boneMid = isLeft? skeleton.bones[ 21 ]:  skeleton.bones[ 45 ];
+            // const boneThumbd = isLeft? skeleton.bones[ 13 ]:  skeleton.bones[ 53 ];
+            const bonePinky = isLeft? skeleton.bones[ 29 ]:  skeleton.bones[ 37 ];
+            const boneIndex = isLeft? skeleton.bones[ 17 ]:  skeleton.bones[ 49 ];
     
-            skeleton.bones[ boneHandIdx ].updateWorldMatrix( true, false );
+            boneHand.updateWorldMatrix( true, false );
     
-            let s = new THREE.Vector3();
-            let p = new THREE.Vector3();
+            let _ignoreVec3 = new THREE.Vector3();
             let invWorldQuat = new THREE.Quaternion();
-            let m = skeleton.bones[ boneHandIdx ].matrixWorld;
-            m.decompose( p, invWorldQuat, s ); // get L to W quat
+            boneHand.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 ); // get L to W quat
             invWorldQuat.invert(); // W to L
     
-            let v_mid = new THREE.Vector3();
-            v_mid.subVectors( handLandmarks[9], handLandmarks[0] );
-            v_mid.applyQuaternion( invWorldQuat ).normalize();
+            // metacarpian middle finger 
+            let mcMidPred = new THREE.Vector3(); 
+            mcMidPred.subVectors( handLandmarks[9], handLandmarks[0] ); // world
+            mcMidPred.applyQuaternion( invWorldQuat ).normalize(); // hand local space
             
             //swing (with unwanted twist)
-            let middle_p = skeleton.bones[ boneMidIdx ].position.clone().normalize();
+            let dirBone = boneMid.position.clone().normalize();
             let qq = new THREE.Quaternion();
-            qq.setFromUnitVectors( middle_p, v_mid );
-            skeleton.bones[ boneHandIdx ].quaternion.multiply( qq );
+            qq.setFromUnitVectors( dirBone, mcMidPred );
+            boneHand.quaternion.multiply( qq );
+            invWorldQuat.premultiply( qq.invert() ); // update hand's world to local quat
     
             // twist
-            let v_pinky = new THREE.Vector3();
-            v_pinky.subVectors( handLandmarks[17], handLandmarks[0] );
-            let v_index = new THREE.Vector3();
-            v_index.subVectors( handLandmarks[5], handLandmarks[0] );
-            let v_vertical = new THREE.Vector3();
-            v_vertical.crossVectors(v_pinky, v_index).normalize();
-            v_vertical.applyQuaternion( invWorldQuat ).applyQuaternion( qq.clone().invert() ).normalize();
-            let p_pinky = skeleton.bones[ bonePinkyIdx ].position.clone().normalize();
-            let p_index = skeleton.bones[ boneIndexIdx ].position.clone().normalize();
-            let p_vertical = new THREE.Vector3();
-            p_vertical.crossVectors(p_pinky, p_index).normalize();
-            let qqq = new THREE.Quaternion();
-            qqq.setFromUnitVectors( p_vertical, v_vertical ).normalize();
-            skeleton.bones[ boneHandIdx ].quaternion.multiply( qqq ).normalize();
+            let mcPinkyPred = (new THREE.Vector3()).subVectors( handLandmarks[17], handLandmarks[0] );
+            let mcIndexPred = (new THREE.Vector3()).subVectors( handLandmarks[5], handLandmarks[0] );
+            let palmDirPred = (new THREE.Vector3()).crossVectors(mcPinkyPred, mcIndexPred).normalize(); // world space
+            palmDirPred.applyQuaternion( invWorldQuat ).normalize(); // local space
+            let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
+            qq.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
+            boneHand.quaternion.multiply( qq ).normalize();
         }
     
         function computeQuatPhalange( skeleton, handLandmarks, isLeft = false ){
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
+
+            let bonePhalanges = isLeft ? 
+            [ 13,14,15,16,    17,18,19,20,    21,22,23,24,    25,26,27,28,    29,30,31,32 ] :
+            [ 53,54,55,56,    49,50,51,52,    45,46,47,48,    41,42,43,44,    37,38,39,40 ];
     
-            let bonePhalangesLeft = [
-                13,14,15,16,
-                17,18,19,20,
-                21,22,23,24,
-                25,26,27,28,
-                29,30,31,32
-            ];
-            let bonePhalangesRight = [
-                53,54,55,56,
-                49,50,51,52,
-                45,46,47,48,
-                41,42,43,44,
-                37,38,39,40
-            ]
-    
-            let bonePhalanges = isLeft ? bonePhalangesLeft : bonePhalangesRight; 
-            let s = new THREE.Vector3();
-            let p = new THREE.Vector3();
+            let _ignoreVec3 = new THREE.Vector3();
             let invWorldQuat = new THREE.Quaternion();
-    
+            let phalangeDirPred = new THREE.Vector3();
+            let phalangeDirBone = new THREE.Vector3();
+            let qq = new THREE.Quaternion();
+            let twist = new THREE.Quaternion();
+
+            //handlandmarks[0] == wrist, handlandmarks[1:4] = thumb, handlandmarks[5:8] = index, etc 
+            //bonePhalanges[0:3] = thumb, bonePhalanges[4:7] = index, etc 
             for(let i = 1; i < handLandmarks.length; ++i ){
                 if ( i % 4 == 0 ){ continue; } // tip of fingers does not need quaternion
                 
@@ -1510,23 +1489,19 @@ class KeyframeEditor extends Editor{
                 let landmark = i;
                 boneSrc.updateWorldMatrix( true, false );
     
-                let m = boneSrc.matrixWorld;
-                m.decompose( p, invWorldQuat, s );
+                boneSrc.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 );
                 invWorldQuat.invert();
     
                 // world mediapipe phalange direction to local space
-                let v_phalange = new THREE.Vector3();
-                v_phalange.subVectors( handLandmarks[landmark+1], handLandmarks[landmark] );
-                v_phalange.applyQuaternion( invWorldQuat ).normalize();
+                phalangeDirPred.subVectors( handLandmarks[landmark+1], handLandmarks[landmark] ); // world space
+                phalangeDirPred.applyQuaternion( invWorldQuat ).normalize(); // local phalange space
     
                 // avatar bone local space direction
-                let phalange_p = boneTrg.position.clone().normalize();
+                phalangeDirBone.copy( boneTrg.position ).normalize();
     
                 // move bone to predicted direction
-                let qq = new THREE.Quaternion();
-                let twist = new THREE.Quaternion();
-                qq.setFromUnitVectors( phalange_p, v_phalange );
-                getTwistQuaternion( qq, phalange_p, twist ); // remove twist from phalanges
+                qq.setFromUnitVectors( phalangeDirBone, phalangeDirPred );
+                getTwistQuaternion( qq, phalangeDirBone, twist ); // remove twist from phalanges
                 boneSrc.quaternion.multiply( qq ).multiply( twist.invert() ).normalize();
             }
         }
@@ -1534,44 +1509,48 @@ class KeyframeEditor extends Editor{
         skeleton.pose(); // bind pose
 
         let tracks = [];
+        let bindQuats = [];
         for( let i = 0; i < skeleton.bones.length; ++i ){
             tracks.push( new Float32Array( worldLandmarksArray.length * 4 ) );
+            bindQuats.push( skeleton.bones[i].quaternion.clone() );
         }
         let times = new Float32Array( worldLandmarksArray.length );
         let timeAcc = 0;
 
-        let testbind = skeleton.bones[0].quaternion.clone();
         // for each frame compute and update quaternions
         for( let i = 0; i < worldLandmarksArray.length; ++i ){
             let body = worldLandmarksArray[i].PWLM;
             let rightHand = worldLandmarksArray[i].RWLM;
             let leftHand = worldLandmarksArray[i].LWLM;
-            skeleton.pose(); // bind pose
 
-            computeSpine( skeleton, body );
-            computeQuatHead( skeleton, body );
+            computeSpine( skeleton, bindQuats, body );
+            computeQuatHead( skeleton, bindQuats, body );
 
-            // // right arm-hands
+            // right arm-hands
             computeQuatArm( skeleton, body, false );
             computeQuatHand( skeleton, rightHand, false); 
             computeQuatPhalange( skeleton, rightHand, false );
             
-            // // left arm-hands
+            // left arm-hands
             computeQuatArm( skeleton, body, true );
             computeQuatHand( skeleton, leftHand, true ); 
             computeQuatPhalange( skeleton, leftHand, true );
 
-            skeleton.bones[62].quaternion.premultiply(testbind).premultiply( skeleton.bones[0].quaternion.clone().invert() );
-            skeleton.bones[57].quaternion.premultiply(testbind).premultiply( skeleton.bones[0].quaternion.clone().invert() );
+            // remove hips delta rotation from legs (children of hips). Hardcoded for EVA 
+            skeleton.bones[62].quaternion.copy( skeleton.bones[0].quaternion ).invert().multiply( bindQuats[0] ).multiply( bindQuats[62] );
+            skeleton.bones[57].quaternion.copy( skeleton.bones[0].quaternion ).invert().multiply( bindQuats[0] ).multiply( bindQuats[57] );
 
+            // store skeleton quat values
             for( let j = 0; j < skeleton.bones.length; ++j ){
                 tracks[j].set( skeleton.bones[j].quaternion.toArray(), i * 4 );
             }
 
+            // store timing
             if (i != 0){ timeAcc += worldLandmarksArray[i].dt/1000; }
             times[i] = timeAcc;  
         }
 
+        // for each bone create a quat track
         for( let i = 0; i < skeleton.bones.length; ++i ){
             tracks[i] = new THREE.QuaternionKeyframeTrack( skeleton.bones[i].name + ".quaternion", times.slice(), tracks[i] );
         }
@@ -1618,13 +1597,12 @@ class KeyframeEditor extends Editor{
         
             if(bodyAnimation) {
                 if ( animation.type == "video" ){
-                    bodyAnimation = this.createAnimationFromWorldLandmarks( animation.bodyAnimation, this.currentCharacter.skeletonHelper.skeleton );
+                    bodyAnimation = this.createBodyAnimationFromWorldLandmarks( animation.bodyAnimation, this.currentCharacter.skeletonHelper.skeleton );
 
                 } else { // bvh (and old ML system) retarget an existing animation
                     let tracks = [];        
                     // Remove position changes (only keep i == 0, hips)
                     for (let i = 0; i < bodyAnimation.tracks.length; i++) {
-
                         if(i && bodyAnimation.tracks[i].name.includes('position')) {
                             continue;
                         }
@@ -1632,15 +1610,12 @@ class KeyframeEditor extends Editor{
                         tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
                     }
 
-                    //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
                     bodyAnimation.tracks = tracks;            
-                    let skeleton = animation.skeleton ?? this.nnSkeleton;
+                    let skeleton = animation.skeleton ?? this.nnSkeleton; // TO DO remove this.nnSkeleton (KateBVH)
+                    
                     // Retarget NN animation              
-                    //forceBindPoseQuats(this.currentCharacter.skeletonHelper.skeleton); // TO DO: Fix bind pose of Eva
-                    forceBindPoseQuats(skeleton); 
-                    // trgUseCurrentPose: use current Bone obj quats,pos, and scale
-                    // trgEmbedWorldTransform: take into account external rotations like bones[0].parent.quaternion and model.quaternion
-                    let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.model, { trgUseCurrentPose: true, trgEmbedWorldTransforms: true } ); // TO DO: change trgUseCurrentPose param
+                    // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
+                    let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true } ); // both skeletons use their native bind pose
                     bodyAnimation = retargeting.retargetAnimation(bodyAnimation);                    
                 }
 
@@ -1662,7 +1637,7 @@ class KeyframeEditor extends Editor{
                 
             let faceAnimation = animation.faceAnimation;        
             let auAnimation = null;
-            if(faceAnimation) { // TO DO: Check if it's if-else or if-if
+            if(faceAnimation) {
                 
                 // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
                 for( let i = 0; i < faceAnimation.tracks.length; ++i ){
@@ -1689,7 +1664,7 @@ class KeyframeEditor extends Editor{
 
         // set mixer animations
         let bindedAnim = this.bindedAnimations[animationName][this.currentCharacter.name];
-        mixer.clipAction(bindedAnim.mixerFaceAnimation).setEffectiveWeight(1.0).play(); // already handles nulls and undefines
+        mixer.clipAction(bindedAnim.mixerFaceAnimation).setEffectiveWeight(1.0).play(); // already handles nulls and undefineds
         mixer.clipAction(bindedAnim.mixerBodyAnimation).setEffectiveWeight(1.0).play();
         
         // set timeline animations
