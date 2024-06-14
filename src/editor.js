@@ -818,8 +818,12 @@ class Editor {
                     }
 
                     if(this.mode == this.editionModes.SCRIPT) {
-                        bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
-                        bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                        const action = this.currentCharacter.mixer.clipAction(animation.mixerAnimation);
+                        if(!action) {
+                            return;
+                        }
+                        bvhPose = BVHExporter.export(action, skeleton, animation.mixerAnimation);
+                        bvhFace = BVHExporter.exportMorphTargets(action, this.currentCharacter.morphTargets.BodyMesh, animation.mixerAnimation);
                     } 
                     else {
                         bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
@@ -1563,7 +1567,11 @@ class KeyframeEditor extends Editor{
             }
         }
 
-        this.onUpdateAnimationTime();
+        //this.onUpdateAnimationTime();
+        // if(this.animationMode == this.animationModes.FACE) {
+        //     this.gui.updateActionUnitsPanel();
+        // }
+
         this.gizmo.updateBones();
     }
 
@@ -1763,13 +1771,15 @@ class KeyframeEditor extends Editor{
     }
 
     setSelectedActionUnit(au) {
-        
+
         if(this.animationMode != this.animationModes.FACE) {
             this.setAnimation(this.animationModes.FACE);
         }
-
-        this.selectedAU = au;
         this.activeTimeline.setSelectedItems([au]);
+        if(this.selectedAU == au) {
+            return;
+        }
+        this.selectedAU = au;
         this.setTime(this.activeTimeline.currentTime);
         
     }
@@ -1863,7 +1873,7 @@ class KeyframeEditor extends Editor{
                 }
             }
         }
-        this.gui.updateCaptureGUI({blendshapesResults: bs, landmarksResults: lm}, false)
+        //this.gui.updateCaptureGUI({blendshapesResults: bs, landmarksResults: lm}, false)
     }
 }
 

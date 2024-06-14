@@ -175,7 +175,9 @@ class Timeline {
         header.addNumber("Current Time", this.currentTime, (value, event) => {
             if(value > this.duration) {
                 value = this.duration;
-                LX.emit( "@on_current_time_" + this.constructor.name, value);
+                if(event.constructor != CustomEvent) {
+                    LX.emit( "@on_current_time_" + this.constructor.name, value);
+                }
             }
             
             this.currentTime = value;
@@ -861,8 +863,8 @@ class Timeline {
 
         const innerSetTime = (t) => { 
             LX.emit( "@on_current_time_" + this.constructor.name, t);
-            if( this.onSetTime ) 
-            this.onSetTime( t );	 
+            // if( this.onSetTime ) 
+            // this.onSetTime( t );	 
         }
 
         if( e.type == "mouseup" )
@@ -921,7 +923,6 @@ class Timeline {
                 if(!track || track && this.getCurrentContent(track, time, 0.001) == undefined) {
                     this.grabbing_timeline = current_grabbing_timeline;
                 }
-
                 if(this.onMouseDown && this.active )
                     this.onMouseDown(e, time);
             }
@@ -1530,6 +1531,9 @@ class KeyFramesTimeline extends Timeline {
                 this.timeBeforeMove = track.times[ keyFrameIndex ];
             }
         }
+        else if(!track) {
+            this.unSelectAllKeyFrames()           
+        }
     }
 
     onMouseMove( e, time ) {
@@ -1540,8 +1544,8 @@ class KeyFramesTimeline extends Timeline {
 
         const innerSetTime = (t) => { 
             LX.emit( "@on_current_time_" + this.constructor.name, t);
-            if( this.onSetTime ) 
-                this.onSetTime( t );	 
+            // if( this.onSetTime ) 
+            //     this.onSetTime( t );	 
             }
         // Manage keyframe movement
         if(this.movingKeys) {
@@ -2009,8 +2013,8 @@ class KeyFramesTimeline extends Timeline {
         track.selected[index] = true;
         this.currentTime =  this.animationClip.tracks[track.clipIdx].times[ index ];
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
-        if( this.onSetTime )
-            this.onSetTime(  this.currentTime);
+        // if( this.onSetTime )
+        //     this.onSetTime(  this.currentTime);
     }
 
     copyContent() {
@@ -2119,8 +2123,8 @@ class KeyFramesTimeline extends Timeline {
             ++j;
         }
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        if(this.onSetTime)
-            this.onSetTime(this.currentTime);
+        // if(this.onSetTime)
+        //     this.onSetTime(this.currentTime);
 
         track.edited[ index ] = true;
     }
@@ -2269,8 +2273,8 @@ class KeyFramesTimeline extends Timeline {
             this.onUpdateTrack( clipIdx );
 
         LX.emit( "@on_current_time_" + this.constructor.name, time);
-        if(this.onSetTime)
-            this.onSetTime(time);
+        // if(this.onSetTime)
+        //     this.onSetTime(time);
         // this.draw();
         return newIdx;
     }
@@ -2298,6 +2302,9 @@ class KeyFramesTimeline extends Timeline {
 
         // Delete time key (TypedArrays do not have splice )
         track.times = track.times.filter( (v, i) => i != index);
+        track.edited = track.edited.filter( (v, i) => i != index);
+        track.selected = track.selected.filter( (v, i) => i != index);
+        track.hovered = track.hovered.filter( (v, i) => i != index);
 
         // Delete values
         const indexDim = track.dim * index;
@@ -2306,12 +2313,12 @@ class KeyFramesTimeline extends Timeline {
 
         track.values = LX.UTILS.concatTypedArray([slice1, slice2], Float32Array);
 
-        // Move the other's key properties
-        for(let i = index; i < track.times.length; ++i) {
-            track.edited[i] = track.edited[i + 1];
-            track.hovered[i] = track.hovered[i + 1];
-            track.selected[i] = track.selected[i + 1];
-        }
+        // // Move the other's key properties
+        // for(let i = index; i < track.times.length; ++i) {
+        //     track.edited[i] = track.edited[i + 1];
+        //     track.hovered[i] = track.hovered[i + 1];
+        //     track.selected[i] = track.selected[i + 1];
+        // }
 
         // Update animation action interpolation info
         if(this.onDeleteKeyFrame)
@@ -2508,7 +2515,10 @@ class KeyFramesTimeline extends Timeline {
         if(!multiple && e.button != 2) {
             this.unSelectAllKeyFrames();
         }
-                        
+           
+        if(keyFrameIndex == undefined)
+            return;
+
         const name = this.tracksDictionary[track.fullname];
         let t = this.tracksPerItem[ name ][track.idx];
         let currentSelection = [name, track.idx, keyFrameIndex];
@@ -2518,24 +2528,21 @@ class KeyFramesTimeline extends Timeline {
         else
             this.lastKeyFramesSelected.push( currentSelection );
 
-        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection, keyFrameIndex)) {
-            // Event handled
-            return;
-        }
-        
-        if(keyFrameIndex == undefined)
-            return;
-
-        // Select if not handled
-        
-        t.selected[keyFrameIndex] = true;
-
+            
         if( !multiple ) {
             LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex ]);
 
-            if(this.onSetTime )
-                this.onSetTime( track.times[ keyFrameIndex ] );
+            // if(this.onSetTime )
+            //     this.onSetTime( track.times[ keyFrameIndex ] );
         }
+
+        // Select if not handled        
+        t.selected[keyFrameIndex] = true;
+
+        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection, keyFrameIndex)) {
+            // Event handled
+            return;
+        }        
     }
 
     /**
@@ -2917,8 +2924,8 @@ class ClipsTimeline extends Timeline {
 
         const innerSetTime = (t) => { 
             LX.emit( "@on_current_time_" + this.constructor.name, t);
-            if( this.onSetTime ) 
-                this.onSetTime( t );	 
+            // if( this.onSetTime ) 
+            //     this.onSetTime( t );	 
         }
 
         if(e.shiftKey) {
@@ -3337,8 +3344,8 @@ class ClipsTimeline extends Timeline {
             this.onUpdateTrack( trackIdx );
 
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        if(this.onSetTime)
-            this.onSetTime(this.currentTime);
+        // if(this.onSetTime)
+        //     this.onSetTime(this.currentTime);
 
         if(this.onSelectClip)
             this.onSelectClip(clip);
@@ -3407,8 +3414,8 @@ class ClipsTimeline extends Timeline {
             this.onUpdateTrack( trackIdx );
 
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        if(this.onSetTime)
-            this.onSetTime(this.currentTime);
+        // if(this.onSetTime)
+        //     this.onSetTime(this.currentTime);
 
         if(callback)
             callback();
@@ -3583,8 +3590,8 @@ class ClipsTimeline extends Timeline {
         }
         
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        if(this.onSetTime)
-            this.onSetTime(this.currentTime);
+        // if(this.onSetTime)
+        //     this.onSetTime(this.currentTime);
 
         if(callback)
             callback();
@@ -4048,8 +4055,8 @@ class CurvesTimeline extends Timeline {
         
         const innerSetTime = (t) => { 
             LX.emit( "@on_current_time_" + this.constructor.name, t);
-            if( this.onSetTime ) 
-                this.onSetTime( t );	 
+            // if( this.onSetTime ) 
+            //     this.onSetTime( t );	 
         }
         // Manage keyframe movement
         if(this.movingKeys) {
@@ -4369,8 +4376,8 @@ class CurvesTimeline extends Timeline {
         
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
         // Update time
-        if(this.onSetTime)
-            this.onSetTime(this.currentTime);
+        // if(this.onSetTime)
+        //     this.onSetTime(this.currentTime);
 
         return true; // Handled
     }
@@ -4557,8 +4564,8 @@ class CurvesTimeline extends Timeline {
         this.currentTime =  this.animationClip.tracks[track.clipIdx].times[ index ];
         
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
-        if( this.onSetTime )
-            this.onSetTime( this.currentTime );
+        // if( this.onSetTime )
+        //     this.onSetTime( this.currentTime );
     }
 
     copyContent() {
@@ -4670,8 +4677,8 @@ class CurvesTimeline extends Timeline {
         }
 
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        if(this.onSetTime)
-            this.onSetTime(this.currentTime);
+        // if(this.onSetTime)
+        //     this.onSetTime(this.currentTime);
 
         track.edited[ index ] = true;
     }
@@ -4809,8 +4816,8 @@ class CurvesTimeline extends Timeline {
             this.onUpdateTrack( clipIdx );
 
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        if(this.onSetTime)
-            this.onSetTime(this.currentTime);
+        // if(this.onSetTime)
+        //     this.onSetTime(this.currentTime);
 
         return newIdx;
     }
@@ -4837,7 +4844,10 @@ class CurvesTimeline extends Timeline {
         }
 
         // Delete time key (TypedArrays do not have splice )
-        track.times = track.times.filter( (v, i) => i != index);
+        track.times = track.times.filter( (v, i) => i != index);        
+        track.edited = track.edited.filter( (v, i) => i != index);
+        track.selected = track.selected.filter( (v, i) => i != index);
+        track.hovered = track.hovered.filter( (v, i) => i != index);
 
         // Delete values
         const indexDim = track.dim * index;
@@ -4846,12 +4856,12 @@ class CurvesTimeline extends Timeline {
 
         track.values = LX.UTILS.concatTypedArray([slice1, slice2], Float32Array);
 
-        // Move the other's key properties
-        for(let i = index; i < track.times.length; ++i) {
-            track.edited[i] = track.edited[i + 1];
-            track.hovered[i] = track.hovered[i + 1];
-            track.selected[i] = track.selected[i + 1];
-        }
+        // // Move the other's key properties
+        // for(let i = index; i < track.times.length; ++i) {
+        //     track.edited[i] = track.edited[i + 1];
+        //     track.hovered[i] = track.hovered[i + 1];
+        //     track.selected[i] = track.selected[i + 1];
+        // }
 
         // Update animation action interpolation info
         if(this.onDeleteKeyFrame)
@@ -5072,8 +5082,8 @@ class CurvesTimeline extends Timeline {
         if( !multiple) {
 
             LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex]);
-            if(this.onSetTime)
-                this.onSetTime( track.times[ keyFrameIndex ] );
+            // if(this.onSetTime)
+            //     this.onSetTime( track.times[ keyFrameIndex ] );
         }
     }
 
