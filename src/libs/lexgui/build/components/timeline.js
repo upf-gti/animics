@@ -175,7 +175,7 @@ class Timeline {
         header.addNumber("Current Time", this.currentTime, (value, event) => {
             if(value > this.duration) {
                 value = this.duration;
-                LX.emit( "@on_current_time_" + this.constructor.name, value);
+                // LX.emit( "@on_current_time_" + this.constructor.name, value);
             }
             
             this.currentTime = value;
