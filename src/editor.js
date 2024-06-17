@@ -889,7 +889,7 @@ class Editor {
                 sendData(data);       
             }  
         }
-        let url = "https://webglstudio.org/users/evalls/performs";//"https://webglstudio.org/projects/signon/performs"; // TO DO: Change to the oficial URL
+        let url = "https://webglstudio.org/projects/signon/performs"; 
         let data = [];
         if(this.mode == this.editionModes.SCRIPT) {
             
