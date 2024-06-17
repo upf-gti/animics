@@ -1236,6 +1236,7 @@ class KeyframeEditor extends Editor{
         this.loadedAnimations[data.name].bodyAnimation = bodyAnimation; // bones AnimationClip
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units AnimationClip
         this.loadedAnimations[data.name].type = "video";
+        this.bindAnimationToCharacter(data.name);
     }
 
     // load animation from bvh file
@@ -1278,6 +1279,7 @@ class KeyframeEditor extends Editor{
             skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
             type: "bvh"
         };
+        this.bindAnimationToCharacter(name);
     }
 
     /**
