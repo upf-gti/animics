@@ -832,15 +832,20 @@ class Editor {
                     
                     // Check if it already has extension
                     let clipName = name || this.clipName || animationName;
-                    const extension = clipName.split(".");
-                    if(!extension[1]) {
-                        if(type == 'BVH') {
-                            clipName = extension[0] + '.bvh';
-                        }
-                        else if(type == 'BVH extended') {
-                            clipName = extension[0] + '.bvhe';
-                        }
+                    clipName = clipName.split(".");
+                    if(clipName.length > 1) {
+                        clipName.pop();                        
                     }
+                    clipName = clipName.join(".");
+
+                    // Add the extension
+                    if(type == 'BVH') {
+                        clipName += '.bvh';
+                    }
+                    else if(type == 'BVH extended') {
+                        clipName += '.bvhe';
+                    }
+
                     if(download) {
                         UTILS.download(bvhPose + bvhFace, clipName, "text/plain" );
                     }

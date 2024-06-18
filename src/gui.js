@@ -347,16 +347,23 @@ class Gui {
                 let animation = animations[animationName];
                 animation.export = animation.export === undefined ? true : animation.export;
                 p.sameLine();
-                p.addCheckbox(animationName || options.input, animation.export, (v) => animation.export = v);
-                p.addText(null, animationName.split('.')[0] || options.input , (v) => {
+                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px"});
+                let name = animationName.split('.');
+                if(name.length > 1) {
+                    name.pop();
+                }            
+                name.join(".");
+
+                p.addText(null, name || options.input , (v) => {
                     delete animations[animationName];
                     animations[v] = animation; 
-                }, {placeholder: "..."} );
+                }, {placeholder: "...", minWidth:"100px"} );
                 p.endLine();
             }
            
             p.sameLine(2);
-            p.addButton("", options.accept || "OK", () => { 
+            p.addButton("", options.accept || "OK", (v, e) => { 
+                e.stopPropagation();
                 if(options.required && value === '') {
 
                     text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
@@ -370,7 +377,7 @@ class Gui {
                 }
                 
             }, { buttonClass: "accept" });
-            p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+            p.addButton("", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
         }, options);
 
         // Focus text prompt
