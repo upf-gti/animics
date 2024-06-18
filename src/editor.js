@@ -811,8 +811,12 @@ class Editor {
                     }
 
                     if(this.mode == this.editionModes.SCRIPT) {
-                        bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
-                        bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                        const action = this.currentCharacter.mixer.clipAction(animation.mixerAnimation);
+                        if(!action) {
+                            return;
+                        }
+                        bvhPose = BVHExporter.export(action, skeleton, animation.mixerAnimation);
+                        bvhFace = BVHExporter.exportMorphTargets(action, this.currentCharacter.morphTargets.BodyMesh, animation.mixerAnimation);
                     } 
                     else {
                         bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
@@ -821,15 +825,20 @@ class Editor {
                     
                     // Check if it already has extension
                     let clipName = name || this.clipName || animationName;
-                    const extension = clipName.split(".");
-                    if(!extension[1]) {
-                        if(type == 'BVH') {
-                            clipName = extension[0] + '.bvh';
-                        }
-                        else if(type == 'BVH extended') {
-                            clipName = extension[0] + '.bvhe';
-                        }
+                    clipName = clipName.split(".");
+                    if(clipName.length > 1) {
+                        clipName.pop();                        
                     }
+                    clipName = clipName.join(".");
+
+                    // Add the extension
+                    if(type == 'BVH') {
+                        clipName += '.bvh';
+                    }
+                    else if(type == 'BVH extended') {
+                        clipName += '.bvhe';
+                    }
+
                     if(download) {
                         UTILS.download(bvhPose + bvhFace, clipName, "text/plain" );
                     }
@@ -878,7 +887,7 @@ class Editor {
                 sendData(data);       
             }  
         }
-        let url = "https://webglstudio.org/users/evalls/performs";//"https://webglstudio.org/projects/signon/performs"; // TO DO: Change to the oficial URL
+        let url = "https://webglstudio.org/projects/signon/performs"; 
         let data = [];
         if(this.mode == this.editionModes.SCRIPT) {
             
@@ -1191,6 +1200,7 @@ class KeyframeEditor extends Editor{
     setVideoVisibility( visibility ){
         document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
     }
+
     /**Create face and body animations from mediapipe and load character*/
     buildAnimation(data) {
 
@@ -1227,6 +1237,7 @@ class KeyframeEditor extends Editor{
         this.loadedAnimations[data.name].bodyAnimation = landmarks; // array of objects of type { FLM, PLM, LLM, RLM, PWLM, LWLM, RWLM }. Not an animation clip
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units THREEjs AnimationClip
         this.loadedAnimations[data.name].type = "video";
+        this.bindAnimationToCharacter(data.name);
     }
 
     // load animation from bvh file
@@ -1251,6 +1262,16 @@ class KeyframeEditor extends Editor{
             animationData.blendshapesAnim.name = "faceAnimation";       
             faceAnimation = animationData.blendshapesAnim;
         }
+        else {
+            let names = {}
+            for(let name in this.currentCharacter.blendshapesManager.mapNames) {
+                names[name] = 0;
+            }
+            names.dt = 0;
+            let data = [names];
+            faceAnimation = createAnimationFromActionUnits("faceAnimation", data); // faceAnimation is an action units clip
+            faceAnimation.duration = bodyAnimation.duration;
+        }
         
         this.loadedAnimations[name] = {
             name: name,
@@ -1259,6 +1280,7 @@ class KeyframeEditor extends Editor{
             skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
             type: "bvh"
         };
+        this.bindAnimationToCharacter(name);
     }
 
     // Array of objects. Each object is a frame with all world landmarks. See mediapipe.js detections
@@ -1646,12 +1668,14 @@ class KeyframeEditor extends Editor{
                 }
                 // Set keyframe animation to the timeline and get the timeline-formated one.
                 auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation, true );
-                if(animation.type == "video") {
+                // if(animation.type == "video" || animation.type == "video") {
                     faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
-                }
+                // }
 
                 faceAnimation.name = "faceAnimation";   // mixer
                 auAnimation.name = "faceAnimation";  // timeline
+                this.validateFaceAnimationClip(faceAnimation);
+
             }
             
             if(!this.bindedAnimations[animationName]) {
@@ -1739,6 +1763,42 @@ class KeyframeEditor extends Editor{
         }
     }
 
+    /** Validate face animation clip created using Mediapipe 
+     * THREEJS AnimationClips CANNOT have tracks with 0 entries
+    */
+    validateFaceAnimationClip(clip) {
+
+        let tracks = clip.tracks;
+        let blendshapes = this.currentCharacter.morphTargets;
+
+        let bsCheck = new Array(blendshapes.length);
+        bsCheck.fill(false);
+
+        // ensure each track has at least one valid entry. Default to current avatar pose
+        for( let i = 0; i < tracks.length; ++i ){
+            let t = tracks[i];
+            let trackBSName = t.name.substr(0, t.name.lastIndexOf("."));
+            // Find blendshape index
+            if ( !t.values.length || !t.times.length ){
+                t.times = new Float32Array([0]);
+                // if ( t.name.endsWith(".position") ){ t.values = new Float32Array( bone.position.toArray() ); }
+                // else if ( t.name.endsWith(".quaternion") ){ t.values = new Float32Array( bone.quaternion.toArray() ); }
+                // else if ( t.name.endsWith(".scale") ){ t.values = new Float32Array( bone.scale.toArray() ); }
+            }
+
+            // if ( t.name.endsWith(".quaternion") ){ quatCheck[boneIdx] = true; }
+            // if ( t.name.endsWith(".position") && boneIdx==0 ){ posCheck = true; }
+        }
+
+        // ensure every blendshape has its track        
+        // for( let i = 0; i < bsCheck.length; ++i ){
+        //     if ( !bsCheck[i] ){
+        //         let track = new THREE.QuaternionKeyframeTrack(bones[i].name + '.quaternion', [0], bones[i].quaternion.toArray());
+        //         clip.tracks.push(track);    
+        //     }
+        // }
+    }
+
     onUpdateAnimationTime() {
         
         this.updateCaptureDataTime();
@@ -1809,7 +1869,11 @@ class KeyframeEditor extends Editor{
             }
         }
 
-        this.onUpdateAnimationTime();
+        //this.onUpdateAnimationTime();
+        // if(this.animationMode == this.animationModes.FACE) {
+        //     this.gui.updateActionUnitsPanel();
+        // }
+
         this.gizmo.updateBones();
     }
 
@@ -1841,21 +1905,49 @@ class KeyframeEditor extends Editor{
         for(let i = 0; i< mixer._actions.length; i++) {
             if(mixer._actions[i]._clip.name == editedAnimation.name) { // name == ("bodyAnimation" || "faceAnimation")
                 const mixerClip = mixer._actions[i]._clip;
+                let mapTrackIdxs = {};
+
+                // If the editedAnimation is an auAnimation, the tracksIdx have to be mapped to the mixerAnimation tracks indices
+                if(editedAnimation.name == "faceAnimation" && editedAnimation === this.getCurrentBindedAnimation().auAnimation) {
+                    for(let j = 0; j < trackIdxs.length; j++) {
+                        const trackIdx = trackIdxs[j];
+                        const track = editedAnimation.tracks[trackIdx];
+
+                        let bsNames =  this.currentCharacter.blendshapesManager.mapNames[track.type];
+                        if(typeof(bsNames) == 'string') {
+                            bsNames = [bsNames];
+                        }
+
+                        for(let b = 0; b < bsNames.length; b++) {
+                            for(let t = 0; t < mixerClip.tracks.length; t++) {
+                                if(mixerClip.tracks[t].name.includes("[" + bsNames[b] + "]")) {
+                                    mapTrackIdxs[trackIdx] = [...mapTrackIdxs[trackIdx] ?? [] , t];
+                                    break;
+                                }
+                            }
+                        }
+                    }                    
+                }
+
                 for(let j = 0; j < trackIdxs.length; j++) {
                     const trackIdx = trackIdxs[j];
+                    const mapTrackIdx = mapTrackIdxs[trackIdx] || [trackIdx];
                     const track = editedAnimation.tracks[trackIdx];
-                    const interpolant = mixer._actions[i]._interpolants[trackIdx];
-                                       
                     if(track.locked){
                         continue;
                     }
                     
-                    // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
-                    // _clip is the same clip (pointer) sent in mixer.clipAction. 
-                    // Update times
-                    interpolant.parameterPositions = mixerClip.tracks[trackIdx].times = track.times;
-                    // Update values
-                    interpolant.sampleValues = mixerClip.tracks[trackIdx].values = track.values;                        
+                    for(let t = 0; t < mapTrackIdx.length; t++) {
+
+                        const interpolant = mixer._actions[i]._interpolants[mapTrackIdx[t]];                                           
+                       
+                        // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
+                        // _clip is the same clip (pointer) sent in mixer.clipAction. 
+                        // Update times
+                        interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = track.times;
+                        // Update values
+                        interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = track.values;                        
+                    }
                 }
 
                 // mixer.stopAllAction();
@@ -1981,13 +2073,15 @@ class KeyframeEditor extends Editor{
     }
 
     setSelectedActionUnit(au) {
-        
+
         if(this.animationMode != this.animationModes.FACE) {
             this.setAnimation(this.animationModes.FACE);
         }
-
-        this.selectedAU = au;
         this.activeTimeline.setSelectedItems([au]);
+        if(this.selectedAU == au) {
+            return;
+        }
+        this.selectedAU = au;
         this.setTime(this.activeTimeline.currentTime);
         
     }
@@ -2057,7 +2151,6 @@ class KeyframeEditor extends Editor{
                 if(track.name == this.selectedAU) {
                     let tidx = null;
                     let tidxend = null;
-                    let dt = track.times[1] - track.times[0];
                     for(let j = 0; j < track.times.length; j++) {
                         if(track.times[j] <= t + 0.01) {
                             tidx = j;
@@ -2070,14 +2163,19 @@ class KeyframeEditor extends Editor{
                     // let tidx = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.01);
                     if(tidx < 0 || tidx == undefined)
                         continue;
-                    let f = (Math.abs(t - track.times[tidx]) / (track.times[tidxend] - track.times[tidx]) );
-                    let value = (1 - f)*track.values[tidx] + f*track.values[tidxend];
+
+                    let value = track.values[tidx];
+
+                    if(tidxend != undefined) {
+                        let f = (Math.abs(t - track.times[tidx]) / (track.times[tidxend] - track.times[tidx]) );
+                        value = (1 - f)*value+ f*track.values[tidxend];
+                    }
                     bs[track.type] = value;
 
                 }
             }
         }
-        this.gui.updateCaptureGUI({blendshapesResults: bs, landmarksResults: lm}, false)
+        //this.gui.updateCaptureGUI({blendshapesResults: bs, landmarksResults: lm}, false)
     }
 }
 

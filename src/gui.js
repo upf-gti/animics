@@ -347,16 +347,23 @@ class Gui {
                 let animation = animations[animationName];
                 animation.export = animation.export === undefined ? true : animation.export;
                 p.sameLine();
-                p.addCheckbox(animationName || options.input, animation.export, (v) => animation.export = v);
-                p.addText(null, animationName || options.input , (v) => {
+                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px"});
+                let name = animationName.split('.');
+                if(name.length > 1) {
+                    name.pop();
+                }            
+                name.join(".");
+
+                p.addText(null, name || options.input , (v) => {
                     delete animations[animationName];
                     animations[v] = animation; 
-                }, {placeholder: "..."} );
+                }, {placeholder: "...", minWidth:"100px"} );
                 p.endLine();
             }
            
             p.sameLine(2);
-            p.addButton("", options.accept || "OK", () => { 
+            p.addButton("", options.accept || "OK", (v, e) => { 
+                e.stopPropagation();
                 if(options.required && value === '') {
 
                     text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
@@ -370,7 +377,7 @@ class Gui {
                 }
                 
             }, { buttonClass: "accept" });
-            p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+            p.addButton("", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
         }, options);
 
         // Focus text prompt
@@ -816,7 +823,7 @@ class KeyframesGui extends Gui {
     
             inspector.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, 
                 callback: (v,e) => this.editor.updateBlendshapesProperties(name, v), 
-                signal: "@on_change_" + name});
+                signal: "@on_change_au_" + name});
         }
         
         return inspector;
@@ -990,7 +997,17 @@ class KeyframesGui extends Gui {
         
         this.curvesTimeline.setFramerate(30);
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
-        this.curvesTimeline.onSetTime = (t) => this.editor.setTime(t);
+        this.curvesTimeline.onSetTime = (t) => {
+            this.editor.setTime(t);
+            let tracks = null;
+            if(this.curvesTimeline.selectedItems && this.curvesTimeline.selectedItems.length) {
+                tracks = this.curvesTimeline.tracksPerItem[this.curvesTimeline.selectedItems[0]];
+                for(let i = 0; i < tracks.length; i++) {
+    
+                    this.updateActionUnitsPanel(this.curvesTimeline.animationClip, tracks[i].clipIdx );
+                }
+            }
+        }
         this.curvesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             if (!currentBinded){ return; }
@@ -1002,7 +1019,14 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
-        
+        this.curvesTimeline.onSelectKeyFrame = (e, info, idx) => {
+            if(e.button != 2) {
+                this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx);
+
+                return false;
+            }
+            return true; // Handled
+        };
         this.curvesTimeline.onChangeState = (state) => {
             if(state != this.editor.state) {
                 let playElement = document.querySelector("[title = Play]");
@@ -1081,7 +1105,7 @@ class KeyframesGui extends Gui {
                 if(!widget)
                     continue;
                 widget.onSetValue(value);
-            
+            // TO DO: emit @on_change_au_ + name
             }
         }
     }
@@ -1124,9 +1148,9 @@ class KeyframesGui extends Gui {
         tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {this.editor.setAnimation(this.editor.animationModes.BODY)}}  );
         if(this.editor.getCurrentBindedAnimation().auAnimation) {
 
-            tabs.add( "Face", faceArea, {onSelect: (e,v) => {
+            tabs.add( "Face", faceArea, { onSelect: (e,v) => {
                 this.editor.setAnimation(this.editor.animationModes.BODY); 
-                this.updateActionUnitsPanel(this.editor.getSelectedActionUnit());
+                this.selectActionUnitArea(this.editor.getSelectedActionUnit());
                 this.imageMap.resize();
             } });
     
@@ -1234,7 +1258,7 @@ class KeyframesGui extends Gui {
         map.addEventListener("mousedown", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            this.updateActionUnitsPanel(e.target.name);
+            this.selectActionUnitArea(e.target.name);
            
             img.src = "./data/imgs/masks/face areas2 " + e.target.name + ".png";
             document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +img.src +"')";
@@ -1298,6 +1322,8 @@ class KeyframesGui extends Gui {
         let tabs = root.addTabs({fit:true});
         let areas = {};
         
+        const animation = this.curvesTimeline.animationClip;
+
         for(let i in this.editor.mapNames) {
             for(let item in this.faceAreas) {
                 let toCompare = this.faceAreas[item].toLowerCase().split(" ");
@@ -1318,9 +1344,44 @@ class KeyframesGui extends Gui {
             }
         }
 
+        // let tracks = null;
+        // if(this.curvesTimeline.selectedItems.length) {
+        //     tracks = this.curvesTimeline.tracksPerItem[this.curvesTimeline.selectedItems[0]];
+        // }
+
+            
+        // for(let i = 0; i < tracks.length; i++) {
+        //     if(this.curvesTimeline.lastKeyFramesSelected.length && this.curvesTimeline.lastKeyFramesSelected[0][1] == tracks[i].idx) {
+        //         trackType = tracks[i].type;                            
+        //     }
+        // }
+
         for(let area in areas) {
             let panel = new LX.Panel({id: "au-"+ area});
-            panel = this.createBlendShapesInspector(areas[area], {inspector: panel, editable: true, showNumber:true});
+            
+            panel.clear();
+            for(let name in areas[area]) {
+                for(let i = 0; i < animation.tracks.length; i++) {
+                    const track = animation.tracks[i];
+                    if(track.name == area && track.type == name) {
+                        let frame = this.curvesTimeline.getCurrentKeyFrame(track, this.curvesTimeline.currentTime, 0.1) || 0;
+                        if( (!this.curvesTimeline.lastKeyFramesSelected.length || this.curvesTimeline.lastKeyFramesSelected[0][2] != frame)) {
+                            this.curvesTimeline.selectKeyFrame(track, [track.name, track.idx, frame], frame);
+                        }
+
+                        panel.addNumber(name, track.values[frame], (v,e) => {
+                            const time = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
+                            const frame = track.times.indexOf(time);
+                            
+                            //this.curvesTimeline.selectKeyFrame(track, [track.name, track.idx, frame], frame);
+                            
+                            this.editor.updateBlendshapesProperties(name, v);
+                        }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name});
+                        break;
+                    }
+                }
+            }
+                        
             tabs.add(area, panel, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
                 this.showTimeline();
                 this.editor.setSelectedActionUnit(v);
@@ -1332,8 +1393,31 @@ class KeyframesGui extends Gui {
 
     }
 
-    updateActionUnitsPanel(area) {
+    selectActionUnitArea( area ) {
+        if(!this.facePanel ) {
+            return;
+        }
         this.facePanel.root.querySelector("[data-name='"+area+"']").click();
+    }
+
+    updateActionUnitsPanel(animation = this.curvesTimeline.animationClip, trackIdx) {
+        if(trackIdx == undefined) {
+            if(!this.curvesTimeline.lastKeyFramesSelected.length) {
+                return;
+            }
+            trackIdx = this.curvesTimeline.lastKeyFramesSelected[0][2];
+        }
+        const track = animation.tracks[trackIdx];
+        let name = track.type;
+        let frame = 0;
+        if(this.curvesTimeline.lastKeyFramesSelected.length && this.curvesTimeline.lastKeyFramesSelected[0][0] == name) {
+            frame = this.curvesTimeline.lastKeyFramesSelected[0][2];
+        } 
+        else {            
+            const time = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
+            frame = track.times.indexOf(time);
+        }
+        //LX.emit("@on_change_" + name, track.times[frame]);
     }
 
     createSkeletonPanel(root, options) {

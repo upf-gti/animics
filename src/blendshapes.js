@@ -14,7 +14,14 @@ class BlendshapesManager {
 
         let clipData = {};
         let times = [];
-
+        if(!data) {
+            let names = {}
+            for(let name in this.mapNames) {
+                names[name] = 0;
+            }
+            names.dt = 0;
+            data = [names];
+        }
         for (let idx = 0; idx < data.length; idx++) {
             let dt = data[idx].dt * 0.001;
             let weights = data[idx];
@@ -248,6 +255,15 @@ function createAnimationFromActionUnits(name, data) {
 
     let times = [];
     let auValues = {};
+    
+    if(!data) {
+        let names = {}
+        for(let name in this.mapNames) {
+            names[name] = 0;
+        }
+        names.dt = 0;
+        data = [names];
+    }
 
     for (let idx = 0; idx < data.length; idx++) {
         
