@@ -8,7 +8,7 @@
 */
 
 var LX = {
-    version: "0.1.31",
+    version: "0.1.32",
     ready: false,
     components: [], // specific pre-build components
     signals: {} // events and triggers
@@ -4733,7 +4733,7 @@ class Panel {
             if( flag.disabled )
                 return;
 
-            const skipCallback = e.detail;
+            const skipCallback = (e.detail.constructor == Number ? null : skipCallback);
 
             let check = toggle.querySelector( ".checkbox a" );
 
