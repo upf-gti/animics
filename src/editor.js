@@ -24,7 +24,7 @@ const MapNames = await (await fetch('./data/mapnames.json')).json();
 // Correct negative blenshapes shader of ThreeJS
 THREE.ShaderChunk[ 'morphnormal_vertex' ] = "#ifdef USE_MORPHNORMALS\n	objectNormal *= morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		for ( int i = 0; i < MORPHTARGETS_COUNT; i ++ ) {\n	    objectNormal += getMorph( gl_VertexID, i, 1, 2 ) * morphTargetInfluences[ i ];\n		}\n	#else\n		objectNormal += morphNormal0 * morphTargetInfluences[ 0 ];\n		objectNormal += morphNormal1 * morphTargetInfluences[ 1 ];\n		objectNormal += morphNormal2 * morphTargetInfluences[ 2 ];\n		objectNormal += morphNormal3 * morphTargetInfluences[ 3 ];\n	#endif\n#endif";
 THREE.ShaderChunk[ 'morphtarget_pars_vertex' ] = "#ifdef USE_MORPHTARGETS\n	uniform float morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		uniform float morphTargetInfluences[ MORPHTARGETS_COUNT ];\n		uniform sampler2DArray morphTargetsTexture;\n		uniform vec2 morphTargetsTextureSize;\n		vec3 getMorph( const in int vertexIndex, const in int morphTargetIndex, const in int offset, const in int stride ) {\n			float texelIndex = float( vertexIndex * stride + offset );\n			float y = floor( texelIndex / morphTargetsTextureSize.x );\n			float x = texelIndex - y * morphTargetsTextureSize.x;\n			vec3 morphUV = vec3( ( x + 0.5 ) / morphTargetsTextureSize.x, y / morphTargetsTextureSize.y, morphTargetIndex );\n			return texture( morphTargetsTexture, morphUV ).xyz;\n		}\n	#else\n		#ifndef USE_MORPHNORMALS\n			uniform float morphTargetInfluences[ 8 ];\n		#else\n			uniform float morphTargetInfluences[ 4 ];\n		#endif\n	#endif\n#endif";
-THREE.ShaderChunk[ 'morphtarget_vertex' ] = "#ifdef USE_MORPHTARGETS\n	transformed *= morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		for ( int i = 0; i < MORPHTARGETS_COUNT; i ++ ) {\n			#ifndef USE_MORPHNORMALS\n				transformed += getMorph( gl_VertexID, i, 0, 1 ) * morphTargetInfluences[ i ];\n			#else\n				transformed += getMorph( gl_VertexID, i, 0, 2 ) * morphTargetInfluences[ i ];\n			#endif\n		}\n	#else\n		transformed += morphTarget0 * morphTargetInfluences[ 0 ];\n		transformed += morphTarget1 * morphTargetInfluences[ 1 ];\n		transformed += morphTarget2 * morphTargetInfluences[ 2 ];\n		transformed += morphTarget3 * morphTargetInfluences[ 3 ];\n		#ifndef USE_MORPHNORMALS\n			transformed += morphTarget4 * morphTargetInfluences[ 4 ];\n			transformed += morphTarget5 * morphTargetInfluences[ 5 ];\n			transformed += morphTarget6 * morphTargetInfluences[ 6 ];\n			transformed += morphTarget7 * morphTargetInfluences[ 7 ];\n		#endif\n	#endif\n#endif";
+THREE.ShaderChunk[ 'morphtarget_vertex' ] = "#ifdef USE_MORPHTARGETS\n	transformed *= morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		for ( int i = 0; i < MORPHTARGETS_COUNT; i ++ ) {\n			#ifndef USE_MORPHNORMALS\n				transformed += getMorph( gl_VertexID, i, 0, 1 ) * morphTargetInfluences[ i ];\n			#else\n				transformed += getMorph( gl_VertexID, i, 0, 2 ) * morphTargetInfluences[ i ];\n			#endif\n		}\n	#else\n		transformed += morphTarget0 * morphTargetInfluences[ 0 ];\n		transformed += morphTarget1 * morphTargetInfluences[ 1 ];\n		transformed += morphTarget2 * morphTargetInfluences[ 2 ];\n		transformed += morphTarget3 * morphTargetInfluences[ 3 ];\n		#ifndef USE_MORPHNORMALS\n			transformed += morphTarget4 * morphTargetInfluences[ 4 ];\n			transformed += morphTarget5 * morphTargetInfluences[ 5 ];\n			transformed += morphTarget6 * morphTargetInfluences[ 6 ];\n			transformed += morphTarget7 * morphTargetInfluences[ 7 ];\n		#endif\n	#endif\n#endif"; 
 
 class Editor {
     
@@ -1134,6 +1134,9 @@ class KeyframeEditor extends Editor{
                 
         super(app, mode);
 
+        this.animationInferenceModes = {NN: 0, M3D: 1}; // either use ML or mediapipe 3d approach to generate an animation (see buildanimation and bindanimation)
+        this.inferenceMode = new URLSearchParams(window.location.search).get("inference") == "NN" ? this.animationInferenceModes.NN : this.animationInferenceModes.M3D;
+
         this.defaultTranslationSnapValue = 1;
         this.defaultRotationSnapValue = 30; // Degrees
         this.defaultScaleSnapValue = 1;
@@ -1143,9 +1146,10 @@ class KeyframeEditor extends Editor{
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
         
-        // TO DO remove NN stuff
-        // this.nn = new NN("data/ML/model.json");
-        this.nnSkeleton = null;
+        if ( this.inferenceMode == this.animationInferenceModes.NN ){
+            this.nn = new NN("data/ML/model.json");
+            this.nnSkeleton = null;
+        }
 
         this.retargeting = null;
         
@@ -1171,9 +1175,12 @@ class KeyframeEditor extends Editor{
 
         // Load current character
         this.loadCharacter(this.character);
-        this.loadNNSkeleton();
+        
+        if ( this.inferenceMode == this.animationInferenceModes.NN ){
+            this.loadNNSkeleton();
+        }
 
-        while(!this.loadedCharacters[this.character] || !this.nnSkeleton) {
+        while(!this.loadedCharacters[this.character] || ( !this.nnSkeleton && this.inferenceMode == this.animationInferenceModes.NN ) ) {
             await new Promise(r => setTimeout(r, 1000));            
         }        
 
@@ -1204,39 +1211,42 @@ class KeyframeEditor extends Editor{
     /**Create face and body animations from mediapipe and load character*/
     buildAnimation(data) {
 
+        this.loadedAnimations[data.name] = data;
+        this.loadedAnimations[data.name].type = "video";
+
         let {landmarks, blendshapes} = data ?? {};
-        
+
         // Remove loop mode for the display video
         this.video.sync = true;
         this.video.loop = false;
 
-        // TO DO remove old ML solution
-        // --------------------------------- OLD BODY ML SOLUTION ---------------------------------
-        // this.nn.loadLandmarks( landmarks, 
-        //     offsets => {
-               
-        //     },
-        //     (err) => {
-        //         alert(err, "Try it again."); 
-        //         window.location.reload();
-        //     } 
-        // );
-        // // this.landmarksArray = this.processLandmarks( landmarks );
-        // // this.blendshapesArray = this.processBlendshapes( blendshapes );
-
-        // UTILS.makeLoading("");
-
-        // // Create body animation from mediapipe landmakrs using ML
-        // let bodyAnimation = createAnimationFromRotations("bodyAnimation", this.nn);
-        // --------------------------------- 
-
+        // old ML solution
+        if ( this.inferenceMode == this.animationInferenceModes.NN ){
+            this.nn.loadLandmarks( landmarks, 
+                offsets => {
+                   
+                },
+                (err) => {
+                    alert(err, "Try it again."); 
+                    window.location.reload();
+                } 
+            );
+            // this.landmarksArray = this.processLandmarks( landmarks );
+            // this.blendshapesArray = this.processBlendshapes( blendshapes );
+    
+            UTILS.makeLoading("");
+    
+            // Create body animation from mediapipe landmakrs using ML
+            this.loadedAnimations[data.name].bodyAnimation = createAnimationFromRotations("bodyAnimation", this.nn); // bones animation THREEjs AnimationClip
+        }
+        else{
+            this.loadedAnimations[data.name].bodyAnimation = landmarks; // array of objects of type { FLM, PLM, LLM, RLM, PWLM, LWLM, RWLM }. Not an animation clip
+        }
+        
         // Create face animation from mediapipe action units
         let faceAnimation = createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
-
-        this.loadedAnimations[data.name] = data;
-        this.loadedAnimations[data.name].bodyAnimation = landmarks; // array of objects of type { FLM, PLM, LLM, RLM, PWLM, LWLM, RWLM }. Not an animation clip
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units THREEjs AnimationClip
-        this.loadedAnimations[data.name].type = "video";
+
         this.bindAnimationToCharacter(data.name);
     }
 
@@ -1619,10 +1629,10 @@ class KeyframeEditor extends Editor{
             let skeletonAnimation = null;
         
             if(bodyAnimation) {
-                if ( animation.type == "video" ){
+                if ( animation.type == "video" && this.inferenceMode == this.animationInferenceModes.M3D ){ // mediapipe3d animation inference algorithm
                     bodyAnimation = this.createBodyAnimationFromWorldLandmarks( animation.bodyAnimation, this.currentCharacter.skeletonHelper.skeleton );
-
-                } else { // bvh (and old ML system) retarget an existing animation
+                } 
+                else { // bvh (and old ML system) retarget an existing animation
                     let tracks = [];        
                     // Remove position changes (only keep i == 0, hips)
                     for (let i = 0; i < bodyAnimation.tracks.length; i++) {
@@ -1634,7 +1644,7 @@ class KeyframeEditor extends Editor{
                     }
 
                     bodyAnimation.tracks = tracks;            
-                    let skeleton = animation.skeleton ?? this.nnSkeleton; // TO DO remove this.nnSkeleton (KateBVH)
+                    let skeleton = animation.skeleton ?? this.nnSkeleton;
                     
                     // Retarget NN animation              
                     // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
