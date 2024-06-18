@@ -1464,7 +1464,7 @@ class KeyframeEditor extends Editor{
             boneHand.quaternion.multiply( qq ).normalize();
         }
     
-        function computeQuatPhalange( skeleton, handLandmarks, isLeft = false ){
+        function computeQuatPhalange( skeleton, bindQuats, handLandmarks, isLeft = false ){
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
@@ -1487,6 +1487,7 @@ class KeyframeEditor extends Editor{
                 let boneSrc = skeleton.bones[ bonePhalanges[ i-1 ] ];
                 let boneTrg = skeleton.bones[ bonePhalanges[ i ] ];
                 let landmark = i;
+                boneSrc.quaternion.copy( bindQuats[ bonePhalanges[ i-1 ] ] );
                 boneSrc.updateWorldMatrix( true, false );
     
                 boneSrc.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 );
@@ -1494,7 +1495,7 @@ class KeyframeEditor extends Editor{
     
                 // world mediapipe phalange direction to local space
                 phalangeDirPred.subVectors( handLandmarks[landmark+1], handLandmarks[landmark] ); // world space
-                phalangeDirPred.applyQuaternion( invWorldQuat ).normalize(); // local phalange space
+                phalangeDirPred.applyQuaternion( invWorldQuat ).normalize(); // local phalange direction space
     
                 // avatar bone local space direction
                 phalangeDirBone.copy( boneTrg.position ).normalize();
@@ -1529,12 +1530,12 @@ class KeyframeEditor extends Editor{
             // right arm-hands
             computeQuatArm( skeleton, body, false );
             computeQuatHand( skeleton, rightHand, false); 
-            computeQuatPhalange( skeleton, rightHand, false );
+            computeQuatPhalange( skeleton, bindQuats, rightHand, false );
             
             // left arm-hands
             computeQuatArm( skeleton, body, true );
             computeQuatHand( skeleton, leftHand, true ); 
-            computeQuatPhalange( skeleton, leftHand, true );
+            computeQuatPhalange( skeleton, bindQuats, leftHand, true );
 
             // remove hips delta rotation from legs (children of hips). Hardcoded for EVA 
             skeleton.bones[62].quaternion.copy( skeleton.bones[0].quaternion ).invert().multiply( bindQuats[0] ).multiply( bindQuats[62] );
