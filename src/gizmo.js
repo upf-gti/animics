@@ -50,7 +50,7 @@ class Gizmo {
             }
 
             if(enabled) {
-                if ( this.toolSelected == Gizmo.Tools.ik ){
+                if ( this.toolSelected == Gizmo.Tools.IK ){
                     if ( !this.ikSelectedChain ){
                         return; 
                     }
@@ -92,20 +92,18 @@ class Gizmo {
         this.bonePoints = null;
         this.editor = editor;
 
-        // joint tool
-        this.jointRestrictionChain = null; // when restricting joint rotation, call ikSolver._applyConstraint( chain, 1, bone.quaternion )
-
         //ik tool 
         this.ikSelectedChain = null;
         this.ikTarget = null;
         this.ikSolver = null;
         this.ikHelper = null;
+        this.ikMode = Gizmo.ToolIkModes.ONEBONE; // this.mode should be the one, but it is used for other purposes in the editor. So we need this variable.
 
 
         // Update in first iteration
         this.mustUpdate = false; //true; 
 
-        this.toolSelected = Gizmo.Tools.joint;
+        this.toolSelected = Gizmo.Tools.JOINT;
         this.mode = "rotate";
 
         this.enabled = true;
@@ -202,8 +200,8 @@ class Gizmo {
         this._ikCreateChains( "Neck", "Spine" );        
         this._ikCreateChains( "LeftShoulder", "Spine" );
         this._ikCreateChains( "RightShoulder", "Spine" );
-        this._ikCreateChains( "LeftHand", "LeftShoulder" );
-        this._ikCreateChains( "RightHand", "RightShoulder" );
+        this._ikCreateChains( "LeftHand", "LeftArm" ); //"LeftShoulder" );
+        this._ikCreateChains( "RightHand", "RigtArm" ); //"RightShoulder" );
         this._ikCreateChains( "LeftHandThumb4",  "LeftHand");
         this._ikCreateChains( "LeftHandIndex4",  "LeftHand");
         this._ikCreateChains( "LeftHandMiddle4", "LeftHand");
@@ -217,10 +215,17 @@ class Gizmo {
         this._ikCreateChains( "LeftToe_End", "LeftUpLeg" );
         this._ikCreateChains( "RightToe_End", "RightUpLeg" );
         
+        for( let i = 0; i < this.skeleton.bones.length; ++i ){
+            let b = this.skeleton.bones[i];
+            if ( !b.parent || !b.parent.isBone ){
+                continue;
+            }
+            this._ikCreateChains( b.name, b.parent.name, "OneBoneIK_" + b.name );
+        }
         this.ikSolver.setChainEnablerAll( false );
     }
 
-    _ikCreateChains( effectorName, rootName ){
+    _ikCreateChains( effectorName, rootName, chainName = null ){
         let bones = this.skeleton.bones;
         let effector = this.skeleton.getBoneByName( effectorName );
         let root = this.skeleton.getBoneByName( rootName );
@@ -314,8 +319,8 @@ class Gizmo {
         effector = bones[ chain[0] ];
         // constraints[0] = null;
         while ( effector != root ){
-            if( ! this.ikSolver.getChain( effector.name ) ){
-                this.ikSolver.createChain( chain, constraints, this.ikTarget, effector.name );
+            if( ! this.ikSolver.getChain( chainName ?? effector.name ) ){
+                this.ikSolver.createChain( chain, constraints, this.ikTarget, chainName ?? effector.name );
             }
             chain.splice(0,1);
             //constraints.splice(0,1);
@@ -335,10 +340,22 @@ class Gizmo {
         this.transform.detach();
         this.ikSelectedChain = null;
         
-        let enabled = this.ikSolver.setChainEnabler( this.skeleton.bones[ boneIdx ].name, true );
-        if ( !enabled ){ return false; }
+        let chainName = this.skeleton.bones[ boneIdx ].name;
+        let enabled = false;
+
+        if ( this.ikMode == Gizmo.ToolIkModes.LARGECHAIN ){
+            enabled = this.ikSolver.setChainEnabler( chainName, true );
+        } 
+        else { // Gizmo.ToolIkModes.ONEBONE
+            chainName = "OneBoneIK_" + chainName;
+            enabled = this.ikSolver.setChainEnabler( chainName, true );
+        }
         
-        this.ikSelectedChain = this.ikSolver.getChain( this.skeleton.bones[ boneIdx ].name );
+        if ( !enabled ){
+            return false;
+        }
+
+        this.ikSelectedChain = this.ikSolver.getChain( chainName );
 
         this.ikSetTargetToBone();
         this.transform.attach( this.ikTarget );
@@ -347,6 +364,17 @@ class Gizmo {
 
     ikStop() {
         this.ikSelectedChain = null;
+    }
+
+    hasBoneIkChain( bone, mode ){
+        if ( !this.ikSolver ) { return false; }
+
+        if ( mode == Gizmo.ToolIkModes.LARGECHAIN ){
+            return !!this.ikSolver.getChain( bone.name );
+        }
+        
+        //( mode == Gizmo.ToolIkModes.ONEBONE ){
+        return !!this.ikSolver.getChain( "OneBoneIK_" + bone.name );
     }
 
     stop() {
@@ -414,19 +442,19 @@ class Gizmo {
                     const bone = this.skeleton.bones[this.selectedBone];
                     if(timeline.getNumTracks(bone) < 2) // only rotation
                         return;
-                    this.setTool( Gizmo.Tools.joint );
+                    this.setTool( Gizmo.Tools.JOINT );
                     this.setMode( "translate" );
                     this.editor.gui.updateSkeletonPanel();
                     break;
 
                 case 'e':
-                    this.setTool( Gizmo.Tools.joint );
+                    this.setTool( Gizmo.Tools.JOINT );
                     this.setMode( "rotate" );
                     this.editor.gui.updateSkeletonPanel();
                     break;
 
                 case 'r':
-                    this.setTool( Gizmo.Tools.ik );
+                    this.setTool( Gizmo.Tools.IK );
                     this.editor.gui.updateSkeletonPanel();
                     break;
     
@@ -451,7 +479,7 @@ class Gizmo {
                             bone.quaternion.fromArray( step[i].quat );
                         }
                         this.updateBones();
-                        if ( this.toolSelected == Gizmo.Tools.ik ){ // reset target position
+                        if ( this.toolSelected == Gizmo.Tools.IK ){ // reset target position
                             this.ikSetTargetToBone( );
                         }
                     }
@@ -494,7 +522,7 @@ class Gizmo {
         if(this.selectedBone == null ){ return; }
         
         if ( !this.mustUpdate ){
-            if ( this.toolSelected == Gizmo.Tools.ik ){ // make target follow bone when not directly using it
+            if ( this.toolSelected == Gizmo.Tools.IK ){ // make target follow bone when not directly using it
                 this.ikSetTargetToBone();
             }
             return;
@@ -562,7 +590,7 @@ class Gizmo {
         let bone = this.skeleton.bones[this.selectedBone]; 
         
        
-        if ( this.toolSelected == Gizmo.Tools.ik ){
+        if ( this.toolSelected == Gizmo.Tools.IK ){
             if ( !this.ikSelectedChain ){ return; }
             
             const effectorFrameTime = this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].times[ keyFrameIndex ];
@@ -647,33 +675,25 @@ class Gizmo {
     _setBoneById( boneId ){
         this.selectedBone = boneId;
 
-        this.jointRestrictionChain = null;
-        if ( this.ikSolver ){
-            // joint Tool setup - find ikChain that restricts this bone (first child)
-            let bone = this.skeleton.bones[ this.selectedBone ];
-            let nameToFetch = null; 
-            if ( bone.parent.name.includes("ForeArm") )   { nameToFetch = "Middle";        } // when hand, use middle finger as rotation restrictor
-            else if ( bone.parent.name.includes("Neck") ) { nameToFetch = "HeadTop_End";   } // when head, use headEnd as rotation restrictor
-
-            for (let i = 0; i < bone.children.length; ++i ){
-                if ( ! bone.children[i].isBone ){ continue; }
-                if ( nameToFetch ){
-                    if ( ! bone.children[i].name.includes( nameToFetch ) ){ continue; }
-                }
-                this.jointRestrictionChain = this.ikSolver.getChain( bone.children[i].name );
-                if ( this.jointRestrictionChain ){ break; }
-            }
-            
-        }
-
         this.setTool( this.toolSelected ); // attach and prepare bone
         this.updateBoneColors();
     }
+
     setMode( mode ) {
-        if ( this.toolSelected == Gizmo.Tools.joint ){ 
+        if ( this.toolSelected == Gizmo.Tools.JOINT ){ 
             this.mode = mode;
             this.transform.setMode( mode );
+            return true;
         }
+
+        if ( this.toolSelected == Gizmo.Tools.IK ){ 
+            this.mode = "rotate";
+            this.ikMode = mode; 
+            this.transform.setMode( "translate" ); // ik moves target, but rotates joints
+            return this.ikSetBone( this.selectedBone );
+        }
+
+        return false;
     }
 
     setSpace( space ) {
@@ -681,24 +701,20 @@ class Gizmo {
     }
 
     setTool( tool ){
-        this.toolSelected = Gizmo.Tools.joint;
+        let lastTool = this.toolSelected;
+        this.toolSelected = Gizmo.Tools.JOINT;
 
         let ikResult = false;
-        if ( tool == Gizmo.Tools.ik ){
-            this.toolSelected = tool;
-            this.mode = "rotate";
-            this.transform.setMode( "translate" ); // ik moves target, but rotates joints
-            ikResult = this.ikSetBone( this.selectedBone );
+        if ( tool == Gizmo.Tools.IK ){
+            this.toolSelected = Gizmo.Tools.IK;
+            ikResult = this.setMode( lastTool != this.toolSelected ? Gizmo.ToolIkModes.ONEBONE : this.ikMode );
         }
         if ( !ikResult ){
-            this.toolSelected = Gizmo.Tools.joint;
+            this.toolSelected = Gizmo.Tools.JOINT;
             this.ikStop();
-            this.transform.setMode( this.mode );
             this.transform.attach( this.skeleton.bones[this.selectedBone] );
+            this.setMode( lastTool != this.toolSelected ? "rotate" : this.mode );
         }
-
-        // this.editor.gui.updateSkeletonPanel(null, this.skeleton.bones[ this.selectedBone ].name );
-
     }
 
     showOptions( inspector ) {
@@ -743,7 +759,12 @@ Gizmo.ModeToKeyType = {
 };
 
 Gizmo.Tools = {
-    joint : 0,
-    ik : 1
+    JOINT : 0,
+    IK : 1
+}
+
+Gizmo.ToolIkModes = {
+    LARGECHAIN: 0,
+    ONEBONE: 1
 }
 export { Gizmo };

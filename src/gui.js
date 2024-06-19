@@ -4,6 +4,7 @@ import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
 import 'lexgui/components/timeline.js';
+import { Gizmo } from "./gizmo.js";
 
 class Gui {
 
@@ -724,7 +725,6 @@ class KeyframesGui extends Gui {
             if(!value.type.includes("video")) {
                 LX.message("Format not accepted");
                 return;
-
             }
 
             // delete camera stream 
@@ -732,6 +732,8 @@ class KeyframesGui extends Gui {
             inputVideo.pause();
             if( inputVideo.srcObject ){ inputVideo.srcObject.getTracks().forEach(a => a.stop()); }
             inputVideo.srcObject = null;
+
+            // load video
             if ( !Array.isArray( value ) ){ value = [value]; }
             this.editor.getApp().onLoadVideos( value );
 
@@ -1645,12 +1647,29 @@ class KeyframesGui extends Gui {
                         this.editor.setGizmoMode("Scale");
                     }
                     widgets.addComboButtons( "Mode", _Modes, { selected: this.editor.getGizmoMode(), nameWidth: "50%", width: "100%"});
+
+                    const _Spaces = [{value: "Local", callback: (v,e) =>  this.editor.setGizmoSpace(v)}, {value: "World", callback: (v,e) =>  this.editor.setGizmoSpace(v)}]
+                    widgets.addComboButtons( "Space", _Spaces, { selected: this.editor.getGizmoSpace(), nameWidth: "50%", width: "100%"});
+    
+                    widgets.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
                 }
 
-                const _Spaces = [{value: "Local", callback: (v,e) =>  this.editor.setGizmoSpace(v)}, {value: "World", callback: (v,e) =>  this.editor.setGizmoSpace(v)}]
-                widgets.addComboButtons( "Space", _Spaces, { selected: this.editor.getGizmoSpace(), nameWidth: "50%", width: "100%"});
+                if ( this.editor.getGizmoTool() == "Follow" ){
+                    let modesValues = [];
+                    let current = this.editor.getGizmoIkMode();
+                    if ( this.editor.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.LARGECHAIN ) ){
+                        modesValues.push( {value:"Multiple", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh(options);} } );
+                    } else { // default
+                        current = "Single";
+                    }
 
-                widgets.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
+                    if ( this.editor.gizmo.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.ONEBONE ) ){
+                        modesValues.push( {value:"Single", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh(options);} } );
+                    }
+
+                    widgets.addComboButtons( "Mode", modesValues, {selected: current, nameWidth: "50%", width: "100%"});
+                    this.editor.setGizmoIkMode( current );
+                }
 
                 widgets.addSeparator();
                 

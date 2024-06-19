@@ -2003,17 +2003,23 @@ class KeyframeEditor extends Editor{
     }
 
     /** -------------------- GIZMO INTERACTION -------------------- */
-    hasGizmoSelectedBoneIk() { 
-        return !!this.gizmo.ikSolver && !!this.gizmo.ikSolver.getChain( this.gizmo.skeleton.bones[this.gizmo.selectedBone].name );
+    hasGizmoSelectedBoneIk( mode = null ) {
+        if ( mode == null ) {
+            return this.gizmo.hasBoneIkChain( this.gizmo.skeleton.bones[this.gizmo.selectedBone], Gizmo.ToolIkModes.LARGECHAIN ) || 
+                   this.gizmo.hasBoneIkChain( this.gizmo.skeleton.bones[this.gizmo.selectedBone], Gizmo.ToolIkModes.ONEBONE ); 
+        } 
+        else{
+            return this.gizmo.hasBoneIkChain( this.gizmo.skeleton.bones[this.gizmo.selectedBone], mode ); 
+        }
     }
     
     getGizmoTool() { 
-        return ( this.gizmo.toolSelected == Gizmo.Tools.ik ) ? "Follow" : "Joint"; 
+        return ( this.gizmo.toolSelected == Gizmo.Tools.IK ) ? "Follow" : "Joint"; 
     }
 
     setGizmoTool( tool ) { 
-        if ( tool == "Follow" ){ this.gizmo.setTool( Gizmo.Tools.ik ); }
-        else { this.gizmo.setTool( Gizmo.Tools.joint ); }
+        if ( tool == "Follow" ){ this.gizmo.setTool( Gizmo.Tools.IK ); }
+        else { this.gizmo.setTool( Gizmo.Tools.JOINT ); }
     }
 
     getGizmoMode() {
@@ -2025,6 +2031,12 @@ class KeyframeEditor extends Editor{
         throw("Invalid Gizmo mode");
         
         this.gizmo.setMode( mode.toLowerCase() );
+    }
+    getGizmoIkMode(){
+        return this.gizmo.ikMode == Gizmo.ToolIkModes.LARGECHAIN ? "Multiple" : "Single";
+    }
+    setGizmoIkMode( mode ){
+        this.gizmo.setMode( mode == "Multiple" ? Gizmo.ToolIkModes.LARGECHAIN : Gizmo.ToolIkModes.ONEBONE ); //!!!!!! TO DO: setMode is being used with Joint and IK mode. This might create conflicts
     }
 
     getGizmoSpace() {
