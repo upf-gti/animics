@@ -854,11 +854,11 @@ class Editor {
                 UTILS.download(JSON.stringify(json), (name || this.clipName) + '.bml', "application/json");
                 console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
                 break;
-
-            }
-            // bvhexport sets avatar to bindpose. Avoid user seeing this
-            this.bindAnimationToCharacter(this.currentAnimation);
-            return files;
+ 
+        }
+        // bvhexport sets avatar to bindpose. Avoid user seeing this
+        this.bindAnimationToCharacter(this.currentAnimation);
+        return files;
     }
 
     showPreview() {

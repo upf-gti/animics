@@ -726,7 +726,14 @@ class KeyframesGui extends Gui {
                 return;
 
             }
-            this.editor.getApp().onLoadVideo( value );
+
+            // delete camera stream 
+            let inputVideo = document.getElementById("inputVideo");
+            inputVideo.pause();
+            if( inputVideo.srcObject ){ inputVideo.srcObject.getTracks().forEach(a => a.stop()); }
+            inputVideo.srcObject = null;
+            if ( !Array.isArray( value ) ){ value = [value]; }
+            this.editor.getApp().onLoadVideos( value );
 
         }, { id: "video-input", placeholder: "No file selected", local: false, type: "buffer", read: false, width: "200px"} );
         
