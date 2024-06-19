@@ -567,7 +567,11 @@ body.noevents * {
   padding-right: 10px;
 }
 
-.lexinlinewidgets .lexwidgetname {
+.lexinlinewidgets .lexwidgetname.float-center {
+  justify-content: center;
+}
+
+.lexinlinewidgets .lexwidgetname.float-right {
   justify-content: end;
   -moz-transform: translateX(-1em);
   -webkit-transform: translateX(-1em);
@@ -3645,3 +3649,83 @@ pre .line-gutter {
   font-weight: 600;
   color: var(--global-text);
 }
+
+/* Video Editor */
+
+.lexvideoeditor {
+  display: flex;
+  justify-content: center;
+}
+
+.lexvideoeditor video {
+  width: 100%;
+  height: 100%;
+}
+
+.lexvideoeditor .lexarea {
+  /* background-color: var(--global-branch-darker)!important; */
+}
+
+.lexvideoeditor .lexarea .lexflexarea {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0px;
+}
+
+.lexvideoeditor .lexconstrolsarea {
+  /* background-color: var(--global-branch-darker); */
+  /* padding: 5px;
+  margin: 10px; */
+  /* width: calc(100% - 30px)!important; */
+  min-height: 88px!important;
+  border-radius: 8px;
+  display: flex;
+  align-content: center;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.lexvideoeditor .lexcontrolspanel {
+  background-color: var(--global-branch-darker);
+  margin: 0;
+  display: flex;
+  align-content: center;
+  width: 100%!important;
+}
+
+.lexvideoeditor .lexcontrolspanel.lextime {
+  width: auto!important;
+  border-radius: 5px;
+}
+
+.lexvideoeditor .lextimebar {
+  width: 100%;
+  height: inherit;
+}
+
+.lexvideoeditor .lexwidget.nobranch {
+  padding: 0;
+  width: 100%!important;
+}
+.lexvideoeditor .lextext {
+  padding-left: 0;
+  padding: 6px;
+}
+
+.lexvideoeditor .lexbar {
+  height: 40px!important;
+  margin: 5px 10px;
+  padding: 5px;
+  width: calc(100% - 40px)!important;
+}
+/* .lexvideoeditor .lexvideotimebar {
+  width: calc(100% - 40px);
+  height: 100%;
+  background-color: var(--global-branch-darker);
+} */
+
+/* .lexvideoeditor .lexvideotimebar canvas {
+  width: calc(100%);
+  height: calc(100% );
+  padding: 5px; 
+}  */

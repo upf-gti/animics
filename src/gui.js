@@ -4,6 +4,7 @@ import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
 import 'lexgui/components/timeline.js';
+import { VideoEditor } from 'lexgui/components/videoeditor.js';
 
 class Gui {
 
@@ -32,19 +33,7 @@ class Gui {
         };
         // Create menu bar
         this.createMenubar(this.mainArea);
-        
-        // split main area
-        this.mainArea.split({sizes:["80%","20%"], minimizable: true});
-        
-        //left -> canvas, right -> side panel
-        var [left, right] = this.mainArea.sections;
-        left.id = "canvasarea";
-        left.root.style.position = "relative";
-        right.id = "sidepanel";
-        [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
-        // this.canvasArea = left;
-        this.sidePanel = right;
-       
+
         //Create timelines (keyframes and clips)
         this.createTimelines();
     }
@@ -684,17 +673,37 @@ class KeyframesGui extends Gui {
     /** -------------------- CAPTURE GUI (app) --------------------  */
     createCaptureArea(area) {
 
-        // Create capture info area
-        let mainCapture = document.getElementById("capture");
-        let captureArea = document.getElementById("capture-area");
+        this.captureArea = area.sections[1];
+        const [leftArea, rightArea] = this.captureArea.split({sizes:["75%","25%"], minimizable: true});
+        
+         /* Create video area*/
+        const videoArea = new LX.Area("video-area");
+        /* Add video editor with the video into the area*/
+        const video = document.createElement("video");
+        video.id = "inputVideo";
+        video.classList.add("hidden");
+        video.muted = true;
+        videoArea.attach(video);
 
-        // Create video area
-        let videoArea = document.getElementById("video-area");
-        videoArea.classList.add("video-area");
-        videoArea.style.paddingTop = "0px";
+        /* Add the recording video in back in the area (hidden) */
+        let videoRecording = document.createElement("video");
+        videoRecording.id = "recording";
+        videoRecording.classList.add("hidden");
+        videoRecording.muted = true;
+        videoArea.attach(videoRecording);
+        
+        /* Add the canvas where the Mediapipe results will be drawn*/
+        const videoCanvas = document.createElement("canvas");
+        videoCanvas.id = "outputVideo";
+        videoCanvas.classList.add("border-animation");
+        videoCanvas.style.position = "absolute";
+        videoArea.attach(videoCanvas);
   
         // Create input selector widget (webcam or video)
-        let selectContainer = new LX.Panel({id:"select-mode", height: "80px", weight: "50%"});
+        let [topArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
+        
+        let selectContainer = topArea.addPanel({id:"select-mode", height: "80px", weight: "50%"})
+
         selectContainer.sameLine();
         let selected = this.editor.editionModes.CAPTURE == this.captureMode ? "webcam" : "video";
 
@@ -724,7 +733,6 @@ class KeyframesGui extends Gui {
             if(!value.type.includes("video")) {
                 LX.message("Format not accepted");
                 return;
-
             }
 
             // delete camera stream 
@@ -744,19 +752,44 @@ class KeyframesGui extends Gui {
             input.domEl.getElementsByTagName("input")[0].value = this.editor.video;        
         }
         selectContainer.endLine("center");
-        videoArea.prepend(selectContainer.root);
+        
+        /* Add show/hide right panel button*/
+        topArea.addOverlayButtons([{
+            selectable: true,
+            selected: true,
+            icon: "fa-solid fa-info",
+            name: "Properties",
+            callback: (v, e) => {
+                if(this.captureArea.split_extended) {
+                    this.captureArea.reduce();
+                }
+                else {
+                    this.captureArea.extend();
+                }
+            }
+        }], {float: 'tvr'});
 
-        // Create expand area button
-        let i = document.createElement("i");
-        i.id = "expand-capture-gui";
-        i.style = "position: relative;top: 35px;left: -19px; width: 0px;";
-        i.className = "fas fa-solid fa-circle-info drop-icon";//"fas fa-solid fa-circle-chevron-left drop-icon";
-        i.addEventListener("click", () => this.changeCaptureGUIVisivility());
+        this.videoEditor = new LX.VideoEditor(topArea, {videoArea, video})
+        this.videoEditor.hideControls();
+        // Capture panel buttons
+        this.capturePanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});
+        let btn = this.capturePanel.addButton(null, "Record", () => {}, {id:"capture_btn", width: "100px"});
+        btn.style.zIndex = 100;
+ 
+      //p.addButton(null, null, (v) => {}, {width: "40px", icon: "fa-solid fa-rotate-left"})
+        //capturePanel.addButton(null, "Record", () => VideoUtils.unbind( (start, end) => window.global.app.onVideoTrimmed(start, end)), {id:"capture_btn"});
+         /* Create right panel */
+        this.bsInspector = new LX.Panel({id:"Properties"});
+        this.bsInspector = rightArea.addPanel({id:"Properties"});    
+      
+        let inspector =  this.bsInspector;
+            
+        if(inspector.root.id) {
+        inspector.addTitle(inspector.root.id);
+        }
 
         // Create expanded AU info area
-        let inspector = new LX.Panel({id:"capture-inspector", width: "800px"});
-        inspector.root.hidden = true;
-        inspector.root.style.padding = "5px";
+    
         inspector.addBlank();
         inspector.addTitle("User positioning");
         inspector.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto" }) 
@@ -770,49 +803,74 @@ class KeyframesGui extends Gui {
         inspector.root.style.maxHeight = "calc(100% - 57px)";
         inspector.root.style.overflowY = "scroll";
         inspector.root.style.flexWrap = "wrap";
-        this.bsInspector = inspector;
-        captureArea.appendChild(i);
-        captureArea.appendChild(this.bsInspector.root)
+        
+        // // Create expand area button
+        // let i = document.createElement("i");
+        // i.id = "expand-capture-gui";
+        // i.style = "position: relative;top: 35px;left: -19px; width: 0px;";
+        // i.className = "fas fa-solid fa-circle-info drop-icon";//"fas fa-solid fa-circle-chevron-left drop-icon";
+        // i.addEventListener("click", () => this.changeCaptureGUIVisivility());
 
-        // Create bottom buttons
-        const buttonContainer = document.createElement('div');
-        buttonContainer.id = "capture-buttons";
-        buttonContainer.style.display = "flex";
-        buttonContainer.style.padding = "10px";
-        buttonContainer.style.minHeight =  "84px";
-        const buttons = [
-            {
-                id: "capture_btn",
-                text: " <i class='bi bi-record-circle' style= 'margin:5px; font-size:initial;'></i> Start recording"
-            },
-            {
-                id: "trim_btn",
-                text: "Convert to animation",
-                display: "none",
-                callback: () => VideoUtils.unbind( (start, end) => window.global.app.onVideoTrimmed(start, end) )
-            },
-            {
-                id: "redo_btn",
-                text: " <i class='fa fa-redo'></i>",
-                title: "Redo video",
-                display: "none",
-                callback: async () => { window.location.reload(); }
-            }
-        ];
+        // // Create expanded AU info area
+        // let inspector = new LX.Panel({id:"capture-inspector", width: "800px"});
+        // inspector.root.hidden = true;
+        // inspector.root.style.padding = "5px";
+        // inspector.addBlank();
+        // inspector.addTitle("User positioning");
+        // inspector.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto" }) 
+        
+        // inspector.addProgress('Distance to the camera', 0, {min:0, max:1, id: 'progressbar-torso'});
+        // inspector.addProgress('Left Hand visibility', 0, {min:0, max:1, id: 'progressbar-lefthand'});
+        // inspector.addProgress('Right Hand visibility', 0, {min:0, max:1, id: 'progressbar-righthand'});
+        
+        // inspector.branch("Blendshapes weights");
+        // inspector = this.createBlendShapesInspector(this.editor.mapNames, {inspector: inspector});
+        // inspector.root.style.maxHeight = "calc(100% - 57px)";
+        // inspector.root.style.overflowY = "scroll";
+        // inspector.root.style.flexWrap = "wrap";
+        // this.bsInspector = inspector;
+        // captureArea.appendChild(i);
+        // captureArea.appendChild(this.bsInspector.root)
 
-        for(let b of buttons) {
-            const button = document.createElement("button");
-            button.id = b.id;
-            button.title = b.title || "";
-            button.style.display = b.display || "block";
-            button.innerHTML = b.text;
-            button.classList.add("btn-primary", "captureButton");
-            if(b.styles) Object.assign(button.style, b.styles);
-            if(b.callback) button.addEventListener('click', b.callback);
-            buttonContainer.appendChild(button);
-        }
-        captureArea.appendChild(buttonContainer);
-        videoArea.appendChild(buttonContainer);
+        // // Create bottom buttons
+        // const buttonContainer = document.createElement('div');
+        // buttonContainer.id = "capture-buttons";
+        // buttonContainer.style.display = "flex";
+        // buttonContainer.style.padding = "10px";
+        // buttonContainer.style.minHeight =  "84px";
+        // const buttons = [
+        //     {
+        //         id: "capture_btn",
+        //         text: " <i class='bi bi-record-circle' style= 'margin:5px; font-size:initial;'></i> Start recording"
+        //     },
+        //     {
+        //         id: "trim_btn",
+        //         text: "Convert to animation",
+        //         display: "none",
+        //         callback: () => VideoUtils.unbind( (start, end) => window.global.app.onVideoTrimmed(start, end) )
+        //     },
+        //     {
+        //         id: "redo_btn",
+        //         text: " <i class='fa fa-redo'></i>",
+        //         title: "Redo video",
+        //         display: "none",
+        //         callback: async () => { window.location.reload(); }
+        //     }
+        // ];
+
+        // for(let b of buttons) {
+        //     const button = document.createElement("button");
+        //     button.id = b.id;
+        //     button.title = b.title || "";
+        //     button.style.display = b.display || "block";
+        //     button.innerHTML = b.text;
+        //     button.classList.add("btn-primary", "captureButton");
+        //     if(b.styles) Object.assign(button.style, b.styles);
+        //     if(b.callback) button.addEventListener('click', b.callback);
+        //     buttonContainer.appendChild(button);
+        // }
+        // captureArea.appendChild(buttonContainer);
+        // videoArea.appendChild(buttonContainer);
 
     }
 
@@ -836,8 +894,39 @@ class KeyframesGui extends Gui {
         return inspector;
     } 
 
+    showTrimVideo(video, canvas, callback, options) {
+        document.getElementById("select-mode").classList.add("hidden");
+        this.videoEditor.video = video;
+        this.videoEditor.showControls();
+        this.videoEditor._loadVideo();
+        this.capturePanel.clear();
+        this.capturePanel.addButton(null, "Trim", (v) => {
+            const {start, end} = this.videoEditor.getTrimedTimes();
+            window.global.app.onVideoTrimmed(start, end)
+            this.capturePanel.clear();
+            // this.videoArea.sections[1].root.resize(["20%", "20%"])
+        }, {width: "100px"});
+
+        this.capturePanel.addButton(null, null, (v) => {}, {width: "40px", icon: "fa-solid fa-rotate-left"});
+        this.videoEditor.onSetTime = options.onSetTime;
+        this.videoEditor.onUpdate = options.onUpdate;
+        callback();
+    }
     /** Create timelines */
     createTimelines( area ) {
+                
+        // split main area
+        this.editorArea = new LX.Area();
+        this.editorArea.split({sizes:["80%","20%"], minimizable: true});
+        
+        //left -> canvas, right -> side panel
+        var [left, right] = this.editorArea.sections;
+        left.id = "canvasarea";
+        left.root.style.position = "relative";
+        right.id = "sidepanel";
+        [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
+        // this.canvasArea = left;
+        this.sidePanel = right
 
         /* Keyframes Timeline */
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
@@ -1746,7 +1835,19 @@ class ScriptGui extends Gui {
 
     /** Create timelines */
     createTimelines( area ) {
-
+                
+        // split main area
+        this.mainArea.split({sizes:["80%","20%"], minimizable: true});
+        
+        //left -> canvas, right -> side panel
+        var [left, right] = this.mainArea.sections;
+        left.id = "canvasarea";
+        left.root.style.position = "relative";
+        right.id = "sidepanel";
+        [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
+        // this.canvasArea = left;
+        this.sidePanel = right;
+               
         this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
            // trackHeight: 30,
             onAfterCreateTopBar: (panel) => {

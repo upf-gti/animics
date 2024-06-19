@@ -342,11 +342,6 @@ class App {
             live: this.editor.mode == this.editor.editionModes.CAPTURE
         }
 
-        // Hide trim stage buttons
-        let trimBtn = document.getElementById("trim_btn");
-        trimBtn.classList.add("hidden");
-        let redoBtn = document.getElementById("redo_btn");
-        redoBtn.classList.add("hidden");
 
         UTILS.makeLoading("Processing video", 0.5 )
         this.processVideo( videoObj, () =>{
@@ -454,7 +449,6 @@ class App {
             this.editor.bindAnimationToCharacter(this.filesData[0].name)
         }
         this.editor.startEdition(!this.filesData.length);
-
     }
 
     
@@ -543,27 +537,34 @@ class App {
         }
 
         // Hide capture buttons
-        document.getElementById("select-mode").innerHTML = "";
-        let capture = document.getElementById("capture_btn");
-        capture.style.display = "none";
-        capture.disabled = true;
-        capture.classList.remove("stop");
-    
-        // draw mediapipe results with trimming buttons on top.
-        await VideoUtils.bind(video, canvas, ()=>{
+       
+        this.editor.gui.showTrimVideo(video, canvas, ()=>{
             // (re)start process video online but let VideoUtils manage the render
             MediaPipe.setOptions( { autoDraw: false } );
             MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
 
-            // Show trim stage buttons
-            let trimBtn = document.getElementById("trim_btn");
-            trimBtn.style.display = "block";
-            let redoBtn = document.getElementById("redo_btn");
-            redoBtn.style.display = "block";
+            // // Show trim stage buttons
+            // let trimBtn = document.getElementById("trim_btn");
+            // trimBtn.style.display = "block";
+            // let redoBtn = document.getElementById("redo_btn");
+            // redoBtn.style.display = "block";
 
-        });
-        VideoUtils.onSetTime = this.editor.updateCaptureDataTime.bind(this.editor, results);
-        VideoUtils.onRender = () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); } }
+        }, {onSetTime: this.editor.updateCaptureDataTime.bind(this.editor, results), onUpdate: () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); }}});
+        // // draw mediapipe results with trimming buttons on top.
+        // await VideoUtils.bind(video, canvas, ()=>{
+        //     // (re)start process video online but let VideoUtils manage the render
+        //     MediaPipe.setOptions( { autoDraw: false } );
+        //     MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
+
+        //     // Show trim stage buttons
+        //     let trimBtn = document.getElementById("trim_btn");
+        //     trimBtn.style.display = "block";
+        //     let redoBtn = document.getElementById("redo_btn");
+        //     redoBtn.style.display = "block";
+
+        // });
+        // VideoUtils.onSetTime = this.editor.updateCaptureDataTime.bind(this.editor, results);
+        // VideoUtils.onRender = () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); } }
 
     }
 
