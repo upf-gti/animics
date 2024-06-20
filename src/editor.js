@@ -1163,7 +1163,6 @@ class KeyframeEditor extends Editor{
     }
     
     startEdition() {
-        this.gui.showVideo = true
         this.gui.init();
         this.animate();
     }
@@ -1204,8 +1203,14 @@ class KeyframeEditor extends Editor{
     }
     /** -------------------- CREATE ANIMATIONS FROM MEDIAPIPE -------------------- */
     
-    setVideoVisibility( visibility ){
-        document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
+    setVideoVisibility( visibility ){ // TO DO
+        //document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
+        if(visibility) {
+            this.gui.showVideoEditor();
+        }
+        else {
+            this.gui.hideVideoEditor();
+        }
     }
 
     /**Create face and body animations from mediapipe and load character*/

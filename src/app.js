@@ -112,7 +112,7 @@ class App {
                     let blob = new Blob(that.chunks, { "type": "video/mp4; codecs=avc1" });
                     let videoURL = URL.createObjectURL(blob);
                     video.src = videoURL;
-                    video.autoplay = true;
+                    
                     video.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".mp4";
 
                     videoCanvas.classList.remove("active");  
@@ -212,8 +212,7 @@ class App {
 
             MediaPipe.start( false, () => {
                 // directly to trim stage
-                that.videoToTrimStage( false, { blendshapesResults:[], landmarksResults:[] } );
-                $('#loading').fadeOut();
+                that.videoToTrimStage( false, { blendshapesResults:[], landmarksResults:[] } );                
     
             }, that.editor.gui.updateCaptureGUI.bind(that.editor.gui) );
         } ).bind(video);
@@ -259,35 +258,35 @@ class App {
         }
 
         // ------------- Show only the "processing video" elements -------------
-        // Hide trim stage buttons
-        let trimBtn = document.getElementById("trim_btn");
-        trimBtn.classList.add("hidden");
-        let redoBtn = document.getElementById("redo_btn");
-        redoBtn.classList.add("hidden");
+        // // Hide trim stage buttons
+        // let trimBtn = document.getElementById("trim_btn");
+        // trimBtn.classList.add("hidden");
+        // let redoBtn = document.getElementById("redo_btn");
+        // redoBtn.classList.add("hidden");
  
-        let captureDiv = document.getElementById("capture");
-        $(captureDiv).removeClass("hidden");
-        document.getElementById("select-mode").innerHTML = "";
+        // let captureDiv = document.getElementById("capture");
+        // $(captureDiv).removeClass("hidden");
+        // document.getElementById("select-mode").innerHTML = "";
 
-        let canvas = document.getElementById("outputVideo");
-        let video = document.getElementById("recording");
-        video.classList.remove("hidden");
-        video.style.width = canvas.offsetWidth + "px";
-        video.style.height = canvas.offsetHeight + "px";
-        video.width = canvas.offsetWidth;
-        video.height = canvas.offsetHeight;
+        // let canvas = document.getElementById("outputVideo");
+        // let video = document.getElementById("recording");
+        // video.classList.remove("hidden");
+        // video.style.width = canvas.offsetWidth + "px";
+        // video.style.height = canvas.offsetHeight + "px";
+        // video.width = canvas.offsetWidth;
+        // video.height = canvas.offsetHeight;
 
-        // Hide capture buttons
+        // // Hide capture buttons
         document.getElementById("select-mode").innerHTML = "";
         let capture = document.getElementById("capture_btn");
         capture.style.display = "none";
-        capture.disabled = true;
-        capture.classList.remove("stop");
+        // capture.disabled = true;
+        // capture.classList.remove("stop");
         
-        video.style.cssText+= "transform: rotateY(0deg);\
-                    -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-                    -moz-transform:rotateY(0deg); /* Firefox */";
-        // ---------------------------------------------
+        // video.style.cssText+= "transform: rotateY(0deg);\
+        //             -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
+        //             -moz-transform:rotateY(0deg); /* Firefox */";
+        // // ---------------------------------------------
        
         if ( !this.videoProcessingCommon.videosToProcess.length ){
             let name = "NewAnimation_" + Math.floor(performance.now()).toString();
@@ -525,47 +524,38 @@ class App {
         video.style.height = canvas.offsetHeight + "px";
         video.width = canvas.offsetWidth;
         video.height = canvas.offsetHeight;
-        video.play();
-        if(live){
+       
+        if(live) {
             video.style.cssText+= "transform: rotateY(180deg);\
                             -webkit-transform:rotateY(180deg); /* Safari and Chrome */\
                             -moz-transform:rotateY(180deg); /* Firefox */"
-        }else{
+        }
+        else{
             video.style.cssText+= "transform: rotateY(0deg);\
                             -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
                             -moz-transform:rotateY(0deg); /* Firefox */"
         }
-
-        // Hide capture buttons
-       
-        this.editor.gui.showTrimVideo(video, canvas, ()=>{
+        
+        // Replace GUI to trim interface
+        this.editor.gui.createTrimArea(video, canvas, ()=>{
             // (re)start process video online but let VideoUtils manage the render
             MediaPipe.setOptions( { autoDraw: false } );
             MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
-
-            // // Show trim stage buttons
-            // let trimBtn = document.getElementById("trim_btn");
-            // trimBtn.style.display = "block";
-            // let redoBtn = document.getElementById("redo_btn");
-            // redoBtn.style.display = "block";
-
-        }, {onSetTime: this.editor.updateCaptureDataTime.bind(this.editor, results), onUpdate: () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); }}});
-        // // draw mediapipe results with trimming buttons on top.
-        // await VideoUtils.bind(video, canvas, ()=>{
-        //     // (re)start process video online but let VideoUtils manage the render
-        //     MediaPipe.setOptions( { autoDraw: false } );
-        //     MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
-
-        //     // Show trim stage buttons
-        //     let trimBtn = document.getElementById("trim_btn");
-        //     trimBtn.style.display = "block";
-        //     let redoBtn = document.getElementById("redo_btn");
-        //     redoBtn.style.display = "block";
-
-        // });
-        // VideoUtils.onSetTime = this.editor.updateCaptureDataTime.bind(this.editor, results);
-        // VideoUtils.onRender = () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); } }
-
+            MediaPipe.currentVideoProcessing.currentTime = -1;
+            $('#loading').fadeOut();
+        }, { 
+            onSetTime: (t) => { 
+                this.editor.updateCaptureDataTime(results, t);            
+            },
+            onDraw: () => {
+                if ( MediaPipe.currentVideoProcessing ) { 
+                    MediaPipe.drawCurrentResults(); 
+                }
+            },
+            onVideoLoaded: async (v) => {
+                //await MediaPipe.processFrame(v);
+            }
+        });
     }
 
 
