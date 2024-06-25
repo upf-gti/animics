@@ -829,6 +829,10 @@ class KeyframesGui extends Gui {
 
     createTrimArea(video, canvas, callback, options) {
         document.getElementById("select-mode").classList.add("hidden");
+        this.videoEditor.onSetTime = options.onSetTime;
+        this.videoEditor.onDraw = options.onDraw;
+        this.videoEditor.onVideoLoaded = options.onVideoLoaded;
+
         this.videoEditor.video = video;
         this.videoEditor.showControls();
         this.videoEditor._loadVideo();
@@ -841,26 +845,42 @@ class KeyframesGui extends Gui {
             // this.videoArea.sections[1].root.resize(["20%", "20%"])
         }, {width: "100px"});
 
-        this.capturePanel.addButton(null, null, (v) => {}, {width: "40px", icon: "fa-solid fa-rotate-left"});
-        this.videoEditor.onSetTime = options.onSetTime;
-        this.videoEditor.onDraw = options.onDraw;
-        this.videoEditor.onVideoLoaded = options.onVideoLoaded;
+        if(this.editor.mode == this.editor.editionModes.CAPTURE) {
+            this.capturePanel.addButton(null, null, (v) => {
+                this.videoEditor.hideControls();
+                this.capturePanel.clear();
+                let videoRec = document.getElementById("recording");
+                videoRec.classList.add("hidden");
+               
+                let btn = this.capturePanel.addButton(null, "Record", () => {}, {id:"capture_btn", width: "100px"});
+
+                this.editor.getApp().onBeginCapture();
+            }, {width: "40px", icon: "fa-solid fa-rotate-left"});
+        }
+        
         callback();
     }
 
     createVideoEditorArea() {
         this.capturePanel.clear();
-        this.captureArea.hide();
-        this.editorArea.show();
+
         this.videoEditor.delete();
-        let video = this.videoEditor.video;
+        let video = document.getElementById("recording");
+        video.classList.remove("hidden");
+        if(!video.width) {
+            let canvas = document.getElementById("outputVideo");
+            video.width = canvas.offsetWidth;
+            video.height = canvas.offsetHeight;
+        }
         let aspectRatio = video.height / video.width;
         video.width = 300;
         video.height = 300 * aspectRatio;
         const width = "300px";
         const height = (300 * aspectRatio) + "px";
-        // videoCanvas.height = 300;
-        // videoCanvas.width = 300 * aspectRatio;
+       
+        this.captureArea.hide();
+        this.editorArea.show();
+       
         const area = new LX.Area({                
             id: "editor-video", draggable: true, resizeable:true, width, height, overlay:"left"
         });
