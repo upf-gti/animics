@@ -161,7 +161,7 @@ canvas {
 	width: 20%;
     left: 40px;
     top: 90px;
-    position: absolute;
+    /* position: absolute; */
     z-index: 9;
     display: flex;
     /* justify-content: flex-end;
@@ -171,12 +171,12 @@ canvas {
     font-family: Verdana;
 }
 
-#recording {
+/* #recording {
 	width: 100%;
 	height: 100%;
 	display: flex; 
 	position: absolute;
-}
+} */
 
 #mainBody {
 	width: 100%;

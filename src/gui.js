@@ -677,7 +677,7 @@ class KeyframesGui extends Gui {
         const [leftArea, rightArea] = this.captureArea.split({sizes:["75%","25%"], minimizable: true});
         
          /* Create video area*/
-        const videoArea = new LX.Area("video-area");
+        const videoArea = new LX.Area("video-area");        
         /* Add video editor with the video into the area*/
         const video = document.createElement("video");
         video.id = "inputVideo";
@@ -697,6 +697,7 @@ class KeyframesGui extends Gui {
         videoCanvas.id = "outputVideo";
         videoCanvas.classList.add("border-animation");
         videoCanvas.style.position = "absolute";
+      
         videoArea.attach(videoCanvas);
   
         // Create input selector widget (webcam or video)
@@ -775,10 +776,8 @@ class KeyframesGui extends Gui {
         this.capturePanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});
         let btn = this.capturePanel.addButton(null, "Record", () => {}, {id:"capture_btn", width: "100px"});
         btn.style.zIndex = 100;
- 
-      //p.addButton(null, null, (v) => {}, {width: "40px", icon: "fa-solid fa-rotate-left"})
-        //capturePanel.addButton(null, "Record", () => VideoUtils.unbind( (start, end) => window.global.app.onVideoTrimmed(start, end)), {id:"capture_btn"});
-         /* Create right panel */
+     
+        /* Create right panel */
         this.bsInspector = new LX.Panel({id:"Properties"});
         this.bsInspector = rightArea.addPanel({id:"Properties"});    
       
@@ -788,8 +787,7 @@ class KeyframesGui extends Gui {
             inspector.addTitle(inspector.root.id);
         }
 
-        // Create expanded AU info area
-    
+        // Create expanded AU info area    
         inspector.addBlank();
         inspector.addTitle("User positioning");
         inspector.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto" }) 
@@ -828,6 +826,7 @@ class KeyframesGui extends Gui {
     } 
 
     createTrimArea(video, canvas, callback, options) {
+
         document.getElementById("select-mode").classList.add("hidden");
         this.videoEditor.onSetTime = options.onSetTime;
         this.videoEditor.onDraw = options.onDraw;
@@ -857,8 +856,9 @@ class KeyframesGui extends Gui {
                 this.editor.getApp().onBeginCapture();
             }, {width: "40px", icon: "fa-solid fa-rotate-left"});
         }
-        
-        callback();
+        if(callback) {
+            callback();
+        }
     }
 
     createVideoEditorArea() {
@@ -882,7 +882,7 @@ class KeyframesGui extends Gui {
         this.editorArea.show();
        
         const area = new LX.Area({                
-            id: "editor-video", draggable: true, resizeable:true, width, height, overlay:"left"
+            id: "editor-video", draggable: true, resizeable:true, width, height, overlay:"left", left: "20px", top: "20px"
         });
         area.attach(video);
         area.root.style.background = "transparent";
@@ -1174,10 +1174,10 @@ class KeyframesGui extends Gui {
         // update blendshape inspector both in capture and edition stages
 
         let {landmarksResults, blendshapesResults} = results;
-        if(isRecording){
-            this.changeCaptureGUIVisivility(true);
-            return;
-        }
+        // if(isRecording){
+        //     this.changeCaptureGUIVisivility(true);
+        //     return;
+        // }
 
         if(landmarksResults) {
             this.bsInspector.get('Distance to the camera').onSetValue( landmarksResults.distanceToCamera ?? 0 );

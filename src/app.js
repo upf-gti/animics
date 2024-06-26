@@ -201,22 +201,28 @@ class App {
         video.onloadedmetadata = ( function (e) {
             // this === videoElement
             let videoCanvas = document.getElementById("outputVideo");
-            
+            video.classList.remove("hidden");
+
             let aspect = this.videoWidth/this.videoHeight;
-
-            let height = 802;
+            
+            // let height = 802;
+            // let width = height*aspect;
+            
+            // videoCanvas.width  = width;
+            // videoCanvas.height = height;
+            
+            let height = video.clientHeight;
             let width = height*aspect;
-
             videoCanvas.width  = width;
             videoCanvas.height = height;
 
             MediaPipe.start( false, () => {
                 // directly to trim stage
+                UTILS.makeLoading("Loading video")
                 that.videoToTrimStage( false, { blendshapesResults:[], landmarksResults:[] } );                
     
             }, that.editor.gui.updateCaptureGUI.bind(that.editor.gui) );
         } ).bind(video);
-
     }
 
     /**
@@ -324,7 +330,7 @@ class App {
             // directly to process stage
             UTILS.makeLoading("Processing video " + (this.videoProcessingCommon.videosProcessed+1) + "/" + this.videoProcessingCommon.videosToProcess.length.toString(), 0.5 )
             this.processVideo( this.videoProcessingCommon.videosToProcess[0], this.videoProcessingCommon.onVideoProcessEndedFn );
-        } );
+        }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui) );
         
     }
 
@@ -539,21 +545,21 @@ class App {
         // Replace GUI to trim interface
         this.editor.gui.createTrimArea(video, canvas, ()=>{
             // (re)start process video online but let VideoUtils manage the render
-            MediaPipe.setOptions( { autoDraw: false } );
+            MediaPipe.setOptions( { autoDraw: true } );
             MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
             MediaPipe.currentVideoProcessing.currentTime = -1;
-            $('#loading').fadeOut();
+            
         }, { 
             onSetTime: (t) => { 
                 this.editor.updateCaptureDataTime(results, t);            
             },
             onDraw: () => {
-                if ( MediaPipe.currentVideoProcessing ) { 
-                    MediaPipe.drawCurrentResults(); 
-                }
+                // if ( MediaPipe.currentVideoProcessing ) { 
+                //     MediaPipe.drawCurrentResults(); 
+                // }
             },
             onVideoLoaded: async (v) => {
-                //await MediaPipe.processFrame(v);
+                $('#loading').fadeOut();
             }
         });
     }
