@@ -201,7 +201,7 @@ class Gizmo {
         this._ikCreateChains( "LeftShoulder", "Spine" );
         this._ikCreateChains( "RightShoulder", "Spine" );
         this._ikCreateChains( "LeftHand", "LeftArm" ); //"LeftShoulder" );
-        this._ikCreateChains( "RightHand", "RigtArm" ); //"RightShoulder" );
+        this._ikCreateChains( "RightHand", "RightArm" ); //"RightShoulder" );
         this._ikCreateChains( "LeftHandThumb4",  "LeftHand");
         this._ikCreateChains( "LeftHandIndex4",  "LeftHand");
         this._ikCreateChains( "LeftHandMiddle4", "LeftHand");

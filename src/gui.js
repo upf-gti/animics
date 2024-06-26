@@ -1655,8 +1655,6 @@ class KeyframesGui extends Gui {
 
                     const _Spaces = [{value: "Local", callback: (v,e) =>  this.editor.setGizmoSpace(v)}, {value: "World", callback: (v,e) =>  this.editor.setGizmoSpace(v)}]
                     widgets.addComboButtons( "Space", _Spaces, { selected: this.editor.getGizmoSpace(), nameWidth: "50%", width: "100%"});
-    
-                    widgets.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
                 }
 
                 if ( this.editor.getGizmoTool() == "Follow" ){
@@ -1675,6 +1673,8 @@ class KeyframesGui extends Gui {
                     widgets.addComboButtons( "Mode", modesValues, {selected: current, nameWidth: "50%", width: "100%"});
                     this.editor.setGizmoIkMode( current );
                 }
+                
+                widgets.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
 
                 widgets.addSeparator();
                 
