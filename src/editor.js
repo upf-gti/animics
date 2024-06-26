@@ -1137,7 +1137,7 @@ class KeyframeEditor extends Editor{
         this.animationInferenceModes = {NN: 0, M3D: 1}; // either use ML or mediapipe 3d approach to generate an animation (see buildanimation and bindanimation)
         this.inferenceMode = new URLSearchParams(window.location.search).get("inference") == "NN" ? this.animationInferenceModes.NN : this.animationInferenceModes.M3D;
 
-        this.defaultTranslationSnapValue = 1;
+        this.defaultTranslationSnapValue = 0.1;
         this.defaultRotationSnapValue = 30; // Degrees
         this.defaultScaleSnapValue = 1;
 

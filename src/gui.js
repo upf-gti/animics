@@ -145,13 +145,19 @@ class Gui {
 
 
         menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
-        if(this.showVideo)
+        if(this.showVideo) {
             menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
                 this.editor.setVideoVisibility( v );
                 this.showVideo = v;
                 // const tl = document.getElementById("capture");
                 // tl.style.display = this.showVideo ? "flex": "none";
             }});
+        }
+        if (this.editor.mode != this.editor.editionModes.SCRIPT){
+            menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
+                this.openSettings("gizmo");
+            }});
+        }
         // menubar.add("View/Show timeline", { type: "checkbox", checked: this.timelineVisible, callback: (v) => {
         //     if(v)
         //         this.showTimeline();
@@ -497,7 +503,7 @@ class Gui {
         if(prevDialog) prevDialog.remove();
         
         const dialog = new LX.Dialog(UTILS.firstToUpperCase(settings), p => {
-            if(settings == 'gizmo' && editor.mode != editor.editionModes.SCRIPT) {
+            if(settings == 'gizmo' && this.editor.mode != this.editor.editionModes.SCRIPT) {
                 this.editor.gizmo.showOptions( p );
             }
         }, { id: 'settings-dialog', close: true, width: 380, height: 210, scroll: false, draggable: true});
@@ -1560,7 +1566,6 @@ class KeyframesGui extends Gui {
 
             if(boneSelected) {
 
-     
                 const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
                 
                 let trackType = this.editor.getGizmoMode();
