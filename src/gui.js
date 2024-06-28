@@ -5,6 +5,7 @@ import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
 import 'lexgui/components/timeline.js';
 import { VideoEditor } from 'lexgui/components/videoeditor.js';
+import { MediaPipe } from "./mediapipe.js";
 
 class Gui {
 
@@ -630,6 +631,10 @@ class KeyframesGui extends Gui {
         this.showVideo = false;
         this.skeletonScroll = 0;
 
+        this.inputVideo = null;
+        this.recordedVideo = null;
+        this.canvasVideo = null;
+
         this.captureMode = editor.mode;
 
         this.faceAreas = {
@@ -679,21 +684,22 @@ class KeyframesGui extends Gui {
          /* Create video area*/
         const videoArea = new LX.Area("video-area");        
         /* Add video editor with the video into the area*/
-        const video = document.createElement("video");
+        const video = this.inputVideo = document.createElement("video");
         video.id = "inputVideo";
         video.classList.add("hidden");
         video.muted = true;
         videoArea.attach(video);
 
         /* Add the recording video in back in the area (hidden) */
-        let videoRecording = document.createElement("video");
+        let videoRecording = this.recordedVideo = document.createElement("video");
         videoRecording.id = "recording";
         videoRecording.classList.add("hidden");
         videoRecording.muted = true;
+        videoRecording.style.position = "absolute";
         videoArea.attach(videoRecording);
         
         /* Add the canvas where the Mediapipe results will be drawn*/
-        const videoCanvas = document.createElement("canvas");
+        const videoCanvas = this.canvasVideo = document.createElement("canvas");
         videoCanvas.id = "outputVideo";
         videoCanvas.classList.add("border-animation");
         videoCanvas.style.position = "absolute";
@@ -702,7 +708,7 @@ class KeyframesGui extends Gui {
   
         // Create input selector widget (webcam or video)
         let [topArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
-        
+    
         let selectContainer = topArea.addPanel({id:"select-mode", height: "80px", weight: "50%"})
 
         selectContainer.sameLine();
@@ -711,6 +717,7 @@ class KeyframesGui extends Gui {
         selectContainer.addComboButtons("Input:", [
             {
                 value: 'webcam',
+                id: 'webcam-input',
                 callback: (value, event) => {
                     this.editor.mode = this.editor.editionModes.CAPTURE;
                     let inputEl = input.domEl.getElementsByTagName("input")[0];
@@ -720,6 +727,7 @@ class KeyframesGui extends Gui {
                 }
             }, {
                 value: 'video',
+                id: 'video-input',
                 callback: (value, event) => {
                     let inputEl = input.domEl.getElementsByTagName("input")[0];
                     input.domEl.classList.remove("hidden");
@@ -731,13 +739,19 @@ class KeyframesGui extends Gui {
         ], {selected: selected, width: "180px"});
 
         let input = selectContainer.addFile( "File:", (value, event) => {
+
+            if(!value) { // user cancel import file
+                document.getElementById("webcam-input").click();;
+                return;
+            }
+
             if(!value.type.includes("video")) {
                 LX.message("Format not accepted");
                 return;
             }
 
             // delete camera stream 
-            let inputVideo = document.getElementById("inputVideo");
+            let inputVideo = this.inputVideo;
             inputVideo.pause();
             if( inputVideo.srcObject ){ inputVideo.srcObject.getTracks().forEach(a => a.stop()); }
             inputVideo.srcObject = null;
@@ -772,10 +786,33 @@ class KeyframesGui extends Gui {
 
         this.videoEditor = new LX.VideoEditor(topArea, {videoArea, video})
         this.videoEditor.hideControls();
+        this.videoEditor.onResize = (size) => {
+            let width = size[0];
+            let height = size[1];
+            let aspectRatio = videoCanvas.height / videoCanvas.width;
+            if(width != videoCanvas.width) {
+                height = size[0] * aspectRatio;
+                if(height > size[1])  {
+                    height = size[1];
+                    width = height / aspectRatio;
+                }
+            }
+            else if (height != videoCanvas.height) {
+                width = size[1] / aspectRatio;
+                if(width > size[0])  {
+                    width = size[0];
+                    height = width * aspectRatio;
+                }
+            }
+            videoCanvas.width  =  videoRecording.width = width;
+            videoCanvas.height =  videoRecording.height = height;
+            videoRecording.style.width = width + "px";
+            videoRecording.style.height = height + "px";
+
+            MediaPipe.processFrame(videoRecording);
+        }
         // Capture panel buttons
-        this.capturePanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});
-        let btn = this.capturePanel.addButton(null, "Record", () => {}, {id:"capture_btn", width: "100px"});
-        btn.style.zIndex = 100;
+        this.capturePanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});        
      
         /* Create right panel */
         this.bsInspector = new LX.Panel({id:"Properties"});
@@ -803,6 +840,29 @@ class KeyframesGui extends Gui {
         inspector.root.style.flexWrap = "wrap";
         
         this.mainArea.sections[1].attach(this.captureArea);
+    }
+
+    startCaptureButtons( callback ) {
+        this.capturePanel.clear();
+        let btn = this.capturePanel.addButton(null, "Record", callback, {id:"start_capture_btn", width: "100px"});
+        btn.style.zIndex = 100;
+        
+        // Adjust video canvas
+        let captureDiv = document.getElementById("capture");
+        $(captureDiv).removeClass("hidden");
+        
+        let videoCanvas = this.canvasVideo;
+        videoCanvas.classList.remove("active");
+        
+        document.getElementById("select-mode").innerHTML = ""; // remove upper menu to select cam or video inputs
+    }
+
+    stopCaptureButtons( callback ) {
+        this.capturePanel.clear();
+        let videoCanvas = this.canvasVideo;
+        videoCanvas.classList.add("active");
+        let btn = this.capturePanel.addButton(null, "Stop", callback, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-stop"});
+        btn.style.zIndex = 100;
     }
 
     createBlendShapesInspector(bsNames, options = {}) {
@@ -836,6 +896,10 @@ class KeyframesGui extends Gui {
         this.videoEditor.showControls();
         this.videoEditor._loadVideo();
         this.capturePanel.clear();
+        
+        this.recordedVideo.style.width = this.canvasVideo.width + "px";
+        this.recordedVideo.style.height = this.canvasVideo.height + "px";
+
         this.capturePanel.addButton(null, "Trim", (v) => {
             const {start, end} = this.videoEditor.getTrimedTimes();
             window.global.app.onVideoTrimmed(start, end)
@@ -847,12 +911,9 @@ class KeyframesGui extends Gui {
         if(this.editor.mode == this.editor.editionModes.CAPTURE) {
             this.capturePanel.addButton(null, null, (v) => {
                 this.videoEditor.hideControls();
-                this.capturePanel.clear();
-                let videoRec = document.getElementById("recording");
+                let videoRec = this.recordedVideo;
                 videoRec.classList.add("hidden");
                
-                let btn = this.capturePanel.addButton(null, "Record", () => {}, {id:"capture_btn", width: "100px"});
-
                 this.editor.getApp().onBeginCapture();
             }, {width: "40px", icon: "fa-solid fa-rotate-left"});
         }
@@ -865,10 +926,11 @@ class KeyframesGui extends Gui {
         this.capturePanel.clear();
 
         this.videoEditor.delete();
-        let video = document.getElementById("recording");
+        this.videoEditor.onResize = null;
+        let video = this.recordedVideo;
         video.classList.remove("hidden");
         if(!video.width) {
-            let canvas = document.getElementById("outputVideo");
+            let canvas = this.canvasVideo;
             video.width = canvas.offsetWidth;
             video.height = canvas.offsetHeight;
         }
@@ -1140,7 +1202,7 @@ class KeyframesGui extends Gui {
         // Reposition video the canvas elements
         // let videoDiv = document.getElementById("capture");
         // videoDiv.classList.remove("expanded");
-        let videoRec = document.getElementById("recording");
+        let videoRec = this.recordedVideo;
         videoRec.classList.remove("hidden");
         videoRec.style.width = "100%";
         videoRec.style.height = "100%";
@@ -1150,7 +1212,7 @@ class KeyframesGui extends Gui {
         -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
         -moz-transform:rotateY(0deg); /* Firefox */"
     
-        let videoCanvas = document.getElementById("outputVideo");
+        let videoCanvas = this.canvasVideo;
         videoCanvas.classList.remove("border-animation");
         
         // Resize and solve the aspect ratio problem of the video

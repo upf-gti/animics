@@ -1156,7 +1156,7 @@ class KeyframeEditor extends Editor{
         this.mapNames = MapNames.map_llnames[this.character];
         this.gui = new KeyframesGui(this);
 
-        this.video = document.getElementById("recording");
+        this.video = this.gui.recordedVideo;
         this.video.startTime = 0;
         this.animationModes = {FACE: 0, BODY: 1};
         this.animationMode = this.animationModes.BODY;

@@ -94,6 +94,8 @@ const MediaPipe = {
         if ( this.onload ){ this.onload(); }
         
         window.mediapipe = this;
+        
+        $('#loading').fadeOut();
     },
 
     setOptions( o ){
@@ -314,6 +316,9 @@ const MediaPipe = {
                 this.currentVideoProcessing.currentTime = videoElement.currentTime;
                 await this.processFrame( videoElement ); 
             } 
+            else {
+                this.drawCurrentResults();
+            }
         }
 
         let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
