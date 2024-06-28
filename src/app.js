@@ -96,7 +96,7 @@ class App {
                 } ).bind(videoElement);
                 
                 // setup mediarecorder but do not start it yet (setEvents deals with starting/stopping the recording)
-                that.mediaRecorder = new MediaRecorder(videoElement.srcObject);
+                that.mediaRecorder = new MediaRecorder(videoElement.srcObject, {mimeType: 'video/webm'});
                 that.chunks = [];
                 
                 that.mediaRecorder.ondataavailable = function (e) {
@@ -109,11 +109,11 @@ class App {
                     video.controls = false;
                     video.loop = true;
                     
-                    let blob = new Blob(that.chunks, { "type": "video/mp4; codecs=avc1" });
+                    let blob = new Blob(that.chunks, { "type": "video/webm" });
                     let videoURL = URL.createObjectURL(blob);
                     video.src = videoURL;
                     video.autoplay = true;
-                    video.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".mp4";
+                    video.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".webm";
 
                     videoCanvas.classList.remove("active");  
                                 

@@ -413,11 +413,16 @@ class Editor {
     }
 
     setPlaybackRate(v){
-        v = Math.min( 16, Math.max( 0.1, v ) );
-        this.currentCharacter.mixer.timeScale = v;
-        if(this.mode != this.editionModes.SCRIPT && this.video) {
-            this.video.playbackRate = v; 
+        if(this.mode == this.editionModes.SCRIPT){
+            v = Math.max( 0.0001, v );
         }
+        else{
+            v = Math.min( 16, Math.max( 0.1, v ) );
+            if(this.video) {
+                this.video.playbackRate = v; 
+            }
+        }
+        this.currentCharacter.mixer.timeScale = v;
     }
 
     /** -------------------- UPDATES, RENDER AND EVENTS -------------------- */
@@ -674,17 +679,20 @@ class Editor {
      */
     setAnimation(type) {
 
-        let currentTime = 0;
-        if(this.activeTimeline && this.animationMode != type) {
-            this.activeTimeline.hide();
-            currentTime = this.activeTimeline.currentTime;
-        }
-        
+
+        let currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
+
         if(this.mode == this.editionModes.SCRIPT) {
             this.activeTimeline = this.gui.clipsTimeline;
             this.activeTimeline.show();
         }
         else {
+            currentTime = 0;
+            if(this.activeTimeline && this.animationMode != type) {
+                this.activeTimeline.hide();
+                currentTime = this.activeTimeline.currentTime;
+            }
+
             switch(type) {
                 case this.animationModes.FACE:
                     this.animationMode = this.animationModes.FACE;
