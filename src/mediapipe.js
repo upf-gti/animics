@@ -346,6 +346,13 @@ const MediaPipe = {
         this.live = live;
         this.stopVideoProcessing(); // stop previous video processing, if any
 
+        // Hacky solution for video duration bug. Some videos do not have duration in metadata and browser has to discover it while playing/decoding the video
+        // If it enters, there will probably be issues with the currentTime vs frame shown
+        while( videoElement.duration === Infinity ) {
+            videoElement.currentTime = 100000 * Math.random();
+            await new Promise(r => setTimeout(r, 100)); 
+        }
+
         videoElement.pause();
         startTime = Math.max( Math.min( videoElement.duration, startTime ), 0 );
         if ( endTime < -0.001 ){ 

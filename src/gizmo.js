@@ -439,7 +439,7 @@ class Gizmo {
                     break;
 
                 case 'z':
-                    if(e.ctrlKey && this.editor.mode == this.editor.eModes.MF){
+                    if(e.ctrlKey && this.editor.mode != this.editor.editionModes.SCRIPT){
 
                         if(!this.undoSteps.length)
                             return;
@@ -454,6 +454,7 @@ class Gizmo {
                         if ( this.toolSelected == Gizmo.Tools.ik ){ // reset target position
                             this.ikSetTargetToBone( );
                         }
+                        this.updateTracks(); // commit results into timeline
                     }
                     else{
                         transform.showZ = ! transform.showZ;
@@ -515,10 +516,12 @@ class Gizmo {
 
         let vertices = [];
 
+        this.skeleton.bones[0].updateWorldMatrix(true, true); // update every bone's world matrix just once
+
         for(let bone of this.skeleton.bones) {
-            let tempVec = new THREE.Vector3();
-            bone.getWorldPosition(tempVec);
-            vertices.push( tempVec );
+            let wpos = new THREE.Vector3();
+            wpos.setFromMatrixPosition( bone.matrixWorld );
+            vertices.push( wpos );
         }
 
         this.bonePoints.geometry.setFromPoints(vertices);
@@ -705,18 +708,18 @@ class Gizmo {
         inspector.addNumber( "Translation snap", this.editor.defaultTranslationSnapValue, (v) => {
             this.editor.defaultTranslationSnapValue = v;
             this.editor.updateGizmoSnap();
-        }, { min: 0.5, max: 5, step: 0.5});
+        }, { min: 0, max: 5, step: 0.01});
         inspector.addNumber( "Rotation snap", this.editor.defaultRotationSnapValue, (v) => {
             this.editor.defaultRotationSnapValue = v;
             this.editor.updateGizmoSnap();
-        }, { min: 15, max: 180, step: 15});
+        }, { min: 0, max: 180, step: 0.1});
         inspector.addNumber( "Size", this.editor.getGizmoSize(), (v) => {
             this.editor.setGizmoSize(v);
         }, { min: 0.2, max: 2, step: 0.1});
         inspector.addTitle("Bone markers")
         inspector.addNumber( "Size", this.editor.getBoneSize(), (v) => {
             this.editor.setBoneSize(v);
-        }, { min: 0.01, max: 1, step: 0.01});
+        }, { min: 0.01, max: 2, step: 0.01 });
 
         const depthTestEnabled = this.bonePoints.material.depthTest;
         inspector.addCheckbox( "Depth test", depthTestEnabled, (v) => { this.bonePoints.material.depthTest = v; })

@@ -131,13 +131,19 @@ class Gui {
 
 
         menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
-        if(this.showVideo)
+        if(this.showVideo) {
             menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
                 this.editor.setVideoVisibility( v );
                 this.showVideo = v;
                 // const tl = document.getElementById("capture");
                 // tl.style.display = this.showVideo ? "flex": "none";
             }});
+        }
+        if (this.editor.mode != this.editor.editionModes.SCRIPT){
+            menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
+                this.openSettings("gizmo");
+            }});
+        }
         // menubar.add("View/Show timeline", { type: "checkbox", checked: this.timelineVisible, callback: (v) => {
         //     if(v)
         //         this.showTimeline();
@@ -483,7 +489,7 @@ class Gui {
         if(prevDialog) prevDialog.remove();
         
         const dialog = new LX.Dialog(UTILS.firstToUpperCase(settings), p => {
-            if(settings == 'gizmo' && editor.mode != editor.editionModes.SCRIPT) {
+            if(settings == 'gizmo' && this.editor.mode != this.editor.editionModes.SCRIPT) {
                 this.editor.gizmo.showOptions( p );
             }
         }, { id: 'settings-dialog', close: true, width: 380, height: 210, scroll: false, draggable: true});
@@ -1706,7 +1712,6 @@ class KeyframesGui extends Gui {
 
             if(boneSelected) {
 
-     
                 const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
                 
                 let trackType = this.editor.getGizmoMode();
@@ -1918,6 +1923,7 @@ class ScriptGui extends Gui {
             }
         });
         this.clipsTimeline.setFramerate(30);
+        this.clipsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t);
         this.clipsTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
@@ -2287,9 +2293,9 @@ class ScriptGui extends Gui {
             widgets.clear();
             widgets.addTitle("Animation");
             widgets.addText("Name", this.editor.clipName || "", (v) => this.editor.clipName = v)
-            widgets.addNumber("Speed", this.editor.currentCharacter.mixer.timeScale, v => {
-                this.editor.currentCharacter.mixer.timeScale = v;
-            }, {min: 0.25, max: 1.5, step: 0.05, precision: 2});
+            // widgets.addNumber("Speed", this.editor.currentCharacter.mixer.timeScale, v => {
+            //     this.editor.currentCharacter.mixer.timeScale = v;
+            // }, {min: 0.25, max: 1.5, step: 0.05, precision: 2});
             widgets.addSeparator();
             widgets.addComboButtons("Dominant hand", [{value: "Left", callback: (v) => this.editor.dominantHand = v}, {value:"Right", callback: (v) => this.editor.dominantHand = v}], {selected: this.editor.dominantHand})
             widgets.addButton(null, "Add clip", () => this.createClipsDialog(), {title: "CTRL+K"} )
