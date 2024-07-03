@@ -6,7 +6,7 @@ This web application estimates computer animations from a single-camera input vi
 
 The first view of the application is a selector of the provided input. It supports pre-recorded videos or the video stream from the webcam. It can also load previously created animations for editing purposes.
 
-<p align="center"> <img src="./docs/inputSelector.png" width="500"> </p>
+<p align="center"> <img src="./docs/inputSelector.png" width="800"> </p>
 
 Loading a video or capturing it live through the webcam redirects the user to the video editing stage. Here the resulting video can be trimmed if desired and/or redo the video by recording it again or uploading a new one. Once the user is fine with the result, the option "Convert Data to 3D Animation" moves the application to the last view.
 
