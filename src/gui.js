@@ -441,16 +441,18 @@ class Gui {
                             editor.gizmo.stop();
                         }
                         this.hideTimeline();
-                        this.mainArea.extend();
+                        this.sidePanel.parentArea.extend();  
+                        if(editor.mode != editor.editionModes.SCRIPT) {
+                            this.recordedVideo.hidden = true;
+                        }
 
                     } else {
                         this.showTimeline();
-                        this.mainArea.reduce();
-                    }
-                    
-                    
-                    const video = document.getElementById("capture");
-                    video.style.display = editor.showGUI ? "flex" : "none";
+                        this.sidePanel.parentArea.reduce();  
+                        if(editor.mode != editor.editionModes.SCRIPT) {
+                            this.recordedVideo.hidden = false;
+                        }
+                    }                  
                 }
             },
     
@@ -3659,8 +3661,8 @@ class ScriptGui extends Gui {
 
                     }
                     
-                    const video = document.getElementById("capture");
-                    video.style.display = editor.showGUI ? "flex" : "none";
+                    // const video = document.getElementById("capture");
+                    // video.style.display = editor.showGUI ? "flex" : "none";
                 }
             },
     
