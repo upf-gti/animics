@@ -746,6 +746,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             if(overlay)
             {
                 this.root.classList.add("overlay-" + overlay);
+                
+                if( options.draggable )
+                    makeDraggable( root );
+
+                if( options.resizeable ) {
+                    root.classList.add("resizeable");
+                }
 
                 if(options.resize)
                 {                  
@@ -2611,7 +2618,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             node.visible = node.visible ?? true;
             node.parent = parent;
             let is_parent = node.children.length > 0;
-            let is_selected = this.selected.indexOf( node ) > -1;
+            let is_selected = this.selected.indexOf( node ) > -1 || node.selected;
             
             if( this.options.only_folders ) {
                 let has_folders = false;
@@ -3231,6 +3238,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 {
                     let domName = document.createElement('div');
                     domName.className = "lexwidgetname";
+                    if( options.justifyName )
+                    {
+                        domName.classList.add( "float-" + options.justifyName );
+                    }
                     domName.innerHTML = name || "";
                     domName.title = options.title ?? domName.innerHTML;
                     domName.style.width = options.nameWidth || LX.DEFAULT_NAME_WIDTH;
@@ -3536,9 +3547,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          * placeholder: Add input placeholder
          * trigger: Choose onchange trigger (default, input) [default]
          * inputWidth: Width of the text input
-         * float: Justify text
          * skipReset: Don't add the reset value button when value changes
-         */
+         * float: Justify input text content
+         * justifyName: Justify name content
+        */
 
         addText( name, value, callback, options = {} ) {
 
@@ -6750,7 +6762,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         constructor( options = {} ) {
 
             this.rootPath = "https://raw.githubusercontent.com/jxarco/lexgui.js/master/";
-            this.layout = AssetView.LAYOUT_CONTENT;
+            this.layout = options.layout ?? AssetView.LAYOUT_CONTENT;
             this.contentPage = 1;
 
             if(options.root_path)

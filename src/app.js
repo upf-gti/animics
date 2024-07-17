@@ -67,17 +67,20 @@ class App {
         } 
         
         let that = this;
-                
+
         // prepare the device to capture the video
         if (navigator.mediaDevices) {
             console.log("UserMedia supported");
-                    
+            UTILS.makeLoading("Loading webcam...");
+
             let constraints = { "video": true, "audio": false, width: 1280, height: 720 };
             navigator.mediaDevices.getUserMedia(constraints)
             .then( (stream) => {
 
-                let videoElement = document.getElementById("inputVideo"); // this video will hold the camera stream
-                let videoCanvas = document.getElementById("outputVideo"); // this canvas will output image, landmarks (and edges)
+                let that = this;
+                let videoElement = this.editor.gui.inputVideo; // this video will hold the camera stream
+                let videoCanvas = this.editor.gui.canvasVideo; // this canvas will output image, landmarks (and edges)
+                let videoRecording = this.editor.gui.recordedVideo;
 
                 if(!videoElement.srcObject){ videoElement.srcObject = stream; }
 
@@ -88,15 +91,16 @@ class App {
                     
                     let aspect = this.videoWidth/this.videoHeight;
                     
-                    let height = 802;
-                    let width = height*aspect;
+                    let height = videoElement.parentElement.clientHeight;
+                    let width = height * aspect;
+                    videoCanvas.width  =  videoRecording.style.width = width;
+                    videoCanvas.height =  videoRecording.style.height = height;
                     
-                    videoCanvas.width  = width;
-                    videoCanvas.height = height;
+                    $('#loading').fadeOut();
                 } ).bind(videoElement);
                 
                 // setup mediarecorder but do not start it yet (setEvents deals with starting/stopping the recording)
-                that.mediaRecorder = new MediaRecorder(videoElement.srcObject);
+                that.mediaRecorder = new MediaRecorder(videoElement.srcObject, {mimeType: 'video/webm'});
                 that.chunks = [];
                 
                 that.mediaRecorder.ondataavailable = function (e) {
@@ -105,20 +109,19 @@ class App {
 
                 that.mediaRecorder.onstop = function (e) {
 
-                    let video = document.getElementById("recording");
+                    let video = that.editor.gui.recordedVideo;
                     video.controls = false;
                     video.loop = true;
                     
-                    let blob = new Blob(that.chunks, { "type": "video/mp4; codecs=avc1" });
+                    let blob = new Blob(that.chunks, { "type": "video/webm" });
                     let videoURL = URL.createObjectURL(blob);
                     video.src = videoURL;
-                    video.autoplay = true;
-                    video.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".mp4";
+                    video.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".webm";
 
                     videoCanvas.classList.remove("active");  
                                 
                     // destroys inputVideo camera stream, if any
-                    let inputVideo = document.getElementById("inputVideo");
+                    let inputVideo = that.editor.gui.inputVideo;
                     inputVideo.pause();
                     if( inputVideo.srcObject ){ inputVideo.srcObject.getTracks().forEach(a => a.stop()); }
                     inputVideo.srcObject = null;
@@ -139,38 +142,53 @@ class App {
     
         // Run mediapipe to extract landmarks. Not recording yet, but providing feedback to the user
         MediaPipe.start( true, () => {
-            // Adjust video canvas
-            let captureDiv = document.getElementById("capture");
-            $(captureDiv).removeClass("hidden");
-            let videoCanvas = document.getElementById("outputVideo");
-            
-            // configurate buttons
-            let capture = document.getElementById("capture_btn");
-            capture.onclick = () => {
-                
+
+            this.editor.gui.startCaptureButtons(() => {
                 if (!this.recording) { // start video recording
                     
                     this.recording = true;
 
-                    capture.innerHTML = " <i class='fa fa-stop' style= 'margin:5px; font-size:initial;'></i>"//"Stop" + " <i class='bi bi-stop-fill'></i>"
-                    document.getElementById("select-mode").innerHTML = ""; // remove upper menu to select cam or video inputs
-                    capture.classList.add("stop");
-                    videoCanvas.classList.add("active");
-
                     if(this.mediaRecorder){ this.mediaRecorder.start(); }
                     console.log("Started recording");
-                }
-                else { // stop video recording
+                    this.editor.gui.stopCaptureButtons(() => {
+                        this.recording = false;
+                        MediaPipe.stopVideoProcessing();
+                        if(this.mediaRecorder){ this.mediaRecorder.stop(); }
+                    })
+                }               
+            })
+            // // Adjust video canvas
+            // let captureDiv = document.getElementById("capture");
+            // $(captureDiv).removeClass("hidden");
+            // let videoCanvas = this.editor.gui.canvasVideo;
+            
+            // // configurate buttons
+            // let capture = document.getElementById("capture_btn");
+            // capture.onclick = () => {
+                
+            //     if (!this.recording) { // start video recording
                     
-                    this.recording = false;
-                    MediaPipe.stopVideoProcessing();
-                    if(this.mediaRecorder){ this.mediaRecorder.stop(); }
-                                        
-                }
-            };  
+            //         this.recording = true;
 
-            MediaPipe.processVideoOnline( document.getElementById("inputVideo"), this.editor.mode == this.editor.editionModes.CAPTURE );
-            $('#loading').fadeOut();
+            //         capture.innerHTML = " <i class='fa fa-stop' style= 'margin:5px; font-size:initial;'></i>"//"Stop" + " <i class='bi bi-stop-fill'></i>"
+            //         document.getElementById("select-mode").innerHTML = ""; // remove upper menu to select cam or video inputs
+            //         capture.classList.add("stop");
+            //         videoCanvas.classList.add("active");
+
+            //         if(this.mediaRecorder){ this.mediaRecorder.start(); }
+            //         console.log("Started recording");
+            //     }
+            //     else { // stop video recording
+                    
+            //         this.recording = false;
+            //         MediaPipe.stopVideoProcessing();
+            //         if(this.mediaRecorder){ this.mediaRecorder.stop(); }
+                                        
+            //     }
+            // };  
+
+            MediaPipe.processVideoOnline( this.editor.gui.inputVideo, this.editor.mode == this.editor.editionModes.CAPTURE );
+           
             
         }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui));
 
@@ -180,6 +198,7 @@ class App {
         if ( !videoFile ){ 
             return; 
         }
+        UTILS.makeLoading("Loading video...");
 
         let url = "";
         if(typeof(videoFile) == 'string' && videoFile.includes("blob:"))
@@ -187,9 +206,9 @@ class App {
         else
             url = URL.createObjectURL(videoFile);
 
-        // let videoElement = document.getElementById("inputVideo");
+        // let videoElement = this.editor;
         // videoElement.src = url;
-        let video = document.getElementById("recording");
+        let video = this.editor.gui.recordedVideo;
         video.src = url; 
         video.muted = true;
 
@@ -200,24 +219,31 @@ class App {
         let that = this;
         video.onloadedmetadata = ( function (e) {
             // this === videoElement
-            let videoCanvas = document.getElementById("outputVideo");
-            
+            let videoCanvas = that.editor.gui.canvasVideo;
+            video.classList.remove("hidden");
+
             let aspect = this.videoWidth/this.videoHeight;
-
-            let height = 802;
+            
+            // let height = 802;
+            // let width = height*aspect;
+            
+            // videoCanvas.width  = width;
+            // videoCanvas.height = height;
+            
+            let height = video.parentElement.clientHeight;
             let width = height*aspect;
-
             videoCanvas.width  = width;
             videoCanvas.height = height;
 
+            video.style.width = width + "px";
+            video.style.height = height + "px";
+
             MediaPipe.start( false, () => {
                 // directly to trim stage
-                that.videoToTrimStage( false, { blendshapesResults:[], landmarksResults:[] } );
-                $('#loading').fadeOut();
+                that.videoToTrimStage( false, { blendshapesResults:[], landmarksResults:[] } );                
     
             }, that.editor.gui.updateCaptureGUI.bind(that.editor.gui) );
         } ).bind(video);
-
     }
 
     /**
@@ -259,35 +285,11 @@ class App {
         }
 
         // ------------- Show only the "processing video" elements -------------
-        // Hide trim stage buttons
-        let trimBtn = document.getElementById("trim_btn");
-        trimBtn.classList.add("hidden");
-        let redoBtn = document.getElementById("redo_btn");
-        redoBtn.classList.add("hidden");
- 
-        let captureDiv = document.getElementById("capture");
-        $(captureDiv).removeClass("hidden");
-        document.getElementById("select-mode").innerHTML = "";
 
-        let canvas = document.getElementById("outputVideo");
-        let video = document.getElementById("recording");
-        video.classList.remove("hidden");
-        video.style.width = canvas.offsetWidth + "px";
-        video.style.height = canvas.offsetHeight + "px";
-        video.width = canvas.offsetWidth;
-        video.height = canvas.offsetHeight;
-
-        // Hide capture buttons
+        // // Hide capture buttons
         document.getElementById("select-mode").innerHTML = "";
-        let capture = document.getElementById("capture_btn");
-        capture.style.display = "none";
-        capture.disabled = true;
-        capture.classList.remove("stop");
-        
-        video.style.cssText+= "transform: rotateY(0deg);\
-                    -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-                    -moz-transform:rotateY(0deg); /* Firefox */";
-        // ---------------------------------------------
+        // let capture = document.getElementById("capture_btn");
+        // capture.style.display = "none";
        
         if ( !this.videoProcessingCommon.videosToProcess.length ){
             let name = "NewAnimation_" + Math.floor(performance.now()).toString();
@@ -301,7 +303,7 @@ class App {
 
             this.editor.buildAnimation( common.videosToProcess[common.videosProcessed] );
             common.videosProcessed++;
-            if ( common.videosProcessed >= common.videosToProcess.length ){
+            if ( common.videosProcessed >= common.videosToProcess.length ) {
                 let a = Object.keys( this.editor.loadedAnimations );
                 // Creates the scene and loads the animation. Changes ui to edition
 
@@ -314,7 +316,8 @@ class App {
                 }
                 this.editor.bindAnimationToCharacter( name );
                 this.editor.startEdition();
-            }else{
+            }
+            else {
                 UTILS.makeLoading("Processing video " + (this.videoProcessingCommon.videosProcessed +1) + "/" + this.videoProcessingCommon.videosToProcess.length.toString(), 0.5 )
                 this.processVideo( common.videosToProcess[common.videosProcessed], common.onVideoProcessEndedFn )
             }
@@ -325,15 +328,15 @@ class App {
             // directly to process stage
             UTILS.makeLoading("Processing video " + (this.videoProcessingCommon.videosProcessed+1) + "/" + this.videoProcessingCommon.videosToProcess.length.toString(), 0.5 )
             this.processVideo( this.videoProcessingCommon.videosToProcess[0], this.videoProcessingCommon.onVideoProcessEndedFn );
-        } );
+        }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui) );
         
     }
 
     // after video has been trimmed by VideoUtils and has been unbinded
     onVideoTrimmed(startTime, endTime){
         const videoObj = {
-            name: document.getElementById("recording").name,
-            videoBlob: document.getElementById("recording").src,
+            name: this.editor.gui.recordedVideo.name,
+            videoBlob: this.editor.gui.recordedVideo.src,
             startTime: startTime,
             endTime: endTime,
             dt: 1/25,
@@ -342,11 +345,6 @@ class App {
             live: this.editor.mode == this.editor.editionModes.CAPTURE
         }
 
-        // Hide trim stage buttons
-        let trimBtn = document.getElementById("trim_btn");
-        trimBtn.classList.add("hidden");
-        let redoBtn = document.getElementById("redo_btn");
-        redoBtn.classList.add("hidden");
 
         UTILS.makeLoading("Processing video", 0.5 )
         this.processVideo( videoObj, () =>{
@@ -362,31 +360,36 @@ class App {
      * @param {*} onEnded 
      */
     processVideo( videoObj, onEnded = null ){        
-        let domVideo = document.getElementById("recording");
+        let domVideo = this.editor.gui.recordedVideo;
+        let that = this;
         domVideo.onloadedmetadata = ( function (e) {
             // this === videoElement
-            let videoCanvas = document.getElementById("outputVideo");
+            let videoCanvas = that.editor.gui.canvasVideo;
             
             let aspect = this.videoWidth/this.videoHeight;
 
-            let height = 802;
-            let width = height*aspect;
-
+                    
+            let height = domVideo.parentElement.clientHeight;
+            let width = height * aspect;
             videoCanvas.width  = width;
             videoCanvas.height = height;
+
+            domVideo.style.width  = width + "px";
+            domVideo.style.height = height + "px";
+            
         } ).bind(domVideo); 
 
         domVideo.onloadeddata = ( (videoObj, onEnded) =>{
             videoObj.endTime = videoObj.endTime < -0.001 ? domVideo.duration : videoObj.endTime;
             // stops any processVideoOnline (and offline) and starts processing video with these parameters
             MediaPipe.setOptions( { autoDraw: true } );
-            MediaPipe.processVideoOffline( document.getElementById("recording"), videoObj.startTime, videoObj.endTime, videoObj.dt, () =>{
+            MediaPipe.processVideoOffline( this.editor.gui.recordedVideo, videoObj.startTime, videoObj.endTime, videoObj.dt, () =>{
                 videoObj.landmarks = MediaPipe.landmarks;
                 videoObj.blendshapes = MediaPipe.blendshapes;
     
-                document.getElementById("inputVideo").onloadedmetadata = null;
+                this.editor.gui.inputVideo.onloadedmetadata = null;
                 
-                let videoRecording = document.getElementById("recording");
+                let videoRecording = this.editor.gui.recordedVideo;
                 // undo any mirroring of the video
                 videoRecording.style.cssText+= "transform: rotateY(0deg);\
                 -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
@@ -454,7 +457,6 @@ class App {
             this.editor.bindAnimationToCharacter(this.filesData[0].name)
         }
         this.editor.startEdition(!this.filesData.length);
-
     }
 
     
@@ -524,47 +526,44 @@ class App {
         let captureDiv = document.getElementById("capture");
         $(captureDiv).removeClass("hidden");
 
-        let canvas = document.getElementById("outputVideo");
-        let video = document.getElementById("recording");
+        let canvas = this.editor.gui.canvasVideo;
+        let video = this.editor.gui.recordedVideo;
         video.classList.remove("hidden");
-        video.style.width = canvas.offsetWidth + "px";
-        video.style.height = canvas.offsetHeight + "px";
-        video.width = canvas.offsetWidth;
-        video.height = canvas.offsetHeight;
-        video.play();
-        if(live){
+        // video.style.width = canvas.offsetWidth + "px";
+        // video.style.height = canvas.offsetHeight + "px";
+        // video.width = canvas.offsetWidth;
+        // video.height = canvas.offsetHeight;
+       
+        if(live) {
             video.style.cssText+= "transform: rotateY(180deg);\
                             -webkit-transform:rotateY(180deg); /* Safari and Chrome */\
                             -moz-transform:rotateY(180deg); /* Firefox */"
-        }else{
+        }
+        else{
             video.style.cssText+= "transform: rotateY(0deg);\
                             -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
                             -moz-transform:rotateY(0deg); /* Firefox */"
         }
-
-        // Hide capture buttons
-        document.getElementById("select-mode").innerHTML = "";
-        let capture = document.getElementById("capture_btn");
-        capture.style.display = "none";
-        capture.disabled = true;
-        capture.classList.remove("stop");
-    
-        // draw mediapipe results with trimming buttons on top.
-        await VideoUtils.bind(video, canvas, ()=>{
+        
+        // Replace GUI to trim interface
+        this.editor.gui.createTrimArea(video, canvas, ()=>{
             // (re)start process video online but let VideoUtils manage the render
-            MediaPipe.setOptions( { autoDraw: false } );
+            MediaPipe.setOptions( { autoDraw: true } );
             MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
-
-            // Show trim stage buttons
-            let trimBtn = document.getElementById("trim_btn");
-            trimBtn.style.display = "block";
-            let redoBtn = document.getElementById("redo_btn");
-            redoBtn.style.display = "block";
-
+            MediaPipe.currentVideoProcessing.currentTime = -1;
+            MediaPipe.processFrame( video )
+            
+        }, { 
+            onSetTime: (t) => { 
+                this.editor.updateCaptureDataTime(results, t);                           
+            },
+            onDraw: () => {
+               
+            },
+            onVideoLoaded: async (v) => {
+                $('#loading').fadeOut();
+            }
         });
-        VideoUtils.onSetTime = this.editor.updateCaptureDataTime.bind(this.editor, results);
-        VideoUtils.onRender = () => { if ( MediaPipe.currentVideoProcessing ){ MediaPipe.drawCurrentResults(); } }
-
     }
 
 

@@ -94,6 +94,8 @@ const MediaPipe = {
         if ( this.onload ){ this.onload(); }
         
         window.mediapipe = this;
+        
+        $('#loading').fadeOut();
     },
 
     setOptions( o ){
@@ -314,6 +316,9 @@ const MediaPipe = {
                 this.currentVideoProcessing.currentTime = videoElement.currentTime;
                 await this.processFrame( videoElement ); 
             } 
+            else {
+                this.drawCurrentResults();
+            }
         }
 
         let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
@@ -340,6 +345,13 @@ const MediaPipe = {
         // PROS: Ensures current time has loaded correctly before sending to mediapipe. Better support than requestVideoCallback
         this.live = live;
         this.stopVideoProcessing(); // stop previous video processing, if any
+
+        // Hacky solution for video duration bug. Some videos do not have duration in metadata and browser has to discover it while playing/decoding the video
+        // If it enters, there will probably be issues with the currentTime vs frame shown
+        while( videoElement.duration === Infinity ) {
+            videoElement.currentTime = 100000 * Math.random();
+            await new Promise(r => setTimeout(r, 100)); 
+        }
 
         videoElement.pause();
         startTime = Math.max( Math.min( videoElement.duration, startTime ), 0 );

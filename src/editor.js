@@ -413,11 +413,16 @@ class Editor {
     }
 
     setPlaybackRate(v){
-        v = Math.min( 16, Math.max( 0.1, v ) );
-        this.currentCharacter.mixer.timeScale = v;
-        if(this.mode != this.editionModes.SCRIPT && this.video) {
-            this.video.playbackRate = v; 
+        if(this.mode == this.editionModes.SCRIPT){
+            v = Math.max( 0.0001, v );
         }
+        else{
+            v = Math.min( 16, Math.max( 0.1, v ) );
+            if(this.video) {
+                this.video.playbackRate = v; 
+            }
+        }
+        this.currentCharacter.mixer.timeScale = v;
     }
 
     /** -------------------- UPDATES, RENDER AND EVENTS -------------------- */
@@ -674,17 +679,20 @@ class Editor {
      */
     setAnimation(type) {
 
-        let currentTime = 0;
-        if(this.activeTimeline && this.animationMode != type) {
-            this.activeTimeline.hide();
-            currentTime = this.activeTimeline.currentTime;
-        }
-        
+
+        let currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
+
         if(this.mode == this.editionModes.SCRIPT) {
             this.activeTimeline = this.gui.clipsTimeline;
             this.activeTimeline.show();
         }
         else {
+            currentTime = 0;
+            if(this.activeTimeline && this.animationMode != type) {
+                this.activeTimeline.hide();
+                currentTime = this.activeTimeline.currentTime;
+            }
+
             switch(type) {
                 case this.animationModes.FACE:
                     this.animationMode = this.animationModes.FACE;
@@ -1156,14 +1164,13 @@ class KeyframeEditor extends Editor{
         this.mapNames = MapNames.map_llnames[this.character];
         this.gui = new KeyframesGui(this);
 
-        this.video = document.getElementById("recording");
+        this.video = this.gui.recordedVideo;
         this.video.startTime = 0;
         this.animationModes = {FACE: 0, BODY: 1};
         this.animationMode = this.animationModes.BODY;
     }
     
     startEdition() {
-        this.gui.showVideo = true
         this.gui.init();
         this.animate();
     }
@@ -1204,8 +1211,14 @@ class KeyframeEditor extends Editor{
     }
     /** -------------------- CREATE ANIMATIONS FROM MEDIAPIPE -------------------- */
     
-    setVideoVisibility( visibility ){
-        document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
+    setVideoVisibility( visibility ){ // TO DO
+        //document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
+        if(visibility) {
+            this.gui.showVideoEditor();
+        }
+        else {
+            this.gui.hideVideoEditor();
+        }
     }
 
     /**Create face and body animations from mediapipe and load character*/
