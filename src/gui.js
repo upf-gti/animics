@@ -911,13 +911,13 @@ class KeyframesGui extends Gui {
         this.recordedVideo.style.width = this.canvasVideo.width + "px";
         this.recordedVideo.style.height = this.canvasVideo.height + "px";
 
-        this.capturePanel.addButton(null, "Trim", (v) => {
+        this.capturePanel.addButton(null, "Convert to animation", (v) => {
             const {start, end} = this.videoEditor.getTrimedTimes();
             window.global.app.onVideoTrimmed(start, end)
             this.videoEditor.hideControls();
             this.captureArea.extend();
             // this.videoArea.sections[1].root.resize(["20%", "20%"])
-        }, {width: "100px"});
+        }, {width: "auto"});//, {width: "100px"});
 
         if(this.editor.mode == this.editor.editionModes.CAPTURE) {
             this.capturePanel.addButton(null, null, (v) => {
@@ -1807,6 +1807,7 @@ class KeyframesGui extends Gui {
                 }
 
                 if ( this.editor.getGizmoTool() == "Follow" ){
+                     // if inhere, it means it has at least one ik mode available
                     let modesValues = [];
                     let current = this.editor.getGizmoIkMode();
                     if ( this.editor.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.LARGECHAIN ) ){

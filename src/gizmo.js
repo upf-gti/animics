@@ -215,17 +215,18 @@ class Gizmo {
         this._ikCreateChains( "LeftToe_End", "LeftUpLeg" );
         this._ikCreateChains( "RightToe_End", "RightUpLeg" );
         
+        // TO DO: these chains could be removed. On update check if oneBone mode and manually compute the quaternion. IkSolver is not really needed
         for( let i = 0; i < this.skeleton.bones.length; ++i ){
             let b = this.skeleton.bones[i];
             if ( !b.parent || !b.parent.isBone ){
                 continue;
             }
-            this._ikCreateChains( b.name, b.parent.name, "OneBoneIK_" + b.name );
+            this._ikCreateChains( b.name, b.parent.name, "OneBoneIK_" + b.name, false );
         }
         this.ikSolver.setChainEnablerAll( false );
     }
 
-    _ikCreateChains( effectorName, rootName, chainName = null ){
+    _ikCreateChains( effectorName, rootName, chainName = null, ignoreSingleLinks = true ){
         let bones = this.skeleton.bones;
         let effector = this.skeleton.getBoneByName( effectorName );
         let root = this.skeleton.getBoneByName( rootName );
@@ -319,8 +320,10 @@ class Gizmo {
         effector = bones[ chain[0] ];
         // constraints[0] = null;
         while ( effector != root ){
-            if( ! this.ikSolver.getChain( chainName ?? effector.name ) ){
-                this.ikSolver.createChain( chain, constraints, this.ikTarget, chainName ?? effector.name );
+            let name = chainName ?? effector.name;
+            if ( ignoreSingleLinks && chain.length < 3 ){ break; } // do not include 2 joint chains (1 bone ik)
+            if( ! this.ikSolver.getChain( name ) ){
+                this.ikSolver.createChain( chain, constraints, this.ikTarget, name );
             }
             chain.splice(0,1);
             //constraints.splice(0,1);

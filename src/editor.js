@@ -2048,6 +2048,7 @@ class KeyframeEditor extends Editor{
     getGizmoIkMode(){
         return this.gizmo.ikMode == Gizmo.ToolIkModes.LARGECHAIN ? "Multiple" : "Single";
     }
+    
     setGizmoIkMode( mode ){
         this.gizmo.setMode( mode == "Multiple" ? Gizmo.ToolIkModes.LARGECHAIN : Gizmo.ToolIkModes.ONEBONE ); //!!!!!! TO DO: setMode is being used with Joint and IK mode. This might create conflicts
     }
