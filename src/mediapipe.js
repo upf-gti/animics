@@ -362,15 +362,15 @@ const MediaPipe = {
         dt = Math.max( dt, 0.001 );
         
         let listener = async () => {
-            let videoElement = this.currentVideoProcessing.videoElement;
-            await this.processFrame(videoElement);
+            let cvp = this.currentVideoProcessing;
+
+            await this.processFrame(cvp.videoElement);
  
-            let nextCurrentTime = videoElement.currentTime + this.currentVideoProcessing.dt;
-            if (nextCurrentTime <= this.currentVideoProcessing.endTime){
-                videoElement.currentTime = nextCurrentTime;
+            cvp.currentTime = cvp.currentTime + cvp.dt;
+            if (cvp.currentTime <= cvp.endTime){
+                cvp.videoElement.currentTime = cvp.currentTime;
             }
             else {
-                let cvp = this.currentVideoProcessing;
                 this.stopRecording();
                 this.stopVideoProcessing();
                 if ( cvp.onEnded ){ cvp.onEnded(); }
@@ -384,6 +384,7 @@ const MediaPipe = {
 
         this.currentVideoProcessing = {
             videoElement: videoElement,
+            currentTime: startTime,
             isOffline: true,
             startTime: startTime,
             endTime: endTime,
