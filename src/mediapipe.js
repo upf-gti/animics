@@ -294,7 +294,7 @@ const MediaPipe = {
         
         this.currentVideoProcessing = {
             videoElement: videoElement,
-            currentTime: videoElement.currentTime,
+            currentTime: -1,
             isOffline: false,
             listenerBind: null,
             listenerID: null,
@@ -321,6 +321,8 @@ const MediaPipe = {
                 this.drawCurrentResults();
             }
         }
+
+        this.processFrame( videoElement ); // so first frame is computed. Useful when paused video
 
         let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
 
