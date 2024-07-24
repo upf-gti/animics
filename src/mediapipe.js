@@ -302,18 +302,19 @@ const MediaPipe = {
         }
 
         let listener = async () => {
-            let videoElement = this.currentVideoProcessing.videoElement;
+            let cvp = this.currentVideoProcessing;
+            let videoElement = cvp.videoElement;
             
             if ( videoElement.requestVideoFrameCallback ){
-                this.currentVideoProcessing.listenerID = videoElement.requestVideoFrameCallback( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
+                cvp.listenerID = videoElement.requestVideoFrameCallback( cvp.listenerBind ); // ID needed to cancel
             }
             else{
-                this.currentVideoProcessing.listenerID = window.requestAnimationFrame( this.currentVideoProcessing.listenerBind ); // ID needed to cancel
+                cvp.listenerID = window.requestAnimationFrame( cvp.listenerBind ); // ID needed to cancel
             }
 
             // update only if sufficient time has passed to avoid processing a paused video
-            if ( Math.abs( videoElement.currentTime - this.currentVideoProcessing.currentTime ) > 0.001 ){ 
-                this.currentVideoProcessing.currentTime = videoElement.currentTime;
+            if ( Math.abs( videoElement.currentTime - cvp.currentTime ) > 0.001 ){ 
+                cvp.currentTime = videoElement.currentTime;
                 await this.processFrame( videoElement ); 
             } 
             else {

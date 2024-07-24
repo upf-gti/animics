@@ -829,11 +829,20 @@ class KeyframesGui extends Gui {
         this.bsInspector = new LX.Panel({id:"Properties"});
         this.bsInspector = rightArea.addPanel({id:"Properties"});    
       
-        let inspector =  this.bsInspector;
+        let inspector = this.bsInspector;
             
         if(inspector.root.id) {
             inspector.addTitle(inspector.root.id);
         }
+
+        // fake slider to turn on/off mediapipe online
+        inspector.addTitle("Mediapipe");
+        let aarea = new LX.Area({ width:"100%", height: "auto" });
+        inspector.attach(aarea.root);
+        let tabs = aarea.addTabs({fit:true}); 
+        tabs.add( "On", new LX.Panel({id:"MediapipeOn"}), { onSelect: ()=>{ window.global.app.enableMediapipeOnline(true); tabs.tabDOMs.On.classList.remove("selected");  } }); // remove selected: fix bug of lexgui (?)
+        tabs.add( "Off", new LX.Panel({id:"MediapipeOff"}), { onSelect: ()=>{ window.global.app.enableMediapipeOnline(false); tabs.tabDOMs.Off.classList.remove("selected"); } }); // remove selected: fix bug of lexgui (?)
+        tabs.tabDOMs.On.classList.remove("selected");
 
         // Create expanded AU info area    
         inspector.addBlank();
@@ -913,6 +922,8 @@ class KeyframesGui extends Gui {
 
         this.capturePanel.addButton(null, "Convert to animation", (v) => {
             const {start, end} = this.videoEditor.getTrimedTimes();
+            this.canvasVideo.classList.remove("hidden");
+            this.recordedVideo.classList.remove("hidden");
             window.global.app.onVideoTrimmed(start, end)
             this.videoEditor.hideControls();
             this.captureArea.extend();

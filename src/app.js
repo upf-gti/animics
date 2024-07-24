@@ -12,8 +12,11 @@ class App {
         // Helpers
         this.recording = false;
 
+        // keyframe
         this.mediaRecorder = null
         this.chunks = [];
+        this.mediapipeOnlineEnabler = true;
+        this.mediapipeOnlineVideo = null; // pointer to current Video. Indicate whether it is in a stage that allows online mediapipe or not (null)
     }
 
     init( settings ) {
@@ -57,9 +60,31 @@ class App {
         this.recording = !!value;
     }
 
+    // online Mediapipe might make the pc slow. Allow user to disable it. (video processing is not affected. It is offline Mediapipe)
+    enableMediapipeOnline( bool ){
+        // check app stage
+        if ( !this.mediapipeOnlineVideo ){ this.mediapipeOnlineEnabler = false; return; }
+        
+        // still in video recording or trimming stages. Online toggle is allowed
+        this.mediapipeOnlineEnabler = !!bool;
+        if ( this.mediapipeOnlineEnabler ) {
+            MediaPipe.processVideoOnline( this.mediapipeOnlineVideo )
+            this.mediapipeOnlineVideo.classList.add("hidden");
+            this.editor.gui.canvasVideo.classList.remove("hidden");
+        }
+        else{
+            MediaPipe.stopVideoProcessing();
+            this.mediapipeOnlineVideo.classList.remove("hidden");
+            this.editor.gui.canvasVideo.classList.add("hidden");
+        }
+    }
+        
+
     //Start mediapipe recording 
     onBeginCapture() {
         this.mediaRecorder = null;
+        this.mediapipeOnlineVideo = this.editor.gui.inputVideo; 
+
         const on_error = (err = null) => {
             alert("Cannot access the camera. Check it is properly connected and not being used by any other application. You may want to upload a video instead.")
             console.error("Error  " + err.name + ": " + err.message);            
@@ -157,37 +182,10 @@ class App {
                     })
                 }               
             })
-            // // Adjust video canvas
-            // let captureDiv = document.getElementById("capture");
-            // $(captureDiv).removeClass("hidden");
-            // let videoCanvas = this.editor.gui.canvasVideo;
-            
-            // // configurate buttons
-            // let capture = document.getElementById("capture_btn");
-            // capture.onclick = () => {
-                
-            //     if (!this.recording) { // start video recording
-                    
-            //         this.recording = true;
 
-            //         capture.innerHTML = " <i class='fa fa-stop' style= 'margin:5px; font-size:initial;'></i>"//"Stop" + " <i class='bi bi-stop-fill'></i>"
-            //         document.getElementById("select-mode").innerHTML = ""; // remove upper menu to select cam or video inputs
-            //         capture.classList.add("stop");
-            //         videoCanvas.classList.add("active");
-
-            //         if(this.mediaRecorder){ this.mediaRecorder.start(); }
-            //         console.log("Started recording");
-            //     }
-            //     else { // stop video recording
-                    
-            //         this.recording = false;
-            //         MediaPipe.stopVideoProcessing();
-            //         if(this.mediaRecorder){ this.mediaRecorder.stop(); }
-                                        
-            //     }
-            // };  
-
-            MediaPipe.processVideoOnline( this.editor.gui.inputVideo, this.editor.mode == this.editor.editionModes.CAPTURE );
+            if ( this.mediapipeOnlineEnabler ){
+                MediaPipe.processVideoOnline( this.editor.gui.inputVideo, this.editor.mode == this.editor.editionModes.CAPTURE );
+            }
            
             
         }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui));
@@ -208,6 +206,7 @@ class App {
 
         // let videoElement = this.editor;
         // videoElement.src = url;
+        this.mediapipeOnlineVideo = this.editor.gui.recordedVideo; 
         let video = this.editor.gui.recordedVideo;
         video.src = url; 
         video.muted = true;
@@ -251,11 +250,12 @@ class App {
      * @param {File} videos 
      */
     onLoadVideos( videoFiles ){
-
         if ( videoFiles && videoFiles.length == 1 ){
             this.onLoadSingleVideo(videoFiles[0]);
             return;
         }
+        
+        this.mediapipeOnlineVideo = null; // multiple-videos redirects to offline directly. No online mediapipe is required
 
         this.videoProcessingCommon = {
             onVideoProcessEndedFn: null,
@@ -332,8 +332,10 @@ class App {
         
     }
 
-    // after video has been trimmed by VideoUtils and has been unbinded
+    // after video has been trimmed by VideoUtils and has been unbound
     onVideoTrimmed(startTime, endTime){
+        this.mediapipeOnlineVideo = null; 
+        
         const videoObj = {
             name: this.editor.gui.recordedVideo.name,
             videoBlob: this.editor.gui.recordedVideo.src,
@@ -359,7 +361,9 @@ class App {
      * @param {*} videoObj 
      * @param {*} onEnded 
      */
-    processVideo( videoObj, onEnded = null ){        
+    processVideo( videoObj, onEnded = null ){ 
+        this.mediapipeOnlineVideo = null; 
+       
         let domVideo = this.editor.gui.recordedVideo;
         let that = this;
         domVideo.onloadedmetadata = ( function (e) {
@@ -410,6 +414,53 @@ class App {
         domVideo.src = videoObj.videoBlob;
 
     }
+
+    async videoToTrimStage(live, results) { 
+        // TRIM VIDEO - be sure that only the sign is recorded
+        this.mediapipeOnlineVideo = this.editor.gui.recordedVideo; 
+        
+        let captureDiv = document.getElementById("capture");
+        $(captureDiv).removeClass("hidden");
+
+        let canvas = this.editor.gui.canvasVideo;
+        let video = this.editor.gui.recordedVideo;
+        video.classList.remove("hidden");
+        // video.style.width = canvas.offsetWidth + "px";
+        // video.style.height = canvas.offsetHeight + "px";
+        // video.width = canvas.offsetWidth;
+        // video.height = canvas.offsetHeight;
+       
+        if(live) {
+            video.style.cssText+= "transform: rotateY(180deg);\
+                            -webkit-transform:rotateY(180deg); /* Safari and Chrome */\
+                            -moz-transform:rotateY(180deg); /* Firefox */"
+        }
+        else{
+            video.style.cssText+= "transform: rotateY(0deg);\
+                            -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
+                            -moz-transform:rotateY(0deg); /* Firefox */"
+        }
+        
+        // Replace GUI to trim interface
+        this.editor.gui.createTrimArea(video, canvas, ()=>{
+            // (re)start process video online but let VideoUtils manage the render
+            MediaPipe.setOptions( { autoDraw: true } );
+            if ( this.mediapipeOnlineEnabler ){ 
+                MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
+            }            
+        }, { 
+            onSetTime: (t) => { 
+                this.editor.updateCaptureDataTime(results, t);                           
+            },
+            onDraw: () => {
+               
+            },
+            onVideoLoaded: async (v) => {
+                $('#loading').fadeOut();
+            }
+        });
+    }
+
 
     async onLoadAnimations( animationFiles ) {
         this.filesProcessed = 0;
@@ -519,53 +570,6 @@ class App {
         this.editor.bindAnimationToCharacter(this.filesData[0].name)
         this.editor.startEdition(!this.filesData.length);
     }
-
-    async videoToTrimStage(live, results) { 
-        // TRIM VIDEO - be sure that only the sign is recorded
-        
-        let captureDiv = document.getElementById("capture");
-        $(captureDiv).removeClass("hidden");
-
-        let canvas = this.editor.gui.canvasVideo;
-        let video = this.editor.gui.recordedVideo;
-        video.classList.remove("hidden");
-        // video.style.width = canvas.offsetWidth + "px";
-        // video.style.height = canvas.offsetHeight + "px";
-        // video.width = canvas.offsetWidth;
-        // video.height = canvas.offsetHeight;
-       
-        if(live) {
-            video.style.cssText+= "transform: rotateY(180deg);\
-                            -webkit-transform:rotateY(180deg); /* Safari and Chrome */\
-                            -moz-transform:rotateY(180deg); /* Firefox */"
-        }
-        else{
-            video.style.cssText+= "transform: rotateY(0deg);\
-                            -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-                            -moz-transform:rotateY(0deg); /* Firefox */"
-        }
-        
-        // Replace GUI to trim interface
-        this.editor.gui.createTrimArea(video, canvas, ()=>{
-            // (re)start process video online but let VideoUtils manage the render
-            MediaPipe.setOptions( { autoDraw: true } );
-            MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
-            MediaPipe.currentVideoProcessing.currentTime = -1;
-            MediaPipe.processFrame( video )
-            
-        }, { 
-            onSetTime: (t) => { 
-                this.editor.updateCaptureDataTime(results, t);                           
-            },
-            onDraw: () => {
-               
-            },
-            onVideoLoaded: async (v) => {
-                $('#loading').fadeOut();
-            }
-        });
-    }
-
 
     async storeAnimation() {
 
