@@ -14,7 +14,7 @@ class App {
 
         // keyframe
         this.mediaRecorder = null
-        this.chunks = [];
+        this.recordedChunks = [];
         this.mediapipeOnlineEnabler = true;
         this.mediapipeOnlineVideo = null; // pointer to current Video. Indicate whether it is in a stage that allows online mediapipe or not (null)
     }
@@ -68,7 +68,7 @@ class App {
         // still in video recording or trimming stages. Online toggle is allowed
         this.mediapipeOnlineEnabler = !!bool;
         if ( this.mediapipeOnlineEnabler ) {
-            MediaPipe.processVideoOnline( this.mediapipeOnlineVideo )
+            MediaPipe.processVideoOnline( this.mediapipeOnlineVideo, this.editor.mode == this.editor.editionModes.CAPTURE )
             this.mediapipeOnlineVideo.classList.add("hidden");
             this.editor.gui.canvasVideo.classList.remove("hidden");
         }
@@ -98,7 +98,7 @@ class App {
             console.log("UserMedia supported");
             UTILS.makeLoading("Loading webcam...");
 
-            let constraints = { "video": true, "audio": false, width: 1280, height: 720 };
+            let constraints = { video: true, audio: false, width: 1280, height: 720 };
             navigator.mediaDevices.getUserMedia(constraints)
             .then( (stream) => {
 
@@ -125,11 +125,16 @@ class App {
                 } ).bind(videoElement);
                 
                 // setup mediarecorder but do not start it yet (setEvents deals with starting/stopping the recording)
-                that.mediaRecorder = new MediaRecorder(videoElement.srcObject, {mimeType: 'video/webm'});
-                that.chunks = [];
+                // adding codec solves the "incorrect frames added at random times" issue
+                that.mediaRecorder = new MediaRecorder(videoElement.srcObject, {mimeType: 'video/webm; codecs="vp8"'}); 
+                // that.mediaRecorder = new MediaRecorder(videoElement.srcObject, {mimeType: 'video/webm; codecs="av01.2.19H.12.0.000.09.16.09.1"'});
+                // that.mediaRecorder = new MediaRecorder(videoElement.srcObject, {mimeType: 'video/webm'});
+                that.recordedChunks = [];
                 
                 that.mediaRecorder.ondataavailable = function (e) {
-                    that.chunks.push(e.data);
+                    if (e.data.size > 0) {
+                        that.recordedChunks.push(e.data);
+                    }
                 }
 
                 that.mediaRecorder.onstop = function (e) {
@@ -138,7 +143,7 @@ class App {
                     video.controls = false;
                     video.loop = true;
                     
-                    let blob = new Blob(that.chunks, { "type": "video/webm" });
+                    let blob = new Blob(that.recordedChunks, { type: "video/webm" });
                     let videoURL = URL.createObjectURL(blob);
                     video.src = videoURL;
                     video.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".webm";
