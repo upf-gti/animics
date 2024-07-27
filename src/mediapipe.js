@@ -322,7 +322,7 @@ const MediaPipe = {
             }
         }
 
-        this.processFrame( videoElement ); // so first frame is computed. Useful when paused video
+        // await this.processFrame( videoElement ); // so first frame is computed. Useful when paused video
 
         let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
 
@@ -333,6 +333,12 @@ const MediaPipe = {
             this.currentVideoProcessing.listenerID = window.requestAnimationFrame( listenerBind ); // ID needed to cancel
             this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.ANIMATIONFRAME;
         }
+
+        // force a processFrame whenever the video is available. video.readyState Bug fix
+        let temp = videoElement.currentTime;
+        videoElement.currentTime = -1;
+        videoElement.currentTime = temp;
+
     },
     
     /**

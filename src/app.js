@@ -221,7 +221,8 @@ class App {
         else{ video.name = "video_" + Math.floor( performance.now()*1000 ).toString() + videoFile.type.replace("video/", "." ); }
         
         let that = this;
-        video.onloadedmetadata = ( function (e) {
+        // video.onloadedmetadata = ( function (e) {
+        video.onloadeddata = ( function (e) {
             // this === videoElement
             let videoCanvas = that.editor.gui.canvasVideo;
             video.classList.remove("hidden");
@@ -447,13 +448,7 @@ class App {
         }
         
         // Replace GUI to trim interface
-        this.editor.gui.createTrimArea(video, canvas, ()=>{
-            // (re)start process video online but let VideoUtils manage the render
-            MediaPipe.setOptions( { autoDraw: true } );
-            if ( this.mediapipeOnlineEnabler ){ 
-                MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
-            }            
-        }, { 
+        this.editor.gui.createTrimArea(video, canvas, null, { 
             onSetTime: (t) => { 
                 this.editor.updateCaptureDataTime(results, t);                           
             },
@@ -461,6 +456,11 @@ class App {
                
             },
             onVideoLoaded: async (v) => {
+                // (re)start process video online but let VideoUtils manage the render
+                MediaPipe.setOptions( { autoDraw: true } );
+                if ( this.mediapipeOnlineEnabler ){ 
+                    MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
+                }
                 $('#loading').fadeOut();
             }
         });
