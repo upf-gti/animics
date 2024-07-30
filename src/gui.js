@@ -826,23 +826,25 @@ class KeyframesGui extends Gui {
         this.capturePanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});        
      
         /* Create right panel */
-        this.bsInspector = new LX.Panel({id:"Properties"});
-        this.bsInspector = rightArea.addPanel({id:"Properties"});    
-      
+        this.bsInspector = rightArea.addPanel({id:"Properties"});         
         let inspector = this.bsInspector;
             
         if(inspector.root.id) {
             inspector.addTitle(inspector.root.id);
         }
 
-        // fake slider to turn on/off mediapipe online
         inspector.addTitle("Mediapipe");
-        let aarea = new LX.Area({ width:"100%", height: "auto" });
-        inspector.attach(aarea.root);
-        let tabs = aarea.addTabs({fit:true}); 
-        tabs.add( "On", new LX.Panel({id:"MediapipeOn"}), { onSelect: ()=>{ window.global.app.enableMediapipeOnline(true); tabs.tabDOMs.On.classList.remove("selected");  } }); // remove selected: fix bug of lexgui (?)
-        tabs.add( "Off", new LX.Panel({id:"MediapipeOff"}), { onSelect: ()=>{ window.global.app.enableMediapipeOnline(false); tabs.tabDOMs.Off.classList.remove("selected"); } }); // remove selected: fix bug of lexgui (?)
-        tabs.tabDOMs.On.classList.remove("selected");
+        inspector.addComboButtons(null, [
+            {
+                value: "On",
+                callback: (v, e) => { window.global.app.enableMediapipeOnline(true); }
+            },
+            {
+                value: "Off",
+                callback: (v, e) => { window.global.app.enableMediapipeOnline(false); }
+            }
+        ], {selected: "On"});
+                                
 
         // Create expanded AU info area    
         inspector.addBlank();
