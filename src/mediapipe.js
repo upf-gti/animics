@@ -92,10 +92,6 @@ const MediaPipe = {
         
         this.loaded = true; // using awaits
         if ( this.onload ){ this.onload(); }
-        
-        window.mediapipe = this;
-        
-        $('#loading').fadeOut();
     },
 
     setOptions( o ){
