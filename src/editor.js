@@ -428,7 +428,7 @@ class Editor {
     /** -------------------- UPDATES, RENDER AND EVENTS -------------------- */
 
     animate() {
-        
+
         requestAnimationFrame(this.animate.bind(this));
 
         this.render();
@@ -776,16 +776,17 @@ class Editor {
                 for(let animationName in this.toExport) {
 
                     let animation = this.toExport[animationName];
+                    let animSaveName = animation.saveName;
                     if(!animation.export) {
                         continue;
                     }
                     
                     if(animation.mixerBodyAnimation) {
-                        animation.mixerBodyAnimation.name = animationName + '_' + animation.mixerBodyAnimation.name;
+                        animation.mixerBodyAnimation.name = animSaveName + '_' + animation.mixerBodyAnimation.name;
                         options.animations.push(animation.mixerBodyAnimation);
                     }
                     if(animation.mixerFaceAnimation) {
-                        animation.mixerFaceAnimation.name = animationName + '_' + animation.mixerFaceAnimation.name;
+                        animation.mixerFaceAnimation.name = animSaveName + '_' + animation.mixerFaceAnimation.name;
                         options.animations.push(animation.mixerFaceAnimation);                       
                     }
                 }
@@ -832,12 +833,7 @@ class Editor {
                     }
                     
                     // Check if it already has extension
-                    let clipName = name || this.clipName || animationName;
-                    clipName = clipName.split(".");
-                    if(clipName.length > 1) {
-                        clipName.pop();                        
-                    }
-                    clipName = clipName.join(".");
+                    let clipName = name || animation.saveName;
 
                     // Add the extension
                     if(type == 'BVH') {
@@ -859,7 +855,7 @@ class Editor {
             default:
                 let json = this.exportBML();
                 if(!json) return;
-                UTILS.download(JSON.stringify(json), (name || this.clipName) + '.bml', "application/json");
+                UTILS.download(JSON.stringify(json), (name || json.name) + '.bml', "application/json");
                 console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
                 break;
  
@@ -1227,6 +1223,12 @@ class KeyframeEditor extends Editor{
         this.loadedAnimations[data.name] = data;
         this.loadedAnimations[data.name].type = "video";
 
+        let extensionIdx = data.name.lastIndexOf(".");
+        if ( extensionIdx == -1 ){ // no extension
+            extensionIdx = data.name.length; 
+        }
+        this.loadedAnimations[data.name].saveName = data.name.slice(0,extensionIdx);
+
         let {landmarks, blendshapes} = data ?? {};
 
         // Remove loop mode for the display video
@@ -1296,8 +1298,15 @@ class KeyframeEditor extends Editor{
             faceAnimation.duration = bodyAnimation.duration;
         }
         
+        let extensionIdx = name.lastIndexOf(".");
+        if ( extensionIdx == -1 ){ // no extension
+            extensionIdx = name.length; 
+        }
+        let saveName = name.slice(0,extensionIdx);
+
         this.loadedAnimations[name] = {
             name: name,
+            saveName: saveName,
             bodyAnimation: bodyAnimation ?? new THREE.AnimationClip( "bodyAnimation", -1, [] ), // THREEjs AnimationClip
             faceAnimation: faceAnimation ?? new THREE.AnimationClip( "faceAnimation", -1, [] ), // THREEjs AnimationClip
             skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
@@ -2283,8 +2292,21 @@ class ScriptEditor extends Editor{
 
     loadAnimation(name, animationData) { 
 
+        let saveName;
+
+        if ( name ){
+            let extensionIdx = name.lastIndexOf(".");
+            if ( extensionIdx == -1 ){ // no extension
+                extensionIdx = name.length; 
+            }
+            saveName = name.slice(0,extensionIdx);
+        }else{
+            saveName = "";
+        }
+
         this.loadedAnimations[name] = {
             name: name,
+            saveName: saveName,
             inputAnimation: animationData, // bml file imported. This needs to be converted by the timeline's setAnimationClip.
             scriptAnimation: null, // if null, bind will take care. 
             type: "script"
@@ -2452,7 +2474,7 @@ class ScriptEditor extends Editor{
         let json =  {
             behaviours: [],
             //indices: [],
-            name : currentAnim ? currentAnim.name : "BML animation",
+            name : currentAnim ? currentAnim.saveName : "BML animation",
             duration: scriptAnim ? scriptAnim.duration : 0,
         }
 
@@ -2473,7 +2495,6 @@ class ScriptEditor extends Editor{
         for(let i = 0; i < scriptAnim.tracks.length; i++ ) {
             for(let j = 0; j < scriptAnim.tracks[i].clips.length; j++) {
                 let data = scriptAnim.tracks[i].clips[j];
-                // let type = ANIM[data.constructor.name];
                 if(data.toJSON) data = data.toJSON();
                 if(data)
                 {
@@ -2481,15 +2502,13 @@ class ScriptEditor extends Editor{
                         let actions = { faceLexeme: [], gaze: [], head: [], gesture: [], speech: []};
                        
                         for(let action in actions) {
-                            if(data[action])
+                            if(data[action]){
                                 json.behaviours = json.behaviours.concat(data[action]);
-                            //json.indices.push(type.id);
+                            }
                         }
                     }
                     else {
-
                         json.behaviours.push( data );
-                        //json.indices.push(type.id);
                     }
                 }              
             }

@@ -66,23 +66,19 @@ class Gui {
         }
 
         menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", true, v), {input: this.editor.clipName, required: true } );      
+            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true } );
         }});
 
         // Export animation
         menubar.add("Project/Export all animations", {icon: "fa fa-file-export"});
-        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-            // menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
-            // });
-        }
 
         menubar.add("Project/Export all animations/Export extended BVH", {callback: () => {            
             this.showExportAnimationsDialog(() => this.editor.export("BVH extended"));            
         }});
         
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
-        menubar.add("Project/Export scene/Export GLB", {callback: () => 
-            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", true, v), {input: this.editor.clipName, required: true} )     
+        menubar.add("Project/Export scene/Export GLB", {callback: () =>
+            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )
         });
 
         // Save animation
@@ -128,6 +124,8 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
             menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
             menubar.add("Timeline/Optimize all tracks", { callback: () => this.editor.optimizeTracks() });
+
+            // menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
         }
 
 
@@ -335,7 +333,7 @@ class Gui {
         let value = "";
 
         const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
-            let animations = this.editor.getAnimationsToExport();
+            let animations = this.editor.getAnimationsToExport(); // reference of editor.toExport object
             for(let animationName in animations) {
                 let animation = animations[animationName];
                 animation.export = animation.export === undefined ? true : animation.export;
@@ -991,6 +989,67 @@ class KeyframesGui extends Gui {
         }
     }
 
+    showExportVideosDialog() {
+
+        let animations = this.editor.loadedAnimations;
+        let toExport = {};
+        for ( let aName in animations ){
+            if ( animations[aName].type == "video" ){
+                toExport[ aName ] = animations[aName];
+                animations[aName].export = true;
+
+                // remove extension
+                let saveName = aName.split('.');
+                if(saveName.length > 1) {
+                    saveName.pop();
+                }            
+
+                saveName.join(".");
+                animations[aName].saveName = saveName;
+            }
+        }
+
+
+        let options = { modal : true};
+        const dialog = this.prompt = new LX.Dialog("Export videos", p => {
+            
+            // animation elements
+            for( let aName in toExport ){
+                let anim = toExport[aName];
+                p.sameLine();
+                p.addCheckbox(" ", anim.export, (v) => anim.export = v);//, {minWidth:"100px"});
+                p.addText(aName, anim.saveName, (v) => {
+                    toExport[aName].saveName = v;
+                }, {placeholder: "...", minWidth:"200px"} );
+                p.endLine();
+            }
+
+            // accept / cancel
+            p.sameLine(2);
+            p.addButton("", options.accept || "OK", (v, e) => { 
+                e.stopPropagation();
+
+                let d = document.createElement("a"); 
+                for( let aName in toExport ){
+                    let anim = toExport[aName];
+                    d.hred = anim.videoBlob;
+                    d.download = anim.saveName + "webm";
+                    d.click();
+                }
+
+                dialog.close() ;                
+            }, { buttonClass: "accept" });
+            p.addButton("", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+
+        }, options);
+        dialog.root.style.width = "auto";
+
+        // Focus text prompt
+        if(options.input !== false)
+            dialog.root.querySelector('input').focus();
+    
+    }
+
     /** Create timelines */
     createTimelines( area ) {
                 
@@ -1012,6 +1071,7 @@ class KeyframesGui extends Gui {
             onBeforeCreateTopBar: (panel) => {
                 panel.addDropdown("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
+                    this.updateAnimationPanel();
                 }, {signal: "@on_animation_loaded"})
             },
             onChangePlayMode: (loop) => {
@@ -1164,6 +1224,12 @@ class KeyframesGui extends Gui {
 
         /* Curves Timeline */
         this.curvesTimeline = new LX.CurvesTimeline("Action Units", {
+            onBeforeCreateTopBar: (panel) => {
+                panel.addDropdown("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+                    this.editor.bindAnimationToCharacter(v);
+                    this.updateAnimationPanel();
+                }, {signal: "@on_animation_loaded"})
+            },
             onChangePlayMode: (loop) => {
                 this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
@@ -1352,11 +1418,13 @@ class KeyframesGui extends Gui {
             o = o || {};
             widgets.clear();
             widgets.addTitle("Animation");
-            widgets.addText("Name", this.editor.clipName || "", (v) => this.editor.clipName = v)
-            // widgets.addNumber("Speed", this.editor.currentCharacter.mixer.timeScale, v => {
-            //     this.editor.currentCharacter.mixer.timeScale = v;
-            //     if ( this.editor.video ){ this.editor.video.playbackRate = v; }
-            // }, {min: 0.1, max: 2, step: 0.01, precision: 2});
+
+            let anim = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
+            let saveName = anim ? anim.saveName : "";
+            widgets.addText("Name", saveName || "", (v) =>{ 
+                anim.saveName = v; 
+            } )
+
             widgets.addSeparator();
         }
         widgets.onRefresh(options);
@@ -1951,6 +2019,7 @@ class ScriptGui extends Gui {
             onAfterCreateTopBar: (panel) => {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
+                    this.updateAnimationPanel();
                 }, {icon: 'fa-solid fa-trash', width: "40px"});                
             },
             onChangePlayMode: (loop) => {
@@ -2328,10 +2397,13 @@ class ScriptGui extends Gui {
             o = o || {};
             widgets.clear();
             widgets.addTitle("Animation");
-            widgets.addText("Name", this.editor.clipName || "", (v) => this.editor.clipName = v)
-            // widgets.addNumber("Speed", this.editor.currentCharacter.mixer.timeScale, v => {
-            //     this.editor.currentCharacter.mixer.timeScale = v;
-            // }, {min: 0.25, max: 1.5, step: 0.05, precision: 2});
+
+            let anim = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
+            let saveName = anim ? anim.saveName : "";
+            widgets.addText("Name", saveName || "", (v) =>{ 
+                anim.saveName = v; 
+            } )
+            
             widgets.addSeparator();
             widgets.addComboButtons("Dominant hand", [{value: "Left", callback: (v) => this.editor.dominantHand = v}, {value:"Right", callback: (v) => this.editor.dominantHand = v}], {selected: this.editor.dominantHand})
             widgets.addButton(null, "Add clip", () => this.createClipsDialog(), {title: "CTRL+K"} )
@@ -3605,7 +3677,7 @@ class ScriptGui extends Gui {
     }
 
     createExportBMLDialog() {
-        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", true, v), {input: this.editor.clipName, required: true} )  
+        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )  
     }
 
     showSourceCode (asset) 
