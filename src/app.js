@@ -280,7 +280,7 @@ class App {
     
             this.videoProcessingCommon.videosToProcess.push( {
                 name: videoFiles[i].name,
-                videoBlob: url,
+                videoURL: url,
                 startTime: 0,
                 endTime: -1,
                 dt: 1/25,
@@ -344,7 +344,7 @@ class App {
         
         const videoObj = {
             name: this.editor.gui.recordedVideo.name,
-            videoBlob: this.editor.gui.recordedVideo.src,
+            videoURL: this.editor.gui.recordedVideo.src,
             startTime: startTime,
             endTime: endTime,
             dt: 1/25,
@@ -417,7 +417,7 @@ class App {
             }, videoObj.live )
         } ).bind( this, videoObj, onEnded );
 
-        domVideo.src = videoObj.videoBlob;
+        domVideo.src = videoObj.videoURL;
 
     }
 

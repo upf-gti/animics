@@ -1738,7 +1738,7 @@ class KeyframeEditor extends Editor{
                     this.video.play();
                 }            
             }
-            this.video.src = animation.videoBlob;
+            this.video.src = animation.videoURL;
             this.video.startTime = animation.startTime ?? 0;
             this.video.endTime = animation.endTime ?? 1;
         }else{

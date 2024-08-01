@@ -127,8 +127,19 @@ const UTILS = {
 	dataToFile: function(data, filename, type = "text/plain") {
 		const file = new Blob([data], {type: type});
 		return file;
-	}
+	},
 
+	blobToBase64(blob) {
+		return new Promise( resolve => {
+			let reader = new FileReader();
+			reader.onload = function() {
+				let dataUrl = reader.result;
+				let base64 = dataUrl.split(',')[1]; // readAsDataUrl returns a "data:*/*;base64" + the data as base64. Removing the header
+				resolve(base64);
+			};
+			reader.readAsDataURL(blob);
+		});
+	}
 };
 
 const ShaderChunk = {

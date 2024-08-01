@@ -125,7 +125,7 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
             menubar.add("Timeline/Optimize all tracks", { callback: () => this.editor.optimizeTracks() });
 
-            // menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
+            menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
         }
 
 
@@ -997,18 +997,10 @@ class KeyframesGui extends Gui {
             if ( animations[aName].type == "video" ){
                 toExport[ aName ] = animations[aName];
                 animations[aName].export = true;
-
-                // remove extension
-                let saveName = aName.split('.');
-                if(saveName.length > 1) {
-                    saveName.pop();
-                }            
-
-                saveName.join(".");
-                animations[aName].saveName = saveName;
             }
         }
 
+        let zip = new JSZip();
 
         let options = { modal : true};
         const dialog = this.prompt = new LX.Dialog("Export videos", p => {
@@ -1028,16 +1020,48 @@ class KeyframesGui extends Gui {
             p.sameLine(2);
             p.addButton("", options.accept || "OK", (v, e) => { 
                 e.stopPropagation();
+                UTILS.makeLoading( "Preparing download...", 0.5 );
 
-                let d = document.createElement("a"); 
+                let promises = [];
+
                 for( let aName in toExport ){
                     let anim = toExport[aName];
-                    d.hred = anim.videoBlob;
-                    d.download = anim.saveName + "webm";
-                    d.click();
+                    if ( !anim.export ){ continue; }
+                    let extension = aName.lastIndexOf(".");
+                    extension = extension == -1 ? ".webm" : aName.slice(extension);
+                    let saveName = anim.saveName + extension;
+
+                    // prepare videos so they can be downloaded
+                    let p = fetch( anim.videoURL )
+                        .then( r => r.blob() )
+                        .then( blob => UTILS.blobToBase64(blob) )
+                        .then( binaryData => zip.file(saveName, binaryData, {base64:true} ) );
+                    promises.push(p);
+
+                    // include landmarks in zip
+                    // TODO: optimize json so it weights less
+                    zip.file( anim.saveName + ".json", 
+                        JSON.stringify({ startTime: anim.startTime, endTime: anim.endTime, landmarks: anim.landmarks, blendshapes: anim.blendshapes }, 
+                            function(key, val) {
+                                return (val !== null && val !== undefined && val.toFixed) ? Number(val.toFixed(4)) : val;
+                            } 
+                        ) 
+                    );
                 }
 
-                dialog.close() ;                
+                dialog.close();
+
+                // wait until all videos have been added to the zip before downloading
+                Promise.all( promises ).then( ()=>{
+                    zip.generateAsync({type:"base64"}).then( (base64) => {
+                        let d = document.createElement("a"); 
+                        d.href = "data:application/zip;base64," + base64;
+                        d.download = "videos.zip";
+                        d.click();
+                        $("#loading").fadeOut();
+                    }).catch( (e) => {console.log(e); $("#loading").fadeOut(); } );
+                })
+
             }, { buttonClass: "accept" });
             p.addButton("", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
 
