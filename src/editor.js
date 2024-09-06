@@ -650,7 +650,7 @@ class Editor {
         // }
     }
 
-    optimizeTracks(tracks) {
+    optimizeTracks(animations, tracks) {
 
         // let animation = null;
         // if(this.animationMode == this.animationModes.BODY) {
@@ -1934,6 +1934,50 @@ class KeyframeEditor extends Editor{
         // }
 
         this.gizmo.updateBones();
+    }
+
+    optimizeTrack(trackIdx, threshold = this.optimizeThreshold) {
+        this.optimizeThreshold = this.activeTimeline.optimizeThreshold;
+        let animation = null;
+        if(this.animationMode == this.animationModes.BODY) {
+            animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
+        }
+        else if(this.animationMode == this.animationModes.FACE) {
+            animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
+        }
+        else {
+            return;
+        }
+        
+        // TO DO: Update timeline clips 
+        const track = animation.tracks[trackIdx];
+        track.optimize( this.optimizeThreshold );
+        this.updateAnimationAction(animation, trackIdx);
+        if(this.activeTimeline.updateTrack) {
+            this.activeTimeline.updateTrack(trackIdx, track);
+        }
+    }
+
+    optimizeTracks(animations, tracks) {
+
+        if(!animations) {
+            if(this.animationMode == this.animationModes.BODY) {
+                animations = [this.getCurrentBindedAnimation().mixerBodyAnimation];
+            }
+            else if(this.animationMode == this.animationModes.FACE) {
+                animations = [this.getCurrentBindedAnimation().mixerFaceAnimation];
+            }
+            else {
+                return;
+            }
+        }
+        for( let i = 0; i < animations.length; ++i ) {
+            let animation = animations[i];
+            for( let i = 0; i < animation.tracks.length; ++i ) {
+                this.optimizeTrack(i);
+            }
+        }
+        this.activeTimeline.draw();
     }
 
     /**

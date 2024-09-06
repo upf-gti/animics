@@ -88,7 +88,7 @@ class Timeline {
         this.skipLock = options.skipLock ?? false;
         this.disableNewTracks = options.disableNewTracks ?? false;
 
-        this.optimizeThreshold = 0.025;
+        this.optimizeThreshold = 0.01;
 
         this.root = new LX.Area({className : 'lextimeline'});
         

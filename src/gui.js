@@ -123,7 +123,10 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
             menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
             menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
-            menubar.add("Timeline/Optimize all tracks", { callback: () => this.editor.optimizeTracks() });
+            menubar.add("Timeline/Optimize all tracks", { callback: () => {
+                let animations = this.editor.getCurrentBindedAnimation();
+                this.editor.optimizeTracks([animations.mixerBodyAnimation, animations.mixerFaceAnimation]) }
+            });
 
             menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
         }
