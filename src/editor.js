@@ -537,38 +537,65 @@ class Editor {
     }
 
     clearAllTracks() {
+        if(!this.activeTimeline.animationClip)
+            return;
 
+        for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
+
+            const track = this.activeTimeline.animationClip.tracks[i];
+            if(this.activeTimeline.selectedItems && this.activeTimeline.selectedItems.indexOf(track.name)< 0 && this.mode != this.editionModes.SCRIPT)
+                continue;
+            let idx = this.mode == this.editionModes.SCRIPT ? track.idx : track.clipIdx;
+            let value = null;
+            if(this.mode != this.editionModes.SCRIPT) {
+                
+                if(track.dim == 1)
+                    value = 0;
+                else
+                    value = [0,0,0,1];
+            } 
+
+            this.activeTimeline.clearTrack(idx, value);
+            // if(value != null) {
+            //     this.activeTimeline.addKeyFrame(track, value, 0);
+            // }
+                
+            this.updateAnimationAction(this.activeTimeline.animationClip, idx, false);
+            if(this.activeTimeline.onPreProcessTrack)
+                this.activeTimeline.onPreProcessTrack( track, track.idx );
+        }
+        //this.updateTracks();
     }
 
-    // cleanTracks(excludeList) {
+    cleanTracks(excludeList) {
 
-    //     if(!this.activeTimeline.animationClip)
-    //         return;
+        if(!this.activeTimeline.animationClip)
+            return;
 
-    //     for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
+        for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
 
-    //         const track = this.activeTimeline.animationClip.tracks[i];
-    //         let type = 'number';
-    //         if(this.activeTimeline.getTrackName && track.name) {
+            const track = this.activeTimeline.animationClip.tracks[i];
+            let type = 'number';
+            if(this.activeTimeline.getTrackName && track.name) {
 
-    //             let [boneName, type] = this.activeTimeline.getTrackName(track.name);
+                let [boneName, type] = this.activeTimeline.getTrackName(track.name);
     
-    //             if(excludeList && excludeList.indexOf( boneName ) != -1)
-    //                 continue;
-    //         }
-    //         let currentTrack = this.animation.tracks[track.idx];
-    //         track.times = new Float32Array( [currentTrack.times[0]] );
+                if(excludeList && excludeList.indexOf( boneName ) != -1)
+                    continue;
+            }
+            let currentTrack = this.animation.tracks[track.idx];
+            track.times = new Float32Array( [currentTrack.times[0]] );
 
-    //         let n = 1;
-    //         if(type != 'number')
-    //             n = type === 'quaternion' ? 4 : 3;
-    //         track.values = track.values.slice(0, n );
+            let n = 1;
+            if(type != 'number')
+                n = type === 'quaternion' ? 4 : 3;
+            track.values = track.values.slice(0, n );
 
-    //         this.updateAnimationAction(this.activeTimeline.animationClip,i);
-    //         if(this.activeTimeline.onPreProcessTrack)
-    //             this.activeTimeline.onPreProcessTrack( track, track.idx );
-    //     }
-    // }
+            this.updateAnimationAction(this.activeTimeline.animationClip,i);
+            if(this.activeTimeline.onPreProcessTrack)
+                this.activeTimeline.onPreProcessTrack( track, track.idx );
+        }
+    }
 
     // emptyTracks() {
     //     if(!this.activeTimeline.animationClip)

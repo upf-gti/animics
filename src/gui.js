@@ -1097,6 +1097,13 @@ class KeyframesGui extends Gui {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
                 }, {signal: "@on_animation_loaded"})
+                
+            },
+            onAfterCreateTopBar: (panel) => {
+                panel.addButton("", "Clear track/s", (value, event) =>  {
+                    this.editor.clearAllTracks();     
+                    this.updateAnimationPanel();
+                }, {icon: 'fa-solid fa-trash', width: "40px"});                
             },
             onChangePlayMode: (loop) => {
                 this.editor.animLoop = loop;
@@ -1286,7 +1293,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.curvesTimeline.onSelectKeyFrame = (e, info, idx) => {
             if(e.button != 2) {
-                this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx);
+                this.updateActionUnitsPanel(this.curvesTimeline.animationClip, info[1]);
 
                 return false;
             }
