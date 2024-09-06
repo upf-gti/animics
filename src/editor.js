@@ -1936,17 +1936,19 @@ class KeyframeEditor extends Editor{
         this.gizmo.updateBones();
     }
 
-    optimizeTrack(trackIdx, threshold = this.optimizeThreshold) {
+    optimizeTrack(trackIdx, animation,  threshold = this.optimizeThreshold) {
         this.optimizeThreshold = this.activeTimeline.optimizeThreshold;
-        let animation = null;
-        if(this.animationMode == this.animationModes.BODY) {
-            animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
-        }
-        else if(this.animationMode == this.animationModes.FACE) {
-            animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
-        }
-        else {
-            return;
+        if(!animation) {
+
+            if(this.animationMode == this.animationModes.BODY) {
+                animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
+            }
+            else if(this.animationMode == this.animationModes.FACE) {
+                animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
+            }
+            else {
+                return;
+            }
         }
         
         // TO DO: Update timeline clips 

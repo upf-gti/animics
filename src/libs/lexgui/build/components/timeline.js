@@ -5061,7 +5061,7 @@ class CurvesTimeline extends Timeline {
                         
         const name = this.tracksDictionary[track.fullname];
         let t = this.tracksPerItem[ name ][track.idx];
-        let currentSelection = [name, track.idx, keyFrameIndex];
+        let currentSelection = [name, track.idx, keyFrameIndex, track.clipIndex];
 
         if(!multiple)
             this.selectKeyFrame(t, currentSelection, keyFrameIndex);

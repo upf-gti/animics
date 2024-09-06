@@ -1279,7 +1279,7 @@ class KeyframesGui extends Gui {
                 tracks = this.curvesTimeline.tracksPerItem[this.curvesTimeline.selectedItems[0]];
                 for(let i = 0; i < tracks.length; i++) {
     
-                    this.updateActionUnitsPanel(this.curvesTimeline.animationClip, tracks[i].clipIdx );
+                    this.updateActionUnitsPanel(this.curvesTimeline.animationClip );
                 }
             }
         }
@@ -1296,7 +1296,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.curvesTimeline.onSelectKeyFrame = (e, info, idx) => {
             if(e.button != 2) {
-                this.updateActionUnitsPanel(this.curvesTimeline.animationClip, info[1]);
+                this.updateActionUnitsPanel(this.curvesTimeline.animationClip, info[3]);
 
                 return false;
             }
@@ -1684,7 +1684,16 @@ class KeyframesGui extends Gui {
             if(!this.curvesTimeline.lastKeyFramesSelected.length) {
                 return;
             }
-            trackIdx = this.curvesTimeline.lastKeyFramesSelected[0][2];
+            let [name, idx, keyframe] = this.curvesTimeline.lastKeyFramesSelected[0];
+            for(let i = 0; i < animation.tracks.length; i++) {
+                if(animation.tracks[i].name == name) {
+                    trackIdx = i;
+                    break;
+                }
+            }
+            if(trackIdx == undefined) {
+                return;
+            }
         }
         const track = animation.tracks[trackIdx];
         let name = track.type;
@@ -1696,7 +1705,7 @@ class KeyframesGui extends Gui {
             const time = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
             frame = track.times.indexOf(time);
         }
-        //LX.emit("@on_change_" + name, track.times[frame]);
+        LX.emit("@on_change_" + name, track.values[frame]);
     }
 
     createSkeletonPanel(root, options) {
