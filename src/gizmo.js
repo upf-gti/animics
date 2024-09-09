@@ -621,19 +621,19 @@ class Gizmo {
                 if ( Math.abs( nearestTime - effectorFrameTime ) > 0.008 ){ 
                     const currentTime = timeline.currentTime;
                     timeline.currentTime = effectorFrameTime;
-                    keyframe = timeline.addKeyFrame( track ); //Works with current time.  currentTime and selected frame time might not be the same
+                    keyframe = timeline.addKeyFrame( track, values ); //Works with current time.  currentTime and selected frame time might not be the same
                     timeline.currentTime = currentTime;
                 }
                 else{ 
                     keyframe = timeline.getCurrentKeyFrame( this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ], nearestTime, 0.0001 );
+                    if ( isNaN(keyframe) ){ continue; }
+                    let start = 4 * keyframe;
+                    for( let j = 0; j < values.length; ++j ) {
+                        this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].values[ start + j ] = values[j];
+                    }
                 }
                 if ( isNaN(keyframe) ){ continue; }
                 
-                let start = 4 * keyframe;
-                for( let j = 0; j < values.length; ++j ) {
-                    this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].values[ start + j ] = values[j];
-                }
-
                 track.edited[ keyframe ] = true;
 
                 // Update animation interpolants

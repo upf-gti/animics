@@ -902,7 +902,7 @@ class Editor {
             }
         }
         
-        const openPreview = () => {
+        const openPreview = (data) => {
             if(!this.realizer || this.realizer.closed) {
                 this.realizer = window.open(url, "Preview");
                 this.realizer.onload = (e, d) => {
@@ -928,13 +928,13 @@ class Editor {
             }
 
             data = JSON.stringify([{type: "bml", data: json.behaviours}]);
-            openPreview();
+            openPreview(data);
         }
         else{
             this.gui.showExportAnimationsDialog(() => {
                 const files = this.export("BVH extended", false);
                 data = {type: "bvhe", data: files};
-                openPreview();
+                openPreview(data);
             })
             // let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
             // window.localStorage.setItem('bvhskeletonpreview', bvh);
