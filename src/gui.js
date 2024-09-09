@@ -336,21 +336,17 @@ class Gui {
         let value = "";
 
         const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
-            let animations = this.editor.getAnimationsToExport(); // reference of editor.toExport object
-            for(let animationName in animations) {
-                let animation = animations[animationName];
+            let animations = this.editor.getAnimationsToExport(); // reference of editor.toExport object. Returns animations for current character
+            for(let animationName in animations) { // animationName is of the source anim (not the bind)
+                let animation = animations[animationName]; // this is the bound animation for this character
                 animation.export = animation.export === undefined ? true : animation.export;
                 p.sameLine();
                 p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px"});
-                let name = animationName.split('.');
-                if(name.length > 1) {
-                    name.pop();
-                }            
-                name.join(".");
-
-                p.addText(null, name || options.input , (v) => {
-                    delete animations[animationName];
-                    animations[v] = animation; 
+                p.addText(null, this.editor.loadedAnimations[animationName].saveName, (v) => {
+                    this.editor.loadedAnimations[animationName].saveName = v; 
+                    if ( this.editor.currentAnimation == animationName ){
+                        this.updateAnimationPanel(); // update name display
+                    }
                 }, {placeholder: "...", minWidth:"100px"} );
                 p.endLine();
             }

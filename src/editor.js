@@ -860,7 +860,7 @@ class Editor {
                     }
                     
                     // Check if it already has extension
-                    let clipName = name || animation.saveName;
+                    let clipName = name || animation.saveName || this.loadedAnimations[animation.source].saveName;
 
                     // Add the extension
                     if(type == 'BVH') {
@@ -1741,6 +1741,7 @@ class KeyframeEditor extends Editor{
                 this.bindedAnimations[animationName] = {};
             }
             this.bindedAnimations[animationName][this.currentCharacter.name] = {
+                source: animationName,
                 mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation, // for threejs mixer 
                 skeletonAnimation, auAnimation // from gui timeline
             }
