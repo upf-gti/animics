@@ -1951,13 +1951,12 @@ class KeyframeEditor extends Editor{
                 return;
             }
         }
-        
-        // TO DO: Update timeline clips 
+               
         const track = animation.tracks[trackIdx];
         track.optimize( this.optimizeThreshold );
         this.updateAnimationAction(animation, trackIdx);
         if(this.activeTimeline.updateTrack) {
-            this.activeTimeline.updateTrack(trackIdx, track);
+            this.activeTimeline.updateTrack(trackIdx, track);  // commit changes to the timeline
         }
     }
 

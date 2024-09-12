@@ -1304,6 +1304,8 @@ class KeyframesGui extends Gui {
                 if ( playElement ){ playElement.children[0].click() }
             }
         }
+        this.curvesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
+
 
         this.timelineArea.attach(this.keyFramesTimeline.root);
         this.timelineArea.attach(this.curvesTimeline.root);
