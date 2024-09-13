@@ -1839,39 +1839,106 @@ class KeyFramesTimeline extends Timeline {
         if(!this.animationClip)
             return false;
 
-        this.animationClip.tracks[trackIdx].values = newTrack.values;
-        this.animationClip.tracks[trackIdx].times = newTrack.times;
+        const track = this.animationClip.tracks[trackIdx]; 
+        track.values = newTrack.values;
+        track.times = newTrack.times;
 
-        let track = this.animationClip.tracks[trackIdx];
         track.selected = (new Array(track.times.length)).fill(false);
         track.hovered = track.selected.slice();
         track.edited = track.selected.slice();
         return true;
     }
 
-    optimizeTrack(trackIdx) {
-        const track = this.animationClip.tracks[trackIdx];
-        if(track.optimize) {
+    /**
+     * removes equivalent sequential keys either because of equal times or values
+     * (0,0,0,0,1,1,1,0,0,0,0,0,0,0) --> (0,0,1,1,0,0)
+     * @param {Int} trackIdx index of track in the animation
+     * @param {Bool} onlyEqualTime if true, removes only keyframes with equal times. Otherwise, values are ALSO compared through the class threshold
+     */
+    optimizeTrack(trackIdx, onlyEqualTime = false ) {
+        const track = this.animationClip.tracks[trackIdx],
+            times = track.times,
+            values = track.values,
+            stride = track.dim,
+            threshold = this.optimizeThreshold;
+        let cmpFunction = (v, p, n, t) => { return Math.abs(v - p) >= t || Math.abs(v - n) >= t };
+        let lastSavedIndex = 0;
+        const lastIndex = times.length-1;
 
-            track.optimize( this.optimizeThreshold );
-            if(this.onOptimizeTracks)
-               this.onOptimizeTracks(trackIdx);
+        for ( let i = 1; i < lastIndex; ++ i ) {
+
+            let keep = false;
+            const time = times[ i ];
+            const timePrev = times[ lastSavedIndex ];
+
+            // remove adjacent keyframes scheduled at the same time
+            if ( time !== timePrev ) {
+                if ( ! onlyEqualTime ) {
+                    // remove unnecessary keyframes same as their neighbors
+                    const offset = i * stride,
+                        offsetP = lastSavedIndex * stride,
+                        offsetN = offset + stride;
+
+                    for ( let j = 0; j !== stride; ++ j ) {
+                        if( cmpFunction(
+                            values[ offset + j ], 
+                            values[ offsetP + j ], 
+                            values[ offsetN + j ],
+                            threshold))
+                        {
+                            keep = true;
+                            break;
+                        }
+                    }
+                } else {
+                    keep = true;
+                }
+            }
+
+            // in-place compaction
+            if ( keep ) {
+                ++lastSavedIndex;
+                if ( i !== lastSavedIndex ) {
+                    times[ lastSavedIndex ] = times[ i ];
+                    const readOffset = i * stride,
+                        writeOffset = lastSavedIndex * stride;
+                    for ( let j = 0; j !== stride; ++ j ) {
+                        values[ writeOffset + j ] = values[ readOffset + j ];
+                    }
+                }
+            }
         }
+
+        // add last frame. first and last keyframes should be always kept
+        if ( times.length > 1 ) {
+            ++lastSavedIndex;
+            times[ lastSavedIndex ] = times[ times.length - 1 ];
+            const readOffset = values.length - stride,
+                writeOffset = lastSavedIndex * stride;
+            for ( let j = 0; j !== stride; ++j ) {
+                values[ writeOffset + j ] = values[ readOffset + j ];
+            }
+        }
+        
+        // commit changes
+        if ( lastSavedIndex < times.length-1 ) {   
+            track.times = times.slice( 0, lastSavedIndex + 1 );
+            track.values = values.slice( 0, (lastSavedIndex + 1) * stride );
+            this.updateTrack( track.clipIdx, track ); // update control variables (hover, edited, selected) 
+        } 
+
+        if(this.onOptimizeTracks)
+            this.onOptimizeTracks(trackIdx);
     }
 
-    optimizeTracks() {
+    optimizeTracks(onlyEqualTime = false) {
 
         if(!this.animationClip)
             return;
 
         for( let i = 0; i < this.animationClip.tracks.length; ++i ) {
             const track = this.animationClip.tracks[i];
-            if(track.optimize) {
-
-                track.optimize( this.optimizeThreshold );
-                if(this.onOptimizeTracks)
-                    this.onOptimizeTracks(i);
-            }
+            this.optimizeTrack( track.clipIdx, onlyEqualTime );
         }
     }
 
@@ -1902,11 +1969,7 @@ class KeyFramesTimeline extends Timeline {
         LX.addContextMenu("Optimize", e, m => {
             for( let t of tracks ) {
                 m.add( t.name + (t.type ? "@" + t.type : ""), () => { 
-                    if(this.optimizeTrack) {
-                        this.optimizeTrack(t.clipIdx, threshold)
-                    // this.animationClip.tracks[t.clipIdx].optimize( threshold );
-                        t.edited = [];
-                    }
+                    this.optimizeTrack( t.clipIdx, false);
                 })
             }
         });
@@ -4238,7 +4301,7 @@ class CurvesTimeline extends Timeline {
                 //convert to timeline track range
                 value = (((value - this.range[0]) * ( -this.trackHeight) ) / (this.range[1] - this.range[0])) + this.trackHeight;
 
-                if( time < this.startTime || time > this.endTime )
+                if( time < this.startTime && time > this.endTime )
                     continue;
                 let keyframePosX = this.timeToX( time );
                 
@@ -4427,6 +4490,100 @@ class CurvesTimeline extends Timeline {
         return true;
     }
 
+    /**
+     * removes equivalent sequential keys either because of equal times or values
+     * (0,0,0,0,1,1,1,0,0,0,0,0,0,0) --> (0,0,1,1,0,0)
+     * @param {Int} trackIdx index of track in the animation
+     * @param {Bool} onlyEqualTime if true, removes only keyframes with equal times. Otherwise, values are ALSO compared through the class threshold
+     */
+    optimizeTrack(trackIdx, onlyEqualTime = false ) {
+        const track = this.animationClip.tracks[trackIdx],
+            times = track.times,
+            values = track.values,
+            stride = track.dim,
+            threshold = this.optimizeThreshold;
+        let cmpFunction = (v, p, n, t) => { return Math.abs(v - p) >= t || Math.abs(v - n) >= t };
+        let lastSavedIndex = 0;
+        const lastIndex = times.length-1;
+
+        for ( let i = 1; i < lastIndex; ++ i ) {
+
+            let keep = false;
+            const time = times[ i ];
+            const timePrev = times[ lastSavedIndex ];
+
+            // remove adjacent keyframes scheduled at the same time
+            if ( time !== timePrev ) {
+                if ( ! onlyEqualTime ) {
+                    // remove unnecessary keyframes same as their neighbors
+                    const offset = i * stride,
+                        offsetP = lastSavedIndex * stride,
+                        offsetN = offset + stride;
+
+                    for ( let j = 0; j !== stride; ++ j ) {
+                        if( cmpFunction(
+                            values[ offset + j ], 
+                            values[ offsetP + j ], 
+                            values[ offsetN + j ],
+                            threshold))
+                        {
+                            keep = true;
+                            break;
+                        }
+                    }
+                } else {
+                    keep = true;
+                }
+            }
+
+            // in-place compaction
+            if ( keep ) {
+                ++lastSavedIndex;
+                if ( i !== lastSavedIndex ) {
+                    times[ lastSavedIndex ] = times[ i ];
+                    const readOffset = i * stride,
+                        writeOffset = lastSavedIndex * stride;
+                    for ( let j = 0; j !== stride; ++ j ) {
+                        values[ writeOffset + j ] = values[ readOffset + j ];
+                    }
+                }
+            }
+        }
+
+        // add last frame. first and last keyframes should be always kept
+        if ( times.length > 1 ) {
+            ++lastSavedIndex;
+            times[ lastSavedIndex ] = times[ times.length - 1 ];
+            const readOffset = values.length - stride,
+                writeOffset = lastSavedIndex * stride;
+            for ( let j = 0; j !== stride; ++j ) {
+                values[ writeOffset + j ] = values[ readOffset + j ];
+            }
+        }
+        
+        // commit changes
+        if ( lastSavedIndex < times.length-1 ) {   
+            track.times = times.slice( 0, lastSavedIndex + 1 );
+            track.values = values.slice( 0, (lastSavedIndex + 1) * stride );
+            this.updateTrack( track.clipIdx, track ); // update control variables (hover, edited, selected) 
+        } 
+
+        if(this.onOptimizeTracks)
+            this.onOptimizeTracks(trackIdx);
+    }
+
+    optimizeTracks(onlyEqualTime = false) {
+
+        if(!this.animationClip)
+            return;
+
+        for( let i = 0; i < this.animationClip.tracks.length; ++i ) {
+            const track = this.animationClip.tracks[i];
+            this.optimizeTrack( track.clipIdx, onlyEqualTime );
+        }
+    }
+    
+
     getNumTracks( item ) {
         if(!item || !this.tracksPerItem)
             return;
@@ -4453,12 +4610,7 @@ class CurvesTimeline extends Timeline {
         LX.addContextMenu("Optimize", e, m => {
             for( let t of tracks ) {
                 m.add( t.name + (t.type ? "@" + t.type : ""), () => { 
-                    if(!this.animationClip.tracks[t.clipIdx].optimize)
-                        return;
-                    this.animationClip.tracks[t.clipIdx].optimize( threshold );
-                    t.edited = [];
-                    if(this.onOptimizeTracks)
-                        this.onOptimizeTracks(t.clipIdx);
+                    this.optimizeTrack( t.clipIdx, false );
                 })
             }
         });

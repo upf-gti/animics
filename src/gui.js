@@ -124,8 +124,12 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
             menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
             menubar.add("Timeline/Optimize all tracks", { callback: () => {
-                let animations = this.editor.getCurrentBindedAnimation();
-                this.editor.optimizeTracks([animations.mixerBodyAnimation, animations.mixerFaceAnimation]) }
+                    // let animations = this.editor.getCurrentBindedAnimation();
+                    // this.editor.optimizeTracks([animations.mixerBodyAnimation, animations.mixerFaceAnimation]) }
+                    // optimize all tracks of current binded animation (if any)
+                    this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
+                    this.keyFramesTimeline.optimizeTracks();
+                }
             });
 
             menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
@@ -672,7 +676,7 @@ class KeyframesGui extends Gui {
      
 
         // automatic optimization of keyframes
-        this.editor.optimizeTracks();
+        // this.editor.optimizeTracks();
         this.updateMenubar()
         this.render();
         this.showTimeline();
@@ -1248,8 +1252,10 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
         this.keyFramesTimeline.onGetOptimizeThreshold = () => { return this.editor.optimizeThreshold; }
         this.keyFramesTimeline.onChangeTrackVisibility = (e, t, n) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, null, true)}
-        this.keyFramesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
-        this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { this.editor.updateActionUnitsPanel(this.keyFramesTimeline.animationClip, idx)}
+        // this.keyFramesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
+        this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
+            this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
+        }
         this.editor.activeTimeline = this.keyFramesTimeline;
 
         /* Curves Timeline */
@@ -1304,7 +1310,11 @@ class KeyframesGui extends Gui {
                 if ( playElement ){ playElement.children[0].click() }
             }
         }
-        this.curvesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
+        // this.curvesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
+        this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
+            this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
+            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx);
+        }
 
 
         this.timelineArea.attach(this.keyFramesTimeline.root);

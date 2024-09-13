@@ -1937,61 +1937,16 @@ class KeyframeEditor extends Editor{
         this.gizmo.updateBones();
     }
 
-    optimizeTrack(trackIdx, animation,  threshold = this.optimizeThreshold) {
-        this.optimizeThreshold = this.activeTimeline.optimizeThreshold;
-        if(!animation) {
-
-            if(this.animationMode == this.animationModes.BODY) {
-                animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
-            }
-            else if(this.animationMode == this.animationModes.FACE) {
-                animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
-            }
-            else {
-                return;
-            }
-        }
-               
-        const track = animation.tracks[trackIdx];
-        track.optimize( this.optimizeThreshold );
-        this.updateAnimationAction(animation, trackIdx);
-        if(this.activeTimeline.updateTrack) {
-            this.activeTimeline.updateTrack(trackIdx, track);  // commit changes to the timeline
-        }
-    }
-
-    optimizeTracks(animations, tracks) {
-
-        if(!animations) {
-            if(this.animationMode == this.animationModes.BODY) {
-                animations = [this.getCurrentBindedAnimation().mixerBodyAnimation];
-            }
-            else if(this.animationMode == this.animationModes.FACE) {
-                animations = [this.getCurrentBindedAnimation().mixerFaceAnimation];
-            }
-            else {
-                return;
-            }
-        }
-        for( let i = 0; i < animations.length; ++i ) {
-            let animation = animations[i];
-            for( let i = 0; i < animation.tracks.length; ++i ) {
-                this.optimizeTrack(i);
-            }
-        }
-        this.activeTimeline.draw();
-    }
-
     /**
      * This function updates the mixer animation actions so the edited tracks are assigned to the interpolants.
      * WARNING It uses the editedAnimation tracks directly, without cloning them 
-     * @param {animation} editedAnimation for body it is the timeline skeletonAnimation. For face it is the mixerFaceAnimation with the updated blendshape values
+     * @param {animation} editedAnimation for body it is the timeline skeletonAnimation. For face it is the timeline auAnimation with the updated blendshape values
      * @param {Number or Array of Numbers} trackIdxs 
      * @returns 
      */
     updateAnimationAction(editedAnimation, trackIdxs) {
         // for bones editedAnimation is the timeline skeletonAnimation
-        // for blendshapes editedAnimation is the threejs mixerFaceAnimation
+        // for blendshapes editedAnimation is the timeline auAnimation
     
         if(this.animationMode == this.editionModes.SCRIPT) { 
             return;
@@ -2018,7 +1973,10 @@ class KeyframeEditor extends Editor{
                         const trackIdx = trackIdxs[j];
                         const track = editedAnimation.tracks[trackIdx];
 
-                        let bsNames =  this.currentCharacter.blendshapesManager.mapNames[track.type];
+                        let bsNames = this.currentCharacter.blendshapesManager.mapNames[track.type];
+                        if ( !bsNames ){ 
+                            continue; 
+                        }
                         if(typeof(bsNames) == 'string') {
                             bsNames = [bsNames];
                         }
