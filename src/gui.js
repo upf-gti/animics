@@ -676,7 +676,9 @@ class KeyframesGui extends Gui {
      
 
         // automatic optimization of keyframes
-        // this.editor.optimizeTracks();
+        this.keyFramesTimeline.optimizeTracks();
+        this.curvesTimeline.optimizeTracks();
+        
         this.updateMenubar()
         this.render();
         this.showTimeline();
@@ -1276,13 +1278,8 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t);
-            let tracks = null;
-            if(this.curvesTimeline.selectedItems && this.curvesTimeline.selectedItems.length) {
-                tracks = this.curvesTimeline.tracksPerItem[this.curvesTimeline.selectedItems[0]];
-                for(let i = 0; i < tracks.length; i++) {
-    
-                    this.updateActionUnitsPanel(this.curvesTimeline.animationClip );
-                }
+            if ( !this.editor.state ){ // update ui if not playing
+                this.updateActionUnitsPanel(this.curvesTimeline.animationClip);
             }
         }
         this.curvesTimeline.onSetDuration = (t) => { 
@@ -1313,7 +1310,7 @@ class KeyframesGui extends Gui {
         // this.curvesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
         this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
-            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx);
+            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? undefined : idx);
         }
 
 
@@ -1657,8 +1654,7 @@ class KeyframesGui extends Gui {
                         }
 
                         panel.addNumber(name, track.values[frame], (v,e) => {
-                            const time = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
-                            const frame = track.times.indexOf(time);
+                            const frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
                             
                             //this.curvesTimeline.selectKeyFrame(track, [track.name, track.idx, frame], frame);
                             
@@ -1687,22 +1683,28 @@ class KeyframesGui extends Gui {
         this.facePanel.root.querySelector("[data-name='"+area+"']").click();
     }
 
+    /**
+     * 
+     * @param {auAnimation} animation 
+     * @param {Number} trackIdx if undefined, updates the currently visible tracks only 
+     * @returns 
+     */
     updateActionUnitsPanel(animation = this.curvesTimeline.animationClip, trackIdx) {
         if(trackIdx == undefined) {
-            if(!this.curvesTimeline.lastKeyFramesSelected.length) {
-                return;
-            }
-            let [name, idx, keyframe] = this.curvesTimeline.lastKeyFramesSelected[0];
-            for(let i = 0; i < animation.tracks.length; i++) {
-                if(animation.tracks[i].name == name) {
-                    trackIdx = i;
-                    break;
+
+            const selectedItems = this.curvesTimeline.selectedItems || [];
+            const tracksPerItem = this.curvesTimeline.tracksPerItem;
+            for( let i = 0; i < selectedItems.length; ++i ){
+                const itemTracks = tracksPerItem[selectedItems[i]] || [];
+                for( let t = 0; t < itemTracks.length; ++t ){
+					const track = itemTracks[t];
+                    let frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
+                    LX.emit("@on_change_" + track.type, track.values[frame]);
                 }
             }
-            if(trackIdx == undefined) {
-                return;
-            }
+            return;
         }
+
         const track = animation.tracks[trackIdx];
         let name = track.type;
         let frame = 0;
@@ -1710,8 +1712,7 @@ class KeyframesGui extends Gui {
             frame = this.curvesTimeline.lastKeyFramesSelected[0][2];
         } 
         else {            
-            const time = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
-            frame = track.times.indexOf(time);
+            frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
         }
         LX.emit("@on_change_" + name, track.values[frame]);
     }

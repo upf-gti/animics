@@ -614,7 +614,8 @@ class Gizmo {
                 let values = boneToProcess[ track.type ].toArray();
                 if( !values ){ continue; }
 
-                let nearestTime = timeline.getNearestKeyFrame( this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ], effectorFrameTime );
+                let frame = timeline.getNearestKeyFrame( this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ], effectorFrameTime );
+                let nearestTime =  this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].times[ frame ];
                 let keyframe = null;
                 
                 // find nearest frame or create one if too far

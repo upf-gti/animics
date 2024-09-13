@@ -1941,7 +1941,7 @@ class KeyframeEditor extends Editor{
      * This function updates the mixer animation actions so the edited tracks are assigned to the interpolants.
      * WARNING It uses the editedAnimation tracks directly, without cloning them 
      * @param {animation} editedAnimation for body it is the timeline skeletonAnimation. For face it is the timeline auAnimation with the updated blendshape values
-     * @param {Number or Array of Numbers} trackIdxs 
+     * @param {Number or Array of Numbers} trackIdxs a -1 will force an update to all tracks
      * @returns 
      */
     updateAnimationAction(editedAnimation, trackIdxs) {
@@ -1959,7 +1959,14 @@ class KeyframeEditor extends Editor{
         }
     
         if(typeof trackIdxs == 'number') {
-            trackIdxs = [trackIdxs];
+            // get all indices
+            if( trackIdxs == -1 ){ 
+                trackIdxs = new Int32Array( editedAnimation.tracks.length );
+                trackIdxs.forEach( (v,i) => trackIdxs[i] = i );
+                // trackIdxs = Object.keys( editedAnimation.tracks ); // returns strings 
+            }else{
+                trackIdxs = [trackIdxs];
+            }
         }
                      
         for(let i = 0; i< mixer._actions.length; i++) {
@@ -1972,6 +1979,7 @@ class KeyframeEditor extends Editor{
                     for(let j = 0; j < trackIdxs.length; j++) {
                         const trackIdx = trackIdxs[j];
                         const track = editedAnimation.tracks[trackIdx];
+                        mapTrackIdxs[trackIdx] = [];
 
                         let bsNames = this.currentCharacter.blendshapesManager.mapNames[track.type];
                         if ( !bsNames ){ 
@@ -1984,7 +1992,7 @@ class KeyframeEditor extends Editor{
                         for(let b = 0; b < bsNames.length; b++) {
                             for(let t = 0; t < mixerClip.tracks.length; t++) {
                                 if(mixerClip.tracks[t].name.includes("[" + bsNames[b] + "]")) {
-                                    mapTrackIdxs[trackIdx] = [...mapTrackIdxs[trackIdx] ?? [] , t];
+                                    mapTrackIdxs[trackIdx].push(t);
                                     break;
                                 }
                             }
@@ -1996,7 +2004,7 @@ class KeyframeEditor extends Editor{
                     const trackIdx = trackIdxs[j];
                     const mapTrackIdx = mapTrackIdxs[trackIdx] || [trackIdx];
                     const track = editedAnimation.tracks[trackIdx];
-                    if(track.locked){
+                    if(track.locked || !mapTrackIdx.length ){
                         continue;
                     }
                     

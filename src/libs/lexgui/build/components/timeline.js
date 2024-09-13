@@ -1438,7 +1438,6 @@ class KeyFramesTimeline extends Timeline {
         this.tracksPerItem = {};
         
         // this.selectedItems = selectedItems;
-        this.snappedKeyFrameIndex = -1;
         this.autoKeyEnabled = false;
 
 
@@ -1596,21 +1595,6 @@ class KeyFramesTimeline extends Timeline {
 
         if( this.grabbing && e.button != 2) {
 
-            // fix this
-            if(e.shiftKey && track) {
-
-                let keyFrameIndex = this.getNearestKeyFrame( track, this.currentTime);
-                
-                if(keyFrameIndex != this.snappedKeyFrameIndex){
-                    this.snappedKeyFrameIndex = keyFrameIndex;
-                    this.currentTime = track.times[ keyFrameIndex ];		
-                    innerSetTime( this.currentTime );		
-                }
-            }
-            else{
-                innerSetTime( this.currentTime );	
-            }
-                
         }
         else if(track) {
 
@@ -1854,8 +1838,11 @@ class KeyFramesTimeline extends Timeline {
      * (0,0,0,0,1,1,1,0,0,0,0,0,0,0) --> (0,0,1,1,0,0)
      * @param {Int} trackIdx index of track in the animation
      * @param {Bool} onlyEqualTime if true, removes only keyframes with equal times. Otherwise, values are ALSO compared through the class threshold
+     * @param {Bool} enableEvent if true, triggers "onOptimizeTracks" after optimizing
      */
-    optimizeTrack(trackIdx, onlyEqualTime = false ) {
+    optimizeTrack(trackIdx, onlyEqualTime = false, enableEvent = true ) {
+        if ( !this.animationClip ){ return; }
+
         const track = this.animationClip.tracks[trackIdx],
             times = track.times,
             values = track.values,
@@ -1927,7 +1914,7 @@ class KeyFramesTimeline extends Timeline {
             this.updateTrack( track.clipIdx, track ); // update control variables (hover, edited, selected) 
         } 
 
-        if(this.onOptimizeTracks)
+        if(this.onOptimizeTracks && enableEvent )
             this.onOptimizeTracks(trackIdx);
     }
 
@@ -1938,8 +1925,11 @@ class KeyFramesTimeline extends Timeline {
 
         for( let i = 0; i < this.animationClip.tracks.length; ++i ) {
             const track = this.animationClip.tracks[i];
-            this.optimizeTrack( track.clipIdx, onlyEqualTime );
+            this.optimizeTrack( track.clipIdx, onlyEqualTime, false );
         }
+
+        if(this.onOptimizeTracks )
+            this.onOptimizeTracks(-1); // signal as "all tracks"
     }
 
 
@@ -2234,7 +2224,7 @@ class KeyFramesTimeline extends Timeline {
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
 
         if(!track) {
-            return;
+            return -1;
         }
 
         // Update animationClip information
@@ -2245,7 +2235,7 @@ class KeyFramesTimeline extends Timeline {
         const keyInCurrentSlot = track.times.find( t => { return !LX.UTILS.compareThreshold(time, t, t, 0.001 ); });
         if( keyInCurrentSlot ) {
             console.warn("There is already a keyframe stored in time slot ", keyInCurrentSlot)
-            return;
+            return -1;
         }
 
         this.saveState(clipIdx);
@@ -2503,11 +2493,16 @@ class KeyFramesTimeline extends Timeline {
     getNearestKeyFrame( track, time ) {
 
         if(!track || !track.times.length)
-        return;
+            return;
 
-        return track.times.reduce((a, b) => {
-            return Math.abs(b - time) < Math.abs(a - time) ? b : a;
-        });
+        let nearestIdx = 0;
+        let nearestDelta = Math.abs(track.times[0] - time);
+        const times = track.times;
+        for( let i = 1; i < times.length; ++i ){
+            let d = Math.abs( times[i] - time );
+            if ( d < nearestDelta ){ nearestDelta = d; nearestIdx = i; }
+        }
+        return nearestIdx;
     }
 
     unHoverAll(){
@@ -3976,7 +3971,6 @@ class CurvesTimeline extends Timeline {
         this.tracksPerItem = {};
         
         // this.selectedItems = selectedItems;
-        this.snappedKeyFrameIndex = -1;
         this.autoKeyEnabled = false;
         this.valueBeforeMove = 0;
         this.range = options.range || [0, 1];
@@ -4137,20 +4131,6 @@ class CurvesTimeline extends Timeline {
         }
 
         if( this.grabbing && e.button != 2) {
-
-            // fix this
-            if(e.shiftKey && track) {
-
-                let keyFrameIndex = this.getNearestKeyFrame( track, this.currentTime);
-                
-                if(keyFrameIndex != this.snappedKeyFrameIndex){
-                    this.snappedKeyFrameIndex = keyFrameIndex;
-                    innerSetTime( this.currentTime );		
-                }
-            }
-            else{
-                innerSetTime( this.currentTime );	
-            }
                 
         }
         else if(track) {
@@ -4495,8 +4475,11 @@ class CurvesTimeline extends Timeline {
      * (0,0,0,0,1,1,1,0,0,0,0,0,0,0) --> (0,0,1,1,0,0)
      * @param {Int} trackIdx index of track in the animation
      * @param {Bool} onlyEqualTime if true, removes only keyframes with equal times. Otherwise, values are ALSO compared through the class threshold
+     * @param {Bool} enableEvent if true, triggers "onOptimizeTracks" after optimizing
      */
-    optimizeTrack(trackIdx, onlyEqualTime = false ) {
+    optimizeTrack(trackIdx, onlyEqualTime = false, enableEvent = true ) {
+        if ( !this.animationClip ){ return; }
+
         const track = this.animationClip.tracks[trackIdx],
             times = track.times,
             values = track.values,
@@ -4568,7 +4551,7 @@ class CurvesTimeline extends Timeline {
             this.updateTrack( track.clipIdx, track ); // update control variables (hover, edited, selected) 
         } 
 
-        if(this.onOptimizeTracks)
+        if(this.onOptimizeTracks && enableEvent)
             this.onOptimizeTracks(trackIdx);
     }
 
@@ -4579,8 +4562,11 @@ class CurvesTimeline extends Timeline {
 
         for( let i = 0; i < this.animationClip.tracks.length; ++i ) {
             const track = this.animationClip.tracks[i];
-            this.optimizeTrack( track.clipIdx, onlyEqualTime );
+            this.optimizeTrack( track.clipIdx, onlyEqualTime, false );
         }
+
+        if(this.onOptimizeTracks)
+            this.onOptimizeTracks(-1); // signal as all tracks
     }
     
 
@@ -4876,7 +4862,7 @@ class CurvesTimeline extends Timeline {
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
        
         if(!track) {
-            return;
+            return -1;
         }
         
         // Update animationClip information
@@ -4887,7 +4873,7 @@ class CurvesTimeline extends Timeline {
         const keyInCurrentSlot = track.times.find( t => { return !LX.UTILS.compareThreshold(time, t, t, 0.001 ); });
         if( keyInCurrentSlot ) {
             console.warn("There is already a keyframe stored in time slot ", keyInCurrentSlot)
-            return;
+            return -1;
         }
 
         this.saveState(clipIdx);
@@ -5138,9 +5124,14 @@ class CurvesTimeline extends Timeline {
         if(!track || !track.times.length)
         return;
 
-        return track.times.reduce((a, b) => {
-            return Math.abs(b - time) < Math.abs(a - time) ? b : a;
-        });
+        let nearestIdx = 0;
+        let nearestDelta = Math.abs(track.times[0] - time);
+        const times = track.times;
+        for( let i = 1; i < times.length; ++i ){
+            let d = Math.abs( times[i] - time );
+            if ( d < nearestDelta ){ nearestDelta = d; nearestIdx = i; }
+        }
+        return nearestIdx;
     }
 
     unHoverAll() {
