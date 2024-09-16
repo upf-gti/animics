@@ -902,9 +902,7 @@ class KeyframesGui extends Gui {
 
         for(let name in bsNames) {
     
-            inspector.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, 
-                callback: (v,e) => this.editor.updateBlendshapesProperties(name, v), 
-                signal: "@on_change_au_" + name});
+            inspector.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, signal: "@on_change_au_" + name});
         }
         
         return inspector;

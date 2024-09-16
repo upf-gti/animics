@@ -629,44 +629,9 @@ class Editor {
     // }
 
     optimizeTrack(trackIdx, threshold = this.optimizeThreshold) {
-        // this.optimizeThreshold = this.activeTimeline.optimizeThreshold;
-        // let animation = null;
-        // if(this.animationMode == this.animationModes.BODY) {
-        //     animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
-        // }
-        // else if(this.animationMode == this.animationModes.FACE) {
-        //     animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
-        // }
-        // else {
-        //     return;
-        // }
-        
-        // // TO DO: Update timeline clips 
-        // const track = animation.tracks[trackIdx];
-        // track.optimize( this.optimizeThreshold );
-        // this.updateAnimationAction(animation, trackIdx);
-        // if(this.activeTimeline.updateTrack) {
-        //     this.activeTimeline.updateTrack(trackIdx, track);
-        // }
     }
 
     optimizeTracks(animations, tracks) {
-
-        // let animation = null;
-        // if(this.animationMode == this.animationModes.BODY) {
-        //     animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
-        // }
-        // else if(this.animationMode == this.animationModes.FACE) {
-        //     animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
-        // }
-        // else {
-        //     return;
-        // }
-
-        // for( let i = 0; i < animation.tracks.length; ++i ) {
-        //     this.optimizeTrack(i);
-        // }
-        // this.activeTimeline.draw();
     }
 
     updateAnimationAction(animation, idx, replace = false) {
@@ -2172,36 +2137,23 @@ class KeyframeEditor extends Editor{
 
     // Update blendshapes properties from the GUI
     updateBlendshapesProperties(name, value) {
+        if( this.state ){ return false; }
+
         value = Number(value);
         let tracksIdx = [];                    
-        let mixerFaceAnimation = this.getCurrentBindedAnimation().mixerFaceAnimation;
         let auAnimation = this.getCurrentBindedAnimation().auAnimation;
 
         for(let i = 0; i < this.activeTimeline.tracksDrawn.length; i++) {
             let info = this.activeTimeline.tracksDrawn[i][0];
             if(info.type == name && info.active){
                 i = info.clipIdx;
-                let idx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], this.activeTimeline.currentTime, 0.01)
+                let frameIdx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], this.activeTimeline.currentTime, 0.01)
 
                 // Update Action Unit keyframe value of timeline animation
-                this.activeTimeline.animationClip.tracks[i].values[idx] = auAnimation.tracks[i].values[idx] = value;                
-                // this.blendshapesArray[idx][name] = value;
+                this.activeTimeline.animationClip.tracks[i].values[frameIdx] = auAnimation.tracks[i].values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
                 
-                // Update Blendhsape keyframe value of mixer animation
-                let map = this.currentCharacter.blendshapesManager.getBlendshapesMap(name);                
-                for(let j = 0; j < map.length; j++){
-                    for(let t = 0; t < mixerFaceAnimation.tracks.length; t++) {
-                        
-                        if(mixerFaceAnimation.tracks[t].name == map[j]) {
-                            mixerFaceAnimation.tracks[t].values[idx] = value;
-                            mixerFaceAnimation.tracks[t].active = info.active;
-                            tracksIdx.push(t);
-                            break;
-                        }
-                    }
-                }
-                // Update animation action interpolants.
-                this.updateAnimationAction(mixerFaceAnimation, tracksIdx );
+                // Update animation action (mixer) interpolants.
+                this.updateAnimationAction(auAnimation, tracksIdx );
                 return true;
             }
         }
