@@ -1438,7 +1438,6 @@ class KeyFramesTimeline extends Timeline {
         this.tracksPerItem = {};
         
         // this.selectedItems = selectedItems;
-        this.snappedKeyFrameIndex = -1;
         this.autoKeyEnabled = false;
 
 
@@ -1596,21 +1595,6 @@ class KeyFramesTimeline extends Timeline {
 
         if( this.grabbing && e.button != 2) {
 
-            // fix this
-            if(e.shiftKey && track) {
-
-                let keyFrameIndex = this.getNearestKeyFrame( track, this.currentTime);
-                
-                if(keyFrameIndex != this.snappedKeyFrameIndex){
-                    this.snappedKeyFrameIndex = keyFrameIndex;
-                    this.currentTime = track.times[ keyFrameIndex ];		
-                    innerSetTime( this.currentTime );		
-                }
-            }
-            else{
-                innerSetTime( this.currentTime );	
-            }
-                
         }
         else if(track) {
 
@@ -1829,66 +1813,123 @@ class KeyFramesTimeline extends Timeline {
         this.resize();
     }
 
-    updateTrack(trackIdx, track) {
+    /**
+     * updates an existing track with new values and times.
+     * @param {Integer} trackIdx index of track in the animationClip 
+     * @param {*} newTrack object with two arrays: values and times. These will be set to the selected track
+     * @returns 
+     */
+    updateTrack(trackIdx, newTrack) {
         if(!this.animationClip)
-            return;
-        this.animationClip.tracks[trackIdx].values = track.values;
-        this.animationClip.tracks[trackIdx].times = track.times;
-        this.processTrack(trackIdx);
+            return false;
 
+        const track = this.animationClip.tracks[trackIdx]; 
+        track.values = newTrack.values;
+        track.times = newTrack.times;
+
+        track.selected = (new Array(track.times.length)).fill(false);
+        track.hovered = track.selected.slice();
+        track.edited = track.selected.slice();
+        return true;
     }
 
-    processTrack(trackIdx) {
-        if(!this.animationClip)
-            return;
+    /**
+     * removes equivalent sequential keys either because of equal times or values
+     * (0,0,0,0,1,1,1,0,0,0,0,0,0,0) --> (0,0,1,1,0,0)
+     * @param {Int} trackIdx index of track in the animation
+     * @param {Bool} onlyEqualTime if true, removes only keyframes with equal times. Otherwise, values are ALSO compared through the class threshold
+     * @param {Bool} enableEvent if true, triggers "onOptimizeTracks" after optimizing
+     */
+    optimizeTrack(trackIdx, onlyEqualTime = false, enableEvent = true ) {
+        if ( !this.animationClip ){ return; }
 
-        let track = this.animationClip.tracks[trackIdx];
+        const track = this.animationClip.tracks[trackIdx],
+            times = track.times,
+            values = track.values,
+            stride = track.dim,
+            threshold = this.optimizeThreshold;
+        let cmpFunction = (v, p, n, t) => { return Math.abs(v - p) >= t || Math.abs(v - n) >= t };
+        let lastSavedIndex = 0;
+        const lastIndex = times.length-1;
 
-        const [name, type] = this.getTrackName(track.fullname || track.name);
+        for ( let i = 1; i < lastIndex; ++ i ) {
 
-        let trackInfo = {
-            fullname: track.name,
-            name: name, type: type,
-            dim: track.values.length/track.times.length,
-            selected: [], edited: [], hovered: [], active: true,
-            times: track.times,
-            values: track.values
-        };
-        
-        for(let i = 0; i < this.tracksPerItem[name].length; i++) {
-            if(this.tracksPerItem[name][i].fullname == trackInfo.fullname) {
-                trackInfo.idx = this.tracksPerItem[name][i].idx;
-                trackInfo.clipIdx = this.tracksPerItem[name][i].clipIdx;
-                this.tracksPerItem[name][i] = trackInfo;
-                return;
+            let keep = false;
+            const time = times[ i ];
+            const timePrev = times[ lastSavedIndex ];
+
+            // remove adjacent keyframes scheduled at the same time
+            if ( time !== timePrev ) {
+                if ( ! onlyEqualTime ) {
+                    // remove unnecessary keyframes same as their neighbors
+                    const offset = i * stride,
+                        offsetP = lastSavedIndex * stride,
+                        offsetN = offset + stride;
+
+                    for ( let j = 0; j !== stride; ++ j ) {
+                        if( cmpFunction(
+                            values[ offset + j ], 
+                            values[ offsetP + j ], 
+                            values[ offsetN + j ],
+                            threshold))
+                        {
+                            keep = true;
+                            break;
+                        }
+                    }
+                } else {
+                    keep = true;
+                }
+            }
+
+            // in-place compaction
+            if ( keep ) {
+                ++lastSavedIndex;
+                if ( i !== lastSavedIndex ) {
+                    times[ lastSavedIndex ] = times[ i ];
+                    const readOffset = i * stride,
+                        writeOffset = lastSavedIndex * stride;
+                    for ( let j = 0; j !== stride; ++ j ) {
+                        values[ writeOffset + j ] = values[ readOffset + j ];
+                    }
+                }
             }
         }
-    }
 
-    optimizeTrack(trackIdx) {
-        const track = this.animationClip.tracks[trackIdx];
-        if(track.optimize) {
-
-            track.optimize( this.optimizeThreshold );
-            if(this.onOptimizeTracks)
-               this.onOptimizeTracks(trackIdx);
+        // add last frame. first and last keyframes should be always kept
+        if ( times.length > 1 ) {
+            ++lastSavedIndex;
+            times[ lastSavedIndex ] = times[ times.length - 1 ];
+            const readOffset = values.length - stride,
+                writeOffset = lastSavedIndex * stride;
+            for ( let j = 0; j !== stride; ++j ) {
+                values[ writeOffset + j ] = values[ readOffset + j ];
+            }
         }
+        
+        // commit changes
+        if ( lastSavedIndex < times.length-1 ) {   
+            track.times = times.slice( 0, lastSavedIndex + 1 );
+            track.values = values.slice( 0, (lastSavedIndex + 1) * stride );
+            this.updateTrack( track.clipIdx, track ); // update control variables (hover, edited, selected) 
+        } 
+
+        if(this.onOptimizeTracks && enableEvent )
+            this.onOptimizeTracks(trackIdx);
     }
 
-    optimizeTracks() {
+    optimizeTracks(onlyEqualTime = false) {
 
         if(!this.animationClip)
             return;
 
         for( let i = 0; i < this.animationClip.tracks.length; ++i ) {
             const track = this.animationClip.tracks[i];
-            if(track.optimize) {
-
-                track.optimize( this.optimizeThreshold );
-                if(this.onOptimizeTracks)
-                    this.onOptimizeTracks(i);
-            }
+            this.optimizeTrack( track.clipIdx, onlyEqualTime, false );
         }
+
+        if(this.onOptimizeTracks )
+            this.onOptimizeTracks(-1); // signal as "all tracks"
     }
 
 
@@ -1918,11 +1959,7 @@ class KeyFramesTimeline extends Timeline {
         LX.addContextMenu("Optimize", e, m => {
             for( let t of tracks ) {
                 m.add( t.name + (t.type ? "@" + t.type : ""), () => { 
-                    if(this.optimizeTrack) {
-                        this.optimizeTrack(t.clipIdx, threshold)
-                    // this.animationClip.tracks[t.clipIdx].optimize( threshold );
-                        t.edited = [];
-                    }
+                    this.optimizeTrack( t.clipIdx, false);
                 })
             }
         });
@@ -2000,21 +2037,24 @@ class KeyFramesTimeline extends Timeline {
         }
     }
 
-    selectKeyFrame( track, selectionInfo, index ) {
-        
-        if(index == undefined || !track)
-        return;
+    /**
+     * @param {object} track track of animation clip (object not index)
+     * @param {int} frameIdx frame (index) to select inside the track 
+     * @param {bool} unselectPrev if true, unselects previously selected frames. Otherwise, stacks the new selection
+     * @returns 
+     */
+    selectKeyFrame( track, frameIdx, unselectPrev = true ) {
+        if( frameIdx == undefined || !track || track.locked )
+            return false;
+    
+        if ( unselectPrev ){
+            this.unSelectAllKeyFrames();
+        }
 
-        this.unSelectAllKeyFrames();
-                            
-        this.lastKeyFramesSelected.push( selectionInfo );
-        if(track.locked)
-            return;
-        track.selected[index] = true;
-        this.currentTime =  this.animationClip.tracks[track.clipIdx].times[ index ];
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
-        // if( this.onSetTime )
-        //     this.onSetTime(  this.currentTime);
+        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex] );
+        track.selected[frameIdx] = true;
+
+        return true;
     }
 
     copyContent() {
@@ -2187,87 +2227,67 @@ class KeyFramesTimeline extends Timeline {
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
 
         if(!track) {
-            return;
+            return -1;
         }
 
         // Update animationClip information
-        let clipIdx = track.clipIdx;
-
-        let [name, keyType] = this.getTrackName(track.name)
-        let tracks = this.tracksPerItem[name];
-        if(!tracks) return;
-
-        // Get current track
-        const selectedTrackIdx = tracks.findIndex( t => t.type === keyType );
-        if(selectedTrackIdx >=  0)
-            track = tracks[ selectedTrackIdx ];
-        if(clipIdx == undefined) {
-            if(selectedTrackIdx < 0)
-                return;
-                clipIdx = tracks[ selectedTrackIdx ].clipIdx;
-        }
+        const clipIdx = track.clipIdx;
+        track = this.animationClip.tracks[clipIdx];
 
         // Time slot with other key?
-        const keyInCurrentSlot = this.animationClip.tracks[clipIdx].times.find( t => { return !LX.UTILS.compareThreshold(time, t, t, 0.001 ); });
+        const keyInCurrentSlot = track.times.find( t => { return !LX.UTILS.compareThreshold(time, t, t, 0.001 ); });
         if( keyInCurrentSlot ) {
             console.warn("There is already a keyframe stored in time slot ", keyInCurrentSlot)
-            return;
+            return -1;
         }
 
         this.saveState(clipIdx);
 
         // Find new index
         let newIdx = this.animationClip.tracks[clipIdx].times.findIndex( t => t > time );
-
-        // Add as last index
-        let lastIndex = false;
         if(newIdx < 0) {
-            newIdx = this.animationClip.tracks[clipIdx].times.length;
-            lastIndex = true;
+            newIdx = track.times.length;
         }
 
-        // Add time key
-        const timesArray = [];
-        this.animationClip.tracks[clipIdx].times.forEach( (a, b) => {
-            b == newIdx ? timesArray.push(time, a) : timesArray.push(a);
-        } );
+        // TODO allow undefined value and compute the interpolation between adjacent keyframes?
 
-        if(lastIndex) {
-            timesArray.push(time);			
+        // new arrays
+        let times = new Float32Array( track.times.length + 1 );
+        let values = new Float32Array( track.values.length + track.dim );
+
+        let valueDim = track.dim;
+
+        // copy times/values before the new index
+        for( let i = 0; i < newIdx; ++i ){ 
+            times[i] = track.times[i]; 
+        }
+        for( let i = 0; i < newIdx * valueDim; ++i ){ 
+            values[i] = track.values[i]; 
         }
 
-        this.animationClip.tracks[clipIdx].times = new Float32Array( timesArray );
-       
-        // Add values
-        let valuesArray = [];
-        let dim = value.length;
-        this.animationClip.tracks[clipIdx].values.forEach( (a, b) => {
-            if(b == newIdx * dim) {
-                for( let i = 0; i < dim; ++i )
-                    valuesArray.push(value[i]);
-            }
-            valuesArray.push(a);
-        } );
-
-        if(lastIndex) {
-            for( let i = 0; i < dim; ++i )
-                valuesArray.push(value[i]);
+        // new keyframe
+        times[newIdx] = time;
+        for( let i = 0; i < valueDim; ++i ){ 
+            values[newIdx * valueDim + i] = value[i]; 
         }
 
-        this.animationClip.tracks[clipIdx].values = new Float32Array( valuesArray );
-
-        
-        // Move the other's key properties
-        for(let i = (this.animationClip.tracks[clipIdx].times.length - 1); i > newIdx; --i) {
-            track.edited[i - 1] ? track.edited[i] = track.edited[i - 1] : 0;
+        // copy remaining keyframes
+        for( let i = newIdx; i < track.times.length; ++i ){ 
+            times[i+1] = track.times[i]; 
         }
-        
-        // Reset this key's properties
-        track.hovered[newIdx] = false;
-        track.selected[newIdx] = false;
-        track.edited[newIdx] = true;
+        for( let i = newIdx * valueDim; i < track.values.length; ++i ){ 
+            values[i + valueDim] = track.values[i]; 
+        }
+
+        // update track pointers
+        track.times = times;
+        track.values = values;
+                    
+        // Add new entry into each control array
+        track.hovered.splice(newIdx, 0, false);
+        track.selected.splice(newIdx, 0, false);
+        track.edited.splice(newIdx, 0, true);
     
-
         // Update animation action interpolation info
         if(this.onUpdateTrack)
             this.onUpdateTrack( clipIdx );
@@ -2476,11 +2496,16 @@ class KeyFramesTimeline extends Timeline {
     getNearestKeyFrame( track, time ) {
 
         if(!track || !track.times.length)
-        return;
+            return;
 
-        return track.times.reduce((a, b) => {
-            return Math.abs(b - time) < Math.abs(a - time) ? b : a;
-        });
+        let nearestIdx = 0;
+        let nearestDelta = Math.abs(track.times[0] - time);
+        const times = track.times;
+        for( let i = 1; i < times.length; ++i ){
+            let d = Math.abs( times[i] - time );
+            if ( d < nearestDelta ){ nearestDelta = d; nearestIdx = i; }
+        }
+        return nearestIdx;
     }
 
     unHoverAll(){
@@ -2521,28 +2546,19 @@ class KeyFramesTimeline extends Timeline {
 
         const name = this.tracksDictionary[track.fullname];
         let t = this.tracksPerItem[ name ][track.idx];
-        let currentSelection = [name, track.idx, keyFrameIndex];
         
-        if(!multiple)
-            this.selectKeyFrame(t, currentSelection, keyFrameIndex);
-        else
-            this.lastKeyFramesSelected.push( currentSelection );
+        this.selectKeyFrame(t, keyFrameIndex, !multiple); // changes time 
+        const currentSelection = this.lastKeyFramesSelected[ this.lastKeyFramesSelected.length - 1 ];
 
-            
-        if( !multiple ) {
-            LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex ]);
-
-            // if(this.onSetTime )
-            //     this.onSetTime( track.times[ keyFrameIndex ] );
-        }
-
-        // Select if not handled        
-        t.selected[keyFrameIndex] = true;
-
-        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection, keyFrameIndex)) {
+        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection)) {
             // Event handled
             return;
         }        
+
+        if( !multiple ) {
+            this.currentTime = this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ];
+            LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex ]);
+        }    
     }
 
     /**
@@ -3949,7 +3965,6 @@ class CurvesTimeline extends Timeline {
         this.tracksPerItem = {};
         
         // this.selectedItems = selectedItems;
-        this.snappedKeyFrameIndex = -1;
         this.autoKeyEnabled = false;
         this.valueBeforeMove = 0;
         this.range = options.range || [0, 1];
@@ -4110,20 +4125,6 @@ class CurvesTimeline extends Timeline {
         }
 
         if( this.grabbing && e.button != 2) {
-
-            // fix this
-            if(e.shiftKey && track) {
-
-                let keyFrameIndex = this.getNearestKeyFrame( track, this.currentTime);
-                
-                if(keyFrameIndex != this.snappedKeyFrameIndex){
-                    this.snappedKeyFrameIndex = keyFrameIndex;
-                    innerSetTime( this.currentTime );		
-                }
-            }
-            else{
-                innerSetTime( this.currentTime );	
-            }
                 
         }
         else if(track) {
@@ -4274,7 +4275,7 @@ class CurvesTimeline extends Timeline {
                 //convert to timeline track range
                 value = (((value - this.range[0]) * ( -this.trackHeight) ) / (this.range[1] - this.range[0])) + this.trackHeight;
 
-                if( time < this.startTime || time > this.endTime )
+                if( time < this.startTime && time > this.endTime )
                     continue;
                 let keyframePosX = this.timeToX( time );
                 
@@ -4394,12 +4395,12 @@ class CurvesTimeline extends Timeline {
             tracks: []
         };
 
-        if (animation && animation.tracks) {
+        if (animation && animation.tracks) { // THREEJS animation
             for( let i = 0; i < animation.tracks.length; ++i ) {
                 
                 let track = animation.tracks[i];
                 
-                const [name, type] = this.getTrackName(track.name);
+                const [name, type] = this.getTrackName(track.name); // threejs stores tracks as "name.type" --> "hips.quaternion"
 
                 let valueDim = track.dim;
                 if ( !valueDim || valueDim < 0 ){
@@ -4443,6 +4444,126 @@ class CurvesTimeline extends Timeline {
         }
     }
 
+    /**
+     * updates an existing track with new values and times.
+     * @param {Integer} trackIdx index of track in the animationClip 
+     * @param {*} newTrack object with two arrays: values and times. These will be set to the selected track
+     * @returns 
+    */
+    updateTrack(trackIdx, newTrack) {
+        if(!this.animationClip)
+            return false;
+
+        this.animationClip.tracks[trackIdx].values = newTrack.values;
+        this.animationClip.tracks[trackIdx].times = newTrack.times;
+
+        let track = this.animationClip.tracks[trackIdx];
+        track.selected = (new Array(track.times.length)).fill(false);
+        track.hovered = track.selected.slice();
+        track.edited = track.selected.slice();
+        return true;
+    }
+
+    /**
+     * removes equivalent sequential keys either because of equal times or values
+     * (0,0,0,0,1,1,1,0,0,0,0,0,0,0) --> (0,0,1,1,0,0)
+     * @param {Int} trackIdx index of track in the animation
+     * @param {Bool} onlyEqualTime if true, removes only keyframes with equal times. Otherwise, values are ALSO compared through the class threshold
+     * @param {Bool} enableEvent if true, triggers "onOptimizeTracks" after optimizing
+     */
+    optimizeTrack(trackIdx, onlyEqualTime = false, enableEvent = true ) {
+        if ( !this.animationClip ){ return; }
+
+        const track = this.animationClip.tracks[trackIdx],
+            times = track.times,
+            values = track.values,
+            stride = track.dim,
+            threshold = this.optimizeThreshold;
+        let cmpFunction = (v, p, n, t) => { return Math.abs(v - p) >= t || Math.abs(v - n) >= t };
+        let lastSavedIndex = 0;
+        const lastIndex = times.length-1;
+
+        for ( let i = 1; i < lastIndex; ++ i ) {
+
+            let keep = false;
+            const time = times[ i ];
+            const timePrev = times[ lastSavedIndex ];
+
+            // remove adjacent keyframes scheduled at the same time
+            if ( time !== timePrev ) {
+                if ( ! onlyEqualTime ) {
+                    // remove unnecessary keyframes same as their neighbors
+                    const offset = i * stride,
+                        offsetP = lastSavedIndex * stride,
+                        offsetN = offset + stride;
+
+                    for ( let j = 0; j !== stride; ++ j ) {
+                        if( cmpFunction(
+                            values[ offset + j ], 
+                            values[ offsetP + j ], 
+                            values[ offsetN + j ],
+                            threshold))
+                        {
+                            keep = true;
+                            break;
+                        }
+                    }
+                } else {
+                    keep = true;
+                }
+            }
+
+            // in-place compaction
+            if ( keep ) {
+                ++lastSavedIndex;
+                if ( i !== lastSavedIndex ) {
+                    times[ lastSavedIndex ] = times[ i ];
+                    const readOffset = i * stride,
+                        writeOffset = lastSavedIndex * stride;
+                    for ( let j = 0; j !== stride; ++ j ) {
+                        values[ writeOffset + j ] = values[ readOffset + j ];
+                    }
+                }
+            }
+        }
+
+        // add last frame. first and last keyframes should be always kept
+        if ( times.length > 1 ) {
+            ++lastSavedIndex;
+            times[ lastSavedIndex ] = times[ times.length - 1 ];
+            const readOffset = values.length - stride,
+                writeOffset = lastSavedIndex * stride;
+            for ( let j = 0; j !== stride; ++j ) {
+                values[ writeOffset + j ] = values[ readOffset + j ];
+            }
+        }
+        
+        // commit changes
+        if ( lastSavedIndex < times.length-1 ) {   
+            track.times = times.slice( 0, lastSavedIndex + 1 );
+            track.values = values.slice( 0, (lastSavedIndex + 1) * stride );
+            this.updateTrack( track.clipIdx, track ); // update control variables (hover, edited, selected) 
+        } 
+
+        if(this.onOptimizeTracks && enableEvent)
+            this.onOptimizeTracks(trackIdx);
+    }
+
+    optimizeTracks(onlyEqualTime = false) {
+
+        if(!this.animationClip)
+            return;
+
+        for( let i = 0; i < this.animationClip.tracks.length; ++i ) {
+            const track = this.animationClip.tracks[i];
+            this.optimizeTrack( track.clipIdx, onlyEqualTime, false );
+        }
+
+        if(this.onOptimizeTracks)
+            this.onOptimizeTracks(-1); // signal as all tracks
+    }
+    
+
     getNumTracks( item ) {
         if(!item || !this.tracksPerItem)
             return;
@@ -4469,12 +4590,7 @@ class CurvesTimeline extends Timeline {
         LX.addContextMenu("Optimize", e, m => {
             for( let t of tracks ) {
                 m.add( t.name + (t.type ? "@" + t.type : ""), () => { 
-                    if(!this.animationClip.tracks[t.clipIdx].optimize)
-                        return;
-                    this.animationClip.tracks[t.clipIdx].optimize( threshold );
-                    t.edited = [];
-                    if(this.onOptimizeTracks)
-                        this.onOptimizeTracks(t.clipIdx);
+                    this.optimizeTrack( t.clipIdx, false );
                 })
             }
         });
@@ -4552,20 +4668,24 @@ class CurvesTimeline extends Timeline {
         }
     }
 
-    selectKeyFrame( track, selectionInfo, index ) {
-        
-        if(index == undefined || !track)
-        return;
+   /** 
+     * @param {object} track track of animation clip (object not index)
+     * @param {int} frameIdx frame (index) to select inside the track 
+     * @param {bool} unselectPrev if true, unselects previously selected frames. Otherwise, stacks the new selection
+     * @returns 
+     */
+    selectKeyFrame( track, frameIdx, unselectPrev = true ) {        
+        if( frameIdx == undefined || !track || track.locked )
+            return false;
 
-        this.unSelectAllKeyFrames();
-                            
-        this.lastKeyFramesSelected.push( selectionInfo );
-        track.selected[index] = true;
-        this.currentTime =  this.animationClip.tracks[track.clipIdx].times[ index ];
-        
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
-        // if( this.onSetTime )
-        //     this.onSetTime( this.currentTime );
+        if ( unselectPrev ){
+            this.unSelectAllKeyFrames();
+        }
+
+        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex] );
+        track.selected[frameIdx] = true;
+
+        return true;
     }
 
     copyContent() {
@@ -4740,77 +4860,58 @@ class CurvesTimeline extends Timeline {
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
        
         if(!track) {
-            return;
+            return -1;
         }
         
         // Update animationClip information
         const clipIdx = track.clipIdx;
+        track = this.animationClip.tracks[clipIdx];
 
         // Time slot with other key?
-        const keyInCurrentSlot = this.animationClip.tracks[clipIdx].times.find( t => { return !LX.UTILS.compareThreshold(time, t, t, 0.001 ); });
+        const keyInCurrentSlot = track.times.find( t => { return !LX.UTILS.compareThreshold(time, t, t, 0.001 ); });
         if( keyInCurrentSlot ) {
             console.warn("There is already a keyframe stored in time slot ", keyInCurrentSlot)
-            return;
+            return -1;
         }
 
         this.saveState(clipIdx);
 
         // Find new index
-        let newIdx = this.animationClip.tracks[clipIdx].times.findIndex( t => t > time );
-
-        // Add as last index
-        let lastIndex = false;
+        let newIdx = track.times.findIndex( t => t > time );
         if(newIdx < 0) {
-            newIdx = this.animationClip.tracks[clipIdx].times.length;
-            lastIndex = true;
+            newIdx = track.times.length;
         }
 
-        // Add time key
-        const timesArray = [];
-        this.animationClip.tracks[clipIdx].times.forEach( (a, b) => {
-            b == newIdx ? timesArray.push(time, a) : timesArray.push(a);
-        } );
-
-        if(lastIndex) {
-            timesArray.push(time);			
-        }
-
-        this.animationClip.tracks[clipIdx].times = new Float32Array( timesArray );
-        
         // Get mid values
-        const values = value != undefined ? [value] : this.onGetSelectedItem();
+        value = value != undefined ? [value] : this.onGetSelectedItem();
 
-        // Add values
-        let valuesArray = [];
-                    
-        let dim = values.length;
-        this.animationClip.tracks[clipIdx].values.forEach( (a, b) => {
-            if(b == newIdx * dim) {
-                for( let i = 0; i < dim; ++i )
-                    valuesArray.push(values[i]);
-            }
-            valuesArray.push(a);
-        } );
+        // new arrays. WARNING assuming keyframes are always dim=1
+        let times = new Float32Array( track.times.length + 1 );
+        let values = new Float32Array( track.values.length + 1 );
 
-        if(lastIndex) {
-            for( let i = 0; i < dim; ++i )
-                valuesArray.push(values[i]);
+        // copy times/values before the new index
+        for( let i = 0; i < newIdx; ++i ){ 
+            times[i] = track.times[i]; 
+            values[i] = track.values[i];
         }
 
-        this.animationClip.tracks[clipIdx].values = new Float32Array( valuesArray );
+        times[newIdx] = time;
+        values[newIdx] = value;
 
+        // copy remaining times/values
+        for( let i = newIdx; i < track.times.length; ++i ){ 
+            times[i+1] = track.times[i]; 
+            values[i+1] = track.values[i];
+        }
 
-            // // Move the other's key properties
-            // for(let i = (this.animationClip.tracks[clipIdx].times.length - 1); i > newIdx; --i) {
-            //     track.edited[i - 1] ? track.edited[i] = track.edited[i - 1] : 0;
-            // }
+        track.times = times;
+        track.values = values;
             
-            // Reset this key's properties
-        track.hovered[newIdx] = false;
-        track.selected[newIdx] = false;
-        track.edited[newIdx] = true;
+        // Add new entry into each control array
+        track.hovered.splice(newIdx, 0, false);
+        track.selected.splice(newIdx, 0, false);
+        track.edited.splice(newIdx, 0, true);
        
-
         // Update animation action interpolation info
         if(this.onUpdateTrack)
             this.onUpdateTrack( clipIdx );
@@ -5021,9 +5122,14 @@ class CurvesTimeline extends Timeline {
         if(!track || !track.times.length)
         return;
 
-        return track.times.reduce((a, b) => {
-            return Math.abs(b - time) < Math.abs(a - time) ? b : a;
-        });
+        let nearestIdx = 0;
+        let nearestDelta = Math.abs(track.times[0] - time);
+        const times = track.times;
+        for( let i = 1; i < times.length; ++i ){
+            let d = Math.abs( times[i] - time );
+            if ( d < nearestDelta ){ nearestDelta = d; nearestIdx = i; }
+        }
+        return nearestIdx;
     }
 
     unHoverAll() {
@@ -5060,30 +5166,19 @@ class CurvesTimeline extends Timeline {
         }
                         
         const name = this.tracksDictionary[track.fullname];
-        let t = this.tracksPerItem[ name ][track.idx];
-        let currentSelection = [name, track.idx, keyFrameIndex, track.clipIndex];
-
-        if(!multiple)
-            this.selectKeyFrame(t, currentSelection, keyFrameIndex);
-        else
-            this.lastKeyFramesSelected.push( currentSelection );
-
-        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection, keyFrameIndex)) {
+        const t = this.tracksPerItem[ name ][track.idx];
+        
+        this.selectKeyFrame(t, keyFrameIndex, !multiple, multiple); // changes time on the first keyframe selected
+        const currentSelection = this.lastKeyFramesSelected[ this.lastKeyFramesSelected.length - 1 ];
+       
+        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection)) {
             // Event handled
             return;
         }
-        
-        if(keyFrameIndex == undefined)
-            return;
 
-        // Select if not handled
-        t.selected[keyFrameIndex] = true;
-
-        if( !multiple) {
-
-            LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex]);
-            // if(this.onSetTime)
-            //     this.onSetTime( track.times[ keyFrameIndex ] );
+        if (!multiple){
+            this.currentTime = this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ];
+            LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
         }
     }
 

@@ -629,44 +629,9 @@ class Editor {
     // }
 
     optimizeTrack(trackIdx, threshold = this.optimizeThreshold) {
-        // this.optimizeThreshold = this.activeTimeline.optimizeThreshold;
-        // let animation = null;
-        // if(this.animationMode == this.animationModes.BODY) {
-        //     animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
-        // }
-        // else if(this.animationMode == this.animationModes.FACE) {
-        //     animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
-        // }
-        // else {
-        //     return;
-        // }
-        
-        // // TO DO: Update timeline clips 
-        // const track = animation.tracks[trackIdx];
-        // track.optimize( this.optimizeThreshold );
-        // this.updateAnimationAction(animation, trackIdx);
-        // if(this.activeTimeline.updateTrack) {
-        //     this.activeTimeline.updateTrack(trackIdx, track);
-        // }
     }
 
     optimizeTracks(animations, tracks) {
-
-        // let animation = null;
-        // if(this.animationMode == this.animationModes.BODY) {
-        //     animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
-        // }
-        // else if(this.animationMode == this.animationModes.FACE) {
-        //     animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
-        // }
-        // else {
-        //     return;
-        // }
-
-        // for( let i = 0; i < animation.tracks.length; ++i ) {
-        //     this.optimizeTrack(i);
-        // }
-        // this.activeTimeline.draw();
     }
 
     updateAnimationAction(animation, idx, replace = false) {
@@ -902,7 +867,7 @@ class Editor {
             }
         }
         
-        const openPreview = () => {
+        const openPreview = (data) => {
             if(!this.realizer || this.realizer.closed) {
                 this.realizer = window.open(url, "Preview");
                 this.realizer.onload = (e, d) => {
@@ -928,13 +893,13 @@ class Editor {
             }
 
             data = JSON.stringify([{type: "bml", data: json.behaviours}]);
-            openPreview();
+            openPreview(data);
         }
         else{
             this.gui.showExportAnimationsDialog(() => {
                 const files = this.export("BVH extended", false);
                 data = {type: "bvhe", data: files};
-                openPreview();
+                openPreview(data);
             })
             // let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
             // window.localStorage.setItem('bvhskeletonpreview', bvh);
@@ -1937,62 +1902,16 @@ class KeyframeEditor extends Editor{
         this.gizmo.updateBones();
     }
 
-    optimizeTrack(trackIdx, animation,  threshold = this.optimizeThreshold) {
-        this.optimizeThreshold = this.activeTimeline.optimizeThreshold;
-        if(!animation) {
-
-            if(this.animationMode == this.animationModes.BODY) {
-                animation = this.getCurrentBindedAnimation().mixerBodyAnimation;
-            }
-            else if(this.animationMode == this.animationModes.FACE) {
-                animation = this.getCurrentBindedAnimation().mixerFaceAnimation;
-            }
-            else {
-                return;
-            }
-        }
-        
-        // TO DO: Update timeline clips 
-        const track = animation.tracks[trackIdx];
-        track.optimize( this.optimizeThreshold );
-        this.updateAnimationAction(animation, trackIdx);
-        if(this.activeTimeline.updateTrack) {
-            this.activeTimeline.updateTrack(trackIdx, track);
-        }
-    }
-
-    optimizeTracks(animations, tracks) {
-
-        if(!animations) {
-            if(this.animationMode == this.animationModes.BODY) {
-                animations = [this.getCurrentBindedAnimation().mixerBodyAnimation];
-            }
-            else if(this.animationMode == this.animationModes.FACE) {
-                animations = [this.getCurrentBindedAnimation().mixerFaceAnimation];
-            }
-            else {
-                return;
-            }
-        }
-        for( let i = 0; i < animations.length; ++i ) {
-            let animation = animations[i];
-            for( let i = 0; i < animation.tracks.length; ++i ) {
-                this.optimizeTrack(i);
-            }
-        }
-        this.activeTimeline.draw();
-    }
-
     /**
      * This function updates the mixer animation actions so the edited tracks are assigned to the interpolants.
      * WARNING It uses the editedAnimation tracks directly, without cloning them 
-     * @param {animation} editedAnimation for body it is the timeline skeletonAnimation. For face it is the mixerFaceAnimation with the updated blendshape values
-     * @param {Number or Array of Numbers} trackIdxs 
+     * @param {animation} editedAnimation for body it is the timeline skeletonAnimation. For face it is the timeline auAnimation with the updated blendshape values
+     * @param {Number or Array of Numbers} trackIdxs a -1 will force an update to all tracks
      * @returns 
      */
     updateAnimationAction(editedAnimation, trackIdxs) {
         // for bones editedAnimation is the timeline skeletonAnimation
-        // for blendshapes editedAnimation is the threejs mixerFaceAnimation
+        // for blendshapes editedAnimation is the timeline auAnimation
     
         if(this.animationMode == this.editionModes.SCRIPT) { 
             return;
@@ -2005,7 +1924,14 @@ class KeyframeEditor extends Editor{
         }
     
         if(typeof trackIdxs == 'number') {
-            trackIdxs = [trackIdxs];
+            // get all indices
+            if( trackIdxs == -1 ){ 
+                trackIdxs = new Int32Array( editedAnimation.tracks.length );
+                trackIdxs.forEach( (v,i) => trackIdxs[i] = i );
+                // trackIdxs = Object.keys( editedAnimation.tracks ); // returns strings 
+            }else{
+                trackIdxs = [trackIdxs];
+            }
         }
                      
         for(let i = 0; i< mixer._actions.length; i++) {
@@ -2018,8 +1944,12 @@ class KeyframeEditor extends Editor{
                     for(let j = 0; j < trackIdxs.length; j++) {
                         const trackIdx = trackIdxs[j];
                         const track = editedAnimation.tracks[trackIdx];
+                        mapTrackIdxs[trackIdx] = [];
 
-                        let bsNames =  this.currentCharacter.blendshapesManager.mapNames[track.type];
+                        let bsNames = this.currentCharacter.blendshapesManager.mapNames[track.type];
+                        if ( !bsNames ){ 
+                            continue; 
+                        }
                         if(typeof(bsNames) == 'string') {
                             bsNames = [bsNames];
                         }
@@ -2027,7 +1957,7 @@ class KeyframeEditor extends Editor{
                         for(let b = 0; b < bsNames.length; b++) {
                             for(let t = 0; t < mixerClip.tracks.length; t++) {
                                 if(mixerClip.tracks[t].name.includes("[" + bsNames[b] + "]")) {
-                                    mapTrackIdxs[trackIdx] = [...mapTrackIdxs[trackIdx] ?? [] , t];
+                                    mapTrackIdxs[trackIdx].push(t);
                                     break;
                                 }
                             }
@@ -2039,7 +1969,7 @@ class KeyframeEditor extends Editor{
                     const trackIdx = trackIdxs[j];
                     const mapTrackIdx = mapTrackIdxs[trackIdx] || [trackIdx];
                     const track = editedAnimation.tracks[trackIdx];
-                    if(track.locked){
+                    if(track.locked || !mapTrackIdx.length ){
                         continue;
                     }
                     
@@ -2207,36 +2137,23 @@ class KeyframeEditor extends Editor{
 
     // Update blendshapes properties from the GUI
     updateBlendshapesProperties(name, value) {
+        if( this.state ){ return false; }
+
         value = Number(value);
         let tracksIdx = [];                    
-        let mixerFaceAnimation = this.getCurrentBindedAnimation().mixerFaceAnimation;
         let auAnimation = this.getCurrentBindedAnimation().auAnimation;
 
         for(let i = 0; i < this.activeTimeline.tracksDrawn.length; i++) {
             let info = this.activeTimeline.tracksDrawn[i][0];
             if(info.type == name && info.active){
                 i = info.clipIdx;
-                let idx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], this.activeTimeline.currentTime, 0.01)
+                let frameIdx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], this.activeTimeline.currentTime, 0.01)
 
                 // Update Action Unit keyframe value of timeline animation
-                this.activeTimeline.animationClip.tracks[i].values[idx] = auAnimation.tracks[i].values[idx] = value;                
-                // this.blendshapesArray[idx][name] = value;
+                this.activeTimeline.animationClip.tracks[i].values[frameIdx] = auAnimation.tracks[i].values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
                 
-                // Update Blendhsape keyframe value of mixer animation
-                let map = this.currentCharacter.blendshapesManager.getBlendshapesMap(name);                
-                for(let j = 0; j < map.length; j++){
-                    for(let t = 0; t < mixerFaceAnimation.tracks.length; t++) {
-                        
-                        if(mixerFaceAnimation.tracks[t].name == map[j]) {
-                            mixerFaceAnimation.tracks[t].values[idx] = value;
-                            mixerFaceAnimation.tracks[t].active = info.active;
-                            tracksIdx.push(t);
-                            break;
-                        }
-                    }
-                }
-                // Update animation action interpolants.
-                this.updateAnimationAction(mixerFaceAnimation, tracksIdx );
+                // Update animation action (mixer) interpolants.
+                this.updateAnimationAction(auAnimation, tracksIdx );
                 return true;
             }
         }

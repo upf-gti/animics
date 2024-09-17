@@ -124,8 +124,12 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
             menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
             menubar.add("Timeline/Optimize all tracks", { callback: () => {
-                let animations = this.editor.getCurrentBindedAnimation();
-                this.editor.optimizeTracks([animations.mixerBodyAnimation, animations.mixerFaceAnimation]) }
+                    // let animations = this.editor.getCurrentBindedAnimation();
+                    // this.editor.optimizeTracks([animations.mixerBodyAnimation, animations.mixerFaceAnimation]) }
+                    // optimize all tracks of current binded animation (if any)
+                    this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
+                    this.keyFramesTimeline.optimizeTracks();
+                }
             });
 
             menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
@@ -672,7 +676,9 @@ class KeyframesGui extends Gui {
      
 
         // automatic optimization of keyframes
-        this.editor.optimizeTracks();
+        this.keyFramesTimeline.optimizeTracks();
+        this.curvesTimeline.optimizeTracks();
+        
         this.updateMenubar()
         this.render();
         this.showTimeline();
@@ -896,9 +902,7 @@ class KeyframesGui extends Gui {
 
         for(let name in bsNames) {
     
-            inspector.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, 
-                callback: (v,e) => this.editor.updateBlendshapesProperties(name, v), 
-                signal: "@on_change_au_" + name});
+            inspector.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, signal: "@on_change_au_" + name});
         }
         
         return inspector;
@@ -1130,7 +1134,7 @@ class KeyframesGui extends Gui {
         };
         this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
 
-        this.keyFramesTimeline.onSelectKeyFrame = (e, info, index) => {
+        this.keyFramesTimeline.onSelectKeyFrame = (e, info) => {
             if(e.button != 2) {
                 //this.editor.gizmo.mustUpdate = true
                 this.editor.gizmo.update(true);
@@ -1248,8 +1252,10 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
         this.keyFramesTimeline.onGetOptimizeThreshold = () => { return this.editor.optimizeThreshold; }
         this.keyFramesTimeline.onChangeTrackVisibility = (e, t, n) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, null, true)}
-        this.keyFramesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
-        this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { this.editor.updateActionUnitsPanel(this.keyFramesTimeline.animationClip, idx)}
+        // this.keyFramesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
+        this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
+            this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
+        }
         this.editor.activeTimeline = this.keyFramesTimeline;
 
         /* Curves Timeline */
@@ -1270,13 +1276,8 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t);
-            let tracks = null;
-            if(this.curvesTimeline.selectedItems && this.curvesTimeline.selectedItems.length) {
-                tracks = this.curvesTimeline.tracksPerItem[this.curvesTimeline.selectedItems[0]];
-                for(let i = 0; i < tracks.length; i++) {
-    
-                    this.updateActionUnitsPanel(this.curvesTimeline.animationClip );
-                }
+            if ( !this.editor.state ){ // update ui if not playing
+                this.updateActionUnitsPanel(this.curvesTimeline.animationClip);
             }
         }
         this.curvesTimeline.onSetDuration = (t) => { 
@@ -1290,7 +1291,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
-        this.curvesTimeline.onSelectKeyFrame = (e, info, idx) => {
+        this.curvesTimeline.onSelectKeyFrame = (e, info) => {
             if(e.button != 2) {
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip, info[3]);
 
@@ -1304,6 +1305,12 @@ class KeyframesGui extends Gui {
                 if ( playElement ){ playElement.children[0].click() }
             }
         }
+        // this.curvesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
+        this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
+            this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
+            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? undefined : idx);
+        }
+
 
         this.timelineArea.attach(this.keyFramesTimeline.root);
         this.timelineArea.attach(this.curvesTimeline.root);
@@ -1641,15 +1648,10 @@ class KeyframesGui extends Gui {
                     if(track.name == area && track.type == name) {
                         let frame = this.curvesTimeline.getCurrentKeyFrame(track, this.curvesTimeline.currentTime, 0.1) || 0;
                         if( (!this.curvesTimeline.lastKeyFramesSelected.length || this.curvesTimeline.lastKeyFramesSelected[0][2] != frame)) {
-                            this.curvesTimeline.selectKeyFrame(track, [track.name, track.idx, frame], frame);
+                            this.curvesTimeline.selectKeyFrame(track, frame);
                         }
 
-                        panel.addNumber(name, track.values[frame], (v,e) => {
-                            const time = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
-                            const frame = track.times.indexOf(time);
-                            
-                            //this.curvesTimeline.selectKeyFrame(track, [track.name, track.idx, frame], frame);
-                            
+                        panel.addNumber(name, track.values[frame], (v,e) => {                           
                             this.editor.updateBlendshapesProperties(name, v);
                         }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name});
                         break;
@@ -1675,22 +1677,28 @@ class KeyframesGui extends Gui {
         this.facePanel.root.querySelector("[data-name='"+area+"']").click();
     }
 
+    /**
+     * 
+     * @param {auAnimation} animation 
+     * @param {Number} trackIdx if undefined, updates the currently visible tracks only 
+     * @returns 
+     */
     updateActionUnitsPanel(animation = this.curvesTimeline.animationClip, trackIdx) {
         if(trackIdx == undefined) {
-            if(!this.curvesTimeline.lastKeyFramesSelected.length) {
-                return;
-            }
-            let [name, idx, keyframe] = this.curvesTimeline.lastKeyFramesSelected[0];
-            for(let i = 0; i < animation.tracks.length; i++) {
-                if(animation.tracks[i].name == name) {
-                    trackIdx = i;
-                    break;
+
+            const selectedItems = this.curvesTimeline.selectedItems || [];
+            const tracksPerItem = this.curvesTimeline.tracksPerItem;
+            for( let i = 0; i < selectedItems.length; ++i ){
+                const itemTracks = tracksPerItem[selectedItems[i]] || [];
+                for( let t = 0; t < itemTracks.length; ++t ){
+					const track = itemTracks[t];
+                    let frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
+                    LX.emit("@on_change_" + track.type, track.values[frame]);
                 }
             }
-            if(trackIdx == undefined) {
-                return;
-            }
+            return;
         }
+
         const track = animation.tracks[trackIdx];
         let name = track.type;
         let frame = 0;
@@ -1698,8 +1706,7 @@ class KeyframesGui extends Gui {
             frame = this.curvesTimeline.lastKeyFramesSelected[0][2];
         } 
         else {            
-            const time = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
-            frame = track.times.indexOf(time);
+            frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
         }
         LX.emit("@on_change_" + name, track.values[frame]);
     }
@@ -1871,7 +1878,7 @@ class KeyframesGui extends Gui {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
                                     if( frame!= undefined) {
-                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], [tracks[i].name, tracks[i].idx, frame], frame)
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 
                                     widgets.onRefresh(options);
@@ -1886,7 +1893,7 @@ class KeyframesGui extends Gui {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
                                     if( frame!= undefined) {
-                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], [tracks[i].name, tracks[i].idx, frame], frame)
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 
                                     widgets.onRefresh(options);
@@ -1901,7 +1908,7 @@ class KeyframesGui extends Gui {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
                                     if( frame!= undefined) {
-                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], [tracks[i].name, tracks[i].idx, frame], frame)
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 
                                     widgets.onRefresh(options);
