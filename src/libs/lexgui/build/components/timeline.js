@@ -2037,21 +2037,24 @@ class KeyFramesTimeline extends Timeline {
         }
     }
 
-    selectKeyFrame( track, selectionInfo, index ) {
-        
-        if(index == undefined || !track)
-        return;
+    /**
+     * @param {object} track track of animation clip (object not index)
+     * @param {int} frameIdx frame (index) to select inside the track 
+     * @param {bool} unselectPrev if true, unselects previously selected frames. Otherwise, stacks the new selection
+     * @returns 
+     */
+    selectKeyFrame( track, frameIdx, unselectPrev = true ) {
+        if( frameIdx == undefined || !track || track.locked )
+            return false;
+    
+        if ( unselectPrev ){
+            this.unSelectAllKeyFrames();
+        }
 
-        this.unSelectAllKeyFrames();
-                            
-        this.lastKeyFramesSelected.push( selectionInfo );
-        if(track.locked)
-            return;
-        track.selected[index] = true;
-        this.currentTime =  this.animationClip.tracks[track.clipIdx].times[ index ];
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
-        // if( this.onSetTime )
-        //     this.onSetTime(  this.currentTime);
+        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex] );
+        track.selected[frameIdx] = true;
+
+        return true;
     }
 
     copyContent() {
@@ -2543,28 +2546,19 @@ class KeyFramesTimeline extends Timeline {
 
         const name = this.tracksDictionary[track.fullname];
         let t = this.tracksPerItem[ name ][track.idx];
-        let currentSelection = [name, track.idx, keyFrameIndex];
         
-        if(!multiple)
-            this.selectKeyFrame(t, currentSelection, keyFrameIndex);
-        else
-            this.lastKeyFramesSelected.push( currentSelection );
+        this.selectKeyFrame(t, keyFrameIndex, !multiple); // changes time 
+        const currentSelection = this.lastKeyFramesSelected[ this.lastKeyFramesSelected.length - 1 ];
 
-            
-        if( !multiple ) {
-            LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex ]);
-
-            // if(this.onSetTime )
-            //     this.onSetTime( track.times[ keyFrameIndex ] );
-        }
-
-        // Select if not handled        
-        t.selected[keyFrameIndex] = true;
-
-        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection, keyFrameIndex)) {
+        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection)) {
             // Event handled
             return;
         }        
+
+        if( !multiple ) {
+            this.currentTime = this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ];
+            LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex ]);
+        }    
     }
 
     /**
@@ -4674,20 +4668,24 @@ class CurvesTimeline extends Timeline {
         }
     }
 
-    selectKeyFrame( track, selectionInfo, index ) {
-        
-        if(index == undefined || !track)
-        return;
+   /** 
+     * @param {object} track track of animation clip (object not index)
+     * @param {int} frameIdx frame (index) to select inside the track 
+     * @param {bool} unselectPrev if true, unselects previously selected frames. Otherwise, stacks the new selection
+     * @returns 
+     */
+    selectKeyFrame( track, frameIdx, unselectPrev = true ) {        
+        if( frameIdx == undefined || !track || track.locked )
+            return false;
 
-        this.unSelectAllKeyFrames();
-                            
-        this.lastKeyFramesSelected.push( selectionInfo );
-        track.selected[index] = true;
-        this.currentTime =  this.animationClip.tracks[track.clipIdx].times[ index ];
-        
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
-        // if( this.onSetTime )
-        //     this.onSetTime( this.currentTime );
+        if ( unselectPrev ){
+            this.unSelectAllKeyFrames();
+        }
+
+        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex] );
+        track.selected[frameIdx] = true;
+
+        return true;
     }
 
     copyContent() {
@@ -5168,30 +5166,19 @@ class CurvesTimeline extends Timeline {
         }
                         
         const name = this.tracksDictionary[track.fullname];
-        let t = this.tracksPerItem[ name ][track.idx];
-        let currentSelection = [name, track.idx, keyFrameIndex, track.clipIndex];
-
-        if(!multiple)
-            this.selectKeyFrame(t, currentSelection, keyFrameIndex);
-        else
-            this.lastKeyFramesSelected.push( currentSelection );
-
-        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection, keyFrameIndex)) {
+        const t = this.tracksPerItem[ name ][track.idx];
+        
+        this.selectKeyFrame(t, keyFrameIndex, !multiple, multiple); // changes time on the first keyframe selected
+        const currentSelection = this.lastKeyFramesSelected[ this.lastKeyFramesSelected.length - 1 ];
+       
+        if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection)) {
             // Event handled
             return;
         }
-        
-        if(keyFrameIndex == undefined)
-            return;
 
-        // Select if not handled
-        t.selected[keyFrameIndex] = true;
-
-        if( !multiple) {
-
-            LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex]);
-            // if(this.onSetTime)
-            //     this.onSetTime( track.times[ keyFrameIndex ] );
+        if (!multiple){
+            this.currentTime = this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ];
+            LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
         }
     }
 
