@@ -2493,19 +2493,48 @@ class KeyFramesTimeline extends Timeline {
         return indices;
     }
 
-    getNearestKeyFrame( track, time ) {
+    /**
+     * Binary search. Relies on track.times being a sorted array
+     * @param {object} track 
+     * @param {number} time 
+     * @param {number} mode -1,0,1 
+     *  -1 = nearest frame with t[f] <= time
+     *  0 = nearest frame
+     *  1 = nearest frame with t[f] >= time
+     * @returns a zero/positive value if successful. On failure returnes -1 meaning either there are no frames, no frame-time is lower or no frame-time is higher
+     */
+    getNearestKeyFrame( track, time, mode = 0 ) {
 
-        if(!track || !track.times.length)
-            return;
+        if(!track || !track.times || !track.times.length)
+            return -1;
 
-        let nearestIdx = 0;
-        let nearestDelta = Math.abs(track.times[0] - time);
+        //binary search
         const times = track.times;
-        for( let i = 1; i < times.length; ++i ){
-            let d = Math.abs( times[i] - time );
-            if ( d < nearestDelta ){ nearestDelta = d; nearestIdx = i; }
+        let min = 0; max = times.length - 1;
+        
+        // edge cases
+        if ( times[min] > time ){
+            return mode == -1 ? -1 : 0;
         }
-        return nearestIdx;
+        if ( times[max] < time ){
+            return mode == 1 ? -1 : max;
+        }
+        
+        // time is between first and last frame
+        let half = Math.floor( ( min + max ) / 2 );
+        while ( min < half && half < max ){
+            if ( time < times[half] ){ max = half; }
+            else{ min = half; }
+            half = Math.floor( ( min + max ) / 2 );
+        }
+
+        if (mode == 0 ){
+            return Math.abs( time - times[min] ) < Math.abs( time - times[max] ) ? min : max;
+        }
+        else if ( mode == -1 ){
+            return times[max] == time ? max : min;
+        }
+        return times[min] == time ? min : max;
     }
 
     unHoverAll(){
@@ -5117,19 +5146,48 @@ class CurvesTimeline extends Timeline {
         return indices;
     }
 
-    getNearestKeyFrame( track, time ) {
+    /**
+     * Binary search. Relies on track.times being a sorted array
+     * @param {object} track 
+     * @param {number} time 
+     * @param {number} mode -1,0,1 
+     *  -1 = nearest frame with t[f] <= time
+     *  0 = nearest frame
+     *  1 = nearest frame with t[f] >= time
+     * @returns a zero/positive value if successful. On failure returnes -1 meaning either there are no frames, no frame-time is lower or no frame-time is higher
+     */
+    getNearestKeyFrame( track, time, mode = 0 ) {
 
-        if(!track || !track.times.length)
-        return;
+        if(!track || !track.times || !track.times.length)
+            return -1;
 
-        let nearestIdx = 0;
-        let nearestDelta = Math.abs(track.times[0] - time);
+        //binary search
         const times = track.times;
-        for( let i = 1; i < times.length; ++i ){
-            let d = Math.abs( times[i] - time );
-            if ( d < nearestDelta ){ nearestDelta = d; nearestIdx = i; }
+        let min = 0; max = times.length - 1;
+        
+        // edge cases
+        if ( times[min] > time ){
+            return mode == -1 ? -1 : 0;
         }
-        return nearestIdx;
+        if ( times[max] < time ){
+            return mode == 1 ? -1 : max;
+        }
+        
+        // time is between first and last frame
+        let half = Math.floor( ( min + max ) / 2 );
+        while ( min < half && half < max ){
+            if ( time < times[half] ){ max = half; }
+            else{ min = half; }
+            half = Math.floor( ( min + max ) / 2 );
+        }
+
+        if (mode == 0 ){
+            return Math.abs( time - times[min] ) < Math.abs( time - times[max] ) ? min : max;
+        }
+        else if ( mode == -1 ){
+            return times[max] == time ? max : min;
+        }
+        return times[min] == time ? min : max;
     }
 
     unHoverAll() {

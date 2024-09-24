@@ -621,8 +621,7 @@ class Gizmo {
                 // find nearest frame or create one if too far
                 if ( Math.abs( nearestTime - effectorFrameTime ) > 0.008 ){ 
                     const currentTime = timeline.currentTime;
-                    timeline.currentTime = effectorFrameTime;
-                    keyframe = timeline.addKeyFrame( track, values ); //Works with current time.  currentTime and selected frame time might not be the same
+                    keyframe = timeline.addKeyFrame( track, values, effectorFrameTime );
                     timeline.currentTime = currentTime;
                 }
                 else{ 
