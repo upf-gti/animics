@@ -450,7 +450,6 @@ class App {
         // Replace GUI to trim interface
         this.editor.gui.createTrimArea(video, canvas, null, { 
             onSetTime: (t) => { 
-                this.editor.updateCaptureDataTime(results, t);                           
             },
             onDraw: () => {
                

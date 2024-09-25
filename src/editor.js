@@ -465,8 +465,6 @@ class Editor {
             this.currentTime = this.activeTimeline.currentTime = this.currentCharacter.mixer.time;
             LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
             //this.activeTimeline.updateHeader();
-            if(this.onUpdateAnimationTime)
-                this.onUpdateAnimationTime();
         }
        
         if(this.gizmo) {
@@ -1824,10 +1822,6 @@ class KeyframeEditor extends Editor{
         // }
     }
 
-    onUpdateAnimationTime() {
-        
-        this.updateCaptureDataTime();
-    }
 
     onPlay() {
     
@@ -1893,11 +1887,6 @@ class KeyframeEditor extends Editor{
                 console.error("video warning");
             }
         }
-
-        //this.onUpdateAnimationTime();
-        // if(this.animationMode == this.animationModes.FACE) {
-        //     this.gui.updateActionUnitsPanel();
-        // }
 
         this.gizmo.updateBones();
     }
@@ -2148,71 +2137,18 @@ class KeyframeEditor extends Editor{
             if(info.type == name && info.active){
                 i = info.clipIdx;
                 let frameIdx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], this.activeTimeline.currentTime, 0.01)
-
-                // Update Action Unit keyframe value of timeline animation
-                this.activeTimeline.animationClip.tracks[i].values[frameIdx] = auAnimation.tracks[i].values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
-                
-                // Update animation action (mixer) interpolants.
-                this.updateAnimationAction(auAnimation, tracksIdx );
+                if ( frameIdx > -1 ){
+                    // Update Action Unit keyframe value of timeline animation
+                    this.activeTimeline.animationClip.tracks[i].values[frameIdx] = auAnimation.tracks[i].values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
+                    
+                    // Update animation action (mixer) interpolants.
+                    this.updateAnimationAction(auAnimation, tracksIdx );
+                } 
                 return true;
             }
         }
     }
 
-    updateCaptureDataTime(data, t) {
-        let timeAcc = 0;
-        let bs = null, lm = null;
-        let idx = -1;
-
-        if(data) {
-            
-            for(let i = 0; i < data.blendshapesResults.length; i++) {
-                timeAcc += data.blendshapesResults[i].dt*0.001;
-                if(timeAcc > t) {
-                    idx = Math.max(0, i-1);
-                    break;             
-                }
-            }
-            if(idx >= 0) {
-                bs = data.blendshapesResults[idx];
-                if(data.landmarksResults){ lm = data.landmarksResults[idx]; }
-            }
-        }
-        else {
-            bs = {};
-            t = t != undefined ? t : this.activeTimeline.currentTime;
-            for(let i = 0; i < this.activeTimeline.animationClip.tracks.length; i++) {
-                
-                const track = this.activeTimeline.animationClip.tracks[i];
-                if(track.name == this.selectedAU) {
-                    let tidx = null;
-                    let tidxend = null;
-                    for(let j = 0; j < track.times.length; j++) {
-                        if(track.times[j] <= t + 0.01) {
-                            tidx = j;
-                        }
-                        else if(track.times[j] > t){
-                            tidxend = j;
-                            break;
-                        }
-                    }
-                    // let tidx = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.01);
-                    if(tidx < 0 || tidx == undefined)
-                        continue;
-
-                    let value = track.values[tidx];
-
-                    if(tidxend != undefined) {
-                        let f = (Math.abs(t - track.times[tidx]) / (track.times[tidxend] - track.times[tidx]) );
-                        value = (1 - f)*value+ f*track.values[tidxend];
-                    }
-                    bs[track.type] = value;
-
-                }
-            }
-        }
-        //this.gui.updateCaptureGUI({blendshapesResults: bs, landmarksResults: lm}, false)
-    }
 }
 
 class ScriptEditor extends Editor{

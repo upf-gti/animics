@@ -1646,7 +1646,8 @@ class KeyframesGui extends Gui {
                 for(let i = 0; i < animation.tracks.length; i++) {
                     const track = animation.tracks[i];
                     if(track.name == area && track.type == name) {
-                        let frame = this.curvesTimeline.getCurrentKeyFrame(track, this.curvesTimeline.currentTime, 0.1) || 0;
+                        let frame = this.curvesTimeline.getCurrentKeyFrame(track, this.curvesTimeline.currentTime, 0.1);
+                        frame = frame == -1 ? 0 : frame;
                         if( (!this.curvesTimeline.lastKeyFramesSelected.length || this.curvesTimeline.lastKeyFramesSelected[0][2] != frame)) {
                             this.curvesTimeline.selectKeyFrame(track, frame);
                         }
@@ -1877,7 +1878,7 @@ class KeyframesGui extends Gui {
                                 callback: (v,e) => {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
-                                    if( frame!= undefined) {
+                                    if( frame > -1 ) {
                                         this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 
@@ -1892,7 +1893,7 @@ class KeyframesGui extends Gui {
                                 callback: (v,e) => {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
-                                    if( frame!= undefined) {
+                                    if( frame > -1 ) {
                                         this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 
@@ -1907,7 +1908,7 @@ class KeyframesGui extends Gui {
                                 callback: (v,e) => {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
-                                    if( frame!= undefined) {
+                                    if( frame > -1 ) {
                                         this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 

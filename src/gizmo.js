@@ -614,27 +614,22 @@ class Gizmo {
                 let values = boneToProcess[ track.type ].toArray();
                 if( !values ){ continue; }
 
-                let frame = timeline.getNearestKeyFrame( this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ], effectorFrameTime );
-                let nearestTime =  this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].times[ frame ];
-                let keyframe = null;
+                let frame = timeline.getCurrentKeyFrame( this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ], effectorFrameTime, 0.008 );
                 
                 // find nearest frame or create one if too far
-                if ( Math.abs( nearestTime - effectorFrameTime ) > 0.008 ){ 
+                if ( frame == -1 ){ 
                     const currentTime = timeline.currentTime;
-                    keyframe = timeline.addKeyFrame( track, values, effectorFrameTime );
+                    frame = timeline.addKeyFrame( track, values, effectorFrameTime );
                     timeline.currentTime = currentTime;
                 }
                 else{ 
-                    keyframe = timeline.getCurrentKeyFrame( this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ], nearestTime, 0.0001 );
-                    if ( isNaN(keyframe) ){ continue; }
-                    let start = 4 * keyframe;
+                    let start = 4 * frame;
                     for( let j = 0; j < values.length; ++j ) {
                         this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].values[ start + j ] = values[j];
                     }
                 }
-                if ( isNaN(keyframe) ){ continue; }
                 
-                track.edited[ keyframe ] = true;
+                track.edited[ frame ] = true;
 
                 // Update animation interpolants
                 this.editor.updateAnimationAction(this.editor.activeTimeline.animationClip, track.clipIdx );

@@ -1472,8 +1472,9 @@ class KeyFramesTimeline extends Timeline {
                         this.pixelsToSeconds * 5);
                         
                     if(keyFrameIndices) {
-                        for(let index of keyFrameIndices)
+                        for(let index = keyFrameIndices[0]; index <= keyFrameIndices[1]; ++index){
                             this.processCurrentKeyFrame( e, index, t, null, true );
+                        }
                     }
                 }
             }
@@ -1512,7 +1513,7 @@ class KeyFramesTimeline extends Timeline {
         }
         else if(track && !track.locked) {
             const keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-            if( keyFrameIndex != undefined ) {
+            if( keyFrameIndex > -1 ) {
                 this.processCurrentKeyFrame( e, keyFrameIndex, track, null, e.multipleSelection ); // Settings this as multiple so time is not being set
                 if(e.ctrlKey ) {
 
@@ -1599,7 +1600,7 @@ class KeyFramesTimeline extends Timeline {
         else if(track) {
 
             let keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-            if(keyFrameIndex != undefined) {
+            if(keyFrameIndex > -1 ) {
                 
                 const name = this.tracksDictionary[track.fullname]; 
                 let t = this.tracksPerItem[ name ][track.idx];
@@ -2444,64 +2445,16 @@ class KeyFramesTimeline extends Timeline {
         return [name, type];
     }
 
-    getCurrentKeyFrame( track, time, threshold ) {
-
-        if(!track || !track.times.length)
-        return;
-
-        // Avoid iterating through all timestamps
-        if((time + threshold) < track.times[0])
-        return;
-
-        for(let i = 0; i < track.times.length; ++i) {
-            let t = track.times[i];
-            if(t >= (time - threshold) && 
-                t <= (time + threshold)) {
-                return i;
-            }
-        }
-
-        return;
-    }
-
-    getKeyFramesInRange( track, minTime, maxTime, threshold ) {
-
-        if(!track || !track.times.length)
-        return;
-
-        // Manage negative selection
-        if(minTime > maxTime) {
-            let aux = minTime;
-            minTime = maxTime;
-            maxTime = aux;
-        }
-
-        // Avoid iterating through all timestamps
-        if((maxTime + threshold) < track.times[0])
-        return;
-
-        let indices = [];
-
-        for(let i = 0; i < track.times.length; ++i) {
-            let t = track.times[i];
-            if(t >= (minTime - threshold) && 
-                t <= (maxTime + threshold)) {
-                indices.push(i);
-            }
-        }
-
-        return indices;
-    }
 
     /**
      * Binary search. Relies on track.times being a sorted array
      * @param {object} track 
      * @param {number} time 
-     * @param {number} mode -1,0,1 
-     *  -1 = nearest frame with t[f] <= time
-     *  0 = nearest frame
-     *  1 = nearest frame with t[f] >= time
-     * @returns a zero/positive value if successful. On failure returnes -1 meaning either there are no frames, no frame-time is lower or no frame-time is higher
+     * @param {number} mode on of the possible values 
+     *  - -1 = nearest frame with t[f] <= time 
+     *  - 0 = nearest frame 
+     *  - 1 = nearest frame with t[f] >= time
+     * @returns a zero/positive value if successful. On failure returnes -1 meaning either there are no frames (0), no frame-time is lower (-1) or no frame-time is higher (1)
      */
     getNearestKeyFrame( track, time, mode = 0 ) {
 
@@ -2510,7 +2463,7 @@ class KeyFramesTimeline extends Timeline {
 
         //binary search
         const times = track.times;
-        let min = 0; max = times.length - 1;
+        let min = 0, max = times.length - 1;
         
         // edge cases
         if ( times[min] > time ){
@@ -2535,6 +2488,54 @@ class KeyFramesTimeline extends Timeline {
             return times[max] == time ? max : min;
         }
         return times[min] == time ? min : max;
+    }
+
+    /**
+     * get the nearest keyframe to "time" given a maximum threshold. 
+     * @param {object} track 
+     * @param {number} time 
+     * @param {number} threshold must be positive value
+     * @returns returns a postive/zero value if there is a frame inside the threshold range. Otherwise, -1
+     */
+    getCurrentKeyFrame( track, time, threshold = 0.0 ) {
+
+        if(!track || !track.times.length)
+            return -1;
+
+        let frame = this.getNearestKeyFrame( track, time );
+        if ( frame > -1 ){
+            frame = Math.abs(track.times[frame] - time) > threshold ? -1 : frame;
+        }
+
+        return frame;
+    }
+
+    /**
+     * Returns the interval of frames between minTime and maxTime (both included)
+     * @param {object} track 
+     * @param {number} minTime 
+     * @param {number} maxTime 
+     * @param {number} threshold must be positive value 
+     * @returns an array with two values [ minFrame, maxFrame ]. Otherwise null 
+     */
+    getKeyFramesInRange( track, minTime, maxTime, threshold = 0.0 ) {
+
+        if(!track || !track.times.length)
+            return null;
+
+        // Manage negative selection
+        if(minTime > maxTime) {
+            let aux = minTime;
+            minTime = maxTime;
+            maxTime = aux;
+        }
+
+        const minFrame = this.getNearestKeyFrame( track, minTime - threshold, 1 );
+        const maxFrame = this.getNearestKeyFrame( track, maxTime + threshold, -1 );
+
+        if ( maxFrame == -1 || minFrame == -1 ){ return null; }
+
+        return [minFrame, maxFrame];
     }
 
     unHoverAll(){
@@ -2564,13 +2565,12 @@ class KeyFramesTimeline extends Timeline {
             return;
 
         e.multipleSelection = multiple;
-        keyFrameIndex = keyFrameIndex ?? this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-
         if(!multiple && e.button != 2) {
             this.unSelectAllKeyFrames();
         }
-           
-        if(keyFrameIndex == undefined)
+
+        keyFrameIndex = keyFrameIndex ?? this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );   
+        if(keyFrameIndex < 0)
             return;
 
         const name = this.tracksDictionary[track.fullname];
@@ -4028,8 +4028,9 @@ class CurvesTimeline extends Timeline {
                         this.pixelsToSeconds * 5);
                         
                     if(keyFrameIndices) {
-                        for(let index of keyFrameIndices)
+                        for(let index = keyFrameIndices[0]; index <= keyFrameIndices[1]; ++index){
                             this.processCurrentKeyFrame( e, index, t, null, true );
+                        }
                     }
                 }
             }
@@ -4068,7 +4069,7 @@ class CurvesTimeline extends Timeline {
         else if(track && !track.locked) {
 
             const keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-            if( keyFrameIndex != undefined ) {
+            if( keyFrameIndex > -1 ) {
                 this.processCurrentKeyFrame( e, keyFrameIndex, track, null, e.multipleSelection ); // Settings this as multiple so time is not being set
                 if(e.ctrlKey || e.altKey) {
                     this.movingKeys = true;
@@ -4159,7 +4160,7 @@ class CurvesTimeline extends Timeline {
         else if(track) {
 
             let keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-            if(keyFrameIndex != undefined) {
+            if(keyFrameIndex > -1) {
                 
                 const name = this.tracksDictionary[track.fullname]; 
                 let t = this.tracksPerItem[ name ][track.idx];
@@ -5097,64 +5098,15 @@ class CurvesTimeline extends Timeline {
         return [name, type];
     }
 
-    getCurrentKeyFrame( track, time, threshold ) {
-
-        if(!track || !track.times.length)
-        return;
-
-        // Avoid iterating through all timestamps
-        if((time + threshold) < track.times[0])
-        return;
-
-        for(let i = 0; i < track.times.length; ++i) {
-            let t = track.times[i];
-            if(t >= (time - threshold) && 
-                t <= (time + threshold)) {
-                return i;
-            }
-        }
-
-        return;
-    }
-
-    getKeyFramesInRange( track, minTime, maxTime, threshold ) {
-
-        if(!track || !track.times.length)
-        return;
-
-        // Manage negative selection
-        if(minTime > maxTime) {
-            let aux = minTime;
-            minTime = maxTime;
-            maxTime = aux;
-        }
-
-        // Avoid iterating through all timestamps
-        if((maxTime + threshold) < track.times[0])
-        return;
-
-        let indices = [];
-
-        for(let i = 0; i < track.times.length; ++i) {
-            let t = track.times[i];
-            if(t >= (minTime - threshold) && 
-                t <= (maxTime + threshold)) {
-                indices.push(i);
-            }
-        }
-
-        return indices;
-    }
-
     /**
      * Binary search. Relies on track.times being a sorted array
      * @param {object} track 
      * @param {number} time 
-     * @param {number} mode -1,0,1 
-     *  -1 = nearest frame with t[f] <= time
-     *  0 = nearest frame
-     *  1 = nearest frame with t[f] >= time
-     * @returns a zero/positive value if successful. On failure returnes -1 meaning either there are no frames, no frame-time is lower or no frame-time is higher
+     * @param {number} mode on of the possible values 
+     *  - -1 = nearest frame with t[f] <= time 
+     *  - 0 = nearest frame 
+     *  - 1 = nearest frame with t[f] >= time
+     * @returns a zero/positive value if successful. On failure returnes -1 meaning either there are no frames (0), no frame-time is lower (-1) or no frame-time is higher (1)
      */
     getNearestKeyFrame( track, time, mode = 0 ) {
 
@@ -5163,7 +5115,7 @@ class CurvesTimeline extends Timeline {
 
         //binary search
         const times = track.times;
-        let min = 0; max = times.length - 1;
+        let min = 0, max = times.length - 1;
         
         // edge cases
         if ( times[min] > time ){
@@ -5188,6 +5140,54 @@ class CurvesTimeline extends Timeline {
             return times[max] == time ? max : min;
         }
         return times[min] == time ? min : max;
+    }
+
+    /**
+     * get the nearest keyframe to "time" given a maximum threshold. 
+     * @param {object} track 
+     * @param {number} time 
+     * @param {number} threshold must be positive value
+     * @returns returns a postive/zero value if there is a frame inside the threshold range. Otherwise, -1
+     */
+    getCurrentKeyFrame( track, time, threshold = 0.0 ) {
+
+        if(!track || !track.times.length)
+            return -1;
+
+        let frame = this.getNearestKeyFrame( track, time );
+        if ( frame > -1 ){
+            frame = Math.abs(track.times[frame] - time) > threshold ? -1 : frame;
+        }
+
+        return frame;
+    }
+
+    /**
+     * Returns the interval of frames between minTime and maxTime (both included)
+     * @param {object} track 
+     * @param {number} minTime 
+     * @param {number} maxTime 
+     * @param {number} threshold must be positive value 
+     * @returns an array with two values [ minFrame, maxFrame ]. Otherwise null 
+     */
+    getKeyFramesInRange( track, minTime, maxTime, threshold = 0.0 ) {
+
+        if(!track || !track.times.length)
+            return null;
+
+        // Manage negative selection
+        if(minTime > maxTime) {
+            let aux = minTime;
+            minTime = maxTime;
+            maxTime = aux;
+        }
+
+        const minFrame = this.getNearestKeyFrame( track, minTime - threshold, 1 );
+        const maxFrame = this.getNearestKeyFrame( track, maxTime + threshold, -1 );
+
+        if ( maxFrame == -1 || minFrame == -1 ){ return null; }
+
+        return [minFrame, maxFrame];
     }
 
     unHoverAll() {
@@ -5217,11 +5217,13 @@ class CurvesTimeline extends Timeline {
             return;
     
         e.multipleSelection = multiple;
-        keyFrameIndex = keyFrameIndex ?? this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-
         if(!multiple && e.button != 2) {
             this.unSelectAllKeyFrames();
         }
+        
+        keyFrameIndex = keyFrameIndex ?? this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
+        if ( keyFrameIndex == -1 )
+            return
                         
         const name = this.tracksDictionary[track.fullname];
         const t = this.tracksPerItem[ name ][track.idx];
