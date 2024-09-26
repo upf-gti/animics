@@ -1694,7 +1694,9 @@ class KeyframesGui extends Gui {
                 for( let t = 0; t < itemTracks.length; ++t ){
 					const track = itemTracks[t];
                     let frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
-                    LX.emit("@on_change_" + track.type, track.values[frame]);
+                    if ( frame > -1 ){
+                        LX.emit("@on_change_" + track.type, track.values[frame]);
+                    }
                 }
             }
             return;
@@ -1709,7 +1711,9 @@ class KeyframesGui extends Gui {
         else {            
             frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
         }
-        LX.emit("@on_change_" + name, track.values[frame]);
+        if( frame > -1 ){
+            LX.emit("@on_change_" + name, track.values[frame]);
+        }
     }
 
     createSkeletonPanel(root, options) {

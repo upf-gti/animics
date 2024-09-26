@@ -1741,7 +1741,7 @@ class KeyFramesTimeline extends Timeline {
                 continue;
 
             // Select it
-            this.lastKeyFramesSelected.push( [track.name, track.idx, newIdx] );
+            this.lastKeyFramesSelected.push( [track.name, track.idx, newIdx, track.clipIndex] );
             track.selected[newIdx] = true;
 
         }
@@ -2210,19 +2210,8 @@ class KeyFramesTimeline extends Timeline {
                 let delta = clipboardInfo.times[indices[i]] - clipboardInfo.times[indices[i-1]];
                 this.currentTime += delta;
             }
-            this.addKeyFrame( clipboardInfo.track, value);
+            this.addKeyFrame( clipboardInfo.track, value );
         }
-        
-        // if(!e.multipleSelection)
-        // return;
-        
-        // // Don't want anything after this
-        // this.clearState();
-
-        // // Copy to every selected key
-        // for(let [name, idx, keyIndex] of this.lastKeyFramesSelected) {
-        //     this.#paste( this.tracksPerItem[name][idx], keyIndex );
-        // }
     }
 
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
@@ -2235,19 +2224,22 @@ class KeyFramesTimeline extends Timeline {
         const clipIdx = track.clipIdx;
         track = this.animationClip.tracks[clipIdx];
 
+        let newIdx = this.getNearestKeyFrame( track, time ); 
+        
         // Time slot with other key?
-        const keyInCurrentSlot = track.times.find( t => { return !LX.UTILS.compareThreshold(time, t, t, 0.001 ); });
-        if( keyInCurrentSlot ) {
-            console.warn("There is already a keyframe stored in time slot ", keyInCurrentSlot)
+        if( newIdx > -1 && Math.abs(track.times[newIdx] - time) < 0.001 ) {
+            console.warn("There is already a keyframe [", newIdx, "] stored in time slot [", track.times[newIdx], "]");
             return -1;
         }
 
         this.saveState(clipIdx);
 
-        // Find new index
-        let newIdx = this.animationClip.tracks[clipIdx].times.findIndex( t => t > time );
-        if(newIdx < 0) {
-            newIdx = track.times.length;
+        // Find index that t[idx] > time
+        if(newIdx < 0) { 
+            newIdx = 0;
+        }
+        else if ( track.times[newIdx] < time ){ 
+            newIdx++; 
         }
 
         // TODO allow undefined value and compute the interpolation between adjacent keyframes?
@@ -4396,7 +4388,7 @@ class CurvesTimeline extends Timeline {
             
             // Add new keyframe
             const newIdx = this.addKeyFrame( track );
-            if(newIdx === null) 
+            if(newIdx === -1) 
                 continue;
 
             // Select it
@@ -4874,17 +4866,6 @@ class CurvesTimeline extends Timeline {
             }
             this.addKeyFrame( clipboardInfo.track, value);
         }
-        
-        // if(!e.multipleSelection)
-        // return;
-        
-        // // Don't want anything after this
-        // this.clearState();
-
-        // // Copy to every selected key
-        // for(let [name, idx, keyIndex] of this.lastKeyFramesSelected) {
-        //     this.#paste( this.tracksPerItem[name][idx], keyIndex );
-        // }
     }
 
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
@@ -4897,19 +4878,22 @@ class CurvesTimeline extends Timeline {
         const clipIdx = track.clipIdx;
         track = this.animationClip.tracks[clipIdx];
 
+        let newIdx = this.getNearestKeyFrame( track, time ); 
+        
         // Time slot with other key?
-        const keyInCurrentSlot = track.times.find( t => { return !LX.UTILS.compareThreshold(time, t, t, 0.001 ); });
-        if( keyInCurrentSlot ) {
-            console.warn("There is already a keyframe stored in time slot ", keyInCurrentSlot)
+        if( newIdx > -1 && Math.abs(track.times[newIdx] - time) < 0.001 ) {
+            console.warn("There is already a keyframe [", newIdx, "] stored in time slot [", track.times[newIdx], "]");
             return -1;
         }
 
         this.saveState(clipIdx);
 
-        // Find new index
-        let newIdx = track.times.findIndex( t => t > time );
-        if(newIdx < 0) {
-            newIdx = track.times.length;
+        // Find index that t[idx] > time
+        if(newIdx < 0) { 
+            newIdx = 0;
+        }
+        else if ( track.times[newIdx] < time ){ 
+            newIdx++; 
         }
 
         // Get mid values
@@ -4919,7 +4903,7 @@ class CurvesTimeline extends Timeline {
         let times = new Float32Array( track.times.length + 1 );
         let values = new Float32Array( track.values.length + 1 );
 
-        // copy times/values before the new index
+        // copy times/values before the new index (valueDim == 1)
         for( let i = 0; i < newIdx; ++i ){ 
             times[i] = track.times[i]; 
             values[i] = track.values[i];
