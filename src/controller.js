@@ -63,7 +63,7 @@ class BMLController {
         for(let i = 0; i < scriptAnimation.tracks.length; i++) {
 
             let track = scriptAnimation.tracks[i];
-            if(track.active === false) {
+            if(!track.active) {
                 continue;
             }
 

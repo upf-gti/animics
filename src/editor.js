@@ -55,7 +55,6 @@ class Editor {
 
         this.renderer = null;
         this.state = false; // defines how the animation starts (moving/static)
-        this.mixer = null;
         
         this.showGUI = true;
         this.showSkin = true; // defines if the model skin has to be rendered
@@ -555,7 +554,7 @@ class Editor {
 
             this.activeTimeline.clearTrack(idx, value);
                 
-            this.updateAnimationAction(this.activeTimeline.animationClip, idx, false);
+            this.updateAnimationAction(this.activeTimeline.animationClip, idx);
             if(this.activeTimeline.onPreProcessTrack)
                 this.activeTimeline.onPreProcessTrack( track, track.idx );
         }
@@ -1641,8 +1640,8 @@ class KeyframeEditor extends Editor{
             }
             this.bindedAnimations[animationName][this.currentCharacter.name] = {
                 source: animationName,
-                mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation, // for threejs mixer 
-                skeletonAnimation, auAnimation // from gui timeline
+                skeletonAnimation, auAnimation, // from gui timeline. Main data
+                mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation // for threejs mixer. ALWAYS relies on timeline data
             }
         }
 
@@ -1829,7 +1828,8 @@ class KeyframeEditor extends Editor{
 
     /**
      * This function updates the mixer animation actions so the edited tracks are assigned to the interpolants.
-     * WARNING It uses the editedAnimation tracks directly, without cloning them 
+     * WARNING It uses the editedAnimation tracks directly, without cloning them.
+     * Modifying the values/times of editedAnimation will also modify the values of mixer
      * @param {animation} editedAnimation for body it is the timeline skeletonAnimation. For face it is the timeline auAnimation with the updated blendshape values
      * @param {Number or Array of Numbers} trackIdxs a -1 will force an update to all tracks
      * @returns 
@@ -1859,13 +1859,14 @@ class KeyframeEditor extends Editor{
             }
         }
                      
+        const isFaceAnim = editedAnimation.name == "faceAnimation";
         for(let i = 0; i< mixer._actions.length; i++) {
             if(mixer._actions[i]._clip.name == editedAnimation.name) { // name == ("bodyAnimation" || "faceAnimation")
                 const mixerClip = mixer._actions[i]._clip;
                 let mapTrackIdxs = {};
 
                 // If the editedAnimation is an auAnimation, the tracksIdx have to be mapped to the mixerAnimation tracks indices
-                if(editedAnimation.name == "faceAnimation" && editedAnimation === this.getCurrentBindedAnimation().auAnimation) {
+                if(isFaceAnim ) {
                     for(let j = 0; j < trackIdxs.length; j++) {
                         const trackIdx = trackIdxs[j];
                         const track = editedAnimation.tracks[trackIdx];
@@ -1894,7 +1895,7 @@ class KeyframeEditor extends Editor{
                     const trackIdx = trackIdxs[j];
                     const mapTrackIdx = mapTrackIdxs[trackIdx] || [trackIdx];
                     const track = editedAnimation.tracks[trackIdx];
-                    if(track.locked || !mapTrackIdx.length ){
+                    if(track.locked || !mapTrackIdx.length){
                         continue;
                     }
                     
@@ -1904,10 +1905,22 @@ class KeyframeEditor extends Editor{
                        
                         // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
                         // _clip is the same clip (pointer) sent in mixer.clipAction. 
-                        // Update times
-                        interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = track.times;
-                        // Update values
-                        interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = track.values;                        
+
+                        // TODO put bind quats-pos-scale on inactive
+                        if (track.active){
+                            interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = track.times;
+                            interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = track.values; 
+                        }else{
+                            interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = [0];
+                            if (isFaceAnim){
+                                interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = [0];
+                            }else if(track.dim == 4){
+                                interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = [0,0,0,1];
+                            }else{
+                                interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = [0,0,0];
+                            }
+
+                        }
                     }
                 }
 
@@ -2065,8 +2078,7 @@ class KeyframeEditor extends Editor{
         if( this.state ){ return false; }
 
         value = Number(value);
-        let tracksIdx = [];                    
-        let auAnimation = this.getCurrentBindedAnimation().auAnimation;
+        const auAnimation = this.getCurrentBindedAnimation().auAnimation;
 
         for(let i = 0; i < this.activeTimeline.tracksDrawn.length; i++) {
             let info = this.activeTimeline.tracksDrawn[i][0];
@@ -2078,7 +2090,7 @@ class KeyframeEditor extends Editor{
                     this.activeTimeline.animationClip.tracks[i].values[frameIdx] = auAnimation.tracks[i].values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
                     
                     // Update animation action (mixer) interpolants.
-                    this.updateAnimationAction(auAnimation, tracksIdx );
+                    this.updateAnimationAction(auAnimation, i );
                 } 
                 return true;
             }

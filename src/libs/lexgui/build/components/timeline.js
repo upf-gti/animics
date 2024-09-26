@@ -632,7 +632,7 @@ class Timeline {
         ctx.font = "11px " + Timeline.FONT;//"11px Calibri";
         ctx.textAlign = "center";
         //ctx.textBaseline = "middle";
-        ctx.fillStyle = Timeline.COLOR_UNACTIVE//"#888";
+        ctx.fillStyle = Timeline.COLOR_INACTIVE//"#888";
         ctx.fillText( this.currentTime.toFixed(1), truePos,  this.topMargin * 0.6  );
 
         // Selections
@@ -1093,7 +1093,7 @@ class Timeline {
                 }
 
                 if(!this.active || trackInfo.active == false) {
-                    ctx.fillStyle = Timeline.COLOR_UNACTIVE;
+                    ctx.fillStyle = Timeline.COLOR_INACTIVE;
                 }
                     
                 ctx.translate(keyframePosX, y + this.trackHeight * 0.75 + margin);
@@ -1172,7 +1172,7 @@ class Timeline {
                 ctx.fillStyle = Timeline.TRACK_SELECTED;
             }
             if(!this.active || track.active == false) {
-                ctx.fillStyle = Timeline.COLOR_UNACTIVE;
+                ctx.fillStyle = Timeline.COLOR_INACTIVE;
             }
 
             // Draw clip background
@@ -1302,14 +1302,18 @@ class Timeline {
         let tracks = this.tracksPerItem[name];
 
         for(let i = 0; i < tracks.length; i++) {
-            if(tracks[i].type != type && tracks.length > 1)
-                continue;
-                this.tracksPerItem[name][i].active = visible;
-                trackInfo = this.tracksPerItem[name][i];
+            if(tracks[i].type == type || tracks.length == 1){
+                let oldState = tracks[i].active;
+                tracks[i].active = visible;
+                trackInfo = tracks[i];
+    
+                if(this.onChangeTrackVisibility)
+                    this.onChangeTrackVisibility(trackInfo, oldState);
+
+                break;
+            }
         }
 
-        if(this.onChangeTrackVisibility)
-            this.onChangeTrackVisibility(trackInfo, visible);
     }
 
     /**
@@ -1405,9 +1409,9 @@ Timeline.FONT_COLOR = LX.getThemeColor("global-text");
 Timeline.COLOR = LX.getThemeColor("global-selected-dark");//"#5e9fdd";
 Timeline.COLOR_SELECTED = Timeline.COLOR_HOVERED = "rgba(250,250,20,1)";///"rgba(250,250,20,1)";
 // Timeline.COLOR_HOVERED = LX.getThemeColor("global-selected");
-Timeline.COLOR_UNACTIVE = "rgba(250,250,250,0.7)";
+Timeline.COLOR_INACTIVE = "rgba(250,250,250,0.7)";
 Timeline.COLOR_LOCK = "rgba(255,125,125,0.7)";
-Timeline.COLOR_EDITED = "white"//"rgba(125,250,250, 1)";
+Timeline.COLOR_EDITED = "rgba(20,230,20,0.7)"//"rgba(125,250,250, 1)";
 
 LX.Timeline = Timeline;
 
@@ -1777,6 +1781,7 @@ class KeyFramesTimeline extends Timeline {
                     fullname: track.name,
                     name: name, type: type,
                     active: true,
+                    locked: false,
                     dim: valueDim,
                     selected: boolArray.slice(), edited: boolArray.slice(), hovered: boolArray.slice(), 
                     times: times,
@@ -2035,7 +2040,7 @@ class KeyFramesTimeline extends Timeline {
      * @returns 
      */
     selectKeyFrame( track, frameIdx, unselectPrev = true ) {
-        if( frameIdx == undefined || !track || track.locked )
+        if( frameIdx == undefined || !track || track.locked || !track.active )
             return false;
     
         if ( unselectPrev ){
@@ -2750,11 +2755,12 @@ class ClipsTimeline extends Timeline {
         trackInfo = {name, type};
         let track = this.animationClip.tracks[id];
   
+        let oldState = track.active;
         track.active = visible;
         trackInfo = track;
         
         if(this.onChangeTrackVisibility)
-            this.onChangeTrackVisibility(trackInfo, visible);
+            this.onChangeTrackVisibility(trackInfo, oldState);
     }
 
         /**
@@ -3202,7 +3208,9 @@ class ClipsTimeline extends Timeline {
                     fullname: track.name,
                     clips: track.clips,
                     name: name, type: type,
-                    selected: [], edited: [], hovered: [], active: true,
+                    selected: [], edited: [], hovered: [], 
+                    active: true,
+                    locked: false,
                     times: track.times,
                 };
                 
@@ -4334,8 +4342,8 @@ class CurvesTimeline extends Timeline {
                     if(trackInfo.locked)
                         ctx.fillStyle = Timeline.COLOR_LOCK;
 
-                    if(!this.active || trackInfo.active == false)
-                        ctx.fillStyle = Timeline.COLOR_UNACTIVE;
+                    if(!this.active || !trackInfo.active)
+                        ctx.fillStyle = Timeline.COLOR_INACTIVE;
                         
                     ctx.translate(keyframePosX, y);
                     
@@ -4429,6 +4437,7 @@ class CurvesTimeline extends Timeline {
                     fullname: track.name,
                     name: name, type: type,
                     active: true,
+                    locked: false,
                     dim: valueDim,
                     selected: boolArray.slice(), edited: boolArray.slice(), hovered: boolArray.slice(), 
                     times: times,
@@ -4686,7 +4695,7 @@ class CurvesTimeline extends Timeline {
      * @returns 
      */
     selectKeyFrame( track, frameIdx, unselectPrev = true ) {        
-        if( frameIdx == undefined || !track || track.locked )
+        if( frameIdx == undefined || !track || track.locked || !track.active )
             return false;
 
         if ( unselectPrev ){
@@ -5195,8 +5204,8 @@ class CurvesTimeline extends Timeline {
         }
         
         keyFrameIndex = keyFrameIndex ?? this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-        if ( keyFrameIndex == -1 )
-            return
+        if (keyFrameIndex < 0)
+            return;
                         
         const name = this.tracksDictionary[track.fullname];
         const t = this.tracksPerItem[ name ][track.idx];

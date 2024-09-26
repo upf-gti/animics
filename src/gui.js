@@ -1251,7 +1251,7 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
         this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
         this.keyFramesTimeline.onGetOptimizeThreshold = () => { return this.editor.optimizeThreshold; }
-        this.keyFramesTimeline.onChangeTrackVisibility = (e, t, n) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, null, true)}
+        this.keyFramesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.clipIdx);}
         // this.keyFramesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
         this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
@@ -1310,6 +1310,7 @@ class KeyframesGui extends Gui {
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? undefined : idx);
         }
+        this.curvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.clipIdx);}
 
 
         this.timelineArea.attach(this.keyFramesTimeline.root);
@@ -2279,7 +2280,7 @@ class ScriptGui extends Gui {
         }
 
         this.clipsTimeline.onUpdateTrack = this.editor.updateTracks.bind(this.editor); 
-        this.clipsTimeline.onChangeTrackVisibility = (v) => { this.editor.updateTracks(); }
+        this.clipsTimeline.onChangeTrackVisibility = (track, oldState) => { this.editor.updateTracks(); }
         this.timelineArea.attach(this.clipsTimeline.root);
         this.clipsTimeline.canvas.tabIndex = 1;
     }
