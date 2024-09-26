@@ -183,7 +183,6 @@ class Timeline {
             this.currentTime = value;
             if(this.onSetTime)
                 this.onSetTime(this.currentTime);
-            this.draw();
             
         }, {signal: "@on_current_time_" + this.constructor.name, step: 0.01, min: 0, precision: 3, skipSlider: true});        
 
@@ -298,7 +297,6 @@ class Timeline {
                             }
                             if(this.onLockTrack)
                                 this.onLockTrack(el, track, node)
-                            this.draw();
                         }
                          
                     }]})
@@ -410,7 +408,6 @@ class Timeline {
         this.pixelsToSeconds = 1 / this.secondsToPixels;
         //this.updateHeader();
         this.updateLeftPanel();
-        this.draw(this.currentTime);
         return this.animationClip;
     }
 
@@ -776,7 +773,6 @@ class Timeline {
         this.secondsToPixels *= v;
         this.pixelsToSeconds = 1 / this.secondsToPixels;
         this.session.start_time += this.currentTime - this.xToTime(xCurrentTime);
-        this.draw();
     }
     
     /**
@@ -942,7 +938,6 @@ class Timeline {
                     let time = this.xToTime( localX );
                     time = Math.max(0, time);
                     this.currentTime = Math.min(this.duration, time);
-                    this.draw();
                     LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
                 }
                 else if(this.grabbingScroll )
@@ -1312,7 +1307,7 @@ class Timeline {
                 this.tracksPerItem[name][i].active = visible;
                 trackInfo = this.tracksPerItem[name][i];
         }
-        this.draw();
+
         if(this.onChangeTrackVisibility)
             this.onChangeTrackVisibility(trackInfo, visible);
     }
@@ -1343,8 +1338,6 @@ class Timeline {
             }
         }
         
-        this.draw();
-
         if(this.onChangeTrackDisplay)
             this.onChangeTrackDisplay(trackInfo, hide)
     }
@@ -1378,11 +1371,8 @@ class Timeline {
             this.pixelsToSeconds = 1 / this.secondsToPixels;
         }
         size[1] -= this.header_offset;
-        //this.canvasArea.setSize(size);
-        //this.canvasArea.root.style.height = "calc(100% - "+ this.header_offset + "px)";
         this.canvas.width = this.canvasArea.root.clientWidth;
         this.canvas.height = this.canvasArea.root.clientHeight;
-        this.draw(this.currentTime);
     }
 
     /**
@@ -2763,7 +2753,6 @@ class ClipsTimeline extends Timeline {
         track.active = visible;
         trackInfo = track;
         
-        this.draw();
         if(this.onChangeTrackVisibility)
             this.onChangeTrackVisibility(trackInfo, visible);
     }
