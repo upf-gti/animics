@@ -8,7 +8,7 @@ import { Gizmo } from "./gizmo.js";
 import { UTILS } from "./utils.js"
 import { NN } from "./ML.js"
 import { OrientationHelper } from "./libs/OrientationHelper.js";
-import { AnimationRetargeting, findIndexOfBoneByName, forceBindPoseQuats } from './retargeting.js'
+import { AnimationRetargeting, findIndexOfBone, findIndexOfBoneByName } from './retargeting.js'
 import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/GLTFLoader.js';
 import { GLTFExporter } from './exporters/GLTFExporoter.js' 
 import { BMLController } from "./controller.js"
@@ -18,6 +18,7 @@ import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { FileSystem } from "./libs/filesystem.js";
 
 import { LX } from "lexgui"
+import { Quaternion, Vector3 } from "./libs/three.module.js";
 
 // const MapNames = await import('../data/mapnames.json', {assert: { type: 'json' }});
 const MapNames = await (await fetch('./data/mapnames.json')).json();
@@ -1906,7 +1907,6 @@ class KeyframeEditor extends Editor{
                         // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
                         // _clip is the same clip (pointer) sent in mixer.clipAction. 
 
-                        // TODO put bind quats-pos-scale on inactive
                         if (track.active){
                             interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = track.times;
                             interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = track.values; 
@@ -1914,11 +1914,22 @@ class KeyframeEditor extends Editor{
                             interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = [0];
                             if (isFaceAnim){
                                 interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = [0];
-                            }else if(track.dim == 4){
-                                interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = [0,0,0,1];
                             }else{
-                                interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = [0,0,0];
-                            }
+                                // TODO optimize if necessary
+                                let skeleton =this.currentCharacter.skeletonHelper.skeleton;
+                                let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
+                                let boneIdx = findIndexOfBoneByName(skeleton, track.name);
+                                let parentIdx = findIndexOfBone(skeleton, skeleton.bones[boneIdx].parent);
+                                let localBind = invMats[boneIdx].clone().invert().premultiply(invMats[parentIdx]);
+                                let p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+                                localBind.decompose( p,q,s );
+                                // assuming quats and position only. Missing Scale
+                                if(track.dim == 4){
+                                    interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = q.toArray();//[0,0,0,1];
+                                }else{
+                                    interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = p.toArray();//[0,0,0];
+                                }
+                            } 
 
                         }
                     }
