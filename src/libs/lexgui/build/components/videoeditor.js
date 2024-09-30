@@ -498,7 +498,10 @@ class VideoEditor {
         this._setStartValue(this.timebar.startX);
         this._setCurrentValue(this.timebar.currentX);
         this.timebar.update(this.timebar.currentX);
-        this._update();
+        
+        if ( !this.requestId ){ // only have one update on flight
+            this._update();
+        } 
         this.controls = options.controls ?? true;
         if(!this.controls) {
             this.hideControls();
@@ -615,12 +618,16 @@ class VideoEditor {
         this.controlsArea.hide();
     }
 
-    delete ( ) {
+    stopUpdates(){
+
         if(this.requestId) {
             cancelAnimationFrame(this.requestId);
             this.requestId = null;
         }
+    }
 
+    delete ( ) {
+        this.stopUpdates();
         delete this;
     }
 }

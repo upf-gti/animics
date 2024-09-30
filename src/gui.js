@@ -950,7 +950,7 @@ class KeyframesGui extends Gui {
     createVideoEditorArea() {
         this.capturePanel.clear();
 
-        this.videoEditor.delete();
+        this.videoEditor.stopUpdates();
         this.videoEditor.onResize = null;
         let video = this.recordedVideo;
         video.classList.remove("hidden");
