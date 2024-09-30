@@ -550,9 +550,7 @@ class Gui {
     /** ------------------------------------------------------------ */
 
     /** -------------------- ON EVENTS -------------------- */
-    onSelectItem(item) {
-        this.keyFramesTimeline.setSelectedItems( [item] );
-        this.selectedItems = [item];
+    onSelectItem(item) { // on bone select through canvas gizmo
         this.tree.select(item);
     }
 
@@ -1123,7 +1121,7 @@ class KeyframesGui extends Gui {
             }
         }
         this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
-        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t);
+        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t, true);
         this.keyFramesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             if (!currentBinded){ return; }
@@ -1275,7 +1273,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.setFramerate(30);
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
-            this.editor.setTime(t);
+            this.editor.setTime(t, true);
             if ( !this.editor.state ){ // update ui if not playing
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip);
             }
@@ -1749,6 +1747,11 @@ class KeyframesGui extends Gui {
                             
                             this.editor.activeTimeline = this.keyFramesTimeline;
                             this.keyFramesTimeline.setSelectedItems( [itemSelected] );
+							let t = this.keyFramesTimeline.tracksPerItem[itemSelected][0];
+							let keyframe = this.keyFramesTimeline.getCurrentKeyFrame(t, this.keyFramesTimeline.currentTime, 0.1 );
+							this.keyFramesTimeline.processCurrentKeyFrame( {}, keyframe, t, null, false );
+					        this.selectedItems = [itemSelected];
+							
                             this.showTimeline();
                             this.updateSkeletonPanel({itemSelected: itemSelected});
                             
@@ -2084,7 +2087,7 @@ class ScriptGui extends Gui {
         });
         this.clipsTimeline.setFramerate(30);
         this.clipsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
-        this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t);
+        this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t, true);
         this.clipsTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             if (!currentBinded){ return; }

@@ -1474,18 +1474,10 @@ class KeyFramesTimeline extends Timeline {
             }
 
         }else {
-            let boundingBox = this.canvas.getBoundingClientRect();
-            if(e.y < boundingBox.top || e.y > boundingBox.bottom) {
-                return;
-            }
-
             // Check exact track keyframe
-            if(!discard && track) {
-                this.processCurrentKeyFrame( e, null, track, localX );                
-            } 
-            else {
+            if(discard || !track) {
                 this.unSelectAllKeyFrames();               
-            }
+            } 
         }
 
         this.canvas.classList.remove('grabbing');
@@ -1536,11 +1528,6 @@ class KeyFramesTimeline extends Timeline {
         let localY = e.localY;
         let track = e.track;
 
-        const innerSetTime = (t) => { 
-            LX.emit( "@on_current_time_" + this.constructor.name, t);
-            // if( this.onSetTime ) 
-            //     this.onSetTime( t );	 
-            }
         // Manage keyframe movement
         if(this.movingKeys) {
 
@@ -1593,6 +1580,7 @@ class KeyFramesTimeline extends Timeline {
         }
         else if(track) {
 
+            this.unHoverAll();
             let keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
             if(keyFrameIndex > -1 ) {
                 
@@ -1600,13 +1588,9 @@ class KeyFramesTimeline extends Timeline {
                 let t = this.tracksPerItem[ name ][track.idx];
                 if(t && t.locked)
                     return;
-                this.unHoverAll();
-                                        
+                
                 this.lastHovered = [name, track.idx, keyFrameIndex];
-                t.hovered[keyFrameIndex] = true;
-
-            }else {
-                this.unHoverAll();
+                t.hovered[keyFrameIndex] = true;   
             }
         }
         else {
@@ -1735,7 +1719,7 @@ class KeyFramesTimeline extends Timeline {
                 continue;
 
             // Select it
-            this.lastKeyFramesSelected.push( [track.name, track.idx, newIdx, track.clipIndex] );
+            this.lastKeyFramesSelected.push( [track.name, track.idx, newIdx, track.clipIdx] );
             track.selected[newIdx] = true;
 
         }
@@ -4025,18 +4009,12 @@ class CurvesTimeline extends Timeline {
             }
 
         }else {
-            
-            let boundingBox = this.canvas.getBoundingClientRect();
-            if(e.y < boundingBox.top || e.y > boundingBox.bottom) {
-                return;
-            }
-            // Check exact track keyframe
-            if(!discard && track) {
-                this.processCurrentKeyFrame( e, null, track, localX );
-                
+            if(discard || !track) {
+                this.unSelectAllKeyFrames();                               
             }                       
         }
 
+        this.canvas.classList.remove('grabbing');
         this.boxSelection = false;
         this.boxSelectionStart = null;
         this.boxSelectionEnd = null;
@@ -4087,11 +4065,6 @@ class CurvesTimeline extends Timeline {
         let localY = e.localY;
         let track = e.track;
         
-        const innerSetTime = (t) => { 
-            LX.emit( "@on_current_time_" + this.constructor.name, t);
-            // if( this.onSetTime ) 
-            //     this.onSetTime( t );	 
-        }
         // Manage keyframe movement
         if(this.movingKeys) {
             this.clearState();
@@ -4148,6 +4121,7 @@ class CurvesTimeline extends Timeline {
         }
         else if(track) {
 
+            this.unHoverAll();
             let keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
             if(keyFrameIndex > -1) {
                 
@@ -4155,13 +4129,10 @@ class CurvesTimeline extends Timeline {
                 let t = this.tracksPerItem[ name ][track.idx];
                 if(t && t.locked)
                     return;
-                this.unHoverAll();
             
                 this.lastHovered = [name, track.idx, keyFrameIndex];
                 t.hovered[keyFrameIndex] = true;
 
-            }else {
-                this.unHoverAll();
             }
         }
         else {
@@ -4702,7 +4673,7 @@ class CurvesTimeline extends Timeline {
             this.unSelectAllKeyFrames();
         }
 
-        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex] );
+        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIdx] );
         track.selected[frameIdx] = true;
 
         return true;
