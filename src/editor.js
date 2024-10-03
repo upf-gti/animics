@@ -2218,14 +2218,6 @@ class ScriptEditor extends Editor{
         }
         this.currentAnimation = animationName;
 
-        // Remove current animation clip
-        let mixer = this.currentCharacter.mixer;
-        mixer.stopAllAction();
-
-        while (mixer._actions.length) {
-            mixer.uncacheAction(mixer._actions[0]._clip); // removes action
-        }
-
         // create timeline animation for the first time
         if (!animation.scriptAnimation){
             this.gui.clipsTimeline.setAnimationClip(null, true); //generate empty animation. Cannot process bml input 
@@ -2233,29 +2225,20 @@ class ScriptEditor extends Editor{
             this.gui.loadBMLClip(animation.inputAnimation); // process bml and add clips
             delete animation.inputAnimation;
         }
-        // when just updating the mixer animation, this should not be necessary
-        // else{ 
-        //     this.gui.clipsTimeline.setAnimationClip(animation.scriptAnimation, false); 
-        //     this.gui.clip = this.gui.clipsTimeline.animationClip;
-        //     this.gui.duration = this.gui.clip.duration;    
-        // }
         
-        let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(this.activeTimeline.animationClip, this.activeTimeline.framerate);
-        mixerAnimation.name = animationName;
         animation.scriptAnimation.name = animationName;
-        mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();            
         
         if(!this.bindedAnimations[animationName]) {
             this.bindedAnimations[animationName] = {};
         }
-        this.bindedAnimations[animationName][this.currentCharacter.name] = {
-            mixerAnimation
-        }
+        this.bindedAnimations[animationName][this.currentCharacter.name] = { mixerAnimation: null };
     
+        this.updateAnimationAction( animation.scriptAnimation );
+
         this.setAnimation();
         // mixer.setTime(0); // resets and automatically calls a this.mixer.update
 
-        if(mixerAnimation) {
+        if(this.bindedAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation) {
             $('#loading').fadeOut();
         }
 
@@ -2320,12 +2303,32 @@ class ScriptEditor extends Editor{
 
     /** BML ANIMATION */ 
     
+    /**
+     * Updates current mixer and mixerAnimation with the timeline animationClip
+     * @param {ClipTimeline animationClip} animation 
+     */
+    updateAnimationAction(animation) {
+        // Remove current animation clip
+        let mixer = this.currentCharacter.mixer;
+        mixer.stopAllAction();
+
+        while (mixer._actions.length) {
+            mixer.uncacheAction(mixer._actions[0]._clip); // removes action
+        }
+
+        let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(animation, this.activeTimeline.framerate);
+        mixerAnimation.name = this.currentAnimation;
+        mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();
+        
+        this.bindedAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation = mixerAnimation;
+}
+
     updateTracks() {
 
         let animationData = this.getCurrentAnimation();
         animationData.scriptAnimation = this.activeTimeline.animationClip;
        
-        this.bindAnimationToCharacter(this.currentAnimation);
+        this.updateAnimationAction(animationData.scriptAnimation);
     }
 
     clearAllTracks(showConfirmation = true) {

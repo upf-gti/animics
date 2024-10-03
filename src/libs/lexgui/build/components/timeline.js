@@ -269,7 +269,7 @@ class Timeline {
                     let track = this.tracksPerItem[selected][j];
                     let id = track.type ? track.type : track.name;
 
-                    t.children.push({'id': id, 'skipVisibility': this.skipVisibility, visible: track.active, selected: track.isSelected, 'children':[], actions : this.skipLock ? null : [{
+                    t.children.push({'id': id, 'skipVisibility': this.skipVisibility, visible: track.active, /*selected: track.isSelected,*/ 'children':[], actions : this.skipLock ? null : [{
                         'name':'Lock edition',
                         'icon': 'fa-solid '+ (track.locked ? 'fa-lock' : 'fa-lock-open'),                       
                         'callback': (node, el) => {
@@ -307,7 +307,6 @@ class Timeline {
                     switch(e.type) {
                         case LX.TreeEvent.NODE_SELECTED:
                             this.selectTrack(e.node);
-                            this.updateLeftPanel();
                             break;
                         case LX.TreeEvent.NODE_VISIBILITY:    
                             this.changeTrackVisibility(e.node, e.value);
@@ -582,11 +581,11 @@ class Timeline {
 
         this.drawTracksBackground(w, h);
 
-        if(this.onDrawContent && this.animationClip) {
+        if(this.animationClip) {
             
             ctx.translate( this.position[0], this.position[1] + this.topMargin ); //20 is the top margin area
 
-            this.onDrawContent( ctx, this.timeStart, this.timeEnd, this );
+            this.drawContent( ctx, this.timeStart, this.timeEnd, this );
 
             ctx.translate( -this.position[0], -(this.position[1] + this.topMargin) ); //20 is the top margin area
         }
@@ -894,7 +893,6 @@ class Timeline {
                 this.onMouseUp(e, time);
             }
             this.unSelectAllTracks();
-            this.updateLeftPanel();
         }
     
 
@@ -1027,7 +1025,7 @@ class Timeline {
      * @method drawTrackWithKeyframes
      * @param {*} ctx
      * ...
-     * @description helper function, you can call it from onDrawContent to render all the keyframes
+     * @description helper function, you can call it from drawContent to render all the keyframes
      * TODO
      */
 
@@ -1666,9 +1664,9 @@ class KeyFramesTimeline extends Timeline {
 
     }
 
-    onDrawContent( ctx, timeStart, timeEnd ) {
+    drawContent( ctx, timeStart, timeEnd ) {
     
-        if(this.selectedItems == null || !this.tracksPerItem) 
+        if(!this.animationClip || this.selectedItems == null || !this.tracksPerItem) 
             return;
         
         ctx.save();
@@ -2636,27 +2634,6 @@ class ClipsTimeline extends Timeline {
         this.lastClipsSelected = [];
     }
 
-    // resizeCanvas( size ) {
-    //     if( size[0] <= 0 && size[1] <=0 )
-    //         return;
-
-    //     size[1] -= this.header_offset;
-
-    //     if(Math.abs(this.canvas.width - size[0]) > 1) {
-            
-    //         var w = Math.max(300, size[0] );
-    //         this.secondsToPixels = ( w- this.session.left_margin ) / this.duration;
-    //         this.pixelsToSeconds = 1 / this.secondsToPixels;
-    //     }
-
-    //     this.canvasArea.setSize(size);
-    //     this.canvas.width = size[0];
-    //     this.canvas.height = size[1];
-    //     var w = Math.max(300, this.canvas.width);
-        
-    //     this.draw(this.currentTime); 
-    // }
-
     updateLeftPanel(area) {
 
         if(this.leftPanel)
@@ -2680,33 +2657,35 @@ class ClipsTimeline extends Timeline {
         const titleHeight = title.clientHeight + parseFloat(styles['marginTop']) + parseFloat(styles['marginBottom']);
         let p = new LX.Panel({height: "calc(100% - " + titleHeight + "px)"});
 
+        let treeTracks = [];
         if(this.animationClip)  {
 
             for(let i = 0; i < this.animationClip.tracks.length; i++ ) {
                 let track = this.animationClip.tracks[i];
-                let t = {
+                treeTracks.push( {
                     'id': track.name ?? "Track_" + track.idx.toString(),
                     'name': track.name,
                     'skipVisibility': this.skipVisibility,     
                     'visible': track.active,  
-                    'selected' : track.isSelected                
-                }
+                    // 'selected' : track.isSelected                
+                } );
                               
-                let tree = p.addTree(null, t, {filter: false, rename: false, draggable: false, onevent: (e) => {
-                    switch(e.type) {
-                        case LX.TreeEvent.NODE_SELECTED:
-                            this.selectTrack(e.node);
-                            break;
-                        case LX.TreeEvent.NODE_VISIBILITY:    
-                            this.changeTrackVisibility(e.node, e.value);
-                            break;
-                        case LX.TreeEvent.NODE_CARETCHANGED:    
-                            this.changeTrackDisplay(e.node, e.node.closed);
-                            break;
-                    }
-                }});
             }
+
         }
+        this.leftPanelTrackTree = p.addTree(null, treeTracks, {filter: false, rename: false, draggable: false, onevent: (e) => {
+            switch(e.type) {
+                case LX.TreeEvent.NODE_SELECTED:
+                    this.selectTrack(e.node);
+                    break;
+                case LX.TreeEvent.NODE_VISIBILITY:    
+                    this.changeTrackVisibility(e.node, e.value);
+                    break;
+                case LX.TreeEvent.NODE_CARETCHANGED:    
+                    this.changeTrackDisplay(e.node, e.node.closed);
+                    break;
+            }
+        }});
         panel.attach(p.root)
         p.root.style.overflowY = "scroll";
         p.root.addEventListener("scroll", (e) => {
@@ -2747,9 +2726,10 @@ class ClipsTimeline extends Timeline {
             this.onChangeTrackVisibility(trackInfo, oldState);
     }
 
-        /**
+    /**
     * @method selectTrack
     * @param {id, parent, children, visible} trackInfo 
+    * // NOTE: to select a track from outside of the timeline, a this.leftPanelTrackTree.select(item) needs to be called. 
     */
 
     selectTrack( trackInfo) {
@@ -2768,7 +2748,6 @@ class ClipsTimeline extends Timeline {
         track.isSelected = true;
         
         trackInfo = track;
-        this.updateLeftPanel();
         if(this.onSelectTrack)
             this.onSelectTrack(trackInfo);
     }
@@ -3145,7 +3124,7 @@ class ClipsTimeline extends Timeline {
 
     }
 
-    onDrawContent( ctx, timeStart, timeEnd )  {
+    drawContent( ctx, timeStart, timeEnd )  {
 
         if(!this.animationClip)  
             return;
@@ -4207,9 +4186,9 @@ class CurvesTimeline extends Timeline {
 
     }
 
-    onDrawContent( ctx, timeStart, timeEnd ) {
+    drawContent( ctx, timeStart, timeEnd ) {
     
-        if(this.selectedItems == null || !this.tracksPerItem) 
+        if(!this.animationClip || this.selectedItems == null || !this.tracksPerItem) 
             return;
 
         ctx.save();

@@ -1762,15 +1762,7 @@ class KeyframesGui extends Gui {
                         console.log(event.node.id + " dbl clicked"); 
                         break;
                     case LX.TreeEvent.NODE_CONTEXTMENU: 
-                        LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.value, m => {
-    
-                            // {options}: callback, color
-    
-                            m.add( "Move before sibling" );
-                            m.add( "Move after sibling" );
-                            m.add( "Move to parent" );
-                            
-                        });
+                        console.log(event.node.id + " context menu");
                         break;
                     case LX.TreeEvent.NODE_DRAGGED: 
                         console.log(event.node.id + " is now child of " + event.value.id); 
@@ -1789,6 +1781,7 @@ class KeyframesGui extends Gui {
         });
    
         this.tree = litetree;
+        // this.tree.select(itemSelected);
     }
 
     updateNodeTree() {
@@ -1797,7 +1790,7 @@ class KeyframesGui extends Gui {
         
         let mytree = { 
             id: rootBone.name, 
-            selected: rootBone.name == this.itemSelected 
+            // selected: rootBone.name == this.itemSelected 
         };
         let children = [];
         
@@ -1810,7 +1803,7 @@ class KeyframesGui extends Gui {
                     id: b.name,
                     children: [],
                     closed: true,
-                    selected: b.name == this.itemSelected
+                    // selected: b.name == this.itemSelected
                 }
                 
                 array.push( child );
