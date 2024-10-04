@@ -233,8 +233,11 @@ class Timeline {
     updateLeftPanel(area) {
 
 
-        if(this.leftPanel)
+        let scrollTop = 0;
+        if(this.leftPanel){
+            scrollTop = this.leftPanel.root.children[1].scrollTop;
             this.leftPanel.clear();
+        }
         else {
             this.leftPanel = area.addPanel({className: 'lextimelinepanel', width: "100%", height: "100%"});
         }
@@ -322,13 +325,14 @@ class Timeline {
         panel.attach(p.root)
         p.root.style.overflowY = "scroll";
         p.root.addEventListener("scroll", (e) => {
-           
             this.currentScroll = e.currentTarget.scrollTop/(e.currentTarget.scrollHeight - e.currentTarget.clientHeight);
          })
         // for(let i = 0; i < this.animationClip.tracks.length; i++) {
         //     let track = this.animationClip.tracks[i];
         //     panel.addTitle(track.name + (track.type? '(' + track.type + ')' : ''));
         // }
+        this.leftPanel.root.children[1].scrollTop = scrollTop;
+
         if(this.leftPanel.parent.root.classList.contains("hidden") || !this.root.root.parent)
             return;
         this.resizeCanvas([ this.root.root.clientWidth - this.leftPanel.root.clientWidth  - 8, this.size[1]]);
@@ -591,13 +595,15 @@ class Timeline {
         }
 
         //scrollbar
-        if( h < this.scrollableHeight )
-        {
+        if( h < this.scrollableHeight ){
             ctx.fillStyle = "#222";
             ctx.fillRect( w - this.session.left_margin - 10, 0, 10, h );
-            var scrollh = (h - this.topMargin)*h/ this.scrollableHeight;
+
             ctx.fillStyle = this.grabbingScroll ? Timeline.FONT_COLOR : Timeline.TRACK_COLOR_SECONDARY;
-            ctx.roundRect( w - 8, this.currentScroll * (h - scrollh) + this.topMargin, 4, scrollh - this.topMargin, 5, true );
+           
+            let scrollBarHeight = Math.max( 10, (h-this.topMargin)* (h-this.topMargin)/ this.leftPanel.root.children[1].scrollHeight);
+            let scrollLoc = this.currentScroll * ( h - this.topMargin - scrollBarHeight ) + this.topMargin;
+            ctx.roundRect( w - 10, scrollLoc, 10, scrollBarHeight, 5, true );
         }
         this.drawTimeInfo(w);
 
@@ -830,7 +836,7 @@ class Timeline {
             }
             else if( h < this.scrollableHeight)
             {              
-                this.leftPanel.root.children[1].scrollTop += e.deltaY * 0.1 ;
+                this.leftPanel.root.children[1].scrollTop += e.deltaY;
             }
             
             return;
@@ -938,9 +944,15 @@ class Timeline {
                     this.currentTime = Math.min(this.duration, time);
                     LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
                 }
-                else if(this.grabbingScroll )
+                else if(this.grabbingScroll)
                 {
-                    this.leftPanel.root.children[1].scrollTop += e.movementY  ;
+                    let h = this.leftPanel.root.clientHeight;
+                    let scrollBarHeight = Math.max( 10, (h-this.topMargin)* (h-this.topMargin)/this.leftPanel.root.children[1].scrollHeight);
+                    let minScrollLoc = this.topMargin;
+                    let maxScrollLoc = h - scrollBarHeight; // - sizeScrollBar
+
+                    this.currentScroll = Math.min( 1, Math.max(e.localY - minScrollLoc, 0 ) / (maxScrollLoc - minScrollLoc) );
+                    this.leftPanel.root.children[1].scrollTop = this.currentScroll * (this.leftPanel.root.children[1].scrollHeight-this.leftPanel.root.children[1].clientHeight);
                 }
                 else
                 {
@@ -2265,7 +2277,6 @@ class KeyFramesTimeline extends Timeline {
         LX.emit( "@on_current_time_" + this.constructor.name, time);
         // if(this.onSetTime)
         //     this.onSetTime(time);
-        // this.draw();
         return newIdx;
     }
 
@@ -2636,8 +2647,11 @@ class ClipsTimeline extends Timeline {
 
     updateLeftPanel(area) {
 
-        if(this.leftPanel)
+        let scrollTop = 0;
+        if(this.leftPanel){
+            scrollTop = this.leftPanel.root.children[1].scrollTop;
             this.leftPanel.clear();
+        }
         else {
             this.leftPanel = area.addPanel({className: 'lextimelinepanel', width: "100%", height: "100%"});
         }
@@ -2695,6 +2709,8 @@ class ClipsTimeline extends Timeline {
         //     let track = this.animationClip.tracks[i];
         //     panel.addTitle(track.name + (track.type? '(' + track.type + ')' : ''));
         // }
+        this.leftPanel.root.children[1].scrollTop = scrollTop;
+
         if(this.leftPanel.parent.root.classList.contains("hidden") || !this.root.root.parent)
             return;
         this.resizeCanvas([ this.root.root.clientWidth - this.leftPanel.root.clientWidth  - 8, this.size[1]]);
