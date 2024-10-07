@@ -919,7 +919,7 @@ class Timeline {
             {
                 
                 this.grabbing = true;
-                this.grabTime = time - this.currentTime;
+                this.grabTime = time;
                 if(!track || track && this.getCurrentContent(track, time, 0.001) == undefined) {
                     this.grabbing_timeline = current_grabbing_timeline;
                 }
@@ -2809,8 +2809,8 @@ class ClipsTimeline extends Timeline {
                         this.pixelsToSeconds * 5);
                         
                     if(clipsIndices) {
-                    for(let index of clipsIndices)
-                        this.processCurrentClip( e, index, t, null, true );
+                        for(let index of clipsIndices)
+                            this.processCurrentClip( e, index, t, null, true );
                     }
                 }
             }
@@ -2948,9 +2948,9 @@ class ClipsTimeline extends Timeline {
 
         if(this.grabbing && e.button != 2) {
 
-            var curr = time - this.currentTime;
-            var delta = curr - this.grabTime;
-            this.grabTime = curr;
+            let delta = time - this.grabTime;
+            this.grabTime = time;
+            if ( time < 0 && delta > 0 ){ delta = 0; }
            
             var ct = Math.max(0,this.currentTime - delta);
             if( this.timelineClickedClips != undefined) {
@@ -2976,19 +2976,16 @@ class ClipsTimeline extends Timeline {
                         
                         if( this.timelineClickedClips.length == 1 && e.track && e.movementY != 0) {
 
-                            //let tracks = this.getTracksInRange(e.localY, e.localY + this.trackHeight, this.pixelsToSeconds*5);
-                            // for(let i = 0; i < tracks.length; i++) {
-                                let clips = this.getClipsInRange(e.track, clip.start, clip.start + clip.duration, 0.01)
-                                if(clips == undefined || !clips.length) {
-                                   // let newClip = Object.assign({}, clip);
-                                    let clipIndex = this.addClipInTrack(clip, e.track.idx);
-                                    this.deleteClip(clip);
-                                    e.track.selected[clipIndex] = true;
-                                    this.lastClipsSelected = [[e.track.idx, clipIndex]];
-                                    this.timelineClickedClips = [clip];
-                                    return true;
-                                }     
-                            // }
+                            let clips = this.getClipsInRange(e.track, clip.start, clip.start + clip.duration, 0.01)
+                            if(!clips) {
+                                // let newClip = Object.assign({}, clip);
+                                let clipIndex = this.addClipInTrack(clip, e.track.idx);
+                                this.deleteClip(clip);
+                                e.track.selected[clipIndex] = true;
+                                this.lastClipsSelected = [[e.track.idx, clipIndex]];
+                                this.timelineClickedClips = [clip];
+                                return true;
+                            }     
                         }
                         // if(this.onContentMoved) {
                         //     this.onContentMoved(clip, diff);
@@ -3025,22 +3022,11 @@ class ClipsTimeline extends Timeline {
                 
                 return true;
             }
-            else{
-                innerSetTime( this.currentTime );	
-            }
         } 
-        // else if(e.track && e.ctrlKey) {
-        //     for(let i = 0; i < e.track.clips.length; i++) {
-        //         let clip = e.track.clips[i];
-        //         const x = this.timeToX(clip.start+clip.duration);
-        //         if(Math.abs(e.localX - x) < 5)
-        //             this.canvas.style.cursor = "col-resize";
-        //     }
-        // }
         else if(e.track) {
 
             let clips = this.getClipsInRange(e.track, time, time, 0.1)
-            if(!e.track.locked && clips != undefined) {
+            if(!e.track.locked && clips) {
                                 
                 this.unHoverAll();
                 this.lastHovered = [e.track.idx, clips[0]];
@@ -3884,7 +3870,7 @@ class ClipsTimeline extends Timeline {
     getClipsInRange( track, minTime, maxTime, threshold ) {
 
         if(!track || !track.clips.length)
-        return;
+        return null;
 
         // Manage negative selection
         if(minTime > maxTime) {
@@ -3896,44 +3882,29 @@ class ClipsTimeline extends Timeline {
         // Avoid iterating through all timestamps
         
         if((maxTime + threshold) < track.clips[0].start)
-            return;
+            return null;
+
+        minTime -= threshold;
+        maxTime += threshold;
 
         let indices = [];
 
-        // for(let i = 0; i < track.clips.length; ++i) {
-        //     let t = track.clips[i];
-        //     if((t.start + t.duration <= (maxTime + threshold) || t.start <= (maxTime + threshold)) &&
-        //         (t.start + t.duration >= (minTime - threshold) || t.start >= (minTime - threshold)) ) 
-        //     {
-        //         indices.push(i);
-        //     }
-        // }
-
         for(let i = 0; i < track.clips.length; ++i) {
             let t = track.clips[i];
-            if( (minTime - threshold >= t.start) &&
-                (minTime - threshold <= t.start + t.duration) ||
-                (minTime + threshold >= t.start) &&
-                (minTime + threshold <= t.start + t.duration) ||
-                (maxTime - threshold >= t.start) &&
-                (maxTime - threshold <= t.start + t.duration) ||
-                (maxTime + threshold >= t.start) &&
-                (maxTime + threshold <= t.start + t.duration) ||
-                (minTime - threshold <= t.start || minTime + threshold <= t.start) &&
-                (maxTime - threshold >= t.start + t.duration || maxTime + threshold >= t.start + t.duration)
-            )
-            {
-                indices.push(i);
+            
+            if ( t.start+t.duration < minTime || t.start > maxTime ){ 
+                continue; 
             }
+            indices.push(i);
         }
-        return indices;
+        return indices.length ? indices : null;
     }
 
     validateDuration(t) {
         for(let i = 0; i < this.animationClip.tracks.length; i++) {
             const track = this.animationClip.tracks[i];
             const clipsIdxs = this.getClipsInRange( track, t , this.animationClip.duration, 0 );
-            if(!clipsIdxs || !clipsIdxs.length)
+            if(!clipsIdxs)
                 continue;
             const clip = track.clips[clipsIdxs[clipsIdxs.length - 1]];
             t = Math.max(t, clip.start + clip.duration);

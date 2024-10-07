@@ -93,20 +93,6 @@ class Editor {
                         if ( playElement ){ playElement.children[0].click() }
                     }
                     break;
-                // case "Delete":
-                //     e.preventDefault();
-                //     // e.stopImmediatePropagation();
-                //     // this.activeTimeline.deleteKeyFrame(e, null);
-                //     if(this.activeTimeline.deleteKeyFrame) {
-                //         e.multipleSelection = this.activeTimeline.lastKeyFramesSelected.length > 1;
-                //         this.activeTimeline.deleteKeyFrame(e);
-                //     }
-                //     if(this.activeTimeline.deleteClip) {
-                //         e.multipleSelection = this.activeTimeline.lastClipsSelected.length > 1;
-                //         this.activeTimeline.deleteClip(e, null, this.gizmo.updateTracks.bind(this.gizmo));
-                //     }
-                    
-                //     break;
                 case "Escape":
                     this.gui.closeDialogs();
                     

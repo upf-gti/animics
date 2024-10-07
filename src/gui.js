@@ -2751,7 +2751,6 @@ class ScriptGui extends Gui {
 
             widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1], () => {
                 clip = null;  
-                // this.clipsTimeline.optimizeTracks(); 
                 updateTracks(); 
                 this.editor.updateTracks();
                 this.updateClipPanel();
