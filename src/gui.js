@@ -2048,6 +2048,8 @@ class ScriptGui extends Gui {
         
         super(editor);
         this.mode = ClipModes.Actions;
+        this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
+        this.delayedUpdateTime = 600; //ms
     }
 
     /** Create timelines */
@@ -2096,15 +2098,18 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
-           if(clip.strokeStart) clip.strokeStart+=offset;
-           if(clip.stroke) clip.stroke+=offset;
-           if(clip.strokeEnd) clip.strokeEnd+=offset;
-           this.updateClipPanel(clip);
-           this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
-           if(clip.onChangeStart)  {
-               clip.onChangeStart(offset);
-           }
-           this.editor.updateTracks();
+            if(clip.strokeStart) clip.strokeStart+=offset;
+            if(clip.stroke) clip.stroke+=offset;
+            if(clip.strokeEnd) clip.strokeEnd+=offset;
+            this.updateClipPanel(clip);
+            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
+            if(clip.onChangeStart)  {
+                clip.onChangeStart(offset);
+            }
+
+            if ( !this.delayedUpdateID ){
+                this.delayedUpdateID = setTimeout( ()=>{ this.delayedUpdateID = null; this.editor.updateTracks(); }, this.delayedUpdateTime );
+            }
         };
 
         this.clipsTimeline.deleteContent = () => {
@@ -2278,7 +2283,11 @@ class ScriptGui extends Gui {
 
         }
 
-        this.clipsTimeline.onUpdateTrack = this.editor.updateTracks.bind(this.editor); 
+        this.clipsTimeline.onUpdateTrack = (trackIdx) =>{
+            if ( !this.delayedUpdateID ){
+                this.delayedUpdateID = setTimeout( ()=>{ this.delayedUpdateID = null; this.editor.updateTracks(); }, this.delayedUpdateTime );
+            }
+        } 
         this.clipsTimeline.onChangeTrackVisibility = (track, oldState) => { this.editor.updateTracks(); }
         this.timelineArea.attach(this.clipsTimeline.root);
         this.clipsTimeline.canvas.tabIndex = 1;

@@ -960,6 +960,9 @@ class Timeline {
                     var old = this.xToTime( this.lastMouse[0] );
                     var now = this.xToTime( e.offsetX );
                     this.session.start_time += (old - now);
+
+                    this.leftPanel.root.children[1].scrollTop -= e.deltay; // will automatically call scroll event
+
                 }
             }
 
@@ -2704,11 +2707,8 @@ class ClipsTimeline extends Timeline {
         p.root.style.overflowY = "scroll";
         p.root.addEventListener("scroll", (e) => {
             this.currentScroll = e.currentTarget.scrollTop / (e.currentTarget.scrollHeight - e.currentTarget.clientHeight);
-         })
-        // for(let i = 0; i < this.animationClip.tracks.length; i++) {
-        //     let track = this.animationClip.tracks[i];
-        //     panel.addTitle(track.name + (track.type? '(' + track.type + ')' : ''));
-        // }
+        })
+       
         this.leftPanel.root.children[1].scrollTop = scrollTop;
 
         if(this.leftPanel.parent.root.classList.contains("hidden") || !this.root.root.parent)
