@@ -1250,7 +1250,6 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
         this.keyFramesTimeline.onGetOptimizeThreshold = () => { return this.editor.optimizeThreshold; }
         this.keyFramesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.clipIdx);}
-        // this.keyFramesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
         this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
         }
@@ -1303,7 +1302,6 @@ class KeyframesGui extends Gui {
                 if ( playElement ){ playElement.children[0].click() }
             }
         }
-        // this.curvesTimeline.optimizeTrack = (idx) => {this.editor.optimizeTrack(idx);}
         this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? undefined : idx);
