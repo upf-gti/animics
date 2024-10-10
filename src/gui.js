@@ -2047,7 +2047,13 @@ class ScriptGui extends Gui {
         super(editor);
         this.mode = ClipModes.Actions;
         this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
-        this.delayedUpdateTime = 600; //ms
+        this.delayedUpdateTime = 500; //ms
+    }
+
+    delayedUpdateTracks(){
+        if ( !this.delayedUpdateID ){
+            this.delayedUpdateID = setTimeout( ()=>{ this.delayedUpdateID = null; this.editor.updateTracks(); }, this.delayedUpdateTime );
+        }
     }
 
     /** Create timelines */
@@ -2105,9 +2111,7 @@ class ScriptGui extends Gui {
                 clip.onChangeStart(offset);
             }
 
-            if ( !this.delayedUpdateID ){
-                this.delayedUpdateID = setTimeout( ()=>{ this.delayedUpdateID = null; this.editor.updateTracks(); }, this.delayedUpdateTime );
-            }
+            this.delayedUpdateTracks();
         };
 
         this.clipsTimeline.deleteContent = () => {
@@ -2281,11 +2285,7 @@ class ScriptGui extends Gui {
 
         }
 
-        this.clipsTimeline.onUpdateTrack = (trackIdx) =>{
-            if ( !this.delayedUpdateID ){
-                this.delayedUpdateID = setTimeout( ()=>{ this.delayedUpdateID = null; this.editor.updateTracks(); }, this.delayedUpdateTime );
-            }
-        } 
+        this.clipsTimeline.onUpdateTrack = this.delayedUpdateTracks.bind(this); 
         this.clipsTimeline.onChangeTrackVisibility = (track, oldState) => { this.editor.updateTracks(); }
         this.timelineArea.attach(this.clipsTimeline.root);
         this.clipsTimeline.canvas.tabIndex = 1;
@@ -2498,7 +2498,7 @@ class ScriptGui extends Gui {
                 if(clip && clip.start + clip.duration > this.clipsTimeline.duration) {
                     this.clipsTimeline.setDuration(clip.start + clip.duration);
                 }
-                this.editor.updateTracks(); 
+                this.delayedUpdateTracks();
                 this.editor.setTime(this.clipsTimeline.currentTime);
                                
                 if(this.curve) {
@@ -2750,7 +2750,7 @@ class ScriptGui extends Gui {
             widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1], () => {
                 clip = null;  
                 updateTracks(); 
-                this.editor.updateTracks();
+                this.delayedUpdateTracks();
                 this.updateClipPanel();
             }));
             
