@@ -124,8 +124,6 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
             menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
             menubar.add("Timeline/Optimize all tracks", { callback: () => {
-                    // let animations = this.editor.getCurrentBindedAnimation();
-                    // this.editor.optimizeTracks([animations.mixerBodyAnimation, animations.mixerFaceAnimation]) }
                     // optimize all tracks of current binded animation (if any)
                     this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
                     this.keyFramesTimeline.optimizeTracks();
@@ -150,12 +148,6 @@ class Gui {
                 this.openSettings("gizmo");
             }});
         }
-        // menubar.add("View/Show timeline", { type: "checkbox", checked: this.timelineVisible, callback: (v) => {
-        //     if(v)
-        //         this.showTimeline();
-        //     else
-        //         this.hideTimeline();
-        // }});
 
         if(this.editor.mode == this.editor.editionModes.SCRIPT) {
             // menubar.add("Help/");
