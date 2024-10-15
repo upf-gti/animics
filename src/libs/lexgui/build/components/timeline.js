@@ -55,7 +55,6 @@ class Timeline {
         this.timeBeforeMove = 0;
         this.tracksPerItem = {};
         this.tracksDictionary = {};
-        this._times = [];
 
         this.onBeforeCreateTopBar = options.onBeforeCreateTopBar;
         this.onAfterCreateTopBar = options.onAfterCreateTopBar;
@@ -77,12 +76,14 @@ class Timeline {
         this.currentScrollInPixels = 0; //in pixels
         this.scrollableHeight = this.size[1]; //true height of the timeline content
        
-        this.secondsToPixels = this.canvas.width/this.duration;
+        this.secondsToPixels = Math.max( 0.00001, this.size[0]/1 );
         this.pixelsToSeconds = 1 / this.secondsToPixels;
         this.selectedItems = options.selectedItems ?? null;
         this.animationClip = options.animationClip ?? null;
         this.trackHeight = options.trackHeight ?? 25;
-        
+        this.timeSeparators = [0.01, 0.1, 0.5, 1, 5];
+
+
         this.active = true;
         this.skipVisibility = options.skipVisibility ?? false;
         this.skipLock = options.skipLock ?? false;
@@ -406,86 +407,67 @@ class Timeline {
        
         this.duration = this.animationClip.duration;
         this.speed = this.animationClip.speed ?? this.speed;
-        this.secondsToPixels = ( this.canvas.width - this.session.left_margin ) / this.duration;
-        this.pixelsToSeconds = 1 / this.secondsToPixels;
+
         //this.updateHeader();
         this.updateLeftPanel();
         return this.animationClip;
     }
 
     drawTimeInfo (w, h = this.topMargin) {
-
+       
         let ctx = this.canvas.getContext("2d");
         ctx.font = "11px " + Timeline.FONT;//"11px Calibri";
         ctx.textAlign = "center";
-        
-        let canvas = this.canvas;
-        
+                
         // Draw time markers
-        let startx = Math.round( this.timeToX( this.startTime ) ) + 0.5;
-        let endx = Math.round( this.timeToX( this.endTime ) ) + 0.5;
-        let tick_time = this.secondsToPixels > 400 ? 0.1 : 0.5;
-        if(this.secondsToPixels < 100 )
-            tick_time = 1;
-
         ctx.save();
 
+        // background of timeinfo
         ctx.fillStyle = Timeline.BACKGROUND_COLOR;
-        ctx.fillRect( this.session.left_margin, 0, canvas.width, h );
+        ctx.fillRect( this.session.left_margin, 0, this.canvas.width, h );
         ctx.strokeStyle = LX.Timeline.FONT_COLOR;
 
-        if(this.secondsToPixels > 200 )
-        {
-            ctx.globalAlpha = 0.5 * (1.0 - LX.UTILS.clamp( 200 / this.secondsToPixels, 0, 1));
-            ctx.beginPath();
-            for( let time = this.startTime; time <= this.endTime; time += 1 / this.framerate )
-            {
-                let x = this.timeToX( time );
-                if(x < this.session.left_margin)
-                    continue;
-                ctx.moveTo(Math.round(x) + 0.5, h * 0.9);
-                ctx.lineTo(Math.round(x) + 0.5, h * 0.95);
-            }
-            ctx.stroke();
-            ctx.globalAlpha = this.opacity;
-        }
+        // set tick and sub tick times
+        let tick_time = 4;
+        if ( this.secondsToPixels > 900 ){ tick_time = 1; }
+        else if ( this.secondsToPixels > 100 ){ tick_time = 2; }
+        else if ( this.secondsToPixels > 50 ){ tick_time = 3; }
 
-        ctx.globalAlpha = 0.5;
+        let subtick_time = this.timeSeparators[tick_time - 1];
+        tick_time = this.timeSeparators[tick_time];
+
+        // transform times into pixel coords
+        let tick_x = this.timeToX( this.startTime + tick_time ) - this.timeToX( this.startTime );
+        let subtick_x = subtick_time * tick_x / tick_time; 
+
+        let startx = this.timeToX( Math.floor( this.startTime / tick_time) * tick_time ); // floor because might need to draw previous subticks
+        let endx = this.timeToX( this.endTime ); // draw up to endTime
+
+        // begin drawing
         ctx.beginPath();
-        let times = this._times;
-        this._times.length = 0;
-
-        for( let time = this.startTime; time <= this.endTime; time += tick_time)
-        {
-            let x = this.timeToX( time );
-
-            if(x < this.session.left_margin)
-                continue;
-
-            let is_tick = time % 5 == 0;
-            if(is_tick || this.secondsToPixels > 70 ) {
-                times.push([x,time]);
-                ctx.moveTo(Math.round(x) + 0.5, h * 0.4 + (is_tick ? h * 0.3 : h * 0.4) );
-                ctx.lineTo(Math.round(x) + 0.5, h * 0.95 );
-                ctx.stroke();
-            }
-        }
-
-        let x = startx;
-        if(x < this.session.left_margin) {
-            x = this.session.left_margin;            
-        }
-        //ctx.moveTo(x, h - 0.5);
-        // ctx.lineTo( endx, h - 0.5);
+        ctx.fillStyle = Timeline.FONT_COLOR//"#888";
         ctx.globalAlpha = this.opacity;
 
-        // Time seconds in text
-        ctx.fillStyle = Timeline.FONT_COLOR//"#888";
-        for(var i = 0; i < times.length; ++i)
-        {
-            let time = times[i][1];
-            ctx.fillText( time == (time|0) ? time : time.toFixed(1), times[i][0], h * 0.6);
+        for( let x = startx; x <= endx; x += tick_x){
+            
+            // draw main line
+            ctx.moveTo(Math.round(x) + 0.5, h * 0.4 + h * 0.3 );
+            ctx.lineTo(Math.round(x) + 0.5, h * 0.95 );
+
+            // draw following sub lines
+            let endsub = x + tick_x - subtick_x*0.5;
+            for (let sub_x = x; sub_x < endsub && sub_x < endx; sub_x += subtick_x){
+                ctx.moveTo(Math.round(sub_x) + 0.5, h * 0.4 + h * 0.45 );
+                ctx.lineTo(Math.round(sub_x) + 0.5, h * 0.95 );
+            }
+
+            // draw time number
+            let t = this.xToTime( x );
+            ctx.fillText( t.toFixed(tick_time < 1? 1 : 0), x, h * 0.6);
         }
+
+        ctx.stroke();                
+
 
         ctx.restore();
     }
@@ -711,9 +693,6 @@ class Timeline {
         updateHeader = (updateHeader || +v.toFixed(decimals) != t);
         this.duration = this.animationClip.duration = v; 
 
-        this.secondsToPixels = ( this.canvas.width - this.session.left_margin ) / this.duration;
-        this.pixelsToSeconds = 1 / this.secondsToPixels;
-
         if(updateHeader) {
             LX.emit( "@on_set_duration", +v.toFixed(3));
         }
@@ -773,6 +752,8 @@ class Timeline {
 
         const xCurrentTime = this.timeToX(this.currentTime);
         this.secondsToPixels *= v;
+        this.secondsToPixels = Math.max( 0.00001, this.secondsToPixels );
+
         this.pixelsToSeconds = 1 / this.secondsToPixels;
         this.session.start_time += this.currentTime - this.xToTime(xCurrentTime);
     }
@@ -853,7 +834,7 @@ class Timeline {
         for(var i = this.tracksDrawn.length - 1; i >= 0; --i)
         {
             var t = this.tracksDrawn[i];
-            if( t[1] >= this.topMargin && localY >= t[1] && localY < (t[1] + t[2]) )
+            if( (t[1] + t[2]) >= this.topMargin && localY >= t[1] && localY < (t[1] + t[2]) )
             {
                 track = t[0];
                 break;
@@ -937,7 +918,7 @@ class Timeline {
                     return; // Handled
                 }
             }
-            else if(this.grabbing && e.button !=2 && !this.movingKeys ) {
+            else if(this.grabbing && e.button !=2 && !this.movingKeys ) { // e.buttons != 2 on mousemove needs to be plural
                 this.canvas.style.cursor = "grabbing"; 
                 if(this.grabbing_timeline  && this.active)
                 {
@@ -1383,12 +1364,6 @@ class Timeline {
     resizeCanvas( size ) {
         if( size[0] <= 0 && size[1] <=0 )
             return;
-        if(Math.abs(this.canvas.width - size[0]) > 1) {
-            
-            var w = Math.max(300, size[0] );
-            this.secondsToPixels = ( w- this.session.left_margin ) / this.duration;
-            this.pixelsToSeconds = 1 / this.secondsToPixels;
-        }
         size[1] -= this.header_offset;
         this.canvas.width = this.canvasArea.root.clientWidth;
         this.canvas.height = this.canvasArea.root.clientHeight;
@@ -2901,22 +2876,29 @@ class ClipsTimeline extends Timeline {
             }
         }
 
-        if(this.grabbing && e.button != 2) { // move clips
+        if(this.grabbing && e.buttons != 2) { // move clips
  
             let delta = time - this.grabTime;
             this.grabTime = time;
             if ( time < 0 && delta > 0 ){ delta = 0; }
            
-            // if ( false && this.lastClipsSelected.length == 1 ){
-            //     let clip = this.animationClip.tracks[this.lastClipsSelected[0][0]].clips[this.lastClipsSelected[0][1]];
+            // if (  this.dragClipMode != "move" && this.lastClipsSelected.length == 1 ){
+            //     this.movingKeys = true;
+
+            //     const track = this.animationClip.tracks[this.lastClipsSelected[0][0]]; 
+            //     let clip = track.clips[this.lastClipsSelected[0][1]];
             //     if( this.dragClipMode == "fadein" ) {
-            //         clip.fadein = Math.min(Math.max((clip.fadein || 0) + delta, clip.start), clip.start+clip.duration);
+            //         clip.fadein = Math.min(Math.max(clip.fadein + delta, clip.start), clip.fadeout);
             //     }
             //     else if( this.dragClipMode == "fadeout" ) {
-            //         clip.fadeout = Math.max(Math.min((clip.fadeout || clip.start+clip.duration) + delta, clip.start+clip.duration), clip.start);
+            //         clip.fadeout = Math.max(Math.min(clip.fadeout + delta, clip.start+clip.duration), clip.fadein);
             //     }
             //     else if( this.dragClipMode == "duration" ) {
-            //         clip.duration += delta;
+            //         let duration = Math.max(0, clip.duration + delta);
+            //         if ( this.lastClipsSelected[0][1] < track.clips.length-1 ){ // max next clip's start
+            //             duration = Math.min( track.clips[this.lastClipsSelected[0][1] + 1].start - clip.start - 0.0001, duration );
+            //         }
+            //         clip.duration = duration;
             //         clip.fadeout = Math.max(Math.min((clip.fadeout || clip.start+clip.duration) + delta, clip.start+clip.duration), clip.start);
             //         if(this.duration < clip.start + clip.duration){
             //             this.setDuration(clip.start + clip.duration);
@@ -2926,7 +2908,8 @@ class ClipsTimeline extends Timeline {
             //         this.onContentMoved(clip, 0);
             //     }
             // } 
-            // else if ( this.lastClipsSelected.length ) {
+
+            // else if ( this.dragClipMode == "move" && this.lastClipsSelected.length ) {
             //     this.movingKeys = true;
 
             //     let leastDelta = delta;
@@ -2937,18 +2920,29 @@ class ClipsTimeline extends Timeline {
             //     let trackEnd = trackStart;
             //     for( let i = 0; i < this.lastClipsSelected.length; ++i ){
                     
-
             //         let trackIdx = this.lastClipsSelected[i][0];
             //         let clipIdx = this.lastClipsSelected[i][1];
-            //         const trackClips = this.animationClip.tracks[trackIdx].clips;
-            //         const clip = this.animationClip.tracks[trackIdx].clips[clipIdx];
+            //         const track = this.animationClip.tracks[trackIdx];
+            //         const trackClips = track.clips;
+            //         const clip = track.clips[clipIdx];
 
             //         if ( delta >= 0 ){
-            //             if ( trackClips.length-1 == clipIdx || trackClips[clipIdx + 1].start >= (clip.start+clip.duration+delta) ){ continue; } //has not reached next clip. Enough space
-            //             const nextClip = trackClips[clipIdx + 1];
-            //             leastDelta = Math.max( 0, Math.min( leastDelta,  nextClip.start - clip.start - clip.duration ) );
+            //             if ( trackClips.length-1 == clipIdx ){ continue; } // all alowed
+            //             if ( !track.selected[clipIdx+1] ){ // if next is selected, force AllOrNothing
+            //                 if( trackClips[clipIdx + 1].start >= (clip.start+clip.duration+delta) ){ continue; } //has not reached next clip. Enough space. All allowed
+            //                 const nextClip = trackClips[clipIdx + 1];
+            //                 leastDelta = Math.max( 0, Math.min( leastDelta,  nextClip.start - clip.start - clip.duration ) );
+            //             }
+            //             // TODO find first node not selected and compute leastDelta
+            //                 // if next is selected, probably skip current leastDelta, as next clip will already take care of it 
+            //                 // need getclipsinRange
             //         }
             //         else if ( delta < 0 ){
+            //             // TODO find first node not selected and compute leastDelta
+            //                 // if prev is selected, probably skip current leastDelta, as prev clip has already took care of it 
+
+                        
+
             //             if ( clipIdx > 0 && (trackClips[clipIdx - 1].start + trackClips[clipIdx - 1].duration) <= (clip.start+delta) ){ continue; } // has not reached previous clip. Enough space
             //             if( clipIdx > 0 ){
             //                 const prevClip = trackClips[clipIdx - 1];
@@ -2966,8 +2960,9 @@ class ClipsTimeline extends Timeline {
             //         isAllOrNothing = true;
             //         let clipsInRange = this.getClipsInRange(this.animationClip.tracks[trackIdx], clip.start + delta, clip.start + clip.duration + delta, 0.01); 
             //         if ( clipsInRange && (clipsInRange[0] != clipIdx || clipsInRange[clipsInRange.length-1] != clipIdx)){
-            //             moveAccepted = false;
-
+            //             for( let c = 0; c < clipsInRange.length; ++c ){
+            //                 if ( !track.selected[clipsInRange[c]] ){ moveAccepted = false; }
+            //             }
             //         }
             //     }
 
@@ -2979,28 +2974,111 @@ class ClipsTimeline extends Timeline {
             //     if ( !isAllOrNothing || moveAccepted ){ leastDelta = delta; }
             //     this.grabTime = time - delta + leastDelta;
 
-            //     for( let i = 0; i < this.lastClipsSelected.length; ++i ){
-            //         let trackIdx = this.lastClipsSelected[i][0];
-            //         let clipIdx = this.lastClipsSelected[i][1];
-            //         const trackClips = this.animationClip.tracks[trackIdx].clips;
-            //         const clip = this.animationClip.tracks[trackIdx].clips[clipIdx];
-            //         clip.start += leastDelta;
-            //         clip.fadein += leastDelta;
-            //         clip.fadeout += leastDelta;
+            //     if ( delta > 0 ){
+            //         for( let i = this.lastClipsSelected.length-1; i > -1 ; --i ){
+            //             let trackIdx = this.lastClipsSelected[i][0];
+            //             let clipIdx = this.lastClipsSelected[i][1];
+            //             const track = this.animationClip.tracks[trackIdx];
+            //             const trackClips = track.clips;
+            //             const clip = track.clips[clipIdx];
+            //             clip.start += leastDelta;
+            //             clip.fadein += leastDelta;
+            //             clip.fadeout += leastDelta;
 
-            //         // TODO: swap all indexes, hover, selected, edited
-            //         // TODO: lastClipsSelected check clips selected and change clipIndex
-            //         // TODO: vertical movement
-            //         // ------------ TODO: lastClipsSelected should be ordered
-            //         // TODO: clipsInRange not take into account selected clips (although they should be taken into account)
-            //             // if next is selected: do not update leastDelta
-            //             // otherwise proceed as usual
+            //             // prepare swap
+            //             const editedFlag = track.edited[clipIdx]; 
+            //             const selectedFlag = track.selected[clipIdx]; 
+            //             const hoveredFlag = track.hovered[clipIdx]; 
 
-            //         if(this.onContentMoved) {
-            //             this.onContentMoved(clip, leastDelta);
+            //             // move other clips
+            //             while( clipIdx < trackClips.length-1 ){
+            //                 if ( trackClips[clipIdx+1].start >= clip.start ){
+            //                     break;
+            //                 }
+            //                 trackClips[clipIdx] = trackClips[clipIdx+1];
+            //                 track.selected[clipIdx] = track.selected[clipIdx+1];
+            //                 track.edited[clipIdx] = track.edited[clipIdx+1];
+            //                 track.hovered[clipIdx] = track.hovered[clipIdx+1];
+            //                 clipIdx++;
+            //             }
+
+            //             // commit swap
+            //             trackClips[clipIdx] = clip;
+            //             track.edited[clipIdx] = editedFlag; 
+            //             track.selected[clipIdx] = selectedFlag; 
+            //             track.hovered[clipIdx] = hoveredFlag; 
+
+            //             this.lastClipsSelected[i][1] = clipIdx;
+
+            //             if(this.onContentMoved) {
+            //                 this.onContentMoved(clip, leastDelta);
+            //             }
+            //         }
+            //     }else{
+            //         for( let i = 0; i < this.lastClipsSelected.length; ++i ){
+            //             let trackIdx = this.lastClipsSelected[i][0];
+            //             let clipIdx = this.lastClipsSelected[i][1];
+            //             const track = this.animationClip.tracks[trackIdx];
+            //             const trackClips = track.clips;
+            //             const clip = track.clips[clipIdx];
+            //             clip.start += leastDelta;
+            //             clip.fadein += leastDelta;
+            //             clip.fadeout += leastDelta;
+
+            //             // prepare swap
+            //             const editedFlag = track.edited[clipIdx]; 
+            //             const selectedFlag = track.selected[clipIdx]; 
+            //             const hoveredFlag = track.hovered[clipIdx]; 
+
+            //             // move other clips
+            //             while( clipIdx > 0 ){
+            //                 if ( trackClips[clipIdx-1].start <= clip.start ){
+            //                     break;
+            //                 }
+            //                 trackClips[clipIdx] = trackClips[clipIdx-1];
+            //                 track.selected[clipIdx] = track.selected[clipIdx-1];
+            //                 track.edited[clipIdx] = track.edited[clipIdx-1];
+            //                 track.hovered[clipIdx] = track.hovered[clipIdx-1];
+            //                 clipIdx--;
+            //             }
+
+            //             // commit swap
+            //             trackClips[clipIdx] = clip;
+            //             track.edited[clipIdx] = editedFlag; 
+            //             track.selected[clipIdx] = selectedFlag; 
+            //             track.hovered[clipIdx] = hoveredFlag; 
+
+            //             this.lastClipsSelected[i][1] = clipIdx;
+
+            //             if(this.onContentMoved) {
+            //                 this.onContentMoved(clip, leastDelta);
+            //             }
             //         }
             //     }
+                // for( let i = 0; i < this.lastClipsSelected.length; ++i ){
+                //     let trackIdx = this.lastClipsSelected[i][0];
+                //     let clipIdx = this.lastClipsSelected[i][1];
+                //     const trackClips = this.animationClip.tracks[trackIdx].clips;
+                //     const clip = this.animationClip.tracks[trackIdx].clips[clipIdx];
+                //     clip.start += leastDelta;
+                //     clip.fadein += leastDelta;
+                //     clip.fadeout += leastDelta;
+                    
+                //     // if delta > 0, make for in decreasing order (for index swap). Otherwise, increasing order 
+                //     // TODO: swap all indexes, hover, selected, edited 
+                //     // TODO: lastClipsSelected check clips selected and change clipIndex
+                //     // TODO: vertical movement
+                //     // ------------ TODO: lastClipsSelected should be ordered
+                //     // TODO: clipsInRange not take into account selected clips (although they should be taken into account)
+                //         // if next is selected: do not update leastDelta
+                //         // otherwise proceed as usual
 
+                //     if(this.onContentMoved) {
+                //         this.onContentMoved(clip, leastDelta);
+                //     }
+                // }
+            // }
+            
             if ( this.lastClipsSelected.length ) {
                 this.movingKeys = true;
                 for(let i = 0; i < this.lastClipsSelected.length; i++){
@@ -3059,7 +3137,7 @@ class ClipsTimeline extends Timeline {
             
             return true;
         } 
-        else if(e.track) { // mouse not dragging, just hovering
+        else if(e.track && e.buttons == 0) { // mouse not dragging, just hovering
 
             this.unHoverAll();
             let clips = this.getClipsInRange(e.track, time, time, 0.1)

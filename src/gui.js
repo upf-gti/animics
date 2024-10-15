@@ -2050,7 +2050,8 @@ class ScriptGui extends Gui {
         this.delayedUpdateTime = 500; //ms
     }
 
-    delayedUpdateTracks(){
+    delayedUpdateTracks( reset = true ){
+        if ( this.delayedUpdateID && reset ){ clearTimeout(this.delayedUpdateID); this.delayedUpdateID = null; }
         if ( !this.delayedUpdateID ){
             this.delayedUpdateID = setTimeout( ()=>{ this.delayedUpdateID = null; this.editor.updateTracks(); }, this.delayedUpdateTime );
         }
