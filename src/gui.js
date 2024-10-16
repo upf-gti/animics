@@ -2737,12 +2737,13 @@ class ScriptGui extends Gui {
                 widgets.merge();
             }
 
-            widgets.addButton(null, "Delete", (v, e) => this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1], () => {
+            widgets.addButton(null, "Delete", (v, e) => {
+                this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1]);
                 clip = null;  
                 updateTracks(); 
                 this.delayedUpdateTracks();
                 this.updateClipPanel();
-            }));
+            });
             
         }
         widgets.onRefresh(clip);

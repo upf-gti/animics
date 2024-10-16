@@ -2724,7 +2724,7 @@ class ClipsTimeline extends Timeline {
     * // NOTE: to select a track from outside of the timeline, a this.leftPanelTrackTree.select(item) needs to be called. 
     */
 
-    selectTrack( trackInfo) {
+    selectTrack(trackInfo) {
         this.unSelectAllTracks();
         
         let [name, type] = trackInfo.id.split(" (");
@@ -3198,10 +3198,9 @@ class ClipsTimeline extends Timeline {
     * @param {obj} clip  clip to be added
     * @param {int} trackIdx (optional) track where to put the clip. -1 will find the first free slot. ***WARNING*** Must call getClipsInRange, before calling this function with a valid trackdIdx
     * @param {float} offsetTime (optional) offset time of current time
-    * @param {fn} callback (optional) function to call after adding the clip
     * @returns  a zero/positive value if successful. Otherwise, -1
     */
-    addClip( clip, trackIdx = -1, offsetTime = 0, callback = null ) {
+    addClip( clip, trackIdx = -1, offsetTime = 0 ) {
         if ( !this.animationClip ){ return -1; }
 
         // Update clip information
@@ -3270,9 +3269,6 @@ class ClipsTimeline extends Timeline {
             this.onUpdateTrack( trackIdx );
         }
 
-        if(callback)
-            callback();
-
         return newIdx;
     }
 
@@ -3280,10 +3276,9 @@ class ClipsTimeline extends Timeline {
     /** Add an array of clips to the timeline in the first free track at the current time
      * @clips: clips to be added
      * @offsetTime: (optional) offset time of current time
-     * @callback: (optional) function to call after adding the clip
     */
 
-    addClips( clips, offsetTime = 0, callback = null ){
+    addClips( clips, offsetTime = 0 ){
         if( !this.animationClip || !clips.length ){ return false; }
 
         let clipTrackIdxs = new Int16Array( clips.length );
@@ -3339,12 +3334,9 @@ class ClipsTimeline extends Timeline {
         }
 
         for( c = 0; c < clips.length; ++c ){
-            this.addClip(clips[c], clipTrackIdxs[c], offsetTime, null);
+            this.addClip(clips[c], clipTrackIdxs[c], offsetTime);
         } 
         
-        if(callback)
-            callback();
-
         return true;
     }
 
@@ -3355,9 +3347,8 @@ class ClipsTimeline extends Timeline {
 
     /** Delete clip from the timeline
      * @clip: clip to be delete
-     * @callback: (optional) function to call after deleting the clip
     */
-    deleteClip( e, clip, callback ) {
+    deleteClip( e, clip ) {
             
         if(e.multipleSelection || !clip) {
             //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
@@ -3377,10 +3368,6 @@ class ClipsTimeline extends Timeline {
             this.saveState(trackIdx, clipIdx);
             this.#delete( trackIdx, clipIdx );
         }
-        
-
-        if(callback)
-            callback();
     }
 
     #delete(trackIdx, clipIdx) {
