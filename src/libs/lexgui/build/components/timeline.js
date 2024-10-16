@@ -3360,29 +3360,19 @@ class ClipsTimeline extends Timeline {
     deleteClip( e, clip, callback ) {
             
         if(e.multipleSelection || !clip) {
+            //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
 
-            // Split in tracks
-            const perTrack = [];
-            this.lastClipsSelected.forEach( e => perTrack[e[0]] ? perTrack[e[0]].push(e) : perTrack[e[0]] = [e] );
-            
-            for(let pts of perTrack) {
-                
-                if(!pts) continue;
-
-                pts = pts.sort( (a,b) => a[2] - b[2] );
-                
-                let deletedIndices = 0;
-
-                // Delete every selected clip
-                for(let [trackIdx, clipIdx] of pts) {
-                    this.saveState(trackIdx, clipIdx);
-                    this.#delete(trackIdx, clipIdx );
-                    deletedIndices++;
-                }
+            // delete selected clips from last to first. lastClipsSelected is sorted
+            let selected = this.lastClipsSelected;
+            this.lastClipsSelected = []; // so this.#delete does not check clipsselected on each loop (all will be destroyed)
+            for( let i = selected.length-1; i > -1; --i ){
+                let s = selected[i];
+                this.saveState(s[0], s[1]);
+                this.#delete(s[0], s[1]);
             }
         } 
         else if ( clip ){
-            const [trackIdx, clipIdx]  = clip;
+            const [trackIdx, clipIdx] = clip;
 
             this.saveState(trackIdx, clipIdx);
             this.#delete( trackIdx, clipIdx );
@@ -3391,41 +3381,39 @@ class ClipsTimeline extends Timeline {
 
         if(callback)
             callback();
-        
-        //this.unSelectAllClips();
-        // // Update animation action interpolation info
-
     }
 
-    #delete( trackIdx, clipIdx) {
+    #delete(trackIdx, clipIdx) {
 
-        let clips = this.animationClip.tracks[trackIdx].clips;
+        const track = this.animationClip.tracks[trackIdx]; 
         if(clipIdx >= 0)
         {
-            clips = [...clips.slice(0, clipIdx), ...clips.slice(clipIdx + 1, clips.length)];
-            this.animationClip.tracks[trackIdx].clips = clips;
-            this.animationClip.tracks[trackIdx].hovered[clipIdx] = false;
-            this.animationClip.tracks[trackIdx].selected[clipIdx] = false;
-            this.animationClip.tracks[trackIdx].edited[clipIdx] = false;
+            
+            track.clips.splice(clipIdx, 1);
+            track.hovered.splice(clipIdx,1);
+            track.selected.splice(clipIdx,1);
+            track.edited.splice(clipIdx,1);
 
-            if(clips.length)
-            {
-                let selectedIdx = 0;
-                for(let i = 0; i < this.lastClipsSelected.length; i++)
-                {
-                    let [t,c] = this.lastClipsSelected[i];
-                
-                    if( t == trackIdx  && c > clipIdx)
-                        this.lastClipsSelected[i][1] = c - 1;
-                    if(t == trackIdx && c == clipIdx)
-                        selectedIdx = i;
+            // remove from selected clips
+            for(let i = 0; i < this.lastClipsSelected.length; i++) {
+                let [selectedTrackIdx, selectedClipIdx] = this.lastClipsSelected[i];
+                if(selectedTrackIdx == trackIdx){
+                    if (selectedClipIdx == clipIdx){ // remove self
+                        this.lastClipsSelected.splice(i--,1);
+                    }else if (selectedClipIdx > clipIdx){ // move upper clips to the left
+                        this.lastClipsSelected[i][1]--; 
+                    }
                 }
-                this.lastClipsSelected.splice(selectedIdx,1);
+                else if( trackIdx < selectedTrackIdx ){ 
+                    break; 
+                }
             }
-            else {
-                let selectedIdx = this.lastClipsSelected.findIndex(  c=> c[0] == trackIdx && c[1] == clipIdx);
-                this.lastClipsSelected.splice(selectedIdx, 1);
+            
+            if ( this.hovered && this.hovered[0] == trackIdx ){ 
+                if ( this.hovered[1] == clipIdx ){ this.unHoverAll(); }
+                else if( this.hovered[1] > clipIdx ){ this.hovered[1]--; }
             }
+
         }
         return true;
     }
@@ -3488,22 +3476,25 @@ class ClipsTimeline extends Timeline {
             return;
         }
 
-        //delete all selectedclips
         const track = this.animationClip.tracks[trackIdx];
         track.selected = [];
         track.edited = [];
         track.hovered = [];
         track.clips = [];
-
+        
+        // remove from selected clips
         for(let i = 0; i < this.lastClipsSelected.length; i++) {
-            let [selectedTrackIdx, clipIdx] = this.lastClipsSelected[i];
+            let [selectedTrackIdx, selectedClipIdx] = this.lastClipsSelected[i];
             if(selectedTrackIdx == trackIdx){
-                this.lastClipsSelected.splice(i,1);
+                this.lastClipsSelected.splice(i--,1);
             }
             else if( trackIdx < selectedTrackIdx ){ 
                 break; 
             }
         }
+
+        if ( this.hovered && this.hovered[0] == trackIdx ){ this.unHoverAll(); }
+
         return;
     }
 

@@ -2108,10 +2108,7 @@ class ScriptGui extends Gui {
         };
 
         this.clipsTimeline.deleteContent = () => {
-            let clipstToDelete = this.clipsTimeline.lastClipsSelected;
-            for(let i = 0; i < clipstToDelete.length; i++){
-                this.clipsTimeline.deleteClip({}, clipstToDelete[i], null);
-            }
+            this.clipsTimeline.deleteClip({}, null, null); // delete selected clips
             this.editor.updateTracks();
             this.updateClipPanel();
         }
