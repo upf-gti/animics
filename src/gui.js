@@ -2160,7 +2160,7 @@ class ScriptGui extends Gui {
                 if(clips[i].strokeEnd) clips[i].strokeEnd -= globalStart;
                 clips[i].start = offset;
             }
-            this.clipsTimeline.addClips(clips);
+            this.clipsTimeline.addClips(clips, this.clipsTimeline.currentTime);
             this.clipsTimeline.clipsToCopy = null;
         }
         // this.clipsTimeline.onUpdateTrack = (idx) 
@@ -2206,7 +2206,7 @@ class ScriptGui extends Gui {
                                 callback: () => {
                                     this.clipsTimeline.deleteContent();
                                     this.mode = ClipModes.Actions;
-                                    this.clipsTimeline.addClips(clip.clips);
+                                    this.clipsTimeline.addClips(clip.clips, this.clipsTimeline.currentTime);
                                 }
                             }
                         )
@@ -2405,7 +2405,7 @@ class ScriptGui extends Gui {
     loadBMLClip(clip) {         
         let {clips, duration} = this.dataToBMLClips(clip, this.mode);
 
-        this.clipsTimeline.addClips(clips);
+        this.clipsTimeline.addClips(clips, this.clipsTimeline.currentTime);
     
         this.clip = this.clipsTimeline.animationClip || clip ;
         this.duration = this.clip.duration || duration;
@@ -3053,7 +3053,7 @@ class ScriptGui extends Gui {
                         break;    
                 }
 
-                that.clipsTimeline.addClip( new ANIM[asset.type](config));
+                that.clipsTimeline.addClip( new ANIM[asset.type](config), -1, that.clipsTimeline.currentTime);
                 asset_browser.clear();
                 dialog.close();
         }
@@ -3265,12 +3265,12 @@ class ScriptGui extends Gui {
                         let {clips, duration} = this.dataToBMLClips(asset.bml);
                         preset.clips = clips;
                         let presetClip = new ANIM.FacePresetClip(preset);
-                        this.clipsTimeline.addClips(presetClip.clips);
+                        this.clipsTimeline.addClips(presetClip.clips, this.clipsTimeline.currentTime);
                     });
                 }
                 else {
                     let presetClip = new ANIM.FacePresetClip(preset);
-                    this.clipsTimeline.addClips(presetClip.clips);
+                    this.clipsTimeline.addClips(presetClip.clips, this.clipsTimeline.currentTime);
                 }
                 this.prompt.close();
             }

@@ -3190,352 +3190,164 @@ class ClipsTimeline extends Timeline {
      */
 
     optimizeTracks() {
+        this.addClip()
     }
 
-    /** Add a clip to the timeline in a free track slot at the current time
-     * @clip: clip to be added
-     * @offsetTime: (optional) offset time of current time
-     * @callback: (optional) function to call after adding the clip
+   /**
+    * 
+    * @param {obj} clip  clip to be added
+    * @param {int} trackIdx (optional) track where to put the clip. -1 will find the first free slot. ***WARNING*** Must call getClipsInRange, before calling this function with a valid trackdIdx
+    * @param {float} offsetTime (optional) offset time of current time
+    * @param {fn} callback (optional) function to call after adding the clip
+    * @returns  a zero/positive value if successful. Otherwise, -1
     */
-    addClip( clip, offsetTime = 0, callback = null ) {
+    addClip( clip, trackIdx = -1, offsetTime = 0, callback = null ) {
+        if ( !this.animationClip ){ return -1; }
 
         // Update clip information
-        let trackIdx = null;
-        let newStart = this.currentTime + offsetTime + clip.start;
+        let newStart = clip.start + offsetTime;
         if(clip.fadein != undefined)
             clip.fadein += (newStart - clip.start);
-        else
-            clip.fadein = 0;
-
         if(clip.fadeout != undefined)
             clip.fadeout += (newStart - clip.start);
-        else
-            clip.fadeout = clip.duration;
-
         clip.start = newStart;
 
-        // Time slot with other clip?
-        let clipInCurrentSlot = null;
-        if(!this.animationClip || !this.animationClip.tracks || !this.animationClip.tracks.length) {
-            this.addNewTrack();
-        }
-
-        for(let i = 0; i < this.animationClip.tracks.length; i++) {
-            clipInCurrentSlot = this.animationClip.tracks[i].clips.find( t => { 
-                return LX.UTILS.compareThresholdRange(newStart, clip.start + clip.duration, t.start, t.start+t.duration);                
-            });
-
-            if(!clipInCurrentSlot)
-            {
-                trackIdx = i;
-                break;
-            }
-            console.warn("There is already a clip stored in time slot ", clipInCurrentSlot)
-        }
-        if(trackIdx == undefined)
-        {
-            // clipIdx = this.animationClip.tracks.length;
-            // this.animationClip.tracks.push({clipIdx: clipIdx, clips: []} );
+        // find appropriate track
+        if ( trackIdx >= this.animationClip.tracks.length ){ // new track ad the end
             trackIdx = this.addNewTrack();
         }
-        //this.saveState(clipIdx);
+        else if ( trackIdx < 0 ){ // find first free track slot
+            for(let i = 0; i < this.animationClip.tracks.length; i++) {
+                clipInCurrentSlot = this.animationClip.tracks[i].clips.find( t => { 
+                    return LX.UTILS.compareThresholdRange(newStart, clip.start + clip.duration, t.start, t.start+t.duration);                
+                });
+    
+                if(!clipInCurrentSlot){
+                    trackIdx = i;
+                    break;
+                }
+                console.warn("There is already a clip stored in time slot ", clipInCurrentSlot)
+            }
+            if(trackIdx < 0){
+                trackIdx = this.addNewTrack();
+            }
+        }else{ // check specific track slot
+            // commented to avoid double checks with "addclips" fn
+            // let clipsInRange = this.getClipsInRange(this.animationClip.tracks[trackIdx], clip.start, clip.start+clip.duration, 0.0001);
+            // if ( clipsInRange ){
+            //     return -1;
+            // }
+        }
+
+        const track = this.animationClip.tracks[trackIdx];
 
         // Find new index
-        let newIdx = this.animationClip.tracks[trackIdx].clips.findIndex( t => t.start > newStart );
+        let newIdx = track.clips.findIndex( t => t.start > newStart );
 
         // Add as last index
-        let lastIndex = false;
         if(newIdx < 0) {
-            newIdx = this.animationClip.tracks[trackIdx].clips.length;
-            lastIndex = true;
+            newIdx = track.clips.length;
         }
         
         //Save track state before add the new clip
         this.saveState(trackIdx, newIdx);
 
+
         // Add clip
-        this.animationClip.tracks[trackIdx].clips.splice(newIdx, 0, clip); //insert clip into newIdx (or push at the end)
+        track.clips.splice(newIdx, 0, clip); //insert clip into newIdx (or push at the end)
 
-        // Move the other's clips properties
-        let track = this.animationClip.tracks[trackIdx];
-        for(let i = (track.clips.length - 1); i > newIdx; --i) {
-            track.edited[i - 1] ? track.edited[i] = track.edited[i - 1] : 0;
-        }
-        
         // Reset this clip's properties
-        track.hovered[newIdx] = false;
-        track.selected[newIdx] = true;
-        track.edited[newIdx] = false;
+        track.hovered.splice(newIdx, 0, false);
+        track.selected.splice(newIdx, 0, false);
+        track.edited.splice(newIdx, 0, false);
 
-        this.lastClipsSelected.push( [track.idx, newIdx] );
-            
-        let end = clip.start + clip.duration;
-        
-        if( end > this.duration || !this.animationClip.duration)
-        {
-            this.setDuration(end);
+        if( !this.animationClip.duration || (clip.start + clip.duration) > this.duration ){
+            this.setDuration(clip.start + clip.duration);
         }
 
-         // Update animation action interpolation info
-         if(this.onUpdateTrack)
+        // Update animation action interpolation info
+        if(this.onUpdateTrack){
             this.onUpdateTrack( trackIdx );
-
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        // if(this.onSetTime)
-        //     this.onSetTime(this.currentTime);
-
-        if(this.onSelectClip)
-            this.onSelectClip(clip);
+        }
 
         if(callback)
             callback();
 
-        // this.resize();
         return newIdx;
     }
 
-     /** Add a clip to the timeline in a free track slot at the current time
-     * @clip: clip to be added
-     * @trackIdx: track index where to add the track
-     * @offsetTime: (optional) offset time of current time
-     * @callback: (optional) function to call after adding the clip
-    */
-     addClipInTrack( clip, trackIdx, offsetTime = 0, callback = null ) {
-
-        // Time slot with other clip?
-        if(!this.animationClip) 
-            return;
-
-        // Find new index
-        let newIdx = this.animationClip.tracks[trackIdx].clips.findIndex( t => t.start > clip.start );
-
-        // Add as last index
-        let lastIndex = false;
-        if(newIdx < 0) {
-            newIdx = this.animationClip.tracks[trackIdx].clips.length;
-            lastIndex = true;
-        }
-
-        // Add clip
-        const clipsArray = [];
-        this.animationClip.tracks[trackIdx].clips.forEach( (a, b) => {
-            b == newIdx ? clipsArray.push(clip, a) : clipsArray.push(a);
-        } );
-
-        if(lastIndex) {
-            clipsArray.push(clip);			
-        }
-
-        this.animationClip.tracks[trackIdx].clips = clipsArray;	
-        // Move the other's clips properties
-        let track = this.animationClip.tracks[trackIdx];
-        for(let i = (track.clips.length - 1); i > newIdx; --i) {
-            track.edited[i - 1] ? track.edited[i] = track.edited[i - 1] : 0;
-        }
-        
-        // Reset this clip's properties
-        track.hovered[newIdx] = false;
-        track.selected[newIdx] = false;
-        track.edited[newIdx] = false;
-
-          
-        let end = clip.start + clip.duration;
-        
-        if( end > this.duration || !this.animationClip.duration)
-        {
-            this.setDuration(end);
-        }
-
-         // // Update animation action interpolation info
-         if(this.onUpdateTrack)
-            this.onUpdateTrack( trackIdx );
-
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        // if(this.onSetTime)
-        //     this.onSetTime(this.currentTime);
-
-        if(callback)
-            callback();
-        return newIdx;
-    }
 
     /** Add an array of clips to the timeline in the first free track at the current time
      * @clips: clips to be added
      * @offsetTime: (optional) offset time of current time
      * @callback: (optional) function to call after adding the clip
     */
-    addClips( clips, offsetTime = 0, callback = null ) {
-       
-        if(!this.animationClip || !this.animationClip.tracks || !this.animationClip.tracks.length) 
-            this.addNewTrack();
 
-        //Search track where to place each new clip
-        let trackIdxs = {};
-        for(let i = 0; i < this.animationClip.tracks.length; i++) {
-            trackIdxs = {}
+    addClips( clips, offsetTime = 0, callback = null ){
+        if( !this.animationClip || !clips.length ){ return false; }
 
-            for(let c = 0; c < clips.length; c++) {
-                let clip = clips[c];
-                // Update clip information
-                let newStart = this.currentTime + offsetTime + clip.start;
-
-                // Time slot with other clip?
-                let clipInCurrentSlot = null;
-
-                if( c == 0 ) {
-                    clipInCurrentSlot = this.animationClip.tracks[i].clips.find( t => { 
-                        return LX.UTILS.compareThresholdRange(newStart, newStart + clip.duration, t.start, t.start+t.duration);                
-                    });
-                    
-                    if(!clipInCurrentSlot)
-                    {
-                        trackIdxs[c] = {trackIdx:i , start: newStart, end: newStart + clip.duration};
-                    } else {
-                        console.warn("There is already a clip stored in time slot ", clipInCurrentSlot)
-                        if(!this.animationClip.tracks[i+1]) {
-                            this.addNewTrack();
-       
-                            trackIdxs[c] = {trackIdx: i+1, start: newStart, end: newStart + clip.duration};
-                        }
-                        else {
-
-                            break;
-                        }
-                    }
+        let clipTrackIdxs = new Int16Array( clips.length );
+        let baseTrackIdx = -1;
+        let currTrackIdx = -1;
+        const tracks = this.animationClip.tracks;
+        let c = 0;
+        for( ; c < clips.length; ++c ){
+            const clip = clips[c];
+            const clipStart = clip.start + offsetTime;
+            const clipEnd = clipStart + clip.duration;
+            if ( c == 0 ){ // last search failed, move one track down and check again
+                ++baseTrackIdx; 
+                currTrackIdx = baseTrackIdx;
+                if ( currTrackIdx >= tracks.length ){ this.addNewTrack(); }
+                let clipsInCurrentSlot = tracks[baseTrackIdx].clips.find( t => { return LX.UTILS.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
+                
+                // reset search
+                if (clipsInCurrentSlot){ 
+                    c = -1;
+                    continue;
                 }
-                else {
 
-                    for(let t in trackIdxs) {
-                        if(trackIdxs[t].trackIdx == trackIdxs[c -1].trackIdx) {
-                            clipInCurrentSlot = LX.UTILS.compareThresholdRange(newStart, newStart + clip.duration, trackIdxs[t].start, trackIdxs[t].end);                
-                            if(clipInCurrentSlot)
-                                break;
-                        }                     
-                    }
-                    if(!clipInCurrentSlot) {
-                        clipInCurrentSlot = this.animationClip.tracks[trackIdxs[c-1].trackIdx].clips.find( t => { 
-                            return LX.UTILS.compareThresholdRange(newStart, newStart + clip.duration, t.start, t.start+t.duration);                
-                        });   
-                    }
-                    if(!clipInCurrentSlot) {
+                // success
+                clipTrackIdxs[c] = baseTrackIdx;
+            }else{
 
-                        trackIdxs[c] = {trackIdx: trackIdxs[c-1].trackIdx, start: newStart, end: newStart + clip.duration};
-                    } 
-                    else{
-                        
-                        let j = trackIdxs[c-1].trackIdx + 1;
-                        if(this.animationClip.tracks[j]) {
+                // check if it fits in current track
+                let clipsInCurrentSlot = tracks[currTrackIdx].clips.find( t => { return LX.UTILS.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
+                
+                // check no previous added clips are in the way
+                for( let i = c-1; i > -1; --i ){
+                    if ( clipTrackIdxs[i] != currTrackIdx || clipsInCurrentSlot ){ break; }
+                    clipsInCurrentSlot = LX.UTILS.compareThresholdRange(clipStart, clipEnd, clips[i].start + offsetTime, clips[i].start + offsetTime + clips[i].duration);
+                }
 
-                            clipInCurrentSlot = this.animationClip.tracks[j].clips.find( t => { 
-                                return LX.UTILS.compareThresholdRange(newStart, newStart + clip.duration, t.start, t.start+t.duration);                
-                            });
-                            
-                            if(!clipInCurrentSlot) {
-
-                                trackIdxs[c] = {trackIdx: j, start: newStart, end: newStart + clip.duration};
-                            } 
-                            else {
-                                break;
-                            }
-                        }
-                        else {
-
-                            this.addNewTrack();
-                            trackIdxs[c] = {trackIdx: j, start: newStart, end: newStart + clip.duration};
-                        }   
-                    }
-                    
-                    if(trackIdxs[c] == null) {
-                        c = 0;
-                        trackIdxs = {}
-                    }
+                // check if it fits in the next track
+                if ( clipsInCurrentSlot ){
+                    ++currTrackIdx;
+                    if ( currTrackIdx >= tracks.length ){ this.addNewTrack(); }
+                    clipsInCurrentSlot = tracks[currTrackIdx].clips.find( t => { return LX.UTILS.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
                 }
                 
-            }
+                // reset search
+                if ( clipsInCurrentSlot ){ 
+                    c = -1; 
+                    continue; 
+                }
 
-            if(Object.keys(trackIdxs).length == clips.length) {
-                break;
+                // success
+                clipTrackIdxs[c] = currTrackIdx;
             }
         }
 
-        //Add each clip in the assigned free slot track
-        for(let i = 0; i < clips.length; i++) {
-            let clip = clips[i];
-            let newStart = trackIdxs[i].start; 
-            if(clip.fadein != undefined)
-                clip.fadein += (newStart - clip.start);
-            if(clip.fadeout != undefined)
-                clip.fadeout += (newStart - clip.start);
-            clip.start = newStart;
-            clip.end = clip.start + clip.duration;
-
-            // Find new index
-            let trackIdx = trackIdxs[i].trackIdx;
-            let newIdx = this.animationClip.tracks[trackIdx].clips.findIndex( t => t.start > trackIdxs[i].start );
-
-            // Add as last index
-            let lastIndex = false;
-            if(newIdx < 0) {
-                newIdx = this.animationClip.tracks[trackIdx].clips.length;
-                lastIndex = true;
-            }
-
-            // Add clip
-            const clipsArray = [];
-            this.animationClip.tracks[trackIdx].clips.forEach( (a, b) => {
-                b == newIdx ? clipsArray.push(clip, a) : clipsArray.push(a);
-            } );
-
-            if(lastIndex) {
-                clipsArray.push(clip);			
-            }
-
-            //Save track state before add the new clip
-            this.saveState(trackIdx, newIdx);
-            this.animationClip.tracks[trackIdx].clips = clipsArray;	
-            // Move the other's clips properties
-            let track = this.animationClip.tracks[trackIdx];
-            for(let i = (track.clips.length - 1); i > newIdx; --i) {
-                track.edited[i - 1] ? track.edited[i] = track.edited[i - 1] : 0;
-            }
-            
-            // Reset this clip's properties
-            track.hovered[newIdx] = undefined;
-            track.selected[newIdx] = true;
-            track.edited[newIdx] = undefined;
-            this.lastClipsSelected.push( [track.idx, newIdx] );
-            
-            let end = clip.start + clip.duration;
-            
-            if( end > this.duration || !this.animationClip.duration)
-            {
-                this.setDuration(end);
-            }
-            
-        }
-
-        // Update animation action interpolation info
-        if(this.onUpdateTrack && Object.keys(trackIdxs).length){
-            let tracksChanged = [];
-            for( let c in trackIdxs ) {
-                if ( tracksChanged.includes(trackIdxs[c].trackIdx) ) {
-                    continue;
-                } 
-                tracksChanged.push(trackIdxs[c].trackIdx); 
-            }
-            this.onUpdateTrack( tracksChanged );
-        }
+        for( c = 0; c < clips.length; ++c ){
+            this.addClip(clips[c], clipTrackIdxs[c], offsetTime, null);
+        } 
         
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        // if(this.onSetTime)
-        //     this.onSetTime(this.currentTime);
-
         if(callback)
             callback();
 
-        this.resize();
         return true;
     }
+
 
     deleteContent() {
         this.deleteClip({});
@@ -3635,7 +3447,7 @@ class ClipsTimeline extends Timeline {
         for(let i = 0; i < this.clipsToCopy.length; i++){
             let [trackIdx, clipIdx] = this.clipsToCopy[i];
             let clipToCopy = Object.assign({}, this.animationClip.tracks[trackIdx].clips[clipIdx]);
-            this.addClip(clipToCopy, this.clipsToCopy.length > 1 ? clipToCopy.start : 0); 
+            this.addClip(clipToCopy, -1, this.clipsToCopy.length > 1 ? clipToCopy.start : 0); 
         }
         this.clipsToCopy = null;
     }
@@ -3664,34 +3476,35 @@ class ClipsTimeline extends Timeline {
      * @method clearTrack
      */
 
-    clearTrack(idx) {
+    clearTrack(trackIdx) {
 
-        if(!this.animationClip) {
+        if (!this.animationClip) {
             this.animationClip = {tracks:[]};
             return;
         }
-        this.saveState(idx);
+        this.saveState(trackIdx);
         
-        if(this.animationClip.tracks[idx].locked )
-        {
+        if (this.animationClip.tracks[trackIdx].locked ) {
             return;
         }
-        let trackInfo = {
-            idx: idx,
-            clips: [],
-            selected: [], edited: [], hovered: []
-        };
-        //delete all selectedclips
-        this.animationClip.tracks[idx] = trackInfo;
-        let selected = [];
-        for(let i = 0; i < this.lastClipsSelected.length; i++) {
-            let [trackIdx, clipIdx] = this.lastClipsSelected[i];
-            if(trackIdx != idx)
-                selected.push(this.lastClipsSelected[i]);
 
+        //delete all selectedclips
+        const track = this.animationClip.tracks[trackIdx];
+        track.selected = [];
+        track.edited = [];
+        track.hovered = [];
+        track.clips = [];
+
+        for(let i = 0; i < this.lastClipsSelected.length; i++) {
+            let [selectedTrackIdx, clipIdx] = this.lastClipsSelected[i];
+            if(selectedTrackIdx == trackIdx){
+                this.lastClipsSelected.splice(i,1);
+            }
+            else if( trackIdx < selectedTrackIdx ){ 
+                break; 
+            }
         }
-        this.lastClipsSelected = selected;
-        return trackInfo.idx;
+        return;
     }
 
     saveState( trackIdx, clipIdx ) {
@@ -3798,7 +3611,7 @@ class ClipsTimeline extends Timeline {
         return clipIndex;
     }
 
-    getClipsInRange( track, minTime, maxTime, threshold ) {
+    getClipsInRange( track, minTime, maxTime, threshold = 0 ) {
 
         if(!track || !track.clips.length)
         return null;
@@ -3824,10 +3637,9 @@ class ClipsTimeline extends Timeline {
         let indices = [];
 
         for(let i = 0; i < clips.length; ++i) {
-            const t = clips[i];
-            if ( t.start+t.duration < minTime || t.start > maxTime ){ 
-                continue; 
-            }
+            const c = clips[i];
+            if ( c.start+c.duration < minTime ){ continue; }
+            if ( c.start > maxTime ){ break; }
             indices.push(i);
         }
         return indices.length ? indices : null;
