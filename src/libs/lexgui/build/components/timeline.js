@@ -43,7 +43,6 @@ class Timeline {
         this.currentTime = 0;
         this.framerate = 30;
         this.opacity = options.opacity || 1;
-        this.sidebarWidth = 0// 200;
         this.topMargin = 40;
         this.renderOutFrames = false;
         this.lastMouse = [];
@@ -545,19 +544,17 @@ class Timeline {
         this.currentScrollInPixels = this.scrollableHeight <= h ? 0 : (this.currentScroll * (this.scrollableHeight - h));
 
         //zoom
-        if(this.duration > 0)
-        {
-            this.startTime = this.session.start_time ; //seconds
-            if(this.startTime < 0)
-                this.startTime = 0;
-            // this.endTime = Math.ceil( this.startTime + (w - this.session.left_margin) * this.pixelsToSeconds );
-            this.endTime = this.startTime + (w - this.session.left_margin) * this.pixelsToSeconds ;
-            if(this.endTime > this.duration)
-                this.endTime = this.duration;
-            if(this.startTime > this.endTime) //avoids weird bug
-                this.endTime = this.startTime + 1;
-        }
+        this.startTime = this.session.start_time; //seconds
+        if(this.startTime < 0)
+            this.startTime = 0;
+        // this.endTime = Math.ceil( this.startTime + (w - this.session.left_margin) * this.pixelsToSeconds );
+        this.endTime = this.session.start_time + (w - this.session.left_margin) * this.pixelsToSeconds;
+        if(this.endTime > this.duration)
+            this.endTime = this.duration;
+        if(this.startTime > this.endTime)
+            this.endTime = this.startTime;
 
+        
         this.tracksDrawn.length = 0;
 
         // Background
@@ -1029,95 +1026,6 @@ class Timeline {
     }
 
     /**
-     * @method drawTrackWithKeyframes
-     * @param {*} ctx
-     * ...
-     * @description helper function, you can call it from drawContent to render all the keyframes
-     * TODO
-     */
-
-    drawTrackWithKeyframes( ctx, y, trackHeight, title, track, trackInfo ) {
-        
-        if(trackInfo.enabled === false) {
-            ctx.globalAlpha = 0.4;
-        }
-
-        ctx.font = Math.floor( trackHeight * 0.8) + "px" + Timeline.FONT;
-        ctx.textAlign = "left";
-       
-        ctx.globalAlpha = 0.2;
-        
-        if(trackInfo.isSelected) {
-            ctx.fillStyle = Timeline.TRACK_SELECTED;//"#2c303570";
-            ctx.fillRect(0, y, ctx.canvas.width, trackHeight );
-        }
-        ctx.fillStyle = Timeline.COLOR;//"#2c303570";
-        ctx.globalAlpha = 1;
-       
-        let keyframes = track.times;
-
-        if(!keyframes) {
-            return;
-        }
-        
-        this.tracksDrawn.push([track,y+this.topMargin,trackHeight]);
-        
-        for(let j = 0; j < keyframes.length; ++j)
-        {
-            let time = keyframes[j];
-            let selected = trackInfo.selected[j];
-            if( time < this.startTime || time > this.endTime ) {
-                continue;
-            }
-            let keyframePosX = this.timeToX( time );
-            if( keyframePosX > this.sidebarWidth ){
-                ctx.save();
-
-                let margin = -1;
-                let size = trackHeight * 0.3;
-                
-                if(trackInfo.edited[j]) {
-                    ctx.fillStyle = Timeline.COLOR_EDITED;
-                }
-                
-                if(selected) {
-                    ctx.fillStyle = Timeline.COLOR_SELECTED;
-                    ctx.shadowBlur = 8;
-                    size = trackHeight * 0.35;
-                    margin = 0;
-                }
-
-                if(trackInfo.hovered[j]) {
-                    size = trackHeight * 0.35;
-                    ctx.fillStyle = Timeline.COLOR_HOVERED;
-                    ctx.shadowBlur = 8;
-                    margin = 0;
-                }
-                if(trackInfo.locked) {
-                    ctx.fillStyle = Timeline.COLOR_LOCK;
-                }
-
-                if(!this.active || trackInfo.active == false) {
-                    ctx.fillStyle = Timeline.COLOR_INACTIVE;
-                }
-                    
-                ctx.translate(keyframePosX, y + this.trackHeight * 0.75 + margin);
-                ctx.rotate(45 * Math.PI / 180);		
-                ctx.fillRect( -size, -size, size, size);
-                if(selected) {
-                    ctx.globalAlpha = 0.3;
-                    ctx.fillRect( -size*1.1, -size*1.1, size*1.2, size*1.2);
-                }
-                ctx.shadowBlur = 0;
-                ctx.restore();
-            }
-        }
-        
-
-        ctx.globalAlpha = this.opacity;
-    }
-
-    /**
      * @method drawTrackWithBoxes
      * @param {*} ctx
      * ...
@@ -1449,13 +1357,15 @@ class KeyFramesTimeline extends Timeline {
             e.multipleSelection = true;
             // Multiple selection
             if(!discard && track) {
-                this.processCurrentKeyFrame( e, null, track, localX, true ); 
+                const keyFrameIdx = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );   
+                if ( keyFrameIdx > -1 ){
+                    track.selected[keyFrameIdx] ?
+                    this.unSelectKeyFrame(track, keyFrameIdx) :
+                    this.processCurrentKeyFrame( e, keyFrameIdx, track, null, true ); 
+                }
             }
             // Box selection
-            else if(this.boxSelection) {
-        
-                this.unSelectAllKeyFrames();
-                
+            else if(this.boxSelection) {                
                 let tracks = this.getTracksInRange(this.boxSelectionStart[1], this.boxSelectionEnd[1], this.pixelsToSeconds * 5);
                 
                 for(let t of tracks) {
@@ -1473,7 +1383,6 @@ class KeyFramesTimeline extends Timeline {
             }
 
         }else {
-            // Check exact track keyframe
             if(discard || !track) {
                 this.unSelectAllKeyFrames();               
             } 
@@ -1483,6 +1392,8 @@ class KeyFramesTimeline extends Timeline {
     }
 
     onMouseDown( e, time ) {
+        // function not called if shift is pressed (boxselection)
+
         let localX = e.localX;
         let localY = e.localY;
         let track = e.track;
@@ -1505,15 +1416,18 @@ class KeyFramesTimeline extends Timeline {
                 }
                 
                 this.timeBeforeMove = track.times[ keyFrameIndex ];
+            }else{
+                this.unSelectAllKeyFrames();
             }
         }
         else if(!track) {
-            this.unSelectAllKeyFrames()           
+            this.unSelectAllKeyFrames();      
         }
     }
 
     onMouseMove( e, time ) {
-        
+        // function not called if shift is pressed (boxselection)
+
         let localX = e.localX;
         let localY = e.localY;
         let track = e.track;
@@ -1679,7 +1593,16 @@ class KeyFramesTimeline extends Timeline {
                 if(track.hide) {
                     continue;
                 }
-                this.drawTrackWithKeyframes(ctx, offsetI * height + offset + scroll_y, height, track.name + " (" + track.type + ")", this.animationClip.tracks[track.clipIdx], track);
+
+                ctx.save();
+
+                let track_y = offsetI * height + offset + scroll_y;
+                ctx.translate(0, track_y);
+                this.drawTrackWithKeyframes(ctx, height, track);
+                this.tracksDrawn.push([track, track_y + this.topMargin, height]);
+
+                ctx.restore();
+
                 offsetI++;
             }
             offset += offsetI * height + height;
@@ -1687,6 +1610,75 @@ class KeyFramesTimeline extends Timeline {
          
         ctx.restore();
     };
+
+    /**
+     * @method drawTrackWithKeyframes
+     * @param {*} ctx
+     * ...
+     * @description helper function, you can call it from drawContent to render all the keyframes
+     * TODO
+     */
+
+    drawTrackWithKeyframes( ctx, trackHeight, track ) {
+
+        ctx.font = Math.floor( trackHeight * 0.8) + "px" + Timeline.FONT;
+        ctx.textAlign = "left";
+
+        
+        if(track.isSelected) {
+            ctx.globalAlpha = 0.2;
+            ctx.fillStyle = Timeline.TRACK_SELECTED;//"#2c303570";
+            ctx.fillRect(0, 0, ctx.canvas.width, trackHeight );
+        }
+
+        ctx.fillStyle = Timeline.COLOR;//"#2c303570";
+        ctx.globalAlpha = 1;
+
+        let keyframes = track.times;
+
+        if(!keyframes) {
+            return;
+        }
+         
+        for(let j = 0; j < keyframes.length; ++j)
+        {
+            let time = keyframes[j];
+            if( time < this.startTime || time > this.endTime ) {
+                continue;
+            }
+
+            let keyframePosX = this.timeToX( time );
+            let size = trackHeight * 0.3;
+            
+            if(!this.active || track.active == false) {
+                ctx.fillStyle = Timeline.COLOR_INACTIVE;
+            }
+            else if(track.locked) {
+                ctx.fillStyle = Timeline.COLOR_LOCK;
+            }
+            else if(track.hovered[j]) {
+                size = trackHeight * 0.45;
+                ctx.fillStyle = Timeline.COLOR_HOVERED;
+            }
+            else if(track.selected[j]) {
+                ctx.fillStyle = Timeline.COLOR_SELECTED;
+            }
+            else if(track.edited[j]) {
+                ctx.fillStyle = Timeline.COLOR_EDITED;
+            }
+            else {
+                ctx.fillStyle = Timeline.COLOR;
+            }
+            
+            ctx.save();
+            ctx.translate(keyframePosX, trackHeight * 0.5);
+            ctx.rotate(45 * Math.PI / 180);		
+            ctx.fillRect( -size*0.5, -size*0.5, size, size);
+            ctx.restore();
+        }
+
+        ctx.globalAlpha = this.opacity;
+    }
 
     onUpdateTracks ( keyType ) {
     
@@ -1935,10 +1927,6 @@ class KeyFramesTimeline extends Timeline {
         });
     }
 
-    isKeyFrameSelected( track, index ) {
-        return track.selected[ index ];
-    }
-
     /**
      * @param {Number} trackIdx index of track in the animation (not local index) 
      */
@@ -2005,26 +1993,6 @@ class KeyFramesTimeline extends Timeline {
             values[ trg ] = tmp;
             ++trg;
         }
-    }
-
-    /**
-     * @param {object} track track of animation clip (object not index)
-     * @param {int} frameIdx frame (index) to select inside the track 
-     * @param {bool} unselectPrev if true, unselects previously selected frames. Otherwise, stacks the new selection
-     * @returns 
-     */
-    selectKeyFrame( track, frameIdx, unselectPrev = true ) {
-        if( frameIdx == undefined || !track || track.locked || !track.active )
-            return false;
-    
-        if ( unselectPrev ){
-            this.unSelectAllKeyFrames();
-        }
-
-        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex] );
-        track.selected[frameIdx] = true;
-
-        return true;
     }
 
     copyContent() {
@@ -2353,12 +2321,7 @@ class KeyFramesTimeline extends Timeline {
         this.unSelectAllKeyFrames();
     }
 
-    getNumKeyFramesSelected() {
-        return this.lastKeyFramesSelected.length;
-    }
-    
-
-    unSelect() {
+    unSelectItems() {
 
         if(!this.unSelectAllKeyFrames()) {
             this.selectedItems = null;
@@ -2517,6 +2480,55 @@ class KeyFramesTimeline extends Timeline {
         const unselected = this.lastKeyFramesSelected.length > 0;
         this.lastKeyFramesSelected.length = 0;
         return unselected;
+    }
+    
+    isKeyFrameSelected( track, index ) {
+        return track.selected[ index ];
+    }
+    
+    /**
+     * @param {object} track track of animation clip (object not index)
+     * @param {int} frameIdx frame (index) to select inside the track 
+     * @param {bool} unselectPrev if true, unselects previously selected frames. Otherwise, stacks the new selection
+     * @returns 
+     */
+    selectKeyFrame( track, frameIdx, unselectPrev = true ) {
+        if( frameIdx == undefined || !track || track.locked || !track.active )
+            return false;
+    
+        if ( unselectPrev ){
+            this.unSelectAllKeyFrames();
+        }
+
+        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex] );
+        track.selected[frameIdx] = true;
+
+        return true;
+    }
+
+    unSelectKeyFrame( track, frameIdx ){
+        if( !track || track.locked || !track.active )
+            return false;
+        
+        if ( !track.selected[frameIdx] ){
+            return false;
+        }
+        track.selected[frameIdx] = false;
+        
+        const trackIdx = track.idx;
+        for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
+            let sk = this.lastKeyFramesSelected[i];
+            if ( sk[1] == trackIdx && sk[2] == frameIdx ){ 
+                this.lastKeyFramesSelected.splice(i, 1);
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    getNumKeyFramesSelected() {
+        return this.lastKeyFramesSelected.length;
     }
 
     processCurrentKeyFrame( e, keyFrameIndex, track, localX, multiple ) {
@@ -2770,8 +2782,15 @@ class ClipsTimeline extends Timeline {
         if(e.shiftKey) {
 
             // Manual Multiple selection
-            if(!discard && track) {
-                this.selectClip( track, null, localX, false );
+            if(!discard) {
+                if ( track ){
+                    let clipIndex = this.getCurrentClip( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
+                    if ( clipIndex > -1 ){
+                        track.selected[clipIndex] ? 
+                            this.unselectClip( track, clipIndex, null ) :
+                            this.selectClip( track, clipIndex, null, false );
+                    }
+                }
             }
             // Box selection
             else if (this.boxSelection){
@@ -2810,6 +2829,7 @@ class ClipsTimeline extends Timeline {
     }
 
     onMouseDown( e, time ) {
+        // function not called if shift is pressed (boxselection)
 
         let localX = e.localX;
         let localY = e.localY;
@@ -2845,17 +2865,18 @@ class ClipsTimeline extends Timeline {
                 }
             }
         }
-        else if(!track || track && this.getCurrentContent(track, time, 0.001) == -1) { // clicked on empty space
+        else if( !track || track && this.getCurrentContent(track, time, 0.001) == -1) { // clicked on empty space
             this.unSelectAllClips();
             if(this.onSelectClip)
                 this.onSelectClip(null);
         }
         else if (track && (this.dragClipMode == "duration" || this.dragClipMode == "fadein" || this.dragClipMode == "fadeout" )) { // clicked while mouse was over fadeIn, fadeOut, duration
-            this.selectClip( track, null, localX ); // select clip if any
+            this.selectClip( track, null, localX ); // select current clip if any (unselect others)
         }
     }
 
     onMouseMove( e, time ) {
+        // function not called if shift is pressed (boxselection)
 
         if(this.grabbing && e.buttons != 2) { // move clips
             this.unHoverAll();
@@ -3198,7 +3219,7 @@ class ClipsTimeline extends Timeline {
         }
         else if ( trackIdx < 0 ){ // find first free track slot
             for(let i = 0; i < this.animationClip.tracks.length; i++) {
-                clipInCurrentSlot = this.animationClip.tracks[i].clips.find( t => { 
+                let clipInCurrentSlot = this.animationClip.tracks[i].clips.find( t => { 
                     return LX.UTILS.compareThresholdRange(newStart, clip.start + clip.duration, t.start, t.start+t.duration);                
                 });
     
@@ -3530,15 +3551,14 @@ class ClipsTimeline extends Timeline {
         for(let idx = 0; idx < this.animationClip.tracks.length; idx++) {
             for(let clipIdx = 0; clipIdx < this.animationClip.tracks[idx].clips.length; clipIdx++) {
                 this.animationClip.tracks[idx].selected[clipIdx] = true;
-                let currentSelection = [ idx, clipIdx];
-                this.lastClipsSelected.push( currentSelection );
+                this.lastClipsSelected.push( [idx, clipIdx] ); // already sorted
             }
         }
         if(this.onSelectClip)
             this.onSelectClip();
     }
 
-    selectClip( track, clipIndex, localX = null, unselect = true, skipCallback = false ) {
+    selectClip( track, clipIndex = null, localX = null, unselect = true, skipCallback = false ) {
 
         clipIndex = clipIndex ?? this.getCurrentClip( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
 
@@ -3546,7 +3566,7 @@ class ClipsTimeline extends Timeline {
             this.unSelectAllClips();
         }
                         
-        if(clipIndex == -1)
+        if(clipIndex < 0)
             return -1;
 
         if(track.selected[clipIndex])
@@ -3567,6 +3587,30 @@ class ClipsTimeline extends Timeline {
             this.onSelectClip(track.clips[ clipIndex ]);
             // Event handled
         }
+        return clipIndex;
+    }
+
+    unselectClip( track, clipIndex, localX = null ){
+        clipIndex = clipIndex ?? this.getCurrentClip( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
+                        
+        if(clipIndex == -1)
+            return -1;
+
+        if(!track.selected[clipIndex])
+            return -1;
+
+        track.selected[clipIndex] = false;
+
+        // unselect 
+        let trackIdx = track.idx;
+        for( let i = 0; i < this.lastClipsSelected.length; ++i){
+            let t = this.lastClipsSelected[i];
+            if ( t[0] == trackIdx && t[1] == clipIndex ){
+                this.lastClipsSelected.splice(i,1);
+                break;
+            }
+        }
+
         return clipIndex;
     }
 
@@ -3655,13 +3699,15 @@ class CurvesTimeline extends Timeline {
             e.multipleSelection = true;
             // Multiple selection
             if(!discard && track) {
-                this.processCurrentKeyFrame( e, null, track, localX, true ); 
+                const keyFrameIdx = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );   
+                if ( keyFrameIdx > -1 ){
+                    track.selected[keyFrameIdx] ?
+                    this.unSelectKeyFrame(track, keyFrameIdx) :
+                    this.processCurrentKeyFrame( e, keyFrameIdx, track, null, true ); 
+                }
             }
             // Box selection
-            else if(this.boxSelection){
-        
-                this.unSelectAllKeyFrames();
-                
+            else if(this.boxSelection){                
                 let tracks = this.getTracksInRange(this.boxSelectionStart[1], this.boxSelectionEnd[1], this.pixelsToSeconds * 5);
                 
                 for(let t of tracks) {
@@ -3688,6 +3734,7 @@ class CurvesTimeline extends Timeline {
     }
 
     onMouseDown( e, time ) {
+        // function not called if shift is pressed (boxselection)
 
         let localX = e.localX;
         let localY = e.localY;
@@ -3712,15 +3759,18 @@ class CurvesTimeline extends Timeline {
                 
                 this.timeBeforeMove = track.times[ keyFrameIndex ];
                 this.valueBeforeMove = localY;
+            }else{
+                this.unSelectAllKeyFrames();
             }
         }
         else if(!track) {
-            this.unSelectAllKeyFrames()           
+            this.unSelectAllKeyFrames();      
         }
     }
 
     onMouseMove( e, time ) {
-        
+        // function not called if shift is pressed (boxselection)
+
         let localX = e.localX;
         let localY = e.localY;
         let track = e.track;
@@ -3891,7 +3941,15 @@ class CurvesTimeline extends Timeline {
                     continue;
                 }
                
-                this.drawTrackWithCurves(ctx, offsetI * height + offset + scroll_y, height, track.name + " (" + track.type + ")", this.animationClip.tracks[track.clipIdx], track);
+                ctx.save();
+
+                let track_y = offsetI * height + offset + scroll_y;
+                ctx.translate(0, track_y);
+                this.drawTrackWithCurves(ctx, height, track);
+                this.tracksDrawn.push([track, track_y + this.topMargin, height]);
+
+                ctx.restore();
+
                 offsetI++;
             }
             offset += offsetI * height + height;
@@ -3900,101 +3958,76 @@ class CurvesTimeline extends Timeline {
 
     };
 
-    drawTrackWithCurves (ctx, y, trackHeight, name, track, trackInfo) {
-        let keyframes = track.times;
-        let values = track.values;
+    drawTrackWithCurves (ctx, trackHeight, track) {
+        const keyframes = track.times;
+        const values = track.values;
 
         if(keyframes) {
-            ctx.globalAlpha = 0.2;
-            ctx.fillStyle = Timeline.TRACK_SELECTED_LIGHT//"#2c303570";
-            if(trackInfo.isSelected)
-                ctx.fillRect(0, y - 3, ctx.canvas.width, trackHeight );      
+            if(track.isSelected){
+                ctx.globalAlpha = 0.2;
+                ctx.fillStyle = Timeline.TRACK_SELECTED_LIGHT//"#2c303570";
+                ctx.fillRect(0, 0, ctx.canvas.width, trackHeight );      
+            }
                 
             ctx.globalAlpha = 1;
-            this.tracksDrawn.push([track,y+this.topMargin,trackHeight]);
                 
             //draw lines
             ctx.strokeStyle = "white";
             ctx.beginPath();
-            for(var j = 0; j < keyframes.length; ++j)
-            {
+            for(let j = 0; j < keyframes.length; ++j){
 
                 let time = keyframes[j];
-                let value = values[j];
-                
-                //convert to timeline track range
-                value = (((value - this.range[0]) * ( -this.trackHeight) ) / (this.range[1] - this.range[0])) + this.trackHeight;
-
-                if( time < this.startTime && time > this.endTime )
-                    continue;
                 let keyframePosX = this.timeToX( time );
-                
-                ctx.save();
-                ctx.translate(keyframePosX, y );
-               
-                if( keyframePosX <=  this.sidebarWidth ){
-                    ctx.moveTo( 0, value );  
+                let value = values[j];                
+                value = ((value - this.range[0]) / (this.range[1] - this.range[0])) * (-trackHeight) + trackHeight;
+
+                if( time < this.startTime ){
+                    ctx.moveTo( keyframePosX, value ); 
+                    continue;
                 }
-                else { 
-                    ctx.lineTo( 0, value );  
-                }
-                ctx.restore()
+                                
+                //convert to timeline track range
+                ctx.lineTo( keyframePosX, value );  
                 
+                if ( time > this.endTime ){
+                    break; //end loop, but print line
+                }
             }
             ctx.stroke();
-            ctx.closePath();
-            ctx.fillStyle = Timeline.COLOR;
+
             //draw points
-            for(var j = 0; j < keyframes.length; ++j)
+            ctx.fillStyle = Timeline.COLOR;
+            for(let j = 0; j < keyframes.length; ++j)
             {
                 let time = keyframes[j];
-                let selected = trackInfo.selected[j];
-                let margin = 0;
-                let size = 5;
                 if( time < this.startTime || time > this.endTime )
                     continue;
-                var keyframePosX = this.timeToX( time );
-                if( keyframePosX > this.sidebarWidth ){
-                    ctx.save();
 
+                let size = 5;
+                let keyframePosX = this.timeToX( time );
                     
-                    if(trackInfo.edited[j])
-                        ctx.fillStyle = Timeline.COLOR_EDITED;
-                    if(selected) {
-                        ctx.fillStyle = Timeline.COLOR_SELECTED;
-                        //size = 7;
-                        margin = -2;
-                    }
-                    if(trackInfo.hovered[j]) {
-                        //size = 7;
-                        ctx.fillStyle = Timeline.COLOR_HOVERED;
-                        margin = -2;
-                    }
-                    if(trackInfo.locked)
-                        ctx.fillStyle = Timeline.COLOR_LOCK;
-
-                    if(!this.active || !trackInfo.active)
-                        ctx.fillStyle = Timeline.COLOR_INACTIVE;
-                        
-                    ctx.translate(keyframePosX, y);
-                    
-                    let value = values[j];
-                    value = (((value - this.range[0]) * ( -this.trackHeight) ) / (this.range[1] - this.range[0])) + this.trackHeight;
-
-                    ctx.beginPath();
-                    ctx.arc( 0, value, size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.closePath(); 
-
-                    if(trackInfo.selected[j]) {
-                        ctx.fillStyle = Timeline.COLOR_SELECTED;
-                        ctx.beginPath();
-                        ctx.arc( 0, value, size - margin, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.closePath(); 
-                    }
-                    ctx.restore();
+                if(!this.active || !track.active)
+                    ctx.fillStyle = Timeline.COLOR_INACTIVE;
+                else if(track.locked)
+                    ctx.fillStyle = Timeline.COLOR_LOCK;
+                else if(track.hovered[j]) {
+                    size = 7;
+                    ctx.fillStyle = Timeline.COLOR_HOVERED;
                 }
+                else if(track.selected[j])
+                    ctx.fillStyle = Timeline.COLOR_SELECTED;
+                else if(track.edited[j])
+                    ctx.fillStyle = Timeline.COLOR_EDITED;
+                else 
+                    ctx.fillStyle = Timeline.COLOR
+                
+                let value = values[j];
+                value = ((value - this.range[0]) / (this.range[1] - this.range[0])) * ( -trackHeight) + trackHeight;
+
+                ctx.beginPath();
+                ctx.arc( keyframePosX, value, size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.closePath();
             }
         }
     }
@@ -4247,10 +4280,6 @@ class CurvesTimeline extends Timeline {
         });
     }
 
-    isKeyFrameSelected( track, index ) {
-        return track.selected[ index ];
-    }
-
     /**
     * @param {Number} trackIdx index of track in the animation (not local index) 
     */
@@ -4317,26 +4346,6 @@ class CurvesTimeline extends Timeline {
             values[ trg ] = tmp;
             ++trg;
         }
-    }
-
-   /** 
-     * @param {object} track track of animation clip (object not index)
-     * @param {int} frameIdx frame (index) to select inside the track 
-     * @param {bool} unselectPrev if true, unselects previously selected frames. Otherwise, stacks the new selection
-     * @returns 
-     */
-    selectKeyFrame( track, frameIdx, unselectPrev = true ) {        
-        if( frameIdx == undefined || !track || track.locked || !track.active )
-            return false;
-
-        if ( unselectPrev ){
-            this.unSelectAllKeyFrames();
-        }
-
-        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIdx] );
-        track.selected[frameIdx] = true;
-
-        return true;
     }
 
     copyContent() {
@@ -4659,11 +4668,7 @@ class CurvesTimeline extends Timeline {
         this.unSelectAllKeyFrames();
     }
 
-    getNumKeyFramesSelected() {
-        return this.lastKeyFramesSelected.length;
-    }
-
-    unSelect() {
+    unSelectItems() {
 
         if(!this.unSelectAllKeyFrames()) {
             this.selectedItems = null;
@@ -4822,6 +4827,55 @@ class CurvesTimeline extends Timeline {
         const unselected = this.lastKeyFramesSelected.length > 0;
         this.lastKeyFramesSelected.length = 0;
         return unselected;
+    }
+
+    isKeyFrameSelected( track, index ) {
+        return track.selected[ index ];
+    }
+    
+    /** 
+     * @param {object} track track of animation clip (object not index)
+     * @param {int} frameIdx frame (index) to select inside the track 
+     * @param {bool} unselectPrev if true, unselects previously selected frames. Otherwise, stacks the new selection
+     * @returns 
+     */
+    selectKeyFrame( track, frameIdx, unselectPrev = true ) {        
+        if( !track || track.locked || !track.active )
+            return false;
+
+        if ( unselectPrev ){
+            this.unSelectAllKeyFrames();
+        }
+
+        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIdx] );
+        track.selected[frameIdx] = true;
+
+        return true;
+    }
+
+    unSelectKeyFrame( track, frameIdx ){
+        if( !track || track.locked || !track.active )
+            return false;
+        
+        if ( !track.selected[frameIdx] ){
+            return false;
+        }
+        track.selected[frameIdx] = false;
+        
+        const trackIdx = track.idx;
+        for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
+            let sk = this.lastKeyFramesSelected[i];
+            if ( sk[1] == trackIdx && sk[2] == frameIdx ){ 
+                this.lastKeyFramesSelected.splice(i, 1);
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    getNumKeyFramesSelected() {
+        return this.lastKeyFramesSelected.length;
     }
 
     processCurrentKeyFrame( e, keyFrameIndex, track, localX, multiple ) {
