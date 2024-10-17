@@ -83,6 +83,9 @@ class Timeline {
         this.trackHeight = options.trackHeight ?? 25;
         this.timeSeparators = [0.01, 0.1, 0.5, 1, 5];
 
+        this.boxSelection = false;
+        this.boxSelectionStart = [0,0];
+        this.boxSelectionEnd = [0,0];
 
         this.active = true;
         this.skipVisibility = options.skipVisibility ?? false;
@@ -622,7 +625,7 @@ class Timeline {
         // Selections
         ctx.strokeStyle = ctx.fillStyle =  Timeline.FONT_COLOR;
         ctx.translate( this.position[0], this.position[1] + this.topMargin )
-        if(this.boxSelection && this.boxSelectionStart && this.boxSelectionEnd) {
+        if(this.boxSelection) {
             ctx.globalAlpha = 0.15;
             ctx.fillStyle = "#AAA";
             ctx.strokeRect( this.boxSelectionStart[0], this.boxSelectionStart[1], this.boxSelectionEnd[0] - this.boxSelectionStart[0], this.boxSelectionEnd[1] - this.boxSelectionStart[1]);
@@ -819,7 +822,7 @@ class Timeline {
             }
             else if( h < this.scrollableHeight)
             {              
-                this.leftPanel.root.children[1].scrollTop += e.deltaY;
+                this.leftPanel.root.children[1].scrollTop += e.deltaY; // wheel deltaY
             }
             
             return;
@@ -871,8 +874,10 @@ class Timeline {
             this.movingKeys = false;
             this.timeBeforeMove = null;
             e.discard = discard;
+
             
-            if(e.localY <= this.topMargin && !e.shiftKey) {
+            
+            if(e.localY <= this.topMargin && !e.shiftKey) { // clicked on timing bar
                 this.currentTime = Math.max(0, time);
                 innerSetTime(this.currentTime);
                 return;
@@ -881,6 +886,8 @@ class Timeline {
             if( e.button == 0 && this.onMouseUp ) {
                 this.onMouseUp(e, time);
             }
+
+            this.boxSelection = false; // after mouseup
             this.unSelectAllTracks();
         }
     
@@ -892,14 +899,17 @@ class Timeline {
             if(this.trackBulletCallback && e.track)
                 this.trackBulletCallback(e.track,e,this,[localX,localY]);
 
-            
-            if( h < this.scrollableHeight && x > w - 10 )
-            {
+            if(e.shiftKey && this.active) {
+                this.boxSelection = true;
+                this.boxSelectionEnd[0] = this.boxSelectionStart[0] = localX; 
+                this.boxSelectionEnd[1] = this.boxSelectionStart[1] = localY - this.topMargin;
+                return; // Handled
+            }
+            else if( h < this.scrollableHeight && x > w - 10 ) { // grabbing scroll bar
                 this.grabbingScroll = true;
                 this.grabbing = true;
             }
-            else
-            {
+            else { // grabbing canvas
                 
                 this.grabbing = true;
                 this.grabTime = time;
@@ -912,15 +922,14 @@ class Timeline {
         }
         else if( e.type == "mousemove" ) {
 
-            if(e.shiftKey && this.active) {
-                if(this.boxSelection) {
-                    this.boxSelectionEnd = [localX, localY - this.topMargin ];
-                    return; // Handled
-                }
+            if(e.shiftKey && this.active && this.boxSelection) {
+                this.boxSelectionEnd[0] = localX; 
+                this.boxSelectionEnd[1] = localY - this.topMargin;
+                return; // Handled
             }
             else if(this.grabbing && e.button !=2 && !this.movingKeys ) { // e.buttons != 2 on mousemove needs to be plural
                 this.canvas.style.cursor = "grabbing"; 
-                if(this.grabbing_timeline  && this.active)
+                if(this.grabbing_timeline && this.active)
                 {
                     let time = this.xToTime( localX );
                     time = Math.max(0, time);
@@ -1443,7 +1452,7 @@ class KeyFramesTimeline extends Timeline {
                 this.processCurrentKeyFrame( e, null, track, localX, true ); 
             }
             // Box selection
-            else if(this.boxSelectionEnd) {
+            else if(this.boxSelection) {
         
                 this.unSelectAllKeyFrames();
                 
@@ -1471,9 +1480,6 @@ class KeyFramesTimeline extends Timeline {
         }
 
         this.canvas.classList.remove('grabbing');
-        this.boxSelection = false;
-        this.boxSelectionStart = null;
-        this.boxSelectionEnd = null;
     }
 
     onMouseDown( e, time ) {
@@ -1481,13 +1487,7 @@ class KeyFramesTimeline extends Timeline {
         let localY = e.localY;
         let track = e.track;
 
-        if(e.shiftKey) {
-
-            this.boxSelection = true;
-            this.boxSelectionStart = [localX, localY - this.topMargin];
-            e.multipleSelection = true;
-        }
-        else if(track && !track.locked) {
+        if(track && !track.locked) {
             const keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
             if( keyFrameIndex > -1 ) {
                 this.processCurrentKeyFrame( e, keyFrameIndex, track, null, e.multipleSelection ); // Settings this as multiple so time is not being set
@@ -2807,11 +2807,7 @@ class ClipsTimeline extends Timeline {
             
         }
         this.movingKeys = false;
-        this.boxSelection = false;
-        this.boxSelectionStart = null;
-        this.boxSelectionEnd = null;
-
-        }
+    }
 
     onMouseDown( e, time ) {
 
@@ -2819,14 +2815,7 @@ class ClipsTimeline extends Timeline {
         let localY = e.localY;
         let track = e.track;
 
-        if(e.shiftKey) {
-
-            this.boxSelection = true;
-            this.boxSelectionStart = [localX, localY - this.topMargin];  
-            this.boxSelectionEnd = [localX,localY - this.topMargin];
-
-        }
-        else if(e.ctrlKey && track) { // move clips
+        if(e.ctrlKey && track) { // move clips
             
             let x = e.offsetX;
             let selectedClips = [];
@@ -2867,14 +2856,6 @@ class ClipsTimeline extends Timeline {
     }
 
     onMouseMove( e, time ) {
-
-        if(e.shiftKey) {
-            if(this.boxSelection) {
-                this.boxSelectionEnd[0] = localX;
-                this.boxSelectionEnd[1] = localY - this.topMargin;
-                return; // Handled
-            }
-        }
 
         if(this.grabbing && e.buttons != 2) { // move clips
             this.unHoverAll();
@@ -3677,7 +3658,7 @@ class CurvesTimeline extends Timeline {
                 this.processCurrentKeyFrame( e, null, track, localX, true ); 
             }
             // Box selection
-            else if(this.boxSelectionEnd){
+            else if(this.boxSelection){
         
                 this.unSelectAllKeyFrames();
                 
@@ -3704,10 +3685,6 @@ class CurvesTimeline extends Timeline {
         }
 
         this.canvas.classList.remove('grabbing');
-        this.boxSelection = false;
-        this.boxSelectionStart = null;
-        this.boxSelectionEnd = null;
-
     }
 
     onMouseDown( e, time ) {
@@ -3716,13 +3693,7 @@ class CurvesTimeline extends Timeline {
         let localY = e.localY;
         let track = e.track;
 
-        if(e.shiftKey) {
-            this.boxSelection = true;
-            this.boxSelectionStart = [localX, localY - this.topMargin];
-            e.multipleSelection = true;
-
-        }
-        else if(track && !track.locked) {
+        if(track && !track.locked) {
 
             const keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
             if( keyFrameIndex > -1 ) {
