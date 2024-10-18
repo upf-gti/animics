@@ -988,11 +988,11 @@ class Timeline {
         if( e.type == 'keydown' ) {
             switch(e.key) {
                 case 'Delete': case 'Backspace':
-                    this.deleteContent();
+                    this.deleteSelectedContent();
                     break;
                 case 'c': case 'C':
                     if(e.ctrlKey)
-                        this.copyContent();
+                        this.copySelectedContent();
                     break;
                 case 'v': case 'V':
                     if(e.ctrlKey)
@@ -1526,7 +1526,7 @@ class KeyFramesTimeline extends Timeline {
                 {
                     title: "Copy",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                     callback: () => {
-                        this.copyContent(); // copy value and keyframes selected
+                        this.copySelectedContent(); // copy value and keyframes selected
                     }
                 }
             )
@@ -1995,7 +1995,7 @@ class KeyFramesTimeline extends Timeline {
         }
     }
 
-    copyContent() {
+    copySelectedContent() {
         if (!this.lastKeyFramesSelected.length){ 
             return; 
         }
@@ -2228,7 +2228,7 @@ class KeyFramesTimeline extends Timeline {
         return newIdx;
     }
 
-    deleteContent() {
+    deleteSelectedContent() {
         
         this.deleteKeyFrame({ multipleSelection: this.lastKeyFramesSelected.length > 1});
     }
@@ -3081,14 +3081,14 @@ class ClipsTimeline extends Timeline {
             actions.push(
                 {
                     title: "Copy",// + " <i class='bi bi-clipboard-fill float-right'></i>",
-                    callback: () => { this.copyContent();}
+                    callback: () => { this.copySelectedContent();}
                 }
             )
             actions.push(
                 {
                     title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
                     callback: () => {
-                        this.deleteContent({});
+                        this.deleteSelectedContent({});
                         // this.optimizeTracks();
                     }
                 }
@@ -3096,7 +3096,7 @@ class ClipsTimeline extends Timeline {
         }
         else{
             
-            if(this.clipsToCopy)
+            if(this.clipboard)
             {
                 actions.push(
                     {
@@ -3343,7 +3343,7 @@ class ClipsTimeline extends Timeline {
     }
 
 
-    deleteContent() {
+    deleteSelectedContent() {
         this.deleteClip({});
     }
 
@@ -3407,26 +3407,58 @@ class ClipsTimeline extends Timeline {
         return true;
     }
 
-    copyContent() {
-        this.clipsToCopy = [...this.lastClipsSelected];
+
+    /**
+     * User defined. Used when copying and pasting
+     * @param {Array of clips} clipsToClone array of original clips. Do not modify clips in this array
+     * @param {float} timeOffset Value of time that should be added (or subtracted) from the timing attributes 
+     * @returns {Array of clips}
+     */
+    cloneClips( clipsToClone, timeOffset ){
+        let clipsToReturn = JSON.parse(JSON.stringify(clipsToClone))
+        for(let i = 0; i < clipsToReturn.length; ++i){
+            let clip = clipsToReturn[i];
+            clip.start -= timeOffset;
+            if ( clip.fadein != undefined ){ clip.fadein += timeOffset; } 
+            if ( clip.fadeout != undefined ){ clip.fadeout += timeOffset; } 
+        }
+        return clipsToReturn;
     }
 
-    pasteContent() {
-        if(!this.clipsToCopy)
-            return;
-        
-        this.clipsToCopy.sort((a,b) => {
-            if(a[0]<b[0]) 
-                return -1;
-            return 1;
-        });
+    /**
+     * Overwrite the "cloneClips" function to provide a custom cloning of clips. Otherwise, JSON serialization is used
+     */
+    copySelectedContent() {
 
-        for(let i = 0; i < this.clipsToCopy.length; i++){
-            let [trackIdx, clipIdx] = this.clipsToCopy[i];
-            let clipToCopy = Object.assign({}, this.animationClip.tracks[trackIdx].clips[clipIdx]);
-            this.addClip(clipToCopy, -1, this.clipsToCopy.length > 1 ? clipToCopy.start : 0); 
+        if ( this.lastClipsSelected.length == 0 ){
+            // this.clipboard = null;
+            return;
         }
-        this.clipsToCopy = null;
+
+        let clipsToCopy = [];
+        const lastClipsSelected = this.lastClipsSelected;
+        const tracks = this.animationClip.tracks;
+        let globalStart = Infinity;
+        for(let i = 0; i < lastClipsSelected.length; ++i){
+            let clip = tracks[ lastClipsSelected[i][0] ].clips[ lastClipsSelected[i][1] ];
+            clipsToCopy.push( clip );
+            if ( globalStart > clip.start ){ globalStart = clip.start; }
+        }
+
+        globalStart = Math.max(0, globalStart);
+        this.clipboard = this.cloneClips( clipsToCopy, -globalStart );
+    }
+
+    pasteContent( time = this.currentTime ) {
+        this.unSelectAllClips();
+
+        if(!this.clipboard)
+            return;
+
+        time = Math.max(0, time);
+
+        let clipsToAdd = this.cloneClips( this.clipboard, time );
+        this.addClips(clipsToAdd, 0);
     }
 
     /**
@@ -3873,7 +3905,7 @@ class CurvesTimeline extends Timeline {
                 {
                     title: "Copy",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                     callback: () => {
-                        this.copyContent();
+                        this.copySelectedContent();
                     }
                 }
             )
@@ -3881,7 +3913,7 @@ class CurvesTimeline extends Timeline {
                 {
                     title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
                     callback: () => {
-                        this.deleteContent({});
+                        this.deleteSelectedContent({});
                         
                     }
                 }
@@ -4348,7 +4380,7 @@ class CurvesTimeline extends Timeline {
         }
     }
 
-    copyContent() {
+    copySelectedContent() {
         if (!this.lastKeyFramesSelected.length){ 
             return; 
         }
@@ -4575,7 +4607,7 @@ class CurvesTimeline extends Timeline {
         return newIdx;
     }
 
-    deleteContent() {
+    deleteSelectedContent() {
         
         this.deleteKeyFrame({ multipleSelection: this.lastKeyFramesSelected.length > 1});
     }

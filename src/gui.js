@@ -2090,7 +2090,7 @@ class ScriptGui extends Gui {
                 let playElement = document.querySelector("[title = Play]");
                 if ( playElement ){ playElement.children[0].click() }
             }
-        }
+        };
 
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
@@ -2107,60 +2107,39 @@ class ScriptGui extends Gui {
             this.delayedUpdateTracks();
         };
 
-        this.clipsTimeline.deleteContent = () => {
+        this.clipsTimeline.deleteSelectedContent = () => {
             this.clipsTimeline.deleteClip({}, null, null); // delete selected clips
             this.editor.updateTracks();
             this.updateClipPanel();
         }
 
-        this.clipsTimeline.copyContent = () => {
-            this.clipsTimeline.clipsToCopy = [...this.clipsTimeline.lastClipsSelected];
+        this.clipsTimeline.cloneClips = (clipsToClone, timeOffset) => {
+            let clipsToReturn = [];
+            for(let i = 0; i < clipsToClone.length; i++){
+                let clip = clipsToClone[i];
+                clip.end = null;
+                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                if(clip.ready!=undefined) clip.ready = clip.fadein;
+                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                
+                let newClip = new ANIM[clip.constructor.name](clip);
+                newClip.start += timeOffset;
+                newClip.fadein += timeOffset; 
+                newClip.fadeout += timeOffset; 
+                if(newClip.attackPeak) newClip.fadein = newClip.attackPeak += timeOffset;
+                if(newClip.relax) newClip.fadeout = newClip.relax += timeOffset;
+                if(newClip.ready) newClip.fadein = newClip.ready += timeOffset;
+                if(newClip.strokeStart) newClip.strokeStart += timeOffset;
+                if(newClip.stroke) newClip.stroke += timeOffset;
+                if(newClip.strokeEnd) newClip.strokeEnd += timeOffset;
+                
+                clipsToReturn.push(newClip); 
+            }
+            return clipsToReturn;
         }
 
-        this.clipsTimeline.pasteContent = () => {
-            if(!this.clipsTimeline.clipsToCopy)
-                return;
-            this.clipsTimeline.clipsToCopy.sort((a,b) => {
-                if(a[0]<b[0]) 
-                    return -1;
-                return 1;
-            });
-
-            this.clipsTimeline.unSelectAllClips();
-            let offset = 0;
-            let clips = [];
-            let globalStart = 1000;
-            for(let i = 0; i < this.clipsTimeline.clipsToCopy.length; i++){
-                let [trackIdx, clipIdx] = this.clipsTimeline.clipsToCopy[i];
-                let clipToCopy = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                clipToCopy.end = null;
-                if(clipToCopy.attackPeak!=undefined) clipToCopy.attackPeak = clipToCopy.fadein;
-                if(clipToCopy.ready!=undefined) clipToCopy.ready = clipToCopy.fadein;
-                if(clipToCopy.strokeStart!=undefined) clipToCopy.strokeStart = clipToCopy.fadein;
-                if(clipToCopy.relax!=undefined) clipToCopy.relax = clipToCopy.fadeout;
-                if(clipToCopy.strokeEnd!=undefined) clipToCopy.strokeEnd = clipToCopy.fadeout;
-                
-                let newClip = new ANIM[clipToCopy.constructor.name](clipToCopy);
-                clips.push(newClip); 
-                globalStart = Math.min(newClip.start, globalStart);
-            }
-            for(let i = 0; i < clips.length; i++){
-                
-                
-                offset = clips[i].start - globalStart;
-                
-                if(clips[i].attackPeak) clips[i].fadein = clips[i].attackPeak -= globalStart;
-                if(clips[i].relax) clips[i].fadeout = clips[i].relax -= globalStart;
-                if(clips[i].ready) clips[i].fadein = clips[i].ready -= globalStart;
-                if(clips[i].strokeStart) clips[i].strokeStart -= globalStart;
-                if(clips[i].stroke) clips[i].stroke -= globalStart;
-                if(clips[i].strokeEnd) clips[i].strokeEnd -= globalStart;
-                clips[i].start = offset;
-            }
-            this.clipsTimeline.addClips(clips, this.clipsTimeline.currentTime);
-            this.clipsTimeline.clipsToCopy = null;
-        }
-        // this.clipsTimeline.onUpdateTrack = (idx) 
         this.clipsTimeline.showContextMenu = ( e ) => {
 
             e.preventDefault();
@@ -2172,13 +2151,13 @@ class ScriptGui extends Gui {
                 actions.push(
                     {
                         title: "Copy",
-                        callback: () => this.clipsTimeline.copyContent()
+                        callback: () => this.clipsTimeline.copySelectedContent()
                     }
                 )
                 actions.push(
                     {
                         title: "Delete",
-                        callback: () => this.clipsTimeline.deleteContent()
+                        callback: () => this.clipsTimeline.deleteSelectedContent()
                     }
                 )
                 actions.push(
@@ -2201,7 +2180,7 @@ class ScriptGui extends Gui {
                             {
                                 title: "Break down into actions",
                                 callback: () => {
-                                    this.clipsTimeline.deleteContent();
+                                    this.clipsTimeline.deleteSelectedContent();
                                     this.mode = ClipModes.Actions;
                                     this.clipsTimeline.addClips(clip.clips, this.clipsTimeline.currentTime);
                                 }
@@ -2256,7 +2235,7 @@ class ScriptGui extends Gui {
                     }
                 );
                 
-                if(this.clipsTimeline.clipsToCopy)
+                if(this.clipsTimeline.clipboard)
                 {
                     actions.push(
                         {
