@@ -44,11 +44,11 @@ class Timeline {
         this.framerate = 30;
         this.opacity = options.opacity || 1;
         this.topMargin = 40;
-        this.renderOutFrames = false;
         this.lastMouse = [];
         this.lastKeyFramesSelected = [];
         this.tracksDrawn = [];
-        this.trackState = [];
+        this.trackStateUndo = [];
+        this.trackStateRedo = [];
         this.clipboard = null;
         this.grabTime = 0;
         this.timeBeforeMove = 0;
@@ -679,7 +679,8 @@ class Timeline {
      */
 
     clearState() {
-        this.trackState = [];
+        this.trackStateUndo = [];
+        this.trackStateRedo = [];
     }
 
     /**
@@ -1932,31 +1933,47 @@ class KeyFramesTimeline extends Timeline {
      */
     saveState( trackIdx ) {
         const trackInfo = this.animationClip.tracks[trackIdx];
-        this.trackState.push({
+        this.trackStateUndo.push({
             idx: trackIdx,
             t: trackInfo.times.slice(),
             v: trackInfo.values.slice(),
-            editedTracks: [].concat(trackInfo.edited)
+            edited: trackInfo.edited.slice(0, trackInfo.times.length)
         });
+        this.trackStateRedo = [];
     }
 
-    undo() {
-        
-        if(!this.trackState.length)
-        return;
+    #undoRedo(isUndo = true){
+        let toBeShown = isUndo ? this.trackStateUndo : this.trackStateRedo;
+        let toBeStored = isUndo ? this.trackStateRedo : this.trackStateUndo;
 
-        const state = this.trackState.pop();
-        this.animationClip.tracks[state.idx].times = state.t;
-        this.animationClip.tracks[state.idx].values = state.v;
+        if (!toBeShown.length){ return false; }
 
-        const localIdx = this.animationClip.tracks[state.idx].idx;
-        const name = this.getTrackName(this.animationClip.tracks[state.idx].name)[0];
-        this.tracksPerItem[name][localIdx].edited = state.editedTracks;
+        const state = toBeShown.pop();
+        const track = this.animationClip.tracks[state.idx];
+
+        // same as savestate
+        toBeStored.push({ 
+            idx: state.idx,
+            t: track.times,
+            v: track.values,
+            edited: track.edited
+        });
+
+        track.times = state.t;
+        track.values = state.v;
+        track.edited = state.edited;
+        if ( track.selected.length < track.times.length ){ track.selected.length = track.times.length}
+        if ( track.hovered.length < track.times.length ){ track.hovered.length = track.times.length}
+        track.selected.fill(false);
+        track.hovered.fill(false);
 
         // Update animation action interpolation info
         if(this.onUpdateTrack)
             this.onUpdateTrack( state.idx );
+        return true;
     }
+    undo() { this.#undoRedo(true); }
+    redo() { this.#undoRedo(false); }
 
     /**
     * 
@@ -2158,8 +2175,8 @@ class KeyFramesTimeline extends Timeline {
         }
 
         // Update animationClip information
-        const clipIdx = track.clipIdx;
-        track = this.animationClip.tracks[clipIdx];
+        const trackIdx = track.clipIdx;
+        track = this.animationClip.tracks[trackIdx];
 
         let newIdx = this.getNearestKeyFrame( track, time ); 
         
@@ -2169,7 +2186,7 @@ class KeyFramesTimeline extends Timeline {
             return -1;
         }
 
-        this.saveState(clipIdx);
+        this.saveState(trackIdx);
 
         // Find index that t[idx] > time
         if(newIdx < 0) { 
@@ -2220,7 +2237,7 @@ class KeyFramesTimeline extends Timeline {
     
         // Update animation action interpolation info
         if(this.onUpdateTrack)
-            this.onUpdateTrack( clipIdx );
+            this.onUpdateTrack( trackIdx );
 
         LX.emit( "@on_current_time_" + this.constructor.name, time);
         // if(this.onSetTime)
@@ -3066,9 +3083,6 @@ class ClipsTimeline extends Timeline {
         let localX = e.localX;
 
         this.selectClip(track, null, localX); // unselect and try to select clip in localX, if any
-        if(this.lastClipsSelected.length && this.onSelectClip)  {
-            this.onSelectClip(track.clips[this.lastClipsSelected[0][1]]);
-        }
     }
 
     showContextMenu( e ) {
@@ -3526,25 +3540,28 @@ class ClipsTimeline extends Timeline {
         let trackInfo = Object.assign({}, track);
         trackInfo.clips = clips;
         trackInfo.selected.fill(false);
-        this.trackState.push({
+        this.trackStateUndo.push({
             idx: clipIdx,
             t: trackInfo,
-            editedTracks: [].concat(trackInfo.edited)
+            edited: trackInfo.edited.slice(track.clips.length)
         });
     }
 
-    undo() {
+    // TODO
+    #undoRedo(isUndo = true) {
         
-        if(!this.trackState.length)
+        if(!this.trackStateUndo.length)
         return;
 
-        const state = this.trackState.pop();
+        const state = this.trackStateUndo.pop();
         this.animationClip.tracks[state.t.idx].clips = state.t.clips;
 
         // Update animation action interpolation info
         if(this.onUpdateTrack)
             this.onUpdateTrack( state.t.idx );
     }
+    undo() { this.#undoRedo(true); }
+    redo() { this.#undoRedo(false); }
     
     getCurrentClip( track, time, threshold ) {
 
@@ -4313,35 +4330,52 @@ class CurvesTimeline extends Timeline {
     }
 
     /**
-    * @param {Number} trackIdx index of track in the animation (not local index) 
-    */
+     * @param {Number} trackIdx index of track in the animation (not local index) 
+     */
     saveState( trackIdx ) {
         const trackInfo = this.animationClip.tracks[trackIdx];
-        this.trackState.push({
+        this.trackStateUndo.push({
             idx: trackIdx,
             t: trackInfo.times.slice(),
             v: trackInfo.values.slice(),
-            editedTracks: [].concat(trackInfo.edited)
+            edited: trackInfo.edited.slice(0, trackInfo.times.length)
         });
+        this.trackStateRedo = [];
     }
 
-    undo() {
-        
-        if(!this.trackState.length)
-        return;
+    #undoRedo(isUndo = true){
+        let toBeShown = isUndo ? this.trackStateUndo : this.trackStateRedo;
+        let toBeStored = isUndo ? this.trackStateRedo : this.trackStateUndo;
 
-        const state = this.trackState.pop();
-        this.animationClip.tracks[state.idx].times = state.t;
-        this.animationClip.tracks[state.idx].values = state.v;
+        if (!toBeShown.length){ return false; }
 
-        const localIdx = this.animationClip.tracks[state.idx].idx;
-        const name = this.getTrackName(this.animationClip.tracks[state.idx].name)[0];
-        this.tracksPerItem[name][localIdx].edited = state.editedTracks;
+        const state = toBeShown.pop();
+        const track = this.animationClip.tracks[state.idx];
+
+        // same as savestate
+        toBeStored.push({ 
+            idx: state.idx,
+            t: track.times,
+            v: track.values,
+            edited: track.edited
+        });
+
+        track.times = state.t;
+        track.values = state.v;
+        track.edited = state.edited;
+        if ( track.selected.length < track.times.length ){ track.selected.length = track.times.length}
+        if ( track.hovered.length < track.times.length ){ track.hovered.length = track.times.length}
+        track.selected.fill(false);
+        track.hovered.fill(false);
 
         // Update animation action interpolation info
         if(this.onUpdateTrack)
             this.onUpdateTrack( state.idx );
+
+        return true;
     }
+    undo() { this.#undoRedo(true); }
+    redo() { this.#undoRedo(false); }
 
     /**
     * 
@@ -4545,8 +4579,8 @@ class CurvesTimeline extends Timeline {
         }
         
         // Update animationClip information
-        const clipIdx = track.clipIdx;
-        track = this.animationClip.tracks[clipIdx];
+        const trackIdx = track.clipIdx;
+        track = this.animationClip.tracks[trackIdx];
 
         let newIdx = this.getNearestKeyFrame( track, time ); 
         
@@ -4556,7 +4590,7 @@ class CurvesTimeline extends Timeline {
             return -1;
         }
 
-        this.saveState(clipIdx);
+        this.saveState(trackIdx);
 
         // Find index that t[idx] > time
         if(newIdx < 0) { 
@@ -4598,7 +4632,7 @@ class CurvesTimeline extends Timeline {
        
         // Update animation action interpolation info
         if(this.onUpdateTrack)
-            this.onUpdateTrack( clipIdx );
+            this.onUpdateTrack( trackIdx );
 
         LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
         // if(this.onSetTime)

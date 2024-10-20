@@ -109,6 +109,18 @@ class Editor {
                         }
                     }
                     break;
+                case 'y': case 'Y': 
+                    if(e.ctrlKey) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        if(this.activeTimeline.redo) {
+                            this.activeTimeline.redo();
+                            if(this.mode == this.editionModes.SCRIPT) {
+                                this.gui.updateClipPanel();
+                            }
+                        }
+                    }
+                    break;
                 
                 case 's': case 'S':
                     if(e.ctrlKey) {
