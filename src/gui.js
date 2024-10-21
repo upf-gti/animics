@@ -1151,7 +1151,7 @@ class KeyframesGui extends Gui {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
                                 let [id, trackIdx, keyIdx] = this.lastKeyFramesSelected[0];
-                                    this.pasteKeyFrameValue(e, this.tracksPerItem[id][trackIdx], keyIdx);
+                                this.pasteKeyFrameValue(e, this.tracksPerItem[id][trackIdx], keyIdx);
                             }
                         }
                     )
@@ -1159,26 +1159,7 @@ class KeyframesGui extends Gui {
                 actions.push(
                     {
                         title: "Copy",// + " <i class='bi bi-clipboard-fill float-right'></i>",
-                        callback: () => {
-                            let toCopy = {};
-                            for(let i = 0; i < this.lastKeyFramesSelected.length; i++){
-                                let [id, trackIdx, keyIdx] = this.lastKeyFramesSelected[i];
-                                if(toCopy[this.tracksPerItem[id][trackIdx].clipIdx]) {
-                                    toCopy[this.tracksPerItem[id][trackIdx].clipIdx].idxs.push(keyIdx);
-                                } else {
-                                    toCopy[this.tracksPerItem[id][trackIdx].clipIdx] = {idxs : [keyIdx]};
-                                    toCopy[this.tracksPerItem[id][trackIdx].clipIdx].track = this.tracksPerItem[id][trackIdx]
-                                }                
-                                if(i == 0) {
-                                    this.copyKeyFrameValue(this.tracksPerItem[id][trackIdx], keyIdx)
-                                }
-                            }
-                            for(let clipIdx in toCopy) {
-                                
-                                this.copyKeyFrames(toCopy[clipIdx].track, toCopy[clipIdx].idxs)
-                            }
-                           
-                        }
+                        callback: () => copySelectedContent()
                     }
                 )
                 actions.push(
@@ -1216,14 +1197,7 @@ class KeyframesGui extends Gui {
                     actions.push(
                         {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
-                            callback: () => {
-                                let currentTime = this.currentTime;
-                                for(let clipIdx in this.clipboard.keyframes) {
-                                    let indices = Object.keys( this.clipboard.keyframes[clipIdx].values)
-                                    this.pasteKeyFrames(e, clipIdx, indices);
-                                    this.currentTime = currentTime;
-                                }
-                            }
+                            callback: () => pasteContent()
                         }
                     )
                 }

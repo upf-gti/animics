@@ -49,6 +49,7 @@ class Timeline {
         this.tracksDrawn = [];
         this.trackStateUndo = [];
         this.trackStateRedo = [];
+        this.trackStateSaveEnabler = true; // used in saveState
         this.clipboard = null;
         this.grabTime = 0;
         this.timeBeforeMove = 0;
@@ -1932,6 +1933,8 @@ class KeyFramesTimeline extends Timeline {
      * @param {Number} trackIdx index of track in the animation (not local index) 
      */
     saveState( trackIdx ) {
+        if ( !this.trackStateSaveEnabler ){ return; }
+
         const trackInfo = this.animationClip.tracks[trackIdx];
         this.trackStateUndo.push({
             idx: trackIdx,
@@ -2016,6 +2019,11 @@ class KeyFramesTimeline extends Timeline {
         if (!this.lastKeyFramesSelected.length){ 
             return; 
         }
+
+        if(!this.clipboard)
+            this.clipboard = {};
+
+        this.clipboard.keyframes = {}; // reset clipboard
         
         // sort keyframes selected by track
         let toCopy = {};
@@ -2062,25 +2070,25 @@ class KeyFramesTimeline extends Timeline {
         let trackIdx = track.clipIdx;
         if(!this.clipboard)
             this.clipboard = {};
-        if(!this.clipboard.keyframes) {
-            this.clipboard.keyframes = {};
-        }
         
-        this.clipboard.keyframes[trackIdx] = { track: track, values:{}, times:{} };
+        indices.sort( (a,b) => a < b ? -1 : 1 ); // just in case
 
-        // 1 element clipboard by now
+        let obj = { track: track, values:[], times:[] };
+
         for(let i = 0; i < indices.length; i++ ){
             let keyIdx = indices[i];
             let start = keyIdx * track.dim;
             let keyValues = track.values.slice(start, start + track.dim); // copy values into a new array
-            this.clipboard.keyframes[trackIdx].values[keyIdx] = keyValues; // save to clipboard
-            this.clipboard.keyframes[trackIdx].times[keyIdx] = track.times[keyIdx]; // save to clipboard
+            obj.values.push(keyValues); // save to clipboard
+            obj.times.push(track.times[keyIdx]); // save to clipboard
         };
+
+        this.clipboard.keyframes[trackIdx] = obj;
     }
 
     pasteContent() {
         if(!this.clipboard)
-            return;
+            return false;
         
         // copy the value into the only selected keyframe
         if(this.clipboard.value && this.lastKeyFramesSelected.length == 1) {
@@ -2091,12 +2099,20 @@ class KeyFramesTimeline extends Timeline {
 
         // create new keyframes from the ones copied 
         if(this.clipboard.keyframes) {
-            let currentTime = this.currentTime;
-            for(let trackIdx in this.clipboard.keyframes) {
-                this.pasteKeyFrames({multipleSelection: this.clipboard.keyframes.length}, trackIdx);
-                this.currentTime = currentTime;
+
+            for( let trackIdx in this.clipboard.keyframes ){
+                let clipboardItem = this.animationClip.tracks[trackIdx].name;
+    
+                // ensure all tracks are visible
+                if ( this.selectedItems.findIndex( (item) => item == clipboardItem ) == -1 ){
+                    return false; 
+                }
             }
+
+            this.pasteKeyFrames( this.currentTime );
         }
+
+        return true;
     }
 
     canPasteKeyFrame () {
@@ -2144,7 +2160,49 @@ class KeyFramesTimeline extends Timeline {
         }
     }
 
-    pasteKeyFrames( e, trackIdx ) {
+    pasteKeyFrames( pasteTime = this.currentTime ){
+        if ( !this.clipboard.keyframes ){ return false; }
+
+        pasteTime = this.currentTime
+
+        let clipboardTracks = this.clipboard.keyframes;
+        let globalStart = Infinity;
+        for( let trackIdx in clipboardTracks ){
+            if ( globalStart > clipboardTracks[trackIdx].times[0] ){
+                globalStart = clipboardTracks[trackIdx].times[0];
+            }
+        }
+
+        if ( globalStart == Infinity ){ return false; }
+
+        for( let trackIdx in clipboardTracks ){
+            
+            const clipboardInfo = this.clipboard.keyframes[trackIdx];
+            const times = clipboardInfo.times; 
+            const values = clipboardInfo.values;
+
+            this.saveState(trackIdx);
+            this.trackStateSaveEnabler = false; // do not save state while in addkeyframe
+
+            for(let i = 0; i < clipboardInfo.times.length; i++) {
+                let value = values[i];
+                let time = times[i];
+                if(typeof value == 'number')
+                    value = [value];
+                time = time - globalStart + pasteTime;
+                this.addKeyFrame( this.animationClip.tracks[trackIdx], value, time );
+            }
+            
+            this.trackStateSaveEnabler = true;
+            
+        }
+
+        return true;
+
+    }
+
+
+    pasteKeyFrames_( e, trackIdx, time = this.currentTime ) {
         
         if ( !this.clipboard.keyframes[trackIdx] ){
             return;
@@ -2239,9 +2297,10 @@ class KeyFramesTimeline extends Timeline {
         if(this.onUpdateTrack)
             this.onUpdateTrack( trackIdx );
 
-        LX.emit( "@on_current_time_" + this.constructor.name, time);
-        // if(this.onSetTime)
-        //     this.onSetTime(time);
+        if ( time > this.duration ){
+            this.setDuration(time);
+        }
+       
         return newIdx;
     }
 
@@ -2262,7 +2321,7 @@ class KeyFramesTimeline extends Timeline {
 
         // Don't remove by now the first key (and avoid impossible indices)
         if(index < 1 || index >= track.times.length ) {
-            console.warn("Operation not supported! " + (index==0 ?"[removing first keyframe track]":"[removing invalid keyframe " + i + " from " + track.times.length + "]"));
+            console.warn("Operation not supported! " + (index==0 ?"[removing first keyframe track]":"[removing invalid keyframe " + index + " from " + track.times.length + "]"));
             return false;
         }
 
@@ -2278,13 +2337,6 @@ class KeyFramesTimeline extends Timeline {
         const slice2 = track.values.slice(indexDim + track.dim);
 
         track.values = LX.UTILS.concatTypedArray([slice1, slice2], Float32Array);
-
-        // // Move the other's key properties
-        // for(let i = index; i < track.times.length; ++i) {
-        //     track.edited[i] = track.edited[i + 1];
-        //     track.hovered[i] = track.hovered[i + 1];
-        //     track.selected[i] = track.selected[i + 1];
-        // }
 
         // Update animation action interpolation info
         if(this.onDeleteKeyFrame)
@@ -4333,6 +4385,8 @@ class CurvesTimeline extends Timeline {
      * @param {Number} trackIdx index of track in the animation (not local index) 
      */
     saveState( trackIdx ) {
+        if ( !this.trackStateSaveEnabler ){ return; }
+
         const trackInfo = this.animationClip.tracks[trackIdx];
         this.trackStateUndo.push({
             idx: trackIdx,
@@ -4418,6 +4472,11 @@ class CurvesTimeline extends Timeline {
         if (!this.lastKeyFramesSelected.length){ 
             return; 
         }
+
+        if(!this.clipboard)
+            this.clipboard = {};
+
+        this.clipboard.keyframes = {}; // reset clipboard
         
         // sort keyframes selected by track
         let toCopy = {};
@@ -4465,25 +4524,25 @@ class CurvesTimeline extends Timeline {
         let trackIdx = track.clipIdx;
         if(!this.clipboard)
             this.clipboard = {};
-        if(!this.clipboard.keyframes) {
-            this.clipboard.keyframes = {};
-        }
         
-        this.clipboard.keyframes[trackIdx] = { track: track, values:{}, times:{} };
+        indices.sort( (a,b) => a < b ? -1 : 1 ); // just in case
 
-        // 1 element clipboard by now
+        let obj = { track: track, values:[], times:[] };
+
         for(let i = 0; i < indices.length; i++ ){
             let keyIdx = indices[i];
             let start = keyIdx * track.dim;
             let keyValues = track.values.slice(start, start + track.dim); // copy values into a new array
-            this.clipboard.keyframes[trackIdx].values[keyIdx] = keyValues; // save to clipboard
-            this.clipboard.keyframes[trackIdx].times[keyIdx] = track.times[keyIdx]; // save to clipboard
+            obj.values.push(keyValues); // save to clipboard
+            obj.times.push(track.times[keyIdx]); // save to clipboard
         };
+
+        this.clipboard.keyframes[trackIdx] = obj;
     }
 
     pasteContent() {
         if(!this.clipboard)
-            return;
+            return false;
         
         // copy the value into the only selected keyframe
         if(this.clipboard.value && this.lastKeyFramesSelected.length == 1) {
@@ -4494,12 +4553,20 @@ class CurvesTimeline extends Timeline {
 
         // create new keyframes from the ones copied 
         if(this.clipboard.keyframes) {
-            let currentTime = this.currentTime;
-            for(let trackIdx in this.clipboard.keyframes) {
-                this.pasteKeyFrames({multipleSelection: this.clipboard.keyframes.length}, trackIdx);
-                this.currentTime = currentTime;
+
+            for( let trackIdx in this.clipboard.keyframes ){
+                let clipboardItem = this.animationClip.tracks[trackIdx].name;
+    
+                // ensure all tracks are visible
+                if ( this.selectedItems.findIndex( (item) => item == clipboardItem ) == -1 ){
+                    return false; 
+                }
             }
+
+            this.pasteKeyFrames( this.currentTime );
         }
+
+        return true;
     }
 
     canPasteKeyFrame () {
@@ -4548,28 +4615,44 @@ class CurvesTimeline extends Timeline {
         }
     }
 
-    pasteKeyFrames( e, trackIdx ) {
-        
-        if ( !this.clipboard.keyframes[trackIdx] ){
-            return;
-        }
-        this.saveState(trackIdx);
+    pasteKeyFrames( pasteTime = this.currentTime ){
+        if ( !this.clipboard.keyframes ){ return false; }
 
-        let clipboardInfo = this.clipboard.keyframes[trackIdx];
-        let indices = Object.keys(clipboardInfo.values);
-        indices.sort(); // just in case
+        pasteTime = this.currentTime
 
-        // Copy to current key
-        for(let i = 0; i < indices.length; i++) {
-            let value = clipboardInfo.values[indices[i]];
-            if(typeof value == 'number')
-                value = [value];
-            if(i > 0) {
-                let delta = clipboardInfo.times[indices[i]] - clipboardInfo.times[indices[i-1]];
-                this.currentTime += delta;
+        let clipboardTracks = this.clipboard.keyframes;
+        let globalStart = Infinity;
+        for( let trackIdx in clipboardTracks ){
+            if ( globalStart > clipboardTracks[trackIdx].times[0] ){
+                globalStart = clipboardTracks[trackIdx].times[0];
             }
-            this.addKeyFrame( clipboardInfo.track, value);
         }
+
+        if ( globalStart == Infinity ){ return false; }
+
+        for( let trackIdx in clipboardTracks ){
+            
+            const clipboardInfo = this.clipboard.keyframes[trackIdx];
+            const times = clipboardInfo.times; 
+            const values = clipboardInfo.values;
+
+            this.saveState(trackIdx);
+            this.trackStateSaveEnabler = false; // do not save state while in addkeyframe
+
+            for(let i = 0; i < clipboardInfo.times.length; i++) {
+                let value = values[i];
+                let time = times[i];
+                if(typeof value == 'number')
+                    value = [value];
+                time = time - globalStart + pasteTime;
+                this.addKeyFrame( this.animationClip.tracks[trackIdx], value, time );
+            }
+            
+            this.trackStateSaveEnabler = true;
+            
+        }
+
+        return true;
     }
 
     addKeyFrame( track, value = undefined, time = this.currentTime ) {
@@ -4634,9 +4717,9 @@ class CurvesTimeline extends Timeline {
         if(this.onUpdateTrack)
             this.onUpdateTrack( trackIdx );
 
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        // if(this.onSetTime)
-        //     this.onSetTime(this.currentTime);
+        if ( time > this.duration ){
+            this.setDuration(time);
+        }
 
         return newIdx;
     }
@@ -4658,7 +4741,7 @@ class CurvesTimeline extends Timeline {
         
         // Don't remove by now the first key (and avoid impossible indices)
         if(index < 1 || index >= track.times.length ) {
-            console.warn("Operation not supported! " + (index==0 ?"[removing first keyframe track]":"[removing invalid keyframe " + i + " from " + track.times.length + "]"));
+            console.warn("Operation not supported! " + (index==0 ?"[removing first keyframe track]":"[removing invalid keyframe " + index + " from " + track.times.length + "]"));
             return false;
         }
 
@@ -4674,13 +4757,6 @@ class CurvesTimeline extends Timeline {
         const slice2 = track.values.slice(indexDim + track.dim);
 
         track.values = LX.UTILS.concatTypedArray([slice1, slice2], Float32Array);
-
-        // // Move the other's key properties
-        // for(let i = index; i < track.times.length; ++i) {
-        //     track.edited[i] = track.edited[i + 1];
-        //     track.hovered[i] = track.hovered[i + 1];
-        //     track.selected[i] = track.selected[i + 1];
-        // }
 
         // Update animation action interpolation info
         if(this.onDeleteKeyFrame)
