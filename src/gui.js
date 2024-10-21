@@ -1165,14 +1165,7 @@ class KeyframesGui extends Gui {
                 actions.push(
                     {
                         title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
-                        callback: () => {
-                            let keyframesToDelete = this.lastKeyFramesSelected;
-                            e.multipleSelection = keyframesToDelete.length > 1 ?? false;
-                            for(let i = 0; i < keyframesToDelete.length; i++){
-                                this.deleteKeyFrame(e, keyframesToDelete[i][1], keyframesToDelete[i][2]);
-                            }
-                            // that.editor.optimizeTracks(this.animationClip.tracks);
-                        }
+                        callback: () => deleteSelectedContent()
                     }
                 )
             }
@@ -2082,7 +2075,7 @@ class ScriptGui extends Gui {
         };
 
         this.clipsTimeline.deleteSelectedContent = () => {
-            this.clipsTimeline.deleteClip({}, null, null); // delete selected clips
+            this.clipsTimeline.deleteClip(null); // delete selected clips
             this.editor.updateTracks();
             this.updateClipPanel();
         }
@@ -2691,7 +2684,7 @@ class ScriptGui extends Gui {
             }
 
             widgets.addButton(null, "Delete", (v, e) => {
-                this.clipsTimeline.deleteClip(e, this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1]);
+                this.clipsTimeline.deleteClip(this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1]);
                 clip = null;  
                 updateTracks(); 
                 this.delayedUpdateTracks();

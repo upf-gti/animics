@@ -524,7 +524,6 @@ class Timeline {
      * @method draw
      * @param {*} currentTime 
      * @param {*} rect 
-     * TODO
      */
 
     draw( currentTime = this.currentTime, rect ) {
@@ -639,7 +638,6 @@ class Timeline {
      * @method drawMarkers
      * @param {*} ctx 
      * @param {*} markers 
-     * TODO
      */
 
     drawMarkers( ctx, markers ) {
@@ -744,7 +742,6 @@ class Timeline {
     /**
      * @method setScale
      * @param {*} v
-     * TODO
      */
 
     setScale( v ) {
@@ -1030,8 +1027,6 @@ class Timeline {
     /**
      * @method drawTrackWithBoxes
      * @param {*} ctx
-     * ...
-     * TODO
      */
 
     drawTrackWithBoxes( ctx, y, trackHeight, title, track ) {
@@ -1535,9 +1530,7 @@ class KeyFramesTimeline extends Timeline {
             actions.push(
                 {
                     title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
-                    callback: () => {
-                        this.deleteKeyFrame({}); // TODO multipleSelection
-                    }
+                    callback: () => deleteSelectedContent()
                 }
             )
         }
@@ -2306,7 +2299,7 @@ class KeyFramesTimeline extends Timeline {
 
     deleteSelectedContent() {
         
-        this.deleteKeyFrame({ multipleSelection: this.lastKeyFramesSelected.length > 1});
+        this.deleteKeyFrame(null);
     }
 
     /**
@@ -2350,9 +2343,9 @@ class KeyFramesTimeline extends Timeline {
      * @track:
      * @index: index of the keyframe on the track
     */
-    deleteKeyFrame(e, track, index) {
+    deleteKeyFrame(track, index) {
         
-        if(e.multipleSelection) {
+        if(!track) {
 
             // Split in tracks
             const perTrack = [];
@@ -2364,27 +2357,18 @@ class KeyFramesTimeline extends Timeline {
 
                 pts = pts.sort( (a,b) => b[2] - a[2] ); // sort by keyframe index (descending)
 
+                const track = this.tracksPerItem[pts[0][0]][pts[0][1]];
+                this.saveState(track.clipIdx); 
+
                 // Delete every selected key starting with the last one in the track
                 for(let [name, localIdx, keyIndex] of pts) {
-                    let track = this.tracksPerItem[name][localIdx];
-                    this.saveState(track.clipIdx); 
                     this.#delete(track.clipIdx, keyIndex);
                 }
             }
         }
         else{
-
-            // Key pressed
-            if(!track && this.lastKeyFramesSelected.length > 0) {
-                const [itemName, localTrackIndex, keyIndex] = this.lastKeyFramesSelected[0];
-                track = this.tracksPerItem[itemName][localTrackIndex];
-                index = keyIndex;
-            }
-
-            if ( track ){
-                this.saveState(track.clipIdx);
-                this.#delete(track.clipIdx, index);
-            }
+            this.saveState(track.clipIdx);
+            this.#delete(track.clipIdx, index);
         }
 
         this.unSelectAllKeyFrames();
@@ -3410,15 +3394,15 @@ class ClipsTimeline extends Timeline {
 
 
     deleteSelectedContent() {
-        this.deleteClip({});
+        this.deleteClip();
     }
 
     /** Delete clip from the timeline
-     * @clip: clip to be delete
+     * @param {[trackIdx, clipIdx]} clip to be deleted
     */
-    deleteClip( e, clip ) {
+    deleteClip( clip = null ) {
             
-        if(e.multipleSelection || !clip) {
+        if(!clip) {
             //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
 
             // delete selected clips from last to first. lastClipsSelected is sorted
@@ -3430,7 +3414,7 @@ class ClipsTimeline extends Timeline {
                 this.#delete(s[0], s[1]);
             }
         } 
-        else if ( clip ){
+        else {
             const [trackIdx, clipIdx] = clip;
 
             this.saveState(trackIdx, clipIdx);
@@ -4525,7 +4509,7 @@ class CurvesTimeline extends Timeline {
         if(!this.clipboard)
             this.clipboard = {};
         
-        indices.sort( (a,b) => a < b ? -1 : 1 ); // just in case
+        indices.sort( (a,b) => a - b ); // just in case
 
         let obj = { track: track, values:[], times:[] };
 
@@ -4726,7 +4710,7 @@ class CurvesTimeline extends Timeline {
 
     deleteSelectedContent() {
         
-        this.deleteKeyFrame({ multipleSelection: this.lastKeyFramesSelected.length > 1});
+        this.deleteKeyFrame(null);
     }
 
    /**
@@ -4770,9 +4754,9 @@ class CurvesTimeline extends Timeline {
      * @track:
      * @index: index of the keyframe on the track
     */
-    deleteKeyFrame(e, track, index) {
+    deleteKeyFrame(track, index) {
         
-        if(e.multipleSelection) {
+        if(!track) {
 
             // Split in tracks
             const perTrack = [];
@@ -4784,27 +4768,18 @@ class CurvesTimeline extends Timeline {
 
                 pts = pts.sort( (a,b) => b[2] - a[2] ); // sort by keyframe index (descending)
 
+                const track = this.tracksPerItem[pts[0][0]][pts[0][1]];
+                this.saveState(track.clipIdx); 
+
                 // Delete every selected key starting with the last one in the track
                 for(let [name, localIdx, keyIndex] of pts) {
-                    let track = this.tracksPerItem[name][localIdx];
-                    this.saveState(track.clipIdx); 
                     this.#delete(track.clipIdx, keyIndex);
                 }
             }
         }
         else{
-
-            // Key pressed
-            if(!track && this.lastKeyFramesSelected.length > 0) {
-                const [itemName, localTrackIndex, keyIndex] = this.lastKeyFramesSelected[0];
-                track = this.tracksPerItem[itemName][localTrackIndex];
-                index = keyIndex;
-            }
-
-            if ( track ){
-                this.saveState(track.clipIdx);
-                this.#delete(track.clipIdx, index);
-            }
+            this.saveState(track.clipIdx);
+            this.#delete(track.clipIdx, index);
         }
 
         this.unSelectAllKeyFrames();
