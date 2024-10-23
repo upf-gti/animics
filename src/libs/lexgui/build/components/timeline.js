@@ -1611,7 +1611,6 @@ class KeyFramesTimeline extends Timeline {
      * @param {*} ctx
      * ...
      * @description helper function, you can call it from drawContent to render all the keyframes
-     * TODO
      */
 
     drawTrackWithKeyframes( ctx, trackHeight, track ) {
@@ -1924,52 +1923,75 @@ class KeyFramesTimeline extends Timeline {
 
     /**
      * @param {Number} trackIdx index of track in the animation (not local index) 
+     * @param {Bool} combineWithPrevious whether to create a new entry or unify changes into a single undo entry
      */
-    saveState( trackIdx ) {
+    saveState( trackIdx, combineWithPrevious = false ) {
         if ( !this.trackStateSaveEnabler ){ return; }
 
         const trackInfo = this.animationClip.tracks[trackIdx];
-        this.trackStateUndo.push({
-            idx: trackIdx,
-            t: trackInfo.times.slice(),
-            v: trackInfo.values.slice(),
-            edited: trackInfo.edited.slice(0, trackInfo.times.length)
-        });
+
+        const undoStep = {
+                trackIdx: trackIdx,
+                t: trackInfo.times.slice(),
+                v: trackInfo.values.slice(),
+                edited: trackInfo.edited.slice(0, trackInfo.times.length)
+        };
+
+        if ( combineWithPrevious && this.trackStateUndo.length ){
+            this.trackStateUndo[ this.trackStateUndo.length - 1 ].push( undoStep );
+        }
+        else{
+            this.trackStateUndo.push( [undoStep] );
+        }
+
         this.trackStateRedo = [];
     }
 
     #undoRedo(isUndo = true){
+
         let toBeShown = isUndo ? this.trackStateUndo : this.trackStateRedo;
         let toBeStored = isUndo ? this.trackStateRedo : this.trackStateUndo;
 
         if (!toBeShown.length){ return false; }
 
-        const state = toBeShown.pop();
-        const track = this.animationClip.tracks[state.idx];
+        this.unSelectAllKeyFrames();
+        this.unHoverAll();
+        
+        const combinedState = toBeShown.pop();
+        const combinedStateToStore = [];
 
-        // same as savestate
-        toBeStored.push({ 
-            idx: state.idx,
-            t: track.times,
-            v: track.values,
-            edited: track.edited
-        });
+        for( let i = 0; i < combinedState.length; ++i ){
+            const state = combinedState[i];
+            const track = this.animationClip.tracks[state.trackIdx];
 
-        track.times = state.t;
-        track.values = state.v;
-        track.edited = state.edited;
-        if ( track.selected.length < track.times.length ){ track.selected.length = track.times.length}
-        if ( track.hovered.length < track.times.length ){ track.hovered.length = track.times.length}
-        track.selected.fill(false);
-        track.hovered.fill(false);
+            // same as savestate
+            combinedStateToStore.push({ 
+                trackIdx: state.trackIdx,
+                t: track.times,
+                v: track.values,
+                edited: track.edited
+            });
 
-        // Update animation action interpolation info
-        if(this.onUpdateTrack)
-            this.onUpdateTrack( state.idx );
+            track.times = state.t;
+            track.values = state.v;
+            track.edited = state.edited;
+            if ( track.selected.length < track.times.length ){ track.selected.length = track.times.length; }
+            if ( track.hovered.length < track.times.length ){ track.hovered.length = track.times.length; }
+            track.selected.fill(false);
+            track.hovered.fill(false);
+
+            // Update animation action interpolation info
+            if(this.onUpdateTrack)
+                this.onUpdateTrack( state.trackIdx );
+        }
+
+        toBeStored.push(combinedStateToStore);
+
         return true;
     }
-    undo() { this.#undoRedo(true); }
-    redo() { this.#undoRedo(false); }
+    
+    undo() { return this.#undoRedo(true); }
+    redo() { return this.#undoRedo(false); }
 
     /**
     * 
@@ -3301,8 +3323,7 @@ class ClipsTimeline extends Timeline {
         }
         
         //Save track state before add the new clip
-        this.saveState(trackIdx, newIdx);
-
+        this.saveState(trackIdx);
 
         // Add clip
         track.clips.splice(newIdx, 0, clip); //insert clip into newIdx (or push at the end)
@@ -3385,9 +3406,21 @@ class ClipsTimeline extends Timeline {
             }
         }
 
+        // save state for all to-be-modified tracks
+        for( let i = baseTrackIdx; i <= currTrackIdx; ++i ){
+            this.saveState( i, i != baseTrackIdx );
+        }
+
+        // disable trackState
+        let oldStateEnabler = this.trackStateSaveEnabler;
+        this.trackStateSaveEnabler = false;
+
         for( c = 0; c < clips.length; ++c ){
             this.addClip(clips[c], clipTrackIdxs[c], offsetTime);
         } 
+
+        // recover old state of enabler
+        this.trackStateSaveEnabler = oldStateEnabler;
         
         return true;
     }
@@ -3408,17 +3441,21 @@ class ClipsTimeline extends Timeline {
             // delete selected clips from last to first. lastClipsSelected is sorted
             let selected = this.lastClipsSelected;
             this.lastClipsSelected = []; // so this.#delete does not check clipsselected on each loop (all will be destroyed)
+            let prevTrack = -1;
             for( let i = selected.length-1; i > -1; --i ){
                 let s = selected[i];
-                this.saveState(s[0], s[1]);
+                if ( s[0] != prevTrack){
+                    this.saveState(s[0], prevTrack != -1 );
+                    prevTrack = s[0];
+                }
                 this.#delete(s[0], s[1]);
             }
         } 
         else {
             const [trackIdx, clipIdx] = clip;
 
-            this.saveState(trackIdx, clipIdx);
-            this.#delete( trackIdx, clipIdx );
+            this.saveState(trackIdx);
+            this.#delete(trackIdx, clipIdx);
         }
     }
 
@@ -3569,35 +3606,73 @@ class ClipsTimeline extends Timeline {
         return;
     }
 
-    saveState( trackIdx, clipIdx ) {
+    saveState( trackIdx, combineWithPrevious = false ) {
+        if ( !this.trackStateSaveEnabler ){ return; }
 
-        let track = this.animationClip.tracks[trackIdx];
-        let clips = Array.from(track.clips);
-        let trackInfo = Object.assign({}, track);
-        trackInfo.clips = clips;
-        trackInfo.selected.fill(false);
-        this.trackStateUndo.push({
-            idx: clipIdx,
-            t: trackInfo,
-            edited: trackInfo.edited.slice(track.clips.length)
-        });
+        const track = this.animationClip.tracks[trackIdx];
+        let clips = this.cloneClips(track.clips, 0);
+        // storing as array so multiple tracks can be in a same "undo" step
+
+        const undoStep = { 
+            trackIdx: trackIdx,
+            clips: clips,
+            edited: track.edited.slice(0,track.clips.length)
+        };
+
+        if ( combineWithPrevious && this.trackStateUndo.length ){
+            this.trackStateUndo[ this.trackStateUndo.length-1 ].push( undoStep );            
+        }
+        else{
+            this.trackStateUndo.push( [ undoStep ] );
+        }
+
+        this.trackStateRedo = [];
     }
 
     // TODO
     #undoRedo(isUndo = true) {
         
-        if(!this.trackStateUndo.length)
-        return;
+        let toBeShown = isUndo ? this.trackStateUndo : this.trackStateRedo;
+        let toBeStored = isUndo ? this.trackStateRedo : this.trackStateUndo;
+        
+        if (!toBeShown.length){ return false; }
+        
+        this.unSelectAllClips();
+        this.unHoverAll();
+        
+        const combinedState = toBeShown.pop();
+        const combinedStateToStore = [];
 
-        const state = this.trackStateUndo.pop();
-        this.animationClip.tracks[state.t.idx].clips = state.t.clips;
+        for( let i = 0; i < combinedState.length; ++i ){
+            const state = combinedState[i];
+            const track = this.animationClip.tracks[state.trackIdx];
 
-        // Update animation action interpolation info
-        if(this.onUpdateTrack)
-            this.onUpdateTrack( state.t.idx );
+            // same as savestate
+            combinedStateToStore.push( {
+                trackIdx: state.trackIdx,
+                clips: track.clips,
+                edited: track.edited
+            });
+            
+            track.clips = state.clips;
+            track.edited = state.edited;
+            if ( track.selected.length < track.clips.length ){ track.selected.length = track.clips.length; }
+            if ( track.hovered.length < track.clips.length ){ track.hovered.length = track.clips.length; }
+            track.selected.fill(false);
+            track.hovered.fill(false);
+    
+            // Update animation action interpolation info
+            if(this.onUpdateTrack)
+                this.onUpdateTrack( state.trackIdx );
+        }
+
+        toBeStored.push(combinedStateToStore);
+
+        return true;
     }
-    undo() { this.#undoRedo(true); }
-    redo() { this.#undoRedo(false); }
+
+    undo() { return this.#undoRedo(true); }
+    redo() { return this.#undoRedo(false); }
     
     getCurrentClip( track, time, threshold ) {
 
@@ -4367,53 +4442,75 @@ class CurvesTimeline extends Timeline {
 
     /**
      * @param {Number} trackIdx index of track in the animation (not local index) 
+     * @param {Bool} combineWithPrevious whether to create a new entry or unify changes into a single undo entry
      */
-    saveState( trackIdx ) {
+    saveState( trackIdx, combineWithPrevious = false ) {
         if ( !this.trackStateSaveEnabler ){ return; }
 
         const trackInfo = this.animationClip.tracks[trackIdx];
-        this.trackStateUndo.push({
-            idx: trackIdx,
-            t: trackInfo.times.slice(),
-            v: trackInfo.values.slice(),
-            edited: trackInfo.edited.slice(0, trackInfo.times.length)
-        });
+
+        const undoStep = {
+                trackIdx: trackIdx,
+                t: trackInfo.times.slice(),
+                v: trackInfo.values.slice(),
+                edited: trackInfo.edited.slice(0, trackInfo.times.length)
+        };
+
+        if ( combineWithPrevious && this.trackStateUndo.length ){
+            this.trackStateUndo[ this.trackStateUndo.length - 1 ].push( undoStep );
+        }
+        else{
+            this.trackStateUndo.push( [undoStep] );
+        }
+
         this.trackStateRedo = [];
     }
 
     #undoRedo(isUndo = true){
+
         let toBeShown = isUndo ? this.trackStateUndo : this.trackStateRedo;
         let toBeStored = isUndo ? this.trackStateRedo : this.trackStateUndo;
 
         if (!toBeShown.length){ return false; }
 
-        const state = toBeShown.pop();
-        const track = this.animationClip.tracks[state.idx];
+        this.unSelectAllKeyFrames();
+        this.unHoverAll();
+        
+        const combinedState = toBeShown.pop();
+        const combinedStateToStore = [];
 
-        // same as savestate
-        toBeStored.push({ 
-            idx: state.idx,
-            t: track.times,
-            v: track.values,
-            edited: track.edited
-        });
+        for( let i = 0; i < combinedState.length; ++i ){
+            const state = combinedState[i];
+            const track = this.animationClip.tracks[state.trackIdx];
 
-        track.times = state.t;
-        track.values = state.v;
-        track.edited = state.edited;
-        if ( track.selected.length < track.times.length ){ track.selected.length = track.times.length}
-        if ( track.hovered.length < track.times.length ){ track.hovered.length = track.times.length}
-        track.selected.fill(false);
-        track.hovered.fill(false);
+            // same as savestate
+            combinedStateToStore.push({ 
+                trackIdx: state.trackIdx,
+                t: track.times,
+                v: track.values,
+                edited: track.edited
+            });
 
-        // Update animation action interpolation info
-        if(this.onUpdateTrack)
-            this.onUpdateTrack( state.idx );
+            track.times = state.t;
+            track.values = state.v;
+            track.edited = state.edited;
+            if ( track.selected.length < track.times.length ){ track.selected.length = track.times.length; }
+            if ( track.hovered.length < track.times.length ){ track.hovered.length = track.times.length; }
+            track.selected.fill(false);
+            track.hovered.fill(false);
+
+            // Update animation action interpolation info
+            if(this.onUpdateTrack)
+                this.onUpdateTrack( state.trackIdx );
+        }
+
+        toBeStored.push(combinedStateToStore);
 
         return true;
     }
-    undo() { this.#undoRedo(true); }
-    redo() { this.#undoRedo(false); }
+
+    undo() { return this.#undoRedo(true); }
+    redo() { return this.#undoRedo(false); }
 
     /**
     * 
