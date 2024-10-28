@@ -2535,6 +2535,12 @@ class ScriptGui extends Gui {
             
             widgets.addNumber("Start", clip.start.toFixed(2), (v) =>
             {     
+                const selectedClip = this.clipsTimeline.lastClipsSelected[0];
+                const trackIdx = selectedClip[0];
+                const track = this.clipsTimeline.animationClip.tracks[trackIdx];
+                const clipIdx = selectedClip[1];
+                if ( clipIdx == 0){ v = Math.max( 0, v ); }
+                if ( clipIdx < track.clips.length-1 ){ v = Math.min( v, track.clips[clipIdx+1].start - clip.duration - 0.00001 ); }
                 let diff = v - clip.start;  
                 if(clip.attackPeak != undefined)      
                     clip.attackPeak = clip.fadein += diff;
@@ -2561,6 +2567,12 @@ class ScriptGui extends Gui {
 
             widgets.addNumber("Duration", clip.duration.toFixed(2), (v) =>
             {
+
+                const selectedClip = this.clipsTimeline.lastClipsSelected[0];
+                const trackIdx = selectedClip[0];
+                const track = this.clipsTimeline.animationClip.tracks[trackIdx];
+                const clipIdx = selectedClip[1];
+                if ( clipIdx < track.clips.length-1 ){ v = Math.min( v, track.clips[clipIdx+1].start - clip.start - 0.00001 ); }
                 const diff = v - clip.duration;
                 clip.duration = v;
                 this.clipInPanel.duration = v;

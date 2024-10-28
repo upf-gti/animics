@@ -2919,6 +2919,7 @@ class ClipsTimeline extends Timeline {
             selectedClips = this.lastClipsSelected;
 
             this.canvas.style.cursor = "grab";  
+            let curTrackIdx = -1;
             for(let i = 0; i < selectedClips.length; i++)
             {
                 this.movingKeys = false
@@ -2927,10 +2928,6 @@ class ClipsTimeline extends Timeline {
 
                 let endingX = this.timeToX( clip.start + clip.duration );
             
-                if(this.duration < clip.start + clip.duration  ){
-                    this.setDuration(clip.start + clip.duration);
-                }
-
                 if(Math.abs( endingX - x ) < 5 ) {
                     this.dragClipMode = "duration";
                     this.canvas.style.cursor = "column-resize";
@@ -2938,7 +2935,13 @@ class ClipsTimeline extends Timeline {
                 else {
                     this.dragClipMode = "move";
                 }
+
+                if(curTrackIdx != trackIndex){
+                    this.saveState(trackIndex, curTrackIdx != -1 );
+                    curTrackIdx = trackIndex;
+                }
             }
+
         }
         else if( !track || track && this.getCurrentContent(track, time, 0.001) == -1) { // clicked on empty space
             this.unSelectAllClips();
@@ -2947,6 +2950,9 @@ class ClipsTimeline extends Timeline {
         }
         else if (track && (this.dragClipMode == "duration" || this.dragClipMode == "fadein" || this.dragClipMode == "fadeout" )) { // clicked while mouse was over fadeIn, fadeOut, duration
             this.selectClip( track, null, localX ); // select current clip if any (unselect others)
+            if ( this.lastClipsSelected.length ){ 
+                this.saveState(track.idx);
+            }
         }
     }
 
@@ -3087,6 +3093,9 @@ class ClipsTimeline extends Timeline {
                     // update selected clip index
                     lcs[1] = clipIdx;
 
+                    if ( clip.start + clip.duration > this.duration ){
+                        this.setDuration( clip.start + clip.duration );
+                    }
                     if(this.onContentMoved) {
                         this.onContentMoved(clip, leastDelta);
                     }
