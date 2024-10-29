@@ -64,6 +64,9 @@ class Editor {
         this.editionModes = {CAPTURE: 0, VIDEO: 1, SCRIPT: 2};
         this.mode = this.editionModes[mode];
 
+        this.delayedResizeID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
+        this.delayedResizeTime = 500; //ms
+
         // Keep "private"
         this.__app = app;
 
@@ -244,7 +247,7 @@ class Editor {
         renderer.shadowMap.enabled = true;
 
         canvasArea.root.appendChild(renderer.domElement);
-        canvasArea.onresize = (bounding) => this.resize(bounding.width, bounding.height);
+        canvasArea.onresize = (bounding) => this.delayedResize(bounding.width, bounding.height);
         renderer.domElement.id = "webgl-canvas";
         renderer.domElement.setAttribute("tabIndex", 1);
 
@@ -670,6 +673,19 @@ class Editor {
         }
     }
 
+    delayedResize(width = this.gui.canvasArea.root.clientWidth, height = this.gui.canvasArea.root.clientHeight) {
+        if ( this.delayedResizeID ){ clearTimeout(this.delayedResizeID); this.delayedResizeID = null; }
+        this.delayedResizeID = setTimeout( ()=>{ this.delayedResizeID = null; this.resize(width, height); }, this.delayedResizeTime );
+
+        // this.renderer.domElement.width = width + "px";
+        // this.renderer.domElement.height = height + "px";
+        this.renderer.domElement.style.width = width + "px";
+        this.renderer.domElement.style.height = height + "px";
+        const aspect = width / height;
+        this.camera.aspect = aspect;
+        this.camera.updateProjectionMatrix();
+        this.gui.resize(width, height);
+    }
 
     resize(width = this.gui.canvasArea.root.clientWidth, height = this.gui.canvasArea.root.clientHeight) {
         
@@ -677,7 +693,7 @@ class Editor {
         this.camera.aspect = aspect;
         this.camera.updateProjectionMatrix();
         // this.renderer.setPixelRatio(aspect);
-        this.renderer.setSize(width, height);
+        this.renderer.setSize(width, height); // SLOW AND MIGHT CRASH THE APP
 
         this.gui.resize(width, height);
     }

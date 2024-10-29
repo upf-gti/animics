@@ -2960,7 +2960,6 @@ class ClipsTimeline extends Timeline {
                 this.saveState(track.idx);
             }
         }
-
     }
 
     onMouseMove( e, time ) {
@@ -3243,7 +3242,6 @@ class ClipsTimeline extends Timeline {
         else {
             this.unHoverAll(); 
         }
-
 
     }
 
