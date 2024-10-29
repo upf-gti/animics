@@ -50,6 +50,7 @@ class Timeline {
         this.trackStateUndo = [];
         this.trackStateRedo = [];
         this.trackStateSaveEnabler = true; // used in saveState
+        this.trackStateMaxSteps = 100; // used in saveState
         this.clipboard = null;
         this.grabTime = 0;
         this.timeBeforeMove = 0;
@@ -1944,6 +1945,7 @@ class KeyFramesTimeline extends Timeline {
             this.trackStateUndo.push( [undoStep] );
         }
 
+        if ( this.trackStateUndo.length > this.trackStateMaxSteps ){ this.trackStateUndo.shift(); } // remove first (oldest) element 
         this.trackStateRedo = [];
     }
 
@@ -2709,6 +2711,7 @@ class ClipsTimeline extends Timeline {
                     
         this.addNewTrack();
         this.lastClipsSelected = [];
+        this.lastTrackClipsMove = 0; // vertical movement of clips, onMouseMove onMousedown
     }
 
     updateLeftPanel(area) {
@@ -2905,11 +2908,10 @@ class ClipsTimeline extends Timeline {
 
     onMouseDown( e, time ) {
         // function not called if shift is pressed (boxselection)
-
         let localX = e.localX;
         let localY = e.localY;
         let track = e.track;
-
+        
         if(e.ctrlKey && track) { // move clips
             
             let x = e.offsetX;
@@ -2920,6 +2922,9 @@ class ClipsTimeline extends Timeline {
 
             this.canvas.style.cursor = "grab";  
             let curTrackIdx = -1;
+
+            this.lastTrackClipsMove = Math.floor( (e.localY - this.topMargin + this.leftPanel.root.children[1].scrollTop) / this.trackHeight );
+
             for(let i = 0; i < selectedClips.length; i++)
             {
                 this.movingKeys = false
@@ -2936,6 +2941,7 @@ class ClipsTimeline extends Timeline {
                     this.dragClipMode = "move";
                 }
 
+                //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
                 if(curTrackIdx != trackIndex){
                     this.saveState(trackIndex, curTrackIdx != -1 );
                     curTrackIdx = trackIndex;
@@ -2954,19 +2960,20 @@ class ClipsTimeline extends Timeline {
                 this.saveState(track.idx);
             }
         }
+
     }
 
     onMouseMove( e, time ) {
         // function not called if shift is pressed (boxselection)
 
-        if(this.grabbing && e.buttons != 2) { // move clips
+        if(this.grabbing && e.buttons != 2) {
             this.unHoverAll();
 
             let delta = time - this.grabTime;
             this.grabTime = time;
             if ( time < 0 && delta > 0 ){ delta = 0; }
            
-            if ( this.dragClipMode != "move" && this.lastClipsSelected.length == 1 ){
+            if ( this.dragClipMode != "move" && this.lastClipsSelected.length == 1 ){ // change fade and duration of clips
                 this.movingKeys = true;
 
                 const track = this.animationClip.tracks[this.lastClipsSelected[0][0]]; 
@@ -2992,114 +2999,209 @@ class ClipsTimeline extends Timeline {
                     this.onContentMoved(clip, 0);
                 }
             } 
-            else if ( this.dragClipMode == "move" && this.lastClipsSelected.length ) {
+            else if ( this.dragClipMode == "move" && this.lastClipsSelected.length ) { // move clips
                 //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
 
                 this.movingKeys = true;
 
-                let leastDelta = delta;
-                let moveAccepted = true;
+                if ( e.altKey ){    // move clips vertically
+                    const lastTrackClipsMove = this.lastTrackClipsMove;
+                    this.lastTrackClipsMove = Math.floor( (e.localY - this.topMargin + this.leftPanel.root.children[1].scrollTop) / this.trackHeight );
+                    let deltaTracks = this.lastTrackClipsMove - lastTrackClipsMove;
 
-                // find if all clips can move and/or how much they can move
-                for( let i = 0; i < this.lastClipsSelected.length; ++i ){
-                    let trackIdx = this.lastClipsSelected[i][0];
-                    let clipIdx = this.lastClipsSelected[i][1];
-                    const track = this.animationClip.tracks[trackIdx];
-                    const trackClips = track.clips;
-                    const clip = track.clips[clipIdx];
-
-                    if ( delta >= 0 ){
-                        if ( trackClips.length-1 == clipIdx ){ continue; } // all alowed
-                        if ( !track.selected[clipIdx+1] ){ // if next is selected, force AllOrNothing and let next clip manage the leastDelta
-                            if( trackClips[clipIdx + 1].start >= (clip.start+clip.duration+delta) ){ continue; } //has not reached next clip. Enough space. All allowed
-                            const nextClip = trackClips[clipIdx + 1];
-                            leastDelta = Math.max( 0, Math.min( leastDelta,  nextClip.start - clip.start - clip.duration ) );
-                        }
-                    }
-                    else if ( delta < 0 ){
-                        if ( clipIdx > 0 && (trackClips[clipIdx - 1].start + trackClips[clipIdx - 1].duration) <= (clip.start+delta) ){ continue; } // has not reached previous clip. Enough space
-                        if( clipIdx > 0 ){
-                            const prevClip = trackClips[clipIdx - 1];
-                            leastDelta = Math.min( 0, Math.max( leastDelta,  prevClip.start + prevClip.duration - clip.start ) ); // delta is a negative value, that is why the leastDelta is the max
-                        }
-                        if ( clip.start + delta < 0 ){ 
-                            leastDelta = Math.max(leastDelta, -clip.start);
-                            moveAccepted = false; // force it to be a leastDelta move only. No jumps
-                        }
+                    if ( this.lastClipsSelected[0][0] + deltaTracks < 0 ){
+                        deltaTracks = -this.lastClipsSelected[0][0];
                     }
 
-                    if( !moveAccepted ){ continue; }
-                    let clipsInRange = this.getClipsInRange(track, clip.start + delta, clip.start + clip.duration + delta, 0.01); 
-                    if ( clipsInRange && (clipsInRange[0] != clipIdx || clipsInRange[clipsInRange.length-1] != clipIdx)){
-                        for( let c = 0; c < clipsInRange.length; ++c ){
-                            if ( !track.selected[clipsInRange[c]] ){ moveAccepted = false; break; }
+                    if ( deltaTracks != 0 ){ 
+
+                        // check if ALL selected clips can move track
+                        for( let i = 0; i < this.lastClipsSelected.length; ++i ){
+                            const track = this.animationClip.tracks[ this.lastClipsSelected[i][0] ];
+                            const newTrack = this.animationClip.tracks[ this.lastClipsSelected[i][0] + deltaTracks ];
+                            const clip = track.clips[ this.lastClipsSelected[i][1] ];
+
+                            const clipsInRange = this.getClipsInRange(newTrack, clip.start, clip.start+clip.duration, 0.0001) 
+                            if ( clipsInRange ){
+                                for( let c = 0; c < clipsInRange.length; ++c ){
+                                    if ( !newTrack.selected[clipsInRange[c]] ){ 
+                                        return; // at least one clip cannot move, abort
+                                    }
+                                }
+                            }
+                        }
+
+                        let oldStateEnabler = this.trackStateSaveEnabler;
+                        this.trackStateSaveEnabler = false;
+
+                        const selectedClips = this.lastClipsSelected;
+                        this.lastClipsSelected = []; // avoid delete and addclips index reassignment loop (not necessary because of order of operations in for)
+
+                        for( let i = selectedClips[selectedClips.length-1][0] + deltaTracks - this.animationClip.tracks.length + 1; i > 0; --i ){
+                            this.addNewTrack(i == 1);
+                        }
+
+                        // selected clips MUST be ordered (ascendently) 
+                        let startSel = deltaTracks > 0 ? selectedClips.length - 1 : 0;                        
+                        let endSel = startSel;
+                        let currTrack = selectedClips[startSel][0];
+
+                        // i <= length; to update last track. Otherwise a check outside of for would be needed
+                        for( let i = 1; i <= selectedClips.length; ++i ){ 
+
+                            let idx = deltaTracks > 0 ? (selectedClips.length -1 - i) : i;                            
+                            if( i == selectedClips.length || selectedClips[idx][0] != currTrack ){
+
+                                const newTrackIdx = currTrack + deltaTracks;
+                                const newTrack = this.animationClip.tracks[ newTrackIdx ];
+                                const track = this.animationClip.tracks[currTrack ];
+                                
+                                // save track state if necessary
+                                const undoState = this.trackStateUndo[this.trackStateUndo.length-1];
+                                let state = 0
+                                for( ; state < undoState.length; ++state ){
+                                    if ( newTrackIdx == undoState[state].trackIdx ){ break; }
+                                }
+                                if ( state == undoState.length ){ 
+                                    this.trackStateSaveEnabler = true;
+                                    this.saveState(newTrackIdx, true);
+                                    this.trackStateSaveEnabler = false;
+                                }
+                                
+                                // add clips of a track, from first to last
+                                for( let c = startSel; c <= endSel; ++c ){
+                                    let newClipIdx = this.addClip(track.clips[ selectedClips[c][1] ], newTrackIdx, 0);
+                                    selectedClips[c][0] = newClipIdx; // temporarily store new clip index in trackIndex (HACK START)
+                                    newTrack.selected[newClipIdx] = true;
+                                }
+
+                                // delete clips of a track, from last to first 
+                                for( let c = endSel; c >=startSel ; --c ){
+                                    this.#delete(currTrack, selectedClips[c][1]);
+                                    selectedClips[c][1] = selectedClips[c][0]; // put new clip index (HACK)
+                                    selectedClips[c][0] = newTrackIdx; // put new track index (HACK FIX)
+                                }
+
+                                currTrack = i < selectedClips.length ? selectedClips[idx][0] : -1;
+                                startSel = idx;
+                                endSel = idx;
+                                continue;
+                            }
+                            
+                            deltaTracks > 0 ? startSel = idx : endSel = idx;
+                        }
+
+                        this.lastClipsSelected = selectedClips;
+                        this.trackStateSaveEnabler = oldStateEnabler;
+                        return;
+                    }
+                }else{ // move clips horizontally
+
+                    let leastDelta = delta;
+                    let moveAccepted = true;
+    
+                    // find if all clips can move and/or how much they can move
+                    for( let i = 0; i < this.lastClipsSelected.length; ++i ){
+                        let trackIdx = this.lastClipsSelected[i][0];
+                        let clipIdx = this.lastClipsSelected[i][1];
+                        const track = this.animationClip.tracks[trackIdx];
+                        const trackClips = track.clips;
+                        const clip = track.clips[clipIdx];
+    
+                        if ( delta >= 0 ){
+                            if ( trackClips.length-1 == clipIdx ){ continue; } // all alowed
+                            if ( !track.selected[clipIdx+1] ){ // if next is selected, force AllOrNothing and let next clip manage the leastDelta
+                                if( trackClips[clipIdx + 1].start >= (clip.start+clip.duration+delta) ){ continue; } //has not reached next clip. Enough space. All allowed
+                                const nextClip = trackClips[clipIdx + 1];
+                                leastDelta = Math.max( 0, Math.min( leastDelta,  nextClip.start - clip.start - clip.duration ) );
+                            }
+                        }
+                        else if ( delta < 0 ){
+                            if ( clipIdx > 0 && (trackClips[clipIdx - 1].start + trackClips[clipIdx - 1].duration) <= (clip.start+delta) ){ continue; } // has not reached previous clip. Enough space
+                            if( clipIdx > 0 ){
+                                const prevClip = trackClips[clipIdx - 1];
+                                leastDelta = Math.min( 0, Math.max( leastDelta,  prevClip.start + prevClip.duration - clip.start ) ); // delta is a negative value, that is why the leastDelta is the max
+                            }
+                            if ( clip.start + delta < 0 ){ 
+                                leastDelta = Math.max(leastDelta, -clip.start);
+                                moveAccepted = false; // force it to be a leastDelta move only. No jumps
+                            }
+                        }
+    
+                        if( !moveAccepted ){ continue; }
+                        let clipsInRange = this.getClipsInRange(track, clip.start + delta, clip.start + clip.duration + delta, 0.01); 
+                        if ( clipsInRange && (clipsInRange[0] != clipIdx || clipsInRange[clipsInRange.length-1] != clipIdx)){
+                            for( let c = 0; c < clipsInRange.length; ++c ){
+                                if ( !track.selected[clipsInRange[c]] ){ moveAccepted = false; break; }
+                            }
+                        }
+                    }
+    
+                    // if moveAccepted -> use full delta
+                    // if !moveAccepted -> use leastDelta
+                    if ( moveAccepted ){ leastDelta = delta; }
+                    this.grabTime = time - delta + leastDelta;
+    
+    
+                    //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
+                    // move all selected clips using the computed delta. 
+                    for( let i = 0; i < this.lastClipsSelected.length; ++i ){
+                        const lcs = this.lastClipsSelected[ delta > 0 ? (this.lastClipsSelected.length - 1 - i) : i]; //delta > 0, move last-to-first; delta < 0, move first-to-last
+                        const track = this.animationClip.tracks[lcs[0]];
+                        const trackClips = track.clips;
+                        let clipIdx = lcs[1];
+                        const clip = track.clips[clipIdx];
+                        clip.start += leastDelta;
+                        clip.fadein += leastDelta;
+                        clip.fadeout += leastDelta;
+    
+                        // prepare swap
+                        const editedFlag = track.edited[clipIdx]; 
+                        const selectedFlag = track.selected[clipIdx]; 
+                        const hoveredFlag = track.hovered[clipIdx]; 
+    
+                        // move other clips
+                        if ( delta > 0 ){
+                            while( clipIdx < trackClips.length-1 ){
+                                if ( trackClips[clipIdx+1].start >= clip.start ){
+                                    break;
+                                }
+                                trackClips[clipIdx] = trackClips[clipIdx+1];
+                                track.selected[clipIdx] = track.selected[clipIdx+1];
+                                track.edited[clipIdx] = track.edited[clipIdx+1];
+                                track.hovered[clipIdx] = track.hovered[clipIdx+1];
+                                clipIdx++;
+                            }
+                        }else{
+                            while( clipIdx > 0 ){
+                                if ( trackClips[clipIdx-1].start <= clip.start ){
+                                    break;
+                                }
+                                trackClips[clipIdx] = trackClips[clipIdx-1];
+                                track.selected[clipIdx] = track.selected[clipIdx-1];
+                                track.edited[clipIdx] = track.edited[clipIdx-1];
+                                track.hovered[clipIdx] = track.hovered[clipIdx-1];
+                                clipIdx--;
+                            }
+                        }    
+                        // commit swap
+                        trackClips[clipIdx] = clip;
+                        track.edited[clipIdx] = editedFlag; 
+                        track.selected[clipIdx] = selectedFlag; 
+                        track.hovered[clipIdx] = hoveredFlag; 
+    
+                        // update selected clip index
+                        lcs[1] = clipIdx;
+    
+                        if ( clip.start + clip.duration > this.duration ){
+                            this.setDuration( clip.start + clip.duration );
+                        }
+                        if(this.onContentMoved) {
+                            this.onContentMoved(clip, leastDelta);
                         }
                     }
                 }
 
-                // if moveAccepted -> use full delta
-                // if !moveAccepted -> use leastDelta
-                if ( moveAccepted ){ leastDelta = delta; }
-                this.grabTime = time - delta + leastDelta;
-
-
-                //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
-                // move all selected clips using the computed delta. 
-                for( let i = 0; i < this.lastClipsSelected.length; ++i ){
-                    const lcs = this.lastClipsSelected[ delta > 0 ? (this.lastClipsSelected.length - 1 - i) : i]; //delta > 0, move last-to-first; delta < 0, move first-to-last
-                    const track = this.animationClip.tracks[lcs[0]];
-                    const trackClips = track.clips;
-                    let clipIdx = lcs[1];
-                    const clip = track.clips[clipIdx];
-                    clip.start += leastDelta;
-                    clip.fadein += leastDelta;
-                    clip.fadeout += leastDelta;
-
-                    // prepare swap
-                    const editedFlag = track.edited[clipIdx]; 
-                    const selectedFlag = track.selected[clipIdx]; 
-                    const hoveredFlag = track.hovered[clipIdx]; 
-
-                    // move other clips
-                    if ( delta > 0 ){
-                        while( clipIdx < trackClips.length-1 ){
-                            if ( trackClips[clipIdx+1].start >= clip.start ){
-                                break;
-                            }
-                            trackClips[clipIdx] = trackClips[clipIdx+1];
-                            track.selected[clipIdx] = track.selected[clipIdx+1];
-                            track.edited[clipIdx] = track.edited[clipIdx+1];
-                            track.hovered[clipIdx] = track.hovered[clipIdx+1];
-                            clipIdx++;
-                        }
-                    }else{
-                        while( clipIdx > 0 ){
-                            if ( trackClips[clipIdx-1].start <= clip.start ){
-                                break;
-                            }
-                            trackClips[clipIdx] = trackClips[clipIdx-1];
-                            track.selected[clipIdx] = track.selected[clipIdx-1];
-                            track.edited[clipIdx] = track.edited[clipIdx-1];
-                            track.hovered[clipIdx] = track.hovered[clipIdx-1];
-                            clipIdx--;
-                        }
-                    }    
-                    // commit swap
-                    trackClips[clipIdx] = clip;
-                    track.edited[clipIdx] = editedFlag; 
-                    track.selected[clipIdx] = selectedFlag; 
-                    track.hovered[clipIdx] = hoveredFlag; 
-
-                    // update selected clip index
-                    lcs[1] = clipIdx;
-
-                    if ( clip.start + clip.duration > this.duration ){
-                        this.setDuration( clip.start + clip.duration );
-                    }
-                    if(this.onContentMoved) {
-                        this.onContentMoved(clip, leastDelta);
-                    }
-                }
             }
             
             return true;
@@ -3141,6 +3243,7 @@ class ClipsTimeline extends Timeline {
         else {
             this.unHoverAll(); 
         }
+
 
     }
 
@@ -3237,22 +3340,18 @@ class ClipsTimeline extends Timeline {
             for( let i = 0; i < animation.tracks.length; ++i ) {
     
                 let track = animation.tracks[i];
-    
-                const name = track.name;
-                const type = track.type;
-    
+                let arr = [];
+                arr.length = track.clips.length;
+                arr.fill( false );
+
                 let trackInfo = {
-                    fullname: track.name,
+                    idx: this.animationClip.tracks.length,
                     clips: track.clips,
-                    name: name, type: type,
-                    selected: [], edited: [], hovered: [], 
+                    selected: arr.slice(), edited: arr.slice(), hovered: arr, 
                     active: true,
-                    locked: false,
-                    times: track.times,
-                };
-                
-                this.tracksDictionary[track.name] = name;
-    
+                    isSelected: false,
+                    // locked: false,
+                };    
                 this.animationClip.tracks.push(trackInfo);
             }
         }
@@ -3367,6 +3466,7 @@ class ClipsTimeline extends Timeline {
         let baseTrackIdx = -1;
         let currTrackIdx = -1;
         const tracks = this.animationClip.tracks;
+        const lastTrackLength = tracks.length;
         let c = 0;
         for( ; c < clips.length; ++c ){
             const clip = clips[c];
@@ -3375,7 +3475,7 @@ class ClipsTimeline extends Timeline {
             if ( c == 0 ){ // last search failed, move one track down and check again
                 ++baseTrackIdx; 
                 currTrackIdx = baseTrackIdx;
-                if ( currTrackIdx >= tracks.length ){ this.addNewTrack(); }
+                if ( currTrackIdx >= tracks.length ){ this.addNewTrack(false); }
                 let clipsInCurrentSlot = tracks[baseTrackIdx].clips.find( t => { return LX.UTILS.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
                 
                 // reset search
@@ -3400,7 +3500,7 @@ class ClipsTimeline extends Timeline {
                 // check if it fits in the next track
                 if ( clipsInCurrentSlot ){
                     ++currTrackIdx;
-                    if ( currTrackIdx >= tracks.length ){ this.addNewTrack(); }
+                    if ( currTrackIdx >= tracks.length ){ this.addNewTrack(false); }
                     clipsInCurrentSlot = tracks[currTrackIdx].clips.find( t => { return LX.UTILS.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
                 }
                 
@@ -3413,6 +3513,11 @@ class ClipsTimeline extends Timeline {
                 // success
                 clipTrackIdxs[c] = currTrackIdx;
             }
+        }
+
+        // avoid updating panel on each new track. Instead just once at the end
+        if ( lastTrackLength != tracks.length ){
+            this.updateLeftPanel();
         }
 
         // save state for all to-be-modified tracks
@@ -3561,7 +3666,7 @@ class ClipsTimeline extends Timeline {
      * @method addNewTrack
      */
 
-    addNewTrack() {
+    addNewTrack( updatePanel = true ) {
 
         if(!this.animationClip)
             this.animationClip = {duration:0, tracks:[]};
@@ -3569,11 +3674,16 @@ class ClipsTimeline extends Timeline {
         let trackInfo = {
             idx: this.animationClip.tracks.length,
             clips: [],
-            selected: [], edited: [], hovered: [], active: true
-        };
+            selected: [], edited: [], hovered: [],
+            active: true,
+            isSelected: false,
+            // locked: false
+        }; 
 
         this.animationClip.tracks.push(trackInfo);
-        this.updateLeftPanel();
+        if ( updatePanel ){ 
+            this.updateLeftPanel(); 
+        }
         return trackInfo.idx;
     }
 
@@ -3634,6 +3744,8 @@ class ClipsTimeline extends Timeline {
         else{
             this.trackStateUndo.push( [ undoStep ] );
         }
+
+        if ( this.trackStateUndo.length > this.trackStateMaxSteps ){ this.trackStateUndo.shift(); } // remove first (oldest) element 
 
         this.trackStateRedo = [];
     }
@@ -3747,6 +3859,7 @@ class ClipsTimeline extends Timeline {
         let i = 0;
         for( ; i < this.lastClipsSelected.length; ++i){
             let t = this.lastClipsSelected[i];
+            if ( t[0] < track.idx ){ continue; }
             if ( t[0] > track.idx || t[1] > clipIndex ){ break;}
         }
         this.lastClipsSelected.splice(i,0, [track.idx, clipIndex] ); //
@@ -4471,6 +4584,8 @@ class CurvesTimeline extends Timeline {
         else{
             this.trackStateUndo.push( [undoStep] );
         }
+
+        if ( this.trackStateUndo.length > this.trackStateMaxSteps ){ this.trackStateUndo.shift(); } // remove first (oldest) element 
 
         this.trackStateRedo = [];
     }
