@@ -1150,8 +1150,8 @@ class KeyframesGui extends Gui {
                         {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
-                                let [id, trackIdx, keyIdx] = this.lastKeyFramesSelected[0];
-                                this.pasteKeyFrameValue(e, this.tracksPerItem[id][trackIdx], keyIdx);
+                                let [id, localTrackIdx, keyIdx] = this.lastKeyFramesSelected[0];
+                                this.pasteKeyFrameValue(e, this.tracksPerItem[id][localTrackIdx], keyIdx);
                             }
                         }
                     )
@@ -1581,18 +1581,6 @@ class KeyframesGui extends Gui {
                 }
             }
         }
-
-        // let tracks = null;
-        // if(this.curvesTimeline.selectedItems.length) {
-        //     tracks = this.curvesTimeline.tracksPerItem[this.curvesTimeline.selectedItems[0]];
-        // }
-
-            
-        // for(let i = 0; i < tracks.length; i++) {
-        //     if(this.curvesTimeline.lastKeyFramesSelected.length && this.curvesTimeline.lastKeyFramesSelected[0][1] == tracks[i].idx) {
-        //         trackType = tracks[i].type;                            
-        //     }
-        // }
 
         for(let area in areas) {
             let panel = new LX.Panel({id: "au-"+ area});

@@ -853,21 +853,19 @@ class Timeline {
                 this.grabbingScroll = false;
                 this.movingKeys = false;
                 this.timeBeforeMove = null;
+                this.boxSelection = false;
                 return;
             }
             // this.canvas.style.cursor = "default";
             const discard = this.movingKeys || (LX.UTILS.getTime() - this.clickTime) > 420; // ms
-
 
             e.discard = discard;
         
             if(e.localY <= this.topMargin && !e.shiftKey) { // clicked on timing bar
                 this.currentTime = Math.max(0, time);
                 LX.emit( "@on_current_time_" + this.constructor.name, t);
-                return;
             }
-            
-            if( e.button == 0 && this.onMouseUp ) {
+            else if( e.button == 0 && this.onMouseUp ) {
                 this.onMouseUp(e, time);
             }
 
@@ -1328,10 +1326,6 @@ class KeyFramesTimeline extends Timeline {
         
         this.tracksPerItem = {};
         
-        // this.selectedItems = selectedItems;
-        this.autoKeyEnabled = false;
-
-
         if(this.animationClip && this.animationClip.tracks.length) {
             this.processTracks(this.animationClip);
         }
@@ -1396,26 +1390,25 @@ class KeyFramesTimeline extends Timeline {
             // Set pre-move state
             this.moveKeyMinTime = Infinity;
             for(let selectedKey of this.lastKeyFramesSelected) {
-                let [name, idx, keyIndex] = selectedKey;
-                let trackInfo = this.tracksPerItem[name][idx];
+                let [name, localTrackIdx, keyIndex, trackIdx, keyTime] = selectedKey;
+                const track = this.tracksPerItem[name][localTrackIdx];
                 
                 // save track states only once
                 if (this.moveKeyMinTime < Infinity){
                     let state = this.trackStateUndo[this.trackStateUndo.length-1];
                     let s = 0;
                     for( s = 0; s < state.length; ++s){
-                        if ( state[s].trackIdx == trackInfo.clipIdx ){ break; }
+                        if ( state[s].trackIdx == track.clipIdx ){ break; }
                     }
                     if( s == state.length ){
-                        this.saveState(trackInfo.clipIdx, true);
+                        this.saveState(track.clipIdx, true);
                     }
                 }else{
-                    this.saveState(trackInfo.clipIdx, false);               
+                    this.saveState(track.clipIdx, false);               
                 }
 
-                // (HACK) overwriting trackIdx with keyframe time
-                selectedKey[3] = this.animationClip.tracks[ trackInfo.clipIdx ].times[ keyIndex ]; 
-                this.moveKeyMinTime = Math.min( this.moveKeyMinTime, selectedKey[3] );
+                selectedKey[4] = track.times[keyIndex];
+                this.moveKeyMinTime = Math.min( this.moveKeyMinTime, selectedKey[4] );
             }
             
             this.timeBeforeMove = this.xToTime( localX );
@@ -1449,8 +1442,8 @@ class KeyFramesTimeline extends Timeline {
                 newTime = this.timeBeforeMove - this.moveKeyMinTime;
             }
             // first, update times of the selected frames
-            for(let [name, idx, keyIndex, originalKeyTime] of this.lastKeyFramesSelected) {
-                track = this.tracksPerItem[name][idx];
+            for(let [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] of this.lastKeyFramesSelected) {
+                track = this.tracksPerItem[name][localTrackIdx];
                 if(track && track.locked)
                     continue;
 
@@ -1467,7 +1460,7 @@ class KeyFramesTimeline extends Timeline {
             // for(let [name, idx, keyIndex, keyTime] of this.lastKeyFramesSelected) {
             for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
                 let s = this.lastKeyFramesSelected[i]; // pointer
-                let name = s[0], localTrackIdx = s[1], keyTime = s[3];
+                let name = s[0], localTrackIdx = s[1], keyTime = s[4];
                 track = this.tracksPerItem[name][localTrackIdx];
                 if(track && track.locked)
                     continue;
@@ -1688,39 +1681,6 @@ class KeyFramesTimeline extends Timeline {
         }
 
         ctx.globalAlpha = this.opacity;
-    }
-
-    onUpdateTracks ( keyType ) {
-    
-        if(this.selectedItems == null || this.lastKeyFramesSelected.length || !this.autoKeyEnabled)
-            return;
-
-        for(let i = 0; i < this.selectedItems.length; i++) {
-            let tracks = this.tracksPerItem[this.selectedItems[i]];
-            if(!tracks) continue;
-
-            // Get current track
-            const selectedTrackIdx = tracks.findIndex( t => t.type === keyType );
-            if(selectedTrackIdx < 0)
-                return;
-            let track = tracks[ selectedTrackIdx ];
-            
-            // Add new keyframe
-            const newIdx = this.addKeyFrame( track );
-            if(newIdx === null) 
-                continue;
-
-            // Select it
-            this.lastKeyFramesSelected.push( [track.name, track.idx, newIdx, track.clipIdx] );
-            track.selected[newIdx] = true;
-
-        }
-        //LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
-        // Update time
-        if(this.onSetTime)
-            this.onSetTime(this.currentTime);
-
-        return true; // Handled
     }
 
     // Creates a map for each item -> tracks
@@ -2539,8 +2499,8 @@ class KeyFramesTimeline extends Timeline {
 
     unSelectAllKeyFrames() {
 
-        for(let [name, idx, keyIndex] of this.lastKeyFramesSelected) {
-            this.tracksPerItem[name][idx].selected[keyIndex] = false;
+        for(let [name, localTrackIdx, keyIndex] of this.lastKeyFramesSelected) {
+            this.tracksPerItem[name][localTrackIdx].selected[keyIndex] = false;
         }
 
         // Something has been unselected
@@ -2571,6 +2531,7 @@ class KeyFramesTimeline extends Timeline {
             return false;
         }
 
+        // [ track name string, track idx in item, keyframe, track idx in animation, keyframe time]
         this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex, track.times[frameIdx]] );
         track.selected[frameIdx] = true;
 
@@ -2586,10 +2547,10 @@ class KeyFramesTimeline extends Timeline {
         }
         track.selected[frameIdx] = false;
         
-        const trackIdx = track.idx;
+        const localTrackIdx = track.idx;
         for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
             let sk = this.lastKeyFramesSelected[i];
-            if ( sk[1] == trackIdx && sk[2] == frameIdx ){ 
+            if ( sk[1] == localTrackIdx && sk[2] == frameIdx ){ 
                 this.lastKeyFramesSelected.splice(i, 1);
                 break;
             }
@@ -3955,7 +3916,6 @@ class CurvesTimeline extends Timeline {
         this.tracksPerItem = {};
         
         // this.selectedItems = selectedItems;
-        this.autoKeyEnabled = false;
         this.valueBeforeMove = 0;
         this.range = options.range || [0, 1];
 
@@ -4022,26 +3982,25 @@ class CurvesTimeline extends Timeline {
             // Set pre-move state
             this.moveKeyMinTime = Infinity;
             for(let selectedKey of this.lastKeyFramesSelected) {
-                let [name, idx, keyIndex] = selectedKey;
-                let trackInfo = this.tracksPerItem[name][idx];
+                let [name, localTrackIdx, keyIndex, trackIdx, keyTime] = selectedKey;
+                const track = this.tracksPerItem[name][localTrackIdx];
                                 
                 // save track states only once
                 if (this.moveKeyMinTime < Infinity){
                     let state = this.trackStateUndo[this.trackStateUndo.length-1];
                     let s = 0;
                     for( s = 0; s < state.length; ++s){
-                        if ( state[s].trackIdx == trackInfo.clipIdx ){ break; }
+                        if ( state[s].trackIdx == track.clipIdx ){ break; }
                     }
                     if( s == state.length ){
-                        this.saveState(trackInfo.clipIdx, true);
+                        this.saveState(track.clipIdx, true);
                     }
                 }else{
-                    this.saveState(trackInfo.clipIdx, false);               
+                    this.saveState(track.clipIdx, false);               
                 }
 
-                // (HACK) overwriting trackIdx with keyframe time
-                selectedKey[3] = this.animationClip.tracks[ trackInfo.clipIdx ].times[ keyIndex ]; 
-                this.moveKeyMinTime = Math.min( this.moveKeyMinTime, selectedKey[3] );
+                selectedKey[4] = track.times[ keyIndex ]; // update original time just in case 
+                this.moveKeyMinTime = Math.min( this.moveKeyMinTime, selectedKey[4] );
             }
             
             this.timeBeforeMove = this.xToTime( localX );
@@ -4075,8 +4034,8 @@ class CurvesTimeline extends Timeline {
                 newTime = this.timeBeforeMove - this.moveKeyMinTime;
             }
             // first, update times of the selected frames
-            for(let [name, idx, keyIndex, originalKeyTime] of this.lastKeyFramesSelected) {
-                track = this.tracksPerItem[name][idx];
+            for(let [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] of this.lastKeyFramesSelected) {
+                track = this.tracksPerItem[name][localTrackIdx];
                 if(track && track.locked)
                     continue;
 
@@ -4093,7 +4052,7 @@ class CurvesTimeline extends Timeline {
             // for(let [name, idx, keyIndex, keyTime] of this.lastKeyFramesSelected) {
             for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
                 let s = this.lastKeyFramesSelected[i]; // pointer
-                let name = s[0], localTrackIdx = s[1], keyTime = s[3];
+                let name = s[0], localTrackIdx = s[1], keyTime = s[4];
                 track = this.tracksPerItem[name][localTrackIdx];
                 if(track && track.locked)
                     continue;
@@ -4321,40 +4280,6 @@ class CurvesTimeline extends Timeline {
                 ctx.closePath();
             }
         }
-    }
-
-    onUpdateTracks ( keyType ) {
-    
-        if(this.selectedItems == null || this.lastKeyFramesSelected.length || !this.autoKeyEnabled)
-            return;
-
-        for(let i = 0; i < this.selectedItems.length; i++) {
-            let tracks = this.tracksPerItem[this.selectedItems[i]];
-            if(!tracks) continue;
-
-            // Get current track
-            const selectedTrackIdx = tracks.findIndex( t => t.type === keyType );
-            if(selectedTrackIdx < 0)
-                return;
-            let track = tracks[ selectedTrackIdx ];
-            
-            // Add new keyframe
-            const newIdx = this.addKeyFrame( track );
-            if(newIdx === -1) 
-                continue;
-
-            // Select it
-            this.lastKeyFramesSelected.push( [track.name, track.idx, newIdx] );
-            track.selected[newIdx] = true;
-
-        }
-        
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        // Update time
-        // if(this.onSetTime)
-        //     this.onSetTime(this.currentTime);
-
-        return true; // Handled
     }
 
     // Creates a map for each item -> tracks
@@ -5166,8 +5091,8 @@ class CurvesTimeline extends Timeline {
 
     unSelectAllKeyFrames() {
 
-        for(let [name, idx, keyIndex] of this.lastKeyFramesSelected) {
-            this.tracksPerItem[name][idx].selected[keyIndex] = false;
+        for(let [name, localTrackIdx, keyIndex] of this.lastKeyFramesSelected) {
+            this.tracksPerItem[name][localTrackIdx].selected[keyIndex] = false;
         }
 
         // Something has been unselected
@@ -5198,7 +5123,8 @@ class CurvesTimeline extends Timeline {
             return false;
         }
 
-        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIdx] );
+        // [ track name string, track idx in item, keyframe, track idx in animation, keyframe time]
+        this.lastKeyFramesSelected.push( [track.name, track.idx, frameIdx, track.clipIndex, track.times[frameIdx]] );
         track.selected[frameIdx] = true;
 
         return true;
@@ -5213,10 +5139,10 @@ class CurvesTimeline extends Timeline {
         }
         track.selected[frameIdx] = false;
         
-        const trackIdx = track.idx;
+        const localTrackIdx = track.idx;
         for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
             let sk = this.lastKeyFramesSelected[i];
-            if ( sk[1] == trackIdx && sk[2] == frameIdx ){ 
+            if ( sk[1] == localTrackIdx && sk[2] == frameIdx ){ 
                 this.lastKeyFramesSelected.splice(i, 1);
                 break;
             }

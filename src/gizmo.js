@@ -579,13 +579,10 @@ class Gizmo {
         let timeline = this.editor.gui.keyFramesTimeline;
         let keyType = Gizmo.ModeToKeyType[ this.editor.getGizmoMode() ];
 
-        if(timeline.onUpdateTracks( keyType ))
-        return; // Return if event handled
-
         if(!timeline.getNumKeyFramesSelected())
         return;
 
-        let [name, trackIndex, keyFrameIndex] = timeline.lastKeyFramesSelected[0];
+        let [name, localTrackIndex, keyFrameIndex] = timeline.lastKeyFramesSelected[0];
         let track = timeline.getTrack(timeline.lastKeyFramesSelected[0]);
 
         // Don't store info if we are using wrong mode for that track

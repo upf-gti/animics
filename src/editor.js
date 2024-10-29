@@ -64,7 +64,7 @@ class Editor {
         this.editionModes = {CAPTURE: 0, VIDEO: 1, SCRIPT: 2};
         this.mode = this.editionModes[mode];
 
-        this.delayedResizeID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
+        this.delayedResizeID = null;
         this.delayedResizeTime = 500; //ms
 
         // Keep "private"
@@ -2115,7 +2115,9 @@ class KeyframeEditor extends Editor{
                 let frameIdx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], this.activeTimeline.currentTime, 0.01)
                 if ( frameIdx > -1 ){
                     // Update Action Unit keyframe value of timeline animation
+                    let oldValue = this.activeTimeline.animationClip.tracks[i].values[frameIdx]; // HACK
                     this.activeTimeline.animationClip.tracks[i].values[frameIdx] = auAnimation.tracks[i].values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
+                    this.activeTimeline.animationClip.tracks[i].edited[frameIdx] = auAnimation.tracks[i].edited[frameIdx] |= oldValue != value; // activeTimeline.animationClip == auAnimation               
                     
                     // Update animation action (mixer) interpolants.
                     this.updateAnimationAction(auAnimation, i );
