@@ -1934,7 +1934,10 @@ class KeyframeEditor extends Editor{
                                 let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
                                 let boneIdx = findIndexOfBoneByName(skeleton, track.name);
                                 let parentIdx = findIndexOfBone(skeleton, skeleton.bones[boneIdx].parent);
-                                let localBind = invMats[boneIdx].clone().invert().premultiply(invMats[parentIdx]);
+                                let localBind = invMats[boneIdx].clone().invert();
+                                if ( parentIdx > -1 ){ 
+                                    localBind.premultiply(invMats[parentIdx]); 
+                                }
                                 let p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
                                 localBind.decompose( p,q,s );
                                 // assuming quats and position only. Missing Scale
