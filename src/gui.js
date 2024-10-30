@@ -1792,7 +1792,7 @@ class KeyframesGui extends Gui {
                 this.editor.currentCharacter.skeletonHelper.getBoneByName(o.itemSelected) : 
                 this.editor.currentCharacter.skeletonHelper.bones[0];
 
-            if(boneSelected) {
+            if(boneSelected && this.keyFramesTimeline.lastKeyFramesSelected.length == 1) {
 
                 const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
                 

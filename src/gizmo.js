@@ -579,7 +579,7 @@ class Gizmo {
         let timeline = this.editor.gui.keyFramesTimeline;
         let keyType = Gizmo.ModeToKeyType[ this.editor.getGizmoMode() ];
 
-        if(!timeline.getNumKeyFramesSelected())
+        if(timeline.getNumKeyFramesSelected() != 1)
         return;
 
         let [name, localTrackIndex, keyFrameIndex] = timeline.lastKeyFramesSelected[0];
