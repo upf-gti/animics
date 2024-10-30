@@ -52,7 +52,11 @@ class Timeline {
         this.trackStateSaveEnabler = true; // used in saveState
         this.trackStateMaxSteps = 100; // used in saveState
         this.clipboard = null;
+        this.grabbing = false;
         this.grabTime = 0;
+        this.grabbingTimeBar = false;
+        this.grabbingScroll = false;
+        this.movingKeys = false;
         this.timeBeforeMove = 0;
         this.tracksPerItem = {};
         this.tracksDictionary = {};
@@ -791,10 +795,10 @@ class Timeline {
         let localY = e.offsetY - this.position[1];
 
         let timeX = this.timeToX( this.currentTime );
-        let current_grabbing_timeline = localY < this.topMargin && localX > this.session.left_margin && 
+        let isHoveringTimeBar = localY < this.topMargin && localX > this.session.left_margin && 
         localX > (timeX - 6) && localX < (timeX + 6);
 
-        if( current_grabbing_timeline ) {
+        if( isHoveringTimeBar ) {
             this.canvas.style.cursor = "col-resize";
         }
         else if(this.movingKeys) {
@@ -848,8 +852,8 @@ class Timeline {
         if( e.type == "mouseup" )
         {
             if(!this.active) {
-                this.grabbing_timeline = false;
                 this.grabbing = false;
+                this.grabbingTimeBar = false;
                 this.grabbingScroll = false;
                 this.movingKeys = false;
                 this.timeBeforeMove = null;
@@ -860,17 +864,13 @@ class Timeline {
             const discard = this.movingKeys || (LX.UTILS.getTime() - this.clickTime) > 420; // ms
 
             e.discard = discard;
-        
-            if(e.localY <= this.topMargin && !e.shiftKey) { // clicked on timing bar
-                this.currentTime = Math.max(0, time);
-                LX.emit( "@on_current_time_" + this.constructor.name, t);
-            }
-            else if( e.button == 0 && this.onMouseUp ) {
+ 
+            if( !this.grabbingScroll && !this.grabbingTimeBar && e.button == 0 && this.onMouseUp ) {
                 this.onMouseUp(e, time);
             }
 
-            this.grabbing_timeline = false;
             this.grabbing = false;
+            this.grabbingTimeBar = false;
             this.grabbingScroll = false;
             this.movingKeys = false;
             this.timeBeforeMove = null;
@@ -892,17 +892,21 @@ class Timeline {
                 this.boxSelectionEnd[1] = this.boxSelectionStart[1] = localY - this.topMargin;
                 return; // Handled
             }
-            else if( h < this.scrollableHeight && x > w - 10 ) { // grabbing scroll bar
-                this.grabbingScroll = true;
+            else if( e.localY < this.topMargin ){
                 this.grabbing = true;
+                this.grabbingTimeBar = true;
+                this.currentTime = Math.min(this.duration, time);
+                LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
+            }
+            else if( h < this.scrollableHeight && x > w - 10 ) { // grabbing scroll bar
+                this.grabbing = true;
+                this.grabbingScroll = true;
             }
             else { // grabbing canvas
                 
                 this.grabbing = true;
                 this.grabTime = time;
-                if(!track || track && this.getCurrentContent(track, time, 0.001) == -1) {
-                    this.grabbing_timeline = current_grabbing_timeline;
-                }
+                this.grabbingTimeBar = isHoveringTimeBar;
                 if(this.onMouseDown && this.active )
                     this.onMouseDown(e, time);
             }
@@ -916,10 +920,8 @@ class Timeline {
             }
             else if(this.grabbing && e.button !=2 && !this.movingKeys ) { // e.buttons != 2 on mousemove needs to be plural
                 this.canvas.style.cursor = "grabbing"; 
-                if(this.grabbing_timeline && this.active)
+                if(this.grabbingTimeBar && this.active)
                 {
-                    let time = this.xToTime( localX );
-                    time = Math.max(0, time);
                     this.currentTime = Math.min(this.duration, time);
                     LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
                 }
@@ -2958,7 +2960,8 @@ class ClipsTimeline extends Timeline {
 
                 this.movingKeys = true;
 
-                if ( e.altKey ){    // move clips vertically
+                // move clips vertically
+                if ( e.altKey ){  
                     const lastTrackClipsMove = this.lastTrackClipsMove;
                     this.lastTrackClipsMove = Math.floor( (e.localY - this.topMargin + this.leftPanel.root.children[1].scrollTop) / this.trackHeight );
                     let deltaTracks = this.lastTrackClipsMove - lastTrackClipsMove;
@@ -3049,113 +3052,112 @@ class ClipsTimeline extends Timeline {
                         this.trackStateSaveEnabler = oldStateEnabler;
                         return;
                     }
-                }else{ // move clips horizontally
+                }
+                // move clips horizontally
 
-                    let leastDelta = delta;
-                    let moveAccepted = true;
-    
-                    // find if all clips can move and/or how much they can move
-                    for( let i = 0; i < this.lastClipsSelected.length; ++i ){
-                        let trackIdx = this.lastClipsSelected[i][0];
-                        let clipIdx = this.lastClipsSelected[i][1];
-                        const track = this.animationClip.tracks[trackIdx];
-                        const trackClips = track.clips;
-                        const clip = track.clips[clipIdx];
-    
-                        if ( delta >= 0 ){
-                            if ( trackClips.length-1 == clipIdx ){ continue; } // all alowed
-                            if ( !track.selected[clipIdx+1] ){ // if next is selected, force AllOrNothing and let next clip manage the leastDelta
-                                if( trackClips[clipIdx + 1].start >= (clip.start+clip.duration+delta) ){ continue; } //has not reached next clip. Enough space. All allowed
-                                const nextClip = trackClips[clipIdx + 1];
-                                leastDelta = Math.max( 0, Math.min( leastDelta,  nextClip.start - clip.start - clip.duration ) );
-                            }
-                        }
-                        else if ( delta < 0 ){
-                            if ( clipIdx > 0 && (trackClips[clipIdx - 1].start + trackClips[clipIdx - 1].duration) <= (clip.start+delta) ){ continue; } // has not reached previous clip. Enough space
-                            if( clipIdx > 0 ){
-                                const prevClip = trackClips[clipIdx - 1];
-                                leastDelta = Math.min( 0, Math.max( leastDelta,  prevClip.start + prevClip.duration - clip.start ) ); // delta is a negative value, that is why the leastDelta is the max
-                            }
-                            if ( clip.start + delta < 0 ){ 
-                                leastDelta = Math.max(leastDelta, -clip.start);
-                                moveAccepted = false; // force it to be a leastDelta move only. No jumps
-                            }
-                        }
-    
-                        if( !moveAccepted ){ continue; }
-                        let clipsInRange = this.getClipsInRange(track, clip.start + delta, clip.start + clip.duration + delta, 0.01); 
-                        if ( clipsInRange && (clipsInRange[0] != clipIdx || clipsInRange[clipsInRange.length-1] != clipIdx)){
-                            for( let c = 0; c < clipsInRange.length; ++c ){
-                                if ( !track.selected[clipsInRange[c]] ){ moveAccepted = false; break; }
-                            }
+                let leastDelta = delta;
+                let moveAccepted = true;
+
+                // find if all clips can move and/or how much they can move
+                for( let i = 0; i < this.lastClipsSelected.length; ++i ){
+                    let trackIdx = this.lastClipsSelected[i][0];
+                    let clipIdx = this.lastClipsSelected[i][1];
+                    const track = this.animationClip.tracks[trackIdx];
+                    const trackClips = track.clips;
+                    const clip = track.clips[clipIdx];
+
+                    if ( delta >= 0 ){
+                        if ( trackClips.length-1 == clipIdx ){ continue; } // all alowed
+                        if ( !track.selected[clipIdx+1] ){ // if next is selected, force AllOrNothing and let next clip manage the leastDelta
+                            if( trackClips[clipIdx + 1].start >= (clip.start+clip.duration+delta) ){ continue; } //has not reached next clip. Enough space. All allowed
+                            const nextClip = trackClips[clipIdx + 1];
+                            leastDelta = Math.max( 0, Math.min( leastDelta,  nextClip.start - clip.start - clip.duration ) );
                         }
                     }
-    
-                    // if moveAccepted -> use full delta
-                    // if !moveAccepted -> use leastDelta
-                    if ( moveAccepted ){ leastDelta = delta; }
-                    this.grabTime = time - delta + leastDelta;
-    
-    
-                    //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
-                    // move all selected clips using the computed delta. 
-                    for( let i = 0; i < this.lastClipsSelected.length; ++i ){
-                        const lcs = this.lastClipsSelected[ delta > 0 ? (this.lastClipsSelected.length - 1 - i) : i]; //delta > 0, move last-to-first; delta < 0, move first-to-last
-                        const track = this.animationClip.tracks[lcs[0]];
-                        const trackClips = track.clips;
-                        let clipIdx = lcs[1];
-                        const clip = track.clips[clipIdx];
-                        clip.start += leastDelta;
-                        clip.fadein += leastDelta;
-                        clip.fadeout += leastDelta;
-    
-                        // prepare swap
-                        const editedFlag = track.edited[clipIdx]; 
-                        const selectedFlag = track.selected[clipIdx]; 
-                        const hoveredFlag = track.hovered[clipIdx]; 
-    
-                        // move other clips
-                        if ( delta > 0 ){
-                            while( clipIdx < trackClips.length-1 ){
-                                if ( trackClips[clipIdx+1].start >= clip.start ){
-                                    break;
-                                }
-                                trackClips[clipIdx] = trackClips[clipIdx+1];
-                                track.selected[clipIdx] = track.selected[clipIdx+1];
-                                track.edited[clipIdx] = track.edited[clipIdx+1];
-                                track.hovered[clipIdx] = track.hovered[clipIdx+1];
-                                clipIdx++;
-                            }
-                        }else{
-                            while( clipIdx > 0 ){
-                                if ( trackClips[clipIdx-1].start <= clip.start ){
-                                    break;
-                                }
-                                trackClips[clipIdx] = trackClips[clipIdx-1];
-                                track.selected[clipIdx] = track.selected[clipIdx-1];
-                                track.edited[clipIdx] = track.edited[clipIdx-1];
-                                track.hovered[clipIdx] = track.hovered[clipIdx-1];
-                                clipIdx--;
-                            }
-                        }    
-                        // commit swap
-                        trackClips[clipIdx] = clip;
-                        track.edited[clipIdx] = editedFlag; 
-                        track.selected[clipIdx] = selectedFlag; 
-                        track.hovered[clipIdx] = hoveredFlag; 
-    
-                        // update selected clip index
-                        lcs[1] = clipIdx;
-    
-                        if ( clip.start + clip.duration > this.duration ){
-                            this.setDuration( clip.start + clip.duration );
+                    else if ( delta < 0 ){
+                        if ( clipIdx > 0 && (trackClips[clipIdx - 1].start + trackClips[clipIdx - 1].duration) <= (clip.start+delta) ){ continue; } // has not reached previous clip. Enough space
+                        if( clipIdx > 0 ){
+                            const prevClip = trackClips[clipIdx - 1];
+                            leastDelta = Math.min( 0, Math.max( leastDelta,  prevClip.start + prevClip.duration - clip.start ) ); // delta is a negative value, that is why the leastDelta is the max
                         }
-                        if(this.onContentMoved) {
-                            this.onContentMoved(clip, leastDelta);
+                        if ( clip.start + delta < 0 ){ 
+                            leastDelta = Math.max(leastDelta, -clip.start);
+                            moveAccepted = false; // force it to be a leastDelta move only. No jumps
+                        }
+                    }
+
+                    if( !moveAccepted ){ continue; }
+                    let clipsInRange = this.getClipsInRange(track, clip.start + delta, clip.start + clip.duration + delta, 0.01); 
+                    if ( clipsInRange && (clipsInRange[0] != clipIdx || clipsInRange[clipsInRange.length-1] != clipIdx)){
+                        for( let c = 0; c < clipsInRange.length; ++c ){
+                            if ( !track.selected[clipsInRange[c]] ){ moveAccepted = false; break; }
                         }
                     }
                 }
 
+                // if moveAccepted -> use full delta
+                // if !moveAccepted -> use leastDelta
+                if ( moveAccepted ){ leastDelta = delta; }
+                this.grabTime = time - delta + leastDelta;
+
+
+                //*********** WARNING: RELIES ON SORTED lastClipsSelected ***********
+                // move all selected clips using the computed delta. 
+                for( let i = 0; i < this.lastClipsSelected.length; ++i ){
+                    const lcs = this.lastClipsSelected[ delta > 0 ? (this.lastClipsSelected.length - 1 - i) : i]; //delta > 0, move last-to-first; delta < 0, move first-to-last
+                    const track = this.animationClip.tracks[lcs[0]];
+                    const trackClips = track.clips;
+                    let clipIdx = lcs[1];
+                    const clip = track.clips[clipIdx];
+                    clip.start += leastDelta;
+                    clip.fadein += leastDelta;
+                    clip.fadeout += leastDelta;
+
+                    // prepare swap
+                    const editedFlag = track.edited[clipIdx]; 
+                    const selectedFlag = track.selected[clipIdx]; 
+                    const hoveredFlag = track.hovered[clipIdx]; 
+
+                    // move other clips
+                    if ( delta > 0 ){
+                        while( clipIdx < trackClips.length-1 ){
+                            if ( trackClips[clipIdx+1].start >= clip.start ){
+                                break;
+                            }
+                            trackClips[clipIdx] = trackClips[clipIdx+1];
+                            track.selected[clipIdx] = track.selected[clipIdx+1];
+                            track.edited[clipIdx] = track.edited[clipIdx+1];
+                            track.hovered[clipIdx] = track.hovered[clipIdx+1];
+                            clipIdx++;
+                        }
+                    }else{
+                        while( clipIdx > 0 ){
+                            if ( trackClips[clipIdx-1].start <= clip.start ){
+                                break;
+                            }
+                            trackClips[clipIdx] = trackClips[clipIdx-1];
+                            track.selected[clipIdx] = track.selected[clipIdx-1];
+                            track.edited[clipIdx] = track.edited[clipIdx-1];
+                            track.hovered[clipIdx] = track.hovered[clipIdx-1];
+                            clipIdx--;
+                        }
+                    }    
+                    // commit swap
+                    trackClips[clipIdx] = clip;
+                    track.edited[clipIdx] = editedFlag; 
+                    track.selected[clipIdx] = selectedFlag; 
+                    track.hovered[clipIdx] = hoveredFlag; 
+
+                    // update selected clip index
+                    lcs[1] = clipIdx;
+
+                    if ( clip.start + clip.duration > this.duration ){
+                        this.setDuration( clip.start + clip.duration );
+                    }
+                    if(this.onContentMoved) {
+                        this.onContentMoved(clip, leastDelta);
+                    }
+                }
             }
             
             return true;
