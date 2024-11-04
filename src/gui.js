@@ -1151,7 +1151,7 @@ class KeyframesGui extends Gui {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
                                 let [id, localTrackIdx, keyIdx] = this.lastKeyFramesSelected[0];
-                                this.pasteKeyFrameValue(e, this.tracksPerItem[id][localTrackIdx], keyIdx);
+                                this.pasteKeyFrameValue(e, this.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
                             }
                         }
                     )
@@ -1632,7 +1632,7 @@ class KeyframesGui extends Gui {
         if(trackIdx == undefined) {
 
             const selectedItems = this.curvesTimeline.selectedItems || [];
-            const tracksPerItem = this.curvesTimeline.tracksPerItem;
+            const tracksPerItem = this.curvesTimeline.animationClip.tracksPerItem;
             for( let i = 0; i < selectedItems.length; ++i ){
                 const itemTracks = tracksPerItem[selectedItems[i]] || [];
                 for( let t = 0; t < itemTracks.length; ++t ){
@@ -1692,7 +1692,7 @@ class KeyframesGui extends Gui {
                             
                             this.editor.activeTimeline = this.keyFramesTimeline;
                             this.keyFramesTimeline.setSelectedItems( [itemSelected] );
-							let t = this.keyFramesTimeline.tracksPerItem[itemSelected][0];
+							let t = this.keyFramesTimeline.animationClip.tracksPerItem[itemSelected][0];
 							let keyframe = this.keyFramesTimeline.getCurrentKeyFrame(t, this.keyFramesTimeline.currentTime, 0.1 );
 							this.keyFramesTimeline.processCurrentKeyFrame( {}, keyframe, t, null, false );
 					        this.selectedItems = [itemSelected];
@@ -1799,8 +1799,7 @@ class KeyframesGui extends Gui {
                 let trackType = this.editor.getGizmoMode();
                 let tracks = null;
                 if(this.keyFramesTimeline.selectedItems.length) {
-                    tracks = this.keyFramesTimeline.tracksPerItem[this.keyFramesTimeline.selectedItems[0]];
-                    // trackType = this.keyFramesTimeline.tracksPerItem[this.keyFramesTimeline.selectedItems[0]][0].type;
+                    tracks = this.keyFramesTimeline.animationClip.tracksPerItem[this.keyFramesTimeline.selectedItems[0]];
                 }
 
                 let active = this.editor.getGizmoMode();

@@ -58,8 +58,6 @@ class Timeline {
         this.grabbingScroll = false;
         this.movingKeys = false;
         this.timeBeforeMove = 0;
-        this.tracksPerItem = {};
-        this.tracksDictionary = {};
 
         this.onBeforeCreateTopBar = options.onBeforeCreateTopBar;
         this.onAfterCreateTopBar = options.onAfterCreateTopBar;
@@ -215,7 +213,7 @@ class Timeline {
                 d.addNumber("Framerate", this.framerate, (v) => {
                     this.framerate = v;
                 }, {min: 0, disabled: false});
-                d.addNumber("Num items", Object.keys(this.tracksPerItem).length, null, {disabled: true});
+                d.addNumber("Num items", Object.keys(this.animationClip.tracksPerItem).length, null, {disabled: true});
                 d.addNumber("Num tracks", this.animationClip ? this.animationClip.tracks.length : 0, null, {disabled: true});
                 if(this.onShowOptimizeMenu)
                     d.addNumber("Optimize Threshold", this.optimizeThreshold, v => {
@@ -270,6 +268,7 @@ class Timeline {
         if(this.animationClip && this.selectedItems)  {
             let items = {'id': '', 'children': []};
 
+            const tracksPerItem = this.animationClip.tracksPerItem;
             for(let i = 0; i < this.selectedItems.length; i++ ) {
                 let selected = this.selectedItems[i];
                 let t = {
@@ -277,8 +276,8 @@ class Timeline {
                     'skipVisibility': true,
                     'children': []
                 }
-                for(let j = 0; j < this.tracksPerItem[selected].length; j++) {
-                    let track = this.tracksPerItem[selected][j];
+                for(let j = 0; j < tracksPerItem[selected].length; j++) {
+                    let track = tracksPerItem[selected][j];
                     let id = track.type ? track.type : track.name;
 
                     t.children.push({'id': id, 'skipVisibility': this.skipVisibility, visible: track.active, /*selected: track.isSelected,*/ 'children':[], actions : this.skipLock ? null : [{
@@ -298,7 +297,7 @@ class Timeline {
                                 el.classList.remove('fa-lock-open');
                                 el.classList.add('fa-lock');                                 
                             }
-                            let tracks = this.tracksPerItem[node.parent.id];
+                            let tracks = tracksPerItem[node.parent.id];
                             let type = node.id.replaceAll(node.parent.id, "").replaceAll(" (", "").replaceAll(")","");
                             let track = null;
                             for(let i = 0; i < tracks.length; i++) {
@@ -1165,13 +1164,13 @@ class Timeline {
             type = name;
             name = trackInfo.parent ? trackInfo.parent.id : trackInfo.id;
         }
-        let tracks = this.tracksPerItem[name];
+        const tracksInItem = this.animationClip.tracksPerItem[name];
 
         for(let i = 0; i < tracks.length; i++) {
-            if(tracks[i].type != type && tracks.length > 1)
+            if(tracksInItem[i].type != type && tracksInItem.length > 1)
                 continue;
-            this.tracksPerItem[name][i].isSelected = true;
-            trackInfo = this.tracksPerItem[name][i];
+            tracksInItem[i].isSelected = true;
+            trackInfo = tracksInItem[i];
         }
         
         if(this.onSelectTrack)
@@ -1181,7 +1180,7 @@ class Timeline {
     unSelectAllTracks() {
         for(let i = 0; i < this.selectedItems.length; i++) {
             let item = this.selectedItems[i];
-            let tracks = this.tracksPerItem[item];
+            let tracks = this.animationClip.tracksPerItem[item];
             for(let t = 0; t < tracks.length; t++) {
                 tracks[t].isSelected = false;
             }
@@ -1202,7 +1201,7 @@ class Timeline {
             name = trackInfo.parent ? trackInfo.parent.id : trackInfo.id;
         }
         trackInfo = {name, type};
-        let tracks = this.tracksPerItem[name];
+        let tracks = this.animationClip.tracksPerItem[name];
 
         for(let i = 0; i < tracks.length; i++) {
             if(tracks[i].type == type || tracks.length == 1){
@@ -1234,14 +1233,12 @@ class Timeline {
                 type = name;
                 name = trackInfo.parent ? trackInfo.parent.id : trackInfo.id;
             }
-            //trackInfo = {name, type};
-            let tracks = this.tracksPerItem[name];
+            const tracksInItem = this.animationClip.tracksPerItem[name];
 
             for(let i = 0; i < tracks.length; i++) {
-                if(tracks[i].type != type && tracks.length > 1)
+                if(tracksInItem[i].type != type && tracksInItem.length > 1)
                     continue;
-                    this.tracksPerItem[name][i].hide = hide;
-              //      trackInfo = this.tracksPerItem[name][i];
+                tracksInItem[i].hide = hide;
             }
         }
         
@@ -1325,9 +1322,7 @@ class KeyFramesTimeline extends Timeline {
     constructor(name, options = {}) {
 
         super(name, options);
-        
-        this.tracksPerItem = {};
-        
+               
         if(this.animationClip && this.animationClip.tracks.length) {
             this.processTracks(this.animationClip);
         }
@@ -1391,9 +1386,10 @@ class KeyFramesTimeline extends Timeline {
 
             // Set pre-move state
             this.moveKeyMinTime = Infinity;
+            const tracksPerItem = this.animationClip.tracksPerItem;
             for(let selectedKey of this.lastKeyFramesSelected) {
                 let [name, localTrackIdx, keyIndex, trackIdx, keyTime] = selectedKey;
-                const track = this.tracksPerItem[name][localTrackIdx];
+                const track = tracksPerItem[name][localTrackIdx];
                 
                 // save track states only once
                 if (this.moveKeyMinTime < Infinity){
@@ -1446,7 +1442,7 @@ class KeyFramesTimeline extends Timeline {
             }
             this.timeBeforeMove = this.timeBeforeMove + deltaTime;
             this.moveKeyMinTime += deltaTime;
-
+            const tracksPerItem = this.animationClip.tracksPerItem;
             for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
                 let idx = i;
                 if ( deltaTime > 0 ){
@@ -1454,7 +1450,7 @@ class KeyFramesTimeline extends Timeline {
                 }
                 
                 const [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] = this.lastKeyFramesSelected[idx];
-                track = this.tracksPerItem[name][localTrackIdx];
+                track = tracksPerItem[name][localTrackIdx];
                 if(track && track.locked)
                     continue;
 
@@ -1497,8 +1493,8 @@ class KeyFramesTimeline extends Timeline {
             let keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
             if(keyFrameIndex > -1 ) {
                 
-                const name = this.tracksDictionary[track.fullname]; 
-                let t = this.tracksPerItem[ name ][track.idx];
+                const name = this.animationClip.tracksDictionary[track.fullname]; 
+                let t = this.animationClip.tracksPerItem[ name ][track.idx];
                 if(t && t.locked)
                     return;
                 
@@ -1526,7 +1522,7 @@ class KeyFramesTimeline extends Timeline {
                         title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                         callback: () => {
                             let [id, trackIdx, keyIdx] = this.lastKeyFramesSelected[0];
-                            this.pasteKeyFrameValue(null, this.tracksPerItem[id][trackIdx], keyIdx);
+                            this.pasteKeyFrameValue(null, this.animationClip.tracksPerItem[id][trackIdx], keyIdx);
                         }
                     }
                 )
@@ -1579,15 +1575,16 @@ class KeyFramesTimeline extends Timeline {
 
     drawContent( ctx, timeStart, timeEnd ) {
     
-        if(!this.animationClip || this.selectedItems == null || !this.tracksPerItem) 
+        if(!this.animationClip || this.selectedItems == null || !this.animationClip.tracksPerItem) 
             return;
         
         ctx.save();
         this.scrollableHeight = this.topMargin;
 
         let offset = this.trackHeight;
+        const tracksPerItem = this.animationClip.tracksPerItem;
         for(let t = 0; t < this.selectedItems.length; t++) {
-            let tracks = this.tracksPerItem[this.selectedItems[t]] ? this.tracksPerItem[this.selectedItems[t]] : [{name: this.selectedItems[t]}];
+            let tracks = tracksPerItem[this.selectedItems[t]] ? tracksPerItem[this.selectedItems[t]] : [{name: this.selectedItems[t]}];
             if(!tracks) continue;
             
             const height = this.trackHeight;
@@ -1689,15 +1686,17 @@ class KeyFramesTimeline extends Timeline {
     // Creates a map for each item -> tracks
     processTracks(animation) {
 
-        this.tracksPerItem = {};
-        this.tracksDictionary = {};
         this.animationClip = {
             name: (animation && animation.name) ? animation.name : "animationClip",
             duration: animation ? animation.duration : 0,
             speed: (animation && animation.speed ) ? animation.speed : this.speed,
-            tracks: []
+            tracks: [],
+            tracksPerItem: {},
+            tracksDictionary: {}
         };
         if (animation && animation.tracks) {
+            let tracksPerItem = {};
+            let tracksDictionary = {};
             for( let i = 0; i < animation.tracks.length; ++i ) {
                 
                 let track = animation.tracks[i];
@@ -1727,23 +1726,25 @@ class KeyFramesTimeline extends Timeline {
                     values: values
                 };
                 
-                if(!this.tracksPerItem[name]) {
-                    this.tracksPerItem[name] = [trackInfo];
+                if(!tracksPerItem[name]) {
+                    tracksPerItem[name] = [trackInfo];
                 }else {
-                    this.tracksPerItem[name].push( trackInfo );
+                    tracksPerItem[name].push( trackInfo );
                 }
                 
-                
-                const trackIndex = this.tracksPerItem[name].length - 1;
+                const trackIndex = tracksPerItem[name].length - 1;
                 trackInfo.idx = trackIndex; // index of track in "name"
                 trackInfo.clipIdx = i; // index of track in the entire animation
                 
                 // Save index also in original track
                 track.idx = trackIndex;
-                this.tracksDictionary[track.name] = name; // map original track name with shortened one
+                tracksDictionary[track.name] = name; // map original track name with shortened one
                 
                 this.animationClip.tracks.push(trackInfo);
             }
+
+            this.animationClip.tracksPerItem = tracksPerItem;
+            this.animationClip.tracksDictionary = tracksDictionary;
         }
         this.resize();
     }
@@ -1869,9 +1870,9 @@ class KeyFramesTimeline extends Timeline {
 
 
     getNumTracks( item ) {
-        if(!item || !this.tracksPerItem)
-            return;
-        const tracks = this.tracksPerItem[item.name];
+        if(!item || !this.animationClip.tracksPerItem)
+            return 0;
+        const tracks = this.animationClip.tracksPerItem[item.name];
         return tracks ? tracks.length : null;
     }
 
@@ -1883,14 +1884,10 @@ class KeyFramesTimeline extends Timeline {
 
         let tracks = [];
         for(let i = 0; i < this.selectedItems.length; i++) {
-
-            tracks = [...tracks, ...this.tracksPerItem[this.selectedItems[i]]];
-            if(!tracks) continue;
-
+            tracks = [...tracks, ...this.animationClip.tracksPerItem[this.selectedItems[i]]];
         }
         if(!tracks.length) return;
 
-        const threshold = this.onGetOptimizeThreshold ? this.onGetOptimizeThreshold() : 0.025;
         LX.addContextMenu("Optimize", e, m => {
             for( let t of tracks ) {
                 m.add( t.name + (t.type ? "@" + t.type : ""), () => { 
@@ -2022,9 +2019,10 @@ class KeyFramesTimeline extends Timeline {
         
         // sort keyframes selected by track
         let toCopy = {};
+        const tracksPerItem = this.animationClip.tracksPerItem;
         for(let i = 0; i < this.lastKeyFramesSelected.length; i++){
             let [id, localTrackIdx, keyIdx] = this.lastKeyFramesSelected[i];
-            let track = this.tracksPerItem[id][localTrackIdx];
+            let track = tracksPerItem[id][localTrackIdx];
             let trackIdx = track.clipIdx;
 
             if(toCopy[trackIdx]) {
@@ -2089,7 +2087,7 @@ class KeyFramesTimeline extends Timeline {
         if(this.clipboard.value && this.lastKeyFramesSelected.length == 1) {
 
             let [id, localTrackIdx, keyIdx] = this.lastKeyFramesSelected[0];
-            this.pasteKeyFrameValue({}, this.tracksPerItem[id][localTrackIdx], keyIdx);
+            this.pasteKeyFrameValue({}, this.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
         }
 
         // create new keyframes from the ones copied 
@@ -2151,7 +2149,7 @@ class KeyFramesTimeline extends Timeline {
 
         // Copy to every selected key
         for(let [name, localTrackIdx, keyIndex] of this.lastKeyFramesSelected) {
-            this.#paste( this.tracksPerItem[name][localTrackIdx], keyIndex );
+            this.#paste( this.animationClip.tracksPerItem[name][localTrackIdx], keyIndex );
         }
     }
 
@@ -2338,7 +2336,7 @@ class KeyFramesTimeline extends Timeline {
 
                 pts = pts.sort( (a,b) => b[2] - a[2] ); // sort by keyframe index (descending)
 
-                const track = this.tracksPerItem[pts[0][0]][pts[0][1]];
+                const track = this.animationClip.tracksPerItem[pts[0][0]][pts[0][1]];
                 this.saveState(track.clipIdx); 
 
                 // Delete every selected key starting with the last one in the track
@@ -2380,7 +2378,7 @@ class KeyFramesTimeline extends Timeline {
 
     getTrack( trackInfo )  {
         const [name, trackIndex] = trackInfo;
-        return this.tracksPerItem[ name ][trackIndex];
+        return this.animationClip.tracksPerItem[ name ][trackIndex];
     }
 
     getTrackName( uglyName ) {
@@ -2497,7 +2495,7 @@ class KeyFramesTimeline extends Timeline {
 
     unHoverAll(){
         if(this.lastHovered) {
-            this.tracksPerItem[ this.lastHovered[0] ][ this.lastHovered[1] ].hovered[ this.lastHovered[2] ] = false;
+            this.animationClip.tracksPerItem[ this.lastHovered[0] ][ this.lastHovered[1] ].hovered[ this.lastHovered[2] ] = false;
         }
         let h = this.lastHovered;
         this.lastHovered = null;
@@ -2507,7 +2505,7 @@ class KeyFramesTimeline extends Timeline {
     unSelectAllKeyFrames() {
 
         for(let [name, localTrackIdx, keyIndex] of this.lastKeyFramesSelected) {
-            this.tracksPerItem[name][localTrackIdx].selected[keyIndex] = false;
+            this.animationClip.tracksPerItem[name][localTrackIdx].selected[keyIndex] = false;
         }
 
         // Something has been unselected
@@ -2595,8 +2593,8 @@ class KeyFramesTimeline extends Timeline {
         if(keyFrameIndex < 0)
             return;
 
-        const name = this.tracksDictionary[track.fullname];
-        let t = this.tracksPerItem[ name ][track.idx];
+        const name = this.animationClip.tracksDictionary[track.fullname];
+        let t = this.animationClip.tracksPerItem[ name ][track.idx];
         
         const currentSelection = this.selectKeyFrame(t, keyFrameIndex, !multiple); // changes time 
 
@@ -3297,8 +3295,6 @@ class ClipsTimeline extends Timeline {
     // Creates a map for each item -> tracks
     processTracks(animation) {
 
-        this.tracksPerItem = {}; // maps ( the name of item and local track index ) to ( animation tracks ). Holds pointers to tracks of animationClip.tracks  
-        this.tracksDictionary = {};
         this.animationClip = {
             name: (animation && animation.name) ? animation.name : "animationClip",
             duration: animation ? animation.duration : 0,
@@ -3929,9 +3925,7 @@ class CurvesTimeline extends Timeline {
     constructor(name, options = {}) {
 
         super(name, options);
-        
-        this.tracksPerItem = {};
-        
+               
         // this.selectedItems = selectedItems;
         this.valueBeforeMove = 0;
         this.range = options.range || [0, 1];
@@ -3998,9 +3992,10 @@ class CurvesTimeline extends Timeline {
 
             // Set pre-move state
             this.moveKeyMinTime = Infinity;
+            const tracksPerItem = this.animationClip.tracksPerItem;
             for(let selectedKey of this.lastKeyFramesSelected) {
                 let [name, localTrackIdx, keyIndex, trackIdx, keyTime] = selectedKey;
-                const track = this.tracksPerItem[name][localTrackIdx];
+                const track = tracksPerItem[name][localTrackIdx];
                                 
                 // save track states only once
                 if (this.moveKeyMinTime < Infinity){
@@ -4061,7 +4056,7 @@ class CurvesTimeline extends Timeline {
                 }
                 
                 const [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] = this.lastKeyFramesSelected[idx];
-                track = this.tracksPerItem[name][localTrackIdx];
+                track = this.animationClip.tracksPerItem[name][localTrackIdx];
                 if(track && track.locked)
                     continue;
 
@@ -4104,8 +4099,8 @@ class CurvesTimeline extends Timeline {
             let keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
             if(keyFrameIndex > -1 ) {
                 
-                const name = this.tracksDictionary[track.fullname]; 
-                let t = this.tracksPerItem[ name ][track.idx];
+                const name = this.animationClip.tracksDictionary[track.fullname]; 
+                let t = this.animationClip.tracksPerItem[ name ][track.idx];
                 if(t && t.locked)
                     return;
                 
@@ -4187,7 +4182,7 @@ class CurvesTimeline extends Timeline {
 
     drawContent( ctx, timeStart, timeEnd ) {
     
-        if(!this.animationClip || this.selectedItems == null || !this.tracksPerItem) 
+        if(!this.animationClip || this.selectedItems == null || !this.animationClip.tracksPerItem) 
             return;
 
         ctx.save();
@@ -4195,7 +4190,7 @@ class CurvesTimeline extends Timeline {
         
         let offset = this.trackHeight;
         for(let t = 0; t < this.selectedItems.length; t++) {
-            let tracks = this.tracksPerItem[this.selectedItems[t]] ? this.tracksPerItem[this.selectedItems[t]] : [{name: this.selectedItems[t]}];
+            let tracks = this.animationClip.tracksPerItem[this.selectedItems[t]] ? this.animationClip.tracksPerItem[this.selectedItems[t]] : [{name: this.selectedItems[t]}];
             if(!tracks) continue;
             
             const height = this.trackHeight;
@@ -4303,16 +4298,18 @@ class CurvesTimeline extends Timeline {
     // Creates a map for each item -> tracks
     processTracks(animation) {
 
-        this.tracksPerItem = {};
-        this.tracksDictionary = {};
         this.animationClip = {
             name: (animation && animation.name) ? animation.name : "animationClip",
             duration: animation ? animation.duration : 0,
             speed: (animation && animation.speed ) ? animation.speed : this.speed,
-            tracks: []
+            tracks: [],
+            tracksPerItem: {},
+            tracksDictionary: {}
         };
 
         if (animation && animation.tracks) { // THREEJS animation
+            let tracksPerItem = {};
+            let tracksDictionary = {};
             for( let i = 0; i < animation.tracks.length; ++i ) {
                 
                 let track = animation.tracks[i];
@@ -4342,23 +4339,25 @@ class CurvesTimeline extends Timeline {
                     values: values
                 };
                 
-                if(!this.tracksPerItem[name]) {
-                    this.tracksPerItem[name] = [trackInfo];
+                if(!tracksPerItem[name]) {
+                    tracksPerItem[name] = [trackInfo];
                 }else {
-                    this.tracksPerItem[name].push( trackInfo );
+                    tracksPerItem[name].push( trackInfo );
                 }
                 
                 
-                const trackIndex = this.tracksPerItem[name].length - 1;
+                const trackIndex = tracksPerItem[name].length - 1;
                 trackInfo.idx = trackIndex; // index of track in "name"
                 trackInfo.clipIdx = i; // index of track in the entire animation
                 
                 // Save index also in original track
                 track.idx = trackIndex;
-                this.tracksDictionary[track.name] = name;
+                tracksDictionary[track.name] = name;
                 this.animationClip.tracks.push(trackInfo);
                 
             }
+            this.animationClip.tracksPerItem = tracksPerItem;
+            this.animationClip.tracksDictionary = tracksDictionary;
         }
     }
 
@@ -4483,9 +4482,9 @@ class CurvesTimeline extends Timeline {
     
 
     getNumTracks( item ) {
-        if(!item || !this.tracksPerItem)
+        if(!item || !this.animationClip.tracksPerItem)
             return;
-        const tracks = this.tracksPerItem[item.name];
+        const tracks = this.animationClip.tracksPerItem[item.name];
         return tracks ? tracks.length : null;
     }
 
@@ -4497,14 +4496,10 @@ class CurvesTimeline extends Timeline {
 
         let tracks = [];
         for(let i = 0; i < this.selectedItems.length; i++) {
-
-            tracks = [...tracks, ...this.tracksPerItem[this.selectedItems[i]]];
-            if(!tracks) continue;
-
+            tracks = [...tracks, ...this.animationClip.tracksPerItem[this.selectedItems[i]]];
         }
         if(!tracks.length) return;
 
-        const threshold = this.onGetOptimizeThreshold ? this.onGetOptimizeThreshold() : 0.025;
         LX.addContextMenu("Optimize", e, m => {
             for( let t of tracks ) {
                 m.add( t.name + (t.type ? "@" + t.type : ""), () => { 
@@ -4639,7 +4634,7 @@ class CurvesTimeline extends Timeline {
         let toCopy = {};
         for(let i = 0; i < this.lastKeyFramesSelected.length; i++){
             let [id, localTrackIdx, keyIdx] = this.lastKeyFramesSelected[i];
-            let track = this.tracksPerItem[id][localTrackIdx];
+            let track = this.animationClip.tracksPerItem[id][localTrackIdx];
             let trackIdx = track.clipIdx;
 
             if(toCopy[trackIdx]) {
@@ -4705,7 +4700,7 @@ class CurvesTimeline extends Timeline {
         if(this.clipboard.value && this.lastKeyFramesSelected.length == 1) {
 
             let [id, localTrackIdx, keyIdx] = this.lastKeyFramesSelected[0];
-            this.pasteKeyFrameValue({}, this.tracksPerItem[id][localTrackIdx], keyIdx);
+            this.pasteKeyFrameValue({}, this.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
         }
 
         // create new keyframes from the ones copied 
@@ -4768,7 +4763,7 @@ class CurvesTimeline extends Timeline {
 
         // Copy to every selected key
         for(let [name, idx, keyIndex] of this.lastKeyFramesSelected) {
-            this.#paste( this.tracksPerItem[name][idx], keyIndex );
+            this.#paste( this.animationClip.tracksPerItem[name][idx], keyIndex );
         }
     }
 
@@ -4946,7 +4941,7 @@ class CurvesTimeline extends Timeline {
 
                 pts = pts.sort( (a,b) => b[2] - a[2] ); // sort by keyframe index (descending)
 
-                const track = this.tracksPerItem[pts[0][0]][pts[0][1]];
+                const track = this.animationClip.tracksPerItem[pts[0][0]][pts[0][1]];
                 this.saveState(track.clipIdx); 
 
                 // Delete every selected key starting with the last one in the track
@@ -4987,7 +4982,7 @@ class CurvesTimeline extends Timeline {
 
     getTrack( trackInfo )  {
         const [name, trackIndex] = trackInfo;
-        return this.tracksPerItem[ name ][trackIndex];
+        return this.animationClip.tracksPerItem[ name ][trackIndex];
     }
 
     getTrackName( uglyName ) {
@@ -5105,7 +5100,7 @@ class CurvesTimeline extends Timeline {
 
     unHoverAll() {
         if(this.lastHovered) {
-            this.tracksPerItem[ this.lastHovered[0] ][ this.lastHovered[1] ].hovered[ this.lastHovered[2] ] = false;
+            this.animationClip.tracksPerItem[ this.lastHovered[0] ][ this.lastHovered[1] ].hovered[ this.lastHovered[2] ] = false;
         }
         let h = this.lastHovered;
         this.lastHovered = null;
@@ -5115,7 +5110,7 @@ class CurvesTimeline extends Timeline {
     unSelectAllKeyFrames() {
 
         for(let [name, localTrackIdx, keyIndex] of this.lastKeyFramesSelected) {
-            this.tracksPerItem[name][localTrackIdx].selected[keyIndex] = false;
+            this.animationClip.tracksPerItem[name][localTrackIdx].selected[keyIndex] = false;
         }
 
         // Something has been unselected
@@ -5203,8 +5198,8 @@ class CurvesTimeline extends Timeline {
         if (keyFrameIndex < 0)
             return;
                         
-        const name = this.tracksDictionary[track.fullname];
-        const t = this.tracksPerItem[ name ][track.idx];
+        const name = this.animationClip.tracksDictionary[track.fullname];
+        const t = this.animationClip.tracksPerItem[ name ][track.idx];
         
         const currentSelection = this.selectKeyFrame(t, keyFrameIndex, !multiple, multiple); // changes time on the first keyframe selected
 
