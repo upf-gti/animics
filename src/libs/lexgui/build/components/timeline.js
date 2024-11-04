@@ -2332,25 +2332,19 @@ class KeyFramesTimeline extends Timeline {
     deleteKeyFrame(track, index) {
         
         if(!track) {
-
-            // Split in tracks
-            const perTrack = [];
-            this.lastKeyFramesSelected.forEach( e => perTrack[e[1]] ? perTrack[e[1]].push(e) : perTrack[e[1]] = [e] );
+            //*********** WARNING: RELIES ON SORTED lastKeyFramesSelected ***********
             
-            for(let pts of perTrack) {
-                
-                if(!pts) continue;
-
-                pts = pts.sort( (a,b) => b[2] - a[2] ); // sort by keyframe index (descending)
-
-                const track = this.animationClip.tracksPerItem[pts[0][0]][pts[0][1]];
-                this.saveState(track.clipIdx); 
-
-                // Delete every selected key starting with the last one in the track
-                for(let [name, localIdx, keyIndex] of pts) {
-                    this.#delete(track.clipIdx, keyIndex);
+            // start removing from the last keyframe 
+            let prevTrackRemoved = -1;
+            for( let i = this.lastKeyFramesSelected.length-1; i > -1; --i ){
+                let [trackName, trackLocalIdx, frameIdx, trackIdx] = this.lastKeyFramesSelected[i];
+                if ( prevTrackRemoved != trackIdx ){
+                    this.saveState(trackIdx, prevTrackRemoved != -1);
+                    prevTrackRemoved = trackIdx;
                 }
+                this.#delete(trackIdx, frameIdx);
             }
+            this.lastKeyFramesSelected = [];
         }
         else{
             this.saveState(track.clipIdx);
@@ -4936,25 +4930,19 @@ class CurvesTimeline extends Timeline {
     deleteKeyFrame(track, index) {
         
         if(!track) {
-
-            // Split in tracks
-            const perTrack = [];
-            this.lastKeyFramesSelected.forEach( e => perTrack[e[1]] ? perTrack[e[1]].push(e) : perTrack[e[1]] = [e] );
+            //*********** WARNING: RELIES ON SORTED lastKeyFramesSelected ***********
             
-            for(let pts of perTrack) {
-                
-                if(!pts) continue;
-
-                pts = pts.sort( (a,b) => b[2] - a[2] ); // sort by keyframe index (descending)
-
-                const track = this.animationClip.tracksPerItem[pts[0][0]][pts[0][1]];
-                this.saveState(track.clipIdx); 
-
-                // Delete every selected key starting with the last one in the track
-                for(let [name, localIdx, keyIndex] of pts) {
-                    this.#delete(track.clipIdx, keyIndex);
+            // start removing from the last keyframe 
+            let prevTrackRemoved = -1;
+            for( let i = this.lastKeyFramesSelected.length-1; i > -1; --i ){
+                let [trackName, trackLocalIdx, frameIdx, trackIdx] = this.lastKeyFramesSelected[i];
+                if ( prevTrackRemoved != trackIdx ){
+                    this.saveState(trackIdx, prevTrackRemoved != -1);
+                    prevTrackRemoved = trackIdx;
                 }
+                this.#delete(trackIdx, frameIdx);
             }
+            this.lastKeyFramesSelected = [];
         }
         else{
             this.saveState(track.clipIdx);

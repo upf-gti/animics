@@ -500,9 +500,9 @@ class Editor {
         this.state = !this.state;
         // this.activeTimeline.active = !this.activeTimeline.active;
         if(this.state)
-            this.onPlay();
+            if(this.onPlay){ this.onPlay(); }
         else
-            this.onPause();
+            if(this.onPause){ this.onPause(); }
 
     }
     
@@ -1822,7 +1822,7 @@ class KeyframeEditor extends Editor{
 
         // Update video
         this.video.currentTime = this.video.startTime + t;
-        
+
         this.gizmo.updateBones();
     }
 
