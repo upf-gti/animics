@@ -663,18 +663,11 @@ class KeyframesGui extends Gui {
 
         this.hideCaptureArea();
         this.createSidePanel();
-     
-
-        // automatic optimization of keyframes
-        this.keyFramesTimeline.optimizeTracks();
-        this.curvesTimeline.optimizeTracks();
         
         this.updateMenubar()
-        this.render();
         this.showTimeline();
         
         this.initEditionGUI();
-
     }
 
     /** -------------------- CAPTURE GUI (app) --------------------  */
@@ -1113,7 +1106,7 @@ class KeyframesGui extends Gui {
             }
         }
         this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
-        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t, true);
+        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t, false);
         this.keyFramesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             if (!currentBinded){ return; }
@@ -1231,7 +1224,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.setFramerate(30);
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
-            this.editor.setTime(t, true);
+            this.editor.setTime(t, false);
             if ( !this.editor.state ){ // update ui if not playing
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip);
             }
@@ -1631,7 +1624,7 @@ class KeyframesGui extends Gui {
     updateActionUnitsPanel(animation = this.curvesTimeline.animationClip, trackIdx) {
         if(trackIdx == undefined) {
 
-            const selectedItems = this.curvesTimeline.selectedItems || [];
+            const selectedItems = this.curvesTimeline.selectedItems;
             const tracksPerItem = this.curvesTimeline.animationClip.tracksPerItem;
             for( let i = 0; i < selectedItems.length; ++i ){
                 const itemTracks = tracksPerItem[selectedItems[i]] || [];
@@ -1667,7 +1660,7 @@ class KeyframesGui extends Gui {
 
         options = options || {};
         this.boneProperties = {};
-        let itemSelected = this.itemSelected = options.itemSelected ?? this.itemSelected;
+        this.editor.selectedBone = options.itemSelected ?? this.editor.selectedBone;
         
         const mytree = this.updateNodeTree();
     
@@ -1682,24 +1675,15 @@ class KeyframesGui extends Gui {
                         if(event.multiple)
                             console.log("Selected: ", event.node); 
                         else {
-                            itemSelected = event.node.id;
-                            
                             if(!this.editor){
                                 throw("No editor attached");
                             }
-
-                            this.editor.setSelectedBone( itemSelected );
                             
-                            this.editor.activeTimeline = this.keyFramesTimeline;
-                            this.keyFramesTimeline.setSelectedItems( [itemSelected] );
-							let t = this.keyFramesTimeline.animationClip.tracksPerItem[itemSelected][0];
-							let keyframe = this.keyFramesTimeline.getCurrentKeyFrame(t, this.keyFramesTimeline.currentTime, 0.1 );
-							this.keyFramesTimeline.processCurrentKeyFrame( {}, keyframe, t, null, false );
-					        this.selectedItems = [itemSelected];
-							
+                            const itemSelected = event.node.id;
+                            if ( itemSelected != this.editor.selectedBone ){
+                                this.editor.setSelectedBone( itemSelected );
+                            }
                             this.showTimeline();
-                            this.updateSkeletonPanel({itemSelected: itemSelected});
-                            
                             console.log(itemSelected + " selected"); 
                         }
                         break;
@@ -1735,7 +1719,7 @@ class KeyframesGui extends Gui {
         
         let mytree = { 
             id: rootBone.name, 
-            // selected: rootBone.name == this.itemSelected 
+            // selected: rootBone.name == this.editor.boneSelected 
         };
         let children = [];
         
@@ -1748,7 +1732,7 @@ class KeyframesGui extends Gui {
                     id: b.name,
                     children: [],
                     closed: true,
-                    // selected: b.name == this.itemSelected
+                    // selected: b.name == this.editor.boneSelected
                 }
                 
                 array.push( child );
@@ -1769,7 +1753,7 @@ class KeyframesGui extends Gui {
         root.attach(bonePanel);
         // Editor widgets 
         this.bonePanel = bonePanel;
-        options.itemSelected = options.itemSelected ?? this.itemSelected;
+        options.itemSelected = options.itemSelected ?? this.editor.selectedBone;
         this.updateSkeletonPanel(options);
 
         // // update scroll position
@@ -1780,7 +1764,10 @@ class KeyframesGui extends Gui {
 
     updateSkeletonPanel(options = {}) {
 
-       
+        if ( !this.bonePanel ){ 
+            return;
+        }
+
         let widgets = this.bonePanel;
 
         widgets.onRefresh = (o) => {

@@ -81,7 +81,7 @@ class Timeline {
        
         this.secondsToPixels = Math.max( 0.00001, this.size[0]/1 );
         this.pixelsToSeconds = 1 / this.secondsToPixels;
-        this.selectedItems = options.selectedItems ?? null;
+        this.selectedItems = options.selectedItems ?? [];
         this.animationClip = options.animationClip ?? null;
         this.trackHeight = options.trackHeight ?? 25;
         this.timeSeparators = [0.01, 0.1, 0.5, 1, 5];
@@ -265,7 +265,7 @@ class Timeline {
         const titleHeight = title.clientHeight + parseFloat(styles['marginTop']) + parseFloat(styles['marginBottom']);
         
         let p = new LX.Panel({height: "calc(100% - " + titleHeight + "px)"});
-        if(this.animationClip && this.selectedItems)  {
+        if(this.animationClip && this.selectedItems.length)  {
             let items = {'id': '', 'children': []};
 
             const tracksPerItem = this.animationClip.tracksPerItem;
@@ -405,6 +405,13 @@ class Timeline {
      * [KeyFrameTimeline] - each track should contain an attribute "dim" to indicate the value dimension (e.g. vector3 -> dim=3). Otherwise dimensions will be infered from track's values and times. Default is 1
      */
     setAnimationClip( animation, needsToProcess = true ) {
+        if ( this.unSelectAllKeyFrames ){
+            this.unSelectAllKeyFrames();
+            this.unHoverAll();
+            this.unSelectAllTracks();
+            this.selectedItems = [];
+        }
+
         if(!animation || !animation.tracks || needsToProcess) { 
             this.processTracks(animation); // generate default animationclip or process the user's one
         }
@@ -1575,7 +1582,7 @@ class KeyFramesTimeline extends Timeline {
 
     drawContent( ctx, timeStart, timeEnd ) {
     
-        if(!this.animationClip || this.selectedItems == null || !this.animationClip.tracksPerItem) 
+        if(!this.animationClip || !this.animationClip.tracksPerItem) 
             return;
         
         ctx.save();
@@ -1879,7 +1886,7 @@ class KeyFramesTimeline extends Timeline {
 
     onShowOptimizeMenu( e ) {
         
-        if(this.selectedItems == null)
+        if(this.selectedItems.length == 0)
             return;
 
         let tracks = [];
@@ -2356,7 +2363,7 @@ class KeyFramesTimeline extends Timeline {
     unSelectItems() {
 
         if(!this.unSelectAllKeyFrames()) {
-            this.selectedItems = null;
+            this.selectedItems = [];
             if(this.onItemUnselected)
                 this.onItemUnselected();
         }
@@ -2370,10 +2377,10 @@ class KeyFramesTimeline extends Timeline {
         if(itemsName.constructor !== Array)
         throw("Item name has to be an array!");
 
-        this.selectedItems = itemsName;
         this.unSelectAllKeyFrames();
+        this.unHoverAll();
+        this.selectedItems = itemsName;
         this.updateLeftPanel();
-        this.resize();
     }
 
     getTrack( trackInfo )  {
@@ -2540,7 +2547,7 @@ class KeyFramesTimeline extends Timeline {
         let selection = [track.name, track.idx, frameIdx, track.clipIdx, track.times[frameIdx]];
         const trackIdx = track.clipIdx;
 
-        // sort lastkeyframeselected
+        // sort lastkeyframeselected ascending order
         let i = 0;
         for( ; i < this.lastKeyFramesSelected.length; ++i){
             let s = this.lastKeyFramesSelected[i];
@@ -3926,7 +3933,6 @@ class CurvesTimeline extends Timeline {
 
         super(name, options);
                
-        // this.selectedItems = selectedItems;
         this.valueBeforeMove = 0;
         this.range = options.range || [0, 1];
 
@@ -4182,7 +4188,7 @@ class CurvesTimeline extends Timeline {
 
     drawContent( ctx, timeStart, timeEnd ) {
     
-        if(!this.animationClip || this.selectedItems == null || !this.animationClip.tracksPerItem) 
+        if(!this.animationClip || !this.animationClip.tracksPerItem) 
             return;
 
         ctx.save();
@@ -4491,7 +4497,7 @@ class CurvesTimeline extends Timeline {
 
     onShowOptimizeMenu( e) {
         
-        if(this.selectedItems == null)
+        if(this.selectedItems.length == 0)
             return;
 
         let tracks = [];
@@ -4961,7 +4967,7 @@ class CurvesTimeline extends Timeline {
     unSelectItems() {
 
         if(!this.unSelectAllKeyFrames()) {
-            this.selectedItems = null;
+            this.selectedItems = [];
             if(this.onItemUnselected)
                 this.onItemUnselected();
         }
@@ -4975,8 +4981,9 @@ class CurvesTimeline extends Timeline {
         if(itemsName.constructor !== Array)
         throw("Item name has to be an array!");
 
-        this.selectedItems = itemsName;
         this.unSelectAllKeyFrames();
+        this.unHoverAll();
+        this.selectedItems = itemsName;
         this.updateLeftPanel();
     }
 
@@ -5145,7 +5152,7 @@ class CurvesTimeline extends Timeline {
         let selection = [track.name, track.idx, frameIdx, track.clipIdx, track.times[frameIdx]];
         const trackIdx = track.clipIdx;
 
-        // sort lastkeyframeselected
+        // sort lastkeyframeselected ascending order
         let i = 0;
         for( ; i < this.lastKeyFramesSelected.length; ++i){
             let s = this.lastKeyFramesSelected[i];

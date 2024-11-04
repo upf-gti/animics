@@ -93,7 +93,7 @@ class Editor {
                         e.preventDefault();
                         e.stopImmediatePropagation();
                         let playElement = document.querySelector("[title = Play]");
-                        if ( playElement ){ playElement.children[0].click() }
+                        if ( playElement ){ playElement.children[0].click(); }
                     }
                     break;
                 case "Escape":
@@ -499,11 +499,11 @@ class Editor {
     pause() {
         this.state = !this.state;
         // this.activeTimeline.active = !this.activeTimeline.active;
-        if(!this.state && this.currentCharacter.mixer._actions[0])
-            this.currentCharacter.mixer._actions[0].paused = false;
-
-        if(this.onPause)
+        if(this.state)
+            this.onPlay();
+        else
             this.onPause();
+
     }
     
     setTime(t, force) {
@@ -542,7 +542,7 @@ class Editor {
         for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
 
             const track = this.activeTimeline.animationClip.tracks[i];
-            if(this.activeTimeline.selectedItems && this.activeTimeline.selectedItems.indexOf(track.name)< 0 && this.mode != this.editionModes.SCRIPT)
+            if(this.mode != this.editionModes.SCRIPT && this.activeTimeline.selectedItems.indexOf(track.name) < 0 )
                 continue;
             let idx = this.mode == this.editionModes.SCRIPT ? track.idx : track.clipIdx;
             let value = null;
@@ -637,7 +637,9 @@ class Editor {
                     this.gui.keyFramesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                     this.activeTimeline = this.gui.keyFramesTimeline;
                     this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().skeletonAnimation, false );
-                    this.activeTimeline.show();            
+                    this.activeTimeline.show();
+                    this.activeTimeline.currentTime = currentTime;
+                    this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
                     break;
 
                 default:                   
@@ -1089,6 +1091,7 @@ class KeyframeEditor extends Editor{
         
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
+        this.selectedBone = "mixamorig_Hips";
         
         if ( this.inferenceMode == this.animationInferenceModes.NN ){
             this.nn = new NN("data/ML/model.json");
@@ -1109,6 +1112,7 @@ class KeyframeEditor extends Editor{
     startEdition() {
         this.gui.init();
         this.animate();
+        this.setAnimation(this.animationModes.BODY);
     }
 
     async initCharacters()
@@ -1201,8 +1205,6 @@ class KeyframeEditor extends Editor{
         // Create face animation from mediapipe action units
         let faceAnimation = createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units THREEjs AnimationClip
-
-        this.bindAnimationToCharacter(data.name);
     }
 
     // load animation from bvh file
@@ -1252,7 +1254,6 @@ class KeyframeEditor extends Editor{
             skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
             type: "bvh"
         };
-        this.bindAnimationToCharacter(name);
     }
 
     // Array of objects. Each object is a frame with all world landmarks. See mediapipe.js detections
@@ -1798,22 +1799,13 @@ class KeyframeEditor extends Editor{
     }
 
     onPause() {
-        if(this.state) {
-            
-            if(this.video.sync) {
-                try{
-                    this.video.paused ? this.video.pause() : 0;    
-                }catch(ex) {
-                   console.error("video warning");
-                }
+        this.state = false;
+        if(this.video.sync) {
+            try{
+                !this.video.paused ? this.video.pause() : 0;    
+            }catch(ex) {
+                console.error("video warning");
             }
-        } else {
-
-            this.state = false;
-            if(this.video.sync) {
-                this.video.pause();
-            }
-           
         }
         this.gui.setBoneInfoState( !this.state );
     }
@@ -1830,14 +1822,7 @@ class KeyframeEditor extends Editor{
 
         // Update video
         this.video.currentTime = this.video.startTime + t;
-        if(this.state && force) {
-            try{
-                this.video.play();
-            }catch(ex) {
-                console.error("video warning");
-            }
-        }
-
+        
         this.gizmo.updateBones();
     }
 
@@ -1988,10 +1973,24 @@ class KeyframeEditor extends Editor{
     
         if(this.animationMode != this.animationModes.BODY) {
             this.setAnimation(this.animationModes.BODY);
+            return; // will call again setSelectedBone
         }
+        this.selectedBone = name;
+
+        this.activeTimeline.setSelectedItems( [this.selectedBone] );
+
+        // selectkeyframe at current keyframe if possible
+        let track = this.activeTimeline.animationClip.tracksPerItem[this.selectedBone][0];
+        let keyframe = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.1 );
+        this.activeTimeline.processCurrentKeyFrame( {}, keyframe, track, null, false );
 
         this.gizmo.setBone(name);
         this.gizmo.mustUpdate = true;
+
+        this.gui.updateSkeletonPanel({itemSelected: this.selectedBone});
+        if ( this.gui.tree ){ 
+            this.gui.tree.select(this.selectedBone)
+        }
     }
 
     /** -------------------- GIZMO INTERACTION -------------------- */
@@ -2239,7 +2238,7 @@ class ScriptEditor extends Editor{
 
         // create timeline animation for the first time
         if (!animation.scriptAnimation){
-            this.gui.clipsTimeline.setAnimationClip(null, true); //generate empty animation. Cannot process bml input 
+            this.gui.clipsTimeline.setAnimationClip(null, true); //generate empty animation 
             animation.scriptAnimation = this.gui.clipsTimeline.animationClip;
             this.gui.loadBMLClip(animation.inputAnimation); // process bml and add clips
             delete animation.inputAnimation;
