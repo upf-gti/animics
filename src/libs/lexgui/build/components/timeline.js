@@ -2974,16 +2974,17 @@ class ClipsTimeline extends Timeline {
 
                 this.movingKeys = true;
 
+                let newTrackClipsMove = Math.floor( (e.localY - this.topMargin + this.leftPanel.root.children[1].scrollTop) / this.trackHeight );
+
                 // move clips vertically
                 if ( e.altKey ){  
-                    const lastTrackClipsMove = this.lastTrackClipsMove;
-                    this.lastTrackClipsMove = Math.floor( (e.localY - this.topMargin + this.leftPanel.root.children[1].scrollTop) / this.trackHeight );
-                    let deltaTracks = this.lastTrackClipsMove - lastTrackClipsMove;
+                    let deltaTracks = newTrackClipsMove - this.lastTrackClipsMove;
 
                     if ( this.lastClipsSelected[0][0] + deltaTracks < 0 ){
                         deltaTracks = -this.lastClipsSelected[0][0];
                     }
 
+                    // if no movement of tracks, do not check
                     if ( deltaTracks != 0 ){ 
 
                         // check if ALL selected clips can move track
@@ -2996,77 +2997,85 @@ class ClipsTimeline extends Timeline {
                             if ( clipsInRange ){
                                 for( let c = 0; c < clipsInRange.length; ++c ){
                                     if ( !newTrack.selected[clipsInRange[c]] ){ 
-                                        return; // at least one clip cannot move, abort
+                                        // at least one clip cannot move, abort
+                                        c = clipsInRange.length;
+                                        i = this.lastClipsSelected.length;
+                                        deltaTracks = 0; 
+                                        newTrackClipsMove = this.lastTrackClipsMove;
                                     }
                                 }
                             }
                         }
 
-                        let oldStateEnabler = this.trackStateSaveEnabler;
-                        this.trackStateSaveEnabler = false;
+                        // if movement was not canceled
+                        if ( deltaTracks != 0 ){                        
+                            let oldStateEnabler = this.trackStateSaveEnabler;
+                            this.trackStateSaveEnabler = false;
 
-                        const selectedClips = this.lastClipsSelected;
-                        this.lastClipsSelected = []; // avoid delete and addclips index reassignment loop (not necessary because of order of operations in for)
+                            const selectedClips = this.lastClipsSelected;
+                            this.lastClipsSelected = []; // avoid delete and addclips index reassignment loop (not necessary because of order of operations in for)
 
-                        for( let i = selectedClips[selectedClips.length-1][0] + deltaTracks - this.animationClip.tracks.length + 1; i > 0; --i ){
-                            this.addNewTrack(i == 1);
-                        }
-
-                        // selected clips MUST be ordered (ascendently) 
-                        let startSel = deltaTracks > 0 ? selectedClips.length - 1 : 0;                        
-                        let endSel = startSel;
-                        let currTrack = selectedClips[startSel][0];
-
-                        // i <= length; to update last track. Otherwise a check outside of for would be needed
-                        for( let i = 1; i <= selectedClips.length; ++i ){ 
-
-                            let idx = deltaTracks > 0 ? (selectedClips.length -1 - i) : i;                            
-                            if( i == selectedClips.length || selectedClips[idx][0] != currTrack ){
-
-                                const newTrackIdx = currTrack + deltaTracks;
-                                const newTrack = this.animationClip.tracks[ newTrackIdx ];
-                                const track = this.animationClip.tracks[currTrack ];
-                                
-                                // save track state if necessary
-                                const undoState = this.trackStateUndo[this.trackStateUndo.length-1];
-                                let state = 0
-                                for( ; state < undoState.length; ++state ){
-                                    if ( newTrackIdx == undoState[state].trackIdx ){ break; }
-                                }
-                                if ( state == undoState.length ){ 
-                                    this.trackStateSaveEnabler = true;
-                                    this.saveState(newTrackIdx, true);
-                                    this.trackStateSaveEnabler = false;
-                                }
-                                
-                                // add clips of a track, from first to last
-                                for( let c = startSel; c <= endSel; ++c ){
-                                    let newClipIdx = this.addClip(track.clips[ selectedClips[c][1] ], newTrackIdx, 0);
-                                    selectedClips[c][0] = newClipIdx; // temporarily store new clip index in trackIndex (HACK START)
-                                    newTrack.selected[newClipIdx] = true;
-                                }
-
-                                // delete clips of a track, from last to first 
-                                for( let c = endSel; c >=startSel ; --c ){
-                                    this.#delete(currTrack, selectedClips[c][1]);
-                                    selectedClips[c][1] = selectedClips[c][0]; // put new clip index (HACK)
-                                    selectedClips[c][0] = newTrackIdx; // put new track index (HACK FIX)
-                                }
-
-                                currTrack = i < selectedClips.length ? selectedClips[idx][0] : -1;
-                                startSel = idx;
-                                endSel = idx;
-                                continue;
+                            for( let i = selectedClips[selectedClips.length-1][0] + deltaTracks - this.animationClip.tracks.length + 1; i > 0; --i ){
+                                this.addNewTrack(i == 1);
                             }
-                            
-                            deltaTracks > 0 ? startSel = idx : endSel = idx;
-                        }
 
-                        this.lastClipsSelected = selectedClips;
-                        this.trackStateSaveEnabler = oldStateEnabler;
-                        return;
+                            // selected clips MUST be ordered (ascendently) 
+                            let startSel = deltaTracks > 0 ? selectedClips.length - 1 : 0;                        
+                            let endSel = startSel;
+                            let currTrack = selectedClips[startSel][0];
+
+                            // i <= length; to update last track. Otherwise a check outside of for would be needed
+                            for( let i = 1; i <= selectedClips.length; ++i ){ 
+
+                                let idx = deltaTracks > 0 ? (selectedClips.length -1 - i) : i;                            
+                                if( i == selectedClips.length || selectedClips[idx][0] != currTrack ){
+
+                                    const newTrackIdx = currTrack + deltaTracks;
+                                    const newTrack = this.animationClip.tracks[ newTrackIdx ];
+                                    const track = this.animationClip.tracks[currTrack ];
+                                    
+                                    // save track state if necessary
+                                    const undoState = this.trackStateUndo[this.trackStateUndo.length-1];
+                                    let state = 0
+                                    for( ; state < undoState.length; ++state ){
+                                        if ( newTrackIdx == undoState[state].trackIdx ){ break; }
+                                    }
+                                    if ( state == undoState.length ){ 
+                                        this.trackStateSaveEnabler = true;
+                                        this.saveState(newTrackIdx, true);
+                                        this.trackStateSaveEnabler = false;
+                                    }
+                                    
+                                    // add clips of a track, from first to last
+                                    for( let c = startSel; c <= endSel; ++c ){
+                                        let newClipIdx = this.addClip(track.clips[ selectedClips[c][1] ], newTrackIdx, 0);
+                                        selectedClips[c][0] = newClipIdx; // temporarily store new clip index in trackIndex (HACK START)
+                                        newTrack.selected[newClipIdx] = true;
+                                    }
+
+                                    // delete clips of a track, from last to first 
+                                    for( let c = endSel; c >=startSel ; --c ){
+                                        this.#delete(currTrack, selectedClips[c][1]);
+                                        selectedClips[c][1] = selectedClips[c][0]; // put new clip index (HACK)
+                                        selectedClips[c][0] = newTrackIdx; // put new track index (HACK FIX)
+                                    }
+
+                                    currTrack = i < selectedClips.length ? selectedClips[idx][0] : -1;
+                                    startSel = idx;
+                                    endSel = idx;
+                                    continue;
+                                }
+                                
+                                deltaTracks > 0 ? startSel = idx : endSel = idx;
+                            }
+
+                            this.lastClipsSelected = selectedClips;
+                            this.trackStateSaveEnabler = oldStateEnabler;
+                        }
                     }
                 }
+                this.lastTrackClipsMove = newTrackClipsMove;
+
                 // move clips horizontally
 
                 let leastDelta = delta;
