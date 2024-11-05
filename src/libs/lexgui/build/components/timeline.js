@@ -41,7 +41,6 @@ class Timeline {
 
         this.name = name ?? '';
         this.currentTime = 0;
-        this.framerate = 30;
         this.opacity = options.opacity || 1;
         this.topMargin = 40;
         this.lastMouse = [];
@@ -62,6 +61,7 @@ class Timeline {
         this.onBeforeCreateTopBar = options.onBeforeCreateTopBar;
         this.onAfterCreateTopBar = options.onAfterCreateTopBar;
         this.onChangePlayMode = options.onChangePlayMode;
+        this.onConfiguration = options.onConfiguration;
 
         this.playing = false;
         this.loop = options.loop ?? true;
@@ -207,24 +207,19 @@ class Timeline {
             header.addButton("", '<i class="fa-solid fa-filter"></i>', (value, event) => {this.onShowOptimizeMenu(event)}, {width: "40px"});
 
         header.addButton("", '<i class="fa-solid fa-gear"></i>', (value, event) => {
-            if(this.dialog)
+            if(this.configurationDialog){
+                this.configurationDialog.close();
+                this.configurationDialog = null;
                 return;
-            this.dialog = new LX.Dialog("Configuration", d => {
-                d.addNumber("Framerate", this.framerate, (v) => {
-                    this.framerate = v;
-                }, {min: 0, disabled: false});
-                d.addNumber("Num items", Object.keys(this.animationClip.tracksPerItem).length, null, {disabled: true});
-                d.addNumber("Num tracks", this.animationClip ? this.animationClip.tracks.length : 0, null, {disabled: true});
-                if(this.onShowOptimizeMenu)
-                    d.addNumber("Optimize Threshold", this.optimizeThreshold, v => {
-                        this.optimizeThreshold = v;
-                    }, {min: 0, max: 0.25, step: 0.001, precision: 4});
-                
+            }
+            this.configurationDialog = new LX.Dialog("Configuration", d => {
+                if ( this.onConfiguration ){
+                    this.onConfiguration(d);
+                }               
             }, {
                 onclose: (root) => {
-        
                     root.remove();
-                    this.dialog = null;
+                    this.configurationDialog = null;
                 }
             })
         }, {width: "40px"})
@@ -598,17 +593,14 @@ class Timeline {
         this.drawTimeInfo(w);
 
         // Current time marker vertical line
-        let truePos = Math.round( this.timeToX( this.currentTime ) ) + 0.5;
-        let quantCurrentTime = Math.round( this.currentTime * this.framerate ) / this.framerate;
-        let pos = Math.round( this.timeToX( quantCurrentTime ) ) + 0.5; //current_time is quantized
-        
+        let posx = Math.round( this.timeToX( this.currentTime ) );
         let posy = this.topMargin * 0.4;
-        if(pos >= this.session.left_margin)
+        if(posx >= this.session.left_margin)
         {
             ctx.strokeStyle = ctx.fillStyle =  LX.getThemeColor("global-selected");
             ctx.globalAlpha = this.opacity;
             ctx.beginPath();
-            ctx.moveTo(truePos, posy * 0.6); ctx.lineTo(truePos, this.canvas.height);//line
+            ctx.moveTo(posx, posy * 0.6); ctx.lineTo(posx, this.canvas.height);//line
             ctx.stroke();
             ctx.closePath();
             ctx.shadowBlur = 8;
@@ -616,7 +608,7 @@ class Timeline {
             ctx.shadowOffsetX = 1;
             ctx.shadowOffsetY = 1;
 
-            ctx.roundRect( truePos - 10, posy * 0.6, 20, posy, 5, true );
+            ctx.roundRect( posx - 10, posy * 0.6, 20, posy, 5, true );
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.shadowOffsetX = 0;
@@ -628,7 +620,7 @@ class Timeline {
         ctx.textAlign = "center";
         //ctx.textBaseline = "middle";
         ctx.fillStyle = Timeline.COLOR_INACTIVE//"#888";
-        ctx.fillText( this.currentTime.toFixed(1), truePos,  this.topMargin * 0.6  );
+        ctx.fillText( this.currentTime.toFixed(1), posx,  this.topMargin * 0.6  );
 
         // Selections
         ctx.strokeStyle = ctx.fillStyle =  Timeline.FONT_COLOR;
@@ -745,10 +737,6 @@ class Timeline {
     timeToX( t ) {
         return this.session.left_margin + (t - this.session.start_time) * this.secondsToPixels;
     }
-
-    getCurrentFrame( framerate ) {
-        return Math.floor(this.currentTime * framerate);
-    }
     
     /**
      * @method setScale
@@ -766,15 +754,6 @@ class Timeline {
 
         this.pixelsToSeconds = 1 / this.secondsToPixels;
         this.session.start_time += this.currentTime - this.xToTime(xCurrentTime);
-    }
-    
-    /**
-     * @method setFramerate
-     * @param {*} v
-     */
-
-    setFramerate( v ) {
-        this.framerate = v;
     }
 
     /**

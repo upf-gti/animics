@@ -1095,10 +1095,20 @@ class KeyframesGui extends Gui {
                 this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
             },
+            onConfiguration: (dialog) => {
+                dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
+                    this.editor.animationFrameRate = v;
+                }, {min: 0, disabled: false});
+                dialog.addNumber("Num items", Object.keys(this.keyFramesTimeline.animationClip.tracksPerItem).length, null, {disabled: true});
+                dialog.addNumber("Num tracks", this.keyFramesTimeline.animationClip ? this.keyFramesTimeline.animationClip.tracks.length : 0, null, {disabled: true});
+                dialog.addNumber("Optimize Threshold", this.keyFramesTimeline.optimizeThreshold ?? 0.01, v => {
+                        this.keyFramesTimeline.optimizeThreshold = v;
+                    }, {min: 0, max: 1, step: 0.001, precision: 4}
+                );
+            },
             disableNewTracks: true
         });
      
-        this.keyFramesTimeline.setFramerate(30);
         this.keyFramesTimeline.onChangeState = (state) => {
             if(state != this.editor.state) {
                 let playElement = document.querySelector("[title = Play]");
@@ -1200,7 +1210,6 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onItemUnselected = () => this.editor.gizmo.stop();
         this.keyFramesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
         this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
-        this.keyFramesTimeline.onGetOptimizeThreshold = () => { return this.editor.optimizeThreshold; }
         this.keyFramesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.clipIdx);}
         this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
@@ -1218,10 +1227,21 @@ class KeyframesGui extends Gui {
             onChangePlayMode: (loop) => {
                 this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
-            }, disableNewTracks: true
+            }, 
+            onConfiguration: (dialog) => {
+                dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
+                    this.editor.animationFrameRate = v;
+                }, {min: 0, disabled: false});
+                dialog.addNumber("Num items", Object.keys(this.curvesTimeline.animationClip.tracksPerItem).length, null, {disabled: true});
+                dialog.addNumber("Num tracks", this.curvesTimeline.animationClip ? this.curvesTimeline.animationClip.tracks.length : 0, null, {disabled: true});
+                dialog.addNumber("Optimize Threshold", this.curvesTimeline.optimizeThreshold ?? 0.01, v => {
+                        this.curvesTimeline.optimizeThreshold = v;
+                    }, {min: 0, max: 1, step: 0.001, precision: 4}
+                );
+            },
+            disableNewTracks: true
         });
         
-        this.curvesTimeline.setFramerate(30);
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, false);
@@ -2016,9 +2036,15 @@ class ScriptGui extends Gui {
             onChangePlayMode: (loop) => {
                 this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
-            }
+            },
+            onConfiguration: (dialog) => {
+                dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
+                    this.editor.animationFrameRate = v;
+                }, {min: 0, disabled: false});
+                dialog.addNumber("Num tracks", this.curvesTimeline.animationClip ? this.curvesTimeline.animationClip.tracks.length : 0, null, {disabled: true});
+            },
         });
-        this.clipsTimeline.setFramerate(30);
+
         this.clipsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t, true);
         this.clipsTimeline.onSetDuration = (t) => { 

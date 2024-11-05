@@ -39,8 +39,7 @@ class Editor {
         this.currentAnimation = "";
         this.loadedAnimations = {}; // loaded animations from mediapipe&NN or BVH
         this.bindedAnimations = {}; // loaded retargeted animations binded to characters
-
-        this.animation = null; //ThreeJS animation (only bones in keyframing mode) : {values: [], times: []}
+        this.animationFrameRate = 30;
 
         this.clock = new THREE.Clock();
         this.BVHloader = new BVHLoader();
@@ -52,7 +51,6 @@ class Editor {
         this.controls = null;
         this.scene = null;
         this.boneUseDepthBuffer = true;
-        this.optimizeThreshold = 0.01;
 
         this.renderer = null;
         this.state = false; // defines how the animation starts (moving/static)
@@ -563,7 +561,7 @@ class Editor {
         //this.updateTracks();
     }
 
-    optimizeTrack(trackIdx, threshold = this.optimizeThreshold) {
+    optimizeTrack(trackIdx, threshold) {
     }
 
     optimizeTracks(animations, tracks) {
@@ -766,12 +764,12 @@ class Editor {
                         if(!action) {
                             return;
                         }
-                        bvhPose = BVHExporter.export(action, skeleton, animation.mixerAnimation);
-                        bvhFace = BVHExporter.exportMorphTargets(action, this.currentCharacter.morphTargets.BodyMesh, animation.mixerAnimation);
+                        bvhPose = BVHExporter.export(action, skeleton, this.animationFrameRate);
+                        bvhFace = BVHExporter.exportMorphTargets(action, this.currentCharacter.morphTargets.BodyMesh, this.animationFrameRate);
                     } 
                     else {
-                        bvhPose = BVHExporter.export(bodyAction, skeleton, animation.mixerBodyAnimation);
-                        bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, animation.mixerFaceAnimation);
+                        bvhPose = BVHExporter.export(bodyAction, skeleton, this.animationFrameRate);
+                        bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, this.animationFrameRate);
                     }
                     
                     // Check if it already has extension
@@ -851,7 +849,7 @@ class Editor {
                 data = {type: "bvhe", data: files};
                 openPreview(data);
             })
-            // let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.getCurrentBindedAnimation().mixerBodyAnimation);
+            // let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.animationFrameRate);
             // window.localStorage.setItem('bvhskeletonpreview', bvh);
             // // window.localStorage.setItem('bvhblendshapespreview', bvh);
             // url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
@@ -2294,8 +2292,7 @@ class ScriptEditor extends Editor{
             if(empty) {
                 this.activeTimeline.currentTime = 0;
                 this.clipName = anim.name;
-                this.animation = anim;
-                this.gui.loadBMLClip(this.animation);
+                this.gui.loadBMLClip(anim);
             }
             else {
                 this.gui.prompt = new LX.Dialog("Import animation" , (p) => {
@@ -2304,9 +2301,8 @@ class ScriptEditor extends Editor{
                     p.addButton(null, "Replace", () => { 
                         this.clearAllTracks(false);
                         this.clipName = anim.name;
-                        this.animation = anim;
                         this.activeTimeline.currentTime = 0;
-                        this.gui.loadBMLClip(this.animation);
+                        this.gui.loadBMLClip(anim);
                         this.gui.prompt.close();
                     }, { buttonClass: "accept" });
                     p.addButton(null, "Concatenate", () => { 
@@ -2334,7 +2330,7 @@ class ScriptEditor extends Editor{
             mixer.uncacheAction(mixer._actions[0]._clip); // removes action
         }
 
-        let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(animation, this.activeTimeline.framerate);
+        let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(animation, this.animationFrameRate);
         mixerAnimation.name = this.currentAnimation;
         mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();
         mixer.setTime(this.activeTimeline.currentTime);

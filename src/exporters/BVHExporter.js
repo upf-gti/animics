@@ -67,11 +67,16 @@ const BVHExporter = {
         return p.x.toFixed(6) + " " + p.y.toFixed(6) + " " + p.z.toFixed(6) + " ";
     },
 
-    export: function(action, skeleton, clip) {
+    export: function(action, skeleton, framerate = 30) {
 
         let bvh = "";
-        const framerate = 1 / 30;
-        const numFrames = 1 + Math.floor(clip.duration / framerate);
+        const clip = action._clip;
+        const frameTime = 1 / framerate;
+        const numFrames = 1 + Math.floor(clip.duration * framerate);
+        
+        if ( !clip.tracks.length ){
+            return "";
+        }
 
         this.skeleton = skeleton;
         skeleton.pose(); // needs to be in bind pose (tpose)
@@ -80,14 +85,14 @@ const BVHExporter = {
 
         if (skeleton.bones[0] == undefined) {
             console.error("Can not export skeleton with no bones");
-            return;
+            return "";
         }
 
         bvh += this.exportBone(skeleton.bones[0], 0);
         
         bvh += "MOTION\n";
         bvh += "Frames: " + numFrames + "\n";
-        bvh += "Frame Time: " + framerate + "\n";
+        bvh += "Frame Time: " + frameTime + "\n";
 
         const interpolants = action._interpolants;
 
@@ -158,7 +163,7 @@ const BVHExporter = {
         }
 
         for( let frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
-            bvh += getBoneFrameData(frameIdx * framerate, skeleton.bones[0]);
+            bvh += getBoneFrameData(frameIdx * frameTime, skeleton.bones[0]);
             bvh += "\n";
         }
 
@@ -167,99 +172,33 @@ const BVHExporter = {
         return bvh;
     },
 
-    exportCustom: function(action, skeleton, clip) {
+    exportMorphTargets: function(action, morphTargetDictionary, framerate = 30) {
 
-        let bvh = "";
-
-        this.skeleton = skeleton;
-
-        bvh += "HIERARCHY\n";
-
-        if (skeleton.bones[0] == undefined) {
-            console.error("Can not export skeleton with no bones");
-            return;
-        }
-
-        bvh += this.exportBone(skeleton.bones[0], 0);
-        
-        bvh += "MOTION\n";
-
-        const interpolants = action._interpolants;
-
-        const getBoneFrameData = (bone) => {
-
-            let data = "";
-
-            // End site
-            if(!bone.children.length)
-            return data;
-
-            const tracks = clip.tracks.filter( t => t.name.replaceAll(".bones").split(".")[0].includes(bone.name) );
-
-            if(tracks.length) {
-                data += "\n" + bone.name;
-            }
-
-            for(let i = 0; i < tracks.length; ++i) {
-
-                const t = tracks[i];
-                const type = t.name.replaceAll(".bones").split(".")[1];
-                data += "\n" + type + " @";
-
-                for( let j = 0; j < t.times.length; ++j ) {
-                    
-                    data += t.times[j] + " ";
-
-                    switch(type) {
-                        case 'position':
-                            const pos = new THREE.Vector3();
-                            pos.fromArray(t.values.slice(j * 3, j * 3 + 3));
-                            data += this.posToString(pos);
-                            break;
-                        case 'quaternion':
-                            const q = new THREE.Quaternion();
-                            q.fromArray(t.values.slice(j * 4, j * 4 + 4));
-                            data += this.quatToEulerString(q);
-                    }
-                }
-
-            }
-
-            for (const b of bone.children)
-                data += getBoneFrameData(b);
-
-            return data;
-        }
-
-        bvh += getBoneFrameData(skeleton.bones[0]);
-        
-        this.skeleton = null;
-
-        return bvh;
-    },
-
-    exportMorphTargets: function(action, morphTargetDictionary, clip) {
-
-        if ( !action || !morphTargetDictionary || !clip || !clip.tracks.length ){
+        if ( !action || !morphTargetDictionary ){
             return "";
         }
         
         let bvh = "";
-        const framerate = 1 / 30;
-        const numFrames = 1 + Math.floor(clip.duration / framerate);
+        const clip = action._clip;
+        const frameTime = 1 / framerate;
+        const numFrames = 1 + Math.floor(clip.duration * framerate);
+
+        if ( !clip.tracks.length ){
+            return "";
+        }
 
         bvh += "BLENDSHAPES\n";
         bvh += '{\n';
         if (morphTargetDictionary == undefined) {
             console.error("Can not export animation with morph targets");
-            return;
+            return "";
         }
         let morphTargets = Object.keys(morphTargetDictionary);
         morphTargets.map((v) => {bvh += "\t" + v + "\n"});
         bvh += "}\n";
         bvh += "MOTION\n";
         bvh += "Frames: " + numFrames + "\n";
-        bvh += "Frame Time: " + framerate + "\n";
+        bvh += "Frame Time: " + frameTime + "\n";
 
         const interpolants = action._interpolants;
         if(!interpolants.length) {
@@ -291,7 +230,7 @@ const BVHExporter = {
         }
         
         for( let frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
-            bvh += getMorphTargetFrameData(frameIdx * framerate, morphTargets);
+            bvh += getMorphTargetFrameData(frameIdx * frameTime, morphTargets);
             bvh += "\n";
         }
 

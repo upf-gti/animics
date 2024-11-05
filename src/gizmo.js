@@ -597,7 +597,6 @@ class Gizmo {
             if ( !this.ikSelectedChain ){ return; }
             
             const effectorFrameTime = this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].times[ keyFrameIndex ];
-            const timeThreshold = ( timeline.framerate < 60 ) ? 0.008 : ( 0.5 * 1.0 / timeline.framerate );
             
             const chain = this.ikSelectedChain.chain;
             
