@@ -497,10 +497,12 @@ class Editor {
     pause() {
         this.state = !this.state;
         // this.activeTimeline.active = !this.activeTimeline.active;
-        if(this.state)
+        if(this.state){
             if(this.onPlay){ this.onPlay(); }
-        else
+        }
+        else{
             if(this.onPause){ this.onPause(); }
+        }
 
     }
     
