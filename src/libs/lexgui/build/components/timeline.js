@@ -312,13 +312,34 @@ class Timeline {
                 let el = p.addTree(null, t, {filter: false, rename: false, draggable: false, onevent: (e) => {
                     switch(e.type) {
                         case LX.TreeEvent.NODE_SELECTED:
-                            this.selectTrack(e.node);
+                            if (e.node.parent){
+                                const tracksInItem = this.animationClip.tracksPerItem[e.node.parent.id];
+                                const type = e.node.id;
+                                for(let i = 0; i < tracksInItem.length; i++) {
+                                    if(tracksInItem[i].type == type){
+                                        this.selectTrack(tracksInItem[i].clipIdx);
+                                        break;
+                                    }
+                                }
+                            }
                             break;
-                        case LX.TreeEvent.NODE_VISIBILITY:    
-                            this.changeTrackVisibility(e.node, e.value);
+                        case LX.TreeEvent.NODE_VISIBILITY:   
+                            if (e.node.parent){
+                                const tracksInItem = this.animationClip.tracksPerItem[e.node.parent.id];
+                                const type = e.node.id;
+                                for(let i = 0; i < tracksInItem.length; i++) {
+                                    if(tracksInItem[i].type == type){
+                                        this.changeTrackVisibility(tracksInItem[i].clipIdx, e.value);
+                                        break;
+                                    }
+                                }
+                            } 
                             break;
-                        case LX.TreeEvent.NODE_CARETCHANGED:    
-                            this.changeTrackDisplay(e.node, e.node.closed);
+                        case LX.TreeEvent.NODE_CARETCHANGED:
+                            const tracksInItem = this.animationClip.tracksPerItem[e.node.id];
+                            for( let i = 0; i < tracksInItem; ++i ){
+                                this.changeTrackDisplay(tracksInItem[i].clipIdx, e.node.closed);
+                            }
                             break;
                     }
                 }});
@@ -1136,31 +1157,17 @@ class Timeline {
 
     /**
     * @method selectTrack
-    * @param {id, parent, children, visible} trackInfo 
+    * @param {int} trackIdx
+    * // NOTE: to select a track from outside of the timeline, a this.leftPanelTrackTree.select(item) needs to be called.
     */
-
-    selectTrack( trackInfo) {
+    selectTrack( trackIdx ) {
         this.unSelectAllTracks();
         
-        let [name, type] = trackInfo.id.split(" (");
-        
-        if(type)
-            type = type.replaceAll(")", "").replaceAll(" ", "");
-        else {
-            type = name;
-            name = trackInfo.parent ? trackInfo.parent.id : trackInfo.id;
-        }
-        const tracksInItem = this.animationClip.tracksPerItem[name];
-
-        for(let i = 0; i < tracks.length; i++) {
-            if(tracksInItem[i].type != type && tracksInItem.length > 1)
-                continue;
-            tracksInItem[i].isSelected = true;
-            trackInfo = tracksInItem[i];
-        }
+        let track = this.animationClip.tracks[trackIdx];
+        track.isSelected = true;
         
         if(this.onSelectTrack)
-            this.onSelectTrack(trackInfo);
+            this.onSelectTrack(track);
     }
 
     unSelectAllTracks() {
@@ -1175,68 +1182,33 @@ class Timeline {
 
     /**
     * @method changeTrackVisibility
-    * @param {id, parent, children, visible} trackInfo 
+    * @param {int} trackIdx 
     */
+    changeTrackVisibility(trackIdx, visible) {
+        let track = this.animationClip.tracks[trackIdx];
+            
+        let oldState = track.active;
+        track.active = visible;
 
-    changeTrackVisibility(trackInfo, visible) {
-        let [name, type] = trackInfo.id.split(" (");
-        if(type)
-            type = type.replaceAll(")", "").replaceAll(" ", "");
-        else {
-            type = name;
-            name = trackInfo.parent ? trackInfo.parent.id : trackInfo.id;
-        }
-        trackInfo = {name, type};
-        let tracks = this.animationClip.tracksPerItem[name];
-
-        for(let i = 0; i < tracks.length; i++) {
-            if(tracks[i].type == type || tracks.length == 1){
-                let oldState = tracks[i].active;
-                tracks[i].active = visible;
-                trackInfo = tracks[i];
-    
-                if(this.onChangeTrackVisibility)
-                    this.onChangeTrackVisibility(trackInfo, oldState);
-
-                break;
-            }
-        }
-
+        if(this.onChangeTrackVisibility)
+            this.onChangeTrackVisibility(track, oldState);
     }
 
     /**
     * @method changeTrackDisplay
-    * @param {id, parent, children, display} trackInfo 
+    * @param {int} trackIdx 
     */
+    changeTrackDisplay(trackIdx, hide) {
+        let track = this.animationClip.tracks[trackIdx];
+        track.hide = hide;
 
-    changeTrackDisplay(trackInfo, hide) {
-
-        for(let idx = 0; idx < trackInfo.children.length; idx++) {
-            let [name, type] = trackInfo.children[idx].id.split(" (");
-            if(type)
-                type = type.replaceAll(")", "").replaceAll(" ", "");
-            else {
-                type = name;
-                name = trackInfo.parent ? trackInfo.parent.id : trackInfo.id;
-            }
-            const tracksInItem = this.animationClip.tracksPerItem[name];
-
-            for(let i = 0; i < tracks.length; i++) {
-                if(tracksInItem[i].type != type && tracksInItem.length > 1)
-                    continue;
-                tracksInItem[i].hide = hide;
-            }
-        }
-        
         if(this.onChangeTrackDisplay)
-            this.onChangeTrackDisplay(trackInfo, hide)
+            this.onChangeTrackDisplay(track, hide)
     }
 
     /**
      * @method resize
      * @param {*} size
-     * 
-     * 
      */
     resize( size = [this.root.parent.root.clientWidth, this.root.parent.root.clientHeight]) {
 
@@ -2709,13 +2681,13 @@ class ClipsTimeline extends Timeline {
         this.leftPanelTrackTree = p.addTree(null, treeTracks, {filter: false, rename: false, draggable: false, onevent: (e) => {
             switch(e.type) {
                 case LX.TreeEvent.NODE_SELECTED:
-                    this.selectTrack(e.node);
+                    this.selectTrack( parseInt( e.node.id.split("Track_")[1] ) );
                     break;
                 case LX.TreeEvent.NODE_VISIBILITY:    
-                    this.changeTrackVisibility(e.node, e.value);
+                    this.changeTrackVisibility(parseInt( e.node.id.split("Track_")[1] ), e.value);
                     break;
-                case LX.TreeEvent.NODE_CARETCHANGED:    
-                    this.changeTrackDisplay(e.node, e.node.closed);
+                case LX.TreeEvent.NODE_CARETCHANGED:
+                    this.changeTrackDisplay(parseInt( e.node.id.split("Track_")[1] ), e.node.closed);
                     break;
             }
         }});
@@ -2730,58 +2702,6 @@ class ClipsTimeline extends Timeline {
         if(this.leftPanel.parent.root.classList.contains("hidden") || !this.root.root.parent)
             return;
         this.resizeCanvas([ this.root.root.clientWidth - this.leftPanel.root.clientWidth  - 8, this.size[1]]);
-    }
-
-    
-    /**
-    * @method changeTrackVisibility
-    * @param {id, parent, children, visible} trackInfo 
-    */
-
-    changeTrackVisibility(trackInfo, visible) {
-        let [name, type] = trackInfo.id.split(" (");
-        if(type)
-            type = type.replaceAll(")", "").replaceAll(" ", "");
-        else {
-            type = name;
-            name = trackInfo.parent ? trackInfo.parent.id : trackInfo.id;
-        }
-        let id = name.split("Track_")[1];
-        trackInfo = {name, type};
-        let track = this.animationClip.tracks[id];
-  
-        let oldState = track.active;
-        track.active = visible;
-        trackInfo = track;
-        
-        if(this.onChangeTrackVisibility)
-            this.onChangeTrackVisibility(trackInfo, oldState);
-    }
-
-    /**
-    * @method selectTrack
-    * @param {id, parent, children, visible} trackInfo 
-    * // NOTE: to select a track from outside of the timeline, a this.leftPanelTrackTree.select(item) needs to be called. 
-    */
-
-    selectTrack(trackInfo) {
-        this.unSelectAllTracks();
-        
-        let [name, type] = trackInfo.id.split(" (");
-        
-        if(type)
-            type = type.replaceAll(")", "").replaceAll(" ", "");
-        else {
-            type = name;
-            name = trackInfo.parent ? trackInfo.parent.id : trackInfo.id;
-        }
-        let id = name.split("Track_")[1];
-        let track = this.animationClip.tracks[id];
-        track.isSelected = true;
-        
-        trackInfo = track;
-        if(this.onSelectTrack)
-            this.onSelectTrack(trackInfo);
     }
 
     unSelectAllTracks() {

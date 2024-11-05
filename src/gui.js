@@ -1720,9 +1720,10 @@ class KeyframesGui extends Gui {
                         console.log(event.node.id + " is now called " + event.value); 
                         break;
                     case LX.TreeEvent.NODE_VISIBILITY:
-                        this.keyFramesTimeline.changeTrackVisibility({id: event.node.id + ".quaternion"}, event.value );
-                        this.keyFramesTimeline.changeTrackVisibility({id: event.node.id + ".position"}, event.value );
-                        this.keyFramesTimeline.changeTrackVisibility({id: event.node.id + ".scale"}, event.value );
+                        const tracksInItem = this.keyFramesTimeline.animationClip.tracksPerItem[event.node.id];
+                        for( let i = 0; i < tracksInItem.length; ++i ){
+                            this.keyFramesTimeline.changeTrackVisibility(tracksInItem[i].clipIdx, event.value);
+                        }
                         console.log(event.node.id + " visibility: " + event.value); 
                         break;
                 }
