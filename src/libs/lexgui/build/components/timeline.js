@@ -549,11 +549,10 @@ class Timeline {
 
     /**
      * @method draw
-     * @param {*} currentTime 
-     * @param {*} rect 
+     * @param {*} rect (optional)
      */
 
-    draw( currentTime = this.currentTime, rect ) {
+    draw( rect = null ) {
 
         let ctx = this.canvas.getContext("2d");
         ctx.textBaseline = "bottom";

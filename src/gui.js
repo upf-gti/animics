@@ -499,30 +499,9 @@ class Gui {
     /** ------------------------------------------------------------ */
 
     /** -------------------- TIMELINE -------------------- */
-    render() {
-
-        if(this.timelineVisible){ this.drawTimeline(); }
-    }
-
     drawTimeline(currentTimeline) {
-        
-        if(this.timelineVisible){ currentTimeline.draw(); }
-        // const canvas = this.timelineCTX.canvas;
-       
 
-        // if(this.currentTime > this.duration) {
-        //     this.currentTime = 0.0;
-        //     this.editor.onAnimationEnded();
-        // }
-        // if(this.editor.activeTimeline)
-        //     this.editor.activeTimeline.draw(this.currentTime);
-        // this.keyFramesTimeline.draw(this.currentTime); //  [0, 0, canvas.width, canvas.height]
-        // if(this.clipsTimeline)
-        // {
-           
-        //     this.clipsTimeline.draw(this.currentTime, null, false);    // [0, 0, this.timelineNMFCTX.canvas.width, this.timelineNMFCTX.canvas.height]
-        // }
-        
+        if(this.timelineVisible){ currentTimeline.draw(); }        
     }
 
     showTimeline() {
@@ -2042,7 +2021,7 @@ class ScriptGui extends Gui {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
                 }, {min: 0, disabled: false});
-                dialog.addNumber("Num tracks", this.curvesTimeline.animationClip ? this.curvesTimeline.animationClip.tracks.length : 0, null, {disabled: true});
+                dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
             },
         });
 
