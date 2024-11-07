@@ -385,6 +385,7 @@ const MediaPipe = {
         this.startRecording();
         let listenerBind = listener.bind(this);
         videoElement.addEventListener( "seeked", listenerBind, false );
+        videoElement.currentTime = -1; // this solves a htmlvideo bug. If removed, some videos will alwasy show currentTime=duration (god knows why).
         videoElement.currentTime = startTime;
 
         this.currentVideoProcessing = {
