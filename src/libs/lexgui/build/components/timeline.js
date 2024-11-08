@@ -43,6 +43,7 @@ class Timeline {
         this.currentTime = 0;
         this.opacity = options.opacity || 1;
         this.topMargin = 40;
+        this.clickDiscardTimeout = 200; // ms
         this.lastMouse = [];
         this.lastKeyFramesSelected = [];
         this.tracksDrawn = [];
@@ -870,7 +871,7 @@ class Timeline {
                 return;
             }
             // this.canvas.style.cursor = "default";
-            const discard = this.movingKeys || (LX.UTILS.getTime() - this.clickTime) > 420; // ms
+            const discard = this.movingKeys || (LX.UTILS.getTime() - this.clickTime) > this.clickDiscardTimeout; // ms
 
             e.discard = discard;
  
@@ -1293,11 +1294,11 @@ class KeyFramesTimeline extends Timeline {
 
         let track = e.track;
         let localX = e.localX;
-        let discard = e.discard;
+        let discard = e.discard; // true when too much time has passed between Down and Up
         
         if(e.shiftKey) {
             e.multipleSelection = true;
-            // Multiple selection
+            // Manual multiple selection
             if(!discard && track) {
                 const keyFrameIdx = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );   
                 if ( keyFrameIdx > -1 ){
@@ -1323,11 +1324,18 @@ class KeyFramesTimeline extends Timeline {
                     }
                 }
             }
-
-        }else {
-            if(!this.movingKeys && (discard || !track) ) {
-                this.unSelectAllKeyFrames();               
-            } 
+        }
+        else if( !this.movingKeys && !discard ){ // if not moving moving timeline (just a click)
+            if (track){
+                const keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
+                if( keyFrameIndex > -1 ) {
+                    this.processCurrentKeyFrame( e, keyFrameIndex, track, null, e.multipleSelection ); // Settings this as multiple so time is not being set
+                }else{
+                    this.unSelectAllKeyFrames();                                    
+                }  
+            }else{
+                this.unSelectAllKeyFrames();                                    
+            }
         }
 
         this.canvas.classList.remove('grabbing');
@@ -1366,24 +1374,11 @@ class KeyFramesTimeline extends Timeline {
                     this.saveState(track.clipIdx, false);               
                 }
 
-                selectedKey[4] = track.times[keyIndex];
+                selectedKey[4] = track.times[keyIndex]; // update original time just in case 
                 this.moveKeyMinTime = Math.min( this.moveKeyMinTime, selectedKey[4] );
             }
             
             this.timeBeforeMove = this.xToTime( localX );
-        }
-        else if(track && !track.locked) {
- 
-            const keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-            if( keyFrameIndex > -1 ) {
-                this.processCurrentKeyFrame( e, keyFrameIndex, track, null, e.multipleSelection ); // Settings this as multiple so time is not being set
-            }    
-            else{
-                this.unSelectAllKeyFrames();
-            }
-        }
-        else if(!track) {
-            this.unSelectAllKeyFrames();      
         }
     }
 
@@ -2727,7 +2722,6 @@ class ClipsTimeline extends Timeline {
         
         let track = e.track;
         let localX = e.localX;
-
         let discard = e.discard; // true when too much time has passed between Down and Up
 
         if(e.shiftKey) {
@@ -3849,11 +3843,11 @@ class CurvesTimeline extends Timeline {
 
         let track = e.track;
         let localX = e.localX;
-        let discard = e.discard;
+        let discard = e.discard; // true when too much time has passed between Down and Up
         
         if(e.shiftKey) {
             e.multipleSelection = true;
-            // Multiple selection
+            // Manual multiple selection
             if(!discard && track) {
                 const keyFrameIdx = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );   
                 if ( keyFrameIdx > -1 ){
@@ -3879,11 +3873,18 @@ class CurvesTimeline extends Timeline {
                     }
                 }
             }
-
-        }else {
-            if(!this.movingKeys && (discard || !track) ) {
-                this.unSelectAllKeyFrames();               
-            } 
+        }
+        else if( !this.movingKeys && !discard ){ // if not moving moving timeline (just a click)
+            if (track){
+                const keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
+                if( keyFrameIndex > -1 ) {
+                    this.processCurrentKeyFrame( e, keyFrameIndex, track, null, e.multipleSelection ); // Settings this as multiple so time is not being set
+                }else{
+                    this.unSelectAllKeyFrames();                                    
+                }  
+            }else{
+                this.unSelectAllKeyFrames();                                    
+            }
         }
 
         this.canvas.classList.remove('grabbing');
@@ -3927,19 +3928,6 @@ class CurvesTimeline extends Timeline {
             }
             
             this.timeBeforeMove = this.xToTime( localX );
-        }
-        else if(track && !track.locked) {
- 
-            const keyFrameIndex = this.getCurrentKeyFrame( track, this.xToTime( localX ), this.pixelsToSeconds * 5 );
-            if( keyFrameIndex > -1 ) {
-                this.processCurrentKeyFrame( e, keyFrameIndex, track, null, e.multipleSelection ); // Settings this as multiple so time is not being set
-            }    
-            else{
-                this.unSelectAllKeyFrames();
-            }
-        }
-        else if(!track) {
-            this.unSelectAllKeyFrames();      
         }
     }
 
