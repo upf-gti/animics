@@ -499,6 +499,58 @@ class Gui {
     /** ------------------------------------------------------------ */
 
     /** -------------------- TIMELINE -------------------- */
+    drawPropagationWindow( timeline, ctx ){
+        if ( !this.propagationWindow.enabler || timeline.lastKeyFramesSelected.length != 1 ){ return; }
+
+        let rightSize = timeline.timeToX(this.propagationWindow.rightSide) - timeline.timeToX(0); 
+        let leftSize = timeline.timeToX(this.propagationWindow.leftSide) - timeline.timeToX(0);
+
+        let rectWidth = leftSize + rightSize;
+        let rectHeight = timeline.canvas.height - timeline.topMargin - 2;
+        let rectPosX = timeline.timeToX(timeline.lastKeyFramesSelected[0][4] - this.propagationWindow.leftSide);
+        let rectPosY = timeline.topMargin + 1;
+        let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
+        gradient.addColorStop(0, this.propagationWindow.gradientColorLimits);
+        gradient.addColorStop(leftSize/rectWidth, this.propagationWindow.gradientColor);
+        gradient.addColorStop(1,this.propagationWindow.gradientColorLimits);
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = this.propagationWindow.gradientColor;
+        ctx.globalAlpha = this.propagationWindow.opacity;
+
+        let radii = timeline.trackHeight;
+        let leftRadii = leftSize > radii ? radii : leftSize;
+                leftRadii = rectHeight > leftRadii ? leftRadii : rectHeight;
+                // leftRadii = leftRadii > rectHeight * 0.5 ? rectHeight : leftRadii;
+        let rightRadii = rightSize > radii ? radii : rightSize;
+                rightRadii = rectHeight > rightRadii ? rightRadii : rectHeight;
+                // rightRadii = rightRadii > rectHeight * 0.5 ? rectHeight * 0.5  : rightRadii;
+
+        ctx.beginPath();
+
+        ctx.moveTo(rectPosX, rectPosY + leftRadii);
+        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + leftRadii, rectPosY );
+        ctx.lineTo( rectPosX + rectWidth - rightRadii, rectPosY );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + rightRadii );
+        ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight - rightRadii );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - rightRadii, rectPosY + rectHeight );
+        ctx.lineTo( rectPosX + leftRadii, rectPosY + rectHeight );
+        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - leftRadii );
+
+        // ctx.moveTo(rectPosX, rectPosY);
+        // ctx.lineTo( rectPosX + rectWidth - rightRadii, rectPosY );
+        // ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + rightRadii );
+        // ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight);
+        // ctx.lineTo( rectPosX + leftRadii, rectPosY + rectHeight );
+        // ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - leftRadii );
+
+        // ctx.roundRect(rectPosX, rectPosY, rectWidth, rectHeight, 20);
+
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.globalAlpha = this.opacity;
+    }
+
     drawTimeline(currentTimeline) {
 
         if(this.timelineVisible){ currentTimeline.draw(); }        
@@ -629,6 +681,17 @@ class KeyframesGui extends Gui {
         };
 
         this.boneProperties = {};
+
+        this.propagationWindow = {
+            enabler: true,
+            rightSide: 1, // seconds
+            leftSide: 1,  // seconds
+            opacity: 1,
+            lexguiColor: '#ffffff',
+            gradientColorLimits: "rgba( 255, 255, 255, 0%)",
+            gradientColor: "rgba( 255, 255, 255, 100%)"
+            // radii = 100;
+        }
        
         //Create capture video window
         this.createCaptureArea(this.mainArea);
@@ -1084,10 +1147,34 @@ class KeyframesGui extends Gui {
                         this.keyFramesTimeline.optimizeThreshold = v;
                     }, {min: 0, max: 1, step: 0.001, precision: 4}
                 );
+
+                dialog.branch("Propagation Window");
+                dialog.addCheckbox("Enable Propagation", this.propagationWindow.enabler, (v) =>{
+                    this.propagationWindow.enabler = v;
+                });
+                dialog.addNumber("Propagation left", this.propagationWindow.leftSide, (v) => {
+                    this.propagationWindow.leftSide = v;
+                }, {min: 0, step: 0.001, disabled: false});
+                dialog.addNumber("Propagation right", this.propagationWindow.rightSide, (v) => {
+                    this.propagationWindow.rightSide = v;
+                }, {min: 0, step: 0.001, disabled: false});				
+                dialog.addNumber("Propagation Color Opacity", this.propagationWindow.opacity, (v) => {
+                    this.propagationWindow.opacity = v;
+                }, {min: 0, max:1, step:0.001, disabled: false});
+                dialog.addColor("Color", this.propagationWindow.lexguiColor, (value, event) => {
+                    this.propagationWindow.lexguiColor = value;
+                    let rawColor = parseInt(value.slice(1,7), 16);
+                    let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
+                    this.propagationWindow.gradientColorLimits = color + ",0%)"; 
+                    this.propagationWindow.gradientColor = color + ",100%)"; 
+                });
+                dialog.merge();
             },
             disableNewTracks: true
         });
      
+        this.keyFramesTimeline.onBeforeDrawContent = this.drawPropagationWindow.bind(this, this.keyFramesTimeline);
+
         this.keyFramesTimeline.onChangeState = (state) => {
             if(state != this.editor.state) {
                 let playElement = document.querySelector("[title = Play]");
@@ -1217,10 +1304,34 @@ class KeyframesGui extends Gui {
                         this.curvesTimeline.optimizeThreshold = v;
                     }, {min: 0, max: 1, step: 0.001, precision: 4}
                 );
+
+                dialog.branch("Propagation Window");
+                dialog.addCheckbox("Enable Propagation", this.propagationWindow.enabler, (v) =>{
+                    this.propagationWindow.enabler = v;
+                });
+                dialog.addNumber("Propagation left", this.propagationWindow.leftSide, (v) => {
+                    this.propagationWindow.leftSide = v;
+                }, {min: 0, max:5,  step: 0.001, disabled: false});
+                dialog.addNumber("Propagation right", this.propagationWindow.rightSide, (v) => {
+                    this.propagationWindow.rightSide = v;
+                }, {min: 0, max:5,  step: 0.001, disabled: false});				
+                dialog.addNumber("Propagation Color Opacity", this.propagationWindow.opacity, (v) => {
+                    this.propagationWindow.opacity = v;
+                }, {min: 0, max:1, step:0.001, disabled: false});
+                dialog.addColor("Color", this.propagationWindow.lexguiColor, (value, event) => {
+                    this.propagationWindow.lexguiColor = value;
+                    let rawColor = parseInt(value.slice(1,7), 16);
+                    let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
+                    this.propagationWindow.gradientColorLimits = color + ",0%)"; 
+                    this.propagationWindow.gradientColor = color + ",100%)"; 
+                });
+                dialog.merge();
             },
             disableNewTracks: true
         });
-        
+
+        this.curvesTimeline.onBeforeDrawContent = this.drawPropagationWindow.bind(this, this.curvesTimeline);
+
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, false);
@@ -2021,6 +2132,12 @@ class ScriptGui extends Gui {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
                 }, {min: 0, disabled: false});
+				dialog.addNumber("Opacity", window.opacity, (v) => {
+	                  window.opacity = v;
+                }, {min: 0, max:1, step:0.001, disabled: false});
+				dialog.addNumber("width", window.width, (v) => {
+                    window.width = v;
+                }, {min: 0, max:5,  step: 0.001, disabled: false});
                 dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
             },
         });

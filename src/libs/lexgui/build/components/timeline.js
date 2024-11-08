@@ -62,6 +62,7 @@ class Timeline {
         this.onAfterCreateTopBar = options.onAfterCreateTopBar;
         this.onChangePlayMode = options.onChangePlayMode;
         this.onConfiguration = options.onConfiguration;
+        this.onBeforeDrawContent = options.onBeforeDrawContent;
 
         this.playing = false;
         this.loop = options.loop ?? true;
@@ -589,6 +590,10 @@ class Timeline {
 
         this.drawTracksBackground(w, h);
 
+        if( this.onBeforeDrawContent ){
+            this.onBeforeDrawContent(ctx);            
+        }
+        
         if(this.animationClip) {
             
             ctx.translate( this.position[0], this.position[1] + this.topMargin ); //20 is the top margin area
