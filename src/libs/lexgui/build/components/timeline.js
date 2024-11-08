@@ -62,7 +62,8 @@ class Timeline {
         this.onAfterCreateTopBar = options.onAfterCreateTopBar;
         this.onChangePlayMode = options.onChangePlayMode;
         this.onConfiguration = options.onConfiguration;
-
+        this.onBeforeDrawContent = options.onBeforeDrawContent;
+        
         this.playing = false;
         this.loop = options.loop ?? true;
 
@@ -588,6 +589,10 @@ class Timeline {
         ctx.clearRect(0,0, this.canvas.width, this.canvas.height );
 
         this.drawTracksBackground(w, h);
+
+        if( this.onBeforeDrawContent ){
+            this.onBeforeDrawContent(ctx);
+        }
 
         if(this.animationClip) {
             
