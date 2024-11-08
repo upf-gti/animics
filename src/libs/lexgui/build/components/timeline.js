@@ -565,7 +565,6 @@ class Timeline {
         this.position[1] = rect[1];
         let w = rect[2];
         let h = rect[3];
-        this.currentTime = currentTime;
         // this.updateHeader();
         this.currentScrollInPixels = this.scrollableHeight <= h ? 0 : (this.currentScroll * (this.scrollableHeight - h));
 
