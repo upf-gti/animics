@@ -1884,7 +1884,7 @@ class KeyframeEditor extends Editor{
                             for(let t = 0; t < mixerClip.tracks.length; t++) {
                                 if(mixerClip.tracks[t].name.includes("[" + bsNames[b] + "]")) {
                                     mapTrackIdxs[trackIdx].push(t);
-                                    break;
+                                    // break; // do not break, need to check all meshes that contain this blendshape
                                 }
                             }
                         }
