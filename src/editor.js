@@ -606,7 +606,6 @@ class Editor {
      */
     setAnimation(type) {
 
-
         let currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
 
         if(this.mode == this.editionModes.SCRIPT) {
@@ -614,10 +613,8 @@ class Editor {
             this.activeTimeline.show();
         }
         else {
-            currentTime = 0;
             if(this.activeTimeline && this.animationMode != type) {
                 this.activeTimeline.hide();
-                currentTime = this.activeTimeline.currentTime;
             }
 
             switch(type) {
@@ -629,6 +626,7 @@ class Editor {
                     if (this.gizmo) { this.gizmo.stop(); }
                     this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation, false );
                     this.activeTimeline.show();
+                    currentTime = Math.min( currentTime, this.activeTimeline.duration );
                     this.setSelectedActionUnit(this.selectedAU);                    
                     break;
                     
@@ -638,6 +636,8 @@ class Editor {
                     this.activeTimeline = this.gui.keyFramesTimeline;
                     this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().skeletonAnimation, false );
                     this.activeTimeline.show();
+
+                    currentTime = Math.min( currentTime, this.activeTimeline.duration );
                     this.activeTimeline.currentTime = currentTime;
                     this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
                     break;
@@ -646,8 +646,7 @@ class Editor {
                     break;
             }
         }
-        
-        this.activeTimeline.speed = this.currentCharacter.mixer.timeScale;
+
         this.activeTimeline.currentTime = currentTime;
         this.setTime(currentTime, true);
         this.activeTimeline.updateHeader();
