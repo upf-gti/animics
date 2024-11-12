@@ -491,6 +491,7 @@ class VideoEditor {
             await new Promise(r => setTimeout(r, 1000));
             this.video.currentTime = 10000000 * Math.random();
         }
+        this.video.currentTime = -1; // BUG: some videos will not play unless this line is present 
         this.video.currentTime = 0;
         this.endTime = this.video.duration;
         this.timebar.currentX = this._timeToX(0);
