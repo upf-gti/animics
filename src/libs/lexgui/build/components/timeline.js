@@ -645,7 +645,7 @@ class Timeline {
         ctx.textAlign = "center";
         //ctx.textBaseline = "middle";
         ctx.fillStyle = Timeline.COLOR_INACTIVE//"#888";
-        ctx.fillText( this.currentTime.toFixed(1), posx,  this.topMargin * 0.6  );
+        ctx.fillText( (Math.floor(this.currentTime*10)*0.1).toFixed(1), posx, this.topMargin * 0.6 );
 
         // Selections
         ctx.strokeStyle = ctx.fillStyle =  Timeline.FONT_COLOR;
