@@ -582,7 +582,7 @@ class App {
             // CHECK THE INPUT FILE !!!!TODO!!!!
             let file = undefined;
             //If BML animation --> put languege
-            LX.prompt("Have you finished editing your animation? Remember that uploading the animation to the database implies that it will be used in the synthesis of the 3D avatar used in SignON European project.", "Upload animation", (v) => this.editor.export("", v), {input: this.editor.clipName} ) 
+            LX.prompt("Have you finished editing your animation? Remember that uploading the animation to the database implies that it will be used in the synthesis of the 3D avatar used in SignON European project.", "Upload animation", (v) => this.editor.export(null, "", v), {input: this.editor.clipName} ) 
             this.editor.gui.prompt = LX.prompt( "Have you finished editing your animation? Remember that uploading the animation to the database implies that it will be used in the synthesis of the 3D avatar used in SignON European project.", "Upload animation", async () => {
                 // Check if are files loaded
                 if (file) {

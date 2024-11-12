@@ -143,7 +143,7 @@ class Editor {
                         if(e.altKey) {
                             e.preventDefault();
                             e.stopImmediatePropagation();
-                            LX.prompt("File name", "Export GLB", (v) => this.export("GLB", true, v), {input: this.clipName, required: true} )     
+                            LX.prompt("File name", "Export GLB", (v) => this.export(null, "GLB", true, v), {input: this.clipName, required: true} )     
                         }
                     }
                     break;
@@ -394,16 +394,15 @@ class Editor {
     }
 
     getAnimationsToExport() {
-        this.toExport = {};
-        for(let animationName in this.bindedAnimations) {
-            let animation = this.bindedAnimations[animationName];
+        let toExport = [];
+        for(let animationName in this.loadedAnimations) {
+            let animation = this.loadedAnimations[animationName];
 
-            if(animation[this.currentCharacter.name]) {
-                animation[this.currentCharacter.name].export = true;
-                this.toExport[animationName] = animation[this.currentCharacter.name];
+            if( animation.export ){
+                toExport.push(animation);
             }
         }
-        return this.toExport;
+        return toExport;
     }
 
     startEdition(showGuide = true) {
@@ -700,12 +699,10 @@ class Editor {
         this.gui.resize(width, height);
     }
 
-    export(type = null, download = true, name = null) {
-        let bindedAnim = this.getCurrentBindedAnimation();
+    export(animsToExport = null, type = null, download = true, name = null) {
         let files = [];
-        if(!this.toExport || this.toExport.length) {
-            bindedAnim.export = true;
-            this.toExport = [bindedAnim];
+        if(!animsToExport) {
+            animsToExport = [this.getCurrentAnimation()];
         }
 
         switch(type){
@@ -715,21 +712,18 @@ class Editor {
                     animations: []
                 };
 
-                for(let animationName in this.toExport) {
-
-                    let animation = this.toExport[animationName];
+                for(let a in animsToExport) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
+                    const animation = animsToExport[a];
+                    const bindedAnim = this.bindedAnimations[animation.name][this.currentCharacter.name];
                     let animSaveName = animation.saveName;
-                    if(!animation.export) {
-                        continue;
-                    }
                     
-                    if(animation.mixerBodyAnimation) {
-                        animation.mixerBodyAnimation.name = animSaveName + '_' + animation.mixerBodyAnimation.name;
-                        options.animations.push(animation.mixerBodyAnimation);
+                    if(bindedAnim.mixerBodyAnimation) {
+                        bindedAnim.mixerBodyAnimation.name = animSaveName + '_' + bindedAnim.mixerBodyAnimation.name;
+                        options.animations.push(bindedAnim.mixerBodyAnimation);
                     }
-                    if(animation.mixerFaceAnimation) {
-                        animation.mixerFaceAnimation.name = animSaveName + '_' + animation.mixerFaceAnimation.name;
-                        options.animations.push(animation.mixerFaceAnimation);                       
+                    if(bindedAnim.mixerFaceAnimation) {
+                        bindedAnim.mixerFaceAnimation.name = animSaveName + '_' + bindedAnim.mixerFaceAnimation.name;
+                        options.animations.push(bindedAnim.mixerFaceAnimation);                       
                     }
                 }
                 let model = this.currentCharacter.mixer._root.getChildByName('Armature');
@@ -744,25 +738,25 @@ class Editor {
             case 'BVH': case 'BVH extended':
                 let skeleton = this.currentCharacter.skeletonHelper.skeleton;
                 
-                for(let animationName in this.toExport) {
-                    let animation = this.toExport[animationName];
-                    if(!animation.export) {
-                        continue;
-                    }
+                for(let a in animsToExport) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
+                    const animation = animsToExport[a];
+                    const bindedAnim = this.bindedAnimations[animation.name][this.currentCharacter.name];
+                    let animSaveName = animation.saveName;
+  
                     let bvhPose = null;
                     let bvhFace = null;
-                    let bodyAction = this.currentCharacter.mixer.existingAction(animation.mixerBodyAnimation);
-                    let faceAction = this.currentCharacter.mixer.existingAction(animation.mixerFaceAnimation);
+                    let bodyAction = this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation);
+                    let faceAction = this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation);
                     
-                    if(!bodyAction && animation.mixerBodyAnimation) {
-                        bodyAction = this.currentCharacter.mixer.clipAction(animation.mixerBodyAnimation);     
+                    if(!bodyAction && bindedAnim.mixerBodyAnimation) {
+                        bodyAction = this.currentCharacter.mixer.clipAction(bindedAnim.mixerBodyAnimation);     
                     }
-                    if(!faceAction && animation.mixerFaceAnimation) {
-                        faceAction = this.currentCharacter.mixer.clipAction(animation.mixerFaceAnimation);                        
+                    if(!faceAction && bindedAnim.mixerFaceAnimation) {
+                        faceAction = this.currentCharacter.mixer.clipAction(bindedAnim.mixerFaceAnimation);                        
                     }
 
                     if(this.mode == this.editionModes.SCRIPT) {
-                        const action = this.currentCharacter.mixer.clipAction(animation.mixerAnimation);
+                        const action = this.currentCharacter.mixer.clipAction(bindedAnim.mixerAnimation);
                         if(!action) {
                             return;
                         }
@@ -775,7 +769,7 @@ class Editor {
                     }
                     
                     // Check if it already has extension
-                    let clipName = name || animation.saveName || this.loadedAnimations[animation.source].saveName;
+                    let clipName = name || animSaveName;
 
                     // Add the extension
                     if(type == 'BVH') {
@@ -847,7 +841,7 @@ class Editor {
         }
         else{
             this.gui.showExportAnimationsDialog(() => {
-                const files = this.export("BVH extended", false);
+                const files = this.export(this.loadedAnimations, "BVH extended", false);
                 data = {type: "bvhe", data: files};
                 openPreview(data);
             })
@@ -1166,6 +1160,7 @@ class KeyframeEditor extends Editor{
 
         this.loadedAnimations[data.name] = data;
         this.loadedAnimations[data.name].type = "video";
+        this.loadedAnimations[data.name].export = true;
 
         let extensionIdx = data.name.lastIndexOf(".");
         if ( extensionIdx == -1 ){ // no extension
@@ -1205,6 +1200,8 @@ class KeyframeEditor extends Editor{
         // Create face animation from mediapipe action units
         let faceAnimation = createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units THREEjs AnimationClip
+
+        this.bindAnimationToCharacter(data.name);
     }
 
     // load animation from bvh file
@@ -1249,11 +1246,14 @@ class KeyframeEditor extends Editor{
         this.loadedAnimations[name] = {
             name: name,
             saveName: saveName,
+            export: true,
             bodyAnimation: bodyAnimation ?? new THREE.AnimationClip( "bodyAnimation", -1, [] ), // THREEjs AnimationClip
             faceAnimation: faceAnimation ?? new THREE.AnimationClip( "faceAnimation", -1, [] ), // THREEjs AnimationClip
             skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
             type: "bvh"
         };
+
+        this.bindAnimationToCharacter(name);
     }
 
     // Array of objects. Each object is a frame with all world landmarks. See mediapipe.js detections
@@ -2211,6 +2211,7 @@ class ScriptEditor extends Editor{
         this.loadedAnimations[name] = {
             name: name,
             saveName: saveName,
+            export: true,
             inputAnimation: animationData, // bml file imported. This needs to be converted by the timeline's setAnimationClip.
             scriptAnimation: null, // if null, bind will take care. 
             type: "script"

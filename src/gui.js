@@ -66,19 +66,19 @@ class Gui {
         }
 
         menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export("BVH extended", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true } );
+            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export(null, "BVH extended", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true } );
         }});
 
         // Export animation
         menubar.add("Project/Export all animations", {icon: "fa fa-file-export"});
 
         menubar.add("Project/Export all animations/Export extended BVH", {callback: () => {            
-            this.showExportAnimationsDialog(() => this.editor.export("BVH extended"));            
+            this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
         }});
         
         menubar.add("Project/Export scene", {icon: "fa fa-download"});
         menubar.add("Project/Export scene/Export GLB", {callback: () =>
-            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export("GLB", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )
+            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export(null, "GLB", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )
         });
 
         // Save animation
@@ -332,14 +332,13 @@ class Gui {
         let value = "";
 
         const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
-            let animations = this.editor.getAnimationsToExport(); // reference of editor.toExport object. Returns animations for current character
+            let animations = this.editor.loadedAnimations;
             for(let animationName in animations) { // animationName is of the source anim (not the bind)
-                let animation = animations[animationName]; // this is the bound animation for this character
-                animation.export = animation.export === undefined ? true : animation.export;
+                let animation = animations[animationName]; 
                 p.sameLine();
                 p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px"});
-                p.addText(null, this.editor.loadedAnimations[animationName].saveName, (v) => {
-                    this.editor.loadedAnimations[animationName].saveName = v; 
+                p.addText(null, animation.saveName, (v) => {
+                    animation.saveName = v; 
                     if ( this.editor.currentAnimation == animationName ){
                         this.updateAnimationPanel(); // update name display
                     }
@@ -588,11 +587,11 @@ class Gui {
             p.addButton(null, "Export", () => {
                 p.clear();
                 p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
-                p.addButton(null, "Export extended BVH", () => this.editor.export("BVH extended"), { buttonClass: "accept" });
+                p.addButton(null, "Export extended BVH", () => this.editor.export(null, "BVH extended"), { buttonClass: "accept" });
                 if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-                    p.addButton( null, "Export BML", () => this.editor.export(""), { buttonClass: "accept" });
+                    p.addButton( null, "Export BML", () => this.editor.export(null, ""), { buttonClass: "accept" });
                 }
-                p.addButton( null, "Export GLB", () => this.editor.export("GLB"), { buttonClass: "accept" });
+                p.addButton( null, "Export GLB", () => this.editor.export(null, "GLB"), { buttonClass: "accept" });
             });
             p.addButton(null, "Discard", () => {
 
@@ -683,7 +682,7 @@ class KeyframesGui extends Gui {
         this.boneProperties = {};
 
         this.propagationWindow = {
-            enabler: true,
+            enabler: false,
             rightSide: 1, // seconds
             leftSide: 1,  // seconds
             opacity: 1,
@@ -1020,11 +1019,10 @@ class KeyframesGui extends Gui {
     showExportVideosDialog() {
 
         let animations = this.editor.loadedAnimations;
-        let toExport = {};
+        let toExport = {}; // need to sepparate bvh anims from video anims (just in case)
         for ( let aName in animations ){
             if ( animations[aName].type == "video" ){
                 toExport[ aName ] = animations[aName];
-                animations[aName].export = true;
             }
         }
 
@@ -3780,7 +3778,7 @@ class ScriptGui extends Gui {
     }
 
     createExportBMLDialog() {
-        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export("", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )  
+        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export(null, "", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )  
     }
 
     showSourceCode (asset) 
