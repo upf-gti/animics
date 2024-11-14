@@ -605,7 +605,6 @@ class Editor {
      */
     setAnimation(type) {
 
-
         let currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
 
         if(this.mode == this.editionModes.SCRIPT) {
@@ -613,10 +612,8 @@ class Editor {
             this.activeTimeline.show();
         }
         else {
-            currentTime = 0;
             if(this.activeTimeline && this.animationMode != type) {
                 this.activeTimeline.hide();
-                currentTime = this.activeTimeline.currentTime;
             }
 
             switch(type) {
@@ -628,6 +625,7 @@ class Editor {
                     if (this.gizmo) { this.gizmo.stop(); }
                     this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation, false );
                     this.activeTimeline.show();
+                    currentTime = Math.min( currentTime, this.activeTimeline.duration );
                     this.setSelectedActionUnit(this.selectedAU);                    
                     break;
                     
@@ -637,6 +635,8 @@ class Editor {
                     this.activeTimeline = this.gui.keyFramesTimeline;
                     this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().skeletonAnimation, false );
                     this.activeTimeline.show();
+
+                    currentTime = Math.min( currentTime, this.activeTimeline.duration );
                     this.activeTimeline.currentTime = currentTime;
                     this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
                     break;
@@ -645,8 +645,7 @@ class Editor {
                     break;
             }
         }
-        
-        this.activeTimeline.speed = this.currentCharacter.mixer.timeScale;
+
         this.activeTimeline.currentTime = currentTime;
         this.setTime(currentTime, true);
         this.activeTimeline.updateHeader();
@@ -1819,6 +1818,7 @@ class KeyframeEditor extends Editor{
 
         // mixer computes time * timeScale. We actually want to set the raw animation (track) time, without any timeScale 
         this.currentCharacter.mixer.setTime(t / this.currentCharacter.mixer.timeScale ); // already calls mixer.update
+        this.currentCharacter.mixer.update(0); // BUG: for some reason this is needed. Otherwise, after sme timeline edition + optimization, weird things happen
 
         // Update video
         this.video.currentTime = this.video.startTime + t;
@@ -1884,7 +1884,7 @@ class KeyframeEditor extends Editor{
                             for(let t = 0; t < mixerClip.tracks.length; t++) {
                                 if(mixerClip.tracks[t].name.includes("[" + bsNames[b] + "]")) {
                                     mapTrackIdxs[trackIdx].push(t);
-                                    break;
+                                    // break; // do not break, need to check all meshes that contain this blendshape
                                 }
                             }
                         }
