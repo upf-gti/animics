@@ -1818,6 +1818,7 @@ class KeyframeEditor extends Editor{
 
         // mixer computes time * timeScale. We actually want to set the raw animation (track) time, without any timeScale 
         this.currentCharacter.mixer.setTime(t / this.currentCharacter.mixer.timeScale ); // already calls mixer.update
+        this.currentCharacter.mixer.update(0); // BUG: for some reason this is needed. Otherwise, after sme timeline edition + optimization, weird things happen
 
         // Update video
         this.video.currentTime = this.video.startTime + t;
