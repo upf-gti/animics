@@ -34,7 +34,7 @@ class Session {
 class Timeline {
 
     /**
-     * @param {string} name 
+     * @param {string} name = string unique id
      * @param {object} options = {animationClip, selectedItems, position = [0,0], width, height, canvas, trackHeight, skipLock, skipVisibility}
      */
     constructor( name, options = {} ) {
@@ -182,25 +182,14 @@ class Timeline {
             this.onBeforeCreateTopBar(header);
 
         header.addNumber("Current Time", this.currentTime, (value, event) => {
-            if(value > this.duration) {
-                value = this.duration;
-                if(event.constructor != CustomEvent) {
-                    LX.emit( "@on_current_time_" + this.constructor.name, value);
-                }
-            }
-            
-            this.currentTime = value;
-            if(this.onSetTime)
-                this.onSetTime(this.currentTime);
-            
-        }, {signal: "@on_current_time_" + this.constructor.name, step: 0.01, min: 0, precision: 3, skipSlider: true});        
+            this.setTime(value)}, {signal: "@on_set_time_" + this.name, step: 0.01, min: 0, precision: 3, skipSlider: true});        
 
-        header.addNumber("Duration", +this.duration.toFixed(3), (value, event) => {
-            this.setDuration(value, false)}, {step: 0.01, min: 0, signal: "@on_set_duration"
+        header.addNumber("Duration", + this.duration.toFixed(3), (value, event) => {
+            this.setDuration(value, false)}, {step: 0.01, min: 0, signal: "@on_set_duration_" + this.name
         });    
 
-        header.addNumber("Speed", +this.speed.toFixed(3), (value, event) => {
-            this.setSpeed(value)}, {step: 0.01});    
+        header.addNumber("Speed", + this.speed.toFixed(3), (value, event) => {
+            this.setSpeed(value)}, {step: 0.01, signal: "@on_set_speed_" + this.name});    
            
         if(this.onAfterCreateTopBar)
             this.onAfterCreateTopBar(header);      
@@ -722,11 +711,11 @@ class Timeline {
         this.duration = this.animationClip.duration = v; 
 
         if(updateHeader) {
-            LX.emit( "@on_set_duration", +v.toFixed(3));
+            LX.emit( "@on_set_duration_" + this.name, +this.duration.toFixed(3)); // skipcallback = true
         }
 
         if( this.onSetDuration ) 
-            this.onSetDuration( v );	 
+            this.onSetDuration( this.duration );	 
     }
 
     /**
@@ -746,11 +735,18 @@ class Timeline {
 
     setSpeed(speed) {
         this.speed = speed;
-        LX.emit( "@on_set_speed", +speed.toFixed(3));
+        LX.emit( "@on_set_speed_" + this.name, +this.speed.toFixed(3)); // skipcallback = true
         
-
         if( this.onSetSpeed ) 
-            this.onSetSpeed( speed );	 
+            this.onSetSpeed( this.speed );	 
+    }
+
+    setTime(time){
+        this.currentTime = Math.min(time,this.duration);
+        LX.emit( "@on_set_time_" + this.name, +this.currentTime.toFixed(2)); // skipcallback = true
+
+        if(this.onSetTime)
+            this.onSetTime(this.currentTime);
     }
 
     // Converts distance in pixels to time
@@ -905,8 +901,7 @@ class Timeline {
             else if( e.localY < this.topMargin ){
                 this.grabbing = true;
                 this.grabbingTimeBar = true;
-                this.currentTime = Math.min(this.duration, time);
-                LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
+                this.setTime(time);
             }
             else if( h < this.scrollableHeight && x > w - 10 ) { // grabbing scroll bar
                 this.grabbing = true;
@@ -932,8 +927,7 @@ class Timeline {
                 this.canvas.style.cursor = "grabbing"; 
                 if(this.grabbingTimeBar && this.active)
                 {
-                    this.currentTime = Math.min(this.duration, time);
-                    LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
+                    this.setTime(time);
                 }
                 else if(this.grabbingScroll)
                 {
@@ -1437,6 +1431,17 @@ class KeyFramesTimeline extends Timeline {
                 }
                 this.lastKeyFramesSelected[idx][2] = k; // update keyframe index
             }
+
+            if ( this.onContentMoved ){
+                for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
+                    const [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] = this.lastKeyFramesSelected[i];
+                    track = this.animationClip.tracks[trackIdx];
+                    if(track && track.locked)
+                        continue;
+                    this.onContentMoved(trackIdx, keyIndex);
+                }
+            }
+
             return;
         }
 
@@ -2082,9 +2087,6 @@ class KeyFramesTimeline extends Timeline {
             this.animationClip.tracks[ track.clipIdx ].values[i] = clipboardInfo.values[j];
             ++j;
         }
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        // if(this.onSetTime)
-        //     this.onSetTime(this.currentTime);
 
         track.edited[ index ] = true;
     }
@@ -2554,8 +2556,7 @@ class KeyFramesTimeline extends Timeline {
         }        
 
         if( !multiple ) {
-            this.currentTime = this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ];
-            LX.emit( "@on_current_time_" + this.constructor.name, track.times[ keyFrameIndex ]);
+            this.setTime(this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ]);
         }    
     }
 
@@ -3832,7 +3833,7 @@ class CurvesTimeline extends Timeline {
 
         super(name, options);
                
-        this.valueBeforeMove = 0;
+        this.keyValuePerPixel = 1/200; // used onMouseMove, vertical move
         this.range = options.range || [0, 1];
 
         if(this.animationClip && this.animationClip.tracks.length)
@@ -3897,7 +3898,7 @@ class CurvesTimeline extends Timeline {
         let localY = e.localY;
         let track = e.track;
 
-        if(e.ctrlKey && this.lastKeyFramesSelected.length) { // move keyframes
+        if( (e.ctrlKey || e.altKey) && this.lastKeyFramesSelected.length) { // move keyframes
             this.movingKeys = true;
             this.canvas.style.cursor = "grab";  
             this.canvas.classList.add('grabbing');
@@ -3940,52 +3941,86 @@ class CurvesTimeline extends Timeline {
 
         if(this.movingKeys) { // move keyframes
 
+            // update where is mouse
             let newTime = this.xToTime( localX );
             let deltaTime = newTime - this.timeBeforeMove;
             if ( deltaTime + this.moveKeyMinTime < 0 ){
                 deltaTime = -this.moveKeyMinTime;
             }
             this.timeBeforeMove = this.timeBeforeMove + deltaTime;
-            this.moveKeyMinTime += deltaTime;
 
-            for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
-                let idx = i;
-                if ( deltaTime > 0 ){
-                    idx = this.lastKeyFramesSelected.length - 1 - i;
+            // move keyframes horizontally (change time)
+            if ( e.ctrlKey ){
+                this.moveKeyMinTime += deltaTime;
+                const tracksPerItem = this.animationClip.tracksPerItem;
+                for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
+                    let idx = i;
+                    if ( deltaTime > 0 ){
+                        idx = this.lastKeyFramesSelected.length - 1 - i;
+                    }
+                    
+                    const [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] = this.lastKeyFramesSelected[idx];
+                    track = tracksPerItem[name][localTrackIdx];
+                    if(track && track.locked)
+                        continue;
+
+                    this.canvas.style.cursor = "grabbing";
+
+                    const times = this.animationClip.tracks[ track.clipIdx ].times;
+                    times[ keyIndex ] = Math.max(0,times[keyIndex] + deltaTime);
+                    if (times[ keyIndex ] > this.duration){ 
+                        this.setDuration(times[ keyIndex ]); 
+                    }
+
+                    // sort keyframe
+                    let k = keyIndex;
+                    if ( deltaTime > 0 ){
+                        for( ; k < times.length-1; ++k ){
+                            if ( times[k] < times[k+1] ){ 
+                                break; 
+                            }
+                            this.swapKeyFrames(track, k+1, k);
+                        }
+                    }else{
+                        for( ; k > 0; --k ){
+                            if ( times[k-1] < times[k] ){ 
+                                break; 
+                            }
+                            this.swapKeyFrames(track, k-1, k);
+                        }
+                    }
+                    this.lastKeyFramesSelected[idx][2] = k; // update keyframe index
                 }
                 
-                const [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] = this.lastKeyFramesSelected[idx];
-                track = this.animationClip.tracksPerItem[name][localTrackIdx];
-                if(track && track.locked)
-                    continue;
-
-                this.canvas.style.cursor = "grabbing";
-
-                const times = this.animationClip.tracks[ track.clipIdx ].times;
-                times[ keyIndex ] = Math.max(0,times[keyIndex] + deltaTime);
-                if (times[ keyIndex ] > this.duration){ 
-                    this.setDuration(times[ keyIndex ]); 
-                }
-
-                // sort keyframe
-                let k = keyIndex;
-                if ( deltaTime > 0 ){
-                    for( ; k < times.length-1; ++k ){
-                        if ( times[k] < times[k+1] ){ 
-                            break; 
-                        }
-                        this.swapKeyFrames(track, k+1, k);
-                    }
-                }else{
-                    for( ; k > 0; --k ){
-                        if ( times[k-1] < times[k] ){ 
-                            break; 
-                        }
-                        this.swapKeyFrames(track, k-1, k);
+                if ( this.onContentMoved ){
+                    for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
+                        const [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] = this.lastKeyFramesSelected[i];
+                        track = this.animationClip.tracks[trackIdx];
+                        if(track && track.locked)
+                            continue;
+                        this.onContentMoved(trackIdx, keyIndex);
                     }
                 }
-                this.lastKeyFramesSelected[idx][2] = k; // update keyframe index
             }
+
+            // move keyframes vertically (change values instead of time) 
+            if ( e.altKey ){
+                for( let i = 0; i < this.lastKeyFramesSelected.length; ++i ){
+                    const [name, localTrackIdx, keyIndex, trackIdx, originalKeyTime] = this.lastKeyFramesSelected[i];
+                    track = this.animationClip.tracks[trackIdx];
+                    if(track && track.locked)
+                        continue;
+                    let value = track.values[keyIndex];
+                    let delta = e.deltay * this.keyValuePerPixel * (this.range[1]-this.range[0]); 
+                    track.values[keyIndex] = Math.max(this.range[0], Math.min(this.range[1], value - delta)); // invert delta because of screen y
+                    track.edited[keyIndex] = true;
+
+                    if ( this.onUpdateTrack ){
+                        this.onUpdateTrack( track.clipIdx );
+                    }
+                }
+            }
+            
             return;
         }
 
@@ -4640,10 +4675,6 @@ class CurvesTimeline extends Timeline {
             ++j;
         }
 
-        LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime);
-        // if(this.onSetTime)
-        //     this.onSetTime(this.currentTime);
-
         track.edited[ index ] = true;
     }
 
@@ -5103,8 +5134,7 @@ class CurvesTimeline extends Timeline {
         }
 
         if (!multiple){
-            this.currentTime = this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ];
-            LX.emit( "@on_current_time_" + this.constructor.name, this.currentTime );
+            this.setTime(this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ]);
         }
     }
 

@@ -1189,8 +1189,9 @@ class KeyframesGui extends Gui {
             currentBinded.auAnimation.duration = t;
             this.curvesTimeline.duration = t;
         };
-        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
 
+        this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
+        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
         this.keyFramesTimeline.onSelectKeyFrame = (e, info) => {
             if(e.button != 2) {
                 //this.editor.gizmo.mustUpdate = true
@@ -1345,6 +1346,8 @@ class KeyframesGui extends Gui {
             currentBinded.auAnimation.duration = t;
             this.keyFramesTimeline.duration = t;
         };
+
+        this.curvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
         this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
@@ -1740,7 +1743,7 @@ class KeyframesGui extends Gui {
 					const track = itemTracks[t];
                     let frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
                     if ( frame > -1 ){
-                        LX.emit("@on_change_" + track.type, track.values[frame]);
+                        LX.emit("@on_change_" + track.type, track.values[frame], {skipCallback: false});
                     }
                 }
             }
@@ -1757,7 +1760,7 @@ class KeyframesGui extends Gui {
             frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
         }
         if( frame > -1 ){
-            LX.emit("@on_change_" + name, track.values[frame]);
+            LX.emit("@on_change_" + name, track.values[frame], {skipCallback: false});
         }
     }
 
@@ -2543,10 +2546,10 @@ class ScriptGui extends Gui {
                         syncvalues.push([clip.fadeout - clip.start, (clip.properties.amount || 1) - 0.2]);
                     
                     // syncvalues.push([clip.duration + clip.start, 0]);
-                    // this.curve.curve_instance.element.value = syncvalues;
-                    // this.curve.curve_instance.element.xrange = [0, clip.duration];
+                    // this.curve.curveInstance.element.value = syncvalues;
+                    // this.curve.curveInstance.element.xrange = [0, clip.duration];
                     
-                    this.curve.curve_instance.redraw({value: syncvalues, xrange: [0, clip.duration]})
+                    this.curve.curveInstance.redraw({value: syncvalues, xrange: [0, clip.duration]})
                 }
                 if(refreshPanel)
                     this.updateClipPanel(clip);
