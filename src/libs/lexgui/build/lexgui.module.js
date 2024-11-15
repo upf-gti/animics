@@ -8,7 +8,7 @@
 */
 
 var LX = {
-    version: "0.1.32",
+    version: "0.1.36",
     ready: false,
     components: [], // specific pre-build components
     signals: {} // events and triggers
@@ -21,8 +21,14 @@ LX.MOUSE_RIGHT_CLICK    = 2;
 LX.MOUSE_DOUBLE_CLICK = 2;
 LX.MOUSE_TRIPLE_CLICK = 3;
 
-function clamp (num, min, max) { return Math.min(Math.max(num, min), max) }
-function round(num, n) { return +num.toFixed(n); }
+LX.CURVE_MOVEOUT_CLAMP = 0;
+LX.CURVE_MOVEOUT_DELETE = 1;
+
+function clamp( num, min, max ) { return Math.min( Math.max( num, min ), max ); }
+function round( num, n ) { return +num.toFixed( n ); }
+
+LX.clamp = clamp;
+LX.round = round;
 
 function getSupportedDOMName( string )
 {
@@ -38,43 +44,43 @@ function has( component_name )
 
 LX.has = has;
 
-function getExtension(s)
+function getExtension( s )
 { 
     return s.includes('.') ? s.split('.').pop() : null;
 }
 
 LX.getExtension = getExtension;
 
-function deepCopy(o)
+function deepCopy( o )
 { 
     return JSON.parse(JSON.stringify(o)) 
 }
 
 LX.deepCopy = deepCopy;
 
-function setThemeColor(color_name, color)
+function setThemeColor( colorName, color )
 {
-    var r = document.querySelector(':root');
-    r.style.setProperty("--" + color_name, color);
+    var r = document.querySelector( ':root' );
+    r.style.setProperty( '--' + colorName, color );
 }
 
 LX.setThemeColor = setThemeColor;
 
-function getThemeColor(color_name)
+function getThemeColor( colorName )
 {
-    var r = getComputedStyle(document.querySelector(':root'));
-    return r.getPropertyValue("--" + color_name);
+    var r = getComputedStyle( document.querySelector( ':root' ) );
+    return r.getPropertyValue( '--' + colorName );
 }
 
 LX.getThemeColor = getThemeColor;
 
-function getBase64Image(img) {
-    var canvas = document.createElement("canvas");
+function getBase64Image( img ) {
+    var canvas = document.createElement( 'canvas' );
     canvas.width = img.width;
     canvas.height = img.height;
-    var ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-    return canvas.toDataURL("image/png");
+    var ctx = canvas.getContext( '2d' );
+    ctx.drawImage( img, 0, 0 );
+    return canvas.toDataURL( 'image/png' );
 }
 
 LX.getBase64Image = getBase64Image;
@@ -106,6 +112,8 @@ function simple_guidGenerator() {
     return (S4()+"-"+S4()+"-"+S4());
 }
 
+LX.guidGenerator = simple_guidGenerator;
+
 // Timer that works everywhere (from litegraph.js)
 if (typeof performance != "undefined") {
     LX.getTime = performance.now.bind(performance);
@@ -126,22 +134,26 @@ let ASYNC_ENABLED = true;
 
 function doAsync( fn, ms ) {
     if( ASYNC_ENABLED )
+    {
         setTimeout( fn, ms ?? 0 );
+    }
     else
+    {
         fn();
+    }
 }
 
 // Math classes
 
 class vec2 {
 
-    constructor(x, y) {
+    constructor( x, y ) {
         this.x = x ?? 0;
-        this.y = y ?? (x ?? 0);
+        this.y = y ?? ( x ?? 0 );
     }
 
-    get xy() { return [ this.x, this.y]; }
-    get yx() { return [ this.y, this.x]; }
+    get xy() { return [ this.x, this.y ]; }
+    get yx() { return [ this.y, this.x ]; }
 
     set ( x, y ) { this.x = x; this.y = y; }
     add ( v, v0 = new vec2() ) { v0.set( this.x + v.x, this.y + v.y ); return v0; }
@@ -149,6 +161,11 @@ class vec2 {
     mul ( v, v0 = new vec2() ) { if( v.constructor == Number ) { v = new vec2( v ) } v0.set( this.x * v.x, this.y * v.y ); return v0; }
     div ( v, v0 = new vec2() ) { if( v.constructor == Number ) { v = new vec2( v ) } v0.set( this.x / v.x, this.y / v.y ); return v0; }
     abs ( v0 = new vec2() ) { v0.set( Math.abs( this.x ), Math.abs( this.y ) ); return v0; }
+    dot ( v ) { return this.x * v.x + this.y * v.y; }
+    len2 () { return this.dot( this ) }
+    len () { return Math.sqrt( this.len2() ); }
+    nrm ( v0 = new vec2() ) { v0.set( this.x, this.y ); return v0.mul( 1.0 / this.len(), v0 ); }
+    dst ( v ) { return v.sub( this ).len(); }
 };
 
 LX.vec2 = vec2;
@@ -288,11 +305,18 @@ function create_global_searchbar( root ) {
         else
         {
             for( let c of LX.components )
-                if( LX[c].prototype.onKeyPressed ) 
+            {
+                if( !LX[c] || !LX[c].prototype.onKeyPressed )
                 {
-                    const instances = LX.CodeEditor.getInstances();
-                    for( let i of instances ) i.onKeyPressed( e );
+                    continue;
                 }
+
+                const instances = LX.CodeEditor.getInstances();
+                for( let i of instances )
+                {
+                    i.onKeyPressed( e );
+                }
+            }
         }
     });
 
@@ -466,7 +490,7 @@ function init( options = { } )
     var link = document.createElement( 'link' );
     link.rel = 'stylesheet';
     link.type = 'text/css';
-    link.href = 'https://use.fontawesome.com/releases/v6.5.1/css/all.css';
+    link.href = 'https://use.fontawesome.com/releases/v6.6.0/css/all.css';
     head.appendChild( link );
 
     // Global vars
@@ -520,26 +544,29 @@ LX.message = message;
  * size: (Array) [width, height]
  */
 
-function popup(text, title, options = {})
+function popup( text, title, options = {} )
 {
-    if(!text)
+    if( !text )
+    {
         throw("No message to show");
+    }
 
-    options.size = options.size ?? ["auto", "auto"];
+    options.size = options.size ?? [ "auto", "auto" ];
     options.class = "lexpopup";
-    const time = options.timeout || 3000; 
 
-    const dialog = new Dialog(title, p => {
-        p.addTextArea(null, text, null, { disabled: true, fitHeight: true });
-    }, options);
+    const time = options.timeout || 3000; 
+    const dialog = new Dialog( title, p => {
+        p.addTextArea( null, text, null, { disabled: true, fitHeight: true } );
+    }, options );
     
-    dialog.root.classList.add("fadein");
+    dialog.root.classList.add( 'fadein' );
     setTimeout(() => {
-        dialog.root.classList.remove("fadein");
-        dialog.root.classList.add("fadeout");   
-    }, time - 1000);
+        dialog.root.classList.remove( 'fadein' );
+        dialog.root.classList.add( 'fadeout' );
+    }, time - 1000 );
     
-    setTimeout(dialog.close, time);
+    setTimeout( dialog.close, time );
+
     return dialog;
 }
 
@@ -558,36 +585,45 @@ LX.popup = popup;
  * required: Input has to be filled [true]. Default: false
  */
 
-function prompt(text, title, callback, options = {})
+function prompt( text, title, callback, options = {} )
 {
     options.modal = true;
 
     let value = "";
 
-    const dialog = new Dialog(title, p => {
-        p.addTextArea(null, text, null, { disabled: true });
-        if(options.input !== false)
-            p.addText(null, options.input || value, (v) => value = v, {placeholder: "..."} );
-        p.sameLine(2);
-        p.addButton(null, options.accept || "OK", () => { 
-            if(options.required && value === '') {
+    const dialog = new Dialog( title, p => {
 
+        p.addTextArea( null, text, null, { disabled: true, fitHeight: true } );
+
+        if( options.input ?? true )
+        {
+            p.addText( null, options.input || value, v => value = v, { placeholder: "..." } );
+        }
+
+        p.sameLine( 2 );
+
+        p.addButton( null, options.accept || "OK", () => {
+            if( options.required && value === '' )
+            {
                 text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
-                dialog.close() ;
-                prompt(text, title, callback, options);
-            }else {
-
-                callback.call(this, value); 
-                dialog.close() ;
+                dialog.close();
+                prompt( text, title, callback, options );
+            }else
+            {
+                if( callback ) callback.call( this, value );
+                dialog.close();
             }
-            
         }, { buttonClass: "accept" });
+
         p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
-    }, options);
+
+    }, options );
 
     // Focus text prompt
-    if(options.input !== false)
-        dialog.root.querySelector('input').focus();
+    if( options.input ?? true )
+    {
+        dialog.root.querySelector( 'input' ).focus();
+    }
     
     return dialog;
 }
@@ -607,6 +643,8 @@ class IEvent {
     }
 };
 
+LX.IEvent = IEvent;
+
 class TreeEvent {
 
     static NONE                 = 0;
@@ -624,6 +662,7 @@ class TreeEvent {
         this.node = node;
         this.value = value;
         this.multiple = false; // Multiple selection
+        this.panel = null;
     }
     
     string() {
@@ -643,16 +682,22 @@ class TreeEvent {
 
 LX.TreeEvent = TreeEvent;
 
-function emit( signal_name, value, target )
+function emit( signalName, value, options = {} )
 {
-    const data = LX.signals[ signal_name ];
+    const data = LX.signals[ signalName ];
 
     if( !data )
     return;
 
+    const target = options.target;
+
     if( target )
     {
-        if(target[signal_name]) target[signal_name].call(target, value);
+        if( target[ signalName ])
+        {
+            target[ signalName ].call( target, value );
+        }
+
         return;
     }
 
@@ -660,13 +705,16 @@ function emit( signal_name, value, target )
     {
         if( obj.constructor === Widget )
         {
-            obj.set( value );
+            obj.set( value, options.skipCallback ?? true );
             
-            if(obj.options && obj.options.callback)
-                obj.options.callback(value, data);
-        }else
+            if( obj.options && obj.options.callback )
+            {
+                obj.options.callback( value, data );
+            }
+        }
+        else
         {
-            obj[signal_name].call(obj, value);
+            obj[ signalName ].call( obj, value );
         }
     }
 }
@@ -706,12 +754,16 @@ class Area {
 
     constructor( options = {} ) {
     
-        var root = document.createElement('div');
+        var root = document.createElement( 'div' );
         root.className = "lexarea";
-        if(options.id)
+        if( options.id )
+        {
             root.id = options.id;
-        if(options.className)
+        }
+        if( options.className )
+        {
             root.className += " " + options.className;
+        }
 
         var width = options.width || "calc( 100% )";
         var height = options.height || "100%";
@@ -719,10 +771,14 @@ class Area {
         // This has default options..
         this.setLimitBox( options.minWidth, options.minHeight, options.maxWidth, options.maxHeight );
 
-        if(width.constructor == Number)
+        if( width.constructor == Number )
+        {
             width += "px";
-        if(height.constructor == Number)
+        }
+        if( height.constructor == Number )
+        {
             height += "px";
+        }
 
         root.style.width = width;
         root.style.height = height;
@@ -733,27 +789,32 @@ class Area {
         this.sections = [];
         this.panels = [];
 
-        if(!options.no_append) {
+        if( !options.no_append )
+        {
             var lexroot = document.getElementById("lexroot");
             lexroot.appendChild( this.root );
         }
 
         let overlay = options.overlay;
 
-        if(overlay)
+        if( overlay )
         {
             this.root.classList.add("overlay-" + overlay);
 
-            if(options.left) {
+            if( options.left )
+            {
                 this.root.style.left = options.left;
             }
-            if(options.right) {
+            else if( options.right )
+            {
                 this.root.style.right = options.right;
             }
-            if(options.top) {
+            else if( options.top )
+            {
                 this.root.style.top = options.top;
             }
-            if(options.bottom) {
+            else if( options.bottom )
+            {
                 this.root.style.bottom = options.bottom;
             }
             
@@ -765,97 +826,99 @@ class Area {
                 root.classList.add("resizeable");
             }
             
-            if(options.resize)
+            if( options.resize )
             {                  
                 this.split_bar = document.createElement("div");
-                let type = overlay == "left" || overlay == "right" ? "horizontal" : "vertical";
+                let type = (overlay == "left") || (overlay == "right") ? "horizontal" : "vertical";
                 this.type = overlay;;
                 this.split_bar.className = "lexsplitbar " + type;
-                if(overlay == "right") {
+
+                if( overlay == "right" )
+                {
                     this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                    this.split_bar.style.left = -LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
+                    this.split_bar.style.left = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 } 
-                else if(overlay == "left") {
+                else if( overlay == "left" )
+                {
                     let size = Math.min(document.body.clientWidth - LX.DEFAULT_SPLITBAR_SIZE, this.root.clientWidth);
                     this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                    this.split_bar.style.left = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
+                    this.split_bar.style.left = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 }
-                else if (overlay == "top") {
+                else if( overlay == "top" )
+                {
                     let size = Math.min(document.body.clientHeight - LX.DEFAULT_SPLITBAR_SIZE, this.root.clientHeight);
                     this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                    this.split_bar.style.top = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
+                    this.split_bar.style.top = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 }
-                else if(overlay == "bottom") {
+                else if( overlay == "bottom" )
+                {
                     this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                    this.split_bar.style.top = -LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
+                    this.split_bar.style.top = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 }
 
                 this.split_bar.addEventListener("mousedown", inner_mousedown);
-                this.root.appendChild(this.split_bar);
+                this.root.appendChild( this.split_bar );
                 
                 var that = this;
-                var last_pos = [0,0];
+                var last_pos = [ 0, 0 ];
                 
-                function inner_mousedown(e)
+                function inner_mousedown( e )
                 {
                     var doc = that.root.ownerDocument;
-                    doc.addEventListener("mousemove",inner_mousemove);
-                    doc.addEventListener("mouseup",inner_mouseup);
-                    last_pos[0] = e.x;
-                    last_pos[1] = e.y;
+                    doc.addEventListener( 'mousemove', inner_mousemove );
+                    doc.addEventListener( 'mouseup', inner_mouseup );
+                    last_pos[ 0 ] = e.x;
+                    last_pos[ 1 ] = e.y;
                     e.stopPropagation();
                     e.preventDefault();
-                    document.body.classList.add("nocursor");
-                    that.split_bar.classList.add("nocursor");
+                    document.body.classList.add( 'nocursor' );
+                    that.split_bar.classList.add( 'nocursor' );
                 }
 
-                function inner_mousemove(e)
+                function inner_mousemove( e )
                 {
-                    switch(that.type) {
+                    switch( that.type ) {
                         case "right":
-                            var dt = (last_pos[0] - e.x);
-                            var size = (that.root.offsetWidth + dt);
+                            var dt = ( last_pos[ 0 ] - e.x );
+                            var size = ( that.root.offsetWidth + dt );
                             that.root.style.width = size + "px";
                             break;
-                        
                         case "left":
-                            var dt = (last_pos[0] - e.x);
+                            var dt = ( last_pos[ 0 ] - e.x );
                             var size = Math.min(document.body.clientWidth - LX.DEFAULT_SPLITBAR_SIZE, (that.root.offsetWidth - dt));
                             that.root.style.width = size + "px";
                             that.split_bar.style.left = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
                             break;
-                        
                         case "top":
-                            var dt = (last_pos[1] - e.y);
+                            var dt = ( last_pos[ 1 ] - e.y );
                             var size = Math.min(document.body.clientHeight - LX.DEFAULT_SPLITBAR_SIZE, (that.root.offsetHeight - dt));
                             that.root.style.height = size + "px";
                             that.split_bar.style.top = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
                             break;
-
                         case "bottom":
-                            var dt = (last_pos[1] - e.y);
-                            var size = (that.root.offsetHeight + dt);
+                            var dt = ( last_pos[ 1 ] - e.y );
+                            var size = ( that.root.offsetHeight + dt );
                             that.root.style.height = size + "px";
                             break;
                     }
                     
-                    last_pos[0] = e.x;
-                    last_pos[1] = e.y;
+                    last_pos[ 0 ] = e.x;
+                    last_pos[ 1 ] = e.y;
                     e.stopPropagation();
                     e.preventDefault();
                     
                     // Resize events   
-                    if(that.onresize)
+                    if( that.onresize )
                         that.onresize( that.root.getBoundingClientRect() );
                 }
 
-                function inner_mouseup(e)
+                function inner_mouseup( e )
                 {
                     var doc = that.root.ownerDocument;
-                    doc.removeEventListener("mousemove",inner_mousemove);
-                    doc.removeEventListener("mouseup",inner_mouseup);
-                    document.body.classList.remove("nocursor");
-                    that.split_bar.classList.remove("nocursor");
+                    doc.removeEventListener( 'mousemove', inner_mousemove );
+                    doc.removeEventListener( 'mouseup', inner_mouseup );
+                    document.body.classList.remove( 'nocursor' );
+                    that.split_bar.classList.remove( 'nocursor' );
                 }
             }
         }
@@ -892,35 +955,36 @@ class Area {
     
     split( options = {} ) {
 
-        if(this.sections.length)
+        if( this.sections.length )
         {
             // In case Area has been split before, get 2nd section as root
-            this.offset = this.root.childNodes[0].offsetHeight; // store offset to take into account when resizing
-            this._root = this.sections[0].root;
-            this.root = this.sections[1].root;
+            this.offset = this.root.childNodes[ 0 ].offsetHeight; // store offset to take into account when resizing
+            this._root = this.sections[ 0 ].root;
+            this.root = this.sections[ 1 ].root;
         }
 
         var type = options.type || "horizontal";
-        var sizes = options.sizes || ["50%", "50%"];
+        var sizes = options.sizes || [ "50%", "50%" ];
         var infer_height = false;
-        var auto = options.sizes === 'auto';
+        var auto = (options.sizes === 'auto');
 
-        if( !sizes[1] )
+        if( !sizes[ 1 ] )
         {
-            let size = sizes[0];
+            let size = sizes[ 0 ];
             let margin = options.top ? options.top : 0;
-            if(size.constructor == Number) {
+            if( size.constructor == Number )
+            {
                 size += margin;
                 size += "px";
             }
             
-            sizes[1] = "calc( 100% - " + size + " )";
+            sizes[ 1 ] = "calc( 100% - " + size + " )";
             infer_height = true;
         }
 
         // Create areas
-        var area1 = new Area({ no_append: true, className: "split" + (options.menubar || options.sidebar ? "" : " origin") });
-        var area2 = new Area({ no_append: true, className: "split"});
+        var area1 = new Area( { no_append: true, className: "split" + ( options.menubar || options.sidebar ? "" : " origin" ) } );
+        var area2 = new Area( { no_append: true, className: "split"} );
 
         area1.parentArea = this;
         area2.parentArea = this;
@@ -931,23 +995,27 @@ class Area {
         var data = "0px";
         this.offset = 0;
 
-        if(resize)
+        if( resize )
         {
             this.resize = resize;
-            this.split_bar = document.createElement("div");
+            this.split_bar = document.createElement( "div" );
             this.split_bar.className = "lexsplitbar " + type;
 
-            if(type == "horizontal") {
+            if( type == "horizontal" )
+            {
                 this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
             }
-            else {
+            else
+            {
                 this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
             }
-            this.split_bar.addEventListener("mousedown", inner_mousedown);
-            data = LX.DEFAULT_SPLITBAR_SIZE/2 + "px"; // updates
+
+            this.split_bar.addEventListener( 'mousedown', inner_mousedown );
+
+            data = ( LX.DEFAULT_SPLITBAR_SIZE / 2 ) + "px"; // updates
 
             // Being minimizable means it's also resizeable!
-            if(minimizable)
+            if( minimizable )
             {
                 this.split_extended = false;
 
@@ -969,14 +1037,14 @@ class Area {
             }
         }
 
-        if(type == "horizontal")
+        if( type == "horizontal" )
         {
-            var width1 = sizes[0],
-                width2 = sizes[1];
+            var width1 = sizes[ 0 ],
+                width2 = sizes[ 1 ];
 
-            if(width1.constructor == Number)
+            if( width1.constructor == Number )
                 width1 += "px";
-            if(width2.constructor == Number)
+            if( width2.constructor == Number )
                 width2 += "px";
 
             area1.root.style.width = "calc( " + width1 + " - " + data + " )";
@@ -995,19 +1063,19 @@ class Area {
                 area1.root.style.height = "auto";
 
                 // Listen resize event on first area
-                const resizeObserver = new ResizeObserver((entries) => {
+                const resizeObserver = new ResizeObserver( entries => {
                     for (const entry of entries) {
                         const bb = entry.contentRect;
                         area2.root.style.height = "calc(100% - " + ( bb.height + 4) + "px )";
                     }
                 });
 
-                resizeObserver.observe(area1.root);
+                resizeObserver.observe( area1.root );
             }
             else
             {
-                var height1 = sizes[0],
-                    height2 = sizes[1];
+                var height1 = sizes[ 0 ],
+                    height2 = sizes[ 1 ];
 
                 if(height1.constructor == Number)
                     height1 += "px";
@@ -1022,7 +1090,7 @@ class Area {
 
         this.root.appendChild( area1.root );
 
-        if(resize) 
+        if( resize )
         {
             this.root.appendChild(this.split_bar);
         }
@@ -1034,54 +1102,66 @@ class Area {
         // Update sizes
         this._update();
 
-        if(!resize)
+        if( !resize )
         {
             return this.sections;
         }
 
-        // from litegui.js @jagenjo
-
         var that = this;
-        var last_pos = [0,0];
-        function inner_mousedown(e)
+        var last_pos = [ 0, 0 ];
+
+        function inner_mousedown( e )
         {
             var doc = that.root.ownerDocument;
-            doc.addEventListener("mousemove",inner_mousemove);
-            doc.addEventListener("mouseup",inner_mouseup);
+            doc.addEventListener( 'mousemove', inner_mousemove );
+            doc.addEventListener( 'mouseup', inner_mouseup );
             last_pos[0] = e.x;
             last_pos[1] = e.y;
             e.stopPropagation();
             e.preventDefault();
-            document.body.classList.add("nocursor");
-            that.split_bar.classList.add("nocursor");
+            document.body.classList.add( 'nocursor' );
+            that.split_bar.classList.add( 'nocursor' );
         }
 
-        function inner_mousemove(e)
+        function inner_mousemove( e )
         {
-            if(that.type == "horizontal") {
-                that._moveSplit(last_pos[0] - e.x);
+            if(that.type == "horizontal")
+            {
+                that._moveSplit( last_pos[ 0 ] - e.x );
             }
-            else {
-                that._moveSplit(last_pos[1] - e.y);
+            else
+            {
+                that._moveSplit( last_pos[ 1 ] - e.y );
             }
             
-            last_pos[0] = e.x;
-            last_pos[1] = e.y;
+            last_pos[ 0 ] = e.x;
+            last_pos[ 1 ] = e.y;
+
+            const widgets = that.root.querySelectorAll( ".lexwidget" );
+
+            // Send area resize to every widget in the area
+            for( let widget of widgets )
+            {
+                const jsInstance = widget.jsIinstance;
+
+                if( jsInstance.onresize )
+                {
+                    jsInstance.onresize();
+                }
+            }
+
             e.stopPropagation();
             e.preventDefault();
         }
 
-        function inner_mouseup(e)
+        function inner_mouseup( e )
         {
             var doc = that.root.ownerDocument;
-            doc.removeEventListener("mousemove",inner_mousemove);
-            doc.removeEventListener("mouseup",inner_mouseup);
-            document.body.classList.remove("nocursor");
-            that.split_bar.classList.remove("nocursor");
+            doc.removeEventListener( 'mousemove', inner_mousemove );
+            doc.removeEventListener( 'mouseup', inner_mouseup );
+            document.body.classList.remove( 'nocursor' );
+            that.split_bar.classList.remove( 'nocursor' );
         }
-
-        // Is this necessary?..
-        // setTimeout( () => this._moveSplit(0), 100);
 
         return this.sections;
     }
@@ -1121,7 +1201,7 @@ class Area {
         this.propagateEvent("onresize");
     }
 
-        /**
+    /**
     * @method extend
     * Hide 2nd area split
     */
@@ -1570,7 +1650,7 @@ class Tabs {
             this.classList.remove("dockingtab");
 
             // Change tabs instance
-            LX.emit( "@on_tab_docked", el.instance );
+            LX.emit( "@on_tab_docked" );
             el.instance = that;
 
             // Show on drop
@@ -1642,22 +1722,26 @@ class Tabs {
 
         let isSelected = options.selected ?? false;
 
-        if( isSelected ) {
-            this.root.querySelectorAll('span').forEach( s => s.classList.remove('selected'));
-            this.area.root.querySelectorAll('.lextabcontent').forEach( c => c.style.display = 'none');
+        if( isSelected )
+        {
+            this.root.querySelectorAll( 'span' ).forEach( s => s.classList.remove( 'selected' ) );
+            this.area.root.querySelectorAll( '.lextabcontent' ).forEach( c => c.style.display = 'none' );
         }
         
         isSelected = !Object.keys( this.tabs ).length && !this.folding ? true : isSelected;
 
         let contentEl = content.root ? content.root : content;
-        contentEl.style.display = isSelected ? "block" : "none";
-        contentEl.classList.add("lextabcontent");
+        contentEl.originalDisplay = contentEl.style.display;
+        contentEl.style.display = isSelected ? contentEl.originalDisplay : "none";
+        contentEl.classList.add( 'lextabcontent' );
 
         // Process icon
         if( options.icon )
         {
             if( options.icon.includes( 'fa-' ) ) // It's fontawesome icon...
+            {
                 options.icon = "<i class='" + options.icon + "'></i>";
+            }
             else // an image..
             {
                 const rootPath = "https://raw.githubusercontent.com/jxarco/lexgui.js/master/";
@@ -1666,26 +1750,31 @@ class Tabs {
         }
 
         // Create tab
-        let tabEl = document.createElement('span');
-        tabEl.dataset["name"] = name;
-        tabEl.className = "lexareatab" + (isSelected ? " selected" : "");
-        tabEl.innerHTML = (options.icon ?? "") + name;
-        tabEl.id = name.replace(/\s/g, '') + Tabs.TAB_ID++;
+        let tabEl = document.createElement( 'span' );
+        tabEl.dataset[ "name" ] = name;
+        tabEl.className = "lexareatab" + ( isSelected ? " selected" : "" );
+        tabEl.innerHTML = ( options.icon ?? "" ) + name;
+        tabEl.id = name.replace( /\s/g, '' ) + Tabs.TAB_ID++;
         tabEl.title = options.title;
         tabEl.selected = isSelected ?? false;
         tabEl.fixed = options.fixed;
-        if(tabEl.selected)
-            this.selected = name;
         tabEl.instance = this;
         contentEl.id = tabEl.id + "_content";
 
+        if( tabEl.selected )
+        {
+            this.selected = name;
+        }
+
         LX.addSignal( "@on_tab_docked", tabEl, function() {
-            if( this.parentElement.childNodes.length == 1 ){
-                this.parentElement.childNodes[0].click(); // single tab!!
+            if( this.parentElement.childNodes.length == 1 )
+            {
+                this.parentElement.childNodes[ 0 ].click(); // single tab!!
             } 
         } );
         
         tabEl.addEventListener("click", e => {
+
             e.preventDefault();
             e.stopPropagation();
 
@@ -1693,25 +1782,27 @@ class Tabs {
             {
                 // For folding tabs
                 const lastValue = tabEl.selected;
-                tabEl.parentElement.querySelectorAll('span').forEach( s => s.selected = false );
+                tabEl.parentElement.querySelectorAll( 'span' ).forEach( s => s.selected = false );
                 tabEl.selected = !lastValue; 
                 // Manage selected
-                tabEl.parentElement.querySelectorAll('span').forEach( s => s.classList.remove('selected'));
-                tabEl.classList.toggle('selected', (this.folding && tabEl.selected));
+                tabEl.parentElement.querySelectorAll( 'span' ).forEach( s => s.classList.remove( 'selected' ));
+                tabEl.classList.toggle('selected', ( this.folding && tabEl.selected ));
                 // Manage visibility 
-                tabEl.instance.area.root.querySelectorAll('.lextabcontent').forEach( c => c.style.display = 'none');
-                contentEl.style.display = "block";
+                tabEl.instance.area.root.querySelectorAll( '.lextabcontent' ).forEach( c => c.style.display = 'none' );
+                contentEl.style.display = contentEl.originalDisplay;
                 tabEl.instance.selected = tabEl.dataset.name;
             }
 
             if( this.folding )
             {
                 this.folded = tabEl.selected;
-                this.area.root.classList.toggle('folded', !this.folded);
+                this.area.root.classList.toggle( 'folded', !this.folded );
             }
 
-            if(options.onSelect)
+            if( options.onSelect )
+            {
                 options.onSelect(e, tabEl.dataset.name);
+            }
 
             if( this.thumb )
             {
@@ -1726,25 +1817,28 @@ class Tabs {
             e.preventDefault();
             e.stopPropagation();
 
-            if(options.onContextMenu) 
+            if( options.onContextMenu )
+            {
                 options.onContextMenu( e, tabEl.dataset.name );
+            }
         });
 
         tabEl.addEventListener("mouseup", e => {
             e.preventDefault();
             e.stopPropagation();
-            if( e.button == 1 ) {
-                this.delete( tabEl.dataset["name"] );
+            if( e.button == 1 )
+            {
+                this.delete( tabEl.dataset[ "name" ] );
             }
         });
         
-        tabEl.setAttribute('draggable', true);
-        tabEl.addEventListener("dragstart", function(e) {
+        tabEl.setAttribute( 'draggable', true );
+        tabEl.addEventListener( 'dragstart', function( e ) {
             if( this.parentElement.childNodes.length == 1 ){
                 e.preventDefault();
                 return;
             } 
-            e.dataTransfer.setData( "source", e.target.id );
+            e.dataTransfer.setData( 'source', e.target.id );
         });
         
         // Attach content
@@ -2368,6 +2462,7 @@ class Widget {
     static CONTENT      = 20;
     static CUSTOM       = 21;
     static SEPARATOR    = 22;
+    static KNOB         = 23;
 
     static NO_CONTEXT_TYPES = [
         Widget.BUTTON,
@@ -2376,7 +2471,7 @@ class Widget {
         Widget.PROGRESS
     ];
 
-    constructor(name, type, options) {
+    constructor( name, type, options ) {
         this.name = name;
         this.type = type;
         this.options = options;
@@ -2384,13 +2479,15 @@ class Widget {
 
     value() {
 
-        if(this.onGetValue)
+        if( this.onGetValue )
+        {
             return this.onGetValue();
+        }
 
-        console.warn("Can't get value of " + this.typeName());
+        console.warn( "Can't get value of " + this.typeName() );
     }
 
-    set( value, skipCallback = false ) {
+    set( value, skipCallback = false, signalName = "" ) {
 
         if( this.onSetValue )
             return this.onSetValue( value, skipCallback );
@@ -2447,13 +2544,13 @@ class Widget {
             case Widget.LIST: return "List";
             case Widget.TAGS: return "Tags";
             case Widget.CURVE: return "Curve";
+            case Widget.KNOB: return "Knob";
             case Widget.CUSTOM: return this.customName;
         }
     }
 
     refresh() {
-        // this.domEl.innerHTML = "";
-        // if( this.options.callback ) this.options.callback();
+        
     }
 }
 
@@ -2596,7 +2693,8 @@ LX.ADD_CUSTOM_WIDGET = ADD_CUSTOM_WIDGET;
 
 class NodeTree {
         
-    constructor(domEl, data, options) {
+    constructor( domEl, data, options ) {
+
         this.domEl = domEl;
         this.data = data;
         this.onevent = options.onevent;
@@ -2604,10 +2702,10 @@ class NodeTree {
         this.selected = [];
 
         if(data.constructor === Object)
-            this._create_item(null, data);
+            this._create_item( null, data );
         else
             for( let d of data )
-                this._create_item(null, d);
+                this._create_item( null, d );
     }
 
     _create_item( parent, node, level = 0, selectedId ) {
@@ -2674,32 +2772,32 @@ class NodeTree {
                 return;
             }
 
-            if(!e.shiftKey) {
-                list.querySelectorAll("li").forEach( e => { e.classList.remove('selected'); } );
+            if( !e.shiftKey ) {
+                list.querySelectorAll( "li" ).forEach( e => { e.classList.remove( 'selected' ); } );
                 this.selected.length = 0;
             }
             
             // Add or remove
             const idx = this.selected.indexOf( node );
             if( idx > -1 ) {
-                item.classList.remove('selected');
-                this.selected.splice(idx, 1);
+                item.classList.remove( 'selected' );
+                this.selected.splice( idx, 1 );
             }else {
-                item.classList.add('selected');
+                item.classList.add( 'selected' );
                 this.selected.push( node );
             }
 
             // Only Show children...
-            if(is_parent && node.id.length > 1 /* Strange case... */) {
+            if( is_parent && node.id.length > 1 /* Strange case... */) {
                 node.closed = false;
-                if(that.onevent) {
+                if( that.onevent ) {
                     const event = new TreeEvent(TreeEvent.NODE_CARETCHANGED, node, node.closed);
                     that.onevent( event );
                 }
                 that.frefresh( node.id );
             }
 
-            if(that.onevent) {
+            if( that.onevent ) {
                 const event = new TreeEvent(TreeEvent.NODE_SELECTED, e.shiftKey ? this.selected : node );
                 event.multiple = e.shiftKey;
                 that.onevent( event );
@@ -2707,15 +2805,17 @@ class NodeTree {
         });
 
         item.addEventListener("dblclick", function() {
+
             if( that.options.rename ?? true )
             {
                 // Trigger rename
                 node.rename = true;
                 that.refresh();
             }
+
             if( that.onevent )
             {
-                const event = new TreeEvent(TreeEvent.NODE_DBLCLICKED, node);
+                const event = new TreeEvent( TreeEvent.NODE_DBLCLICKED, node );
                 that.onevent( event );
             }
         });
@@ -2725,19 +2825,88 @@ class NodeTree {
             if(that.onevent) {
                 const event = new TreeEvent(TreeEvent.NODE_CONTEXTMENU, this.selected.length > 1 ? this.selected : node, e);
                 event.multiple = this.selected.length > 1;
+
+                LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.value, m => {
+                    event.panel = m;
+                });
+
                 that.onevent( event );
+
+                if( ( this.options.addDefault ?? false ) == true )
+                {
+                    if( event.panel.items )
+                    {
+                        event.panel.add( "" );
+                    }
+    
+                    event.panel.add( "Select Children", () => {
+    
+                        const selectChildren = ( n ) => {
+                            
+                            if( n.closed )
+                            {
+                                return;
+                            }
+    
+                            for( let child of n.children ?? [] )
+                            {
+                                if( !child )
+                                {
+                                    continue;   
+                                }
+    
+                                let nodeItem = this.domEl.querySelector( '#' + child.id );
+                                nodeItem.classList.add('selected');
+                                this.selected.push( child ); 
+                                selectChildren( child );
+                            }
+                        };
+    
+                        // Add childs of the clicked node
+                        selectChildren( node );
+    
+                    } );
+                    
+                    // event.panel.add( "Clone", { callback: () => {
+    
+                    // } } );
+    
+                    event.panel.add( "Delete", { callback: () => {
+    
+                        // It's the root node
+                        if( !node.parent )
+                        {
+                            return;
+                        }
+    
+                        if( that.onevent ) {
+                            const event = new TreeEvent( TreeEvent.NODE_DELETED, node, e );
+                            that.onevent( event );
+                        }
+    
+                        // Delete nodes now
+                        let childs = node.parent.children;
+                        const index = childs.indexOf( node );
+                        childs.splice( index, 1 );
+    
+                        this.refresh();
+                    } } );
+                }
             }
         });
 
         item.addEventListener("keydown", e => {
-            if(node.rename)
-            return;
+
+            if( node.rename )
+                return;
+
             e.preventDefault();
+
             if( e.key == "Delete" )
             {
                 // Send event now so we have the info in selected array..
-                if(that.onevent) {
-                    const event = new TreeEvent(TreeEvent.NODE_DELETED, this.selected.length > 1 ? this.selected : node, e);
+                if( that.onevent ) {
+                    const event = new TreeEvent( TreeEvent.NODE_DELETED, this.selected.length > 1 ? this.selected : node, e );
                     event.multiple = this.selected.length > 1;
                     that.onevent( event );
                 }
@@ -2755,8 +2924,8 @@ class NodeTree {
             }
             else if( e.key == "ArrowUp" || e.key == "ArrowDown" ) // Unique or zero selected
             {
-                var selected = this.selected.length > 1 ? (e.key == "ArrowUp" ? this.selected.shift() : this.selected.pop()) : this.selected[0];
-                var el = this.domEl.querySelector("#" + LX.getSupportedDOMName( selected.id ) );
+                var selected = this.selected.length > 1 ? ( e.key == "ArrowUp" ? this.selected.shift() : this.selected.pop() ) : this.selected[ 0 ];
+                var el = this.domEl.querySelector( "#" + LX.getSupportedDOMName( selected.id ) );
                 var sibling = e.key == "ArrowUp" ? el.previousSibling : el.nextSibling;
                 if( sibling ) sibling.click();
             }
@@ -3227,7 +3396,7 @@ class Panel {
 
         if( type != Widget.TITLE )
         {
-            element.style.width = "calc(100% - " + (this.current_branch || type == Widget.FILE || ( type == Widget.BUTTON && !name ) ? 10 : 20) + "px)";
+            element.style.width = "calc(100% - " + (this.current_branch || type == Widget.FILE ? 10 : 20) + "px)";
             if( options.width ) {
                 element.style.width = element.style.minWidth = options.width;
             }
@@ -3279,6 +3448,7 @@ class Panel {
         }
 
         widget.domEl = element;
+        element.jsIinstance = widget;
 
         const insert_widget = el => {
             if(options.container)
@@ -3682,6 +3852,8 @@ class Panel {
      * placeholder: Add input placeholder
      * trigger: Choose onchange trigger (default, input) [default]
      * inputWidth: Width of the text input
+     * float: Justify input text content
+     * justifyName: Justify name content
      * fitHeight: Height adapts to text
      */
 
@@ -3719,6 +3891,7 @@ class Panel {
         let wValue = document.createElement( 'textarea' );
         wValue.value = wValue.iValue = value || "";
         wValue.style.width = "100%";
+        wValue.style.textAlign = options.float ?? "";
         Object.assign( wValue.style, options.style ?? {} );
 
         if( options.disabled ?? false ) wValue.setAttribute("disabled", true);
@@ -3795,8 +3968,9 @@ class Panel {
      * @param {String} value Button name
      * @param {Function} callback Callback function on click
      * @param {*} options:
-     * icon 
      * disabled: Make the widget disabled [false]
+     * icon: Icon class to show as button value
+     * img: Path to image to show as button value
      */
 
     addButton( name, value, callback, options = {} ) {
@@ -4046,37 +4220,39 @@ class Panel {
 
     addDropdown( name, values, value, callback, options = {} ) {
 
-        let widget = this.create_widget(name, Widget.DROPDOWN, options);
+        let widget = this.create_widget( name, Widget.DROPDOWN, options );
+
         widget.onGetValue = () => {
-            return element.querySelector("li.selected").getAttribute('value');
+            return element.querySelector( "li.selected" ).getAttribute( 'value' );
         };
+
         widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector(".lexwidgetname .lexicon");
-            if(btn) btn.style.display = (newValue != wValue.iValue ? "block" : "none");
+            let btn = element.querySelector( ".lexwidgetname .lexicon" );
+            if( btn ) btn.style.display = ( newValue != wValue.iValue ? "block" : "none" );
             value = newValue;
-            list.querySelectorAll('li').forEach( e => { if( e.getAttribute('value') == value ) e.click() } );
-            if( !skipCallback ) this._trigger( new IEvent(name, value, null), callback ); 
+            list.querySelectorAll( 'li' ).forEach( e => { if( e.getAttribute('value') == value ) e.click() } );
+            if( !skipCallback ) this._trigger( new IEvent( name, value, null ), callback );
         };
 
         let element = widget.domEl;
         let that = this;
 
         // Add reset functionality
-        if(widget.name && !(options.skipReset ?? false))
+        if(widget.name && !( options.skipReset ?? false ))
         {
-            Panel._add_reset_property(element.domName, function() {
+            Panel._add_reset_property( element.domName, function() {
                 value = wValue.iValue;
-                list.querySelectorAll('li').forEach( e => { if( e.getAttribute('value') == value ) e.click() } );
+                list.querySelectorAll( 'li' ).forEach( e => { if( e.getAttribute('value') == value ) e.click() } );
                 this.style.display = "none";
             });
         }
 
-        let container = document.createElement('div');
+        let container = document.createElement( 'div' );
         container.className = "lexdropdown";
         container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
         
         // Add widget value
-        let wValue = document.createElement('div');
+        let wValue = document.createElement( 'div' );
         wValue.className = "lexdropdown lexoption";
         wValue.name = name;
         wValue.iValue = value;
@@ -4087,14 +4263,15 @@ class Panel {
 
         this.queue(container);
 
-        let selectedOption = this.addButton(null, buttonName, (value, event) => {
+        let selectedOption = this.addButton( null, buttonName, (value, event) => {
             if( list.unfocus_event ) {
                 delete list.unfocus_event;
                 return;
             }
-            element.querySelector(".lexoptions").style.top = (selectedOption.offsetTop + selectedOption.offsetHeight) + 'px';
-            element.querySelector(".lexoptions").style.width = (event.currentTarget.clientWidth) + 'px';
-            element.querySelector(".lexoptions").toggleAttribute('hidden');
+            const topPosition = selectedOption.getBoundingClientRect().y;
+            list.style.top = (topPosition + selectedOption.offsetHeight) + 'px';
+            list.style.width = (event.currentTarget.clientWidth) + 'px';
+            list.toggleAttribute('hidden');
             list.focus();
         }, { buttonClass: 'array', skipInlineCount: true });
 
@@ -4238,7 +4415,14 @@ class Panel {
      * @param {Function} callback Callback function on change
      * @param {*} options:
      * skipReset: Don't add the reset value button when value changes
-     */
+     * bgColor: Widget background color
+     * pointsColor: Curve points color
+     * lineColor: Curve line color
+     * noOverlap: Points do not overlap, replacing themselves if necessary
+     * allowAddValues: Support adding values on click
+     * smooth: Curve smoothness
+     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
+    */
 
     addCurve( name, values, callback, options = {} ) {
 
@@ -4248,34 +4432,36 @@ class Panel {
 
         let that = this;
         let widget = this.create_widget(name, Widget.CURVE, options);
+
         widget.onGetValue = () => {
-            return JSON.parse(JSON.stringify(curve_instance.element.value));
+            return JSON.parse(JSON.stringify(curveInstance.element.value));
         };
+
         widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector(".lexwidgetname .lexicon");
-            if(btn) btn.style.display = (newValue != curve_instance.element.value ? "block" : "none");
-            curve_instance.element.value = JSON.parse(JSON.stringify(newValue));
-            curve_instance.redraw();
-            if( !skipCallback ) that._trigger( new IEvent(name, curve_instance.element.value, null), callback );
+            let btn = element.querySelector( ".lexwidgetname .lexicon" );
+            if( btn ) btn.style.display = ( newValue != curveInstance.element.value ? "block" : "none" );
+            curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
+            curveInstance.redraw();
+            if( !skipCallback ) that._trigger( new IEvent( name, curveInstance.element.value, null ), callback );
         };
 
         let element = widget.domEl;
-        let defaultValues = JSON.parse(JSON.stringify(values));
+        let defaultValues = JSON.parse( JSON.stringify( values ) );
 
         // Add reset functionality
         if( !(options.skipReset ?? false) )
         {
             Panel._add_reset_property(element.domName, function(e) {
                 this.style.display = "none";
-                curve_instance.element.value = JSON.parse(JSON.stringify(defaultValues));
-                curve_instance.redraw();
-                that._trigger( new IEvent(name, curve_instance.element.value, e), callback );
+                curveInstance.element.value = JSON.parse( JSON.stringify( defaultValues ) );
+                curveInstance.redraw();
+                that._trigger( new IEvent( name, curveInstance.element.value, e ), callback );
             });
         }
 
         // Add widget value
 
-        var container = document.createElement('div');
+        var container = document.createElement( 'div' );
         container.className = "lexcurve";
         container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
@@ -4284,16 +4470,22 @@ class Panel {
             if(btn) btn.style.display = (v != defaultValues ? "block" : "none");
             that._trigger( new IEvent(name, v, e), callback );
         };
+
         options.name = name;
-        let curve_instance = new Curve(this, values, options);
-        container.appendChild(curve_instance.element);
-        element.appendChild(container);
+
+        let curveInstance = new Curve( this, values, options );
+        container.appendChild( curveInstance.element );
+        element.appendChild( container );
 
         // Resize
-        curve_instance.canvas.width = container.offsetWidth;
-        curve_instance.redraw();
-        widget.onresize = curve_instance.redraw.bind(curve_instance);
-        widget.curve_instance = curve_instance;
+        widget.onresize = curveInstance.redraw.bind( curveInstance );
+        widget.curveInstance = curveInstance;
+
+        doAsync(() => {
+            curveInstance.canvas.width = container.offsetWidth;
+            curveInstance.redraw();
+        });
+
         return widget;
     }
 
@@ -4397,6 +4589,7 @@ class Panel {
      * @param {Array} values By default values in the array
      * @param {Function} callback Callback function on change
      * @param {*} options:
+     * innerValues (Array): Use dropdown mode and use values as options
      */
 
     addArray( name, values = [], callback, options = {} ) {
@@ -4742,19 +4935,19 @@ class Panel {
         flag.id = "checkbox"+simple_guidGenerator();
         flag.innerHTML = "<a class='fa-solid fa-check' style='display: " + (flag.value ? "block" : "none") + "'></a>";
         
-        if(options.disabled) {
+        if( options.disabled ) {
             flag.disabled = true;
             toggle.className += " disabled";
         }
 
-        toggle.appendChild(flag);
+        toggle.appendChild( flag );
 
-        let value_name = document.createElement('span');
+        let value_name = document.createElement( 'span' );
         value_name.id = "checkboxtext";
         value_name.innerHTML = "On";
 
-        container.appendChild(toggle);
-        container.appendChild(value_name);
+        container.appendChild( toggle );
+        container.appendChild( value_name );
 
         toggle.addEventListener( "click" , e => {
 
@@ -4762,7 +4955,7 @@ class Panel {
             if( flag.disabled )
                 return;
 
-            const skipCallback = (e.detail.constructor == Number ? null : skipCallback);
+            const skipCallback = ( e.detail.constructor == Number ? null : e.detail );
 
             let check = toggle.querySelector( ".checkbox a" );
 
@@ -4846,7 +5039,7 @@ class Panel {
         container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
         let color = document.createElement( 'input' );
-        color.style.width = "calc(30% - 6px)";
+        color.style.width = "32px";
         color.type = 'color';
         color.className = "colorinput";
         color.id = "color" + simple_guidGenerator();
@@ -4887,7 +5080,7 @@ class Panel {
             change_from_input = true;
             widget.set( v );
             change_from_input = false;
-        }, { width: "calc(70% - 4px)" });
+        }, { width: "calc( 100% - 32px )"});
         
         text_widget.domEl.style.marginLeft = "4px";
 
@@ -4909,6 +5102,7 @@ class Panel {
      * precision: The number of digits to appear after the decimal point
      * min, max: Min and Max values for the input
      * skipSlider: If there are min and max values, skip the slider
+     * units: Unit as string added to the end of the value
      */
 
     addNumber( name, value, callback, options = {} ) {
@@ -4944,12 +5138,12 @@ class Panel {
         box.className = "numberbox";
 
         let vecinput = document.createElement( 'input' );
+        vecinput.id = "number_" + simple_guidGenerator();
         vecinput.className = "vecinput";
         vecinput.min = options.min ?? -1e24;
         vecinput.max = options.max ?? 1e24;
         vecinput.step = options.step ?? "any";
         vecinput.type = "number";
-        vecinput.id = "number_" + simple_guidGenerator();
 
         if( value.constructor == Number )
         {
@@ -4960,11 +5154,32 @@ class Panel {
         vecinput.value = vecinput.iValue = value;
         box.appendChild( vecinput );
 
-        let drag_icon = document.createElement( 'a' );
-        drag_icon.className = "fa-solid fa-arrows-up-down drag-icon hidden";
-        box.appendChild( drag_icon );
+        let measureRealWidth = function( value, paddingPlusMargin = 8 ) {
+            var i = document.createElement( "span" );
+            i.className = "lexinputmeasure";
+            i.innerHTML = value;
+            document.body.appendChild( i );
+            var rect = i.getBoundingClientRect();
+            LX.UTILS.deleteElement( i );
+            return rect.width + paddingPlusMargin;
+        }
 
-        if( options.disabled ) {
+        if( options.units )
+        {
+            let unitSpan = document.createElement( 'span' );
+            unitSpan.className = "lexunit";
+            unitSpan.innerText = options.units;
+            unitSpan.style.left = measureRealWidth( vecinput.value ) + "px";
+            vecinput.unitSpan = unitSpan;
+            box.appendChild( unitSpan );
+        }
+
+        let dragIcon = document.createElement( 'a' );
+        dragIcon.className = "fa-solid fa-arrows-up-down drag-icon hidden";
+        box.appendChild( dragIcon );
+
+        if( options.disabled )
+        {
             vecinput.disabled = true;
         }
 
@@ -5008,11 +5223,19 @@ class Panel {
 
             let val = e.target.value = clamp( +e.target.valueAsNumber, +vecinput.min, +vecinput.max );
             val = options.precision ? round( val, options.precision ) : val;
-            // update slider!
+
+            // Update slider!
             if( box.querySelector( ".lexinputslider" ) )
+            {
                 box.querySelector( ".lexinputslider" ).value = val;
+            }
 
             vecinput.value = val;
+
+            if( options.units )
+            {
+                vecinput.unitSpan.style.left = measureRealWidth( vecinput.value ) + "px";
+            }
 
             // Reset button (default value)
             if( !skipCallback )
@@ -5038,7 +5261,7 @@ class Panel {
             lastY = e.pageY;
             document.body.classList.add('nocursor');
             document.body.classList.add('noevents');
-            drag_icon.classList.remove('hidden');
+            dragIcon.classList.remove('hidden');
             e.stopImmediatePropagation();
             e.stopPropagation();
         }
@@ -5050,8 +5273,8 @@ class Panel {
                 if(e.shiftKey) mult *= 10;
                 else if(e.altKey) mult *= 0.1;
                 let new_value = (+vecinput.valueAsNumber + mult * dt);
-                vecinput.value = (+new_value).toFixed(4).replace(/([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/,'$1');
-                Panel._dispatch_event(vecinput, "change");
+                vecinput.value = (+new_value).toFixed( 4 ).replace(/([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/,'$1');
+                Panel._dispatch_event( vecinput, "change" );
             }
 
             lastY = e.pageY;
@@ -5065,7 +5288,7 @@ class Panel {
             doc.removeEventListener("mouseup",inner_mouseup);
             document.body.classList.remove('nocursor');
             document.body.classList.remove('noevents');
-            drag_icon.classList.add('hidden');
+            dragIcon.classList.add('hidden');
         }
         
         container.appendChild(box);
@@ -5149,9 +5372,9 @@ class Panel {
 
             vecinput.value = vecinput.iValue = value[ i ];
 
-            let drag_icon = document.createElement( 'a' );
-            drag_icon.className = "fa-solid fa-arrows-up-down drag-icon hidden";
-            box.appendChild( drag_icon );
+            let dragIcon = document.createElement( 'a' );
+            dragIcon.className = "fa-solid fa-arrows-up-down drag-icon hidden";
+            box.appendChild( dragIcon );
 
             if( options.disabled ) {
                 vecinput.disabled = true;
@@ -5224,7 +5447,7 @@ class Panel {
                 lastY = e.pageY;
                 document.body.classList.add('nocursor');
                 document.body.classList.add('noevents');
-                drag_icon.classList.remove('hidden');
+                dragIcon.classList.remove('hidden');
                 e.stopImmediatePropagation();
                 e.stopPropagation();
             }
@@ -5259,7 +5482,7 @@ class Panel {
                 doc.removeEventListener("mouseup",inner_mouseup);
                 document.body.classList.remove('nocursor');
                 document.body.classList.remove('noevents');
-                drag_icon.classList.add('hidden');
+                dragIcon.classList.add('hidden');
             }
             
             box.appendChild(vecinput);
@@ -5318,9 +5541,9 @@ class Panel {
      * @param {*} options:
      * min, max: Min and Max values
      * low, optimum, high: Low and High boundary values, Optimum point in the range
-     * showValue: show current value
-     * editable: allow edit value
-     * callback: function called on change value
+     * showValue: Show current value
+     * editable: Allow edit value
+     * callback: Function called on change value
      */
 
     addProgress( name, value, options = {} ) {
@@ -5579,64 +5802,93 @@ class Panel {
 
     /**
      * @method addTabs
-     * @param {Array} tabs Contains objects with {name, icon, callback}
+     * @param {Array} tabs Contains objects with {
+     *      name: Name of the tab (if icon, use as title)
+     *      icon: Icon to be used as the tab icon (optional)
+     *      onCreate: Func to be called at tab creation
+     *      onSelect: Func to be called on select tab (optional)
+     * }
      * @param {*} options 
      * vertical: Use vertical or horizontal tabs (vertical by default)
      * showNames: Show tab name only in horizontal tabs
      */
 
     addTabs( tabs, options = {} ) {
-        let root = this.current_branch ? this.current_branch.content : this.root;
-        if(!this.current_branch)
-            console.warn("No current branch!");
 
-        if(tabs.constructor != Array)
-            throw("Param @tabs must be an Array!");
+        let root = this.current_branch ? this.current_branch.content : this.root;
+
+        if( !this.current_branch )
+        {
+            console.warn("No current branch!");
+        }
+
+        if( tabs.constructor != Array )
+        {
+            throw( "Param @tabs must be an Array!" );
+        }
 
         const vertical = options.vertical ?? true;
-        const showNames = !vertical && (options.showNames ?? false);
+        const showNames = !vertical && ( options.showNames ?? false );
 
-        let container = document.createElement('div');
+        let container = document.createElement( 'div' );
         container.className = "lextabscontainer";
-        if( !vertical ) container.className += " horizontal";
+        if( !vertical )
+        {
+            container.className += " horizontal";
+        }
 
-        let tabContainer = document.createElement("div");
-        tabContainer.className = "tabs";
+        let tabContainer = document.createElement( 'div' );
+        tabContainer.className = 'tabs';
         container.appendChild( tabContainer );
         root.appendChild( container );
 
-        for( var i = 0; i < tabs.length; ++i ) 
+        for( let i = 0; i < tabs.length; ++i )
         {
-            const tab = tabs[i];
-            const selected = i == 0;
-            let tabEl = document.createElement('div');
-            tabEl.className = "lextab " + (i == tabs.length - 1 ? "last" : "") + (selected ? "selected" : "");
-            tabEl.innerHTML = (showNames ? tab.name : "") + "<a class='" + (tab.icon || "fa fa-hashtag") + " " + (showNames ? "withname" : "") + "'></a>";
+            const tab = tabs[ i ];
+            console.assert( tab.name );
+            const isSelected = ( i == 0 );
+            let tabEl = document.createElement( 'div' );
+            tabEl.className = "lextab " + (i == tabs.length - 1 ? "last" : "") + ( isSelected ? "selected" : "" );
+            tabEl.innerHTML = ( showNames ? tab.name : "" ) + "<a class='" + ( tab.icon || "fa fa-hashtag" ) + " " + (showNames ? "withname" : "") + "'></a>";
             tabEl.title = tab.name;
 
-            let infoContainer = document.createElement("div");
-            infoContainer.id = tab.name.replace(/\s/g, '');
+            let infoContainer = document.createElement( 'div' );
+            infoContainer.id = tab.name.replace( /\s/g, '' );
             infoContainer.className = "widgets";
-            if(!selected) infoContainer.toggleAttribute('hidden', true);
+
+            if(!isSelected)
+            {
+                infoContainer.toggleAttribute('hidden', true);
+            }
+
             container.appendChild( infoContainer );
 
-            tabEl.addEventListener("click", function() {
-                // change selected tab
-                tabContainer.querySelectorAll(".lextab").forEach( e => { e.classList.remove("selected"); } );
-                this.classList.add("selected");
-                // hide all tabs content
-                container.querySelectorAll(".widgets").forEach( e => { e.toggleAttribute('hidden', true); } );
-                // show tab content
-                const el = container.querySelector("#" + infoContainer.id);
-                el.toggleAttribute('hidden');
+            tabEl.addEventListener( 'click', e => {
+
+                // Change selected tab
+                tabContainer.querySelectorAll( '.lextab' ).forEach( e => { e.classList.remove( 'selected' ); } );
+                e.target.classList.add( 'selected' );
+                // Hide all tabs content
+                container.querySelectorAll(".widgets").forEach( e => { e.toggleAttribute( 'hidden', true ); } );
+                // Show tab content
+                const el = container.querySelector( '#' + infoContainer.id );
+                el.toggleAttribute( 'hidden' );
+
+                if( tab.onSelect )
+                {
+                    tab.onSelect( this, infoContainer );
+                }
             });
 
-            tabContainer.appendChild(tabEl);
+            tabContainer.appendChild( tabEl );
 
-            // push to tab space
-            this.queue( infoContainer );
-            tab.callback( this, infoContainer );
-            this.clearQueue();
+            if( tab.onCreate )
+            {
+                // push to tab space
+                this.queue( infoContainer );
+                tab.onCreate( this, infoContainer );
+                this.clearQueue();
+            }
         }
         
         this.addSeparator();
@@ -5652,14 +5904,19 @@ LX.Panel = Panel;
 class Branch {
     
     constructor( name, options = {} ) {
+
         this.name = name;
 
-        var root = document.createElement('div');
+        var root = document.createElement( 'div' );
         root.className = "lexbranch";
-        if(options.id)
+        if( options.id )
+        {
             root.id = options.id;
-        if(options.className)
+        }
+        if( options.className )
+        {
             root.className += " " + options.className;
+        }
 
         root.style.width = "calc(100% - 7px)";
         root.style.margin = "0 auto";
@@ -5670,52 +5927,56 @@ class Branch {
         this.widgets = [];
 
         // create element
-        var title = document.createElement('div');
+        var title = document.createElement( 'div' );
         title.className = "lexbranchtitle";
         
         title.innerHTML = "<a class='fa-solid fa-angle-up switch-branch-button'></a>";
-        if(options.icon) {
+        if( options.icon )
+        {
             title.innerHTML += "<a class='branchicon " + options.icon + "' style='margin-right: 8px; margin-bottom: -2px;'>";
         }
         title.innerHTML += name || "Branch";
 
-        root.appendChild(title);
+        root.appendChild( title );
 
-        var branch_content = document.createElement('div');
-        branch_content.id = name.replace(/\s/g, '');
-        branch_content.className = "lexbranchcontent";
-        root.appendChild(branch_content);
-        this.content = branch_content;
+        var branchContent = document.createElement( 'div' );
+        branchContent.id = name.replace(/\s/g, '');
+        branchContent.className = "lexbranchcontent";
+        root.appendChild(branchContent);
+        this.content = branchContent;
 
         this._addBranchSeparator();
 
-        if( options.closed ) {
+        if( options.closed )
+        {
             title.className += " closed";
             root.className += " closed";
             this.grabber.setAttribute('hidden', true);
             doAsync( () => {
-                this.content.setAttribute('hidden', true);
-            }, 15);
+                this.content.setAttribute( 'hidden', true );
+            }, 15 );
         }
 
-        this.onclick = function(e){
+        this.onclick = function( e ) {
             e.stopPropagation();
-            this.classList.toggle('closed');
-            this.parentElement.classList.toggle('closed');
+            this.classList.toggle( 'closed' );
+            this.parentElement.classList.toggle( 'closed' );
 
-            that.content.toggleAttribute('hidden');
-            that.grabber.toggleAttribute('hidden');
+            that.content.toggleAttribute( 'hidden' );
+            that.grabber.toggleAttribute( 'hidden' );
 
-            LX.emit("@on_branch_closed", this.classList.contains("closed"), that.panel);
+            LX.emit( "@on_branch_closed", this.classList.contains("closed"), { target: that.panel } );
         };
 
-        this.oncontextmenu = function(e) {
+        this.oncontextmenu = function( e ) {
 
             e.preventDefault();
             e.stopPropagation();
 
             if( this.parentElement.classList.contains("dialog") )
+            {
                 return;
+            }
                 
             addContextMenu("Dock", e, p => {
                 e.preventDefault();
@@ -5723,12 +5984,12 @@ class Branch {
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-180">', {id: 'dock_options1'});
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-90">', {id: 'dock_options2'});
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-270">', {id: 'dock_options3'});
-                p.add('Floating', that._on_make_floating.bind(that));
+                p.add( 'Floating', that._on_make_floating.bind( that ) );
             }, { icon: "fa-regular fa-window-restore" });
         };
 
-        title.addEventListener("click", this.onclick);
-        title.addEventListener("contextmenu", this.oncontextmenu);
+        title.addEventListener( 'click', this.onclick );
+        title.addEventListener( 'contextmenu', this.oncontextmenu );
     }
 
     _on_make_floating() {
@@ -6167,7 +6428,8 @@ class ContextMenu {
         this.items = [];
         this.colors = {};
 
-        if(title) {
+        if( title )
+        {
             const item = {};
             item[ title ] = [];
             item[ 'className' ] = "cmtitle";
@@ -6182,7 +6444,7 @@ class ContextMenu {
         
         if(!useAbsolute)
         {   
-            let width = rect.width + 36; // this has paddings
+            let width = rect.width;
             if(window.innerWidth - rect.right < 0)
                 div.style.left = (window.innerWidth - width - margin) + "px";
 
@@ -6223,7 +6485,6 @@ class ContextMenu {
         contextmenu.style.marginTop =  3.5 - c.offsetHeight + "px";
 
         // Set final width
-        // contextmenu.style.width = contextmenu.offsetWidth + "px";
         this._adjust_position( contextmenu, 6, true );
     }
 
@@ -6297,7 +6558,7 @@ class ContextMenu {
     }
 
     onCreate() {
-        this._adjust_position( this.root, 6 );
+        doAsync( () => this._adjust_position( this.root, 6 ) );
     }
 
     add( path, options = {} ) {
@@ -6402,10 +6663,12 @@ LX.ContextMenu = ContextMenu;
 function addContextMenu( title, event, callback, options )
 {
     var menu = new ContextMenu( event, title, options );
-    LX.root.appendChild(menu.root);
+    LX.root.appendChild( menu.root );
 
-    if(callback)
+    if( callback )
+    {
         callback( menu );
+    }
 
     menu.onCreate();
 
@@ -6422,69 +6685,71 @@ LX.addContextMenu = addContextMenu;
 
 class Curve {
 
-    constructor(panel, value, options = {}) {
+    constructor( panel, value, options = {} ) {
 
-        let element = document.createElement("div");
-        element.className = "curve " + (options.className ? options.className : "");
+        let element = document.createElement( "div" );
+        element.className = "curve " + ( options.className ? options.className : "" );
         element.style.minHeight = "50px";
         element.style.width = options.width || "100%";
-
-        element.bgcolor = options.bgcolor || LX.getThemeColor("global-dark-background");
-        element.pointscolor = options.pointscolor || LX.getThemeColor("global-selected-light");
-        element.linecolor = options.linecolor || "#555";
-
-        element.value = value || [];
-        element.xrange = options.xrange || [0,1]; //min,max
-        element.yrange = options.yrange || [0,1]; //min,max
-        element.defaulty = options.defaulty != null ? options.defaulty : 0.0;
-        element.no_trespassing = options.no_trespassing || false;
-        element.show_samples = options.show_samples || 0;
-        element.allow_add_values = options.allow_add_values ?? true;
-        element.draggable_x = options.draggable_x ?? true;
-        element.draggable_y = options.draggable_y ?? true;
-        element.smooth = (options.smooth && typeof(options.smooth) == 'number' ? options.smooth : 0.3) || false;
-        element.options = options;
         element.style.minWidth = "50px";
         element.style.minHeight = "20px";
 
+        element.bgcolor = options.bgColor || LX.getThemeColor( "global-dark-background" );
+        element.pointscolor = options.pointsColor || LX.getThemeColor( "global-selected-light" );
+        element.linecolor = options.lineColor || "#555";
+        element.value = value || [];
+        element.xrange = options.xrange || [ 0, 1 ]; // min, max
+        element.yrange = options.yrange || [ 0, 1 ]; // min, max
+        element.defaulty = options.defaulty != null ? options.defaulty : 0.0;
+        element.no_overlap = options.noOverlap || false;
+        element.show_samples = options.showSamples || 0;
+        element.allow_add_values = options.allowAddValues ?? true;
+        element.draggable_x = options.draggableX ?? true;
+        element.draggable_y = options.draggableY ?? true;
+        element.smooth = (options.smooth && typeof( options.smooth ) == 'number' ? options.smooth : 0.3) || false;
+        element.move_out = options.moveOutAction ?? LX.CURVE_MOVEOUT_DELETE;
+
         this.element = element;
 
-        let canvas = document.createElement("canvas");
+        let canvas = document.createElement( "canvas" );
         canvas.width = options.width || 200;
         canvas.height = options.height || 50;
         element.appendChild( canvas );
         this.canvas = canvas;
 
-        element.addEventListener("mousedown", onmousedown);
+        element.addEventListener( "mousedown", onmousedown );
 
-        element.getValueAt = function(x) {
+        element.getValueAt = function( x ) {
 
-            if(x < element.xrange[0] || x > element.xrange[1])
-                return element.defaulty;
-
-            var last = [ element.xrange[0], element.defaulty ];
-            var f = 0;
-            for(var i = 0; i < element.value.length; i += 1)
+            if( x < element.xrange[ 0 ] || x > element.xrange[ 1 ] )
             {
-                var v = element.value[i];
-                if(x == v[0]) return v[1];
-                if(x < v[0])
+                return element.defaulty;
+            }
+
+            var last = [ element.xrange[ 0 ], element.defaulty ];
+            var f = 0;
+            for( var i = 0; i < element.value.length; i += 1 )
+            {
+                var v = element.value[ i ];
+                if( x == v[ 0 ] ) return v[ 1 ];
+                if( x < v[ 0 ] )
                 {
-                    f = (x - last[0]) / (v[0] - last[0]);
-                    return last[1] * (1-f) + v[1] * f;
+                    f = ( x - last[ 0 ] ) / (v[ 0 ] - last[ 0 ]);
+                    return last[ 1 ] * ( 1 - f ) + v[ 1 ] * f;
                 }
+
                 last = v;
             }
 
-            v = [ element.xrange[1], element.defaulty ];
-            f = (x - last[0]) / (v[0] - last[0]);
-            return last[1] * (1-f) + v[1] * f;
+            v = [ element.xrange[ 1 ], element.defaulty ];
+            f = (x - last[ 0 ]) / (v[ 0 ] - last[ 0 ]);
+            return last[ 1 ] * ( 1 - f ) + v[ 1 ] * f;
         }
 
-        element.resample = function(samples) {
+        element.resample = function( samples ) {
 
             var r = [];
-            var dx = (element.xrange[1] - element.xrange[0]) / samples;
+            var dx = (element.xrange[1] - element.xrange[ 0 ]) / samples;
             for(var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
             {
                 r.push( element.getValueAt(i) );
@@ -6510,37 +6775,33 @@ class Curve {
         function convert(v) {
             return [ canvas.width * ( v[0] - element.xrange[0])/ (element.xrange[1]),
                 canvas.height * (v[1] - element.yrange[0])/ (element.yrange[1])];
-            // return [ canvas.width * ( (element.xrange[1] - element.xrange[0]) * v[0] + element.xrange[0]),
-            //     canvas.height * ((element.yrange[1] - element.yrange[0]) * v[1] + element.yrange[0])];
         }
 
         //canvas to value
         function unconvert(v) {
             return [(v[0] * element.xrange[1] / canvas.width + element.xrange[0]),
                     (v[1] * element.yrange[1] / canvas.height + element.yrange[0])];
-            // return [(v[0] / canvas.width - element.xrange[0]) / (element.xrange[1] - element.xrange[0]),
-            //         (v[1] / canvas.height - element.yrange[0]) / (element.yrange[1] - element.yrange[0])];
         }
 
         var selected = -1;
 
-        element.redraw = function(o = {} )  {
+        element.redraw = function( o = {} )  {
             
-            if(o.value) element.value = o.value;
-            if(o.xrange) element.xrange = o.xrange;
-            if(o.yrange) element.yrange = o.yrange;
-            if(o.smooth) element.smooth = o.smooth;
+            if( o.value ) element.value = o.value;
+            if( o.xrange ) element.xrange = o.xrange;
+            if( o.yrange ) element.yrange = o.yrange;
+            if( o.smooth ) element.smooth = o.smooth;
             var rect = canvas.parentElement.getBoundingClientRect();
-            if(canvas.parentElement.parentElement) rect = canvas.parentElement.parentElement.getBoundingClientRect();
-            if(rect && canvas.width != rect.width && rect.width && rect.width < 1000)
+            if( canvas.parentElement.parentElement ) rect = canvas.parentElement.parentElement.getBoundingClientRect();
+            if( rect && canvas.width != rect.width && rect.width && rect.width < 1000 )
+            {
                 canvas.width = rect.width;
-            // if(rect && canvas.height != rect.height && rect.height && rect.height < 1000)
-            //     canvas.height = rect.height;
+            }
 
-            var ctx = canvas.getContext("2d");
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.translate(0,canvas.height);
-            ctx.scale(1,-1);
+            var ctx = canvas.getContext( "2d" );
+            ctx.setTransform( 1, 0, 0, 1, 0, 0 );
+            ctx.translate( 0, canvas.height );
+            ctx.scale( 1, -1 );
 
             ctx.fillStyle = element.bgcolor;
             ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -6549,40 +6810,42 @@ class Curve {
             ctx.beginPath();
 
             //draw line
-            var pos = convert([element.xrange[0],element.defaulty]);
-            ctx.moveTo( pos[0], pos[1] );
-            let values = [pos[0], pos[1]];
+            var pos = convert([ element.xrange[ 0 ],element.defaulty ]);
+            ctx.moveTo( pos[ 0 ], pos[ 1 ] );
+            let values = [pos[ 0 ], pos[ 1 ]];
 
             for(var i in element.value) {
                 var value = element.value[i];
                 pos = convert(value);
-                values.push(pos[0]);
-                values.push(pos[1]);
+                values.push(pos[ 0 ]);
+                values.push(pos[ 1 ]);
                 if(!element.smooth)
-                    ctx.lineTo( pos[0], pos[1] );
+                    ctx.lineTo( pos[ 0 ], pos[ 1 ] );
             }
 
-            pos = convert([element.xrange[1],element.defaulty]);
-            values.push(pos[0]);
-            values.push(pos[1]);
-            if(!element.smooth) {
-                ctx.lineTo( pos[0], pos[1] );
+            pos = convert([ element.xrange[ 1 ], element.defaulty ]);
+            values.push(pos[ 0 ]);
+            values.push(pos[ 1 ]);
+            if( !element.smooth )
+            {
+                ctx.lineTo( pos[ 0 ], pos[ 1 ] );
                 ctx.stroke();
-            } else {
-
-                LX.UTILS.drawSpline(ctx, values, element.smooth);
+            }
+            else
+            {
+                LX.UTILS.drawSpline( ctx, values, element.smooth );
             }
 
-            //draw points
-            for(var i = 0; i < element.value.length; i += 1) {
-                var value = element.value[i];
-                pos = convert(value);
-                if(selected == i)
+            // Draw points
+            for( var i = 0; i < element.value.length; i += 1 ) {
+                var value = element.value[ i ];
+                pos = convert( value );
+                if( selected == i )
                     ctx.fillStyle = "white";
                 else
                     ctx.fillStyle = element.pointscolor;
                 ctx.beginPath();
-                ctx.arc( pos[0], pos[1], selected == i ? 4 : 3, 0, Math.PI * 2);
+                ctx.arc( pos[ 0 ], pos[ 1 ], selected == i ? 4 : 3, 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -6591,120 +6854,134 @@ class Curve {
                 ctx.fillStyle = "#888";
                 for(var i = 0; i < samples.length; i += 1)
                 {
-                    var value = [ i * ((element.xrange[1] - element.xrange[0]) / element.show_samples) + element.xrange[0], samples[i] ];
+                    var value = [ i * ((element.xrange[ 1 ] - element.xrange[ 0 ]) / element.show_samples) + element.xrange[ 0 ], samples[ i ] ];
                     pos = convert(value);
                     ctx.beginPath();
-                    ctx.arc( pos[0], pos[1], 2, 0, Math.PI * 2);
+                    ctx.arc( pos[ 0 ], pos[ 1 ], 2, 0, Math.PI * 2);
                     ctx.fill();
                 }
             }
         }
 
-        var last_mouse = [0,0];
+        var last_mouse = [ 0, 0 ];
 
-        function onmousedown(evt) {
-            document.addEventListener("mousemove",onmousemove);
-            document.addEventListener("mouseup",onmouseup);
+        function onmousedown( e ) {
+            document.addEventListener( "mousemove", onmousemove );
+            document.addEventListener( "mouseup", onmouseup );
 
             var rect = canvas.getBoundingClientRect();
-            var mousex = evt.clientX - rect.left;
-            var mousey = evt.clientY - rect.top;
+            var mousex = e.clientX - rect.left;
+            var mousey = e.clientY - rect.top;
 
-            selected = computeSelected(mousex,canvas.height-mousey);
+            selected = computeSelected( mousex, canvas.height - mousey );
 
-            if(selected == -1 && element.allow_add_values) {
-                var v = unconvert([mousex,canvas.height-mousey]);
-                element.value.push(v);
+            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values ) {
+                var v = unconvert([ mousex, canvas.height - mousey ]);
+                element.value.push( v );
                 sortValues();
-                selected = element.value.indexOf(v);
+                selected = element.value.indexOf( v );
             }
 
-            last_mouse = [mousex,mousey];
+            last_mouse = [ mousex, mousey ];
             element.redraw();
-            evt.preventDefault();
-            evt.stopPropagation();
+            e.preventDefault();
+            e.stopPropagation();
         }
 
-        function onmousemove(evt) {
+        function onmousemove( e ) {
+
             var rect = canvas.getBoundingClientRect();
-            var mousex = evt.clientX - rect.left;
-            var mousey = evt.clientY - rect.top;
+            var mousex = e.clientX - rect.left;
+            var mousey = e.clientY - rect.top;
 
-            if(mousex < 0) mousex = 0;
-            else if(mousex > canvas.width) mousex = canvas.width;
-            if(mousey < 0) mousey = 0;
-            else if(mousey > canvas.height) mousey = canvas.height;
+            if( mousex < 0 ) mousex = 0;
+            else if( mousex > canvas.width ) mousex = canvas.width;
+            if( mousey < 0 ) mousey = 0;
+            else if( mousey > canvas.height ) mousey = canvas.height;
 
-            //dragging to remove
-            if( selected != -1 && distance( [evt.clientX - rect.left, evt.clientY - rect.top], [mousex,mousey] ) > canvas.height * 0.5 )
+            // Dragging to remove
+            const currentMouseDiff = [ e.clientX - rect.left, e.clientY - rect.top ];
+            if( selected != -1 && distance( currentMouseDiff, [ mousex, mousey ] ) > canvas.height * 0.5 )
             {
-                element.value.splice(selected,1);
-                onmouseup(evt);
+                if( element.move_out == LX.CURVE_MOVEOUT_DELETE)
+                {
+                    element.value.splice( selected, 1 );
+                }
+                else
+                {
+                    const d = [ currentMouseDiff[ 0 ] - mousex, currentMouseDiff[ 1 ] - mousey ];
+                    let value = element.value[ selected ];
+                    value[ 0 ] = ( d[ 0 ] == 0.0 ) ? value[ 0 ] : ( d[ 0 ] < 0.0 ? element.xrange[ 0 ] : element.xrange[ 1 ] );
+                    value[ 1 ] = ( d[ 1 ] == 0.0 ) ? value[ 1 ] : ( d[ 1 ] < 0.0 ? element.yrange[ 1 ] : element.yrange[ 0 ] );
+                }
+
+                onmouseup( e );
                 return;
             }
 
-            var dx = element.draggable_x ? last_mouse[0] - mousex : 0;
-            var dy = element.draggable_y ? last_mouse[1] - mousey : 0;
-            var delta = unconvert([-dx,dy]);
-            if(selected != -1) {
-                var minx = element.xrange[0];
-                var maxx = element.xrange[1];
+            var dx = element.draggable_x ? last_mouse[ 0 ] - mousex : 0;
+            var dy = element.draggable_y ? last_mouse[ 1 ] - mousey : 0;
+            var delta = unconvert([ -dx, dy ]);
 
-                if(element.no_trespassing)
+            if( selected != -1 ) {
+                var minx = element.xrange[ 0 ];
+                var maxx = element.xrange[ 1 ];
+
+                if( element.no_overlap )
                 {
-                    if(selected > 0) minx = element.value[selected-1][0];
-                    if(selected < (element.value.length-1) ) maxx = element.value[selected+1][0];
+                    if( selected > 0) minx = element.value[ selected - 1 ][ 0 ];
+                    if( selected < ( element.value.length - 1 ) ) maxx = element.value[ selected + 1 ][ 0 ];
                 }
 
                 var v = element.value[selected];
-                v[0] += delta[0];
-                v[1] += delta[1];
-                if(v[0] < minx) v[0] = minx;
-                else if(v[0] > maxx) v[0] = maxx;
-                if(v[1] < element.yrange[0]) v[1] = element.yrange[0];
-                else if(v[1] > element.yrange[1]) v[1] = element.yrange[1];
+                v[ 0 ] += delta[ 0 ];
+                v[ 1 ] += delta[ 1 ];
+                if(v[ 0 ] < minx) v[ 0 ] = minx;
+                else if(v[ 0 ] > maxx) v[ 0 ] = maxx;
+                if(v[ 1 ] < element.yrange[ 0 ]) v[ 1 ] = element.yrange[ 0 ];
+                else if(v[ 1 ] > element.yrange[ 1 ]) v[ 1 ] = element.yrange[ 1 ];
             }
 
             sortValues();
             element.redraw();
-            last_mouse[0] = mousex;
-            last_mouse[1] = mousey;
-            onchange(evt);
+            last_mouse[ 0 ] = mousex;
+            last_mouse[ 1 ] = mousey;
+            onchange( e );
 
-            evt.preventDefault();
-            evt.stopPropagation();
+            e.preventDefault();
+            e.stopPropagation();
         }
 
-        function onmouseup(evt) {
+        function onmouseup( e ) {
             selected = -1;
             element.redraw();
             document.removeEventListener("mousemove", onmousemove);
             document.removeEventListener("mouseup", onmouseup);
-            onchange(evt);
-            evt.preventDefault();
-            evt.stopPropagation();
+            onchange(e);
+            e.preventDefault();
+            e.stopPropagation();
         }
         
-        function onchange(e) {
-            if(options.callback)
-                options.callback.call(element, element.value, e);
+        function onchange( e ) {
+            if( options.callback )
+                options.callback.call( element, element.value, e );
         }
 
         function distance(a,b) { return Math.sqrt( Math.pow(b[0]-a[0],2) + Math.pow(b[1]-a[1],2) ); };
 
-        function computeSelected(x,y) {
+        function computeSelected( x, y ) {
 
-            var min_dist = 100000;
-            var max_dist = 8; //pixels
+            var minDistance = 100000;
+            var maxDistance = 8; //pixels
             var selected = -1;
-            for(var i=0; i < element.value.length; i++)
+            for( var i = 0; i < element.value.length; i++ )
             {
-                var value = element.value[i];
-                var pos = convert(value);
-                var dist = distance([x,y],pos);
-                if(dist < min_dist && dist < max_dist)
+                var value = element.value[ i ];
+                var pos = convert( value );
+                var dist = distance( [ x,y ], pos );
+                if( dist < minDistance && dist < maxDistance )
                 {
-                    min_dist = dist;
+                    minDistance = dist;
                     selected = i;
                 }
             }
@@ -6713,19 +6990,23 @@ class Curve {
 
         function sortValues() {
             var v = null;
-            if(selected != -1)
-                v = element.value[selected];
-            element.value.sort(function(a,b) { return a[0] - b[0]; });
-            if(v)
-                selected = element.value.indexOf(v);
+            if( selected != -1 )
+            {
+                v = element.value[ selected ];
+            }
+            element.value.sort(function( a,b ) { return a[ 0 ] - b[ 0 ]; });
+            if( v )
+            {
+                selected = element.value.indexOf( v );
+            }
         }
         
         element.redraw();
         return this;
     }
 
-    redraw(options = {}) {
-        this.element.redraw(options);
+    redraw( options = {} ) {
+        this.element.redraw( options );
     }
 }
 

@@ -461,9 +461,8 @@ class Editor {
 
         if (this.currentCharacter.mixer && this.state) {
             this.currentCharacter.mixer.update(dt);
-            this.currentTime = this.activeTimeline.currentTime = this.currentCharacter.mixer.time;
-            LX.emit( "@on_current_time_" + this.activeTimeline.constructor.name, this.currentTime );
-            //this.activeTimeline.updateHeader();
+            this.currentTime = this.currentCharacter.mixer.time;
+            this.activeTimeline.setTime(this.currentTime);
         }
        
         if(this.gizmo) {

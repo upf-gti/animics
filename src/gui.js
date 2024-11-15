@@ -1631,7 +1631,7 @@ class KeyframesGui extends Gui {
 					const track = itemTracks[t];
                     let frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
                     if ( frame > -1 ){
-                        LX.emit("@on_change_" + track.type, track.values[frame]);
+                        LX.emit("@on_change_" + track.type, track.values[frame], {skipCallback: false});
                     }
                 }
             }
@@ -1648,7 +1648,7 @@ class KeyframesGui extends Gui {
             frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
         }
         if( frame > -1 ){
-            LX.emit("@on_change_" + name, track.values[frame]);
+            LX.emit("@on_change_" + name, track.values[frame], {skipCallback: false});
         }
     }
 
@@ -2428,10 +2428,10 @@ class ScriptGui extends Gui {
                         syncvalues.push([clip.fadeout - clip.start, (clip.properties.amount || 1) - 0.2]);
                     
                     // syncvalues.push([clip.duration + clip.start, 0]);
-                    // this.curve.curve_instance.element.value = syncvalues;
-                    // this.curve.curve_instance.element.xrange = [0, clip.duration];
+                    // this.curve.curveInstance.element.value = syncvalues;
+                    // this.curve.curveInstance.element.xrange = [0, clip.duration];
                     
-                    this.curve.curve_instance.redraw({value: syncvalues, xrange: [0, clip.duration]})
+                    this.curve.curveInstance.redraw({value: syncvalues, xrange: [0, clip.duration]})
                 }
                 if(refreshPanel)
                     this.updateClipPanel(clip);
