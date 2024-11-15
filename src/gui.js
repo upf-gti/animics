@@ -629,7 +629,7 @@ class KeyframesGui extends Gui {
         };
 
         this.boneProperties = {};
-       
+
         //Create capture video window
         this.createCaptureArea(this.mainArea);
     }
@@ -1104,8 +1104,9 @@ class KeyframesGui extends Gui {
             currentBinded.auAnimation.duration = t;
             this.curvesTimeline.duration = t;
         };
-        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
 
+        this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
+        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
         this.keyFramesTimeline.onSelectKeyFrame = (e, info) => {
             if(e.button != 2) {
                 //this.editor.gizmo.mustUpdate = true
@@ -1236,6 +1237,8 @@ class KeyframesGui extends Gui {
             currentBinded.auAnimation.duration = t;
             this.keyFramesTimeline.duration = t;
         };
+
+        this.curvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
         this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
