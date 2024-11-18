@@ -621,7 +621,7 @@ class Editor {
                     this.gui.curvesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                     this.activeTimeline = this.gui.curvesTimeline;
                     if(!this.selectedAU) return;
-                    if (this.gizmo) { this.gizmo.stop(); }
+                    if (this.gizmo) { this.gizmo.disable(); }
                     this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation, false );
                     this.activeTimeline.show();
                     currentTime = Math.min( currentTime, this.activeTimeline.duration );
@@ -632,6 +632,7 @@ class Editor {
                     this.animationMode = this.animationModes.BODY;
                     this.gui.keyFramesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                     this.activeTimeline = this.gui.keyFramesTimeline;
+                    if (this.gizmo) { this.gizmo.enable(); }
                     this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().skeletonAnimation, false );
                     this.activeTimeline.show();
 

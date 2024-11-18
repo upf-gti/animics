@@ -1196,13 +1196,18 @@ class KeyframesGui extends Gui {
             if(e.button != 2) {
                 //this.editor.gizmo.mustUpdate = true
                 this.editor.gizmo.update(true);
-                this.updateSkeletonPanel({itemSelected:info[0]});
+                this.updateSkeletonPanel({itemSelected:info[0]}); // update right panel data
+                this.editor.gizmo._setBoneById( this.editor.gizmo.selectedBone );
 
                 return false;
             }
             return true; // Handled
         };
-        
+
+        this.keyFramesTimeline.onUnselectKeyFrames = (keyframes) => {
+            this.editor.gizmo.stop();
+        }
+
         let that = this;
         this.keyFramesTimeline.showContextMenu = function ( e ) {
             
