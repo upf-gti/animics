@@ -461,13 +461,13 @@ class Gizmo {
                     this.editor.gui.updateSkeletonPanel();
                     break;
     
-                case 'x':
-                    transform.showX = ! transform.showX;
-                    break;
+                // case 'x':
+                //     transform.showX = ! transform.showX;
+                //     break;
 
-                case 'y':
-                    transform.showY = ! transform.showY;
-                    break;
+                // case 'y':
+                //     transform.showY = ! transform.showY;
+                //     break;
 
                 case 'z':
                     if(e.ctrlKey && this.editor.mode != this.editor.editionModes.SCRIPT){
@@ -487,9 +487,9 @@ class Gizmo {
                         }
                         this.updateTracks(); // commit results into timeline
                     }
-                    else{
-                        transform.showZ = ! transform.showZ;
-                    }
+                    // else{
+                    //     transform.showZ = ! transform.showZ;
+                    // }
                     break;
             }
 
