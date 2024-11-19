@@ -96,9 +96,13 @@ class Gizmo {
         this.ikSelectedChain = null;
         this.ikTarget = null;
         this.ikSolver = null;
-        this.ikHelper = null;
+        // this.ikHelper = null;
         this.ikMode = Gizmo.ToolIkModes.ONEBONE; // this.mode should be the one, but it is used for other purposes in the editor. So we need this variable.
 
+
+        // propagation quats
+        this.tempQuat0 = new THREE.Quaternion;
+        this.tempQuat1 = new THREE.Quaternion;
 
         // Update in first iteration
         this.mustUpdate = false; //true; 
@@ -485,7 +489,7 @@ class Gizmo {
                         if ( this.toolSelected == Gizmo.Tools.IK ){ // reset target position
                             this.ikSetTargetToBone( );
                         }
-                        this.updateTracks(); // commit results into timeline
+                        this.updateTracks(); // commit results into timeline with propagation
                     }
                     // else{
                     //     transform.showZ = ! transform.showZ;
@@ -574,20 +578,80 @@ class Gizmo {
     }
 
 
+    /**
+     * propagates the delta change across the neighbouring keyframes, using the editor.gui.propagationWindow attributes
+     * It does not change the keyframe's value
+     * @param {obj} track 
+     * @param {int} keyframe 
+     * @param {quat || vec3} delta 
+     */
+    propagateEdition( track, keyframe, delta ){
+        const propWindow = this.editor.gui.propagationWindow;
+        const keyframeTime = track.times[keyframe];
+       
+        for( let i = keyframe - 1; i > -1; --i ){
+            if( track.times[i] < keyframeTime-propWindow.leftSide ){ break; }
+            track.dim == 4 ?
+                this._applyDeltaQuaternion( track, i, delta,  1-(keyframeTime - track.times[i])/propWindow.leftSide ) :
+                this._applyDeltaPosition( track, i, delta,  1-(keyframeTime - track.times[i])/propWindow.leftSide );
+        }
+        for( let i = keyframe + 1; i < track.times.length; ++i ){
+            if( track.times[i] > keyframeTime+propWindow.rightSide ){ break; }
+            track.dim == 4 ? 
+                this._applyDeltaQuaternion( track, i, delta,  1-(track.times[i]- keyframeTime)/propWindow.rightSide ) :
+                this._applyDeltaPosition( track, i, delta,  1-(track.times[i]- keyframeTime)/propWindow.rightSide );
+        }
+    }
+  
+    _applyDeltaQuaternion( track, keyframe, delta, t ){
+        const dim = track.dim;
+        const newDelta = this.tempQuat0;
+        const source = this.tempQuat1;
+
+        // nlerp( {0,0,0,1}, deltaQuat, t )
+        let neighbourhood = delta.w < 0 ? -1 : 1;
+        newDelta.x = neighbourhood * delta.x * t;
+        newDelta.y = neighbourhood * delta.y * t;
+        newDelta.z = neighbourhood * delta.z * t;
+        newDelta.w = (1-t) + neighbourhood * delta.w * t;
+        newDelta.normalize();
+
+        source.set(track.values[keyframe * dim], track.values[keyframe * dim + 1], track.values[keyframe * dim + 2], track.values[keyframe * dim + 3]);
+        source.premultiply( newDelta );
+
+        // write result
+        track.values[keyframe * dim] = source.x;
+        track.values[keyframe * dim+1] = source.y;
+        track.values[keyframe * dim+2] = source.z;
+        track.values[keyframe * dim+3] = source.w;
+        track.edited[keyframe] = true;
+    }
+
+    _applyDeltaPosition( track, keyframe, delta, t ){
+        track.values[keyframe*track.dim] += delta.x * t;
+        track.values[keyframe*track.dim+1] += delta.y * t;
+        track.values[keyframe*track.dim+2] += delta.z * t;
+        track.edited[keyframe] = true;
+    }
+
+    /**
+     * Commits current selected bone changes with propagation (if enabled)
+     * @returns 
+     */
     updateTracks() {
 
         let timeline = this.editor.gui.keyFramesTimeline;
         let keyType = Gizmo.ModeToKeyType[ this.editor.getGizmoMode() ];
 
         if(timeline.getNumKeyFramesSelected() != 1)
-        return;
+            return;
 
         let [name, localTrackIndex, keyFrameIndex] = timeline.lastKeyFramesSelected[0];
         let track = timeline.getTrack(timeline.lastKeyFramesSelected[0]);
 
         // Don't store info if we are using wrong mode for that track
         if(keyType != track.type)
-        return;
+            return;
 
         if ( this.skeleton.bones[this.selectedBone].name != name ) { return; } 
         let bone = this.skeleton.bones[this.selectedBone]; 
@@ -597,39 +661,57 @@ class Gizmo {
             if ( !this.ikSelectedChain ){ return; }
             
             const effectorFrameTime = this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].times[ keyFrameIndex ];
-            
             const chain = this.ikSelectedChain.chain;
+            const deltaQuaternion = new THREE.Quaternion();
             
-            for( let i = 0; i < chain.length; ++i ){
+            for( let i = 1; i < chain.length; ++i ){
                 const boneToProcess = this.skeleton.bones[chain[i]];
                 const quaternionTrackIdx = ( timeline.getNumTracks(boneToProcess) > 1 ) ? 1 : 0;
                 
-                let track = timeline.getTrack([boneToProcess.name, quaternionTrackIdx]);
-                if ( track.dim != 4 ){ continue; }
+                const track = timeline.getTrack([boneToProcess.name, quaternionTrackIdx]);
+                if ( track.dim != 4 ){ continue; } // only quaternions
                 
-                let values = boneToProcess[ track.type ].toArray();
-                if( !values ){ continue; }
-                
+                const tValues = track.values; 
+
                 // find nearest frame or create one if too far
-                let frame = timeline.getCurrentKeyFrame( this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ], effectorFrameTime, 0.008 );
+                let frame = timeline.getCurrentKeyFrame( track, effectorFrameTime, 0.008 );
                 if ( frame == -1 ){ 
-                    const currentTime = timeline.currentTime;
-                    frame = timeline.addKeyFrame( track, values, effectorFrameTime );
-                    timeline.currentTime = currentTime;
+                    frame = timeline.addKeyFrame( track, boneToProcess.quaternion.toArray(), effectorFrameTime );
+
+                    // compute source quaternion that will be used by deltaQuaternion later
+                    if(this.editor.gui.propagationWindow.enabler && track.times.length > 1){
+                        
+                        let prevIdx = frame == 0 ? -1 : (frame-1);
+                        let nextIdx = frame == (track.times.length-1) ? prevIdx : (frame+1);
+                        if( prevIdx < 0 ){ prevIdx = nextIdx; }
+
+                        this.tempQuat0.set( tValues[prevIdx*4], tValues[prevIdx*4+1], tValues[prevIdx*4+2], tValues[prevIdx*4+3] );
+                        this.tempQuat1.set( tValues[nextIdx*4], tValues[nextIdx*4+1], tValues[nextIdx*4+2], tValues[nextIdx*4+3] );
+                        let t = prevIdx == nextIdx ? 
+                                    1 : 
+                                    (effectorFrameTime - track.times[prevIdx]) / (track.times[nextIdx]- track.times[nextIdx]);
+                        nlerpQuats(deltaQuaternion, this.tempQuat0, this.tempQuat1, t ); // returns approx source value
+                    }
                 }
                 else{ 
-                    let start = 4 * frame;
-                    for( let j = 0; j < values.length; ++j ) {
-                        this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].values[ start + j ] = values[j];
-                    }
+                    const start = 4 * frame;
+                    deltaQuaternion.set( tValues[start], tValues[start+1], tValues[start+2], tValues[start+3] ); // source value
+                    tValues[start] =  boneToProcess.quaternion.x;
+                    tValues[start+1] =boneToProcess.quaternion.y;
+                    tValues[start+2] =boneToProcess.quaternion.z;
+                    tValues[start+3] =boneToProcess.quaternion.w;
                 }
                 
                 track.edited[ frame ] = true;
+                                
+                if( this.editor.gui.propagationWindow.enabler ){ 
+                    deltaQuaternion.invert(); // invert source value
+                    deltaQuaternion.premultiply( boneToProcess.quaternion );  // deltaQuat = newQuat * inv(sourceQuat) = deltaQuat * sourceQuat * inv(sourceQuat) 
+                    this.propagateEdition(track, frame, deltaQuaternion);
+                }
 
                 // Update animation interpolants
                 this.editor.updateAnimationAction(this.editor.activeTimeline.animationClip, track.clipIdx );
-                timeline.onSetTime( timeline.currentTime );
-
             }
         }
         else{
@@ -639,18 +721,26 @@ class Gizmo {
             if(!values)
                 return;
     
-            const idx = track.clipIdx;
+            track = this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ];
             track.edited[ keyFrameIndex ] = true;
+
+            const source = track.dim == 4 ? 
+                            new THREE.Quaternion(track.values[start], track.values[start+1], track.values[start+2], track.values[start+3]) : 
+                            new THREE.Vector3( track.values[start], track.values[start+1], track.values[start+2]);
 
             // supports position and quaternion types
             for( let i = 0; i < values.length; ++i ) {
-                this.editor.activeTimeline.animationClip.tracks[ idx ].values[ start + i ] = values[i];
+                track.values[ start + i ] = values[i];
+            }
+
+            if( this.editor.gui.propagationWindow.enabler ){ 
+                const delta = track.dim == 4 ? new THREE.Quaternion(values[0], values[1], values[2], values[3]) : new THREE.Vector3(values[0], values[1], values[2]);
+                track.dim == 4 ? delta.multiply( source.invert() ) : delta.sub(source); 
+                this.propagateEdition(track, keyFrameIndex, delta);
             }
 
             // Update animation interpolants
-            this.editor.updateAnimationAction( this.editor.activeTimeline.animationClip, idx );
-            timeline.onSetTime( timeline.currentTime );
-
+            this.editor.updateAnimationAction( this.editor.activeTimeline.animationClip, track.clipIdx );
         }
 
     }
@@ -763,4 +853,15 @@ Gizmo.ToolIkModes = {
     LARGECHAIN: 0,
     ONEBONE: 1
 }
+
+function nlerpQuats( destQuat, qa, qb, t ){
+    let bsign = ( qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w ) < 0 ? -1 : 1;    
+    destQuat.x = qa.x * (1-t) + bsign * qb.x * t;
+    destQuat.y = qa.y * (1-t) + bsign * qb.y * t;
+    destQuat.z = qa.z * (1-t) + bsign * qb.z * t;
+    destQuat.w = qa.w * (1-t) + bsign * qb.w * t;
+    destQuat.normalize();
+    return destQuat;
+}
+
 export { Gizmo };

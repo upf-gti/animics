@@ -590,9 +590,9 @@ class Editor {
                 this.currentCharacter.mixer._actions[i].loop = THREE.LoopRepeat;
         }
 
-        if(this.gizmo) {
-            this.gizmo.updateTracks();
-        }
+        // if(this.gizmo) {
+        //     this.gizmo.updateTracks();
+        // }
 
         // TO DO: Update BML tracks
     }
