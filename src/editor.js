@@ -724,11 +724,26 @@ class Editor {
                     
                     if(animation.mixerBodyAnimation) {
                         animation.mixerBodyAnimation.name = animSaveName + '_' + animation.mixerBodyAnimation.name;
-                        options.animations.push(animation.mixerBodyAnimation);
+                        if(options.animations.length) { // export mixer body animation and mixer face animation as the same animation
+                            options.animations[0].tracks = [...options.animations[0].tracks, ...animation.mixerBodyAnimation.tracks];
+                        }
+                        else {
+                            options.animations.push(animation.mixerBodyAnimation);
+                        }
                     }
                     if(animation.mixerFaceAnimation) {
                         animation.mixerFaceAnimation.name = animSaveName + '_' + animation.mixerFaceAnimation.name;
-                        options.animations.push(animation.mixerFaceAnimation);                       
+                        if(options.animations.length) { // export mixer body animation and mixer face animation as the same animation
+                            options.animations[0].tracks = [...options.animations[0].tracks, ...animation.mixerFaceAnimation.tracks];
+                        }
+                        else {
+                            options.animations.push(animation.mixerFaceAnimation);
+                        }
+                    }
+
+                    if(animation.mixerAnimation) {
+                        animation.mixerAnimation.name = animSaveName + '_' + animation.mixerAnimation.name;
+                        options.animations.push(animation.mixerAnimation);
                     }
                 }
                 let model = this.currentCharacter.mixer._root.getChildByName('Armature');
