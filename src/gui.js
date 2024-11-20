@@ -1147,16 +1147,16 @@ class KeyframesGui extends Gui {
                 );
 
                 dialog.branch("Propagation Window");
-                dialog.addCheckbox("Enable Propagation", this.propagationWindow.enabler, (v) =>{
+                dialog.addCheckbox("Enable", this.propagationWindow.enabler, (v) =>{
                     this.propagationWindow.enabler = v;
                 });
-                dialog.addNumber("Propagation left", this.propagationWindow.leftSide, (v) => {
+                dialog.addNumber("Min Time (S)", this.propagationWindow.leftSide, (v) => {
                     this.propagationWindow.leftSide = v;
                 }, {min: 0.001, step: 0.001, disabled: false});
-                dialog.addNumber("Propagation right", this.propagationWindow.rightSide, (v) => {
+                dialog.addNumber("Max Time (S)", this.propagationWindow.rightSide, (v) => {
                     this.propagationWindow.rightSide = v;
                 }, {min: 0.001, step: 0.001, disabled: false});				
-                dialog.addNumber("Propagation Color Opacity", this.propagationWindow.opacity, (v) => {
+                dialog.addNumber("Color Opacity", this.propagationWindow.opacity, (v) => {
                     this.propagationWindow.opacity = v;
                 }, {min: 0, max:1, step:0.001, disabled: false});
                 dialog.addColor("Color", this.propagationWindow.lexguiColor, (value, event) => {
@@ -1313,16 +1313,16 @@ class KeyframesGui extends Gui {
                 );
 
                 dialog.branch("Propagation Window");
-                dialog.addCheckbox("Enable Propagation", this.propagationWindow.enabler, (v) =>{
+                dialog.addCheckbox("Enable", this.propagationWindow.enabler, (v) =>{
                     this.propagationWindow.enabler = v;
                 });
-                dialog.addNumber("Propagation left", this.propagationWindow.leftSide, (v) => {
+                dialog.addNumber("Min Time (S)", this.propagationWindow.leftSide, (v) => {
                     this.propagationWindow.leftSide = v;
                 }, {min: 0.001,  step: 0.001, disabled: false});
-                dialog.addNumber("Propagation right", this.propagationWindow.rightSide, (v) => {
+                dialog.addNumber("Max Time (S)", this.propagationWindow.rightSide, (v) => {
                     this.propagationWindow.rightSide = v;
                 }, {min: 0.001,  step: 0.001, disabled: false});				
-                dialog.addNumber("Propagation Color Opacity", this.propagationWindow.opacity, (v) => {
+                dialog.addNumber("Color Opacity", this.propagationWindow.opacity, (v) => {
                     this.propagationWindow.opacity = v;
                 }, {min: 0, max:1, step:0.001, disabled: false});
                 dialog.addColor("Color", this.propagationWindow.lexguiColor, (value, event) => {
@@ -1359,7 +1359,10 @@ class KeyframesGui extends Gui {
         };
 
         this.curvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
-        this.curvesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
+        this.curvesTimeline.onUpdateTrack = (idx) => {
+            this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx); 
+            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx)
+        }
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.curvesTimeline.onSelectKeyFrame = (e, info) => {
@@ -1754,7 +1757,7 @@ class KeyframesGui extends Gui {
 					const track = itemTracks[t];
                     let frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
                     if ( frame > -1 ){
-                        LX.emit("@on_change_" + track.type, track.values[frame], {skipCallback: false});
+                        LX.emit("@on_change_" + track.type, track.values[frame]);
                     }
                 }
             }
@@ -1771,7 +1774,7 @@ class KeyframesGui extends Gui {
             frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
         }
         if( frame > -1 ){
-            LX.emit("@on_change_" + name, track.values[frame], {skipCallback: false});
+            LX.emit("@on_change_" + name, track.values[frame]);
         }
     }
 
