@@ -1187,7 +1187,10 @@ class KeyframesGui extends Gui {
             currentBinded.mixerBodyAnimation.duration = t;
             currentBinded.mixerFaceAnimation.duration = t;
             currentBinded.auAnimation.duration = t;
-            this.curvesTimeline.setDuration(t);
+
+            if( this.curvesTimeline.duration != t ){
+	            this.curvesTimeline.setDuration(t);			
+			}
         };
 
         this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
@@ -1349,7 +1352,10 @@ class KeyframesGui extends Gui {
             currentBinded.mixerBodyAnimation.duration = t;
             currentBinded.mixerFaceAnimation.duration = t;
             currentBinded.auAnimation.duration = t;
-            this.keyFramesTimeline.setDuration(t);
+
+            if( this.keyFramesTimeline.duration != t ){
+	            this.keyFramesTimeline.setDuration(t);			
+			}
         };
 
         this.curvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
