@@ -499,14 +499,14 @@ class Gui {
 
     /** -------------------- TIMELINE -------------------- */
     drawPropagationWindow( timeline, ctx ){
-        if ( !this.propagationWindow.enabler || timeline.lastKeyFramesSelected.length != 1 ){ return; }
+        if ( !this.propagationWindow.enabler || (timeline != this.curvesTimeline && timeline.lastKeyFramesSelected.length != 1) ){ return; }
 
         let rightSize = timeline.timeToX(this.propagationWindow.rightSide) - timeline.timeToX(0); 
         let leftSize = timeline.timeToX(this.propagationWindow.leftSide) - timeline.timeToX(0);
 
         let rectWidth = leftSize + rightSize;
         let rectHeight = timeline.canvas.height - timeline.topMargin - 2;
-        let rectPosX = timeline.timeToX(timeline.lastKeyFramesSelected[0][4] - this.propagationWindow.leftSide);
+        let rectPosX = timeline.timeToX( ( timeline == this.curvesTimeline ? timeline.currentTime : timeline.lastKeyFramesSelected[0][4] ) - this.propagationWindow.leftSide);
         let rectPosY = timeline.topMargin + 1;
         let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
         gradient.addColorStop(0, this.propagationWindow.gradientColorLimits);
@@ -1152,10 +1152,10 @@ class KeyframesGui extends Gui {
                 });
                 dialog.addNumber("Propagation left", this.propagationWindow.leftSide, (v) => {
                     this.propagationWindow.leftSide = v;
-                }, {min: 0, step: 0.001, disabled: false});
+                }, {min: 0.001, step: 0.001, disabled: false});
                 dialog.addNumber("Propagation right", this.propagationWindow.rightSide, (v) => {
                     this.propagationWindow.rightSide = v;
-                }, {min: 0, step: 0.001, disabled: false});				
+                }, {min: 0.001, step: 0.001, disabled: false});				
                 dialog.addNumber("Propagation Color Opacity", this.propagationWindow.opacity, (v) => {
                     this.propagationWindow.opacity = v;
                 }, {min: 0, max:1, step:0.001, disabled: false});
@@ -1187,7 +1187,7 @@ class KeyframesGui extends Gui {
             currentBinded.mixerBodyAnimation.duration = t;
             currentBinded.mixerFaceAnimation.duration = t;
             currentBinded.auAnimation.duration = t;
-            this.curvesTimeline.duration = t;
+            this.curvesTimeline.setDuration(t);
         };
 
         this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
@@ -1315,10 +1315,10 @@ class KeyframesGui extends Gui {
                 });
                 dialog.addNumber("Propagation left", this.propagationWindow.leftSide, (v) => {
                     this.propagationWindow.leftSide = v;
-                }, {min: 0, max:5,  step: 0.001, disabled: false});
+                }, {min: 0.001,  step: 0.001, disabled: false});
                 dialog.addNumber("Propagation right", this.propagationWindow.rightSide, (v) => {
                     this.propagationWindow.rightSide = v;
-                }, {min: 0, max:5,  step: 0.001, disabled: false});				
+                }, {min: 0.001,  step: 0.001, disabled: false});				
                 dialog.addNumber("Propagation Color Opacity", this.propagationWindow.opacity, (v) => {
                     this.propagationWindow.opacity = v;
                 }, {min: 0, max:1, step:0.001, disabled: false});
@@ -1349,7 +1349,7 @@ class KeyframesGui extends Gui {
             currentBinded.mixerBodyAnimation.duration = t;
             currentBinded.mixerFaceAnimation.duration = t;
             currentBinded.auAnimation.duration = t;
-            this.keyFramesTimeline.duration = t;
+            this.keyFramesTimeline.setDuration(t);
         };
 
         this.curvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);

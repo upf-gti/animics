@@ -2105,21 +2105,39 @@ class KeyframeEditor extends Editor{
         if( this.state ){ return false; }
 
         value = Number(value);
-        const auAnimation = this.getCurrentBindedAnimation().auAnimation;
+        // const auAnimation = this.getCurrentBindedAnimation().auAnimation; // activeTimeline.animationClip == auAnimation
+        const time = this.activeTimeline.currentTime;
 
         for(let i = 0; i < this.activeTimeline.tracksDrawn.length; i++) {
             let info = this.activeTimeline.tracksDrawn[i][0];
             if(info.type == name && info.active){
                 i = info.clipIdx;
-                let frameIdx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], this.activeTimeline.currentTime, 0.01)
+                const frameIdx = this.activeTimeline.getCurrentKeyFrame(this.activeTimeline.animationClip.tracks[i], time, 0.01)
                 if ( frameIdx > -1 ){
                     // Update Action Unit keyframe value of timeline animation
-                    let oldValue = this.activeTimeline.animationClip.tracks[i].values[frameIdx]; // HACK
-                    this.activeTimeline.animationClip.tracks[i].values[frameIdx] = auAnimation.tracks[i].values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
-                    this.activeTimeline.animationClip.tracks[i].edited[frameIdx] = auAnimation.tracks[i].edited[frameIdx] |= oldValue != value; // activeTimeline.animationClip == auAnimation               
+                    const track = this.activeTimeline.animationClip.tracks[i];
+                    const oldValue = track.values[frameIdx]; // HACK
+                    track.values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
+                    track.edited[frameIdx] |= oldValue != value ; // activeTimeline.animationClip == auAnimation               
                     
+                    if ( this.gui.propagationWindow.enabler && oldValue != value ){
+                        const propWindow = this.gui.propagationWindow;
+                        const delta = value - oldValue;
+                        for( let propFrame = frameIdx - 1; propFrame > -1; --propFrame ){
+                            if ( track.times[propFrame] < (time - propWindow.leftSide) ){ break; }
+                            track.values[propFrame] = Math.min( 1, Math.max( 0, track.values[propFrame] + delta * (1-(time - track.times[propFrame])/propWindow.leftSide )) ); // activeTimeline.animationClip == auAnimation               
+                            track.edited[propFrame] = true ; // activeTimeline.animationClip == auAnimation                       
+                        }
+                        for( let propFrame = frameIdx + 1; propFrame < track.times.length; ++propFrame ){
+                            if ( track.times[propFrame] > (time + propWindow.rightSide) ){ break; }
+                            track.values[propFrame] = Math.min( 1, Math.max( 0, track.values[propFrame] + delta * (1-(track.times[propFrame] - time)/propWindow.rightSide )) ); // activeTimeline.animationClip == auAnimation               
+                            track.edited[propFrame] = true ; // activeTimeline.animationClip == auAnimation                       
+                        }
+                    }
+                    
+
                     // Update animation action (mixer) interpolants.
-                    this.updateAnimationAction(auAnimation, i );
+                    this.updateAnimationAction(this.activeTimeline.animationClip, i );
                 } 
                 return true;
             }
