@@ -2122,7 +2122,7 @@ class KeyframeEditor extends Editor{
                     const oldValue = track.values[ frameIdx ];
                     const delta = value - oldValue;
 
-                     for( let propFrame = frameIdx; propFrame > -1; --propFrame ){
+                    for( let propFrame = frameIdx; propFrame > -1; --propFrame ){
                         if ( track.times[propFrame] < (time - propWindow.leftSide) ){ break; }
                         track.values[propFrame] = Math.min( 1, Math.max( 0, track.values[propFrame] + delta * (1-(time - track.times[propFrame])/propWindow.leftSide )) ); // activeTimeline.animationClip == auAnimation               
                         track.edited[propFrame] = true ; // activeTimeline.animationClip == auAnimation                       

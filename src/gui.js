@@ -2802,7 +2802,7 @@ class ScriptGui extends Gui {
                         updateTracks(true);
                         // this.updateClipPanel(clip);
         
-                    }, {xrange: [0, clip.duration], allow_add_values: false, draggable_y: false, smooth: 0.2});
+                    }, {xrange: [0, clip.duration], skipReset: true, allowAddValues: false, moveOutAction: LX.CURVE_MOVEOUT_CLAMP, draggableY: false, smooth: 0.2});
                 }
                 widgets.merge();
             }
