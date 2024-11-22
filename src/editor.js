@@ -65,6 +65,8 @@ class Editor {
         this.delayedResizeID = null;
         this.delayedResizeTime = 500; //ms
 
+        this.currentTime = 0;
+
         // Keep "private"
         this.__app = app;
 
@@ -531,6 +533,7 @@ class Editor {
         t = Math.clamp(t, 0, duration - 0.001);
         // mixer computes time * timeScale. We actually want to set the raw animation (track) time, without any timeScale 
         this.currentCharacter.mixer.setTime(t/this.currentCharacter.mixer.timeScale); //already calls mixer.update
+        this.currentTime = t;
     }
 
     clearAllTracks() {
@@ -1822,7 +1825,7 @@ class KeyframeEditor extends Editor{
 
         // Update video
         this.video.currentTime = this.video.startTime + t;
-
+        this.currentTime = t;
         this.gizmo.updateBones();
     }
 
@@ -2100,6 +2103,122 @@ class KeyframeEditor extends Editor{
         
     }
 
+
+    /**
+     * propagates the newValue using the editor.gui.propagationWindow attributes
+     * It computes delta values which are weighted and added to each keyframe inside the window
+     * @param {obj} track 
+     * @param {int} keyframe 
+     * @param {quat || vec3 || number} delta 
+     */
+    propagateEdition( timeline, trackIdx, time, newValue ){
+        const propWindow = this.gui.propagationWindow;
+        const track = timeline.animationClip.tracks[trackIdx];
+        const values = track.values;
+        const times = track.times;
+        let prevFrame = timeline.getNearestKeyFrame(track, time, -1);
+        let postFrame = timeline.getNearestKeyFrame(track, time, 1);
+        prevFrame = prevFrame == -1 ? 0 : prevFrame; // assuming length > 0 
+        postFrame = postFrame == -1 ? prevFrame : postFrame; // assuming length > 0 
+
+        let minFrame = timeline.getNearestKeyFrame(track, time - propWindow.leftSide, 1);
+        let maxFrame = timeline.getNearestKeyFrame(track, time + propWindow.rightSide, -1);
+        minFrame = minFrame == -1 ? times.length : minFrame;
+        maxFrame = maxFrame == -1 ? 0 : maxFrame;
+
+        let delta;
+        let t = prevFrame == postFrame ? 1 : (time-track.times[prevFrame])/(track.times[postFrame]-track.times[prevFrame]);
+        if ( track.dim == 4 ){
+            let prevQ = new THREE.Quaternion(values[prevFrame*4],values[prevFrame*4+1],values[prevFrame*4+2],values[prevFrame*4+3]);
+            let postQ = new THREE.Quaternion(values[postFrame*4],values[postFrame*4+1],values[postFrame*4+2],values[postFrame*4+3]);
+            delta = new THREE.Quaternion();
+
+            //nlerp
+            let bsign = ( prevQ.x * postQ.x + prevQ.y * postQ.y + prevQ.z * postQ.z + prevQ.w * postQ.w ) < 0 ? -1 : 1;    
+            delta.x = prevQ.x * (1-t) + bsign * postQ.x * t;
+            delta.y = prevQ.y * (1-t) + bsign * postQ.y * t;
+            delta.z = prevQ.z * (1-t) + bsign * postQ.z * t;
+            delta.w = prevQ.w * (1-t) + bsign * postQ.w * t;
+            delta.normalize();
+
+            delta.invert();
+            delta.premultiply(newValue);
+        }
+
+        if ( track.dim == 3 ){
+            delta = new THREE.Vector3();
+            delta.x = newValue.x -( values[prevFrame*4] * (1-t) + values[postFrame*4] * t ); 
+            delta.y = newValue.y -( values[prevFrame*4+1] * (1-t) + values[postFrame*4+1] * t ); 
+            delta.z = newValue.z -( values[prevFrame*4+2] * (1-t) + values[postFrame*4+2] * t ); 
+        }
+
+        if ( track.dim == 1 ){
+            delta = newValue - (values[prevFrame] * (1-t) + values[postFrame] * t);
+        }
+
+        let gradIdx = -1;
+        let maxGradient=[1.0001, 0];
+        let g0 = [0,0];
+        let g1 = propWindow.gradient[0];
+        const minTime = time - propWindow.leftSide;
+        for( let i = minFrame; i <= maxFrame; ++i ){
+            t = (times[i] - minTime) / (propWindow.leftSide + propWindow.rightSide); // normalize time in window 
+            
+            // find next valid gradient interval
+            while( t > g1[0] ){
+                g0 = g1;
+                g1 = propWindow.gradient[++gradIdx]
+                if ( !g1 ){ g1 = maxGradient; break; }
+            }
+
+            // compute delta factor
+            t = (t - g0[0]) / (g1[0]-g0[0]);
+            t = g0[1] * (1-t) + g1[1] * t;
+
+            // apply delta with factor on frame 'i'
+            switch( track.dim ){
+                case 4: this._applyDeltaQuaternion( track, i, delta, t ); break;
+                case 3: this._applyDeltaPosition( track, i, delta, t ); break;
+                default:
+                    values[i] = Math.min(1, Math.max(0, values[i] + delta * t )); 
+                    break;
+            }
+
+            track.edited[i] = true;
+        }
+    }
+  
+    _applyDeltaQuaternion( track, keyframe, delta, t ){
+        const dim = track.dim;
+        const newDelta = new THREE.Quaternion;
+        const source = new THREE.Quaternion;
+
+        // nlerp( {0,0,0,1}, deltaQuat, t )
+        let neighbourhood = delta.w < 0 ? -1 : 1;
+        newDelta.x = neighbourhood * delta.x * t;
+        newDelta.y = neighbourhood * delta.y * t;
+        newDelta.z = neighbourhood * delta.z * t;
+        newDelta.w = (1-t) + neighbourhood * delta.w * t;
+        newDelta.normalize();
+
+        source.set(track.values[keyframe * dim], track.values[keyframe * dim + 1], track.values[keyframe * dim + 2], track.values[keyframe * dim + 3]);
+        source.premultiply( newDelta );
+
+        // write result
+        track.values[keyframe * dim] = source.x;
+        track.values[keyframe * dim+1] = source.y;
+        track.values[keyframe * dim+2] = source.z;
+        track.values[keyframe * dim+3] = source.w;
+        track.edited[keyframe] = true;
+    }
+
+    _applyDeltaPosition( track, keyframe, delta, t ){
+        track.values[keyframe*track.dim] += delta.x * t;
+        track.values[keyframe*track.dim+1] += delta.y * t;
+        track.values[keyframe*track.dim+2] += delta.z * t;
+        track.edited[keyframe] = true;
+    }
+
     // Update blendshapes properties from the GUI
     updateBlendshapesProperties(name, value) {
         if( this.state ){ return false; }
@@ -2116,22 +2235,7 @@ class KeyframeEditor extends Editor{
                 if ( track.times.length <= 0){ continue; }
 
                 if ( this.gui.propagationWindow.enabler ){
-                    const propWindow = this.gui.propagationWindow;
-                    
-                    const frameIdx = this.activeTimeline.getNearestKeyFrame( track, time );
-                    const oldValue = track.values[ frameIdx ];
-                    const delta = value - oldValue;
-
-                    for( let propFrame = frameIdx; propFrame > -1; --propFrame ){
-                        if ( track.times[propFrame] < (time - propWindow.leftSide) ){ break; }
-                        track.values[propFrame] = Math.min( 1, Math.max( 0, track.values[propFrame] + delta * (1-(time - track.times[propFrame])/propWindow.leftSide )) ); // activeTimeline.animationClip == auAnimation               
-                        track.edited[propFrame] = true ; // activeTimeline.animationClip == auAnimation                       
-                    }
-                    for( let propFrame = frameIdx + 1; propFrame < track.times.length; ++propFrame ){
-                        if ( track.times[propFrame] > (time + propWindow.rightSide) ){ break; }
-                        track.values[propFrame] = Math.min( 1, Math.max( 0, track.values[propFrame] + delta * (1-(track.times[propFrame] - time)/propWindow.rightSide )) ); // activeTimeline.animationClip == auAnimation               
-                        track.edited[propFrame] = true ; // activeTimeline.animationClip == auAnimation                       
-                    }
+                    this.propagateEdition(this.activeTimeline, track.clipIdx, time, value);
 
                     // Update animation action (mixer) interpolants.
                     this.updateAnimationAction(this.activeTimeline.animationClip, track.clipIdx );
@@ -2140,9 +2244,8 @@ class KeyframeEditor extends Editor{
                     const frameIdx = this.activeTimeline.getCurrentKeyFrame(track, time, 0.01)
                     if ( frameIdx > -1 ){
                         // Update Action Unit keyframe value of timeline animation
-                        const oldValue = track.values[frameIdx]; // HACK
                         track.values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
-                        track.edited[frameIdx] |= oldValue != value ; // activeTimeline.animationClip == auAnimation               
+                        track.edited[frameIdx] = true;               
 
                         // Update animation action (mixer) interpolants.
                         this.updateAnimationAction(this.activeTimeline.animationClip, track.clipIdx );

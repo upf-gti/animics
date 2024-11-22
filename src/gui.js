@@ -510,10 +510,13 @@ class Gui {
         let rectPosY = timeline.topMargin + 1;
         let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
         gradient.addColorStop(0, this.propagationWindow.gradientColorLimits);
-        gradient.addColorStop(leftSize/rectWidth, this.propagationWindow.gradientColor);
+        for( let i = 0; i < this.propagationWindow.gradient.length; ++i){
+            const g = this.propagationWindow.gradient[i];
+            gradient.addColorStop(g[0], this.propagationWindow.gradientColor + "," + g[1] +")");
+        }
         gradient.addColorStop(1,this.propagationWindow.gradientColorLimits);
         ctx.fillStyle = gradient;
-        ctx.strokeStyle = this.propagationWindow.gradientColor;
+        ctx.strokeStyle = this.propagationWindow.borderColor;
         ctx.globalAlpha = this.propagationWindow.opacity;
 
         let radii = timeline.trackHeight;
@@ -688,7 +691,9 @@ class KeyframesGui extends Gui {
             opacity: 1,
             lexguiColor: '#ffffff',
             gradientColorLimits: "rgba( 255, 255, 255, 0%)",
-            gradientColor: "rgba( 255, 255, 255, 100%)"
+            gradientColor: "rgba( 255, 255, 255",
+            borderColor: "rgba( 255, 255, 255, 0.05)",
+            gradient : [ [0.5,1] ],
             // radii = 100;
         }
        
@@ -1164,8 +1169,15 @@ class KeyframesGui extends Gui {
                     let rawColor = parseInt(value.slice(1,7), 16);
                     let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
                     this.propagationWindow.gradientColorLimits = color + ",0%)"; 
-                    this.propagationWindow.gradientColor = color + ",100%)"; 
+                    this.propagationWindow.gradientColor = color; 
+                    this.propagationWindow.borderColor = color + ",0.05)"; 
                 });
+                dialog.addCurve("gradient", this.propagationWindow.gradient, (value, event) => {
+                    if ( value.length <= 0){
+						value = [[0.5,1]];
+					}
+					this.propagationWindow.gradient = value;
+                }, {xrange: [0, 1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0});
                 dialog.merge();
             },
             disableNewTracks: true
@@ -1226,8 +1238,9 @@ class KeyframesGui extends Gui {
                         {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
-                                let [id, localTrackIdx, keyIdx] = this.lastKeyFramesSelected[0];
+                                let [id, localTrackIdx, keyIdx, trackIdx] = this.lastKeyFramesSelected[0];
                                 this.pasteKeyFrameValue(e, this.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
+                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
                             }
                         }
                     )
@@ -1241,7 +1254,10 @@ class KeyframesGui extends Gui {
                 actions.push(
                     {
                         title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
-                        callback: () => deleteSelectedContent()
+                        callback: () => {
+                            deleteSelectedContent();
+                            this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                        }
                     }
                 )
             }
@@ -1256,7 +1272,10 @@ class KeyframesGui extends Gui {
                     actions.push(
                         {
                             title: "Add",
-                            callback: () => this.addKeyFrame( e.track, that.boneProperties[type].toArray() )
+                            callback: () => {
+                                this.addKeyFrame( e.track, that.boneProperties[type].toArray() )
+                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                            }
                         }
                     )
                 }
@@ -1266,7 +1285,10 @@ class KeyframesGui extends Gui {
                     actions.push(
                         {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
-                            callback: () => pasteContent()
+                            callback: () => {
+                                this.pasteContent()
+                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                            }
                         }
                     )
                 }
@@ -1318,10 +1340,10 @@ class KeyframesGui extends Gui {
                 });
                 dialog.addNumber("Min Time (S)", this.propagationWindow.leftSide, (v) => {
                     this.propagationWindow.leftSide = v;
-                }, {min: 0.001,  step: 0.001, disabled: false});
+                }, {min: 0.001, step: 0.001, disabled: false});
                 dialog.addNumber("Max Time (S)", this.propagationWindow.rightSide, (v) => {
                     this.propagationWindow.rightSide = v;
-                }, {min: 0.001,  step: 0.001, disabled: false});				
+                }, {min: 0.001, step: 0.001, disabled: false});				
                 dialog.addNumber("Color Opacity", this.propagationWindow.opacity, (v) => {
                     this.propagationWindow.opacity = v;
                 }, {min: 0, max:1, step:0.001, disabled: false});
@@ -1330,8 +1352,15 @@ class KeyframesGui extends Gui {
                     let rawColor = parseInt(value.slice(1,7), 16);
                     let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
                     this.propagationWindow.gradientColorLimits = color + ",0%)"; 
-                    this.propagationWindow.gradientColor = color + ",100%)"; 
+                    this.propagationWindow.gradientColor = color; 
+                    this.propagationWindow.borderColor = color + ",0.05)"; 
                 });
+                dialog.addCurve("gradient", this.propagationWindow.gradient, (value, event) => {
+                    if ( value.length <= 0){
+						value = [[0.5,1]];
+					}
+					this.propagationWindow.gradient = value;
+                }, {xrange: [0, 1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0});
                 dialog.merge();
             },
             disableNewTracks: true
