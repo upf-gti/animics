@@ -513,13 +513,12 @@ class Gizmo {
 
     update(state, dt) {
 
-        if(!this.enabled) return;
         if(state) this.updateBones(dt);
 
-        //this.ikHelper.update();
+        if(!this.enabled || this.selectedBone == null) return;
 
-        if(this.selectedBone == null ){ return; }
-        
+        //this.ikHelper.update();
+                
         if ( !this.mustUpdate ){
             if ( this.toolSelected == Gizmo.Tools.IK ){ // make target follow bone when not directly using it
                 this.ikSetTargetToBone();
