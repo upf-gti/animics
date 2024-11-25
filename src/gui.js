@@ -1334,7 +1334,7 @@ class KeyframesGui extends Gui {
                             callback: () => {
                                 let [id, localTrackIdx, keyIdx, trackIdx] = this.lastKeyFramesSelected[0];
                                 this.pasteKeyFrameValue(e, this.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
-                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
+                                that.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
                             }
                         }
                     )
@@ -1350,7 +1350,7 @@ class KeyframesGui extends Gui {
                         title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
                         callback: () => {
                             deleteSelectedContent();
-                            this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                            that.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
                         }
                     }
                 )
@@ -1368,7 +1368,7 @@ class KeyframesGui extends Gui {
                             title: "Add",
                             callback: () => {
                                 this.addKeyFrame( e.track, that.boneProperties[type].toArray() )
-                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                                that.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
                             }
                         }
                     )
@@ -1381,7 +1381,7 @@ class KeyframesGui extends Gui {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
                                 this.pasteContent()
-                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                                that.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
                             }
                         }
                     )
