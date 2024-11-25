@@ -621,7 +621,11 @@ class Gui {
         let leftSize = timeline.timeToX(this.propagationWindow.leftSide) - timeline.timeToX(0);
 
         let rectWidth = leftSize + rightSize;
-        let rectHeight = timeline.canvas.height - timeline.topMargin - 2;
+		let rectHeight = Math.min(
+            timeline.canvas.height - timeline.topMargin - 2, 
+            timeline.leftPanel.root.children[1].children[0].clientHeight - timeline.leftPanel.root.children[1].scrollTop + timeline.trackHeight*0.5
+         );
+
         let rectPosX = timeline.timeToX( ( timeline == this.curvesTimeline ? timeline.currentTime : timeline.lastKeyFramesSelected[0][4] ) - this.propagationWindow.leftSide);
         let rectPosY = timeline.topMargin + 1;
         let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
