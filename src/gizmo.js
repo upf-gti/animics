@@ -602,7 +602,9 @@ class Gizmo {
                 
                 const track = timeline.getTrack([boneToProcess.name, quaternionTrackIdx]);
                 if ( track.dim != 4 ){ continue; } // only quaternions
-                
+
+                this.editor.gui.keyFramesTimeline.saveState( track.clipIdx, i != 1 );
+
                 const tValues = track.values; 
 
                 // find nearest frame or create one if too far
@@ -640,6 +642,9 @@ class Gizmo {
             if ( !newValue ){ 
                 return;
             }
+
+            this.editor.gui.keyFramesTimeline.saveState( track.clipIdx );
+
             if ( this.editor.gui.propagationWindow.enabler ){
                 this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, track.times[ keyFrameIndex ], newValue);
             }else{
