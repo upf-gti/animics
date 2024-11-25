@@ -76,10 +76,10 @@ class Gui {
             this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
         }});
         
-        menubar.add("Project/Export scene", {icon: "fa fa-download"});
-        menubar.add("Project/Export scene/Export GLB", {callback: () =>
-            this.prompt = LX.prompt("File name", "Export GLB", (v) => this.editor.export(null, "GLB", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )
-        });
+        menubar.add("Project/Export character & animations", {icon: "fa fa-download"});
+        menubar.add("Project/Export character & animations/Export GLB", {callback: () => {
+                this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
+        }});
 
         // Save animation
         menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => 

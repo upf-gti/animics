@@ -719,19 +719,23 @@ class Editor {
                     const bindedAnim = this.bindedAnimations[animation.name][this.currentCharacter.name];
                     let animSaveName = animation.saveName;
                     
+                    let tracks = []; 
                     if(bindedAnim.mixerBodyAnimation) {
-                        bindedAnim.mixerBodyAnimation.name = animSaveName + '_' + bindedAnim.mixerBodyAnimation.name;
-                        options.animations.push(bindedAnim.mixerBodyAnimation);
+                        tracks = tracks.concat( bindedAnim.mixerBodyAnimation.tracks );
                     }
                     if(bindedAnim.mixerFaceAnimation) {
-                        bindedAnim.mixerFaceAnimation.name = animSaveName + '_' + bindedAnim.mixerFaceAnimation.name;
-                        options.animations.push(bindedAnim.mixerFaceAnimation);                       
+                        tracks = tracks.concat( bindedAnim.mixerFaceAnimation.tracks );
                     }
+                    if(bindedAnim.mixerAnimation) {
+                        tracks = tracks.concat( bindedAnim.mixerAnimation.tracks );
+                    }
+
+                    options.animations.push( new THREE.AnimationClip( animSaveName, -1, tracks ) );
                 }
                 let model = this.currentCharacter.mixer._root.getChildByName('Armature');
 
                 this.GLTFExporter.parse(model, 
-                    ( gltf ) => UTILS.download(gltf, (name || this.clipName) + '.glb', 'arraybuffer' ), // called when the gltf has been generated
+                    ( gltf ) => UTILS.download(gltf, (name || this.clipName || "animations") + '.glb', 'arraybuffer' ), // called when the gltf has been generated
                     ( error ) => { console.log( 'An error happened:', error ); }, // called when there is an error in the generation
                     options
                 );
