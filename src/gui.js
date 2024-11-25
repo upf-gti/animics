@@ -495,9 +495,125 @@ class Gui {
             enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
         }
     }
-    /** ------------------------------------------------------------ */
 
-    /** -------------------- TIMELINE -------------------- */
+    /** -------------------- PROPAGATION WINDOW -------------------- */
+
+    propagationWindowConfig(dialog){
+        dialog.addCheckbox("Enable", this.propagationWindow.enabler, (v) =>{
+            this.propagationWindow.enabler = v;
+        });
+
+        dialog.addNumber("Min Time (S)", this.propagationWindow.leftSide, (v) => {
+            let g = this.propagationWindow.gradient;
+
+            const oldMid = this.propagationWindow.leftSide / (this.propagationWindow.leftSide + this.propagationWindow.rightSide);
+            const newMid = v / (v + this.propagationWindow.rightSide);
+            for( let i  = 0; i < g.length; ++i ){
+                let gt = g[i][0]; 
+                if ( gt <= oldMid ){
+                    g[i][0] = ( gt / oldMid ) * newMid;
+                }
+                else{
+                g[i][0] = ( (gt - oldMid) / (1-oldMid)) * (1-newMid) + newMid ;
+                }
+                // g[i][0] = gt <= oldMid ? ( gt / oldMid ) * newMid : ( (gt - oldMid / (1-oldMid)) * (1-newMid) + newMid );
+            }
+
+            LX.emit("@propW_gradient", this.propagationWindow.gradient);
+            this.propagationWindow.leftSide = v;
+        }, {min: 0.001, step: 0.001, disabled: false, signal: "@propW_minT"});
+
+        dialog.addNumber("Max Time (S)", this.propagationWindow.rightSide, (v) => {
+
+            let g = this.propagationWindow.gradient;
+            const oldMid = this.propagationWindow.leftSide / (this.propagationWindow.leftSide + this.propagationWindow.rightSide);
+            const newMid = this.propagationWindow.leftSide / (this.propagationWindow.leftSide + v);
+            for( let i  = 0; i < g.length; ++i ){
+                let gt = g[i][0]; 
+                if ( gt <= oldMid ){
+                    g[i][0] = ( gt / oldMid ) * newMid;
+                }
+                else{
+                g[i][0] = ( (gt - oldMid) / (1-oldMid)) * (1-newMid) + newMid ;
+                }
+                // g[i][0] = gt <= oldMid ? ( gt / oldMid ) * newMid : ( (gt - oldMid / (1-oldMid)) * (1-newMid) + newMid );
+            }
+
+            LX.emit("@propW_gradient", this.propagationWindow.gradient);
+            this.propagationWindow.rightSide = v;
+        }, {min: 0.001, step: 0.001, disabled: false, signal: "@propW_maxT"});		
+
+        dialog.addNumber("Color Opacity", this.propagationWindow.opacity, (v) => {
+            this.propagationWindow.opacity = v;
+        }, {min: 0, max:1, step:0.001, disabled: false});
+
+        dialog.addColor("Color", this.propagationWindow.lexguiColor, (value, event) => {
+            this.propagationWindow.lexguiColor = value;
+            let rawColor = parseInt(value.slice(1,7), 16);
+            let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
+            this.propagationWindow.gradientColorLimits = color + ",0%)"; 
+            this.propagationWindow.gradientColor = color; 
+            this.propagationWindow.borderColor = color + ",0.3)"; 
+        });
+
+        dialog.addCurve("gradient", this.propagationWindow.gradient, (value, event) => {
+            if ( value.length <= 0){
+                value = [[0.5,1]];
+                LX.emit("@propW_gradient", value);
+            }
+            this.propagationWindow.gradient = value;
+        }, {xrange: [0, 1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient"});
+
+    }
+
+    propagationWindowOnMouse( e, time, timeline ){
+
+        if( !this.propagationWindow.enabler ){ return false; }
+
+        const propW = this.propagationWindow;
+        const lpos = timeline.timeToX( timeline.currentTime - propW.leftSide );
+        const rpos = timeline.timeToX( timeline.currentTime + propW.rightSide );
+
+
+        const state = timeline.grabbing | timeline.grabbingTimeBar | timeline.grabbingScroll | timeline.movingKeys | timeline.boxSelection;
+        
+        const isInsideResizeLeft = Math.abs( e.localX - lpos ) < 7 && e.localY > timeline.topMargin;
+        const isInsideResizeRight = Math.abs( e.localX - rpos ) < 7 && e.localY > timeline.topMargin;
+
+        if ( !state && ( isInsideResizeLeft || isInsideResizeRight ) ){
+            timeline.canvas.style.cursor = "col-resize";
+        }
+
+        if ( propW.resizing && e.type == "mousemove" ){
+            if ( propW.resizing == 1){
+                LX.emit("@propW_maxT", Math.max( 0.001, time - timeline.currentTime ), {skipCallback: false} ); // slider callback will do everything
+            }else{
+                LX.emit("@propW_minT", Math.max( 0.001, timeline.currentTime - time ), {skipCallback: false} ); // slider callback will do everything
+            }
+        }
+
+        if ( e.type == "mousedown" && (isInsideResizeLeft || isInsideResizeRight) ){
+            propW.resizing = isInsideResizeLeft ? -1 : 1; 
+        }
+      
+        if( propW.resizing ){
+            timeline.grabbing = false;
+            timeline.grabbingTimeBar = false;
+            timeline.grabbingScroll = false;
+            timeline.movingKeys = false;
+            timeline.timeBeforeMove = null;
+            timeline.boxSelection = false;
+            // timeline.unSelectAllKeyFrames();
+            timeline.unHoverAll();
+        }
+        
+        if ( propW.resizing && e.type == "mouseup" ){
+            propW.resizing = false;
+        }
+
+        return true;
+    }
+
     drawPropagationWindow( timeline, ctx ){
         if ( !this.propagationWindow.enabler || (timeline != this.curvesTimeline && timeline.lastKeyFramesSelected.length != 1) ){ return; }
 
@@ -552,6 +668,8 @@ class Gui {
         ctx.stroke();
         ctx.globalAlpha = this.opacity;
     }
+
+    /** -------------------- TIMELINE -------------------- */
 
     drawTimeline(currentTimeline) {
 
@@ -692,7 +810,7 @@ class KeyframesGui extends Gui {
             lexguiColor: '#ffffff',
             gradientColorLimits: "rgba( 255, 255, 255, 0%)",
             gradientColor: "rgba( 255, 255, 255",
-            borderColor: "rgba( 255, 255, 255, 0.05)",
+            borderColor: "rgba( 255, 255, 255, 0.3)",
             gradient : [ [0.5,1] ],
             // radii = 100;
         }
@@ -1152,37 +1270,13 @@ class KeyframesGui extends Gui {
                 );
 
                 dialog.branch("Propagation Window");
-                dialog.addCheckbox("Enable", this.propagationWindow.enabler, (v) =>{
-                    this.propagationWindow.enabler = v;
-                });
-                dialog.addNumber("Min Time (S)", this.propagationWindow.leftSide, (v) => {
-                    this.propagationWindow.leftSide = v;
-                }, {min: 0.001, step: 0.001, disabled: false});
-                dialog.addNumber("Max Time (S)", this.propagationWindow.rightSide, (v) => {
-                    this.propagationWindow.rightSide = v;
-                }, {min: 0.001, step: 0.001, disabled: false});				
-                dialog.addNumber("Color Opacity", this.propagationWindow.opacity, (v) => {
-                    this.propagationWindow.opacity = v;
-                }, {min: 0, max:1, step:0.001, disabled: false});
-                dialog.addColor("Color", this.propagationWindow.lexguiColor, (value, event) => {
-                    this.propagationWindow.lexguiColor = value;
-                    let rawColor = parseInt(value.slice(1,7), 16);
-                    let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
-                    this.propagationWindow.gradientColorLimits = color + ",0%)"; 
-                    this.propagationWindow.gradientColor = color; 
-                    this.propagationWindow.borderColor = color + ",0.05)"; 
-                });
-                dialog.addCurve("gradient", this.propagationWindow.gradient, (value, event) => {
-                    if ( value.length <= 0){
-						value = [[0.5,1]];
-					}
-					this.propagationWindow.gradient = value;
-                }, {xrange: [0, 1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0});
+                this.propagationWindowConfig(dialog);
                 dialog.merge();
             },
             disableNewTracks: true
         });
-     
+        
+        this.keyFramesTimeline.onMouse = this.propagationWindowOnMouse.bind(this);
         this.keyFramesTimeline.onBeforeDrawContent = this.drawPropagationWindow.bind(this, this.keyFramesTimeline);
 
         this.keyFramesTimeline.onChangeState = (state) => {
@@ -1335,37 +1429,13 @@ class KeyframesGui extends Gui {
                 );
 
                 dialog.branch("Propagation Window");
-                dialog.addCheckbox("Enable", this.propagationWindow.enabler, (v) =>{
-                    this.propagationWindow.enabler = v;
-                });
-                dialog.addNumber("Min Time (S)", this.propagationWindow.leftSide, (v) => {
-                    this.propagationWindow.leftSide = v;
-                }, {min: 0.001, step: 0.001, disabled: false});
-                dialog.addNumber("Max Time (S)", this.propagationWindow.rightSide, (v) => {
-                    this.propagationWindow.rightSide = v;
-                }, {min: 0.001, step: 0.001, disabled: false});				
-                dialog.addNumber("Color Opacity", this.propagationWindow.opacity, (v) => {
-                    this.propagationWindow.opacity = v;
-                }, {min: 0, max:1, step:0.001, disabled: false});
-                dialog.addColor("Color", this.propagationWindow.lexguiColor, (value, event) => {
-                    this.propagationWindow.lexguiColor = value;
-                    let rawColor = parseInt(value.slice(1,7), 16);
-                    let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
-                    this.propagationWindow.gradientColorLimits = color + ",0%)"; 
-                    this.propagationWindow.gradientColor = color; 
-                    this.propagationWindow.borderColor = color + ",0.05)"; 
-                });
-                dialog.addCurve("gradient", this.propagationWindow.gradient, (value, event) => {
-                    if ( value.length <= 0){
-						value = [[0.5,1]];
-					}
-					this.propagationWindow.gradient = value;
-                }, {xrange: [0, 1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0});
+                this.propagationWindowConfig(dialog);
                 dialog.merge();
             },
             disableNewTracks: true
         });
 
+        this.curvesTimeline.onMouse = this.propagationWindowOnMouse.bind(this);
         this.curvesTimeline.onBeforeDrawContent = this.drawPropagationWindow.bind(this, this.curvesTimeline);
 
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
