@@ -603,7 +603,50 @@ class Gui {
         if ( e.type == "mousedown" && (isInsideResizeLeft || isInsideResizeRight) ){
             propW.resizing = isInsideResizeLeft ? -1 : 1; 
         }
+        else if (e.type == "mousedown" && e.localX >= lpos && e.localX <= rpos && e.localY > timeline.topMargin) {
+            this.propagationWindow.showCurve = true; 
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            this.propagationWindow.showLimits = true;
+            if(this.curveWidget) {
+                this.canvasArea.root.removeChild(this.curveWidget)
+            }
+            let curveInstance = new LX.Curve( null, this.propagationWindow.gradient, {xrange: [0, 1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos, height: 50, bgColor: "rgb(34,34,34)"} );
+            this.curveWidget = curveInstance.element;
+            this.curveWidget.style.position = "relative";
+            let rectHeight = Math.min(
+                timeline.canvas.height - timeline.topMargin - 2, 
+                timeline.leftPanel.root.children[1].children[0].clientHeight - timeline.leftPanel.root.children[1].scrollTop + timeline.trackHeight*0.5
+             );
+            this.curveWidget.style.left = timeline.leftPanel.root.clientWidth + lpos + "px";
+            this.curveWidget.style.top = timeline.header.root.clientHeight + timeline.topMargin + rectHeight + "px";
+            this.canvasArea.root.appendChild( this.curveWidget );
+            // element.appendChild( container );           
+        }
+        else {
+            this.propagationWindow.showCurve = false;
+        }
       
+        if(e.type == "mousemove" && timeline.grabbing) {
+
+            this.propagationWindow.showCurve = true; 
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            this.propagationWindow.showLimits = true;
+            if(this.curveWidget) {
+                this.canvasArea.root.removeChild(this.curveWidget)
+            }
+            let curveInstance = new LX.Curve( null, this.propagationWindow.gradient, {xrange: [0, 1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos, height: "50px", bgColor: "rgb(34,34,34)"} );
+            this.curveWidget = curveInstance.element;
+            this.curveWidget.style.position = "relative";
+            let rectHeight = Math.min(
+                timeline.canvas.height - timeline.topMargin - 2, 
+                timeline.leftPanel.root.children[1].children[0].clientHeight - timeline.leftPanel.root.children[1].scrollTop + timeline.trackHeight*0.5
+             );
+            this.curveWidget.style.left = timeline.leftPanel.root.clientWidth + lpos + "px";
+            this.curveWidget.style.top = timeline.header.root.clientHeight + timeline.topMargin + rectHeight + "px";
+            this.canvasArea.root.appendChild( this.curveWidget );
+        }
         if( propW.resizing ){
             timeline.grabbing = false;
             timeline.grabbingTimeBar = false;
@@ -705,6 +748,7 @@ class Gui {
             
         }
         ctx.globalAlpha = this.opacity;
+        
     }
 
     /** -------------------- TIMELINE -------------------- */
