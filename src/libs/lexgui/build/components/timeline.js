@@ -969,8 +969,8 @@ class Timeline {
             return true;
         }
 
-        if( this.onMouse && this.onMouse( e, time, this ) )
-            return;
+        if( this.onMouse )
+            this.onMouse( e, time, this );
 
         return true;
     }
@@ -2605,7 +2605,6 @@ class KeyFramesTimeline extends Timeline {
     /**
      * @method clearTrack
      */
-
     clearTrack(idx, defaultValue) {
 
         let track =  this.animationClip.tracks[idx];
@@ -5200,7 +5199,7 @@ class CurvesTimeline extends Timeline {
         for(let i = count - 1; i >= 0; i--)
         {
             this.saveState(track.clipIdx);
-            this.#delete(track, i );
+            this.#delete(track.clipIdx, i );
         } 
         if(defaultValue != undefined) {
             if(typeof(defaultValue) == 'number')  {
