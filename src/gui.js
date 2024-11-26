@@ -1125,6 +1125,25 @@ class KeyframesGui extends Gui {
         area.attach(video);
         area.root.style.background = "transparent";
         this.canvasArea.attach(area);
+        
+        // adjust div to video aspect ratio. This forces the resizing tool to be on the video
+        area.root.onmouseup = function(){
+            // this == area
+            const v = this.children[0];
+            const aspectRatio = v.videoWidth / v.videoHeight;
+            const currentRatio = this.clientWidth / this.clientHeight;
+            if ( currentRatio < aspectRatio ){ // div higher than the video
+                let lastHeight = this.clientHeight;
+                let newHeight = this.clientWidth / aspectRatio;
+                this.style.height = newHeight + "px";
+                this.style.top = (this.offsetTop + 0.5 * ( lastHeight - newHeight ) ) + "px";
+            }else{ // div wider than the video
+                let lastWidth = this.clientWidth;
+                let newWidth = this.clientHeight * aspectRatio;
+                this.style.width = newWidth + "px";
+                this.style.left = (this.offsetLeft + 0.5 * ( lastWidth - newWidth ) ) + "px";
+            }
+        }
     }
     
     showVideoEditor() {
