@@ -553,7 +553,7 @@ class Gui {
             let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
             this.propagationWindow.gradientColorLimits = color + ",0%)"; 
             this.propagationWindow.gradientColor = color; 
-            this.propagationWindow.borderColor = color + ",0.3)"; 
+            // this.propagationWindow.borderColor = color + ",0.3)"; 
         });
 
         dialog.addCurve("gradient", this.propagationWindow.gradient, (value, event) => {
@@ -582,6 +582,13 @@ class Gui {
 
         if ( !state && ( isInsideResizeLeft || isInsideResizeRight ) ){
             timeline.canvas.style.cursor = "col-resize";
+           
+        }
+        if( e.localX >= lpos && e.localX <= rpos && e.localY > timeline.topMargin) {
+            this.propagationWindow.showLimits = true;
+        }
+        else {
+            this.propagationWindow.showLimits = false;
         }
 
         if ( propW.resizing && e.type == "mousemove" ){
@@ -590,6 +597,7 @@ class Gui {
             }else{
                 LX.emit("@propW_minT", Math.max( 0.001, timeline.currentTime - time ), {skipCallback: false} ); // slider callback will do everything
             }
+            this.propagationWindow.showLimits = true;
         }
 
         if ( e.type == "mousedown" && (isInsideResizeLeft || isInsideResizeRight) ){
@@ -609,6 +617,7 @@ class Gui {
         
         if ( propW.resizing && e.type == "mouseup" ){
             propW.resizing = false;
+            this.propagationWindow.showLimits = false;
         }
 
         return true;
@@ -669,7 +678,32 @@ class Gui {
 
         ctx.closePath();
         ctx.fill();
-        ctx.stroke();
+        if(this.propagationWindow.showLimits) {
+            // ctx.lineWidth = 4;
+            // ctx.beginPath();
+            // ctx.moveTo(rectPosX, rectPosY + rectHeight*0.5 - 8);
+            // ctx.lineTo(rectPosX, rectPosY + rectHeight*0.5 + 8);
+            // ctx.closePath();
+            // ctx.stroke();
+            // ctx.beginPath();
+            // ctx.moveTo(rectPosX + rectWidth, rectPosY  + rectHeight*0.5 - 8);
+            // ctx.lineTo(rectPosX + rectWidth, rectPosY  + rectHeight*0.5 + 8);
+            // ctx.closePath();
+            // ctx.stroke();
+            // ctx.lineWidth = 1;
+
+            ctx.beginPath();
+            ctx.moveTo(rectPosX, rectPosY + leftRadii*0.5);
+            ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + leftRadii*0.5, rectPosY );
+            ctx.moveTo( rectPosX + rectWidth - rightRadii*0.5, rectPosY );
+            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + rightRadii*0.5 );
+            ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - rightRadii*0.5 );
+            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - rightRadii*0.5, rectPosY + rectHeight );
+            ctx.moveTo( rectPosX + leftRadii*0.5, rectPosY + rectHeight );
+            ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - leftRadii*0.5 );
+            ctx.stroke();
+            
+        }
         ctx.globalAlpha = this.opacity;
     }
 
@@ -810,11 +844,11 @@ class KeyframesGui extends Gui {
             enabler: false,
             rightSide: 1, // seconds
             leftSide: 1,  // seconds
-            opacity: 1,
-            lexguiColor: '#ffffff',
-            gradientColorLimits: "rgba( 255, 255, 255, 0%)",
-            gradientColor: "rgba( 255, 255, 255",
-            borderColor: "rgba( 255, 255, 255, 0.3)",
+            opacity: 0.6,
+            lexguiColor: '#273162',
+            gradientColorLimits: "rgba( 39, 49, 98, 0%)",
+            gradientColor: "rgba( 39, 49, 98",
+            borderColor: "rgba( 255, 255, 255, 1)",
             gradient : [ [0.5,1] ],
             // radii = 100;
         }
