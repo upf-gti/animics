@@ -197,8 +197,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
     
         const defaultMoveFunc = e => {
             if( !currentTarget ) return;
-            let left = e.clientX - offsetX;
-            let top = e.clientY - offsetY;
+            const parentRect = domEl.parentElement.getBoundingClientRect();
+            let left = e.clientX - offsetX - parentRect.left;
+            let top = e.clientY - offsetY - parentRect.top;
             if( left > 3 && ( left + domEl.offsetWidth + 6 ) <= window.innerWidth )
                 domEl.style.left = left + 'px';
             if( top > 3 && ( top + domEl.offsetHeight + 6 ) <= window.innerHeight )
