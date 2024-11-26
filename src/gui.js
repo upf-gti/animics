@@ -1819,7 +1819,7 @@ class KeyframesGui extends Gui {
 
                         panel.addNumber(name, track.values[frame], (v,e) => {                           
                             this.editor.updateBlendshapesProperties(name, v);
-                        }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name});
+                        }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ this.curvesTimeline.saveState(track.clipIdx) }});
                         break;
                     }
                 }
