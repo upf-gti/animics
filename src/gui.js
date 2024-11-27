@@ -501,6 +501,13 @@ class Gui {
     propagationWindowConfig(dialog){
         dialog.addCheckbox("Enable", this.propagationWindow.enabler, (v) =>{
             this.propagationWindow.enabler = v;
+            if(!v) {
+                this.propagationWindow.showCurve = false;
+                if(this.curveWidget) {
+                    this.canvasArea.root.removeChild(this.curveWidget);
+                    this.curveWidget = null;
+                }
+            }
         });
 
         dialog.addNumber("Min Time (S)", this.propagationWindow.leftSide, (v) => {
@@ -943,7 +950,7 @@ class KeyframesGui extends Gui {
         this.boneProperties = {};
 
         this.propagationWindow = {
-            enabler: true,
+            enabler: false,
             rightSide: 1, // seconds
             leftSide: 1,  // seconds
             opacity: 0.6,
