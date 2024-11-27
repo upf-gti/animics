@@ -497,7 +497,7 @@ FaceLexemeClip.prototype.toJSON = function()
 		start: this.start,
 		end: this.start + this.duration,
 		attackPeak: this.fadein,
-		relax : this.relax,
+		relax : this.fadeout,
 		type: FaceLexemeClip.type
 	}
 	for(var i in this.properties)
@@ -1225,14 +1225,6 @@ GazeClip.prototype.configure = function(o)
 
 GazeClip.prototype.toJSON = function()
 {
-	let data = {
-		"id": null,
-		"start": null,
-		"end": null,
-		"ready": null,
-		"relax": null,
-		"type": null
-	}
 	var json = {
 		id: this.id,
 		start: this.start,
@@ -1240,8 +1232,7 @@ GazeClip.prototype.toJSON = function()
 		ready: this.fadein,
 		relax: this.fadeout,
 		type: "gaze"
-	}
-	data = Object.assign(data, json);
+	};
 	for(var i in this.properties)
 	{
 		json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
@@ -1411,7 +1402,7 @@ HeadClip.prototype.toJSON = function()
 		strokeEnd: this.strokeEnd,
 		relax: this.fadeout,
 		type: this.type
-	}
+	};
 	for(var i in this.properties)
 	{
 		json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
@@ -4645,7 +4636,7 @@ SuperClip.prototype.changeTimeModeOfClip = function( clip, targetMode ){
 	if(clip.startStroke != null)
 		clip.fadein = clip.startStroke += offset;
 	if(clip.stroke != null)
-	clip.stroke += offset;
+		clip.stroke += offset;
 	if(clip.endStroke != null)
 		clip.fadeout = clip.endStroke += offset;
 	if(clip.ready != null)

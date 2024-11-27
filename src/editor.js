@@ -463,7 +463,7 @@ class Editor {
         if (this.currentCharacter.mixer && this.state) {
             this.currentCharacter.mixer.update(dt);
             this.currentTime = this.currentCharacter.mixer.time;
-            this.activeTimeline.setTime(this.currentTime);
+            this.activeTimeline.setTime(this.currentTime, true);
         }
        
         if(this.gizmo) {

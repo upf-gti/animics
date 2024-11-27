@@ -1343,7 +1343,7 @@ class KeyframesGui extends Gui {
             }
         }
         this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
-        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t, false);
+        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t, true);
         this.keyFramesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             if (!currentBinded){ return; }
@@ -1391,7 +1391,7 @@ class KeyframesGui extends Gui {
                             callback: () => {
                                 let [id, localTrackIdx, keyIdx, trackIdx] = this.lastKeyFramesSelected[0];
                                 this.pasteKeyFrameValue(e, this.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
-                                that.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
+                                that.editor.updateAnimationAction(that.keyFramesTimeline.animationClip, trackIdx);
                             }
                         }
                     )
@@ -1407,7 +1407,7 @@ class KeyframesGui extends Gui {
                         title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
                         callback: () => {
                             deleteSelectedContent();
-                            that.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                            that.editor.updateAnimationAction(that.keyFramesTimeline.animationClip, -1);
                         }
                     }
                 )
@@ -1425,7 +1425,7 @@ class KeyframesGui extends Gui {
                             title: "Add",
                             callback: () => {
                                 this.addKeyFrame( e.track, that.boneProperties[type].toArray() )
-                                that.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                                that.editor.updateAnimationAction(that.keyFramesTimeline.animationClip, -1);
                             }
                         }
                     )
@@ -1438,7 +1438,7 @@ class KeyframesGui extends Gui {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
                                 this.pasteContent()
-                                that.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                                that.editor.updateAnimationAction(that.keyFramesTimeline.animationClip, -1);
                             }
                         }
                     )
@@ -1497,7 +1497,7 @@ class KeyframesGui extends Gui {
 
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
-            this.editor.setTime(t, false);
+            this.editor.setTime(t, true);
             if ( !this.editor.state ){ // update ui if not playing
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip);
             }
@@ -2293,7 +2293,8 @@ class ScriptGui extends Gui {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
-                }, {icon: 'fa-solid fa-trash', width: "40px"});                
+                }, {icon: 'fa-solid fa-trash', width: "40px"});
+                
             },
             onChangePlayMode: (loop) => {
                 this.editor.animLoop = loop;
@@ -2303,12 +2304,6 @@ class ScriptGui extends Gui {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
                 }, {min: 0, disabled: false});
-				dialog.addNumber("Opacity", window.opacity, (v) => {
-	                  window.opacity = v;
-                }, {min: 0, max:1, step:0.001, disabled: false});
-				dialog.addNumber("width", window.width, (v) => {
-                    window.width = v;
-                }, {min: 0, max:5,  step: 0.001, disabled: false});
                 dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
             },
         });
@@ -2333,8 +2328,7 @@ class ScriptGui extends Gui {
             if(clip.strokeStart) clip.strokeStart+=offset;
             if(clip.stroke) clip.stroke+=offset;
             if(clip.strokeEnd) clip.strokeEnd+=offset;
-            this.updateClipPanel(clip);
-            this.clipsTimeline.onSetTime(this.clipsTimeline.currentTime);
+            this.updateClipSyncGUI();
             if(clip.onChangeStart)  {
                 clip.onChangeStart(offset);
             }
@@ -2676,6 +2670,92 @@ class ScriptGui extends Gui {
         widgets.onRefresh(options);
     }
 
+    updateClipSyncGUI(checkCurve = true){
+                
+        // TODO
+        // clip.fadein and clip.attackPeak && clip.ready hold the same value, a time in worldcoordinates. However, after creating a clip and placing it
+        // in the timeline, the .start, .fadein .fadeout automatically changes to the currenttime (timeline) but the attackpeak, ready, relax do not.
+        // This is a BUG that it is being ignored. The toJson fn from each clip already handles this. But it is still a bug.
+
+        if ( this.clipsTimeline.lastClipsSelected.length != 1 ){ 
+            return; 
+        }
+
+        const widgets = this.clipPanel;
+        const clip = this.clipsTimeline.animationClip.tracks[this.clipsTimeline.lastClipsSelected[0][0]].clips[this.clipsTimeline.lastClipsSelected[0][1]];
+        let w = null;
+
+        w = widgets.get("Start");
+        if ( w ){ 
+            w.set(clip.start, true);
+        }
+        w = widgets.get("Duration");
+        if ( w ){ 
+            w.set(clip.duration, true);
+        }
+
+
+        if( clip.fadein != undefined ){ 
+            clip.fadein = Math.clamp(clip.fadein, clip.start, clip.start + clip.duration); 
+            w = widgets.get("Attack Peak (s)");
+            if ( w ){ 
+                clip.attackPeak = clip.fadein;
+                w.setLimits(0, clip.fadeout - clip.start, 0.001);
+                w.set(clip.fadein - clip.start, true);
+            }
+            w = widgets.get("Ready (s)");
+            if ( w ){ 
+                clip.ready = clip.fadein;
+                w.setLimits(0, clip.fadeout - clip.start, 0.001);
+                w.set(clip.fadein - clip.start, true);
+            }
+        }
+
+
+        if( clip.fadeout != undefined ){ 
+            clip.fadeout = Math.clamp(clip.fadeout, clip.fadein, clip.start + clip.duration); 
+            w = widgets.get("Relax (s)");
+            if ( w ){ 
+                clip.relax = clip.fadeout;
+                w.setLimits( clip.fadein - clip.start, clip.duration, 0.001);
+                w.set(clip.fadeout - clip.start, true);
+            }
+        }
+
+        if( clip.strokeStart != undefined ){ 
+            clip.strokeStart = Math.clamp(clip.strokeStart, clip.fadein, clip.fadeout); 
+            w = widgets.get("Stroke start (s)");
+            if ( w ){ 
+                w.setLimits( clip.fadein - clip.start, clip.fadeout - clip.start, 0.001);
+                w.set(clip.strokeStart - clip.start, true);
+            }
+        }
+        if( clip.strokeEnd != undefined ){ 
+            clip.strokeEnd = Math.clamp(clip.strokeEnd, clip.strokeStart ?? clip.fadein, clip.fadeout); 
+            w = widgets.get("Stroke end (s)");
+            if ( w ){ 
+                w.setLimits( (clip.strokeStart ?? clip.fadein) - clip.start, clip.fadeout-clip.start, 0.001);
+                w.set(clip.strokeEnd - clip.start, true);
+            }
+        }
+        if( clip.stroke != undefined ){ 
+            clip.stroke = Math.clamp(clip.stroke, clip.strokeStart ?? clip.fadein, clip.strokeEnd ?? clip.fadeout); 
+            w = widgets.get("Stroke (s)");
+            if ( w ){ 
+                w.setLimits( (clip.strokeStart ?? clip.fadein) - clip.start, (clip.strokeEnd ?? clip.fadeout) - clip.start, 0.001);
+                w.set(clip.stroke - clip.start, true);
+            }
+        }
+
+        if ( checkCurve ){
+            w = widgets.get("Synchronization");
+            if ( w ){
+                w.set([[(clip.fadein-clip.start)/clip.duration,0.5],[(clip.fadeout-clip.start)/clip.duration,0.5]], true);
+            }
+        }
+        
+    }
+
     /** Non -manual features based on BML */
     updateClipPanel(clip) {
         
@@ -2695,7 +2775,7 @@ class ScriptGui extends Gui {
             }
             
             this.clipInPanel = clip;
-            const updateTracks = (refreshPanel) => {
+            const updateTracks = () => {
                 if(!clip)
                     return;
 
@@ -2704,25 +2784,6 @@ class ScriptGui extends Gui {
                 }
                 this.delayedUpdateTracks();
                 this.editor.setTime(this.clipsTimeline.currentTime);
-                               
-                if(this.curve) {
-                    let syncvalues = [];
-                    // syncvalues.push([clip.start, 0]);
-
-                    if(clip.fadein != undefined)
-                        syncvalues.push([clip.fadein - clip.start, (clip.properties.amount || 1) - 0.2]);
-                    
-                    if(clip.fadeout != undefined) 
-                        syncvalues.push([clip.fadeout - clip.start, (clip.properties.amount || 1) - 0.2]);
-                    
-                    // syncvalues.push([clip.duration + clip.start, 0]);
-                    // this.curve.curveInstance.element.value = syncvalues;
-                    // this.curve.curveInstance.element.xrange = [0, clip.duration];
-                    
-                    this.curve.curveInstance.redraw({value: syncvalues, xrange: [0, clip.duration]})
-                }
-                if(refreshPanel)
-                    this.updateClipPanel(clip);
             }
 
             widgets.widgets_per_row = 1;
@@ -2769,8 +2830,7 @@ class ScriptGui extends Gui {
                                 widgets.addNumber(i, property, (v,e,n) => 
                                 {
                                     this.clipInPanel.properties[n] = v;
-                                    updateTracks(true);
-                                    // this.updateClipPanel(clip);
+                                    updateTracks();
                                 }, {min:0, max:1, step:0.01, precision: 2});
                             }
                             else{
@@ -2800,7 +2860,7 @@ class ScriptGui extends Gui {
             }
             widgets.merge()
             widgets.branch("Time", {icon: "fa-solid fa-clock"});
-            
+	
             widgets.addNumber("Start", clip.start.toFixed(2), (v) =>
             {     
                 const selectedClip = this.clipsTimeline.lastClipsSelected[0];
@@ -2828,8 +2888,8 @@ class ScriptGui extends Gui {
                 if(clip.onChangeStart) {
                     clip.onChangeStart(diff);
                 }
-                updateTracks(true);
-                // this.updateClipPanel(clip);
+				this.updateClipSyncGUI();
+                updateTracks();
                 
             }, {min:0, step:0.01, precision:2});
 
@@ -2841,28 +2901,13 @@ class ScriptGui extends Gui {
                 const track = this.clipsTimeline.animationClip.tracks[trackIdx];
                 const clipIdx = selectedClip[1];
                 if ( clipIdx < track.clips.length-1 ){ v = Math.min( v, track.clips[clipIdx+1].start - clip.start - 0.00001 ); }
-                const diff = v - clip.duration;
                 clip.duration = v;
-                this.clipInPanel.duration = v;
-                const end = v + clip.start;
-                if(clip.relax != undefined)
-                    clip.relax = clip.fadeout = clip.fadeout + diff > end ? end : clip.fadeout + diff;
-                if(clip.strokeEnd != undefined) 
-                    clip.strokeEnd = clip.strokeEnd + diff > clip.relax ? clip.relax : clip.strokeEnd + diff;
-                if(clip.stroke != undefined) 
-                    clip.stroke = clip.stroke > clip.strokeEnd ? clip.strokeEnd : clip.stroke;
-                if(clip.strokeStart != undefined) 
-                    clip.strokeStart = clip.strokeStart > clip.stroke ? clip.stroke : clip.strokeStart;
-
-                if(clip.attackPeak != undefined)  
-                    clip.attackPeak = clip.fadein = Math.clamp(clip.fadein, clip.start, clip.relax);
-                if(clip.ready != undefined)  
-                    clip.ready = clip.fadein =  Math.clamp(clip.fadein, clip.start, clip.relax);
-                
+                this.clipInPanel.duration = v;              
                
-                updateTracks(true);
-                // this.updateClipPanel(clip);
-            }, {min:0.01, step:0.01, precision:2, disabled: clip.type == "custom"});
+                this.updateClipSyncGUI();
+                updateTracks();
+
+            }, {min:0.01, step:0.001, precision:2, disabled: clip.type == "custom"});
 
             if(clip.fadein!= undefined && clip.fadeout!= undefined)  {
                 widgets.merge();
@@ -2872,21 +2917,25 @@ class ScriptGui extends Gui {
                 
                 if(clip.fadein != undefined)
                 {
-                    syncvalues.push([clip.fadein - clip.start, (clip.properties.amount || 1) - 0.2]);
+                    syncvalues.push([(clip.fadein - clip.start)/clip.duration, 0.5]);
                     if(clip.attackPeak != undefined)
                         // clip.attackPeak = clip.fadein = Math.clamp(clip.start, clip.relax);
                         widgets.addNumber("Attack Peak (s)", (clip.fadein - clip.start).toFixed(2), (v) =>
                         {              
                             clip.attackPeak = clip.fadein = v + clip.start;
+                            this.updateClipSyncGUI();
                             updateTracks();
-                        }, {min:0, max: clip.fadeout - clip.start, step:0.01, precision:2, title: "Maximum action achieved"});
+
+                        }, {min:0, max: clip.fadeout - clip.start, step:0.001, precision:2, title: "Maximum action achieved"});
                     
                     if(clip.ready != undefined)
                         widgets.addNumber("Ready (s)", (clip.fadein - clip.start).toFixed(2), (v) =>
                         {              
                             clip.ready = clip.fadein = v + clip.start;
-                            updateTracks(true);
-                        }, {min:0, max: clip.fadeout - clip.start, step:0.01, precision:2, title: "Target acquired or end of the preparation phase"});
+                            this.updateClipSyncGUI();
+                            updateTracks();
+
+                        }, {min:0, max: clip.fadeout - clip.start, step:0.001, precision:2, title: "Target acquired or end of the preparation phase"});
                 }
 
                 if(clip.strokeStart != undefined) {
@@ -2895,8 +2944,9 @@ class ScriptGui extends Gui {
                     widgets.addNumber("Stroke start (s)", (clip.strokeStart - clip.start).toFixed(2), (v) =>
                     {              
                         clip.strokeStart = v + clip.start;
-                        updateTracks(true);
-                    }, {min: clip.ready - clip.start, max: clip.stroke - clip.start, step:0.01, precision:2, title: "Start of the stroke"});
+                        this.updateClipSyncGUI();
+                        updateTracks();
+                    }, {min: clip.ready - clip.start, max: clip.stroke - clip.start, step:0.001, precision:2, title: "Start of the stroke"});
                 }
 
                 if(clip.stroke != undefined) {
@@ -2905,10 +2955,9 @@ class ScriptGui extends Gui {
                     widgets.addNumber("Stroke (s)", (clip.stroke - clip.start).toFixed(2), (v) =>
                     {              
                         clip.stroke = v + clip.start;
-                        updateTracks(true);
-                        // this.updateClipPanel(clip);
-
-                    }, {min: clip.strokeStart - clip.start, max: clip.strokeEnd - clip.start, step:0.01, precision:2, title: "Stroke of the motion"});
+                        this.updateClipSyncGUI();
+                        updateTracks();
+                    }, {min: clip.strokeStart - clip.start, max: clip.strokeEnd - clip.start, step:0.001, precision:2, title: "Stroke of the motion"});
                 }
 
                 if(clip.strokeEnd != undefined) {
@@ -2917,16 +2966,15 @@ class ScriptGui extends Gui {
                     widgets.addNumber("Stroke end (s)", (clip.strokeEnd - clip.start).toFixed(2), (v) =>
                     {              
                         clip.strokeEnd = v + clip.start;
-                        updateTracks(true);
-                        // this.updateClipPanel(clip);
-
-                    }, {min: clip.stroke - clip.start, max: clip.relax - clip.start, step:0.01, precision:2, title: "End of the stroke"});
+                        this.updateClipSyncGUI();
+                        updateTracks();
+                    }, {min: clip.stroke - clip.start, max: clip.relax - clip.start, step:0.001, precision:2, title: "End of the stroke"});
                 }
 
 
                 if(clip.fadeout != undefined) 
                 {
-                    syncvalues.push([clip.fadeout - clip.start, (clip.properties.amount || 1) - 0.2]);
+                    syncvalues.push([(clip.fadeout - clip.start)/clip.duration, 0.5]);
                     
                     if(clip.relax != undefined)
                         // clip.relax = clip.fadeout = Math.clamp(clip.relax, clip.strokeEnd, clip.start + clip.duration); 
@@ -2938,27 +2986,29 @@ class ScriptGui extends Gui {
 
                             if(clip.ready != undefined)
                                 clip.ready = clip.fadein = Math.clamp( clip.fadein, clip.start, clip.relax);
+                            this.updateClipSyncGUI();
                             updateTracks();
-                        }, {min: clip.fadein - clip.start, max: clip.duration , step:0.01, precision:2, title: "Decay or retraction phase starts"});
+
+                        }, {min: clip.fadein - clip.start, max: clip.duration , step:0.001, precision:2, title: "Decay or retraction phase starts"});
                 }
 
                 if(syncvalues.length) {
                    
                     this.curve = widgets.addCurve("Synchronization", syncvalues, (value, event) => {
-                        if(event && event.type != "mouseup") return;
+                        // if(event && event.type != "mouseup") return;
                         if(clip.fadein!= undefined) {
+                            clip.fadein = value[0][0]*clip.duration + clip.start;
                             if(clip.attackPeak != undefined)
-                                clip.attackPeak =  clip.fadein = Number((value[0][0] + clip.start).toFixed(2));
+                                clip.attackPeak = clip.fadein;
                             if(clip.ready != undefined)
-                                clip.ready =  clip.fadein = Number((value[0][0] + clip.start).toFixed(2));
+                                clip.ready = clip.fadein;
                         }
                         if(clip.fadeout!= undefined) {
-                            clip.relax = clip.fadeout = Number((value[1][0] + clip.start).toFixed(2));
+                            clip.relax = clip.fadeout = value[1][0]*clip.duration + clip.start;
                         }
-                        updateTracks(true);
-                        // this.updateClipPanel(clip);
-        
-                    }, {xrange: [0, clip.duration], skipReset: true, allowAddValues: false, moveOutAction: LX.CURVE_MOVEOUT_CLAMP, draggableY: false, smooth: 0.2});
+                        this.updateClipSyncGUI(false);       
+                        updateTracks();
+                    }, {xrange: [0, 1], yrange: [0, 1], skipReset: true, allowAddValues: false, moveOutAction: LX.CURVE_MOVEOUT_CLAMP, draggableY: false, smooth: 0.2});
                 }
                 widgets.merge();
             }
