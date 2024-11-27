@@ -5232,7 +5232,7 @@ class Panel {
                 vecinput.max = slider.max = newMax ?? vecinput.max;
                 vecinput.step = newStep ?? vecinput.step;
                 slider.step = newStep ?? slider.step;
-                Panel._dispatch_event( vecinput, "change" );
+                Panel._dispatch_event( vecinput, "change", true );
             };
         }
 
