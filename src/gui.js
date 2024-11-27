@@ -16,6 +16,20 @@ class Gui {
         this.currentTime = 0;
         this.editor = editor;
         this.duration = 0;
+        
+        this.propagationWindow = {
+            enabler: true,
+            rightSide: 1, // seconds
+            leftSide: 1,  // seconds
+            opacity: 0.6,
+            lexguiColor: '#273162',
+            gradientColorLimits: "rgba( 39, 49, 98, 0%)",
+            gradientColor: "rgba( 39, 49, 98",
+            borderColor: "rgba( 255, 255, 255, 1)",
+            gradient : [ [0.5,1] ],
+            // radii = 100;
+        }
+       
         this.create();
     }
 
@@ -949,19 +963,6 @@ class KeyframesGui extends Gui {
 
         this.boneProperties = {};
 
-        this.propagationWindow = {
-            enabler: false,
-            rightSide: 1, // seconds
-            leftSide: 1,  // seconds
-            opacity: 0.6,
-            lexguiColor: '#273162',
-            gradientColorLimits: "rgba( 39, 49, 98, 0%)",
-            gradientColor: "rgba( 39, 49, 98",
-            borderColor: "rgba( 255, 255, 255, 1)",
-            gradient : [ [0.5,1] ],
-            // radii = 100;
-        }
-       
         //Create capture video window
         this.createCaptureArea(this.mainArea);
     }
@@ -2383,6 +2384,7 @@ class ScriptGui extends Gui {
     constructor(editor) {
         
         super(editor);
+        this.propagationWindow.enabler = false;
         this.mode = ClipModes.Actions;
         this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
         this.delayedUpdateTime = 500; //ms
