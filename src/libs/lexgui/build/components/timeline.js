@@ -2614,10 +2614,13 @@ class KeyFramesTimeline extends Timeline {
             return;
         }
 
+        this.unHoverAll();
+        this.unSelectAllKeyFrames();
+
+        this.saveState(track.clipIdx);
         const count = track.times.length;
         for(let i = count - 1; i >= 0; i--)
         {
-            this.saveState(track.clipIdx);
             this.#delete(track.clipIdx, i );
         } 
         if(defaultValue != undefined) {
@@ -5198,11 +5201,14 @@ class CurvesTimeline extends Timeline {
         {
             return;
         }
-
+        
+        this.unHoverAll();
+        this.unSelectAllKeyFrames();
+        
+        this.saveState(track.clipIdx);
         const count = track.times.length;
         for(let i = count - 1; i >= 0; i--)
         {
-            this.saveState(track.clipIdx);
             this.#delete(track.clipIdx, i );
         } 
         if(defaultValue != undefined) {
