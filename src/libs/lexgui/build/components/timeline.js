@@ -2572,14 +2572,14 @@ class KeyFramesTimeline extends Timeline {
         
         const currentSelection = this.selectKeyFrame(t, keyFrameIndex, !multiple); // changes time 
 
+        if( !multiple ) {
+            this.setTime(this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ]);
+        }  
         if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection)) {
             // Event handled
             return;
         }        
-
-        if( !multiple ) {
-            this.setTime(this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ]);
-        }    
+          
     }
 
     /**
@@ -5157,13 +5157,13 @@ class CurvesTimeline extends Timeline {
         
         const currentSelection = this.selectKeyFrame(t, keyFrameIndex, !multiple, multiple); // changes time on the first keyframe selected
 
+        if (!multiple){
+            this.setTime(this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ]);
+        }
+
         if( this.onSelectKeyFrame && this.onSelectKeyFrame(e, currentSelection)) {
             // Event handled
             return;
-        }
-
-        if (!multiple){
-            this.setTime(this.animationClip.tracks[t.clipIdx].times[ keyFrameIndex ]);
         }
     }
 
