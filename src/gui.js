@@ -1427,7 +1427,7 @@ class KeyframesGui extends Gui {
                 this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
             },
-            onConfiguration: (dialog) => {
+            onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
                 }, {min: 0, disabled: false});
@@ -1589,7 +1589,7 @@ class KeyframesGui extends Gui {
                 this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
             }, 
-            onConfiguration: (dialog) => {
+            onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
                 }, {min: 0, disabled: false});
@@ -2426,7 +2426,7 @@ class ScriptGui extends Gui {
                 this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
             },
-            onConfiguration: (dialog) => {
+            onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
                 }, {min: 0, disabled: false});
