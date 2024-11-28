@@ -494,9 +494,9 @@ class App {
         // launch all file reads. TO DO: check if this explodes on multiple larges filereads. Check if synchronous one-at-a-time is better
         for( let i = 0; i < this.filesData.length; ++i){
             const fr = this.filesData[i].fr = new FileReader();                
-            fr.readAsText( this.filesData[i] );
             fr.onabort = fr.onerror = innerErrorOnFileProcessing.bind(this, i); // just in case
             fr.onload = innerFileProcess.bind(this, i); // each file reader is assigned to its filesData index
+            fr.readAsText( this.filesData[i] );
         }
 
         // wait until every file has been read and loaded into the editor

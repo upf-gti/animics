@@ -410,6 +410,8 @@ class Editor {
     startEdition(showGuide = true) {
         this.gui.init(showGuide);
         this.animate();
+        $('#loading').fadeOut();
+
     }
 
     setPlaybackRate(v){
@@ -1113,6 +1115,7 @@ class KeyframeEditor extends Editor{
         this.gui.init();
         this.animate();
         this.setAnimation(this.animationModes.BODY);
+        $('#loading').fadeOut();
     }
 
     async initCharacters()
@@ -1694,9 +1697,6 @@ class KeyframeEditor extends Editor{
             this.setVideoVisibility(false);
         }
 
-        if(bindedAnim.mixerBodyAnimation) {
-            $('#loading').fadeOut();
-        }
         return true;
     }
 
@@ -2390,10 +2390,6 @@ class ScriptEditor extends Editor{
 
         this.setAnimation();
         // mixer.setTime(0); // resets and automatically calls a this.mixer.update
-
-        if(this.bindedAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation) {
-            $('#loading').fadeOut();
-        }
 
         return true;
     }
