@@ -833,6 +833,9 @@ class Timeline {
                 this.leftPanel.root.children[1].scrollTop += e.deltaY; // wheel deltaY
             }
             
+            if ( this.onMouse ){
+                this.onMouse(e, time);
+            }
             return;
         }
 
@@ -2622,7 +2625,7 @@ class KeyFramesTimeline extends Timeline {
         const count = track.times.length;
         for(let i = count - 1; i >= 0; i--)
         {
-            this.#delete(track.clipIdx, i );
+            this.#delete(track.clipIdx, i);
         } 
         if(defaultValue != undefined) {
             if(typeof(defaultValue) == 'number')  {
