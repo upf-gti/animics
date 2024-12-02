@@ -1814,6 +1814,7 @@ class KeyframeEditor extends Editor{
             }
         }
         this.gui.setBoneInfoState( !this.state );
+        this.gui.propagationWindow.setTime( this.currentTime );
     }
 
     setTime(t, force) {
@@ -2111,12 +2112,13 @@ class KeyframeEditor extends Editor{
     /**
      * propagates the newValue using the editor.gui.propagationWindow attributes
      * It computes delta values which are weighted and added to each keyframe inside the window
-     * @param {obj} track 
-     * @param {int} keyframe 
-     * @param {quat || vec3 || number} delta 
+     * @param {obj} timeline 
+     * @param {int} trackIdx 
+     * @param {quat || vec3 || number} newValue 
      */
-    propagateEdition( timeline, trackIdx, time, newValue ){
+    propagateEdition( timeline, trackIdx, newValue ){
         const propWindow = this.gui.propagationWindow;
+        const time = propWindow.time;
         const track = timeline.animationClip.tracks[trackIdx];
         const values = track.values;
         const times = track.times;
@@ -2151,9 +2153,9 @@ class KeyframeEditor extends Editor{
 
         if ( track.dim == 3 ){
             delta = new THREE.Vector3();
-            delta.x = newValue.x -( values[prevFrame*4] * (1-t) + values[postFrame*4] * t ); 
-            delta.y = newValue.y -( values[prevFrame*4+1] * (1-t) + values[postFrame*4+1] * t ); 
-            delta.z = newValue.z -( values[prevFrame*4+2] * (1-t) + values[postFrame*4+2] * t ); 
+            delta.x = newValue.x -( values[prevFrame*3] * (1-t) + values[postFrame*3] * t ); 
+            delta.y = newValue.y -( values[prevFrame*3+1] * (1-t) + values[postFrame*3+1] * t ); 
+            delta.z = newValue.z -( values[prevFrame*3+2] * (1-t) + values[postFrame*3+2] * t ); 
         }
 
         if ( track.dim == 1 ){
@@ -2239,7 +2241,7 @@ class KeyframeEditor extends Editor{
                 if ( track.times.length <= 0){ continue; }
 
                 if ( this.gui.propagationWindow.enabler ){
-                    this.propagateEdition(this.activeTimeline, track.clipIdx, time, value);
+                    this.propagateEdition(this.activeTimeline, track.clipIdx, value);
 
                     // Update animation action (mixer) interpolants.
                     this.updateAnimationAction(this.activeTimeline.animationClip, track.clipIdx );

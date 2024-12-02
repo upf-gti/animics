@@ -573,27 +573,38 @@ class Gizmo {
      */
     updateTracks() {
 
-        let timeline = this.editor.gui.keyFramesTimeline;
+        const timeline = this.editor.gui.keyFramesTimeline;
         let keyType = Gizmo.ModeToKeyType[ this.editor.getGizmoMode() ];
-
-        if(timeline.getNumKeyFramesSelected() != 1)
-            return;
-
-        let [name, localTrackIndex, keyFrameIndex] = timeline.lastKeyFramesSelected[0];
-        let track = timeline.getTrack(timeline.lastKeyFramesSelected[0]);
-
-        // Don't store info if we are using wrong mode for that track
-        if(keyType != track.type)
-            return;
-
-        if ( this.skeleton.bones[this.selectedBone].name != name ) { return; } 
         let bone = this.skeleton.bones[this.selectedBone]; 
-        
+        let track = null;
+        let keyFrameIndex = -1; // only used if no propagation 
+        const propWindow = this.editor.gui.propagationWindow;
+
+        if ( propWindow.enabler ){
+            const tpi = timeline.animationClip.tracksPerItem[bone.name];
+            for( let i = 0; i < tpi.length ; ++i ){
+                if ( tpi[i].type == keyType ){ 
+                    track = tpi[i];
+                    break;
+                }
+            }
+            if ( track == null ){ return; }
+        }else{
+            if(timeline.getNumKeyFramesSelected() != 1)
+                return;
+            
+            let [name, localTrackIndex, keyFrame] = timeline.lastKeyFramesSelected[0];
+            track = timeline.getTrack(timeline.lastKeyFramesSelected[0]);
+            // Don't store info if we are using wrong mode for that track
+            if ( bone.name != name || keyType != track.type ) { return; } 
+            keyFrameIndex = keyFrame;
+        }
+
        
         if ( this.toolSelected == Gizmo.Tools.IK ){
             if ( !this.ikSelectedChain ){ return; }
             
-            const effectorFrameTime = this.editor.activeTimeline.animationClip.tracks[ track.clipIdx ].times[ keyFrameIndex ];
+            const effectorFrameTime = propWindow.enabler ? propWindow.time : track.times[ keyFrameIndex ];
             const chain = this.ikSelectedChain.chain;
             
             for( let i = 1; i < chain.length; ++i ){
@@ -611,15 +622,15 @@ class Gizmo {
                 let frame = timeline.getCurrentKeyFrame( track, effectorFrameTime, 0.008 );
                 if ( frame == -1 ){ 
 
-                    if ( this.editor.gui.propagationWindow.enabler ){
-                        this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, effectorFrameTime, boneToProcess.quaternion);
+                    if ( propWindow.enabler ){
+                        this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, boneToProcess.quaternion);
                     }
                     frame = timeline.addKeyFrame( track, boneToProcess.quaternion.toArray(), effectorFrameTime );
                 }
                 else{ 
                     
-                    if ( this.editor.gui.propagationWindow.enabler ){
-                        this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, effectorFrameTime, boneToProcess.quaternion);
+                    if ( propWindow.enabler ){
+                        this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, boneToProcess.quaternion);
                     }
                     else{
                         const start = 4 * frame;
@@ -645,8 +656,8 @@ class Gizmo {
 
             this.editor.gui.keyFramesTimeline.saveState( track.clipIdx );
 
-            if ( this.editor.gui.propagationWindow.enabler ){
-                this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, track.times[ keyFrameIndex ], newValue);
+            if ( propWindow.enabler ){
+                this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, newValue);
             }else{
                 const start = track.dim * keyFrameIndex;
                 // supports position and quaternion types

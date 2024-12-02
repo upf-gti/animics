@@ -281,7 +281,6 @@ class PropagationWindow {
     }
 
     draw( ){
-        // if ( !this.enabler || !this.showCurve && (timeline != this.curvesTimeline && timeline.lastKeyFramesSelected.length != 1) ){ return; }
         if ( !this.enabler ){ return; }
 
         const timeline = this.timeline;
@@ -541,6 +540,7 @@ class Gui {
                     console.log("pause!") 
                     if(this.menubar.getButton("Play").children[0].classList.contains("fa-pause")) 
                         this.menubar.getButton("Play").children[0].classList.toggle('fa-pause'), this.menubar.getButton("Play").children[0].classList.toggle('fa-play');
+                    if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) { this.editor.activeTimeline.changeState() };
                 }
             }
         ]);
@@ -852,9 +852,6 @@ class Gui {
             enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
         }
     }
-
-    /** -------------------- PROPAGATION WINDOW -------------------- */
-
 
     /** -------------------- TIMELINE -------------------- */
 
@@ -1498,7 +1495,10 @@ class KeyframesGui extends Gui {
             }
         }
         this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
-        this.keyFramesTimeline.onSetTime = (t) => this.editor.setTime(t, true);
+        this.keyFramesTimeline.onSetTime = (t) => {
+            this.editor.setTime(t, true);
+            this.propagationWindow.setTime(t);
+        }
         this.keyFramesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             if (!currentBinded){ return; }
@@ -1662,7 +1662,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, true);
-            this.propagationWindow.setTime( this.curvesTimeline.currentTime );
+            this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip);
             }
@@ -1687,7 +1687,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.curvesTimeline.onSelectKeyFrame = (e, info) => {
-            this.propagationWindow.setTime( this.keyFramesTimeline.currentTime );
+            this.propagationWindow.setTime( this.curvesTimeline.currentTime );
 
             if(e.button != 2) {
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip, info[3]);
