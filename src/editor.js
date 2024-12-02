@@ -1157,10 +1157,10 @@ class KeyframeEditor extends Editor{
     setVideoVisibility( visibility ){ // TO DO
         //document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
         if(visibility) {
-            this.gui.showVideoEditor();
+            this.gui.showVideoOverlay();
         }
         else {
-            this.gui.hideVideoEditor();
+            this.gui.hideVideoOverlay();
         }
     }
 

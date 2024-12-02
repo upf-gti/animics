@@ -1302,6 +1302,12 @@ class KeyframesGui extends Gui {
         area.attach(video);
         area.root.style.background = "transparent";
         this.canvasArea.attach(area);
+        let currAnim = this.editor.loadedAnimations[ this.editor.currentAnimation ];
+        if ( !currAnim || currAnim.type != "video" ){
+            area.hide();
+        }else{
+            area.show();
+        }
         
         // adjust div to video aspect ratio. This forces the resizing tool to be on the video
         area.root.onmouseup = function(){
@@ -1323,7 +1329,7 @@ class KeyframesGui extends Gui {
         }
     }
     
-    showVideoEditor() {
+    showVideoOverlay() {
         let el = document.getElementById("editor-video");
         if(el) {
             el.classList.remove("hidden");
@@ -1332,7 +1338,7 @@ class KeyframesGui extends Gui {
         
     }
     
-    hideVideoEditor() {
+    hideVideoOverlay() {
         let el = document.getElementById("editor-video");
         if(el) {
             el.classList.add("hidden");
