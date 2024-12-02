@@ -44,7 +44,12 @@ class PropagationWindow {
         const lpos = timeline.timeToX( this.time - this.leftSide );
         const rpos = timeline.timeToX( this.time + this.rightSide );
 
-        this.curveWidget = new LX.Curve( null, this.gradient, {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor, callback: () => {}} );
+        this.curveWidget = new LX.Curve( null, this.gradient, {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor, callback: (v,e) => {
+            if ( v.length <= 0){
+                this.curveWidget.element.value = this.gradient = [[0.5,1]];
+            }
+            this.curveWidget.redraw();
+        }} );
         const curveElement = this.curveWidget.element; 
         curveElement.style.width = "fit-content";
         curveElement.style.height = "fit-content";
@@ -96,23 +101,19 @@ class PropagationWindow {
             }
         });
 
-        dialog.addNumber("Min Time (S)", this.leftSide, (v) => {
+        dialog.sameLine();
+        dialog.addNumber("Min (s)", this.leftSide, (v) => {
             this.recomputeGradient( v, this.rightSide );
-            LX.emit("@propW_gradient", this.gradient);
             this.updateCurve(true);
         }, {min: 0.001, step: 0.001, signal: "@propW_minT"});
 
-        dialog.addNumber("Max Time (S)", this.rightSide, (v) => {
+        dialog.addNumber("Max (s)", this.rightSide, (v) => {
             this.recomputeGradient( this.leftSide, v );
-            LX.emit("@propW_gradient", this.gradient);
             this.updateCurve(true);
         }, {min: 0.001, step: 0.001, signal: "@propW_maxT"});		
+        dialog.endLine();
 
-        dialog.addNumber("Color Opacity", this.opacity, (v) => {
-            this.opacity = v;
-            this.curveWidget.element.style.opacity = v;
-        }, {min: 0, max:1, step:0.001});
-
+        dialog.sameLine();
         dialog.addColor("Color", this.lexguiColor, (value, event) => {
             this.lexguiColor = value;
             let rawColor = parseInt(value.slice(1,7), 16);
@@ -122,16 +123,11 @@ class PropagationWindow {
             this.curveWidget.element.pointscolor = value;
             this.curveWidget.redraw();
         });
-
-        dialog.addCurve("gradient", this.gradient, (values, event) => {
-            if ( values.length <= 0){
-                values = [[0.5,1]];
-                LX.emit("@propW_gradient", values);
-            }
-            this.gradient = values;
-            this.updateCurve(true);
-        }, {xrange: [0, 1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient"});
-
+        dialog.addNumber("Opacity", this.opacity, (v) => {
+            this.opacity = v;
+            this.curveWidget.element.style.opacity = v;
+        }, {min: 0, max:1, step:0.001});
+        dialog.endLine();
     }
 
     onMouse( e, time ){
