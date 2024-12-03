@@ -1959,7 +1959,7 @@ class KeyframeEditor extends Editor{
     /** -------------------- BONES INTERACTION -------------------- */
     getSelectedBone() {
         const idx = this.gizmo.selectedBone;
-        return idx == undefined ? idx : this.currentCharacter.skeletonHelper.bones[ idx ];
+        return idx == -1 ? undefined : this.currentCharacter.skeletonHelper.bones[ idx ];
     }
 
     setBoneSize(newSize) {
@@ -1994,8 +1994,8 @@ class KeyframeEditor extends Editor{
 
         this.gizmo.setBone(name);
         this.gizmo.mustUpdate = true;
-
-        this.gui.updateSkeletonPanel({itemSelected: this.selectedBone});
+        this.gui.updateSkeletonPanel();
+        
         if ( this.gui.tree ){ 
             this.gui.tree.select(this.selectedBone)
         }

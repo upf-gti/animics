@@ -1519,7 +1519,7 @@ class KeyframesGui extends Gui {
             if(e.button != 2) {
                 //this.editor.gizmo.mustUpdate = true
                 this.editor.gizmo.update(true);
-                this.updateSkeletonPanel({itemSelected:info[0]}); // update right panel data
+                this.updateSkeletonPanel();
                 this.editor.gizmo._setBoneById( this.editor.gizmo.selectedBone );
 
                 return false;
@@ -2210,7 +2210,7 @@ class KeyframesGui extends Gui {
         // Editor widgets 
         this.bonePanel = bonePanel;
         options.itemSelected = options.itemSelected ?? this.editor.selectedBone;
-        this.updateSkeletonPanel(options);
+        this.updateSkeletonPanel();
 
         // // update scroll position
         // var element = root.content.querySelectorAll(".inspector")[0];
@@ -2218,7 +2218,7 @@ class KeyframesGui extends Gui {
         // element.scrollTop = options.maxScroll ? maxScroll : (options.scroll ? options.scroll : 0);
     }
 
-    updateSkeletonPanel(options = {}) {
+    updateSkeletonPanel() {
 
         if ( !this.bonePanel ){ 
             return;
@@ -2226,9 +2226,7 @@ class KeyframesGui extends Gui {
 
         let widgets = this.bonePanel;
 
-        widgets.onRefresh = (o) => {
-
-            o = o || {};
+        widgets.onRefresh = () => {
             widgets.clear();
 
             const boneSelected = this.editor.currentCharacter.skeletonHelper.bones[this.editor.gizmo.selectedBone];
@@ -2245,7 +2243,7 @@ class KeyframesGui extends Gui {
 
                 let active = this.editor.getGizmoMode();
 
-                const toolsValues = [ {value:"Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh(options);} }, {value:"Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh(options);} }] ;
+                const toolsValues = [ {value:"Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }, {value:"Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }] ;
                 const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
                 
                 widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ), settings_title: "<i class='bi bi-gear-fill section-settings'></i>" });
@@ -2271,7 +2269,7 @@ class KeyframesGui extends Gui {
                                         this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 
-                                    widgets.onRefresh(options);
+                                    widgets.onRefresh();
                                 }
                             }
                             _Modes.push(mode);
@@ -2286,7 +2284,7 @@ class KeyframesGui extends Gui {
                                         this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 
-                                    widgets.onRefresh(options);
+                                    widgets.onRefresh();
                                 }
                             }
                             _Modes.push(mode);
@@ -2301,7 +2299,7 @@ class KeyframesGui extends Gui {
                                         this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
                                     }
                                     this.editor.setGizmoMode(v); 
-                                    widgets.onRefresh(options);
+                                    widgets.onRefresh();
                                 }
                             }
                             _Modes.push(mode);
@@ -2328,13 +2326,13 @@ class KeyframesGui extends Gui {
                     let modesValues = [];
                     let current = this.editor.getGizmoIkMode();
                     if ( this.editor.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.LARGECHAIN ) ){
-                        modesValues.push( {value:"Multiple", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh(options);} } );
+                        modesValues.push( {value:"Multiple", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
                     } else { // default
                         current = "Single";
                     }
 
                     if ( this.editor.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.ONEBONE ) ){
-                        modesValues.push( {value:"Single", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh(options);} } );
+                        modesValues.push( {value:"Single", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
                     }
 
                     widgets.addComboButtons( "Mode", modesValues, {selected: current, nameWidth: "50%", width: "100%"});
@@ -2393,7 +2391,7 @@ class KeyframesGui extends Gui {
 
         };
 
-        widgets.onRefresh(options);
+        widgets.onRefresh();
     }
     /** ------------------------------------------------------------ */
 

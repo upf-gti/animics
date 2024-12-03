@@ -13,26 +13,25 @@ class Gizmo {
 
         this.raycastEnabled = true;
         this.undoSteps = [];
-
         let transform = new TransformControls( editor.camera, editor.renderer.domElement );
         window.trans = transform;
         transform.setSpace( 'local' );
         transform.setMode( 'rotate' );
 
         transform.addEventListener( 'objectChange', e => {
-            if(this.selectedBone != null) {    
+            if(this.selectedBone != -1) {    
                 this.updateBones();
                 this.mustUpdate = true;
             }
         });
 
         transform.addEventListener( 'mouseUp', e => {
-            if(this.selectedBone === null || this.selectedBone === undefined){
+            if(this.selectedBone == -1){
                 return;
             }
             this.updateTracks();
             const bone = this.skeleton.bones[this.selectedBone] ? this.skeleton.bones[this.selectedBone].name : "";
-            this.editor.gui.updateSkeletonPanel({itemSelected: bone});
+            this.editor.gui.updateSkeletonPanel();
         } );
 
         transform.addEventListener( 'dragging-changed', e => {
@@ -40,7 +39,7 @@ class Gizmo {
             this.editor.controls.enabled = !enabled;
             this.raycastEnabled = !enabled;//!this.raycastEnabled;
 
-            if(this.selectedBone === null || this.selectedBone === undefined || this.editor.state ){
+            if(this.selectedBone == -1 || this.editor.state ){
                 this.mustUpdate = false;
                 return;
             }
@@ -87,7 +86,7 @@ class Gizmo {
         this.transform = transform;
 		this.raycaster = null;
         this.skeleton = null;
-        this.selectedBone = null;
+        this.selectedBone = -1;
         this.bonePoints = null;
         this.editor = editor;
 
@@ -143,7 +142,7 @@ class Gizmo {
             vertices.push( tempVec );
         }
         
-        this.selectedBone = vertices.length ? 0 : null;
+        this.selectedBone = vertices.length ? 0 : -1;
         
         const geometry = new THREE.BufferGeometry();
         geometry.setFromPoints(vertices);
@@ -166,7 +165,7 @@ class Gizmo {
         // First update to get bones in place
         this.update(true, 0.0);
 
-        if(this.selectedBone != null) 
+        if(this.selectedBone != -1) 
             this.updateBoneColors();
 
     }
@@ -518,7 +517,7 @@ class Gizmo {
 
         if(state) this.updateBones(dt);
 
-        if(!this.enabled || this.selectedBone == null) return;
+        if(!this.enabled || this.selectedBone == -1) return;
 
         //this.ikHelper.update();
                 
