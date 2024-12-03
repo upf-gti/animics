@@ -2231,11 +2231,9 @@ class KeyframesGui extends Gui {
             o = o || {};
             widgets.clear();
 
-            const boneSelected = !(o.firstBone && numBones) ? //change to get values of animation?
-                this.editor.currentCharacter.skeletonHelper.getBoneByName(o.itemSelected) : 
-                this.editor.currentCharacter.skeletonHelper.bones[0];
+            const boneSelected = this.editor.currentCharacter.skeletonHelper.bones[this.editor.gizmo.selectedBone];
 
-            if(boneSelected && this.keyFramesTimeline.lastKeyFramesSelected.length == 1) {
+            if(boneSelected) {
 
                 const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
                 
