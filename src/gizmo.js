@@ -22,6 +22,7 @@ class Gizmo {
         transform.addEventListener( 'objectChange', e => {
             if(this.selectedBone != null) {    
                 this.updateBones();
+                this.mustUpdate = true;
             }
         });
 
@@ -38,12 +39,14 @@ class Gizmo {
             const enabled = e.value;
             this.editor.controls.enabled = !enabled;
             this.raycastEnabled = !enabled;//!this.raycastEnabled;
-            
-            this.mustUpdate = enabled;
-            
-            if(this.selectedBone === null || this.selectedBone === undefined){
+
+            if(this.selectedBone === null || this.selectedBone === undefined || this.editor.state ){
+                this.mustUpdate = false;
                 return;
             }
+            this.mustUpdate = enabled;
+            
+
 
             if(enabled) {
                 if ( this.toolSelected == Gizmo.Tools.IK ){
@@ -530,8 +533,8 @@ class Gizmo {
             this.ikSolver.update(); 
             this.updateBones();
         }
-        //this.transform.attach( this.skeletonHelper.bones[this.selectedBone] );
-        //this.mustUpdate = false; 
+
+        this.mustUpdate = false; 
     }
 
     updateBones( ) {
