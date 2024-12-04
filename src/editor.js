@@ -73,6 +73,8 @@ class Editor {
         // Create the fileSystem and log the user
         this.FS = new FileSystem("signon", "signon", () => console.log("Auto login of guest user"));
         this.FS.login().then(this.getUnits.bind(this))
+
+        this.repository = {signs: [], presets:[], clips: []};
     }
 
     getApp() {
@@ -907,16 +909,30 @@ class Editor {
         });
     }
 
+    createServerFolders() {
+        const session = this.FS.getSession();
+        this.FS.createFolder( session.user.username + "/animics/presets/", (v, r) => {console.log(v)} );
+        this.FS.createFolder( session.user.username + "/animics/signs/", (v, r) => {console.log(v)} );
+        this.FS.createFolder( session.user.username + "/animics/clips/", (v, r) => {console.log(v)} );
+    }
+
+
     getUnits() {
         const session = this.FS.getSession();
         session.getUnits( (units) => {
             for(let i = 0; i < units.length; i++) {
-                if(units[i].name == "signon")
+                if(units[i].name == "signon") {
                     continue;
-                if(this.repository.signs.length)
+                }
+                if(this.repository.signs.length) {
                     this.repository.signs.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
-                if(this.repository.presets.length)
-                this.repository.presets.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
+                }
+                if(this.repository.presets.length) {
+                    this.repository.presets.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
+                }
+                if(this.repository.clips.length) {
+                    this.repository.clips.push({id:units[i].name == "signon" ? "Public": units[i].name , type:"folder", children: [], unit: units[i].name});
+                }
             }
         });
     }
@@ -1109,6 +1125,9 @@ class KeyframeEditor extends Editor{
         this.video.startTime = 0;
         this.animationModes = {FACE: 0, BODY: 1};
         this.animationMode = this.animationModes.BODY;
+
+        this.refreshRepository = false;
+        this.localStorage = {clips: {id: "Local", type:"folder", children: []}};
     }
     
     startEdition() {
@@ -2282,7 +2301,6 @@ class ScriptEditor extends Editor{
         // this.getDictionaries();
         this.refreshSignsRepository = false;
         this.refreshPresetsRepository = false;
-        this.repository = {signs: [], presets: []};
         this.localStorage = {signs: {id: "Local", type:"folder", children: []}, presets: {id: "Local", type:"folder", children: []}}
 
     }
@@ -2555,13 +2573,6 @@ class ScriptEditor extends Editor{
 
         return json;
     }
-
-    createServerFolders() {
-        const session = this.FS.getSession();
-        this.FS.createFolder( session.user.username + "/animics/presets/", (v, r) => {console.log(v)} );
-        this.FS.createFolder( session.user.username + "/animics/signs/", (v, r) => {console.log(v)} );
-    }
-
     
     fileToBML = (data, callback) => {
         if(data.fullpath) {
