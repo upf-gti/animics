@@ -59,6 +59,18 @@ class PropagationWindow {
         curveElement.style.zIndex = "0.5";
     }
 
+    setEnabler( v ){
+        this.enabler = v;
+        if(!v) {
+            this.setCurveVisibility( false );
+        }
+        LX.emit( "@propW_enabler", this.enabler );
+    }
+    
+    toggleEnabler(){
+        this.setEnabler( !this.enabler );
+    }
+
     recomputeGradient( newLeftSide, newRightSide ){
         let g = this.gradient;
 
@@ -95,11 +107,8 @@ class PropagationWindow {
 
     onOpenConfig(dialog){
         dialog.addCheckbox("Enable", this.enabler, (v) =>{
-            this.enabler = v;
-            if(!v) {
-                this.setCurveVisibility( false );
-            }
-        });
+            this.setEnabler(v);
+        }, { signal: "@propW_enabler"});
 
         dialog.sameLine();
         dialog.addNumber("Min (s)", this.leftSide, (v) => {
@@ -470,7 +479,7 @@ class Gui {
         }
         else {
             menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
-            menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "Hold ALT" });
+            menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
             menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
             menubar.add("Timeline/Shortcuts/Delete keys");
             menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
@@ -479,6 +488,7 @@ class Gui {
             menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
             menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
             menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
+            menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
             menubar.add("Timeline/Optimize all tracks", { callback: () => {
                     // optimize all tracks of current binded animation (if any)
                     this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
@@ -1521,7 +1531,9 @@ class KeyframesGui extends Gui {
                 this.editor.gizmo.update(true);
                 this.updateSkeletonPanel();
                 this.editor.gizmo._setBoneById( this.editor.gizmo.selectedBone );
-
+                if ( this.propagationWindow.enabler ){
+                    this.keyFramesTimeline.unSelectAllKeyFrames();
+                }
                 return false;
             }
             return true; // Handled
@@ -1691,7 +1703,9 @@ class KeyframesGui extends Gui {
 
             if(e.button != 2) {
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip, info[3]);
-
+                if ( this.propagationWindow.enabler ){
+                    this.curvesTimeline.unSelectAllKeyFrames();
+                }
                 return false;
             }
             return true; // Handled

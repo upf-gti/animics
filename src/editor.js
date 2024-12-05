@@ -158,6 +158,16 @@ class Editor {
                             this.activeTimeline.selectAll();
                     }
                     break;
+                case 'w':
+                    if ( (!document.activeElement || document.activeElement.value === undefined) && this.gui.propagationWindow ){
+                        this.gui.propagationWindow.toggleEnabler();
+                        if( this.gui.propagationWindow.enabler ){
+                            this.gui.keyFramesTimeline.unSelectAllKeyFrames();
+                            this.gui.curvesTimeline.unSelectAllKeyFrames();
+                        }
+                    }
+                    break;
+
                 case 'i': case 'I':case 'o': case 'O':
                     if(e.ctrlKey && !e.shiftKey) {
                         e.preventDefault();
