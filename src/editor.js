@@ -131,13 +131,20 @@ class Editor {
                     if(e.ctrlKey) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
-                        if(e.altKey) {
-                            if(this.gui.createNewPresetDialog)
-                                this.gui.createNewPresetDialog();
+                        if(this.mode == this.editionModes.SCRIPT) {
+                            if(e.altKey) {
+                                if(this.gui.createNewPresetDialog)
+                                    this.gui.createNewPresetDialog();
+                            }
+                            else {
+                                if(this.gui.createNewSignDialog)
+                                    this.gui.createNewSignDialog();
+                            }
                         }
                         else {
-                            if(this.gui.createNewSignDialog)
-                                this.gui.createNewSignDialog();
+                            if(this.gui.createSaveDialog) {
+                                this.gui.createSaveDialog();
+                            }
                         }
                     }
                     break;
@@ -870,7 +877,7 @@ class Editor {
 
     logout(callback) {
         const units = Object.keys(this.FS.getSession().units);
-        let repo = {signs:[], presets: []};
+        let repo = {signs:[], presets: [], clips: []};
         for(let folder in this.repository) {
 
             for(let i = 0; i < this.repository[folder].length; i++) {
@@ -1012,10 +1019,19 @@ class Editor {
         const extension = filename.split(".")[1];
 
         if(location == "server") {
-            data = JSON.stringify(data, null, 4);
+            if(data.constructor.name == "Object") {
+                data = JSON.stringify(data, null, 4);
+            }
     
             this.uploadFile(filename, data, type, (v) => {
-                this["refresh" + (type == "signs" ? "Signs":"Presets") +"Repository"] = true; 
+                let refreshType = "Signs";
+                if(type == "presets") {
+                    refreshType = "Presets";
+                }
+                else if (type == "clips") {
+                    refreshType = ""
+                }
+                this["refresh" + refreshType + "Repository"] = true; 
                 if(callback) 
                     callback(v);
             });   
@@ -2280,7 +2296,41 @@ class KeyframeEditor extends Editor{
             }
         }
     }
-
+    
+    fileToAnimation = (data, callback) => {
+        
+        if(data.fullpath) {
+            const extension = UTILS.getExtension(data.fullpath).toLowerCase();
+            LX.request({ url: this.FS.root + data.fullpath, dataType: 'text/plain', success: (f) => {
+                const bytesize = f => new Blob([f]).size;
+                data.bytesize = bytesize();
+                if(extension.includes('bvhe')) {
+                    data.animation = this.BVHloader.parseExtended( f );
+                }
+                else if(extension.includes('bvh')) {
+                    data.animation = { skeletonAnim: this.BVHloader.parse( f ) };
+                }
+                else {
+                    data.animation = null; // TO DO FOR GLB AND GLTF
+                }
+                if(callback)
+                    callback(data);
+            } });
+        } else {
+            const extension = UTILS.getExtension(data.name).toLowerCase();
+            if(extension.includes('bvhe')) {
+                data.animation = this.BVHloader.parseExtended( data.data );
+            }
+            else if(extension.includes('bvh')) {
+                data.animation = { skeletonAnim: this.BVHloader.parse( data.data ) };
+            }
+            else {
+                data.animation = null; // TO DO FOR GLB AND GLTF
+            }
+            if(callback)
+                callback(data);
+        }
+    }
 }
 
 class ScriptEditor extends Editor{

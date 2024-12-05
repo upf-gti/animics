@@ -409,9 +409,11 @@ class Gui {
         let menubar = this.menubar;     
         
         // menubar.add("Project/");
-        if(this.editor.mode == this.editor.editionModes.SCRIPT)
-            menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFile(), short: "CTRL+I"
-        });
+        menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFile(), short: "CTRL+I"});
+
+        if(this.editor.mode != this.editor.editionModes.SCRIPT) {
+            menubar.add("Project/Load animation", {icon: "fa fa-file-import", callback: () => this.createServerClipsDialog(), short: "CTRL+I"});
+        }
   
         // Export animation
         menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
@@ -439,7 +441,7 @@ class Gui {
 
         // Save animation
         menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => 
-            this.createNewSignDialog(null, "server")
+            this.createSaveDialog()
         });
 
         menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
@@ -683,11 +685,11 @@ class Gui {
             
     }
 
-    showExportAnimationsDialog(callback) {
+    showExportAnimationsDialog(callback, formats = []) {
         let options = { modal : true};
 
         let value = "";
-
+        let format = null;
         const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
             let animations = this.editor.loadedAnimations;
             for(let animationName in animations) { // animationName is of the source anim (not the bind)
@@ -702,7 +704,15 @@ class Gui {
                 }, {placeholder: "...", minWidth:"100px"} );
                 p.endLine();
             }
-           
+            if(formats.length) {
+                format = format || formats[0];
+                let buttons = [];
+                for(let i = 0; i < formats.length; i++) {
+                    buttons.push({ value: formats[i], callback: (v) => {format = v} });
+                }
+                p.addComboButtons("Save as", buttons, {selected: format});
+            }
+
             p.sameLine(2);
             p.addButton("", options.accept || "OK", (v, e) => { 
                 e.stopPropagation();
@@ -713,7 +723,7 @@ class Gui {
                 }else {
 
                     if(callback) {
-                        callback();
+                        callback(format);
                     }
                     dialog.close() ;
                 }
@@ -725,6 +735,46 @@ class Gui {
         // Focus text prompt
         if(options.input !== false)
             dialog.root.querySelector('input').focus();
+    }
+
+    createSaveDialog() {
+        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
+            this.createNewSignDialog(null, "server");
+        }
+        else {
+            this.showExportAnimationsDialog( (format) => {
+
+                const saveDataToServer = () => {
+                    let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
+                    for(let i = 0; i < animations.length; i++) {
+                        
+                        this.editor.updateData(animations[i].name, animations[i].data, "clips", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                        })
+                    }
+                }
+
+                const session = this.editor.FS.getSession();
+                if(!session.user || session.user.username == "signon") {
+                    let alert = new LX.Dialog("Alert", d => {
+                        d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+                        d.sameLine(2);
+                        d.addButton(null, "Login", () => {
+                            this.showLoginModal();
+                            alert.close();
+                        })
+                        d.addButton(null, "Ok", () => {
+                           saveDataToServer();
+                        })
+                    }, {closable: true, modal: true})
+                    
+                }
+                else {
+                    saveDataToServer();
+                }
+            }, [ "BVH", "BVH extended"]) // TO DO: ALLOW GLB AND GLTF 
+        }
     }
 
     createSceneUI(area) {
@@ -965,7 +1015,7 @@ class KeyframesGui extends Gui {
     constructor(editor) {
         
         super(editor);
-        
+        this.mode = ClipModes.Keyframes;
         this.showVideo = false;
         this.skeletonScroll = 0;
 
@@ -2422,9 +2472,332 @@ class KeyframesGui extends Gui {
             callback();
     }
 
+    createServerClipsDialog() {
+        
+        let that = this;
+        const fs = this.editor.FS;
+        const session = fs.getSession();
+
+        if(this.prompt && this.prompt.root.checkVisibility()) {
+            return;
+        }
+        
+        // Create a new dialog
+        let dialog = this.prompt = new LX.Dialog('Available clips', async (p) => {
+            
+            const innerSelect = async (asset, button, e, action) => {
+                let choice = document.getElementById("choice-insert-mode");
+                if(choice)
+                    choice.remove();
+                switch(button) {
+                    case "Add as single clip":
+                        this.mode = ClipModes.Phrase;
+                        break;
+                    case "Breakdown into keyframes":
+                        this.mode = ClipModes.Keyframes;
+                        break;                   
+                }
+                that.keyFramesTimeline.onUnselectKeyFrames();
+                asset.animation.name = asset.id;
+                const modal = this.createAnimation();
+                this.editor.loadAnimation( asset.id, asset.animation );
+                modal.close();
+    
+                asset_browser.clear();
+                dialog.close();
+            }
+
+            let preview_actions = [
+                {
+                    type: "bvh",
+                    name: 'Add as single clip', 
+                    callback: innerSelect
+                },
+                {
+                    type: "bvh",
+                    name: 'Breakdown into keyframes', 
+                    callback: innerSelect
+                },
+                {
+                    type: "bvhe",
+                    name: 'Add as single clip', 
+                    callback: innerSelect
+                },
+                {
+                    type: "bvhe",
+                    name: 'Breakdown into keyframes', 
+                    callback: innerSelect
+                },
+                {
+                    type: "glb",
+                    name: 'Add as single clip', 
+                    callback: innerSelect
+                },
+                {
+                    type: "glb",
+                    name: 'Breakdown into keyframes', 
+                    callback: innerSelect
+                },
+                {
+                    type: "gltf",
+                    name: 'Add as single clip', 
+                    callback: innerSelect
+                },
+                {
+                    type: "gltf",
+                    name: 'Breakdown into keyframes', 
+                    callback: innerSelect
+                },
+            ];
+
+            if(session.user.username != "signon") {
+                preview_actions.push(
+                {
+                    type: "bvh",
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.updateData(item.filename + ".bvh", item.data, "clips", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "bvhe",
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.updateData(item.filename + ".bvhe", item.data, "clips", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push(
+                {
+                    type: "glb",
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.updateData(item.filename + ".glb", item.data, "clips", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push(
+                {
+                    type: "gltf",
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.updateData(item.filename + ".gltf", item.data, "clips", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "bvh",
+                    path: "@/"+ session.user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "bvhe",
+                    path: "@/"+ session.user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "glb",
+                    path: "@/"+ session.user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "gltf",
+                    path: "@/"+ session.user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+            }
+            
+            let asset_browser = new LX.AssetView({  allowed_types: ["bvh", "bvhe", "glb", "gltf"],  preview_actions: preview_actions, context_menu: false});
+            
+            p.attach( asset_browser );
+            const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+            modal.root.id = "loading";
+
+            const closeModal = (modal) => {
+                modal.panel.clear();
+                modal.root.remove();
+            }
+            
+            const loadData = () => {
+                asset_browser.load( this.editor.repository.clips, e => {
+                    switch(e.type) {
+                        case LX.AssetViewEvent.ASSET_SELECTED:
+                            if(e.item.type == "folder") {
+                                return;
+                            }                      
+                            if(!e.item.animation) {
+                                this.editor.fileToAnimation(e.item);
+                            }
+                            break;
+                        case LX.AssetViewEvent.ASSET_DELETED: 
+                            console.log(e.item.id + " deleted"); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_CLONED: 
+                            console.log(e.item.id + " cloned"); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_RENAMED:
+                            console.log(e.item.id + " is now called " + e.value); 
+                            break;
+                        case LX.AssetViewEvent.ASSET_DBLCLICKED: 
+                        if(e.item.type != "folder") {
+                            let choice = new LX.Dialog("Add clip", (p) => {
+                                if(!e.item.animation) {
+                                    this.editor.fileToAnimation(e.item);
+                                }
+                                p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                                p.sameLine(2);
+                                p.addButton(null, "Add as single clip", (v) => { choice.close(); this.mode = ClipModes.Phrase; this.closeDialogs(); innerSelect(e.item, v);} )
+                                p.addButton(null, "Breakdown into keyframes", (v) => { choice.close(); this.mode = ClipModes.Keyframes; this.closeDialogs(); innerSelect(e.item, v);} )
+                            }, {modal:true, closable: true, id: "choice-insert-mode"})
+                        }
+                            break;
+
+                        case LX.AssetViewEvent.ENTER_FOLDER:
+                            const session = this.editor.FS.getSession(); 
+                            if(e.item.unit && (!e.item.children.length || this.editor.refreshRepository && e.item.unit == session.user.username )) {
+                                const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                                modal.root.id = "loading";
+                                this.editor.getFilesFromUnit(e.item.unit, "animics/clips/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                                    let files_data = [];
+                                    if(files) {
+                                        
+                                        for(let f = 0; f < files.length; f++) {
+                                            files[f].id = files[f].filename;
+                                            files[f].folder = e.item;
+                                            files[f].type = UTILS.getExtension(files[f].filename);
+                                            if(files[f].type == "txt")
+                                                continue;
+                                            files_data.push(files[f]);
+                                        }
+                                        e.item.children = files_data;
+                                    }
+                                    asset_browser.currentData = files_data;
+                                    asset_browser._updatePath(asset_browser.currentData);
+
+                                    if(!asset_browser.skip_browser)
+                                        asset_browser._createTreePanel();
+                                    asset_browser._refreshContent();
+
+                                    this.editor.refreshRepository = false;
+                                    closeModal(modal);
+                                })
+                            }
+                            break;
+                    }
+                })
+            }
+
+            if(!this.editor.repository.clips.length) {
+                await this.editor.getAllUnitsFolders("clips", () => {
+                    this.editor.refreshRepository = false;
+                    closeModal(modal);
+                    loadData();
+                });
+            }
+            else {
+
+                await this.editor.getFolders("clips", () => {
+                    this.editor.refreshRepository = false;
+
+                    closeModal(modal);
+                    loadData();
+                });
+            }
+            // }
+            // else {
+            //     closeModal(modal);
+            // }   
+       
+        }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
+    
+            onclose: (root) => {
+                let loadingmodal = document.getElementById("loading")
+                if(loadingmodal) {
+                    loadingmodal.remove();
+                }
+                root.remove();
+                this.prompt = null;
+                if(!LX.modal.hidden) {
+                    LX.modal.toggle(true);
+                }
+                if(this.choice) {
+                    this.choice.close()
+                }
+            }
+        });
+    }
 }
 
-const ClipModes = { Phrase: 0, Glosses: 1, Actions: 2};
+const ClipModes = { Phrase: 0, Glosses: 1, Actions: 2, Keyframes: 3};
 class ScriptGui extends Gui {
 
     constructor(editor) {
@@ -3827,7 +4200,7 @@ class ScriptGui extends Gui {
                                         for(let f = 0; f < files.length; f++) {
                                             files[f].id = files[f].filename;
                                             files[f].folder = e.item;
-                                            files[f].type = files[f].filename.split(".")[1];
+                                            files[f].type = UTILS.getExtension(files[f].filename);
                                             if(files[f].type == "txt")
                                                 continue;
                                             files_data.push(files[f]);
@@ -4097,7 +4470,7 @@ class ScriptGui extends Gui {
                                         for(let f = 0; f < files.length; f++) {
                                             files[f].id = files[f].filename;
                                             files[f].folder = e.item;
-                                            files[f].type = files[f].filename.split(".")[1];
+                                            files[f].type = UTILS.getExtension(files[f].filename);
                                             if(files[f].type == "txt")
                                                 continue;
                                             files_data.push(files[f]);
