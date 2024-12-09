@@ -412,37 +412,40 @@ class Gui {
         menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFile(), short: "CTRL+I"});
 
         if(this.editor.mode != this.editor.editionModes.SCRIPT) {
-            menubar.add("Project/Load animation", {icon: "fa fa-file-import", callback: () => this.createServerClipsDialog(), short: "CTRL+I"});
+            menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+O"});
         }
-  
-        // Export animation
-        menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
-       
+        else {
+            menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", short: "CTRL+O"});
+            menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
+            menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
+            menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
+        }
+          
         if(this.editor.mode == this.editor.editionModes.SCRIPT) {
+            // Export animation
+            menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
             menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
             });
+            menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
+                this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export(null, "BVH extended", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true } );
+            }});
         }
-
-        menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-            this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export(null, "BVH extended", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true } );
-        }});
-
-        // Export animation
-        menubar.add("Project/Export all animations", {icon: "fa fa-file-export"});
-
-        menubar.add("Project/Export all animations/Export extended BVH", {callback: () => {            
-            this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
-        }});
+        else {
+            // Export animation
+            menubar.add("Project/Export animations", {icon: "fa fa-file-export"});
+    
+            menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
+                this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
+            }});
+        }
         
         menubar.add("Project/Export character & animations", {icon: "fa fa-download"});
         menubar.add("Project/Export character & animations/Export GLB", {callback: () => {
                 this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
         }});
-
+        
         // Save animation
-        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => 
-            this.createSaveDialog()
-        });
+        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
 
         menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
 
@@ -744,11 +747,11 @@ class Gui {
         else {
             this.showExportAnimationsDialog( (format) => {
 
-                const saveDataToServer = () => {
+                const saveDataToServer = (location,) => {
                     let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
                     for(let i = 0; i < animations.length; i++) {
                         
-                        this.editor.updateData(animations[i].name, animations[i].data, "clips", "server", () => {
+                        this.editor.updateData(animations[i].name, animations[i].data, "clips", location, () => {
                             this.closeDialogs();
                             LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                         })
@@ -757,21 +760,21 @@ class Gui {
 
                 const session = this.editor.FS.getSession();
                 if(!session.user || session.user.username == "signon") {
-                    let alert = new LX.Dialog("Alert", d => {
+                    this.prompt = new LX.Dialog("Alert", d => {
                         d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
                         d.sameLine(2);
                         d.addButton(null, "Login", () => {
+                            this.prompt.close();
                             this.showLoginModal();
-                            alert.close();
                         })
                         d.addButton(null, "Ok", () => {
-                           saveDataToServer();
+                           saveDataToServer("local");
                         })
                     }, {closable: true, modal: true})
                     
                 }
                 else {
-                    saveDataToServer();
+                    saveDataToServer("server");
                 }
             }, [ "BVH", "BVH extended"]) // TO DO: ALLOW GLB AND GLTF 
         }

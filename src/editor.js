@@ -167,13 +167,21 @@ class Editor {
                             this.activeTimeline.selectAll();
                     }
                     break;
-                case 'i': case 'I':case 'o': case 'O':
+                case 'i': case 'I':
                     if(e.ctrlKey && !e.shiftKey) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
                         this.gui.importFile();
                     }
                     break;
+
+                case 'o': case 'O':
+                if(e.ctrlKey && !e.shiftKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.gui.createServerClipsDialog();
+                }
+                break;
             }
             this.onKeyDown(e);
         } );
@@ -1185,7 +1193,7 @@ class KeyframeEditor extends Editor{
     }
 
     onKeyDown(e) {
-        
+   
     }
     /** -------------------- CREATE ANIMATIONS FROM MEDIAPIPE -------------------- */
     
@@ -2317,18 +2325,31 @@ class KeyframeEditor extends Editor{
                     callback(data);
             } });
         } else {
-            const extension = UTILS.getExtension(data.name).toLowerCase();
-            if(extension.includes('bvhe')) {
-                data.animation = this.BVHloader.parseExtended( data.data );
+
+            const innerParse = (event) => {
+                const content = event.srcElement ? event.srcElement.result : event;
+                if(data.type.includes('bvhe')) {
+                    data.animation = this.BVHloader.parseExtended( content );
+                }
+                else if(data.type.includes('bvh')) {
+                    data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
+                }
+                else {
+                    data.animation = null; // TO DO FOR GLB AND GLTF
+                }
+                if(callback) {
+                    callback(data)
+                }
             }
-            else if(extension.includes('bvh')) {
-                data.animation = { skeletonAnim: this.BVHloader.parse( data.data ) };
+            const content = data.data;
+            if(content.constructor.name == "Blob") {
+                const reader = new FileReader();
+                reader.readAsText(content);
+                reader.onloadend = innerParse;
             }
             else {
-                data.animation = null; // TO DO FOR GLB AND GLTF
+                innerParse(content, data)
             }
-            if(callback)
-                callback(data);
         }
     }
 }
