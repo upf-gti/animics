@@ -111,19 +111,22 @@ canvas {
 	font-size: 1.6em  !important;
 }
 
-.captureButton {
-    padding: 1.25rem 2.25rem;
-    font-size: 1.1rem;
-    /* font-weight: bolder; */
-    border: none;
-    border-radius: 10rem!important;
-    margin: 1rem;
-    display: block;
-    text-transform: capitalize;
+.captureButton button {
+	padding: 1.25rem 2.25rem;
+    border-radius: 10rem !important;    
 }
-/* .captureButton:hover, .recording{
-    color: var(--global-color-highlight) !important;
-} */
+
+.captureButton button a:hover {
+	color: inherit;
+}
+.captureButton.colored button {
+	background-color: var(--global-selected-light);
+    color: var(--global-text-primary);
+}
+.captureButton button:hover {
+    background-color: var(--global-button-color-hovered);
+    color: var(--global-text-primary);
+}
 .captureButton.stop{
 	background-color: rgb(215,59,62)!important;
 	color:white;

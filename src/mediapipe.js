@@ -299,6 +299,9 @@ const MediaPipe = {
 
         let listener = async () => {
             let cvp = this.currentVideoProcessing;
+            if(!cvp) {
+                return;
+            }
             let videoElement = cvp.videoElement;
             
             if ( videoElement.requestVideoFrameCallback ){

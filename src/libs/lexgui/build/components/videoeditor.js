@@ -359,7 +359,7 @@ class VideoEditor {
         this.startTimeString = "0:0";
         this.endTimeString = "0:0";
 
-        let [videoArea, controlsArea] = area.split({ type: 'vertical', sizes: ["80%", null], minimizable: false, resize: false });
+        let [videoArea, controlsArea] = area.split({ type: 'vertical', sizes: ["85%", null], minimizable: false, resize: false });
         controlsArea.root.classList.add('lexconstrolsarea');
 
         // Create video element and load it
@@ -627,9 +627,13 @@ class VideoEditor {
         }
     }
 
-    delete ( ) {
+    unbind ( ) {
         this.stopUpdates();
-        delete this;
+        this.video.src = "";
+        this.timebar.position = new LX.vec2( this.timebar.offset, this.timebar.canvas.height * 0.5 - this.timebar.height * 0.5);
+        this.timebar.startX = this.timebar.position.x;
+        this.timebar.endX = this.timebar.width;
+        this.timebar.currentX = this.timebar.startX;
     }
 }
 

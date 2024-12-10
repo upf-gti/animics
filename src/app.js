@@ -92,6 +92,13 @@ class App {
         } 
         
         let that = this;
+        if(this.mediaRecorder) {
+            this.mediaRecorder.stop();
+            this.recording = false;
+        }
+        if(MediaPipe) {
+            MediaPipe.stopVideoProcessing();
+        }
 
         // prepare the device to capture the video
         if (navigator.mediaDevices) {
@@ -235,7 +242,7 @@ class App {
             // videoCanvas.width  = width;
             // videoCanvas.height = height;
             
-            let height = video.parentElement.clientHeight;
+            let height = video.parentElement ? video.parentElement.clientHeight : video.parent.root.clientHeight;
             let width = height*aspect;
             videoCanvas.width  = width;
             videoCanvas.height = height;

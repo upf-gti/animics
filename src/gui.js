@@ -400,7 +400,7 @@ class Gui {
     createMenubar(area) {
 
         this.menubar = area.addMenubar( m => {
-            m.setButtonImage("SignON", "data/imgs/animics_logo.png", null, {float: "left"});   
+            m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => window.location.reload(), {float: "left"});   
         });
     }
 
@@ -1095,7 +1095,8 @@ class KeyframesGui extends Gui {
         // Create input selector widget (webcam or video)
         let [topArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
     
-        let selectContainer = topArea.addPanel({id:"select-mode", height: "80px", weight: "50%"})
+        let [selectArea, videoEditorArea] = topArea.split({sizes: ["80px", null], minimizable: false, resize: false, type: "vertical" });
+        let selectContainer = selectArea.addPanel({id:"select-mode", height: "80px", weight: "50%"})
 
         selectContainer.sameLine();
         let selected = this.editor.editionModes.CAPTURE == this.captureMode ? "webcam" : "video";
@@ -1104,21 +1105,29 @@ class KeyframesGui extends Gui {
             {
                 value: 'webcam',
                 id: 'webcam-input',
-                callback: (value, event) => {
-                    this.editor.mode = this.editor.editionModes.CAPTURE;
-                    let inputEl = input.domEl.getElementsByTagName("input")[0];
+                callback: (value, event, name) => {
+                    let inputEl = input.domEl.getElementsByTagName("input")[0];                    
                     inputEl.value = "";
                     input.domEl.classList.add("hidden");
+                    if(this.editor.mode == this.editor.editionModes.CAPTURE) {
+                        return;
+                    }
+                    this.editor.mode = this.editor.editionModes.CAPTURE;
+                    if(this.videoEditor) {
+                        this.videoEditor.unbind();
+                        this.videoEditor.hideControls();
+                    }
                     this.editor.getApp().onBeginCapture();
                 }
             }, {
                 value: 'video',
                 id: 'video-input',
-                callback: (value, event) => {
+                callback: (value, event,) => {
                     let inputEl = input.domEl.getElementsByTagName("input")[0];
                     input.domEl.classList.remove("hidden");
                     inputEl.value = "";
                     inputEl.click();
+                    
                     this.editor.mode = this.editor.editionModes.VIDEO;
                 }
             }
@@ -1127,15 +1136,24 @@ class KeyframesGui extends Gui {
         let input = selectContainer.addFile( "File:", (value, event) => {
 
             if(!value) { // user cancel import file
-                document.getElementById("webcam-input").click();;
+                this.editor.mode = this.editor.editionModes.CAPTURE;
+                document.getElementById("webcam-input").click();
+
                 return;
             }
 
             if(!value.type.includes("video")) {
+                this.editor.mode = this.editor.editionModes.CAPTURE;
                 LX.message("Format not accepted");
+                document.getElementById("webcam-input").click();
+
                 return;
             }
 
+            if(this.videoEditor) {
+                this.videoEditor.unbind();
+                this.videoEditor.hideControls();
+            }
             // delete camera stream 
             let inputVideo = this.inputVideo;
             inputVideo.pause();
@@ -1157,7 +1175,7 @@ class KeyframesGui extends Gui {
         selectContainer.endLine("center");
         
         /* Add show/hide right panel button*/
-        topArea.addOverlayButtons([{
+        selectArea.addOverlayButtons([{
             selectable: true,
             selected: true,
             icon: "fa-solid fa-info",
@@ -1172,7 +1190,7 @@ class KeyframesGui extends Gui {
             }
         }], {float: 'tvr'});
 
-        this.videoEditor = new LX.VideoEditor(topArea, {videoArea, video})
+        this.videoEditor = new LX.VideoEditor(videoEditorArea, {videoArea, video})
         this.videoEditor.hideControls();
         this.videoEditor.onResize = (size) => {
             let width = size[0];
@@ -1243,7 +1261,7 @@ class KeyframesGui extends Gui {
 
     startCaptureButtons( callback ) {
         this.capturePanel.clear();
-        let btn = this.capturePanel.addButton(null, "Record", callback, {id:"start_capture_btn", width: "100px"});
+        let btn = this.capturePanel.addButton(null, "Record", callback, {id:"start_capture_btn", width: "100px", className: "captureButton colored"});
         btn.style.zIndex = 100;
         
         // Adjust video canvas
@@ -1253,14 +1271,14 @@ class KeyframesGui extends Gui {
         let videoCanvas = this.canvasVideo;
         videoCanvas.classList.remove("active");
         
-        document.getElementById("select-mode").innerHTML = ""; // remove upper menu to select cam or video inputs
+        // document.getElementById("select-mode").innerHTML = ""; // remove upper menu to select cam or video inputs
     }
 
     stopCaptureButtons( callback ) {
         this.capturePanel.clear();
         let videoCanvas = this.canvasVideo;
         videoCanvas.classList.add("active");
-        let btn = this.capturePanel.addButton(null, "Stop", callback, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-stop"});
+        let btn = this.capturePanel.addButton(null, "Stop", callback, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-stop", className: "captureButton colored"});
         btn.style.zIndex = 100;
     }
 
@@ -1284,7 +1302,6 @@ class KeyframesGui extends Gui {
 
     createTrimArea(video, canvas, callback, options) {
 
-        document.getElementById("select-mode").classList.add("hidden");
         this.videoEditor.onSetTime = options.onSetTime;
         this.videoEditor.onDraw = options.onDraw;
         this.videoEditor.onVideoLoaded = options.onVideoLoaded;
@@ -1305,16 +1322,16 @@ class KeyframesGui extends Gui {
             this.videoEditor.hideControls();
             this.captureArea.extend();
             // this.videoArea.sections[1].root.resize(["20%", "20%"])
-        }, {width: "auto"});//, {width: "100px"});
+        }, {width: "auto", className: "captureButton colored"});//, {width: "100px"});
 
         if(this.editor.mode == this.editor.editionModes.CAPTURE) {
-            this.capturePanel.addButton(null, null, (v) => {
+            this.capturePanel.addButton(null, "Redo", (v) => {
                 this.videoEditor.hideControls();
                 let videoRec = this.recordedVideo;
                 videoRec.classList.add("hidden");
                
                 this.editor.getApp().onBeginCapture();
-            }, {width: "40px", icon: "fa-solid fa-rotate-left"});
+            }, {width: "50px", icon: "fa-solid fa-rotate-left", className: "captureButton"});
         }
         if(callback) {
             callback();
