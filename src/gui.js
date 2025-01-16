@@ -895,7 +895,7 @@ class Gui {
         //this.timelineArea.setSize([width, null]);
         if (this.editor.activeTimeline){ 
             this.editor.activeTimeline.resize();
-            this.propagationWindow.updateCurve(true); // resize
+            if(this.propagationWindow){ this.propagationWindow.updateCurve(true); } // resize
         }
     }
 
