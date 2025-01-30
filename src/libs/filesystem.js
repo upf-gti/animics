@@ -14,7 +14,10 @@ class FileSystem{
         this.ALLOW_GUEST_UPLOADS = true;
 
         // init server this.onReady.bind(this, user, pass, (s) => {this.session = s; callback;})
-        LFS.setup("https://webglstudio.org/projects/signon/repository/src/", callback);
+        LFS.setup("https://webglstudio.org/projects/signon/repository/src/", () => {
+
+            LFS.checkExistingSession(callback);
+        });
     }
    
     init() {

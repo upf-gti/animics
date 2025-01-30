@@ -576,6 +576,11 @@ class Gui {
         }
     }
 
+    changeLoginButton(username = "Login") {
+        let el = document.querySelector("#Login");
+        el.innerText = username;
+    }
+
     showLoginModal(session = {user: null, password: null}) {
         this.prompt = new LX.Dialog("Login", (p) => {
             const refresh = (p, msg) => {
@@ -598,8 +603,7 @@ class Gui {
                 p.addButton(null, "Login", (v) => {
                     this.editor.login(session, (session, response) => {
                         if(response.status == 1) {
-                            let el = document.querySelector("#Login");
-                            el.innerText = session.user.username;
+                            this.changeLoginButton(session.user.username);
                             this.editor.getUnits();
                             this.prompt.close();
                             this.prompt = null;
@@ -630,8 +634,7 @@ class Gui {
     showLogoutModal() {
         this.prompt = LX.prompt( "Are you sure you want to logout?", "Logout", (v) => {
             this.editor.logout(() => {
-                let el = document.querySelector("#Login");
-                el.innerText = "Login";
+                this.changeLoginButton();
                 this.editor.FS.login("signon", "signon", this.editor.getUnits.bind(this.editor))
 
             }); 

@@ -71,8 +71,28 @@ class Editor {
         this.__app = app;
 
         // Create the fileSystem and log the user
-        this.FS = new FileSystem("signon", "signon", () => console.log("Auto login of guest user"));
-        this.FS.login().then(this.getUnits.bind(this))
+        this.FS = new FileSystem("signon", "signon", (session) => {
+            if(session) {
+                this.FS.setSession(session);
+                this.getUnits();
+
+                const innerChangeLogin = () => {
+                    if(this.gui && this.gui.menubar.items.length) {
+                        this.gui.changeLoginButton(session.user.username);
+                    }
+                    else {
+                        setTimeout( () => innerChangeLogin(), 2000)
+                    }
+                }
+                if(session.user.username != "signon") {
+                    innerChangeLogin();                    
+                }
+            }
+            else {
+                console.log("Auto login of guest user")
+                this.FS.login().then(this.getUnits.bind(this))
+            }
+        });
 
         this.repository = {signs: [], presets:[], clips: []};
     }
@@ -179,7 +199,12 @@ class Editor {
                 if(e.ctrlKey && !e.shiftKey) {
                     e.preventDefault();
                     e.stopImmediatePropagation();
-                    this.gui.createServerClipsDialog();
+                    if(this.mode == this.editionModes.SCRIPT) {
+                        this.gui.createClipsDialog();
+                    }
+                    else {
+                        this.gui.createServerClipsDialog();
+                    }
                 }
                 break;
             }
@@ -425,6 +450,9 @@ class Editor {
     }
 
     startEdition(showGuide = true) {
+        if(this.FS.session.user.username != "signon") {
+            showGuide = false;
+        }
         this.gui.init(showGuide);
         this.animate();
         $('#loading').fadeOut();
@@ -1154,8 +1182,11 @@ class KeyframeEditor extends Editor{
         this.localStorage = {clips: {id: "Local", type:"folder", children: []}};
     }
     
-    startEdition() {
-        this.gui.init();
+    startEdition(showGuide = true) {
+        if(this.FS.session.user.username != "signon") {
+            showGuide = false;
+        }
+        this.gui.init(showGuide);
         this.animate();
         this.setAnimation(this.animationModes.BODY);
         $('#loading').fadeOut();
