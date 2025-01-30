@@ -1184,7 +1184,7 @@ class KeyframeEditor extends Editor{
         this.localStorage = {clips: {id: "Local", type:"folder", children: []}};
     }
     
-    startEdition(showGuide = true) {
+    startEdition(showGuide) {
         if(this.FS.session.user.username != "signon") {
             showGuide = false;
         }
@@ -1194,7 +1194,8 @@ class KeyframeEditor extends Editor{
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
             this.loadAnimation("new animation", { skeletonAnim : animation});
         }
-        this.gui.init(showGuide);
+        this.gui.init(this.video);
+        
         this.animate();
         this.setAnimation(this.animationModes.BODY);
         $('#loading').fadeOut();
@@ -1887,7 +1888,7 @@ class KeyframeEditor extends Editor{
                 
                 if ( mode == "bvh"){
                     const modal = this.gui.createAnimation();
-                    resultFiles.push( files[i] );
+                    // resultFiles.push( files[i] );
                     this.fileToAnimation(files[i], (file) => {
                         this.loadAnimation( file.name, file.animation );
                         modal.close();
@@ -1896,6 +1897,14 @@ class KeyframeEditor extends Editor{
             }
 
         }
+        this.mode = this.editionModes.VIDEO;
+        this.gui.editorArea.hide();
+        this.gui.captureArea.show();
+        this.gui.createCaptureArea();
+        // this.gui.mainArea.sections[1].attach(this.gui.captureArea);
+            //   this.showVideo = true
+        this.getApp().onLoadVideos( resultFiles );
+        // this.gui.initEditionGUI();
     }
 
     onPlay() {

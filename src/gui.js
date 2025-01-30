@@ -1045,25 +1045,27 @@ class KeyframesGui extends Gui {
         this.boneProperties = {};
 
         //Create capture video window
-        //this.createCaptureArea(this.mainArea);
+        this.createCaptureArea(this.mainArea);
     }
 
-    init() {
+    init(showVideo = false) {
         // TO DO: Call them in the new interface
-        // this.createVideoEditorArea();
+        this.createVideoEditorArea();
         this.editorArea.show();
-        // this.showVideo = true
+        this.showVideo = showVideo;
         // Canvas UI buttons
         this.createSceneUI(this.canvasArea);
 
-        // this.hideCaptureArea();
+        this.hideCaptureArea();
         this.createSidePanel();
         
         this.updateMenubar()
         this.showTimeline();
         
         // TO DO: Call it in the new interface
-        // this.initEditionGUI();
+        // if(showVideo) {
+        //     this.initEditionGUI();
+        // }
     }
 
     /** -------------------- CAPTURE GUI (app) --------------------  */
