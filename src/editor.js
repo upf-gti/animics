@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "./controls/OrbitControls.js";
 import { BVHLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/BVHLoader.js';
 import { BVHExporter } from "./exporters/BVHExporter.js";
-import { createAnimationFromRotations } from "./skeleton.js";
+import { createAnimationFromRotations, createEmptyAnimation } from "./skeleton.js";
 import { KeyframesGui, ScriptGui } from "./gui.js";
 import { Gizmo } from "./gizmo.js";
 import { UTILS } from "./utils.js"
@@ -191,7 +191,7 @@ class Editor {
                     if(e.ctrlKey && !e.shiftKey) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
-                        this.gui.importFile();
+                        this.gui.importFiles();
                     }
                     break;
 
@@ -501,7 +501,7 @@ class Editor {
             this.onAnimationEnded();
         }
         // the user increased the duration of the animation but the video is trimmed. Keep it paused at endTime until loop
-        if (this.mode != this.editionModes.SCRIPT) {
+        if (this.mode != this.editionModes.SCRIPT && this.video) {
             if (this.video.sync && this.video.currentTime >= this.video.endTime ) {
                 this.video.pause(); // stop video on last frame until loop
             }
@@ -706,7 +706,7 @@ class Editor {
 
         if(this.animLoop) {
             // user increased the duration of the animation. But the video is "trimmed" so it was paused at the endTime until the loop were reached
-            if (this.mode != this.editionModes.SCRIPT && this.video.paused) { 
+            if (this.mode != this.editionModes.SCRIPT && this.video && this.video.paused) { 
                 this.video.play();
             }
             this.setTime(0.0, true);
@@ -1174,7 +1174,9 @@ class KeyframeEditor extends Editor{
         this.gui = new KeyframesGui(this);
 
         this.video = this.gui.recordedVideo;
-        this.video.startTime = 0;
+        if(this.video) {
+            this.video.startTime = 0;
+        }
         this.animationModes = {FACE: 0, BODY: 1};
         this.animationMode = this.animationModes.BODY;
 
@@ -1185,6 +1187,12 @@ class KeyframeEditor extends Editor{
     startEdition(showGuide = true) {
         if(this.FS.session.user.username != "signon") {
             showGuide = false;
+        }
+        
+        if(!this.currentAnimation) {
+            let animation = {clip : createEmptyAnimation("bodyAnimation", this.currentCharacter.skeletonHelper.bones), skeleton: this.currentCharacter.skeletonHelper};
+            this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
+            this.loadAnimation("new animation", { skeletonAnim : animation});
         }
         this.gui.init(showGuide);
         this.animate();
@@ -1295,12 +1303,12 @@ class KeyframeEditor extends Editor{
         let faceAnimation = null;
         if ( animationData && animationData.skeletonAnim ){
             skeleton = animationData.skeletonAnim.skeleton;
-            skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+            //skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
             // loader does not correctly compute the skeleton boneInverses and matrixWorld 
             skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
             skeleton = new THREE.Skeleton( skeleton.bones ); // will automatically compute boneInverses
             
-            animationData.skeletonAnim.clip.tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );     
+            //animationData.skeletonAnim.clip.tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );     
             animationData.skeletonAnim.clip.name = "bodyAnimation";
             bodyAnimation = animationData.skeletonAnim.clip;
         }
@@ -1708,7 +1716,8 @@ class KeyframeEditor extends Editor{
                 }
                 // Set keyframe animation to the timeline and get the timeline-formated one
                 skeletonAnimation = this.gui.keyFramesTimeline.setAnimationClip( bodyAnimation, true );
-                this.gui.keyFramesTimeline.setSelectedItems([this.currentCharacter.skeletonHelper.bones[0].name]);
+                this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
+                this.gui.keyFramesTimeline.setSelectedItems([this.selectedBone]);
 
                 bodyAnimation.name = "bodyAnimation";   // mixer
                 skeletonAnimation.name = "bodyAnimation";  // timeline
@@ -1766,7 +1775,7 @@ class KeyframeEditor extends Editor{
             this.video.src = animation.videoURL;
             this.video.startTime = animation.startTime ?? 0;
             this.video.endTime = animation.endTime ?? 1;
-        }else{
+        }else if(this.video) {
             this.video.sync = false;
             this.setVideoVisibility(false);
         }
@@ -1853,12 +1862,47 @@ class KeyframeEditor extends Editor{
         // }
     }
 
+    loadFiles(files) {
+
+        const animExtensions = ['bvh','bvhe'];
+        let resultFiles = [];
+        let mode = "";
+        // first valid file will determine the mode. Following files must be of the same format
+        for(let i = 0; i < files.length; ++i){
+            // MIME type is video
+            if(files[i].type.startsWith("video/")) { 
+                if (!mode) { mode = "video"; }
+                
+                if ( mode == "video" ){
+                    resultFiles.push( files[i] );
+                }
+                continue;
+            }
+
+            // other valid file formats
+            const extension = UTILS.getExtension(files[i].name).toLowerCase();
+                            
+            if(animExtensions.includes(extension)) { 
+                if (!mode) { mode = "bvh"; }
+                
+                if ( mode == "bvh"){
+                    const modal = this.gui.createAnimation();
+                    resultFiles.push( files[i] );
+                    this.fileToAnimation(files[i], (file) => {
+                        this.loadAnimation( file.name, file.animation );
+                        modal.close();
+                    });
+                }
+            }
+
+        }
+    }
 
     onPlay() {
     
         
         this.gui.setBoneInfoState( false );
-        if(this.video.sync) {
+        if(this.video && this.video.sync) {
             try{
                 this.video.paused ? this.video.play() : 0;    
             }catch(ex) {
@@ -1872,7 +1916,7 @@ class KeyframeEditor extends Editor{
     onStop() {
 
         this.gizmo.updateBones();
-        if(this.video.sync) {
+        if(this.video && this.video.sync) {
             this.video.pause();
             this.video.currentTime = this.video.startTime;
         }
@@ -1880,7 +1924,7 @@ class KeyframeEditor extends Editor{
 
     onPause() {
         this.state = false;
-        if(this.video.sync) {
+        if(this.video && this.video.sync) {
             try{
                 !this.video.paused ? this.video.pause() : 0;    
             }catch(ex) {
@@ -1903,7 +1947,9 @@ class KeyframeEditor extends Editor{
         this.currentCharacter.mixer.update(0); // BUG: for some reason this is needed. Otherwise, after sme timeline edition + optimization, weird things happen
 
         // Update video
-        this.video.currentTime = this.video.startTime + t;
+        if(this.video) {
+            this.video.currentTime = this.video.startTime + t;
+        }
         this.currentTime = t;
         this.gizmo.updateBones();
     }
@@ -2359,10 +2405,13 @@ class KeyframeEditor extends Editor{
 
             const innerParse = (event) => {
                 const content = event.srcElement ? event.srcElement.result : event;
-                if(data.type.includes('bvhe')) {
+                
+                const type = data.type || UTILS.getExtension(data.name).toLowerCase();
+                
+                if(type.includes('bvhe')) {
                     data.animation = this.BVHloader.parseExtended( content );
                 }
-                else if(data.type.includes('bvh')) {
+                else if(type.includes('bvh')) {
                     data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
                 }
                 else {
@@ -2372,8 +2421,8 @@ class KeyframeEditor extends Editor{
                     callback(data)
                 }
             }
-            const content = data.data;
-            if(content.constructor.name == "Blob") {
+            const content = data.data ? data.data : data;
+            if(content.constructor.name == "Blob" || content.constructor.name == "File") {
                 const reader = new FileReader();
                 reader.readAsText(content);
                 reader.onloadend = innerParse;
@@ -2516,8 +2565,13 @@ class ScriptEditor extends Editor{
         return true;
     }
 
-    loadFile(file) {
+    loadFiles(files) {
         //load json (bml) file
+        let file = files;
+        if(typeof(files) == "array") {
+            file = files[0];
+        }
+
         const extension = UTILS.getExtension(file.name);
         const formats = ['json', 'bml', 'sigml'];
         if(formats.indexOf(extension) < 0) {

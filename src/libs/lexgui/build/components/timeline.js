@@ -1283,6 +1283,9 @@ class KeyFramesTimeline extends Timeline {
         if(this.animationClip && this.animationClip.tracks.length) {
             this.processTracks(this.animationClip);
         }
+        else {
+            this.addNewTrack();
+        }
     }
 
     onMouseUp( e, time )  {

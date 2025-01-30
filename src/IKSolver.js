@@ -234,7 +234,8 @@ class BaseSolver {
      */
     getChain( name ){
         for (let i = 0; i< this.chains.length; ++i){
-            if ( this.chains[i].name === name ){ return this.chains[i]; }
+            let chainName = this.chains[i].name;
+            if ( chainName === name || chainName.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") == name){ return this.chains[i]; }
         }
         return null;
     }

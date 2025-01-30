@@ -383,10 +383,10 @@ class Gui {
 			e.preventDefault();
 			e.stopPropagation();
 	
-			const file = e.dataTransfer.files[0];
-            if(!file)
+			const files = e.dataTransfer.files;
+            if(!files.length)
                 return;
-			this.editor.loadFile(file);
+			this.editor.loadFiles(files);
       
         };
         // Create menu bar
@@ -409,7 +409,7 @@ class Gui {
         let menubar = this.menubar;     
         
         // menubar.add("Project/");
-        menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFile(), short: "CTRL+I"});
+        menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+I"});
 
         if(this.editor.mode != this.editor.editionModes.SCRIPT) {
             menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+O"});
@@ -564,15 +564,14 @@ class Gui {
         menubar.setButtonIcon("Github", "fa-brands fa-github", () => {window.open("https://github.com/upf-gti/animics")}, {float:"right"});
     }
 
-    importFile () {
+    importFiles () {
         
         const input = document.createElement('input');
         input.type = 'file';
         input.click();
 
         input.onchange = (e) => {
-            const file = e.currentTarget.files[0];
-            this.editor.loadFile(file);
+            this.editor.loadFiles(e.currentTarget.files);
         }
     }
 
@@ -779,7 +778,7 @@ class Gui {
                 else {
                     saveDataToServer("server");
                 }
-            }, [ "BVH", "BVH extended"]) // TO DO: ALLOW GLB AND GLTF 
+            }, [ "BVH", "BVH extended"]);
         }
     }
 
@@ -1046,22 +1045,25 @@ class KeyframesGui extends Gui {
         this.boneProperties = {};
 
         //Create capture video window
-        this.createCaptureArea(this.mainArea);
+        //this.createCaptureArea(this.mainArea);
     }
 
     init() {
-        this.createVideoEditorArea();
-        this.showVideo = true
+        // TO DO: Call them in the new interface
+        // this.createVideoEditorArea();
+        this.editorArea.show();
+        // this.showVideo = true
         // Canvas UI buttons
         this.createSceneUI(this.canvasArea);
 
-        this.hideCaptureArea();
+        // this.hideCaptureArea();
         this.createSidePanel();
         
         this.updateMenubar()
         this.showTimeline();
         
-        this.initEditionGUI();
+        // TO DO: Call it in the new interface
+        // this.initEditionGUI();
     }
 
     /** -------------------- CAPTURE GUI (app) --------------------  */
@@ -1360,7 +1362,6 @@ class KeyframesGui extends Gui {
         const height = (300 * aspectRatio) + "px";
        
         this.captureArea.hide();
-        this.editorArea.show();
        
         const area = new LX.Area({                
             id: "editor-video", draggable: true, resizeable:true, width, height, overlay:"left", left: "20px", top: "20px"
@@ -1900,7 +1901,7 @@ class KeyframesGui extends Gui {
             // this.updatePropagationWindowCurve();
             this.propagationWindow.setTimeline( this.keyFramesTimeline );
         }}  );
-        if(this.editor.getCurrentBindedAnimation().auAnimation) {
+        if(this.editor.getCurrentBindedAnimation() && this.editor.getCurrentBindedAnimation().auAnimation) {
 
             tabs.add( "Face", faceArea, { onSelect: (e,v) => {
                 this.editor.setAnimation(this.editor.animationModes.FACE); 

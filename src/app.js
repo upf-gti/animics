@@ -26,6 +26,10 @@ class App {
         const mode = settings.mode ?? 'script';
         let callback;
         switch(mode) {
+            case 'keyframes':
+                this.editor = new KeyframeEditor(this, "");
+                callback = this.editor.startEdition.bind(this.editor);
+                break;
             case 'capture': 
                 this.editor = new KeyframeEditor(this, "CAPTURE");
                 callback = this.onBeginCapture.bind(this);
