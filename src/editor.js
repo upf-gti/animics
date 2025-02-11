@@ -1853,6 +1853,38 @@ class KeyframeEditor extends Editor{
         // }
     }
 
+    loadFiles(files) {
+        const animExtensions = ['bvh','bvhe'];
+        let resultFiles = [];
+        let mode = "";
+        // first valid file will determine the mode. Following files must be of the same format
+        for(let i = 0; i < files.length; ++i){
+            // MIME type is video
+            if(files[i].type.startsWith("video/")) { 
+                if (!mode) { mode = "video"; }
+                
+                if ( mode == "video" ){
+                    resultFiles.push( files[i] );
+                }
+                continue;
+            }
+            // other valid file formats
+            const extension = UTILS.getExtension(files[i].name).toLowerCase();
+                            
+            if(animExtensions.includes(extension)) { 
+                if (!mode) { mode = "bvh"; }
+                
+                if ( mode == "bvh"){
+                    const modal = this.gui.createAnimation();
+                    resultFiles.push( files[i] );
+                    this.fileToAnimation(files[i], (file) => {
+                        this.loadAnimation( file.name, file.animation );
+                        modal.close();
+                    });
+                }
+            }
+        }
+    }
 
     onPlay() {
     
@@ -2359,10 +2391,13 @@ class KeyframeEditor extends Editor{
 
             const innerParse = (event) => {
                 const content = event.srcElement ? event.srcElement.result : event;
-                if(data.type.includes('bvhe')) {
+                
+                const type = data.type || UTILS.getExtension(data.name).toLowerCase();
+                
+                if(type.includes('bvhe')) {
                     data.animation = this.BVHloader.parseExtended( content );
                 }
-                else if(data.type.includes('bvh')) {
+                else if(type.includes('bvh')) {
                     data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
                 }
                 else {
@@ -2372,8 +2407,8 @@ class KeyframeEditor extends Editor{
                     callback(data)
                 }
             }
-            const content = data.data;
-            if(content.constructor.name == "Blob") {
+            const content = data.data ? data.data : data;
+            if(content.constructor.name == "Blob" || content.constructor.name == "File") {
                 const reader = new FileReader();
                 reader.readAsText(content);
                 reader.onloadend = innerParse;

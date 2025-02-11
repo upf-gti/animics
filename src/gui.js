@@ -383,10 +383,10 @@ class Gui {
 			e.preventDefault();
 			e.stopPropagation();
 	
-			const file = e.dataTransfer.files[0];
-            if(!file)
+			const files = e.dataTransfer.files;
+            if(!files.length)
                 return;
-			this.editor.loadFile(file);
+			this.editor.loadFiles(files);
       
         };
         // Create menu bar
@@ -571,8 +571,7 @@ class Gui {
         input.click();
 
         input.onchange = (e) => {
-            const file = e.currentTarget.files[0];
-            this.editor.loadFile(file);
+            this.editor.loadFiles(e.currentTarget.files);
         }
     }
 
