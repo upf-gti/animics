@@ -453,6 +453,7 @@ class Editor {
         if(this.FS.session.user.username != "signon") {
             showGuide = false;
         }
+        
         this.gui.init(showGuide);
         this.animate();
         $('#loading').fadeOut();
@@ -1195,7 +1196,8 @@ class KeyframeEditor extends Editor{
             this.loadAnimation("new animation", { skeletonAnim : animation});
         }
         this.gui.init(this.video);
-        
+        // //Create capture video window
+        // this.gui.createCaptureArea(this.gui.mainArea);
         this.animate();
         this.setAnimation(this.animationModes.BODY);
         $('#loading').fadeOut();
@@ -1899,8 +1901,8 @@ class KeyframeEditor extends Editor{
         }
         this.mode = this.editionModes.VIDEO;
         this.gui.editorArea.hide();
-        this.gui.captureArea.show();
         this.gui.createCaptureArea();
+        this.gui.captureArea.show();
         // this.gui.mainArea.sections[1].attach(this.gui.captureArea);
             //   this.showVideo = true
         this.getApp().onLoadVideos( resultFiles );

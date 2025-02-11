@@ -1044,13 +1044,16 @@ class KeyframesGui extends Gui {
 
         this.boneProperties = {};
 
-        //Create capture video window
-        this.createCaptureArea(this.mainArea);
+        // //Create capture video window
+        // this.createCaptureArea(this.mainArea);
     }
 
     init(showVideo = false) {
         // TO DO: Call them in the new interface
-        this.createVideoEditorArea();
+        if(showVideo) {
+            this.createVideoEditorArea();
+            this.initEditionGUI();
+        }
         this.editorArea.show();
         this.showVideo = showVideo;
         // Canvas UI buttons
@@ -1071,6 +1074,9 @@ class KeyframesGui extends Gui {
     /** -------------------- CAPTURE GUI (app) --------------------  */
     createCaptureArea(area) {
 
+        if(this.captureArea) {
+            return;
+        }
         this.captureArea = new LX.Area();
         const [leftArea, rightArea] = this.captureArea.split({sizes:["75%","25%"], minimizable: true});
         
@@ -1197,6 +1203,9 @@ class KeyframesGui extends Gui {
             }
         }], {float: 'tvr'});
 
+        if(this.videoEditor) {
+            this.videoEditor.unbind();
+        }
         this.videoEditor = new LX.VideoEditor(videoEditorArea, {videoArea, video})
         this.videoEditor.hideControls();
         this.videoEditor.onResize = (size) => {
@@ -1883,7 +1892,10 @@ class KeyframesGui extends Gui {
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
   
-        
+        if(this.sidePanel && this.sidePanel.root.children.length) {
+            this.sidePanel.root.children[0].remove();
+        }
+
         let area = new LX.Area({className: "sidePanel", id: 'panel', scroll: true});  
         this.sidePanel.attach(area);
        

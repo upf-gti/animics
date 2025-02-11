@@ -267,6 +267,10 @@ class App {
      * @param {File} videos 
      */
     onLoadVideos( videoFiles ){
+        if(!this.editor.gui.recordedVideo) {
+            this.editor.gui.createCaptureArea();
+        }
+
         if ( videoFiles && videoFiles.length == 1 ){
             this.onLoadSingleVideo(videoFiles[0]);
             return;
@@ -440,7 +444,8 @@ class App {
         $(captureDiv).removeClass("hidden");
 
         let canvas = this.editor.gui.canvasVideo;
-        let video = this.editor.gui.recordedVideo;
+        let video = this.editor.video = this.editor.gui.recordedVideo;
+        this.editor.video.startTime = 0;
         video.classList.remove("hidden");
         // video.style.width = canvas.offsetWidth + "px";
         // video.style.height = canvas.offsetHeight + "px";
