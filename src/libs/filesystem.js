@@ -6,7 +6,7 @@ class FileSystem{
     constructor(user, pass, callback) {
         this.session = null;
         this.parsers = {};
-        this.host = "http://signon-lfs.gti.sb.upf.edu/";
+        this.host = "https://signon-lfs.gti.sb.upf.edu/";
         this.root = this.host + "/files/";
 
         this.user = user;
