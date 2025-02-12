@@ -6,7 +6,8 @@ class FileSystem{
     constructor(user, pass, callback) {
         this.session = null;
         this.parsers = {};
-        this.root = "https://webglstudio.org/projects/signon/repository/files/";
+        this.host = "http://signon-lfs.gti.sb.upf.edu/";
+        this.root = this.host + "/files/";
 
         this.user = user;
         this.pass = pass;
@@ -14,7 +15,7 @@ class FileSystem{
         this.ALLOW_GUEST_UPLOADS = true;
 
         // init server this.onReady.bind(this, user, pass, (s) => {this.session = s; callback;})
-        LFS.setup("https://webglstudio.org/projects/signon/repository/src/", () => {
+        LFS.setup(this.host + "src/", () => {
 
             LFS.checkExistingSession(callback);
         });

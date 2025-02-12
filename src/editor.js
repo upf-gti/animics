@@ -1099,7 +1099,7 @@ class Editor {
 
         session.getFileInfo(username + "/" + folder + "/" + filename, (file) => {
 
-            if(file.size) {
+            if(file && file.size) {
                 // files = files.filter(e => e.unit === username && e.filename === filename);
 
                 // if(files.length)
@@ -1117,8 +1117,8 @@ class Editor {
                     }} )
                 // }
                 
-            }else
-            {
+            }
+            else {
                 this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(filename));
             }
         },
@@ -1222,7 +1222,7 @@ class KeyframeEditor extends Editor{
     }
 
     loadNNSkeleton() {
-        this.BVHloader.load( 'models/kateBVH.bvh', (result) => {
+        this.BVHloader.load( 'data/models/kateBVH.bvh', (result) => {
             // loader does not correctly compute the skeleton boneInverses and matrixWorld 
             result.skeleton.bones[0].updateWorldMatrix( false, true ); // assume 0 is root
             result.skeleton = new THREE.Skeleton( result.skeleton.bones ); // will automatically compute boneInverses
