@@ -4,16 +4,14 @@ import { CharacterController } from './libs/bml/CharacterController.js';
 
 class BMLController {
 
-    constructor(currentCharacter) {
+    constructor(currentCharacter, config) {
 
         this.undoSteps = [];
-
-        fetch( "https://webglstudio.org/3Dcharacters/" + currentCharacter.name + "/" + currentCharacter.name + ".json" ).then(response => response.text()).then( (text) => {
-            let config = JSON.parse( text );
-            let ECAcontroller = this.ECAcontroller = new CharacterController( {character: currentCharacter.model, characterConfig: config} );
-            ECAcontroller.start({autoblink: false});
-            ECAcontroller.reset();
-        })
+        
+        let ECAcontroller = this.ECAcontroller = new CharacterController( {character: currentCharacter.model, characterConfig: config} );
+        ECAcontroller.start({autoblink: false});
+        ECAcontroller.reset();
+    
         
         this.bmlManager = new BehaviourManager();
         // Update in first iteration

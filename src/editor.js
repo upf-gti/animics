@@ -28,6 +28,8 @@ THREE.ShaderChunk[ 'morphtarget_pars_vertex' ] = "#ifdef USE_MORPHTARGETS\n	unif
 THREE.ShaderChunk[ 'morphtarget_vertex' ] = "#ifdef USE_MORPHTARGETS\n	transformed *= morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		for ( int i = 0; i < MORPHTARGETS_COUNT; i ++ ) {\n			#ifndef USE_MORPHNORMALS\n				transformed += getMorph( gl_VertexID, i, 0, 1 ) * morphTargetInfluences[ i ];\n			#else\n				transformed += getMorph( gl_VertexID, i, 0, 2 ) * morphTargetInfluences[ i ];\n			#endif\n		}\n	#else\n		transformed += morphTarget0 * morphTargetInfluences[ 0 ];\n		transformed += morphTarget1 * morphTargetInfluences[ 1 ];\n		transformed += morphTarget2 * morphTargetInfluences[ 2 ];\n		transformed += morphTarget3 * morphTargetInfluences[ 3 ];\n		#ifndef USE_MORPHNORMALS\n			transformed += morphTarget4 * morphTargetInfluences[ 4 ];\n			transformed += morphTarget5 * morphTargetInfluences[ 5 ];\n			transformed += morphTarget6 * morphTargetInfluences[ 6 ];\n			transformed += morphTarget7 * morphTargetInfluences[ 7 ];\n		#endif\n	#endif\n#endif"; 
 
 class Editor {
+    static RESOURCES_PATH = "https://webglstudio.org/3Dcharacters/";
+    static PERFORMS_PATH = "https://webglstudio.org/projects/signon/performs";
     
     constructor(app, mode) {
         
@@ -339,7 +341,7 @@ class Editor {
 
     loadCharacter(characterName) {
         // Load the target model (Eva) 
-        UTILS.loadGLTF("https://webglstudio.org/3Dcharacters/" + characterName + "/" + characterName + ".glb", (gltf) => {
+        UTILS.loadGLTF(Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb", (gltf) => {
             let model = gltf.scene;
             model.name = characterName;
             model.visible = true;
@@ -403,7 +405,10 @@ class Editor {
                 model.neckTarget = neckTarget;
 
                 skeletonHelper.visible = false;
-                this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] );
+                fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
+                    let config = JSON.parse( text );
+                    this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
+                })
             }
             else {
                 this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
@@ -876,7 +881,7 @@ class Editor {
         
         const openPreview = (data) => {
             if(!this.realizer || this.realizer.closed) {
-                this.realizer = window.open(url, "Preview");
+                this.realizer = window.open(Editor.PERFORMS_PATH, "Preview");
                 this.realizer.onload = (e, d) => {
                     this.performsApp = e.currentTarget.global.app;
                     sendData(data);
@@ -890,7 +895,7 @@ class Editor {
                 sendData(data);       
             }  
         }
-        let url = "https://webglstudio.org/projects/signon/performs"; 
+    
         let data = [];
         if(this.mode == this.editionModes.SCRIPT) {
             
