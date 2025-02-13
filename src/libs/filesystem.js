@@ -1,9 +1,8 @@
 import { LFS } from './litefileserver.js';
-// FILESYSTEM FOR PRESENT PROJECT 
 
-class FileSystem{
+class FileSystem {
     
-    constructor(user, pass, callback) {
+    constructor( user, pass, callback ) {
         this.session = null;
         this.parsers = {};
         this.host = "https://signon-lfs.gti.sb.upf.edu/";
@@ -12,7 +11,7 @@ class FileSystem{
         this.user = user;
         this.pass = pass;
 
-        this.ALLOW_GUEST_UPLOADS = true;
+        this.ALLOW_GUEST_UPLOADS = false;
 
         // init server this.onReady.bind(this, user, pass, (s) => {this.session = s; callback;})
         LFS.setup(this.host + "src/", () => {
@@ -29,7 +28,6 @@ class FileSystem{
         return this.session;
     }
 
-    
 	setSession(session)
 	{
 		if(!session || !session.status)

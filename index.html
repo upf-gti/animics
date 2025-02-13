@@ -43,38 +43,46 @@
 
 	<script type="module">
 
-		import { App } from "./src/app.js";
-		import { UTILS } from "./src/utils.js";
+		import {Animics} from './src/Animics.js'
 
-		window.global = {};
-	
-		const createApp = window.global.createApp = (settings) => {
+		const body = document.getElementById("page-top");
+		const keyframeBtn = document.getElementById("keyframe-project");
+		// const videoBtn = document.getElementById("video-project");
+		// const webcamBtn = document.getElementById("webcam-project");
 
-			$("#mainNav").remove();
-			$(".masthead").remove();
-			$("footer").remove();
-			const app = window.global.app = new App();
-			app.init(settings);
-			return app;
+		const scriptBtn = document.getElementById("script-project");
+		const importBtn = document.getElementById("import");
+		// const importScriptBtn = document.getElementById("import-script");
+
+		const startAnimics = (settings) => {
+			body.innerHTML = "";
+
+			const animics = new Animics();
+			animics.init(settings);
+			
+			window.global = {app: animics};
 		}
-	
+		
 		const onLoadFiles = function( files ){
-			if(!files || !files.length){ return null; }
-			console.log(files);
-
+			if(!files || !files.length) { 
+				return null; 
+			}
+			
 			let mode = null;
 			let resultFiles = [];
 			
 			const animExtensions = ['bvh','bvhe'];
 			const scriptExtensions = ['json', 'bml', 'sigml'];
 
-			// first valid file will determine the mode. Following files must be of the same format
+			// First valid file will determine the mode. Following files must be of the same format
 			for(let i = 0; i < files.length; ++i){
 				// MIME type is video
 				if(files[i].type.startsWith("video/")) { 
-					if (!mode) { mode = "video"; }
+					if ( !mode ) { 
+						mode = "video"; 
+					}
 					
-					if ( mode == "video" ){
+					if ( mode == "video" ) {			
 						resultFiles.push( files[i] );
 					}
 					continue;
@@ -84,56 +92,67 @@
 				const extension = UTILS.getExtension(files[i].name).toLowerCase();
 								
 				if(animExtensions.includes(extension)) { 
-					if (!mode) { mode = "bvh"; }
+					if ( !mode ) {
+						mode = "bvh";
+					}
 					
-					if ( mode == "bvh"){
+					if ( mode == "bvh") {
 						resultFiles.push( files[i] );
 					}
 				}
 
 				if(scriptExtensions.includes(extension)) { 
-					if (!mode) { mode = "script"; }
+					if ( !mode ) {
+						mode = "script";
+					}
 
-					if ( mode == "script"){
+					if ( mode == "script") {
 						resultFiles.push( files[i] );
 					}
 				}
 			}
 
-			if ( resultFiles.length ){
-				return createApp({mode: mode, data: resultFiles});
+			if ( resultFiles.length ) {
+				return startAnimics({mode: mode, pendingResources: resultFiles});
 			}	
 				
 			alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
 			return null;
 		}
 
-		const dialog = $("#page-top")[0];
-		dialog.ondragover = () => {return false};
-		dialog.ondragend = () => {return false};
-		dialog.ondrop = (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			if ( onLoadFiles( e.dataTransfer.files ) ){
-				$("#page-top")[0].ondrop = null;
+		// Keyframe mode
+		keyframeBtn.addEventListener("click", () => {
+			startAnimics({mode: "keyframe"});
+		});
+
+		// Script mode
+		scriptBtn.addEventListener("click", () => {
+			startAnimics({mode: "script"});
+		});
+    
+		// Import resurces 
+		importBtn.addEventListener("click", () => {
+    		const input = document.createElement('input');
+    		input.type = 'file';
+    		input.click();
+    		input.onchange = (event) => { 
+				startAnimics({pendingResources: event.currentTarget.files})
+			};
+		});
+
+		body.ondragover = () => {return false};
+		body.ondragend = () => {return false};
+		body.ondrop = (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if ( onLoadFiles( event.dataTransfer.files ) ){
+				body.ondrop = null;
 			}
-			
 		};
-	
-		$("#keyframe-project").click(() => {
-			createApp({mode: "capture"});
-		});
-		$("#bml-project").click(() => {
-			createApp({mode: "bml"});
-		});
-		$("#import").click(() =>{
-			const input = document.createElement('input');
-			input.type = 'file';
-			input.click();
-			input.onchange = (e) => { onLoadFiles(e.currentTarget.files); };
-		});
-				
+
+		
 	</script>
+
     <body id="page-top">
         <!-- Navigation-->
         <!-- <nav class="navbar navbar-expand-lg navbar-light fixed-top py-3" id="mainNav">
@@ -165,7 +184,7 @@
 						<!-- <a id="from-file" class="btn btn-primary btn-xl">From Video or Animation</a>
 						<a id="new-capture" class="btn btn-primary btn-xl">New Capture</a> -->
 						<div style="margin-left: 1rem;">
-							<a id="bml-project" class="btn btn-primary btn-xl" style="width: 124px;" title="From text instructions">Script animation</a>
+							<a id="script-project" class="btn btn-primary btn-xl" style="width: 124px;" title="From text instructions">Script animation</a>
 							<a id="keyframe-project" class="btn btn-primary btn-xl" style="width: 124px;" title="From video or webcam input">Keyframe animation</a>
 							<br>
 							<br>

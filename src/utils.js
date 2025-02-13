@@ -107,6 +107,10 @@ const UTILS = {
 		$("#loading").fadeIn();
 	},
 
+	hideLoading( ) {
+
+	},
+	
 	// Function to download data to a file
 	download: function(data, filename, type = "text/plain") {
         let file = new Blob([data], {type: type});

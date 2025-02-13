@@ -1,6 +1,5 @@
 import { MediaPipe } from "./mediapipe.js";
-import { KeyframeEditor, ScriptEditor } from "./editor.js";
-import { VideoUtils } from "./video.js";
+import { KeyframeEditor, ScriptEditor } from "./editor_old.js";
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { LX } from 'lexgui';
 import { UTILS } from "./utils.js";
@@ -345,7 +344,7 @@ class App {
         
     }
 
-    // after video has been trimmed by VideoUtils and has been unbound
+
     onVideoTrimmed(startTime, endTime){
         this.mediapipeOnlineVideo = null; 
         
@@ -462,7 +461,6 @@ class App {
                
             },
             onVideoLoaded: async (v) => {
-                // (re)start process video online but let VideoUtils manage the render
                 MediaPipe.setOptions( { autoDraw: true } );
                 if ( this.mediapipeOnlineEnabler ){ 
                     MediaPipe.processVideoOnline(video, this.editor.mode == this.editor.editionModes.CAPTURE); // stop any current video process ("#inputVideo") and start processing this one ("#recording")

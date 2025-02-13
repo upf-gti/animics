@@ -1,5 +1,4 @@
 import { UTILS } from "./utils.js";
-// import { VideoUtils } from "./video.js"; 
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
@@ -376,28 +375,18 @@ class Gui {
 
     constructor(editor) {
        
+        this.editor = editor;
+        this.mainArea = editor.editorArea;
+
         this.timelineVisible = false;
         this.currentTime = 0;
-        this.editor = editor;
         this.duration = 0;
-               
+
         this.create();
     }
 
     create() {
-
-        // Create main area
-        this.mainArea = LX.init();
-        this.mainArea.root.ondrop = (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-	
-			const files = e.dataTransfer.files;
-            if(!files.length)
-                return;
-			this.editor.loadFiles(files);
-      
-        };
+        
         // Create menu bar
         this.createMenubar(this.mainArea);
 
@@ -1003,6 +992,7 @@ class Gui {
             
         }
     }
+    
     createAnimation(options) {
         options = options || {size: ["80%", "70%"]};
 
