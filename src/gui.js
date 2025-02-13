@@ -373,150 +373,177 @@ class PropagationWindow {
 
 class Gui {
 
-    constructor(editor) {
+    constructor( editor)  {
        
         this.editor = editor;
-        this.mainArea = editor.editorArea;
 
         this.timelineVisible = false;
         this.currentTime = 0;
         this.duration = 0;
 
-        this.create();
-    }
-
-    create() {
-        
         // Create menu bar
-        this.createMenubar(this.mainArea);
+        this.createMenubar(editor.editorArea);
+
+        [this.menubar, this.mainArea] = editor.editorArea.sections;
+        // split main area
+        this.mainArea.split({sizes:["80%","20%"], minimizable: true});
+
+        //left -> canvas, right -> side panel
+        var [left, right] = this.mainArea.sections;
+        left.id = "canvasarea";
+        left.root.style.position = "relative";
+        right.id = "sidepanel";
+        this.mainArea.split_bar.style.zIndex = right.root.style.zIndex = 1;
+        [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
+
+        this.sidePanel = right;
+   
 
         //Create timelines (keyframes and clips)
-        this.createTimelines();
+        this.createTimelines( );
     }
 
+    init( showGuide ) {       
+
+        this.createSidePanel();
+    
+        this.showTimeline();
+        
+        // Canvas UI buttons
+        this.createSceneUI(this.canvasArea);
+
+        if(showGuide) {
+            this.showGuide();
+        }
+    }
+
+    
+    showGuide() {
+        
+    }
     /** Create menu bar */
     createMenubar(area) {
 
         this.menubar = area.addMenubar( m => {
             m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => window.location.reload(), {float: "left"});   
         });
-    }
 
-    updateMenubar() {
         // var that = this;
         let menubar = this.menubar;     
         
         // menubar.add("Project/");
-        menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFile(), short: "CTRL+I"});
+        menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+I"});
 
-        if(this.editor.mode != this.editor.editionModes.SCRIPT) {
-            menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+O"});
-        }
-        else {
-            menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", short: "CTRL+O"});
-            menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
-            menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
-            menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
-        }
+        this.onCreateMenuBar(menubar);
+        
+        // if(this.editor.mode != this.editor.editionModes.SCRIPT) {
+        //     menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+O"});
+        // }
+        // else {
+        //     menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", short: "CTRL+O"});
+        //     menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
+        //     menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
+        //     menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
+        // }
           
-        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-            // Export animation
-            menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
-            menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
-            });
-            menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-                this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export(null, "BVH extended", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true } );
-            }});
-        }
-        else {
-            // Export animation
-            menubar.add("Project/Export animations", {icon: "fa fa-file-export"});
+        // if(this.editor.mode == this.editor.editionModes.SCRIPT) {
+        //     // Export animation
+        //     menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
+        //     menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
+        //     });
+        //     menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
+        //         this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export(null, "BVH extended", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true } );
+        //     }});
+        // }
+        // else {
+        //     // Export animation
+        //     menubar.add("Project/Export animations", {icon: "fa fa-file-export"});
     
-            menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
-                this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
-            }});
-        }
+        //     menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
+        //         this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
+        //     }});
+        // }
         
-        menubar.add("Project/Export character & animations", {icon: "fa fa-download"});
-        menubar.add("Project/Export character & animations/Export GLB", {callback: () => {
-                this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
-        }});
+        // menubar.add("Project/Export character & animations", {icon: "fa fa-download"});
+        // menubar.add("Project/Export character & animations/Export GLB", {callback: () => {
+        //         this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
+        // }});
         
-        // Save animation
-        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
+        // // Save animation
+        // menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
 
-        menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
+        // menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
 
-        // menubar.add("Timeline/");
-        menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
-        menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
-        menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
-        menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
-        menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
-        menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
+        // // menubar.add("Timeline/");
+        // menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
+        // menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
+        // menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
+        // menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
+        // menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
+        // menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
         
-        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-            menubar.add("Timeline/Shortcuts/Create preset", { short: "Right click" });
-            menubar.add("Timeline/Shortcuts/Add clip", { short: "CTRL+K" });
-            menubar.add("Timeline/Shortcuts/Add preset", { short: "CTRL+P" });
-            menubar.add("Timeline/Shortcuts/Add sign", { short: "CTRL+L" });
-            menubar.add("Timeline/Shortcuts/Move clips", { short: "Hold CTRL" });
-            menubar.add("Timeline/Shortcuts/Add clips", { short: "Right Click" });
-            menubar.add("Timeline/Shortcuts/Copy clips", { short: "Right Click" });
-            menubar.add("Timeline/Shortcuts/Copy clips", { short: "CTRL+C" });
-            menubar.add("Timeline/Shortcuts/Delete clips");
-            menubar.add("Timeline/Shortcuts/Delete clips/Single", { short: "DEL" });
-            menubar.add("Timeline/Shortcuts/Delete clip/Multiple", { short: "Hold LSHIFT+DEL" });
-            menubar.add("Timeline/Shortcuts/Clip Selection");
-            menubar.add("Timeline/Shortcuts/Clip Selection/Single", { short: "Left Click" });
-            menubar.add("Timeline/Shortcuts/Clip Selection/Multiple", { short: "Hold LSHIFT" });
-        }
-        else {
-            menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
-            menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
-            menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
-            menubar.add("Timeline/Shortcuts/Delete keys");
-            menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
-            menubar.add("Timeline/Shortcuts/Delete keys/Multiple", { short: "Hold LSHIFT" });
-            menubar.add("Timeline/Shortcuts/Key Selection");
-            menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
-            menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
-            menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
-            menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
-            menubar.add("Timeline/Optimize all tracks", { callback: () => {
-                    // optimize all tracks of current binded animation (if any)
-                    this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
-                    this.keyFramesTimeline.optimizeTracks();
-                }
-            });
+        // if(this.editor.mode == this.editor.editionModes.SCRIPT) {
+        //     menubar.add("Timeline/Shortcuts/Create preset", { short: "Right click" });
+        //     menubar.add("Timeline/Shortcuts/Add clip", { short: "CTRL+K" });
+        //     menubar.add("Timeline/Shortcuts/Add preset", { short: "CTRL+P" });
+        //     menubar.add("Timeline/Shortcuts/Add sign", { short: "CTRL+L" });
+        //     menubar.add("Timeline/Shortcuts/Move clips", { short: "Hold CTRL" });
+        //     menubar.add("Timeline/Shortcuts/Add clips", { short: "Right Click" });
+        //     menubar.add("Timeline/Shortcuts/Copy clips", { short: "Right Click" });
+        //     menubar.add("Timeline/Shortcuts/Copy clips", { short: "CTRL+C" });
+        //     menubar.add("Timeline/Shortcuts/Delete clips");
+        //     menubar.add("Timeline/Shortcuts/Delete clips/Single", { short: "DEL" });
+        //     menubar.add("Timeline/Shortcuts/Delete clip/Multiple", { short: "Hold LSHIFT+DEL" });
+        //     menubar.add("Timeline/Shortcuts/Clip Selection");
+        //     menubar.add("Timeline/Shortcuts/Clip Selection/Single", { short: "Left Click" });
+        //     menubar.add("Timeline/Shortcuts/Clip Selection/Multiple", { short: "Hold LSHIFT" });
+        // }
+        // else {
+        //     menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
+        //     menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
+        //     menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
+        //     menubar.add("Timeline/Shortcuts/Delete keys");
+        //     menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
+        //     menubar.add("Timeline/Shortcuts/Delete keys/Multiple", { short: "Hold LSHIFT" });
+        //     menubar.add("Timeline/Shortcuts/Key Selection");
+        //     menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
+        //     menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
+        //     menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
+        //     menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
+        //     menubar.add("Timeline/Optimize all tracks", { callback: () => {
+        //             // optimize all tracks of current binded animation (if any)
+        //             this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
+        //             this.keyFramesTimeline.optimizeTracks();
+        //         }
+        //     });
 
-            menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
-        }
+        //     menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
+        // }
 
 
-        menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
-        if(this.showVideo) {
-            menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
-                this.editor.setVideoVisibility( v );
-                this.showVideo = v;
-                // const tl = document.getElementById("capture");
-                // tl.style.display = this.showVideo ? "flex": "none";
-            }});
-        }
-        if (this.editor.mode != this.editor.editionModes.SCRIPT){
-            menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
-                this.openSettings("gizmo");
-            }});
-        }
+        // menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
+        // if(this.showVideo) {
+        //     menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
+        //         this.editor.setVideoVisibility( v );
+        //         this.showVideo = v;
+        //         // const tl = document.getElementById("capture");
+        //         // tl.style.display = this.showVideo ? "flex": "none";
+        //     }});
+        // }
+        // if (this.editor.mode != this.editor.editionModes.SCRIPT){
+        //     menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
+        //         this.openSettings("gizmo");
+        //     }});
+        // }
 
-        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-            // menubar.add("Help/");
-            menubar.add("Help/Tutorial", {callback: () => window.open("docs/script_animation.html", "_blank")});
-            menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank")});
-        }
-        else {
-            menubar.add("Help/Tutorial", {callback: () => window.open("docs/keyframe_animation.html", "_blank")});
-        }
+        // if(this.editor.mode == this.editor.editionModes.SCRIPT) {
+        //     // menubar.add("Help/");
+        //     menubar.add("Help/Tutorial", {callback: () => window.open("docs/script_animation.html", "_blank")});
+        //     menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank")});
+        // }
+        // else {
+        //     menubar.add("Help/Tutorial", {callback: () => window.open("docs/keyframe_animation.html", "_blank")});
+        // }
 
         menubar.addButtons( [
             {
@@ -563,7 +590,7 @@ class Gui {
         menubar.setButtonIcon("Github", "fa-brands fa-github", () => {window.open("https://github.com/upf-gti/animics")}, {float:"right"});
     }
 
-    importFile () {
+    importFiles () {
         
         const input = document.createElement('input');
         input.type = 'file';
@@ -992,7 +1019,7 @@ class Gui {
             
         }
     }
-    
+
     createAnimation(options) {
         options = options || {size: ["80%", "70%"]};
 
@@ -1045,22 +1072,98 @@ class KeyframesGui extends Gui {
         this.boneProperties = {};
 
         //Create capture video window
-        this.createCaptureArea(this.mainArea);
+        // this.createCaptureArea(this.mainArea);
     }
 
-    init() {
-        this.createVideoEditorArea();
-        this.showVideo = true
-        // Canvas UI buttons
-        this.createSceneUI(this.canvasArea);
+    // init() {
+    //     this.createVideoEditorArea();
+    //     this.showVideo = true
+    //     // Canvas UI buttons
+        
+    //     this.hideCaptureArea();
+        
+    //     this.createSidePanel();
+        
+    //     this.updateMenubar()
+    //     this.showTimeline();
+        
+    //     this.createSceneUI(this.canvasArea);
+    //     this.initEditionGUI();
 
-        this.hideCaptureArea();
-        this.createSidePanel();
+    //     //
         
-        this.updateMenubar()
-        this.showTimeline();
+    // }
+
+    onCreateMenuBar( menubar ) {
         
-        this.initEditionGUI();
+        menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", short: "CTRL+O"});
+        menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
+        menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
+        menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
+                  
+        // Export animation
+        menubar.add("Project/Export animations", {icon: "fa fa-file-export"});
+
+        menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
+            this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
+        }});
+        
+        menubar.add("Project/Export character & animations", {icon: "fa fa-download"});
+        menubar.add("Project/Export character & animations/Export GLB", {callback: () => {
+                this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
+        }});
+        
+        // Save animation
+        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
+
+        menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
+
+        // menubar.add("Timeline/");
+        menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
+        menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
+        menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
+        menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
+        menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
+        menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
+        
+        menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
+        menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
+        menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
+        menubar.add("Timeline/Shortcuts/Delete keys");
+        menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
+        menubar.add("Timeline/Shortcuts/Delete keys/Multiple", { short: "Hold LSHIFT" });
+        menubar.add("Timeline/Shortcuts/Key Selection");
+        menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
+        menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
+        menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
+        menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
+        menubar.add("Timeline/Optimize all tracks", { callback: () => {
+                // optimize all tracks of current binded animation (if any)
+                this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
+                this.keyFramesTimeline.optimizeTracks();
+            }
+        });
+
+        menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
+
+
+        menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
+        if(this.showVideo) {
+            menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
+                this.editor.setVideoVisibility( v );
+                this.showVideo = v;
+                // const tl = document.getElementById("capture");
+                // tl.style.display = this.showVideo ? "flex": "none";
+            }});
+        }
+        menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
+            this.openSettings("gizmo");
+        }});
+      
+
+       
+        menubar.add("Help/Tutorial", {callback: () => window.open("docs/keyframe_animation.html", "_blank")});
+        
     }
 
     /** -------------------- CAPTURE GUI (app) --------------------  */
@@ -1359,7 +1462,7 @@ class KeyframesGui extends Gui {
         const height = (300 * aspectRatio) + "px";
        
         this.captureArea.hide();
-        this.editorArea.show();
+        this.mainArea.show();
        
         const area = new LX.Area({                
             id: "editor-video", draggable: true, resizeable:true, width, height, overlay:"left", left: "20px", top: "20px"
@@ -1495,22 +1598,7 @@ class KeyframesGui extends Gui {
     }
 
     /** Create timelines */
-    createTimelines( area ) {
-                
-        // split main area
-        this.editorArea = new LX.Area({height: this.mainArea.sections[1].size[1]});
-        this.editorArea.split({sizes:["80%","20%"], minimizable: true});
-        
-        //left -> canvas, right -> side panel
-        var [left, right] = this.editorArea.sections;
-        left.id = "canvasarea";
-        left.root.style.position = "relative";
-        right.id = "sidepanel";
-        this.editorArea.split_bar.style.zIndex = right.root.style.zIndex = 1;
-
-        [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
-        // this.canvasArea = left;
-        this.sidePanel = right
+    createTimelines( ) {                    
 
         /* Keyframes Timeline */
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
@@ -1584,7 +1672,7 @@ class KeyframesGui extends Gui {
         };
 
         this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
-        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.keyFramesTimeline.animationClip, trackIdx, tidx);
+        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
         this.keyFramesTimeline.onSelectKeyFrame = (e, info) => {
             this.propagationWindow.setTime( this.keyFramesTimeline.currentTime );
 
@@ -1758,7 +1846,7 @@ class KeyframesGui extends Gui {
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx); 
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx)
         }
-        this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.removeAnimationData(this.curvesTimeline.animationClip, trackIdx, tidx);
+        this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.curvesTimeline.onSelectKeyFrame = (e, info) => {
             this.propagationWindow.setTime( this.curvesTimeline.currentTime );
@@ -1790,8 +1878,6 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.hide();
         this.curvesTimeline.hide();
 
-        this.editorArea.hide();
-        this.mainArea.sections[1].attach(this.editorArea);
     }
     
     initEditionGUI() {
@@ -1891,7 +1977,6 @@ class KeyframesGui extends Gui {
         // let [top, bottom] = area.sections;
         this.animationPanel = new LX.Panel({id:"animaiton"});
         top.attach(this.animationPanel);
-        this.updateAnimationPanel( );
 
         //create tabs
         let tabs = bottom.addTabs({fit: true});
@@ -1903,21 +1988,21 @@ class KeyframesGui extends Gui {
             // this.updatePropagationWindowCurve();
             this.propagationWindow.setTimeline( this.keyFramesTimeline );
         }}  );
-        if(this.editor.getCurrentBindedAnimation().auAnimation) {
+        
 
-            tabs.add( "Face", faceArea, { onSelect: (e,v) => {
-                this.editor.setAnimation(this.editor.animationModes.FACE); 
-                this.selectActionUnitArea(this.editor.getSelectedActionUnit());
-                // this.updatePropagationWindowCurve();
-                this.propagationWindow.setTimeline( this.curvesTimeline );
-                this.imageMap.resize();
-            } });
-    
-            faceArea.split({type: "vertical", sizes: ["50%", "50%"]});
-            let [faceTop, faceBottom] = faceArea.sections;
-            this.createFacePanel(faceTop);
-            this.createActionUnitsPanel(faceBottom);
-        }
+        tabs.add( "Face", faceArea, { onSelect: (e,v) => {
+            this.editor.setAnimation(this.editor.animationModes.FACE); 
+            this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+            // this.updatePropagationWindowCurve();
+            this.propagationWindow.setTimeline( this.curvesTimeline );
+            this.imageMap.resize();
+        } });
+
+        faceArea.split({type: "vertical", sizes: ["50%", "50%"]});
+        let [faceTop, faceBottom] = faceArea.sections;
+        this.createFacePanel(faceTop);
+        this.createActionUnitsPanel(faceBottom);
+        
 
         bodyArea.split({type: "vertical", resize: false, sizes: "auto"});
         let [bodyTop, bodyBottom] = bodyArea.sections;
@@ -2844,16 +2929,6 @@ class ScriptGui extends Gui {
     /** Create timelines */
     createTimelines( area ) {
                 
-        // split main area
-        this.mainArea.split({sizes:["80%","20%"], minimizable: true});
-        
-        //left -> canvas, right -> side panel
-        var [left, right] = this.mainArea.sections;
-        left.id = "canvasarea";
-        left.root.style.position = "relative";
-        right.id = "sidepanel";
-        this.mainArea.split_bar.style.zIndex = right.root.style.zIndex = 1;
-        [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
         // this.canvasArea = left;
         this.sidePanel = right;
                

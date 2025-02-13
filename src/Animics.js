@@ -1,5 +1,7 @@
 import { KeyframeEditor, ScriptEditor } from "./Editor.js";
 import { VideoProcessor } from "./VideoProcessor.js";
+import { FileSystem } from "./FileSystem.js";
+
 import { LX } from 'lexgui';
 
 class Animics {
@@ -7,13 +9,14 @@ class Animics {
 
     constructor() {
         this.mainArea = LX.init();
+        this.fileSystem = new FileSystem();
     }
 
     init(settings = {}) {
         
         const mode = settings.mode;
         switch(mode) {
-            case "keyframe":
+            case "keyframe": case 'bvh': case 'bvhe':
                 // Create empty animaiton
                 this.editor = new KeyframeEditor(this);
                 break;
@@ -46,7 +49,7 @@ class Animics {
             this.videoProcessor = new VideoProcessor(this);
         }
         
-        this.editor.init();
+        this.editor.init(settings);
         
         window.addEventListener("resize", this.onResize.bind(this));
         return true;

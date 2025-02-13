@@ -676,6 +676,29 @@ function createAnimationFromRotations(name, nn) {
     return new THREE.AnimationClip(name || "sign_anim", length, tracks);
 }
 
+function createEmptyAnimation(name, bones) {
+    let boneTracks = [];
+    // Create an empty keyframe for each bone (no transformation)
+    for (let i = 0; i < bones.length; i++) {
+        const bone = bones[i];
+        const boneName = bone.name;
+        // Create empty keyframes for each bone's rotation
+        const rotation = new THREE.QuaternionKeyframeTrack(boneName + '.rotation', [0], bone.quaternion.toArray());
+        if(i == 0) {
+            // If it's the hips, also create empty keyframes bone's position and scale
+            const position = new THREE.VectorKeyframeTrack(boneName + '.position', [0], bone.position.toArray());
+            const scale = new THREE.VectorKeyframeTrack(boneName + '.scale', [0], bone.scale.toArray());
+            // Push the tracks to the boneTracks array
+            boneTracks.push(position, rotation, scale);
+        }
+        else {
+            boneTracks.push(rotation);
+        }
+    }
+    // Create an empty animation clip with all the bone tracks
+    return new THREE.AnimationClip(name || 'bodyAnimation', -1, boneTracks);
+}
+
 function postProcessAnimation(clip, landmarks) {
 
     let distance = 0;
@@ -722,4 +745,4 @@ function retargetNames(names) {
     return names;
 }
 
-export { createSkeleton, createAnimation, createAnimationFromRotations, createThreeJSSkeleton, updateThreeJSSkeleton, injectNewLandmarks, postProcessAnimation };
+export { createSkeleton, createAnimation, createAnimationFromRotations, createEmptyAnimation, createThreeJSSkeleton, updateThreeJSSkeleton, injectNewLandmarks, postProcessAnimation };
