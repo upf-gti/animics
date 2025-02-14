@@ -12,7 +12,7 @@ import { AnimationRetargeting, findIndexOfBone, findIndexOfBoneByName } from './
 import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/GLTFLoader.js';
 import { GLTFExporter } from './exporters/GLTFExporoter.js' 
 import { BMLController } from "./controller.js"
-import { BlendshapesManager, createAnimationFromActionUnits } from "./blendshapes.js"
+import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 
 import { FileSystem } from "./FileSystem.js";
@@ -1045,7 +1045,7 @@ class KeyframeEditor extends Editor {
         }
         
         // Create face animation from mediapipe action units
-        let faceAnimation = createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
+        let faceAnimation = this.currentCharacter.blendshapesManager.createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units THREEjs AnimationClip
 
         this.bindAnimationToCharacter(data.name);
@@ -1072,15 +1072,11 @@ class KeyframeEditor extends Editor {
         if ( animationData && animationData.blendshapesAnim ){
             animationData.blendshapesAnim.name = "faceAnimation";       
             faceAnimation = animationData.blendshapesAnim.clip;
+            faceAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
         }
         else {
-            let names = {}
-            for(let name in this.currentCharacter.blendshapesManager.mapNames) {
-                names[name] = 0;
-            }
-            names.dt = 0;
-            let data = [names];
-            faceAnimation = createAnimationFromActionUnits("faceAnimation", data); // faceAnimation is an action units clip
+
+            faceAnimation = this.currentCharacter.blendshapesManager.createEmptyAnimation("faceAnimation");
             faceAnimation.duration = bodyAnimation.duration;
         }
         
@@ -1488,8 +1484,9 @@ class KeyframeEditor extends Editor {
                 }
                 // Set keyframe animation to the timeline and get the timeline-formated one.
                 auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation, true );
-                // if(animation.type == "video" || animation.type == "video") {
-                    faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
+                
+                // if(animation.type == "video") {
+                    faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(auAnimation);
                 // }
 
                 faceAnimation.name = "faceAnimation";   // mixer
@@ -1747,6 +1744,10 @@ class KeyframeEditor extends Editor {
             case this.animationModes.FACE:
                 this.animationMode = this.animationModes.FACE;
                 this.gui.curvesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
+                this.activeTimeline = this.gui.curvesTimeline;
+                this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation, false );
+                this.activeTimeline.show();
+                currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 if( !this.selectedAU ) {
                     return;
                 }
@@ -1754,10 +1755,6 @@ class KeyframeEditor extends Editor {
                     this.gizmo.disable();
                 }
 
-                this.activeTimeline = this.gui.curvesTimeline;
-                this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation, false );
-                this.activeTimeline.show();
-                currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 this.setSelectedActionUnit(this.selectedAU);                    
                 break;
                 

@@ -10,7 +10,8 @@ class BlendshapesManager {
         
     }
     
-    createBlendShapesAnimation = function(data, applyRotation = false) {
+    // Create THREEJS morph target animation given mediapipe data
+    createBlendShapesAnimation (data, applyRotation = false) {
 
         let clipData = {};
         let times = [];
@@ -221,7 +222,76 @@ class BlendshapesManager {
         return bsAnimation;
     }
 
-    getBlendshapesMap = function(name) {
+    // Convert THREEJS morph target animation into Mediapipe names format
+    createMediapipeAnimation(animation) {
+        let auTracks = [];
+
+        // Extract time and values of each track
+        for (let i = 0; i < animation.tracks.length; i++) {
+            const track = animation.tracks[i];
+            const targetName = track.name;
+    
+            // Check that it's a morph target
+            if (targetName.includes('.morphTargetInfluences')) {
+                const meshName = targetName.split('.morphTargetInfluences[')[0]; // Mesh name
+                const morphTargetName = targetName.split('[')[1].split(']')[0]; // Morph target name
+                if( meshName != "Body" ) {
+                    continue;
+                }
+
+                const times = track.times;
+                const values = track.values;
+
+                // Search the AU mapped to this morph target
+                for ( let actionUnit in this.mapNames ) {
+                    const mappedMorphs = this.mapNames[actionUnit];
+                    
+                    // If the morph target is mapped to the AU, assign the weight
+                    if ( Array.isArray(mappedMorphs) ) {
+                        if ( mappedMorphs.includes(morphTargetName) ) {
+                            
+                            const newName = this.getFormattedTrackName(actionUnit);
+                            auTracks.push( new THREE.NumberKeyframeTrack(newName, times, values ));
+                            break;
+                        }
+                    } else if (mappedMorphs === morphTargetName) {
+
+                        const newName = this.getFormattedTrackName(actionUnit);
+                        auTracks.push( new THREE.NumberKeyframeTrack(newName, times, values ));
+                        break;
+                    }
+                }
+            }
+        }
+
+        const length = -1;
+
+        return new THREE.AnimationClip( animation.name ?? "auAnimation", length, auTracks);
+    }
+
+    // Format morph target track name into "FaceArea.MediapipeAcitionUnit"
+    getFormattedTrackName(name) {
+
+        let bs = name;
+        for(let i = 0; i < BlendshapesManager.faceAreas.length; i++)
+        {
+            let toCompare = BlendshapesManager.faceAreas[i].toLowerCase().split(" ");
+            let found = true;
+            for(let j = 0; j < toCompare.length; j++) {
+
+                if(!bs.toLowerCase().includes(toCompare[j])) {
+                    found = false;
+                    break;
+                }
+            }
+            if(found)
+                bs = BlendshapesManager.faceAreas[i] + "." + bs;
+
+        }
+        return bs;
+    }
+
+    getBlendshapesMap(name) {
         let map = this.mapNames[name];
         if(!map) return [];
         let bs = [];
@@ -237,6 +307,64 @@ class BlendshapesManager {
         }
         return bs;
     }
+
+    createEmptyAnimation(name) {
+        let names = {}
+        for(let name in this.mapNames) {
+            names[name] = 0;
+        }
+        names.dt = 0;
+        let data = [names];
+        return this.createAnimationFromActionUnits(name, data);
+    }
+
+    createAnimationFromActionUnits(name, data) {
+
+        let times = [];
+        let auValues = {};
+        
+        if(!data) {
+            let names = {}
+            for(let name in this.mapNames) {
+                names[name] = 0;
+            }
+            names.dt = 0;
+            data = [names];
+        }
+    
+        for (let idx = 0; idx < data.length; idx++) {
+            
+            let dt = data[idx].dt * 0.001;
+            let weights = data[idx];
+    
+            if(times.length)
+                times.push(times[idx-1] + dt);
+            else
+                times.push(dt);
+                
+            for(let i in weights)
+            {
+                var value = weights[i];
+                if(!auValues[i])
+                    auValues[i] = [value];
+                else
+                    auValues[i].push(value);
+            }
+        }
+       
+        let auTracks = [];
+        for(let bs in auValues) {
+            let bsname = this.getFormattedTrackName(bs);
+            auTracks.push( new THREE.NumberKeyframeTrack(bsname, times, auValues[bs] ));
+        }
+    
+        // use -1 to automatically calculate
+        // the length from the array of tracks
+        const length = -1;
+    
+        let auAnimation = new THREE.AnimationClip( name ?? "auAnimation", length, auTracks);
+        return auAnimation;
+    }
 }
 
 BlendshapesManager.faceAreas =  [
@@ -251,67 +379,4 @@ BlendshapesManager.faceAreas =  [
     "Mouth"
 ]
 
-function createAnimationFromActionUnits(name, data) {
-
-    let times = [];
-    let auValues = {};
-    
-    if(!data) {
-        let names = {}
-        for(let name in this.mapNames) {
-            names[name] = 0;
-        }
-        names.dt = 0;
-        data = [names];
-    }
-
-    for (let idx = 0; idx < data.length; idx++) {
-        
-        let dt = data[idx].dt * 0.001;
-        let weights = data[idx];
-
-        if(times.length)
-            times.push(times[idx-1] + dt);
-        else
-            times.push(dt);
-            
-        for(let i in weights)
-        {
-            var value = weights[i];
-            if(!auValues[i])
-                auValues[i] = [value];
-            else
-                auValues[i].push(value);
-        }
-    }
-   
-    let auTracks = [];
-    for(let bs in auValues) {
-        let bsname = bs;
-        for(let i = 0; i < BlendshapesManager.faceAreas.length; i++)
-        {
-            let toCompare = BlendshapesManager.faceAreas[i].toLowerCase().split(" ");
-            let found = true;
-            for(let j = 0; j < toCompare.length; j++) {
-
-                if(!bs.toLowerCase().includes(toCompare[j])) {
-                    found = false;
-                    break;
-                }
-            }
-            if(found)
-                bsname = BlendshapesManager.faceAreas[i] + "." + bs;
-
-        }
-        auTracks.push( new THREE.NumberKeyframeTrack(bsname, times, auValues[bs] ));
-    }
-
-    // use -1 to automatically calculate
-    // the length from the array of tracks
-    const length = -1;
-
-    let auAnimation = new THREE.AnimationClip( name ?? "auAnimation", length, auTracks);
-    return auAnimation;
-}
-
-export{ BlendshapesManager, createAnimationFromActionUnits }
+export{ BlendshapesManager }
