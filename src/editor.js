@@ -899,7 +899,7 @@ class KeyframeEditor extends Editor {
         await this.loadFiles(resources);
     }
 
-    loadFiles(files) {
+    async loadFiles(files) {
         const animExtensions = ['bvh','bvhe'];
         const resultFiles = [];
         let mode = "";
@@ -939,9 +939,13 @@ class KeyframeEditor extends Editor {
         }
 
         if( resultFiles.length && mode == "video" ) {
-            return new Promise( (resolve) => resolve());
             // TO DO: VIDEO PROCESSOR
-
+            const animations = await this.ANIMICS.processVideos(resultFiles);
+            // return new Promise( async (resolve) => {
+            //     // this.loadAnimation( file.name, file.animation );
+                
+            //     resolve()
+            // });
             // this.gui.editorArea.hide();
             // this.gui.createCaptureArea();
             // this.gui.captureArea.show();

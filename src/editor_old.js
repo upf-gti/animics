@@ -1901,7 +1901,6 @@ class KeyframeEditor extends Editor{
 
         if( resultFiles.length && mode == "video" ) {
             // TO DO: VIDEO PROCESSOR
-
             // this.gui.editorArea.hide();
             // this.gui.createCaptureArea();
             // this.gui.captureArea.show();

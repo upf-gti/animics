@@ -328,7 +328,8 @@ const MediaPipe = {
         if ( videoElement.requestVideoFrameCallback ){ // not available on firefox
             this.currentVideoProcessing.listenerID = videoElement.requestVideoFrameCallback( listenerBind ); // ID needed to cancel
             this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.VIDEOFRAME;
-        }else{
+        }
+        else {
             this.currentVideoProcessing.listenerID = window.requestAnimationFrame( listenerBind ); // ID needed to cancel
             this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.ANIMATIONFRAME;
         }

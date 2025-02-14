@@ -16,7 +16,7 @@ class Animics {
         
         const mode = settings.mode;
         switch(mode) {
-            case "keyframe": case 'bvh': case 'bvhe':
+            case 'keyframe': case 'bvh': case 'bvhe': case 'video':
                 // Create empty animaiton
                 this.editor = new KeyframeEditor(this);
                 break;
@@ -57,6 +57,15 @@ class Animics {
 
     onResize() {
         this.editor.resize();
+    }
+    
+    /**
+     * 
+     * @param {File} videos 
+     */
+    processVideos( videos ) {
+        this.editor.disable();
+        return this.videoProcessor.processVideos( videos );
     }
 }
 
