@@ -1,11 +1,15 @@
 import { LX } from 'lexgui';
 import { MediaPipe } from "./mediapipe.js";
+import { UTILS } from './utils.js';
 
 class VideoProcessor {
     constructor(animics) {
         this.ANIMICS = animics;
+        
         // Helpers
         this.recording = false;
+        this.mode = "video";
+        this.enabled = false;
 
         // keyframe
         this.mediaRecorder = null
@@ -13,18 +17,37 @@ class VideoProcessor {
         this.mediapipeOnlineEnabler = true;
         this.mediapipeOnlineVideo = null; // pointer to current Video. Indicate whether it is in a stage that allows online mediapipe or not (null)
 
-        this.mode = "video";
+        this.inputVideo = null;
+        this.recordingVideo = null;
+        this.canvasVideo = null; 
+        
+        this.createView();
 
+        animics.mainArea.attach(this.processorArea);
+
+        this.mediapipe = new MediaPipe(this.canvasVideo);
+        this.mediapipe.onresults = ( results ) => this.updateSidePanel( results );
+        
+        this.disable();
+    }
+
+    createView() {
+        // main area of the video processor
         this.processorArea = new LX.Area({id: "processor-area", width: "100%", height: "100%"});
+        //split main area. Left: video editor area, Right: helper/info panel (distance to the camera, blendhsapes' weights, etc)
         const [leftArea, rightArea] = this.processorArea.split({sizes:["75%","25%"], minimizable: true});
-
+        // split left area. Top: video editor + selector. Bottom: buttons.
         const [topArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
+        this.menubar = topArea.addMenubar( m => {
+            m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => this.cancelProcess(), {float: "left"});   
+        });
+        // split top left area. Select area (top): video/webcam selector. Video editor area (bottom): video editor.
         const [selectArea, videoEditorArea] = topArea.split({sizes: ["80px", null], minimizable: false, resize: false, type: "vertical" });
         
         // Create input selector widget (webcam or video)
         this.createSelectorInput(selectArea);
 
-        // Add show/hide right panel button
+        // Add show/hide right panel button (expand/reduce panel area)
         selectArea.addOverlayButtons([{
             selectable: true,
             selected: true,
@@ -47,17 +70,7 @@ class VideoProcessor {
         this.buttonsArea = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});        
      
         this.webcamArea = new LX.Area({id: "webcam-area", width: "100%", height: "100%"});
-        this.videoArea = new LX.Area({id: "video-area", width: "100%", height: "100%"});
-        
-        animics.mainArea.attach(this.processorArea);
-
-        this.enabled = false;
-    }
-
-    processVideos(videos) {
-        this.mode = "video";
-        this.enable();
-        return this.onLoadVideos( videos );
+        this.videoArea = new LX.Area({id: "video-area", width: "100%", height: "100%"});        
     }
 
     enable() {
@@ -67,8 +80,15 @@ class VideoProcessor {
 
     disable() {
         this.enabled = false;
+        this.videoEditor.stopUpdates();
+        this.mediapipe.stopVideoProcessing();
         // This already disables events
         this.processorArea.root.classList.add("hidden");
+    }
+
+    cancelProcess() {
+
+        this.ANIMICS.showEditor();
     }
 
     createSelectorInput(area) {
@@ -205,15 +225,14 @@ class VideoProcessor {
             recordedVideo.style.width = width + "px";
             recordedVideo.style.height = height + "px";
 
-            MediaPipe.processFrame(recordedVideo);
+            this.mediapipe.processFrame(recordedVideo);
         }
         
         this.videoEditor.onVideoLoaded = async (video) => {
-            MediaPipe.setOptions( { autoDraw: true } );
+            this.mediapipe.setOptions( { autoDraw: true } );
             if ( this.mediapipeOnlineEnabler ){ 
-                MediaPipe.processVideoOnline(video, this.mode == "webcam"); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
-            }
-            $('#loading').fadeOut();
+                this.mediapipe.processVideoOnline(video, this.mode == "webcam"); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
+            }            
         }
     }
 
@@ -257,7 +276,6 @@ class VideoProcessor {
         panel.root.style.flexWrap = "wrap";
     }
 
-
     createTrimArea(resolve, options) {
         // TRIM VIDEO - be sure that only the sign is recorded
         const video = this.mediapipeOnlineVideo = this.recordedVideo;
@@ -281,9 +299,9 @@ class VideoProcessor {
         //                     -moz-transform:rotateY(0deg); /* Firefox */"
         // }
 
-        video.style.cssText+= "transform: rotateY(0deg);\
-                            -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-                            -moz-transform:rotateY(0deg); /* Firefox */"
+        // video.style.cssText+= "transform: rotateY(0deg);\
+        //                     -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
+        //                     -moz-transform:rotateY(0deg); /* Firefox */"
 
         // this.videoEditor.onSetTime = options.onSetTime;
         // this.videoEditor.onDraw = options.onDraw;
@@ -292,27 +310,28 @@ class VideoProcessor {
         this.recordedVideo.style.width = this.canvasVideo.width + "px";
         this.recordedVideo.style.height = this.canvasVideo.height + "px";
 
-        this.buttonsArea.addButton(null, "Convert to animation", (v) => {
-            const {start, end} = this.videoEditor.getTrimedTimes();
+        this.buttonsArea.addButton(null, "Convert to animation", async (v) => {
             this.canvasVideo.classList.remove("hidden");
             this.recordedVideo.classList.remove("hidden");
+            const animation = await this.generateRawAnimation(this.recordedVideo, this.videoEditor.getTrimedTimes())
+            
             //TO DO
             // window.global.app.onVideoTrimmed(start, end)
             this.videoEditor.hideControls();
             this.processorArea.extend();
-            resolve();
+            resolve(animation);
             // this.videoArea.sections[1].root.resize(["20%", "20%"])
         }, {width: "auto", className: "captureButton colored"});//, {width: "100px"});
 
-        if(this.mode == "webcam") {
-            this.buttonsArea.addButton(null, "Redo", (v) => {
-                this.videoEditor.hideControls();
-                let videoRec = this.recordedVideo;
-                videoRec.classList.add("hidden");
-               // TO DO
-                // this.editor.getApp().onBeginCapture();
-            }, {width: "50px", icon: "fa-solid fa-rotate-left", className: "captureButton"});
-        }
+        // if( this.mode == "webcam" ) {
+        //     this.buttonsArea.addButton(null, "Redo", (v) => {
+        //         this.videoEditor.hideControls();
+        //         let videoRec = this.recordedVideo;
+        //         videoRec.classList.add("hidden");
+        //        // TO DO
+        //         // this.editor.getApp().onBeginCapture();
+        //     }, {width: "50px", icon: "fa-solid fa-rotate-left", className: "captureButton"});
+        // }
     }
 
     updateSidePanel( results ) {
@@ -342,101 +361,28 @@ class VideoProcessor {
         }
     }
 
-    /**
-     * 
-     * @param {File} videos 
-     */
-    onLoadVideos( videoFiles ){
-        if ( videoFiles && videoFiles.length == 1 ) {
-            return this.onLoadSingleVideo(videoFiles[0]);
+        
+    async processVideos(videos) {
+        this.mode = "video";
+        this.enable();
+
+        const animations = [];
+        for(let i = 0; i < videos.length; i++) {
+            UTILS.makeLoading("Loading video...");
+            const animation = await this.onLoadVideo( videos[i], videos.length == 1 );
+            animations.push( animation );
         }
-        
-        this.mediapipeOnlineVideo = null; // multiple-videos redirects to offline directly. No online mediapipe is required
-
-        this.videoProcessingCommon = {
-            onVideoProcessEndedFn: null,
-            videosToProcess: [], // array of videoObj (same as in onVideoTrimmed)
-            videosProcessed: 0
-        };
-
-        videoFiles = videoFiles ?? [];
-        for( let i = 0; i < videoFiles.length; ++i ) {
-            let url = "";
-            if( typeof(videoFiles[i]) == 'string' && videoFiles[i].includes("blob:") ) {
-                url = videoFiles[i];
-            }
-            else {
-                url = URL.createObjectURL(videoFiles[i]);
-            }
-    
-            this.videoProcessingCommon.videosToProcess.push( {
-                name: videoFiles[i].name,
-                videoURL: url,
-                startTime: 0,
-                endTime: -1,
-                dt: 1/25,
-                landmarks: null,
-                blendshapes: null,
-                live: false // whether it is a recording from live input. Used to mirror canvas
-            } );
-        }
-        return new Promise((resolve) => {
-            resolve();
-        })
-        // ------------- Show only the "processing video" elements -------------
-
-        // // Hide capture buttons
-        // document.getElementById("select-mode").innerHTML = "";
-        // // let capture = document.getElementById("capture_btn");
-        // // capture.style.display = "none";
-       
-        // if ( !this.videoProcessingCommon.videosToProcess.length ){
-        //     let name = "NewAnimation_" + Math.floor(performance.now()).toString();
-        //     this.editor.loadAnimation( name, null );
-        //     this.editor.bindAnimationToCharacter( name );
-        //     this.editor.startEdition();            
-        // }
-
-        // this.videoProcessingCommon.onVideoProcessEndedFn = () =>{
-        //     let common = this.videoProcessingCommon;
-
-        //     this.editor.buildAnimation( common.videosToProcess[common.videosProcessed] );
-        //     common.videosProcessed++;
-        //     if ( common.videosProcessed >= common.videosToProcess.length ) {
-        //         let a = Object.keys( this.editor.loadedAnimations );
-        //         // Creates the scene and loads the animation. Changes ui to edition
-
-        //         let name = "";
-        //         if ( !a.length ){
-        //             let name = "NewAnimation_" + Math.floor(performance.now()).toString();
-        //             this.editor.loadAnimation( name, null );
-        //         }else{
-        //             name = a[0];
-        //         }
-        //         this.editor.bindAnimationToCharacter( name );
-        //         this.editor.startEdition();
-        //     }
-        //     else {
-        //         UTILS.makeLoading("Processing video " + (this.videoProcessingCommon.videosProcessed +1) + "/" + this.videoProcessingCommon.videosToProcess.length.toString(), 0.5 )
-        //         this.processVideo( common.videosToProcess[common.videosProcessed], common.onVideoProcessEndedFn )
-        //     }
-        // }
-        
-        // UTILS.makeLoading("Loading Mediapipe", 1 )
-        // MediaPipe.start( false, () => {
-        //     // directly to process stage
-        //     UTILS.makeLoading("Processing video " + (this.videoProcessingCommon.videosProcessed+1) + "/" + this.videoProcessingCommon.videosToProcess.length.toString(), 0.5 )
-        //     this.processVideo( this.videoProcessingCommon.videosToProcess[0], this.videoProcessingCommon.onVideoProcessEndedFn );
-        // }, this.editor.gui.updateCaptureGUI.bind(this.editor.gui) );
-        
+        return animations;
     }
 
-    onLoadSingleVideo( videoFile ) {
+    /**
+     * @description Process single video with/out trim stage
+     * @param {File or URL} videoFile 
+    */
+    onLoadVideo( videoFile, trimStage = true ) {
         if ( !videoFile ) { 
-            return; 
+            return new Promise((resolve) => resolve()); 
         }
-
-        // UTILS.makeLoading("Loading video...");
 
         let url = "";
         if( typeof(videoFile) == 'string' && videoFile.includes("blob:") )  {
@@ -445,8 +391,7 @@ class VideoProcessor {
         else {
             url = URL.createObjectURL(videoFile);
         }
-        // let videoElement = this.editor;
-        // videoElement.src = url;
+       
         const video = this.mediapipeOnlineVideo = this.recordedVideo;
         video.src = url; 
         video.muted = true;
@@ -459,10 +404,9 @@ class VideoProcessor {
             video.name = "video_" + Math.floor( performance.now()*1000 ).toString() + videoFile.type.replace("video/", "." );
         }
         
-        let that = this;
         // video.onloadedmetadata = ( function (e) {
         const promise = new Promise((resolve) => {
-            video.onloadeddata = ( (e) => {
+            video.onloadeddata = ( async (e) => {
             
                 const aspect = video.videoWidth / video.videoHeight;
                 
@@ -476,17 +420,64 @@ class VideoProcessor {
     
                 video.style.width = width + "px";
                 video.style.height = height + "px";
-    
-                MediaPipe.start( false, () => {
+
+                if( !this.mediapipe.loaded ) {
+                    UTILS.makeLoading("Loading MediaPipe...");
+                    await this.mediapipe.init();
+                    UTILS.hideLoading();
+                }
+
+                if(trimStage) {
                     // directly to trim stage
-                    this.createTrimArea( resolve );                
-        
-                }, 
-                this.updateSidePanel.bind(this)
-            );
+                    this.createTrimArea( resolve );
+                }
+                else {
+                    const animation = await this.generateRawAnimation(video);
+                    resolve(animation);
+                }
+                
+
             } ).bind(video);
         })
         return promise;
+    }
+
+    generateRawAnimation( video, times = {} ) {
+        const videoObj = {
+            name: video.name,
+            videoURL: video.src,
+            startTime: times.start || 0,
+            endTime: times.end || video.duration,
+            dt: 1/25,
+            landmarks: null,
+            blendshapes: null,
+            live: this.mode == "webcam"
+        }
+
+        this.mediapipeOnlineVideo = null;
+
+        this.mediapipe.setOptions( { autoDraw: true } );
+
+        const promise = new Promise( resolve => {
+            this.mediapipe.processVideoOffline( video, videoObj.startTime, videoObj.endTime, videoObj.dt, () =>{
+                videoObj.landmarks = this.mediapipe.landmarks;
+                videoObj.blendshapes = this.mediapipe.blendshapes;
+    
+                this.inputVideo.onloadedmetadata = null;
+             
+                video.onloadedmetadata = null;
+                video.onloadeddata = null;
+                video.onended = null;
+                video.autoplay = false;
+                video.pause();
+    
+                resolve(videoObj);
+    
+            }, videoObj.live )
+           
+        })
+        
+        return promise;    
     }
 }
 

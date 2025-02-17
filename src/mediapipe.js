@@ -1,33 +1,33 @@
 import { DrawingUtils, HolisticLandmarker, FaceLandmarker, PoseLandmarker, HandLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13';
-
-
 import * as THREE from 'three'
-import { UTILS } from "./utils.js"
 
-const MediaPipe = {
-    PROCESSING_EVENT_TYPES: { NONE: 0, SEEK: 1, VIDEOFRAME: 2, ANIMATIONFRAME: 3 },
-
-    loaded: false,
-    recording: false,
+class MediaPipe {
+    static PROCESSING_EVENT_TYPES = { NONE: 0, SEEK: 1, VIDEOFRAME: 2, ANIMATIONFRAME: 3 };
     
-    currentResults: null, 
-    landmarks: [],
-    blendshapes : [],
-    async start( live, onload, onresults, onerror ) {
+    constructor( canvas, onload, onresults, onerror ) {
 
-        UTILS.makeLoading("Loading MediaPipe...");
-
-        this.live = live;
-        this.landmarks = [];
-        this.blendshapes = [];
+        this.canvas = canvas;
+        // Webcam and MediaPipe Set-up
+        this.canvasCtx = canvas.getContext("2d");
+        
         this.onload = onload;
         this.onresults = onresults;
         this.onerror = onerror;
-        // Webcam and MediaPipe Set-up
-        const videoElement = document.getElementById("inputVideo");
-        const canvasElement = document.getElementById("outputVideo");
-        this.canvasCtx = canvasElement.getContext("2d");
+
+        this.loaded = false;
+        this.recording = false;
+        this.currentResults = null;
+        this.landmarks = [];
+        this.blendshapes = [];
         
+        this.mirrorCanvas = false;
+    }
+
+    async init () {
+        if( this.loaded ) {
+            return new Promise(resolve => resolve());
+        }
+
         const vision = await FilesetResolver.forVisionTasks( "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13/wasm" );
         
         if(!this.faceLandmarker) {
@@ -85,26 +85,32 @@ const MediaPipe = {
         }
         
         this.drawingUtils.autoDraw = false;
-        await this.processFrame( document.getElementById("outputVideo") ); // force models to load on gpu
+        await this.processFrame( this.canvas); // force models to load on gpu
         this.drawingUtils.autoDraw = true;
         
         this.currentVideoProcessing = null;
         
         this.loaded = true; // using awaits
-        if ( this.onload ){ this.onload(); }
-    },
+        if ( this.onload ) {
+            this.onload();
+        }
+    }
 
-    setOptions( o ){
-        if( o.hasOwnProperty("autoDraw") ){ this.drawingUtils.autoDraw = !!o.autoDraw; }
-    },
+    setOptions( o ) {
+        if( o.hasOwnProperty("autoDraw") ) {
+            this.drawingUtils.autoDraw = !!o.autoDraw;
+        }
+    }
 
-    drawCurrentResults(){
-        if ( this.currentResults ){ this.drawResults( this.currentResults ); }
-    },
+    drawCurrentResults() {
+        if ( this.currentResults ) {
+            this.drawResults( this.currentResults );
+        }
+    }
 
-    drawResults( results ){
+    drawResults( results ) {
         const canvasCtx = this.canvasCtx;
-        const canvasElement = canvasCtx.canvas;
+        const canvasElement = this.canvas;
 
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -116,46 +122,47 @@ const MediaPipe = {
         // Only overwrite missing pixels.
         canvasCtx.globalCompositeOperation = 'destination-atop';
 
-        if(this.live){
+        if(this.mirrorCanvas){
             // Mirror canvas
             canvasCtx.translate(canvasElement.width, 0);
             canvasCtx.scale(-1, 1);    
             // -------------
         }
 
-        if ( results.image ){ canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height); }
+        if ( results.image ) {
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+        }
         canvasCtx.globalCompositeOperation = 'source-over';
     
-        // const image = document.getElementById("source");
-        // canvasCtx.globalAlpha = 0.6;
-        // canvasCtx.drawImage(image, 0, 0, canvasElement.width, canvasElement.height);
-        // canvasCtx.globalAlpha = 1;
+       
         const lm = results.landmarksResults;
-        if ( lm.PLM ){
+        if ( lm.PLM ) {
             this.drawingUtils.drawConnectors( lm.PLM, PoseLandmarker.POSE_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //'#00FF00'
             this.drawingUtils.drawLandmarks( lm.PLM, {color: '#1a2025',fillColor: 'rgba(255, 255, 255, 1)', lineWidth: 2}); //'#00FF00'
         }
         // drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
-        if ( lm.LLM ){
+        if ( lm.LLM ) {
             this.drawingUtils.drawConnectors( lm.LLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#CC0000
             this.drawingUtils.drawLandmarks( lm.LLM, {color: '#1a2025',fillColor: 'rgba(58, 161, 156, 1)', lineWidth: 2}); //'#00FF00'
         }
-        if ( lm.RLM ){
+        if ( lm.RLM ) {
             this.drawingUtils.drawConnectors( lm.RLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#00CC00
             this.drawingUtils.drawLandmarks( lm.RLM, {color: '#1a2025',fillColor: 'rgba(196, 113, 35, 1)', lineWidth: 2});
         }
+        
         canvasCtx.globalCompositeOperation = 'source-in';
-
         canvasCtx.restore();
-    },
+    }
 
-    async processFrame(videoElement){
-        // if ( !videoElement || videoElement.width < 0.001 || videoElement.height < 0.001 ){ return; }
+    async processFrame(videoElement) {
         // take same image for face, pose, hand detectors and ui 
-        if ( !videoElement.duration ){ return; }
-        let image = await createImageBitmap( videoElement );
+        if ( !videoElement.duration ) {
+            return;
+        }
 
+        const image = await createImageBitmap( videoElement );
         const time = performance.now()//Date.now();
+
         // it would probably be more optimal to use hollistic. But it does not return certain types of values 
         const detectionsFace = this.faceLandmarker.detectForVideo(image, time);
         const detectionsPose = this.poseDetector.detectForVideo(image,time);
@@ -173,24 +180,32 @@ const MediaPipe = {
             landmarksResults: this.processLandmarks( detectionsFace, detectionsPose, detectionsHands, dt )
         }      
 
-        if ( this.drawingUtils.autoDraw ){ this.drawResults( results ); }
+        if ( this.drawingUtils.autoDraw ) {
+            this.drawResults( results );
+        }
 
         // TODO: consider keeping the image until this.currentResults is modified. This way, the image used in mediapipe can be displayed at any time
         delete results.image;
         image.close();
 
-        if ( this.recording ){
-            if ( results.landmarksResults.PWLM ){ 
+        if ( this.recording ) {
+            if ( results.landmarksResults.PWLM ) { 
                 let ps = results.landmarksResults.PWLM; 
-                for( let i = 0; i < ps.length; ++i ){ ps[i].y *= -1; ps[i].z *= -1; }
+                for( let i = 0; i < ps.length; ++i ) {
+                    ps[i].y *= -1; ps[i].z *= -1;
+                }
             }
-            if ( results.landmarksResults.LWLM ){ 
+            if ( results.landmarksResults.LWLM ) { 
                 let ps = results.landmarksResults.LWLM; 
-                for( let i = 0; i < ps.length; ++i ){ ps[i].y *= -1; ps[i].z *= -1; }
+                for( let i = 0; i < ps.length; ++i ) {
+                    ps[i].y *= -1; ps[i].z *= -1;
+                }
             }
-            if ( results.landmarksResults.RWLM ){ 
+            if ( results.landmarksResults.RWLM ) { 
                 let ps = results.landmarksResults.RWLM; 
-                for( let i = 0; i < ps.length; ++i ){ ps[i].y *= -1; ps[i].z *= -1; }
+                for( let i = 0; i < ps.length; ++i ) {
+                    ps[i].y *= -1; ps[i].z *= -1;
+                }
             }
             this.landmarks.push( results.landmarksResults );
             this.blendshapes.push( results.blendshapesResults );
@@ -198,12 +213,12 @@ const MediaPipe = {
 
         this.currentResults = results;
         
-        if ( this.onresults ){
+        if ( this.onresults ) {
             this.onresults( results, this.recording);
         }
-    },
+    }
 
-    processLandmarks(faceData, poseData, handsData, dt = 0) {
+    processLandmarks( faceData, poseData, handsData, dt = 0 ) {
 
         const results = {
             dt: dt, 
@@ -221,21 +236,25 @@ const MediaPipe = {
             leftHandVisibility: 0
         };
 
-        if ( handsData ){
-            for ( let i = 0; i < handsData.handednesses.length; ++i ){
+        if ( handsData ) {
+            for ( let i = 0; i < handsData.handednesses.length; ++i ) {
                 let h = handsData.handednesses[i][0];
                 let landmarks = handsData.landmarks[ i ]
                 let worldLandmarks = handsData.worldLandmarks[ i ];
-                if ( h.categoryName == 'Left' ){ results.LLM = landmarks; results.LWLM = worldLandmarks; }
-                else{ results.RLM = landmarks; results.RWLM = worldLandmarks; }
+                if ( h.categoryName == 'Left' ) {
+                    results.LLM = landmarks; results.LWLM = worldLandmarks;
+                }
+                else {
+                    results.RLM = landmarks; results.RWLM = worldLandmarks;
+                }
             }
         }
 
-        if ( faceData && faceData.faceLandmarks.length ){
+        if ( faceData && faceData.faceLandmarks.length ) {
             results.FLM = faceData.faceLandmarks[0];
         }
 
-        if ( poseData && poseData.landmarks.length ){
+        if ( poseData && poseData.landmarks.length ) {
             const landmarks = poseData.landmarks[0];
             const worldLandmarks = poseData.worldLandmarks[0];
             results.PLM = landmarks;
@@ -246,10 +265,9 @@ const MediaPipe = {
         }
                 
         return results;
-    },
-
+    }
  
-    processBlendshapes(faceData, dt = 0) {
+    processBlendshapes( faceData, dt = 0 ) {
         let blends = {};
         if ( faceData.faceBlendshapes.length > 0  ) {
             const faceBlendshapes = faceData.faceBlendshapes[ 0 ].categories;
@@ -258,7 +276,7 @@ const MediaPipe = {
                 blends[name] = blendshape.score;
             }
             
-            if(blends["LeftEyeYaw"] == null){
+            if(blends["LeftEyeYaw"] == null) {
                 blends["LeftEyeYaw"] = (blends["EyeLookOutLeft"] - blends["EyeLookInLeft"]) * 0.5;
                 blends["RightEyeYaw"] = - (blends["EyeLookOutRight"] - blends["EyeLookInRight"]) * 0.5;
                 blends["LeftEyePitch"] = (blends["EyeLookDownLeft"] - blends["EyeLookUpLeft"]) * 0.5;
@@ -278,14 +296,14 @@ const MediaPipe = {
 
         blends.dt = dt;
         return blends;
-    },
+    }
 
     /**
      * sets mediapipe to process videoElement on each rendered frame. It does not automatically start recording. 
      * Hardware capabilities affect the rate at which frames can be displayed and processed
      */
     async processVideoOnline( videoElement, live = false ){
-        this.live = live;
+        this.mirrorCanvas = live;
         this.stopVideoProcessing(); // stop previous video processing, if any
         
         this.currentVideoProcessing = {
@@ -297,14 +315,14 @@ const MediaPipe = {
             listenerType: null
         }
 
-        let listener = async () => {
+        const listener = async () => {
             let cvp = this.currentVideoProcessing;
-            if(!cvp) {
+            if( !cvp ) {
                 return;
             }
             let videoElement = cvp.videoElement;
             
-            if ( videoElement.requestVideoFrameCallback ){
+            if ( videoElement.requestVideoFrameCallback ) {
                 cvp.listenerID = videoElement.requestVideoFrameCallback( cvp.listenerBind ); // ID needed to cancel
             }
             else{
@@ -312,7 +330,7 @@ const MediaPipe = {
             }
 
             // update only if sufficient time has passed to avoid processing a paused video
-            if ( Math.abs( videoElement.currentTime - cvp.currentTime ) > 0.001 ){ 
+            if ( Math.abs( videoElement.currentTime - cvp.currentTime ) > 0.001 ) { 
                 cvp.currentTime = videoElement.currentTime;
                 await this.processFrame( videoElement ); 
             } 
@@ -321,25 +339,22 @@ const MediaPipe = {
             }
         }
 
-        // await this.processFrame( videoElement ); // so first frame is computed. Useful when paused video
+        const listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
 
-        let listenerBind = this.currentVideoProcessing.listenerBind = listener.bind(this);
-
-        if ( videoElement.requestVideoFrameCallback ){ // not available on firefox
+        if ( videoElement.requestVideoFrameCallback ) { // not available on firefox
             this.currentVideoProcessing.listenerID = videoElement.requestVideoFrameCallback( listenerBind ); // ID needed to cancel
-            this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.VIDEOFRAME;
+            this.currentVideoProcessing.listenerType = MediaPipe.PROCESSING_EVENT_TYPES.VIDEOFRAME;
         }
         else {
             this.currentVideoProcessing.listenerID = window.requestAnimationFrame( listenerBind ); // ID needed to cancel
-            this.currentVideoProcessing.listenerType = this.PROCESSING_EVENT_TYPES.ANIMATIONFRAME;
+            this.currentVideoProcessing.listenerType = MediaPipe.PROCESSING_EVENT_TYPES.ANIMATIONFRAME;
         }
 
         // force a processFrame whenever the video is available. video.readyState Bug fix
-        let temp = videoElement.currentTime;
+        const temp = videoElement.currentTime;
         videoElement.currentTime = -1;
         videoElement.currentTime = temp;
-
-    },
+    }
     
     /**
      * sets mediapipe to process videoElement from [startTime, endTime] at each dt. It automatically starts recording
@@ -349,10 +364,10 @@ const MediaPipe = {
      * @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
      * @param {Function} onEnded 
      */
-    async processVideoOffline( videoElement,  startTime = -1, endTime = -1, dt = 0.04, onEnded = null, live = false ){ // dt=seconds, default 25 fps
+    async processVideoOffline( videoElement,  startTime = -1, endTime = -1, dt = 0.04, onEnded = null, live = false ) { // dt=seconds, default 25 fps
         // PROBLEMS: still reading speed (browser speed). Captures frames at specified fps (dt) instead of the actual available video frames
         // PROS: Ensures current time has loaded correctly before sending to mediapipe. Better support than requestVideoCallback
-        this.live = live;
+        this.mirrorCanvas = live;
         this.stopVideoProcessing(); // stop previous video processing, if any
 
         // Hacky solution for video duration bug. Some videos do not have duration in metadata and browser has to discover it while playing/decoding the video
@@ -364,13 +379,13 @@ const MediaPipe = {
 
         videoElement.pause();
         startTime = Math.max( Math.min( videoElement.duration, startTime ), 0 );
-        if ( endTime < -0.001 ){ 
+        if ( endTime < -0.001 ) { 
             endTime = videoElement.duration; 
         }
         endTime = Math.max( Math.min( videoElement.duration, endTime ), startTime );
         dt = Math.max( dt, 0.001 );
         
-        let listener = async () => {
+        const listener = async () => {
             let cvp = this.currentVideoProcessing;
 
             await this.processFrame(cvp.videoElement);
@@ -387,7 +402,7 @@ const MediaPipe = {
         };
         
         this.startRecording();
-        let listenerBind = listener.bind(this);
+        const listenerBind = listener.bind(this);
         videoElement.addEventListener( "seeked", listenerBind, false );
         videoElement.currentTime = -1; // this solves a htmlvideo bug. If removed, some videos will alwasy show currentTime=duration (god knows why).
         videoElement.currentTime = startTime;
@@ -402,33 +417,35 @@ const MediaPipe = {
             onEnded: typeof( onEnded ) === 'function' ? onEnded : null,
             listenerBind: listenerBind,
             listenerID: listenerBind,
-            listenerType: this.PROCESSING_EVENT_TYPES.SEEK
+            listenerType: MediaPipe.PROCESSING_EVENT_TYPES.SEEK
         }
-    },
+    }
 
-    stopVideoProcessing(){
-        if ( !this.currentVideoProcessing ){ return; }
+    stopVideoProcessing() {
+        if ( !this.currentVideoProcessing ) {
+            return;
+        }
         
-        switch( this.currentVideoProcessing.listenerType ){
-            case this.PROCESSING_EVENT_TYPES.SEEK:
+        switch( this.currentVideoProcessing.listenerType ) {
+            case MediaPipe.PROCESSING_EVENT_TYPES.SEEK:
                 this.currentVideoProcessing.videoElement.removeEventListener( "seeked", this.currentVideoProcessing.listenerID, false );
                 break;
-            case this.PROCESSING_EVENT_TYPES.VIDEOFRAME:
+            case MediaPipe.PROCESSING_EVENT_TYPES.VIDEOFRAME:
                 this.currentVideoProcessing.videoElement.cancelVideoFrameCallback( this.currentVideoProcessing.listenerID );
                 break;
-            case this.PROCESSING_EVENT_TYPES.ANIMATIONFRAME:
+            case MediaPipe.PROCESSING_EVENT_TYPES.ANIMATIONFRAME:
                 window.cancelAnimationFrame( this.currentVideoProcessing.listenerID );
                 break;
         }
 
         this.currentVideoProcessing = null;
-    },
+    }
 
     startRecording() {
         this.recording = true;
         this.landmarks = [];
         this.blendshapes = [];
-    },
+    }
 
     stopRecording() {
         this.recording = false;

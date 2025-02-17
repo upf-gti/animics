@@ -1,6 +1,7 @@
 import { KeyframeEditor, ScriptEditor } from "./Editor.js";
 import { VideoProcessor } from "./VideoProcessor.js";
 import { FileSystem } from "./FileSystem.js";
+import { UTILS } from './utils.js';
 
 import { LX } from 'lexgui';
 
@@ -63,9 +64,19 @@ class Animics {
      * 
      * @param {File} videos 
      */
-    processVideos( videos ) {
+    async processVideos( videos ) {
+
         this.editor.disable();
-        return this.videoProcessor.processVideos( videos );
+        const data = await this.videoProcessor.processVideos( videos );
+        this.showEditor();
+        return data;
+    }
+
+    showEditor() {
+        UTILS.hideLoading();
+
+        this.editor.enable();
+        this.videoProcessor.disable();
     }
 }
 

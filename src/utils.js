@@ -108,7 +108,7 @@ const UTILS = {
 	},
 
 	hideLoading( ) {
-
+		$("#loading").fadeOut();
 	},
 	
 	// Function to download data to a file

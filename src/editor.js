@@ -72,10 +72,10 @@ class Editor {
         this.ANIMICS = animics;
 
         this.enabled = true;
-
         this.editorArea = new LX.Area({id: "editor-area", width: "100%", height: "100%"});
-
+        
         animics.mainArea.attach(this.editorArea);
+        this.disable();
     }
 
     enable() {
@@ -100,12 +100,16 @@ class Editor {
         
         this.createScene();
         await this.initCharacters();
-        
+
+        if( settings.pendingResources ) {
+            UTILS.makeLoading("Loading files...");
+        }
         await this.processPendingResources(settings.pendingResources);
         this.gui.init(showGuide);
+        this.enable();
         
         this.bindEvents();
-        
+
         this.animate();
 
         window.onbeforeunload =  (e) => {
@@ -333,7 +337,8 @@ class Editor {
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
         }
-        $('#loading').fadeOut();
+        
+        UTILS.hideLoading();
     }
 
     setPlaybackRate(v){    
@@ -505,7 +510,7 @@ class Editor {
 
         if( this.animLoop ) {
             // user increased the duration of the animation. But the video is "trimmed" so it was paused at the endTime until the loop were reached
-            if ( this.video && this.video.paused ) { 
+            if ( this.video.sync && this.video.paused ) { 
                 this.video.play();
             }
             this.setTime(0.0, true);
@@ -516,7 +521,7 @@ class Editor {
             const stateBtn = document.querySelector("[title=Play]");
             stateBtn.children[0].click();
 
-            if( this.video ) {
+            if( this.video.sync ) {
                 this.video.pause();
                 this.video.currentTime = this.video.startTime;
             }
@@ -807,12 +812,12 @@ class KeyframeEditor extends Editor {
         this.retargeting = null;
         
         this.mapNames = MapNames.map_llnames[this.character];
-        this.gui = new KeyframesGui(this);
+        this.video = document.createElement( "video" );
+        this.video.startTime = 0;
+        this.video.sync = false; // If TRUE, synchronize video with animation. BVH/e always FALSE
 
-        this.video = this.gui.recordedVideo;
-        if(this.video) {
-            this.video.startTime = 0;
-        }
+        // Create GUI
+        this.gui = new KeyframesGui(this);
 
         this.animationModes = {FACE: 0, BODY: 1};
         this.animationMode = this.animationModes.BODY;
@@ -941,6 +946,9 @@ class KeyframeEditor extends Editor {
         if( resultFiles.length && mode == "video" ) {
             // TO DO: VIDEO PROCESSOR
             const animations = await this.ANIMICS.processVideos(resultFiles);
+            for(let i = 0; i < animations.length; i++) {
+                this.buildAnimation(animations[i]);
+            }
             // return new Promise( async (resolve) => {
             //     // this.loadAnimation( file.name, file.animation );
                 
@@ -1072,16 +1080,18 @@ class KeyframeEditor extends Editor {
             animationData.skeletonAnim.clip.name = "bodyAnimation";
             bodyAnimation = animationData.skeletonAnim.clip;
         }
-        
-        if ( animationData && animationData.blendshapesAnim ){
+        // If it has face animation, it means that comes from BVHe
+        if ( animationData && animationData.blendshapesAnim ) {
             animationData.blendshapesAnim.name = "faceAnimation";       
             faceAnimation = animationData.blendshapesAnim.clip;
-            faceAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
+            // // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
+            // faceAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
         }
-        else {
-
+        else { // Otherwise, create empty animation
+            // faceAnimation = THREE.AnimationClip.CreateFromMorphTargetSequence('BodyMesh', this.currentCharacter.model.getObjectByName("BodyMesh").geometry.morphAttributes.position, 24, false);
             faceAnimation = this.currentCharacter.blendshapesManager.createEmptyAnimation("faceAnimation");
             faceAnimation.duration = bodyAnimation.duration;
+            faceAnimation.from = ""
         }
         
         let extensionIdx = name.lastIndexOf(".");
@@ -1482,16 +1492,22 @@ class KeyframeEditor extends Editor {
             let auAnimation = null;
             if(faceAnimation) {
                 
+                
+                
+                if(animation.type == "video") {
+                    auAnimation = faceAnimation;
+                    faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
+                }
+                else {
+                    // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
+                    auAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
+                }
                 // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
                 for( let i = 0; i < faceAnimation.tracks.length; ++i ){
                     faceAnimation.tracks[i].dim = 1;
                 }
                 // Set keyframe animation to the timeline and get the timeline-formated one.
-                auAnimation = this.gui.curvesTimeline.setAnimationClip( faceAnimation, true );
-                
-                // if(animation.type == "video") {
-                    faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(auAnimation);
-                // }
+                auAnimation = this.gui.curvesTimeline.setAnimationClip( auAnimation, true );
 
                 faceAnimation.name = "faceAnimation";   // mixer
                 auAnimation.name = "faceAnimation";  // timeline
@@ -1519,11 +1535,12 @@ class KeyframeEditor extends Editor {
         this.gizmo.updateBones();
         // mixer.setTime(0);
 
-        if ( animation.type == "video" ){
+        if ( animation.type == "video" ) {
             this.video.sync = true;
-            this.setVideoVisibility(true);
+            this.setVideoVisibility(true, animation.live);
             this.video.onloadeddata = () =>{
                 this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
+                this.video.click();
                 if ( this.activeTimeline.playing ){
                     this.video.play();
                 }            
@@ -1533,9 +1550,9 @@ class KeyframeEditor extends Editor {
             this.video.endTime = animation.endTime ?? 1;
         }
         else {
-            if( this.video ) {
-                this.video.sync = false;
-            }
+            
+            this.video.sync = false;
+            
             this.setVideoVisibility(false);
         }
 
@@ -1621,10 +1638,10 @@ class KeyframeEditor extends Editor {
         // }
     }
 
-    setVideoVisibility( visibility ){ // TO DO
+    setVideoVisibility( visibility, needsMirror = false ){ // TO DO
         //document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
-        if(visibility) {
-            this.gui.showVideoOverlay();
+        if(visibility && this.getCurrentAnimation().type == "video") {
+            this.gui.showVideoOverlay(needsMirror);
         }
         else {
             this.gui.hideVideoOverlay();
@@ -1633,7 +1650,7 @@ class KeyframeEditor extends Editor {
 
     setPlaybackRate( v ) {
         v = Math.min( 16, Math.max( 0.1, v ) );
-        if(this.video) {
+        if( this.video.sync ) {
             this.video.playbackRate = v; 
         }
         this.currentCharacter.mixer.timeScale = v;
@@ -1648,7 +1665,7 @@ class KeyframeEditor extends Editor {
 
     onUpdate(dt) {
         // the user increased the duration of the animation but the video is trimmed. Keep it paused at endTime until loop        
-        if ( this.video && this.video.sync && this.video.currentTime >= this.video.endTime ) {
+        if ( this.video.sync && this.video.currentTime >= this.video.endTime ) {
             this.video.pause(); // stop video on last frame until loop
         }
         this.gizmo.update(this.state, dt);        
@@ -1657,7 +1674,7 @@ class KeyframeEditor extends Editor {
     onPlay() {
      
         this.gui.setBoneInfoState( false );
-        if(this.video && this.video.sync) {
+        if( this.video.sync ) {
             try {
                 this.video.paused ? this.video.play() : 0;    
             }
@@ -1671,7 +1688,7 @@ class KeyframeEditor extends Editor {
     onStop() {
 
         this.gizmo.updateBones();
-        if( this.video && this.video.sync ) {
+        if( this.video.sync ) {
             this.video.pause();
             this.video.currentTime = this.video.startTime;
         }
@@ -1679,7 +1696,7 @@ class KeyframeEditor extends Editor {
 
     onPause() {
         this.state = false;
-        if( this.video && this.video.sync ) {
+        if( this.video.sync ) {
             try{
                 !this.video.paused ? this.video.pause() : 0;    
             }catch(ex) {
@@ -1692,7 +1709,7 @@ class KeyframeEditor extends Editor {
 
     onSetTime( t ) {
         // Update video
-        if( this.video ) {
+        if( this.getCurrentAnimation().type == "video" ) {
             this.video.currentTime = this.video.startTime + t;
         }
         this.gizmo.updateBones();

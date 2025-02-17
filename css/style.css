@@ -26,12 +26,6 @@
 
 html, body {width: 100%;height: 100%;margin: 0;padding: 0;background-color: var(--background);overflow: hidden;font-size: var(--global-font-size);}
 
-video {
-	transform: rotateY(180deg);
-	-webkit-transform:rotateY(180deg); /* Safari and Chrome */
-	-moz-transform:rotateY(180deg); /* Firefox */
-}
-
 canvas {
 	outline: none !important;
 }
@@ -46,7 +40,7 @@ canvas {
 	/* flex-direction: column; */
 	justify-content: center;
 	align-items: center;
-	z-index: 100;
+	z-index: 100000;
 	color: white;
 	font-size: larger;
 }
@@ -747,4 +741,21 @@ option {
 }
 select option:hover, select option:focus{
 	background-color: var(--background);
+}
+
+.mirror {
+	transform: rotateY(180deg);
+	-webkit-transform:rotateY(180deg); /* Safari and Chrome */
+	-moz-transform:rotateY(180deg); /* Firefox */
+}
+
+#editor-video::-webkit-scrollbar {
+	background: transparent!important;
+}
+#editor-video::-webkit-scrollbar-track {
+	background: transparent!important;
+}
+
+#editor-video::-webkit-scrollbar-thumb {
+	background: transparent!important;
 }

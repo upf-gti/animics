@@ -235,7 +235,10 @@ class BlendshapesManager {
             if (targetName.includes('.morphTargetInfluences')) {
                 const meshName = targetName.split('.morphTargetInfluences[')[0]; // Mesh name
                 const morphTargetName = targetName.split('[')[1].split(']')[0]; // Morph target name
-                if( meshName != "Body" ) {
+                if( meshName.includes( "Body" )) {
+                    animation.tracks[i].name = animation.tracks[i].name.replace("Body.", "BodyMesh.");
+                }
+                else {
                     continue;
                 }
 
@@ -251,12 +254,18 @@ class BlendshapesManager {
                         if ( mappedMorphs.includes(morphTargetName) ) {
                             
                             const newName = this.getFormattedTrackName(actionUnit);
+                            if(!newName) {
+                                continue;
+                            }
                             auTracks.push( new THREE.NumberKeyframeTrack(newName, times, values ));
                             break;
                         }
                     } else if (mappedMorphs === morphTargetName) {
 
                         const newName = this.getFormattedTrackName(actionUnit);
+                        if(!newName) {
+                            continue;
+                        }
                         auTracks.push( new THREE.NumberKeyframeTrack(newName, times, values ));
                         break;
                     }
@@ -272,20 +281,21 @@ class BlendshapesManager {
     // Format morph target track name into "FaceArea.MediapipeAcitionUnit"
     getFormattedTrackName(name) {
 
-        let bs = name;
+        let bs = "";
         for(let i = 0; i < BlendshapesManager.faceAreas.length; i++)
         {
             let toCompare = BlendshapesManager.faceAreas[i].toLowerCase().split(" ");
             let found = true;
             for(let j = 0; j < toCompare.length; j++) {
 
-                if(!bs.toLowerCase().includes(toCompare[j])) {
+                if(!name.toLowerCase().includes(toCompare[j])) {
                     found = false;
                     break;
                 }
             }
-            if(found)
-                bs = BlendshapesManager.faceAreas[i] + "." + bs;
+            if(found) {
+                bs = BlendshapesManager.faceAreas[i] + "." + name;
+            }
 
         }
         return bs;
@@ -309,6 +319,19 @@ class BlendshapesManager {
     }
 
     createEmptyAnimation(name) {
+        const tracks = [];
+        for(let mesh in this.morphTargetDictionary) {
+            const morphTargets = this.morphTargetDictionary[mesh];
+           for(let morphTarget in morphTargets) {            
+                tracks.push( new THREE.NumberKeyframeTrack(mesh + '.morphTargetInfluences['+ morphTarget + ']', [0], [0] ));
+           }
+        }
+
+        const length = -1;
+        return new THREE.AnimationClip( name ?? "bsAnimation", length, tracks);
+    }
+
+    createEmptyAUAnimation(name) {
         let names = {}
         for(let name in this.mapNames) {
             names[name] = 0;
