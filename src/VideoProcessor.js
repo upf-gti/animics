@@ -314,9 +314,7 @@ class VideoProcessor {
             this.canvasVideo.classList.remove("hidden");
             this.recordedVideo.classList.remove("hidden");
             const animation = await this.generateRawAnimation(this.recordedVideo, this.videoEditor.getTrimedTimes())
-            
             //TO DO
-            // window.global.app.onVideoTrimmed(start, end)
             this.videoEditor.hideControls();
             this.processorArea.extend();
             resolve(animation);
@@ -368,8 +366,9 @@ class VideoProcessor {
 
         const animations = [];
         for(let i = 0; i < videos.length; i++) {
-            UTILS.makeLoading("Loading video...");
+            UTILS.makeLoading(videos.length == 1 ? "Loading video..." : ("Loading video " + (i + 1) + "/ " + videos.length));
             const animation = await this.onLoadVideo( videos[i], videos.length == 1 );
+            UTILS.hideLoading();
             animations.push( animation );
         }
         return animations;
@@ -443,6 +442,8 @@ class VideoProcessor {
     }
 
     generateRawAnimation( video, times = {} ) {
+        UTILS.makeLoading("Processing video [ " + video.name + " ]", 0.7 )
+
         const videoObj = {
             name: video.name,
             videoURL: video.src,
@@ -472,6 +473,7 @@ class VideoProcessor {
                 video.pause();
     
                 resolve(videoObj);
+                UTILS.hideLoading();
     
             }, videoObj.live )
            

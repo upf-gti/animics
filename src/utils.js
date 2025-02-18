@@ -100,7 +100,9 @@ const UTILS = {
     },
 
 	makeLoading( string, opacity = 1 ) {
-
+		if($("#loading").is(':animated')) {
+			$("#loading").stop().animate({opacity:'100'});
+		}
 		$("#loading p").text( string );
 		$("#loading").removeClass("hidden");
 		$("#loading").css({ background: "rgba(17,17,17," + opacity + ")" })
@@ -108,6 +110,7 @@ const UTILS = {
 	},
 
 	hideLoading( ) {
+		
 		$("#loading").fadeOut();
 	},
 	
