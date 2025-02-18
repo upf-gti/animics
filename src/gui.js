@@ -430,7 +430,7 @@ class Gui {
     createMenubar(area) {
 
         this.menubar = area.addMenubar( m => {
-            m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => window.location.reload(), {float: "left"});   
+            m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});   
         });
 
         // var that = this;

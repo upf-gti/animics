@@ -359,6 +359,8 @@ class VideoEditor {
         this.startTimeString = "0:0";
         this.endTimeString = "0:0";
 
+        this.mainArea = area;
+
         let [videoArea, controlsArea] = area.split({ type: 'vertical', sizes: ["85%", null], minimizable: false, resize: false });
         controlsArea.root.classList.add('lexconstrolsarea');
 

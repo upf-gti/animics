@@ -907,7 +907,10 @@ class KeyframeEditor extends Editor {
         }
         
         // TO DO
-        await this.loadFiles(resources);
+        const loaded = await this.loadFiles(resources);
+        if( !loaded ) {
+            await this.processPendingResources();
+        }
     }
 
     async loadFiles(files) {
@@ -952,15 +955,23 @@ class KeyframeEditor extends Editor {
         if( resultFiles.length && mode == "video" ) {
             
             const animations = await this.ANIMICS.processVideos(resultFiles);
+            if( !animations ) {
+                return false;
+            }
+
             for(let i = 0; i < animations.length; i++) {
                 this.buildAnimation(animations[i]);
             }
+            return true;
         }
     }
 
     async captureVideo() {
         
         const animation = await this.ANIMICS.processWebcam();
+        if( !animation ) {
+            return;
+        }
         this.buildAnimation(animation);
         
     }
@@ -1055,7 +1066,7 @@ class KeyframeEditor extends Editor {
             // Create body animation from mediapipe landmakrs using ML
             this.loadedAnimations[data.name].bodyAnimation = createAnimationFromRotations("bodyAnimation", this.nn); // bones animation THREEjs AnimationClip
         }
-        else{
+        else {
             this.loadedAnimations[data.name].bodyAnimation = landmarks; // array of objects of type { FLM, PLM, LLM, RLM, PWLM, LWLM, RWLM }. Not an animation clip
         }
         

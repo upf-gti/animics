@@ -29,6 +29,8 @@ class VideoProcessor {
         this.mediapipe.onresults = ( results ) => this.updateSidePanel( results );
         
         this.disable();
+
+        this.currentResolve = null;
     }
 
     createView() {
@@ -37,18 +39,14 @@ class VideoProcessor {
         //split main area. Left: video editor area, Right: helper/info panel (distance to the camera, blendhsapes' weights, etc)
         const [leftArea, rightArea] = this.processorArea.split({sizes:["75%","25%"], minimizable: true});
         // split left area. Top: video editor + selector. Bottom: buttons.
-        const [topArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
-        this.menubar = topArea.addMenubar( m => {
-            m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => this.cancelProcess(), {float: "left"});   
+        const [videoEditorArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
+        this.menubar = videoEditorArea.addMenubar( m => {
+            // m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => this.cancelProcess(), {float: "left"});   
+            m.setButtonIcon("Return", "fa-solid fa-circle-arrow-left", () => this.cancelProcess(), {float: "left"});
         });
-        // split top left area. Select area (top): video/webcam selector. Video editor area (bottom): video editor.
-        const [selectArea, videoEditorArea] = topArea.split({sizes: ["80px", null], minimizable: false, resize: false, type: "vertical" });
-        
-        // Create input selector widget (webcam or video)
-        this.createSelectorInput(selectArea);
 
         // Add show/hide right panel button (expand/reduce panel area)
-        selectArea.addOverlayButtons([{
+        videoEditorArea.addOverlayButtons([{
             selectable: true,
             selected: true,
             icon: "fa-solid fa-info",
@@ -77,96 +75,30 @@ class VideoProcessor {
 
     disable() {
         this.enabled = false;
+        this.currentResolve = null;
         this.videoEditor.stopUpdates();
         this.mediapipe.stopVideoProcessing();
         // This already disables events
         this.processorArea.root.classList.add("hidden");
+
+        this.recording = false;
+        if( this.mediaRecorder ) {
+            this.mediaRecorder.stop();
+        }
+
+        // destroys inputVideo camera stream, if any
+        const inputVideo = this.inputVideo;
+        inputVideo.pause();
+        if( inputVideo.srcObject ) {
+            inputVideo.srcObject.getTracks().forEach(a => a.stop());
+        }
+        inputVideo.srcObject = null;
     }
 
     cancelProcess() {
 
-        this.ANIMICS.showEditor();
-    }
-
-    createSelectorInput(area) {
-        const selectContainer = area.addPanel({id:"select-mode", height: "80px", weight: "50%"})
-
-        selectContainer.sameLine();
-        selectContainer.addComboButtons("Input:", [
-            {
-                value: 'webcam',
-                id: 'webcam-input',
-                callback: (value, event, name) => {
-                    const inputEl = input.domEl.getElementsByTagName("input")[0];                    
-                    inputEl.value = "";
-                    input.domEl.classList.add("hidden");
-                    if(this.mode == "webcam") {
-                        return;
-                    }
-                    this.mode = "webcam";
-
-                    if(this.videoEditor) {
-                        this.videoEditor.unbind();
-                        this.videoEditor.hideControls();
-                    }
-                    // TO DO
-                    // this.editor.getApp().onBeginCapture();
-                }
-            },
-            {
-                value: 'video',
-                id: 'video-input',
-                callback: (value, event, name) => {
-                    const inputEl = input.domEl.getElementsByTagName("input")[0];
-                    input.domEl.classList.remove("hidden");
-                    inputEl.value = "";
-                    inputEl.click();
-                    
-                    this.mode = "video";
-                }
-            }
-        ], { selected: this.mode, width: "180px" });
-
-        const input = selectContainer.addFile( "File:", (value, event) => {
-
-            if( !value ) { // user cancel import file
-                this.mode = "webcam";
-                document.getElementById("webcam-input").click();
-
-                return;
-            }
-
-            if( !value.type.includes("video") ) {
-                this.mode = "webcam";
-                LX.message("Format not accepted");
-                document.getElementById("webcam-input").click();
-
-                return;
-            }
-
-            if( this.videoEditor ) {
-                this.videoEditor.unbind();
-                this.videoEditor.hideControls();
-            }
-
-            // delete camera stream 
-            const inputVideo = this.inputVideo;
-            inputVideo.pause();
-            if( inputVideo.srcObject ) {
-                inputVideo.srcObject.getTracks().forEach(a => a.stop());
-            }
-            inputVideo.srcObject = null;
-
-            // load video
-            if ( !Array.isArray( value ) ) {
-                value = [value];
-            }
-            // TO DO
-            // this.editor.getApp().onLoadVideos( value );
-
-        }, { id: "video-input", placeholder: "No file selected", local: false, type: "buffer", read: false, width: "200px"} );
-        
-        selectContainer.endLine("center");
+        this.currentResolve( null );
+        this.disable();
     }
 
     createVideoArea( area ) {
@@ -275,7 +207,7 @@ class VideoProcessor {
         panel.root.style.flexWrap = "wrap";
     }
 
-    createTrimArea(resolve, options) {
+    createTrimArea( options ) {
         // TRIM VIDEO - be sure that only the sign is recorded
         const recordedVideo = this.mediapipeOnlineVideo = this.recordedVideo;
         const canvasVideo = this.canvasVideo;
@@ -303,7 +235,8 @@ class VideoProcessor {
             
             this.videoEditor.unbind();
             this.processorArea.reduce();
-            resolve(animation);
+            this.currentResolve(animation);
+            this.currentResolve = null;
         }, {width: "auto", className: "captureButton colored"});//, {width: "100px"});
 
     }
@@ -395,6 +328,10 @@ class VideoProcessor {
         for(let i = 0; i < videos.length; i++) {
             UTILS.makeLoading(videos.length == 1 ? "Loading video..." : ("Loading video " + (i + 1) + "/ " + videos.length));
             const animation = await this.onLoadVideo( videos[i], videos.length == 1 );
+            // If user cancelled process
+            if( !animation ) {
+                return null;
+            }
             UTILS.hideLoading();
             animations.push( animation );
         }
@@ -432,6 +369,7 @@ class VideoProcessor {
         
         // video.onloadedmetadata = ( function (e) {
         const promise = new Promise((resolve) => {
+            this.currentResolve = resolve;
             video.onloadeddata = ( async (e) => {
             
                 const aspect = video.videoWidth / video.videoHeight;
@@ -455,11 +393,13 @@ class VideoProcessor {
                 
                 if(trimStage) {
                     // directly to trim stage
-                    this.createTrimArea( resolve );
+                    this.currentResolve = resolve;
+                    this.createTrimArea( );
                 }
                 else {
                     const animation = await this.generateRawAnimation(video);
-                    resolve(animation);
+                    this.currentResolve(animation);
+                    this.currentResolve = null;
                 }
                 
 
@@ -586,6 +526,7 @@ class VideoProcessor {
                     }
                 }
                 return new Promise( resolve => {
+                    this.currentResolve = resolve;
                     this.mediaRecorder.onstop = (e) => {
                     
                         if( !this.recording ) {
@@ -611,7 +552,7 @@ class VideoProcessor {
                         inputVideo.srcObject = null;
                                             
                         // Trim stage. Show modal to redo or load the animation in the scene
-                        this.createTrimArea( resolve );
+                        this.createTrimArea( );
     
                         console.log("Stopped recording");
                     }
