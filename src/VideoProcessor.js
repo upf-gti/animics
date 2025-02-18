@@ -67,10 +67,7 @@ class VideoProcessor {
         this.createSidePanel(rightArea);
 
         // Capture panel buttons
-        this.buttonsPanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});        
-     
-        // this.webcamArea = new LX.Area({id: "webcam-area", width: "100%", height: "100%"});
-        // this.videoArea = new LX.Area({id: "video-area", width: "100%", height: "100%"});        
+        this.buttonsPanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});  
     }
 
     enable() {
@@ -172,7 +169,7 @@ class VideoProcessor {
         selectContainer.endLine("center");
     }
 
-    createVideoArea(area) {
+    createVideoArea( area ) {
 
         /* Create video area*/
         const videoArea = new LX.Area("video-area");        
@@ -232,7 +229,7 @@ class VideoProcessor {
         
         this.videoEditor.onVideoLoaded = async (video) => {
             this.mediapipe.setOptions( { autoDraw: true } );
-            if ( this.mediapipeOnlineEnabler ){ 
+            if ( this.mediapipeOnlineEnabler ) { 
                 this.mediapipe.processVideoOnline(video, this.mode == "webcam"); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
             }            
         }
@@ -296,10 +293,14 @@ class VideoProcessor {
         this.buttonsPanel.addButton(null, "Convert to animation", async (v) => {
             this.canvasVideo.classList.remove("hidden");
             this.recordedVideo.classList.remove("hidden");
-            const animation = await this.generateRawAnimation(this.recordedVideo, this.videoEditor.getTrimedTimes())
-            //TO DO
+            
+            this.buttonsPanel.clear();
             this.videoEditor.hideControls();
-            this.processorArea.extend();
+            
+            const animation = await this.generateRawAnimation(this.recordedVideo, this.videoEditor.getTrimedTimes())
+            
+            this.videoEditor.unbind();
+            this.processorArea.reduce();
             resolve(animation);
         }, {width: "auto", className: "captureButton colored"});//, {width: "100px"});
 
@@ -444,9 +445,9 @@ class VideoProcessor {
                 if( !this.mediapipe.loaded ) {
                     UTILS.makeLoading("Loading MediaPipe...");
                     await this.mediapipe.init();
-                    UTILS.hideLoading();
                 }
-
+                UTILS.hideLoading();
+                
                 if(trimStage) {
                     // directly to trim stage
                     this.createTrimArea( resolve );

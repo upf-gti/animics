@@ -1238,6 +1238,7 @@ class KeyframesGui extends Gui {
         video.style.borderRadius = "5px";
        
         area.attach(video);
+        this.canvasArea.attach(area);
 
         // adjust div to video aspect ratio. This forces the resizing tool to be on the video
         area.root.onmouseup = function(){

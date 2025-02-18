@@ -458,6 +458,22 @@ class VideoEditor {
             this.timebar.resize([availableWidth, timeBarArea.root.clientHeight]);
         })
 
+        this.onKeyUp = (event) => {
+            if(this.controls && event.key == " ") {
+
+                if(!this.playing) {
+                    this.video.play();
+                }
+                else {
+                    this.video.pause();
+                }
+                this.playing = !this.playing;
+                this.controlsPanelLeft.refresh();
+            }
+        }
+
+        window.addEventListener( "keyup", this.onKeyUp);
+
         videoArea.onresize = (v) => {
             bottomArea.setSize([v.width, 40]);
         }
@@ -483,7 +499,7 @@ class VideoEditor {
                 this.timebar.onMouseMove(event);
             }
         });
-
+        
     }
 
     async _loadVideo( options = {} ) {
@@ -491,13 +507,14 @@ class VideoEditor {
             await new Promise(r => setTimeout(r, 1000));
             this.video.currentTime = 10000000 * Math.random();
         }
-        this.video.currentTime = -1; // BUG: some videos will not play unless this line is present 
-        this.video.currentTime = 0;
+        
+        this.video.currentTime = 0.01; // BUG: some videos will not play unless this line is present 
         this.endTime = this.video.duration;
-        this.timebar.currentX = this._timeToX(0);
+        
         this._setEndValue(this.timebar.endX);
         this._setStartValue(this.timebar.startX);
-        this._setCurrentValue(this.timebar.currentX);
+        this.timebar.currentX = this._timeToX(this.video.currentTime);
+        this._setCurrentValue(this.timebar.currentX, false);
         this.timebar.update(this.timebar.currentX);
         
         if ( !this.requestId ){ // only have one update on flight
@@ -507,6 +524,8 @@ class VideoEditor {
         if(!this.controls) {
             this.hideControls();
         }
+
+        window.addEventListener( "keyup", this.onKeyUp);
 
         if(this.onVideoLoaded) {
             this.onVideoLoaded(this.video);
@@ -629,11 +648,17 @@ class VideoEditor {
 
     unbind ( ) {
         this.stopUpdates();
+        
+        this.video.pause();
+        this.playing = false;
+        this.controlsPanelLeft.refresh();
         this.video.src = "";
         this.timebar.position = new LX.vec2( this.timebar.offset, this.timebar.canvas.height * 0.5 - this.timebar.height * 0.5);
         this.timebar.startX = this.timebar.position.x;
         this.timebar.endX = this.timebar.width;
         this.timebar.currentX = this.timebar.startX;
+
+        window.removeEventListener("keyup", this.onKeyUp);
     }
 }
 

@@ -1494,9 +1494,7 @@ class KeyframeEditor extends Editor {
             let faceAnimation = animation.faceAnimation;        
             let auAnimation = null;
             if(faceAnimation) {
-                
-                
-                
+                                
                 if(animation.type == "video") {
                     auAnimation = faceAnimation;
                     faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
@@ -1506,9 +1504,10 @@ class KeyframeEditor extends Editor {
                     auAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
                 }
                 // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
-                for( let i = 0; i < faceAnimation.tracks.length; ++i ){
-                    faceAnimation.tracks[i].dim = 1;
+                for( let i = 0; i < auAnimation.tracks.length; ++i ){
+                    auAnimation.tracks[i].dim = 1;
                 }
+
                 auAnimation.duration = faceAnimation.duration;
                 // Set keyframe animation to the timeline and get the timeline-formated one.
                 auAnimation = this.gui.curvesTimeline.setAnimationClip( auAnimation, true );
@@ -1522,6 +1521,7 @@ class KeyframeEditor extends Editor {
             if(!this.bindedAnimations[animationName]) {
                 this.bindedAnimations[animationName] = {};
             }
+            
             this.bindedAnimations[animationName][this.currentCharacter.name] = {
                 source: animationName,
                 skeletonAnimation, auAnimation, // from gui timeline. Main data
@@ -1541,7 +1541,7 @@ class KeyframeEditor extends Editor {
 
         if ( animation.type == "video" ) {
             this.video.sync = true;
-            this.setVideoVisibility(true, animation.live);
+            this.setVideoVisibility(true);
             this.video.onloadeddata = () =>{
                 this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
                 this.video.click();
