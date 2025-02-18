@@ -460,6 +460,8 @@ class VideoEditor {
 
         this.onKeyUp = (event) => {
             if(this.controls && event.key == " ") {
+                event.preventDefault();
+                event.stopPropagation();
 
                 if(!this.playing) {
                     this.video.play();
@@ -508,6 +510,9 @@ class VideoEditor {
             this.video.currentTime = 10000000 * Math.random();
         }
         
+        this.timebar.startX = this.timebar.position.x;
+        this.timebar.endX = this.timebar.width;
+
         this.video.currentTime = 0.01; // BUG: some videos will not play unless this line is present 
         this.endTime = this.video.duration;
         
@@ -653,10 +658,6 @@ class VideoEditor {
         this.playing = false;
         this.controlsPanelLeft.refresh();
         this.video.src = "";
-        this.timebar.position = new LX.vec2( this.timebar.offset, this.timebar.canvas.height * 0.5 - this.timebar.height * 0.5);
-        this.timebar.startX = this.timebar.position.x;
-        this.timebar.endX = this.timebar.width;
-        this.timebar.currentX = this.timebar.startX;
 
         window.removeEventListener("keyup", this.onKeyUp);
     }

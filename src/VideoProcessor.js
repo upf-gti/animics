@@ -277,27 +277,29 @@ class VideoProcessor {
 
     createTrimArea(resolve, options) {
         // TRIM VIDEO - be sure that only the sign is recorded
-        const video = this.mediapipeOnlineVideo = this.recordedVideo;
-        
-        this.videoEditor.video = video;
+        const recordedVideo = this.mediapipeOnlineVideo = this.recordedVideo;
+        const canvasVideo = this.canvasVideo;
+        const inputVideo = this.inputVideo;
+
+        this.videoEditor.video = recordedVideo;
         this.videoEditor.showControls();
         this.videoEditor._loadVideo();
         this.buttonsPanel.clear();
 
-        video.classList.remove("hidden");
-        this.inputVideo.classList.add("hidden");
+        recordedVideo.classList.remove("hidden");
+        inputVideo.classList.add("hidden");
         
-        this.recordedVideo.style.width = this.canvasVideo.width + "px";
-        this.recordedVideo.style.height = this.canvasVideo.height + "px";
+        recordedVideo.style.width = canvasVideo.width + "px";
+        recordedVideo.style.height = canvasVideo.height + "px";
 
         this.buttonsPanel.addButton(null, "Convert to animation", async (v) => {
-            this.canvasVideo.classList.remove("hidden");
-            this.recordedVideo.classList.remove("hidden");
+            canvasVideo.classList.remove("hidden");
+            recordedVideo.classList.remove("hidden");
             
             this.buttonsPanel.clear();
             this.videoEditor.hideControls();
             
-            const animation = await this.generateRawAnimation(this.recordedVideo, this.videoEditor.getTrimedTimes())
+            const animation = await this.generateRawAnimation(recordedVideo, this.videoEditor.getTrimedTimes())
             
             this.videoEditor.unbind();
             this.processorArea.reduce();
@@ -316,6 +318,9 @@ class VideoProcessor {
 
         const inputVideo = this.inputVideo;
         inputVideo.classList.remove("hidden");
+
+        const recordedVideo = this.recordedVideo;
+        recordedVideo.classList.add("hidden");
 
         this.buttonsPanel.addButton(null, "Record", () => {
             // start video recording 
