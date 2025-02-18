@@ -75,7 +75,6 @@ class Editor {
         this.editorArea = new LX.Area({id: "editor-area", width: "100%", height: "100%"});
         
         animics.mainArea.attach(this.editorArea);
-        this.disable();
     }
 
     enable() {
@@ -99,16 +98,23 @@ class Editor {
 
         
         this.createScene();
+        this.disable()
         await this.initCharacters();
 
         if( settings.pendingResources ) {
             UTILS.makeLoading("Loading files...");
         }
+        else {
+            UTILS.makeLoading("Preparing scene...");
+        }
+
         await this.processPendingResources(settings.pendingResources);
         this.gui.init(showGuide);
-        this.enable();
         
+        this.enable();
         this.bindEvents();
+        
+        UTILS.hideLoading();
 
         this.animate();
 
@@ -944,23 +950,19 @@ class KeyframeEditor extends Editor {
         }
 
         if( resultFiles.length && mode == "video" ) {
-            // TO DO: VIDEO PROCESSOR
+            
             const animations = await this.ANIMICS.processVideos(resultFiles);
             for(let i = 0; i < animations.length; i++) {
                 this.buildAnimation(animations[i]);
             }
-            // return new Promise( async (resolve) => {
-            //     // this.loadAnimation( file.name, file.animation );
-                
-            //     resolve()
-            // });
-            // this.gui.editorArea.hide();
-            // this.gui.createCaptureArea();
-            // this.gui.captureArea.show();
-            // // this.gui.mainArea.sections[1].attach(this.gui.captureArea);
-            //     //   this.showVideo = true
-            // this.getApp().onLoadVideos( resultFiles );
         }
+    }
+
+    async captureVideo() {
+        
+        const animation = await this.ANIMICS.processWebcam();
+        this.buildAnimation(animation);
+        
     }
 
     fileToAnimation (data, callback)  {
@@ -982,7 +984,8 @@ class KeyframeEditor extends Editor {
                 if(callback)
                     callback(data);
             } });
-        } else {
+        }
+        else {
 
             const innerParse = (event) => {
                 const content = event.srcElement ? event.srcElement.result : event;
@@ -1091,7 +1094,7 @@ class KeyframeEditor extends Editor {
             // faceAnimation = THREE.AnimationClip.CreateFromMorphTargetSequence('BodyMesh', this.currentCharacter.model.getObjectByName("BodyMesh").geometry.morphAttributes.position, 24, false);
             faceAnimation = this.currentCharacter.blendshapesManager.createEmptyAnimation("faceAnimation");
             faceAnimation.duration = bodyAnimation.duration;
-            faceAnimation.from = ""
+            faceAnimation.from = "";
         }
         
         let extensionIdx = name.lastIndexOf(".");
@@ -1506,6 +1509,7 @@ class KeyframeEditor extends Editor {
                 for( let i = 0; i < faceAnimation.tracks.length; ++i ){
                     faceAnimation.tracks[i].dim = 1;
                 }
+                auAnimation.duration = faceAnimation.duration;
                 // Set keyframe animation to the timeline and get the timeline-formated one.
                 auAnimation = this.gui.curvesTimeline.setAnimationClip( auAnimation, true );
 

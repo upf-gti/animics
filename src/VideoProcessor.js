@@ -12,7 +12,7 @@ class VideoProcessor {
         this.enabled = false;
 
         // keyframe
-        this.mediaRecorder = null
+        this.mediaRecorder = null;
         this.recordedChunks = [];
         this.mediapipeOnlineEnabler = true;
         this.mediapipeOnlineVideo = null; // pointer to current Video. Indicate whether it is in a stage that allows online mediapipe or not (null)
@@ -67,10 +67,10 @@ class VideoProcessor {
         this.createSidePanel(rightArea);
 
         // Capture panel buttons
-        this.buttonsArea = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});        
+        this.buttonsPanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});        
      
-        this.webcamArea = new LX.Area({id: "webcam-area", width: "100%", height: "100%"});
-        this.videoArea = new LX.Area({id: "video-area", width: "100%", height: "100%"});        
+        // this.webcamArea = new LX.Area({id: "webcam-area", width: "100%", height: "100%"});
+        // this.videoArea = new LX.Area({id: "video-area", width: "100%", height: "100%"});        
     }
 
     enable() {
@@ -180,6 +180,8 @@ class VideoProcessor {
         const inputVideo = this.inputVideo = document.createElement("video");
         inputVideo.id = "inputVideo";
         inputVideo.classList.add("hidden");
+        inputVideo.classList.add("mirror");
+        inputVideo.classList.add("border-animation");
         inputVideo.muted = true;
         videoArea.attach(inputVideo);
 
@@ -248,11 +250,11 @@ class VideoProcessor {
         panel.addComboButtons(null, [
             {
                 value: "On",
-                callback: (v, e) => { window.global.app.enableMediapipeOnline(true); }
+                callback: (v, e) => { this.enableMediapipeOnline(true); }
             },
             {
                 value: "Off",
-                callback: (v, e) => { window.global.app.enableMediapipeOnline(false); }
+                callback: (v, e) => { this.enableMediapipeOnline(false); }
             }
         ], {selected: "On"});
                                 
@@ -283,34 +285,15 @@ class VideoProcessor {
         this.videoEditor.video = video;
         this.videoEditor.showControls();
         this.videoEditor._loadVideo();
-        this.buttonsArea.clear();
+        this.buttonsPanel.clear();
 
         video.classList.remove("hidden");
-
-       
-        // if( live ) {
-        //     video.style.cssText+= "transform: rotateY(180deg);\
-        //                     -webkit-transform:rotateY(180deg); /* Safari and Chrome */\
-        //                     -moz-transform:rotateY(180deg); /* Firefox */"
-        // }
-        // else {
-        //     video.style.cssText+= "transform: rotateY(0deg);\
-        //                     -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-        //                     -moz-transform:rotateY(0deg); /* Firefox */"
-        // }
-
-        // video.style.cssText+= "transform: rotateY(0deg);\
-        //                     -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-        //                     -moz-transform:rotateY(0deg); /* Firefox */"
-
-        // this.videoEditor.onSetTime = options.onSetTime;
-        // this.videoEditor.onDraw = options.onDraw;
-
+        this.inputVideo.classList.add("hidden");
         
         this.recordedVideo.style.width = this.canvasVideo.width + "px";
         this.recordedVideo.style.height = this.canvasVideo.height + "px";
 
-        this.buttonsArea.addButton(null, "Convert to animation", async (v) => {
+        this.buttonsPanel.addButton(null, "Convert to animation", async (v) => {
             this.canvasVideo.classList.remove("hidden");
             this.recordedVideo.classList.remove("hidden");
             const animation = await this.generateRawAnimation(this.recordedVideo, this.videoEditor.getTrimedTimes())
@@ -318,18 +301,57 @@ class VideoProcessor {
             this.videoEditor.hideControls();
             this.processorArea.extend();
             resolve(animation);
-            // this.videoArea.sections[1].root.resize(["20%", "20%"])
         }, {width: "auto", className: "captureButton colored"});//, {width: "100px"});
 
-        // if( this.mode == "webcam" ) {
-        //     this.buttonsArea.addButton(null, "Redo", (v) => {
-        //         this.videoEditor.hideControls();
-        //         let videoRec = this.recordedVideo;
-        //         videoRec.classList.add("hidden");
-        //        // TO DO
-        //         // this.editor.getApp().onBeginCapture();
-        //     }, {width: "50px", icon: "fa-solid fa-rotate-left", className: "captureButton"});
-        // }
+    }
+
+    createCaptureAreea() {
+        this.buttonsPanel.clear();
+        
+        // Remove border style
+        const canvasVideo = this.canvasVideo;
+        canvasVideo.classList.remove("active");
+        canvasVideo.classList.remove("hidden");
+
+        const inputVideo = this.inputVideo;
+        inputVideo.classList.remove("hidden");
+
+        this.buttonsPanel.addButton(null, "Record", () => {
+            // start video recording 
+            if (!this.recording) {                   
+                this.recording = true;
+
+                if(this.mediaRecorder ) {
+                    this.mediaRecorder.start();
+                }
+                console.log("Started recording");
+                
+                // Add border animation
+                canvasVideo.classList.add("active");
+                
+                this.buttonsPanel.clear();
+                this.buttonsPanel.addButton(null, "Stop", () => {
+                    this.mediapipe.stopVideoProcessing();
+                    if( this.mediaRecorder ) {
+                        this.mediaRecorder.stop();
+                    }
+                    else {
+                        this.recording = false;
+                    }
+                }, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-stop", className: "captureButton colored"});
+                
+                this.buttonsPanel.addButton(null, "Cancel", () => {
+                    this.recording = false;
+                    if( this.mediaRecorder ) {
+                        this.mediaRecorder.stop();
+                    }
+
+                    this.createCaptureAreea();
+
+                }, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-rotate-left", className: "captureButton colored"});
+            }
+        }, {id:"start_capture_btn", width: "100px", className: "captureButton colored"});
+      
     }
 
     updateSidePanel( results ) {
@@ -358,7 +380,6 @@ class VideoProcessor {
             }
         }
     }
-
         
     async processVideos(videos) {
         this.mode = "video";
@@ -480,6 +501,148 @@ class VideoProcessor {
         })
         
         return promise;    
+    }
+
+    async processWebcam() {
+        this.mode = "webcam";
+
+        if( !this.mediapipe.loaded ) {
+            UTILS.makeLoading("Loading MediaPipe...");
+            await this.mediapipe.init();
+            UTILS.hideLoading();
+        }
+
+        this.mediaRecorder = null;
+        this.mediapipeOnlineVideo = this.inputVideo; 
+
+
+        const on_error = (err = null) => {
+            alert("Cannot access the camera. Check it is properly connected and not being used by any other application. You may want to upload a video instead.")
+            console.error("Error  " + err.name + ": " + err.message);            
+            window.location.reload();
+        } 
+        
+        if( this.mediaRecorder && this.recording ) {
+            this.mediaRecorder.stop();
+            this.recording = false;
+        }
+
+        this.mediapipe.stopVideoProcessing();
+
+        // prepare the device to capture the video
+        if (navigator.mediaDevices) {
+            console.log("UserMedia supported");
+            UTILS.makeLoading("Loading webcam...");
+
+            const constraints = { video: true, audio: false, width: 1280, height: 720 };
+            try {
+                this.createCaptureAreea();
+                this.enable();
+                
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const inputVideo = this.inputVideo; // this video will hold the camera stream
+                const canvasVideo = this.canvasVideo; // this canvas will output image, landmarks (and edges)
+                const recordedVideo = this.recordedVideo;
+
+                if( !inputVideo.srcObject ) {
+                    inputVideo.srcObject = stream;
+                }
+
+                inputVideo.onloadedmetadata = ( (e) => {
+
+                    console.log(inputVideo.videoWidth)
+                    console.log(inputVideo.videoHeight);
+                    
+                    const aspect = inputVideo.videoWidth / inputVideo.videoHeight;
+                    
+                    const height = inputVideo.parentElement.clientHeight;
+                    const width = height * aspect;
+
+                    canvasVideo.width  =  recordedVideo.style.width = width;
+                    canvasVideo.height =  recordedVideo.style.height = height;
+                    this.enableMediapipeOnline( this.mediapipeOnlineEnabler );
+
+                    UTILS.hideLoading();
+
+                } );
+                    
+                // setup mediarecorder but do not start it yet (setEvents deals with starting/stopping the recording)
+                // adding codec solves the "incorrect frames added at random times" issue
+                this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm; codecs="vp8"'}); 
+                // this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm; codecs="av01.2.19H.12.0.000.09.16.09.1"'});
+                // this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm'});
+                this.recordedChunks = [];
+                    
+                this.mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        this.recordedChunks.push(e.data);
+                    }
+                }
+                return new Promise( resolve => {
+                    this.mediaRecorder.onstop = (e) => {
+                    
+                        if( !this.recording ) {
+                            return;
+                        }
+
+                        this.recording = false;
+                        recordedVideo.controls = false;
+                        recordedVideo.loop = true;
+                        
+                        let blob = new Blob(this.recordedChunks, { type: "video/webm" });
+                        let videoURL = URL.createObjectURL(blob);
+                        recordedVideo.src = videoURL;
+                        recordedVideo.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".webm";
+    
+                        canvasVideo.classList.remove("active");  
+                                    
+                        // destroys inputVideo camera stream, if any
+                        inputVideo.pause();
+                        if( inputVideo.srcObject ) {
+                            inputVideo.srcObject.getTracks().forEach(a => a.stop());
+                        }
+                        inputVideo.srcObject = null;
+                                            
+                        // Trim stage. Show modal to redo or load the animation in the scene
+                        this.createTrimArea( resolve );
+    
+                        console.log("Stopped recording");
+                    }
+                    
+                    inputVideo.play();
+                })
+                
+            } 
+            catch( error ) {
+                on_error();
+            }            
+        }
+        else {
+            on_error();
+        }
+    }
+
+    // online Mediapipe might make the pc slow. Allow user to disable it. (video processing is not affected. It is offline Mediapipe)
+    enableMediapipeOnline( bool ){
+        // check app stage
+        if ( !this.mediapipeOnlineVideo ) {
+            this.mediapipeOnlineEnabler = false;
+            return;
+        }
+        
+        // still in video recording or trimming stages. Online toggle is allowed
+        this.mediapipeOnlineEnabler = !!bool;
+        if ( this.mediapipeOnlineEnabler ) {
+            this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, this.mode == "webcam" )
+            this.mediapipeOnlineVideo.classList.add("hidden");
+            this.canvasVideo.classList.remove("hidden");
+        }
+        else{
+            this.mediapipe.stopVideoProcessing();
+            this.mediapipeOnlineVideo.classList.remove("hidden");
+            this.canvasVideo.classList.add("hidden");
+        }
     }
 }
 

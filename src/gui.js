@@ -421,6 +421,11 @@ class Gui {
     showGuide() {
         
     }
+
+    onCreateMenuBar( menubar ) {
+
+    }
+
     /** Create menu bar */
     createMenubar(area) {
 
@@ -432,7 +437,7 @@ class Gui {
         let menubar = this.menubar;     
         
         // menubar.add("Project/");
-        menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+I"});
+        // menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+I"});
 
         this.onCreateMenuBar(menubar);
         
@@ -1096,24 +1101,33 @@ class KeyframesGui extends Gui {
 
     onCreateMenuBar( menubar ) {
         
-        menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", short: "CTRL+O"});
-        menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
-        menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
-        menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
-                  
-        // Export animation
+        // menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", short: "CTRL+O"});
+        menubar.add("Project/New animation");
+        
+        menubar.add("Project/Generate animations/From webcam", {icon: "fa fa-camera", callback: () => this.editor.captureVideo(), short: "CTRL+I"});
+        menubar.add("Project/Generate animations/From videos", {icon: "fa fa-photo-film", callback: () => this.importFiles(), short: "CTRL+I"});
+
+        menubar.add("Project/Import animations", {icon: "fa fa-cloud-arrow-down"});
+        menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+I"});
+        menubar.add("Project/Import animations/From server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+O"})
+
+        // Export (download) animation
         menubar.add("Project/Export animations", {icon: "fa fa-file-export"});
 
+        menubar.add("Project/Export animations/Export BVH", {callback: () => {            
+            this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH"));            
+        }});
         menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
             this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
         }});
         
-        menubar.add("Project/Export character & animations", {icon: "fa fa-download"});
-        menubar.add("Project/Export character & animations/Export GLB", {callback: () => {
+        menubar.add("Project/Export animations/Export GLB", {callback: () => {
                 this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
         }});
         
-        // Save animation
+        menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() });
+
+        // Save animation in server
         menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
 
         menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
@@ -1143,9 +1157,6 @@ class KeyframesGui extends Gui {
                 this.keyFramesTimeline.optimizeTracks();
             }
         });
-
-        menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
-
 
         menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
         if(this.showVideo) {
@@ -2685,6 +2696,12 @@ class ScriptGui extends Gui {
         if ( !this.delayedUpdateID ){
             this.delayedUpdateID = setTimeout( ()=>{ this.delayedUpdateID = null; this.editor.updateTracks(); }, this.delayedUpdateTime );
         }
+    }
+
+    onCreateMenuBar( menubar ) {
+        menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
+        menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
+        menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
     }
 
     /** Create timelines */

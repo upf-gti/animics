@@ -72,6 +72,13 @@ class Animics {
         return data;
     }
 
+    async processWebcam() {
+        this.editor.disable();
+        const data = await this.videoProcessor.processWebcam( );
+        this.showEditor();
+        return data;
+    }
+
     showEditor() {
         UTILS.hideLoading();
 

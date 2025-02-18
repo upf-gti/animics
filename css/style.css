@@ -107,7 +107,8 @@ canvas {
 
 .captureButton button {
 	padding: 1.25rem 2.25rem;
-    border-radius: 10rem !important;    
+    border-radius: 10rem !important;
+	z-index: 100;
 }
 
 .captureButton button a:hover {
