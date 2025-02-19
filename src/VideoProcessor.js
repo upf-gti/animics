@@ -206,7 +206,27 @@ class VideoProcessor {
         panel.root.style.overflowY = "scroll";
         panel.root.style.flexWrap = "wrap";
     }
-
+    // online Mediapipe might make the pc slow. Allow user to disable it. (video processing is not affected. It is offline Mediapipe)
+    enableMediapipeOnline( bool ){
+        // check app stage
+        if ( !this.mediapipeOnlineVideo ) {
+            this.mediapipeOnlineEnabler = false;
+            return;
+        }
+        
+        // still in video recording or trimming stages. Online toggle is allowed
+        this.mediapipeOnlineEnabler = !!bool;
+        if ( this.mediapipeOnlineEnabler ) {
+            this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, this.mode == "webcam" )
+            this.mediapipeOnlineVideo.classList.add("hidden");
+            this.canvasVideo.classList.remove("hidden");
+        }
+        else{
+            this.mediapipe.stopVideoProcessing();
+            this.mediapipeOnlineVideo.classList.remove("hidden");
+            this.canvasVideo.classList.add("hidden");
+        }
+    }
     createTrimArea( options ) {
         // TRIM VIDEO - be sure that only the sign is recorded
         const recordedVideo = this.mediapipeOnlineVideo = this.recordedVideo;
@@ -315,18 +335,22 @@ class VideoProcessor {
                     continue;
                 }
                 widget.onSetValue(value);
-            // TO DO: emit @on_change_au_ + name
             }
         }
     }
-        
-    async processVideos(videos) {
+    
+    /**
+     * @description Processes an array of videos and generates the raw animations. Called from Animics.
+     * @param {Array of File or URL} videos
+    */
+    async processVideos( videos ) {
         this.mode = "video";
         this.enable();
 
         const animations = [];
         for(let i = 0; i < videos.length; i++) {
             UTILS.makeLoading(videos.length == 1 ? "Loading video..." : ("Loading video " + (i + 1) + "/ " + videos.length));
+            // Redirect to trim area if only 1 video has to be processed. Otherwise, directly generate animation.
             const animation = await this.onLoadVideo( videos[i], videos.length == 1 );
             // If user cancelled process
             if( !animation ) {
@@ -339,8 +363,9 @@ class VideoProcessor {
     }
 
     /**
-     * @description Process single video with/out trim stage
+     * @description Processes a single video with/out trim stage
      * @param {File or URL} videoFile 
+     * @param {boolean} [trimStage=true] If true, it redirects to trim stage after loading the video. Otherwise, directly generates the animation data
     */
     onLoadVideo( videoFile, trimStage = true ) {
         if ( !videoFile ) { 
@@ -367,11 +392,10 @@ class VideoProcessor {
             video.name = "video_" + Math.floor( performance.now()*1000 ).toString() + videoFile.type.replace("video/", "." );
         }
         
-        // video.onloadedmetadata = ( function (e) {
         const promise = new Promise((resolve) => {
             this.currentResolve = resolve;
-            video.onloadeddata = ( async (e) => {
             
+            video.onloadeddata = ( async (e) => {
                 const aspect = video.videoWidth / video.videoHeight;
                 
                 video.classList.remove("hidden");
@@ -407,11 +431,16 @@ class VideoProcessor {
         })
         return promise;
     }
-
+    
+    /**
+     * @description Generates raw animation given a video
+     * @param { VideoElement } video 
+     * @param { Object } [times={}] {start: , end:} Trimmed times
+    */
     generateRawAnimation( video, times = {} ) {
         UTILS.makeLoading("Processing video [ " + video.name + " ]", 0.7 )
 
-        const videoObj = {
+        const animationData = {
             name: video.name,
             videoURL: video.src,
             startTime: times.start || 0,
@@ -427,9 +456,9 @@ class VideoProcessor {
         this.mediapipe.setOptions( { autoDraw: true } );
 
         const promise = new Promise( resolve => {
-            this.mediapipe.processVideoOffline( video, videoObj.startTime, videoObj.endTime, videoObj.dt, () =>{
-                videoObj.landmarks = this.mediapipe.landmarks;
-                videoObj.blendshapes = this.mediapipe.blendshapes;
+            this.mediapipe.processVideoOffline( video, animationData.startTime, animationData.endTime, animationData.dt, () =>{
+                animationData.landmarks = this.mediapipe.landmarks;
+                animationData.blendshapes = this.mediapipe.blendshapes;
     
                 this.inputVideo.onloadedmetadata = null;
              
@@ -439,16 +468,18 @@ class VideoProcessor {
                 video.autoplay = false;
                 video.pause();
     
-                resolve(videoObj);
+                resolve(animationData);
                 UTILS.hideLoading();
     
             }, videoObj.live )
            
-        })
-        
+        })        
         return promise;    
     }
-
+    
+    /**
+     * @description Create and processes a webcam recorded video and generate a raw animation. Called from Animics.
+    */
     async processWebcam() {
         this.mode = "webcam";
 
@@ -525,6 +556,7 @@ class VideoProcessor {
                         this.recordedChunks.push(e.data);
                     }
                 }
+
                 return new Promise( resolve => {
                     this.currentResolve = resolve;
                     this.mediaRecorder.onstop = (e) => {
@@ -537,8 +569,8 @@ class VideoProcessor {
                         recordedVideo.controls = false;
                         recordedVideo.loop = true;
                         
-                        let blob = new Blob(this.recordedChunks, { type: "video/webm" });
-                        let videoURL = URL.createObjectURL(blob);
+                        const blob = new Blob(this.recordedChunks, { type: "video/webm" });
+                        const videoURL = URL.createObjectURL(blob);
                         recordedVideo.src = videoURL;
                         recordedVideo.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".webm";
     
@@ -551,7 +583,7 @@ class VideoProcessor {
                         }
                         inputVideo.srcObject = null;
                                             
-                        // Trim stage. Show modal to redo or load the animation in the scene
+                        // Trim stage
                         this.createTrimArea( );
     
                         console.log("Stopped recording");
@@ -567,28 +599,6 @@ class VideoProcessor {
         }
         else {
             on_error();
-        }
-    }
-
-    // online Mediapipe might make the pc slow. Allow user to disable it. (video processing is not affected. It is offline Mediapipe)
-    enableMediapipeOnline( bool ){
-        // check app stage
-        if ( !this.mediapipeOnlineVideo ) {
-            this.mediapipeOnlineEnabler = false;
-            return;
-        }
-        
-        // still in video recording or trimming stages. Online toggle is allowed
-        this.mediapipeOnlineEnabler = !!bool;
-        if ( this.mediapipeOnlineEnabler ) {
-            this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, this.mode == "webcam" )
-            this.mediapipeOnlineVideo.classList.add("hidden");
-            this.canvasVideo.classList.remove("hidden");
-        }
-        else{
-            this.mediapipe.stopVideoProcessing();
-            this.mediapipeOnlineVideo.classList.remove("hidden");
-            this.canvasVideo.classList.add("hidden");
         }
     }
 }
