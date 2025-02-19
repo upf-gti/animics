@@ -1,5 +1,6 @@
 import { LX } from 'lexgui';
-import { MediaPipe } from "./mediapipe.js";
+import 'lexgui/components/videoeditor.js';
+import { MediaPipe } from "./Mediapipe.js";
 import { UTILS } from './utils.js';
 
 class VideoProcessor {
@@ -471,7 +472,7 @@ class VideoProcessor {
                 resolve(animationData);
                 UTILS.hideLoading();
     
-            }, videoObj.live )
+            }, animationData.live )
            
         })        
         return promise;    

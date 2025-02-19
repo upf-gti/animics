@@ -3,373 +3,7 @@ import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
 import 'lexgui/components/timeline.js';
-import 'lexgui/components/videoeditor.js';
 import { Gizmo } from "./gizmo.js";
-import { MediaPipe } from "./mediapipe.js";
-
-class PropagationWindow {
-
-    /*
-     * @param {Lexgui timeline} timeline must be valid 
-     */
-    constructor( timeline ){
-
-        this.timeline = timeline; // will provide the canvas
-        
-        this.curveWidget = null; 
-        this.showCurve = false;
-        
-        this.showLimits = false;
-
-        this.enabler = true;
-        this.resizing = 0; // -1 resizing left, 0 nothing, 1 resizing right
-
-        this.time = 0; // seconds
-        this.rightSide = 1; // seconds
-        this.leftSide = 1;  // seconds
-
-        this.opacity = 0.6;
-        this.lexguiColor = '#273162';
-        this.gradientColorLimits = "rgba( 39, 49, 98, 0%)"; // relies on lexgui
-        this.gradientColor = "rgba( 39, 49, 98"; // relies on lexgui
-        this.borderColor = "rgba( 255, 255, 255, 1)"; // relies on lexgui
-        this.gradient = [ [0.5,1] ]; // implicit 0 in the borders
-        // radii = 100;
-
-        // create curve Widget
-        const bgColor = "#cfcdcd";
-        const pointsColor = LX.getThemeColor("global-selected-dark");
-        const lineColor = LX.getThemeColor("global-color-secondary");//LX.getThemeColor("global-selected-light");
-        const lpos = timeline.timeToX( this.time - this.leftSide );
-        const rpos = timeline.timeToX( this.time + this.rightSide );
-
-        this.curveWidget = new LX.Curve( null, this.gradient, {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor, callback: (v,e) => {
-            if ( v.length <= 0){
-                this.curveWidget.element.value = this.gradient = [[0.5,1]];
-            }
-            this.curveWidget.redraw();
-        }} );
-        const curveElement = this.curveWidget.element; 
-        curveElement.style.width = "fit-content";
-        curveElement.style.height = "fit-content";
-        curveElement.style.position = "fixed";
-        curveElement.style.borderRadius = "0px";
-        curveElement.children[0].style.borderRadius = "0px 0px " + timeline.trackHeight*0.4 +"px " + timeline.trackHeight*0.4 +"px";
-        curveElement.style.zIndex = "0.5";
-    }
-
-    setEnabler( v ){
-        this.enabler = v;
-        if(!v) {
-            this.setCurveVisibility( false );
-        }
-        LX.emit( "@propW_enabler", this.enabler );
-    }
-    
-    toggleEnabler(){
-        this.setEnabler( !this.enabler );
-    }
-
-    recomputeGradient( newLeftSide, newRightSide ){
-        let g = this.gradient;
-
-        const oldMid = this.leftSide / (this.leftSide + this.rightSide);
-        const newMid = newLeftSide / (newLeftSide + newRightSide);
-        for( let i  = 0; i < g.length; ++i ){
-            let gt = g[i][0]; 
-            if ( gt <= oldMid ){
-                g[i][0] = ( gt / oldMid ) * newMid;
-            }
-            else{
-            g[i][0] = ( (gt - oldMid) / (1-oldMid)) * (1-newMid) + newMid ;
-            }
-        }
-
-        this.leftSide = newLeftSide;
-        this.rightSide = newRightSide;
-    }
-
-    setTimeline( timeline ){
-        this.timeline = timeline;
-        
-        this.curveWidget.element.remove(); // remove from dom, wherever this is
-        if(this.showCurve){
-            this.timeline.canvasArea.root.appendChild( this.curveWidget.element );
-            this.updateCurve( true );
-        }
-    }
-
-    setTime( time ){
-        this.time = time;
-        this.updateCurve(); // update only position
-    }
-
-    onOpenConfig(dialog){
-        dialog.addCheckbox("Enable", this.enabler, (v) =>{
-            this.setEnabler(v);
-        }, { signal: "@propW_enabler"});
-
-        dialog.sameLine();
-        dialog.addNumber("Min (s)", this.leftSide, (v) => {
-            this.recomputeGradient( v, this.rightSide );
-            this.updateCurve(true);
-        }, {min: 0.001, step: 0.001, signal: "@propW_minT"});
-
-        dialog.addNumber("Max (s)", this.rightSide, (v) => {
-            this.recomputeGradient( this.leftSide, v );
-            this.updateCurve(true);
-        }, {min: 0.001, step: 0.001, signal: "@propW_maxT"});		
-        dialog.endLine();
-
-        dialog.sameLine();
-        dialog.addColor("Color", this.lexguiColor, (value, event) => {
-            this.lexguiColor = value;
-            let rawColor = parseInt(value.slice(1,7), 16);
-            let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
-            this.gradientColorLimits = color + ",0%)"; 
-            this.gradientColor = color;
-            this.curveWidget.element.pointscolor = value;
-            this.curveWidget.redraw();
-        });
-        dialog.addNumber("Opacity", this.opacity, (v) => {
-            this.opacity = v;
-            this.curveWidget.element.style.opacity = v;
-        }, {min: 0, max:1, step:0.001});
-        dialog.endLine();
-    }
-
-    onMouse( e, time ){
-
-        if( !this.enabler ){ return false; }
-
-        const timeline = this.timeline;
-
-        const windowRect = this._getBoundingRectInnerWindow();
-        const lpos = windowRect.rectPosX;
-        const rpos = windowRect.rectPosX + windowRect.rectWidth;
-
-        const timelineState = timeline.grabbing | timeline.grabbingTimeBar | timeline.grabbingScroll | timeline.movingKeys | timeline.boxSelection;
-        
-        const isInsideResizeLeft = Math.abs( e.localX - lpos ) < 7 && e.localY > windowRect.rectPosY;
-        const isInsideResizeRight = Math.abs( e.localX - rpos ) < 7 && e.localY > windowRect.rectPosY;
-
-        if ( !timelineState && ( isInsideResizeLeft || isInsideResizeRight ) ){
-            timeline.canvas.style.cursor = "col-resize";
-        }
-        
-        if ( e.type == "mousedown" && (isInsideResizeLeft || isInsideResizeRight) ){
-            this.resizing = isInsideResizeLeft ? -1 : 1; 
-        }
-
-        if( e.localX >= lpos && e.localX <= rpos && e.localY > windowRect.rectPosY && e.localY <= (windowRect.rectPosY + windowRect.rectHeight)) {
-            this.showLimits = true;
-        }
-        else if(!this.resizing) { // outside of window
-            
-            if(e.type == "mousedown") {
-                this.setCurveVisibility( false );
-            }
-            this.showLimits = false;
-        }
-
-        if ( this.resizing && e.type == "mousemove" ){
-            if ( this.resizing == 1 ){
-                const t = Math.max( 0.001, time - this.time );
-                this.recomputeGradient(this.leftSide, t);
-                LX.emit("@propW_maxT", t); 
-            }else{
-                const t = Math.max( 0.001, this.time - time );
-                this.recomputeGradient(t, this.rightSide);
-                LX.emit("@propW_minT", t); 
-            }
-            this.showLimits = true;
-            if(this.showCurve) {
-                this.updateCurve( true );
-            }
-        }
-        else if(timeline.grabbing && this.showCurve) {
-            this.updateCurve(); // update position of curvewidget
-        }
-
-        if ( e.type == "wheel" ){
-            this.updateCurve(true);
-        }
-
-        if( this.resizing ){
-            timeline.grabbing = false;
-            timeline.grabbingTimeBar = false;
-            timeline.grabbingScroll = false;
-            timeline.movingKeys = false;
-            timeline.timeBeforeMove = null;
-            timeline.boxSelection = false;
-            // timeline.unSelectAllKeyFrames();
-            timeline.unHoverAll();
-
-            if ( e.type == "mouseup" ){
-                this.resizing = 0;
-            }
-        }
-        
-        return true;
-    }
-
-    onDblClick( e ) {
-        if ( !this.enabler || !this.showLimits ){ return; }
-
-        const timeline = this.timeline;
-        const lpos = timeline.timeToX( this.time - this.leftSide );
-        const rpos = timeline.timeToX( this.time + this.rightSide );
-
-        if( e.localX >= lpos && e.localX <= rpos && e.localY > timeline.topMargin) {
-            timeline.grabbing = false;
-            this.setCurveVisibility( true );
-        }
-    }
-
-    setCurveVisibility( visibility ){
-        if (!visibility){
-            this.showCurve = false;
-            this.curveWidget.element.remove(); // detach from timeline (if any)
-        }else{
-            const oldVisibility = this.showCurve;
-            this.showCurve = true;
-            if ( !oldVisibility ){ // only do update on visibility change
-                this.timeline.canvasArea.root.appendChild( this.curveWidget.element );
-                this.updateCurve(true);
-            }
-        }
-
-    }
-
-    updateCurve( updateSize = false ) {
-        if( !(this.enabler && this.showCurve) ){ return false; }
-
-        const timeline = this.timeline;
-
-        const windowRect = this._getBoundingRectInnerWindow();
-
-		let areaRect = timeline.canvas.getBoundingClientRect();
-
-        this.curveWidget.element.style.left = areaRect.x + windowRect.rectPosX + "px";
-        this.curveWidget.element.style.top = areaRect.y + windowRect.rectPosY + windowRect.rectHeight -2 + "px";
-
-        if(updateSize) {
-            this.curveWidget.canvas.width = windowRect.rectWidth;
-
-            const radii = timeline.trackHeight * 0.4;
-			let leftRadius = windowRect.leftSize > radii ? radii : windowRect.leftSize;
-	        leftRadius = windowRect.rectHeight > leftRadius ? leftRadius : (windowRect.rectHeight*0.5);
-        
-	        let rightRadius = windowRect.rightSize > radii ? radii : windowRect.rightSize;
-	        rightRadius = windowRect.rectHeight > rightRadius ? rightRadius : (windowRect.rectHeight*0.5);
-
-			this.curveWidget.canvas.style.borderBottomLeftRadius = leftRadius + "px";
-			this.curveWidget.canvas.style.borderBottomRightRadius = rightRadius + "px";
-
-            this.curveWidget.redraw();
-        }
-    }
-
-    _getBoundingRectInnerWindow(){
-        const timeline = this.timeline;
-        let rightSize = timeline.timeToX(this.rightSide) - timeline.timeToX(0); 
-        let leftSize = timeline.timeToX(this.leftSide) - timeline.timeToX(0);
-
-        let rectWidth = leftSize + rightSize;
-		let rectHeight = Math.min(
-            timeline.canvas.height - timeline.topMargin - 2 - (this.showCurve ? this.curveWidget.canvas.clientHeight : 0), 
-            timeline.leftPanel.root.children[1].children[0].clientHeight - timeline.leftPanel.root.children[1].scrollTop + timeline.trackHeight*0.5
-        );
-        rectHeight = Math.max( rectHeight, 0 );
-
-        let rectPosX = timeline.timeToX( this.time - this.leftSide);
-        let rectPosY = timeline.topMargin + 1;
-
-        return { rightSize, leftSize, rectWidth, rectHeight, rectPosX, rectPosY };
-    }
-
-    draw( ){
-        if ( !this.enabler ){ return; }
-
-        const timeline = this.timeline;
-        const ctx = timeline.canvas.getContext("2d");
-
-        let { rightSize, leftSize, rectWidth, rectHeight, rectPosX, rectPosY } = this._getBoundingRectInnerWindow();
-
-        let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
-        gradient.addColorStop(0, this.gradientColorLimits);
-        for( let i = 0; i < this.gradient.length; ++i){
-            const g = this.gradient[i];
-            gradient.addColorStop(g[0], this.gradientColor + "," + g[1] +")");
-        }
-        gradient.addColorStop(1,this.gradientColorLimits);
-        ctx.fillStyle = gradient;
-        ctx.strokeStyle = this.borderColor;
-        const oldAlpha = ctx.globalAlpha;
-        ctx.globalAlpha = this.opacity;
-
-        // compute radii
-        let radii = this.showCurve ? (timeline.trackHeight * 0.4) : timeline.trackHeight;
-        let leftRadii = leftSize > radii ? radii : leftSize;
-        leftRadii = rectHeight > leftRadii ? leftRadii : rectHeight;
-        
-        let rightRadii = rightSize > radii ? radii : rightSize;
-        rightRadii = rectHeight > rightRadii ? rightRadii : rectHeight;
-                
-        let radiusTL, radiusBL, radiusTR, radiusBR;
-        radiusTL = leftRadii;
-        radiusBL = this.showCurve ? 0 : leftRadii;
-        radiusTR = rightRadii;
-        radiusBR = this.showCurve ? 0 : rightRadii;
-
-        // draw window rect
-        ctx.beginPath();
-
-        ctx.moveTo(rectPosX, rectPosY + radiusTL);
-        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL, rectPosY );
-        ctx.lineTo( rectPosX + rectWidth - radiusTR, rectPosY );
-        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR );
-        ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR );
-        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR, rectPosY + rectHeight );
-        ctx.lineTo( rectPosX + radiusBL, rectPosY + rectHeight );
-        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL );
-
-        ctx.closePath();
-        ctx.fill();
-        
-        ctx.lineWidth = 1;
-        if(this.showCurve) {
-            rectHeight = rectHeight + this.curveWidget.canvas.clientHeight - 2;
-            ctx.beginPath();
-            ctx.lineTo(rectPosX, rectPosY + leftRadii);
-            ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + leftRadii, rectPosY );
-            ctx.lineTo( rectPosX + rectWidth - rightRadii, rectPosY );
-            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + rightRadii );
-            ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight - rightRadii );
-            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - rightRadii, rectPosY + rectHeight );
-            ctx.lineTo( rectPosX + leftRadii, rectPosY + rectHeight );
-            ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - leftRadii );
-            ctx.closePath();
-            ctx.stroke();
-        }
-        else if(this.showLimits){
-            ctx.beginPath();
-            ctx.moveTo(rectPosX, rectPosY + radiusTL*0.5);
-            ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL*0.5, rectPosY );
-            ctx.moveTo( rectPosX + rectWidth - radiusTR*0.5, rectPosY );
-            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR*0.5 );
-            ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR*0.5 );
-            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR*0.5, rectPosY + rectHeight );
-            ctx.moveTo( rectPosX + radiusBL*0.5, rectPosY + rectHeight );
-            ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL*0.5 );
-            ctx.stroke();
-        }
-
-        ctx.globalAlpha = oldAlpha;
-        
-    }
-}
-
 
 class Gui {
 
@@ -1076,28 +710,8 @@ class KeyframesGui extends Gui {
 
         this.boneProperties = {};
         this.createVideoOverlay();
-        //Create capture video window
-        // this.createCaptureArea(this.mainArea);
+       
     }
-
-    // init() {
-    //     this.createVideoOverlay();
-    //     this.showVideo = true
-    //     // Canvas UI buttons
-        
-    //     this.hideCaptureArea();
-        
-    //     this.createSidePanel();
-        
-    //     this.updateMenubar()
-    //     this.showTimeline();
-        
-    //     this.createSceneUI(this.canvasArea);
-    //     this.initEditionGUI();
-
-    //     //
-        
-    // }
 
     onCreateMenuBar( menubar ) {
         
@@ -1177,31 +791,6 @@ class KeyframesGui extends Gui {
         
     }
 
-    /** -------------------- CAPTURE GUI (app) --------------------  */
-    
-    startCaptureButtons( callback ) {
-        this.capturePanel.clear();
-        let btn = this.capturePanel.addButton(null, "Record", callback, {id:"start_capture_btn", width: "100px", className: "captureButton colored"});
-        btn.style.zIndex = 100;
-        
-        // Adjust video canvas
-        let captureDiv = document.getElementById("capture");
-        $(captureDiv).removeClass("hidden");
-        
-        let videoCanvas = this.canvasVideo;
-        videoCanvas.classList.remove("active");
-        
-        // document.getElementById("select-mode").innerHTML = ""; // remove upper menu to select cam or video inputs
-    }
-
-    stopCaptureButtons( callback ) {
-        this.capturePanel.clear();
-        let videoCanvas = this.canvasVideo;
-        videoCanvas.classList.add("active");
-        let btn = this.capturePanel.addButton(null, "Stop", callback, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-stop", className: "captureButton colored"});
-        btn.style.zIndex = 100;
-    }
-
     createBlendShapesInspector(bsNames, options = {}) {
         
         let inspector = options.inspector || new LX.Panel({id:"blendshapes-inspector"});
@@ -1219,7 +808,6 @@ class KeyframesGui extends Gui {
         
         return inspector;
     } 
-
 
     createVideoOverlay() {
         
@@ -1653,39 +1241,6 @@ class KeyframesGui extends Gui {
 
     }
     
-    initEditionGUI() {
-        // Hide capture buttons
-        let buttonContainer = document.getElementById("capture-buttons");
-        buttonContainer.style.display = "none";
-    
-        // Reposition video the canvas elements
-        // let videoDiv = document.getElementById("capture");
-        // videoDiv.classList.remove("expanded");
-        let videoRec = this.recordedVideo;
-        videoRec.classList.remove("hidden");
-        videoRec.style.width = "100%";
-        videoRec.style.height = "100%";
-        
-        // Mirror the video
-        videoRec.style.cssText+= "transform: rotateY(0deg);\
-        -webkit-transform:rotateY(0deg); /* Safari and Chrome */\
-        -moz-transform:rotateY(0deg); /* Firefox */"
-    
-        let videoCanvas = this.canvasVideo;
-        videoCanvas.classList.remove("border-animation");
-        
-        // Resize and solve the aspect ratio problem of the video
-        // let aspectRatio = videoCanvas.clientWidth / videoCanvas.clientHeight;
-        // videoRec.width  = videoDiv.width = videoDiv.width || videoDiv.clientWidth;
-        // videoRec.height = videoDiv.height = videoDiv.width / aspectRatio;
-        // videoDiv.style.width = videoDiv.width  + "px";
-        // videoDiv.style.height = videoDiv.height + "px";
-        // videoCanvas.height = 300;
-        // videoCanvas.width = 300 * aspectRatio;
-        // $(videoDiv).draggable({containment: this.canvasArea.root}).resizable({ aspectRatio: true, containment: this.canvasArea.root});
-        videoCanvas.classList.add("hidden");
-        videoCanvas.parentElement.style.display = "block";
-    }
     
     changeCaptureGUIVisivility(hidden) {
         this.bsInspector.root.hidden = hidden || !this.bsInspector.root.hidden;
@@ -1695,10 +1250,7 @@ class KeyframesGui extends Gui {
         // update blendshape inspector both in capture and edition stages
 
         let {landmarksResults, blendshapesResults} = results;
-        // if(isRecording){
-        //     this.changeCaptureGUIVisivility(true);
-        //     return;
-        // }
+       
 
         if(landmarksResults) {
             this.bsInspector.get('Distance to the camera').onSetValue( landmarksResults.distanceToCamera ?? 0 );
@@ -1720,23 +1272,6 @@ class KeyframesGui extends Gui {
             // TO DO: emit @on_change_au_ + name
             }
         }
-    }
-
-    hideCaptureArea() { // TO DO
-        // let selector = document.getElementById("select-mode");
-        // selector.style.display = "none";
-
-        // let e = document.getElementById("video-area");
-        // e.classList.remove("video-area");
-        
-        // let i = document.getElementById("expand-capture-gui");
-        // i.classList.add("hidden");
-
-        // let ci = document.getElementById("capture-inspector");
-        // ci.classList.add("hidden");
-
-        // // this.hideTimeline();
-        // // this.timelineArea.hide();        
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
@@ -4527,5 +4062,367 @@ class ScriptGui extends Gui {
     
 }
 
+class PropagationWindow {
+
+    /*
+     * @param {Lexgui timeline} timeline must be valid 
+     */
+    constructor( timeline ){
+
+        this.timeline = timeline; // will provide the canvas
+        
+        this.curveWidget = null; 
+        this.showCurve = false;
+        
+        this.showLimits = false;
+
+        this.enabler = true;
+        this.resizing = 0; // -1 resizing left, 0 nothing, 1 resizing right
+
+        this.time = 0; // seconds
+        this.rightSide = 1; // seconds
+        this.leftSide = 1;  // seconds
+
+        this.opacity = 0.6;
+        this.lexguiColor = '#273162';
+        this.gradientColorLimits = "rgba( 39, 49, 98, 0%)"; // relies on lexgui
+        this.gradientColor = "rgba( 39, 49, 98"; // relies on lexgui
+        this.borderColor = "rgba( 255, 255, 255, 1)"; // relies on lexgui
+        this.gradient = [ [0.5,1] ]; // implicit 0 in the borders
+        // radii = 100;
+
+        // create curve Widget
+        const bgColor = "#cfcdcd";
+        const pointsColor = LX.getThemeColor("global-selected-dark");
+        const lineColor = LX.getThemeColor("global-color-secondary");//LX.getThemeColor("global-selected-light");
+        const lpos = timeline.timeToX( this.time - this.leftSide );
+        const rpos = timeline.timeToX( this.time + this.rightSide );
+
+        this.curveWidget = new LX.Curve( null, this.gradient, {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor, callback: (v,e) => {
+            if ( v.length <= 0){
+                this.curveWidget.element.value = this.gradient = [[0.5,1]];
+            }
+            this.curveWidget.redraw();
+        }} );
+        const curveElement = this.curveWidget.element; 
+        curveElement.style.width = "fit-content";
+        curveElement.style.height = "fit-content";
+        curveElement.style.position = "fixed";
+        curveElement.style.borderRadius = "0px";
+        curveElement.children[0].style.borderRadius = "0px 0px " + timeline.trackHeight*0.4 +"px " + timeline.trackHeight*0.4 +"px";
+        curveElement.style.zIndex = "0.5";
+    }
+
+    setEnabler( v ){
+        this.enabler = v;
+        if(!v) {
+            this.setCurveVisibility( false );
+        }
+        LX.emit( "@propW_enabler", this.enabler );
+    }
+    
+    toggleEnabler(){
+        this.setEnabler( !this.enabler );
+    }
+
+    recomputeGradient( newLeftSide, newRightSide ){
+        let g = this.gradient;
+
+        const oldMid = this.leftSide / (this.leftSide + this.rightSide);
+        const newMid = newLeftSide / (newLeftSide + newRightSide);
+        for( let i  = 0; i < g.length; ++i ){
+            let gt = g[i][0]; 
+            if ( gt <= oldMid ){
+                g[i][0] = ( gt / oldMid ) * newMid;
+            }
+            else{
+            g[i][0] = ( (gt - oldMid) / (1-oldMid)) * (1-newMid) + newMid ;
+            }
+        }
+
+        this.leftSide = newLeftSide;
+        this.rightSide = newRightSide;
+    }
+
+    setTimeline( timeline ){
+        this.timeline = timeline;
+        
+        this.curveWidget.element.remove(); // remove from dom, wherever this is
+        if(this.showCurve){
+            this.timeline.canvasArea.root.appendChild( this.curveWidget.element );
+            this.updateCurve( true );
+        }
+    }
+
+    setTime( time ){
+        this.time = time;
+        this.updateCurve(); // update only position
+    }
+
+    onOpenConfig(dialog){
+        dialog.addCheckbox("Enable", this.enabler, (v) =>{
+            this.setEnabler(v);
+        }, { signal: "@propW_enabler"});
+
+        dialog.sameLine();
+        dialog.addNumber("Min (s)", this.leftSide, (v) => {
+            this.recomputeGradient( v, this.rightSide );
+            this.updateCurve(true);
+        }, {min: 0.001, step: 0.001, signal: "@propW_minT"});
+
+        dialog.addNumber("Max (s)", this.rightSide, (v) => {
+            this.recomputeGradient( this.leftSide, v );
+            this.updateCurve(true);
+        }, {min: 0.001, step: 0.001, signal: "@propW_maxT"});		
+        dialog.endLine();
+
+        dialog.sameLine();
+        dialog.addColor("Color", this.lexguiColor, (value, event) => {
+            this.lexguiColor = value;
+            let rawColor = parseInt(value.slice(1,7), 16);
+            let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
+            this.gradientColorLimits = color + ",0%)"; 
+            this.gradientColor = color;
+            this.curveWidget.element.pointscolor = value;
+            this.curveWidget.redraw();
+        });
+        dialog.addNumber("Opacity", this.opacity, (v) => {
+            this.opacity = v;
+            this.curveWidget.element.style.opacity = v;
+        }, {min: 0, max:1, step:0.001});
+        dialog.endLine();
+    }
+
+    onMouse( e, time ){
+
+        if( !this.enabler ){ return false; }
+
+        const timeline = this.timeline;
+
+        const windowRect = this._getBoundingRectInnerWindow();
+        const lpos = windowRect.rectPosX;
+        const rpos = windowRect.rectPosX + windowRect.rectWidth;
+
+        const timelineState = timeline.grabbing | timeline.grabbingTimeBar | timeline.grabbingScroll | timeline.movingKeys | timeline.boxSelection;
+        
+        const isInsideResizeLeft = Math.abs( e.localX - lpos ) < 7 && e.localY > windowRect.rectPosY;
+        const isInsideResizeRight = Math.abs( e.localX - rpos ) < 7 && e.localY > windowRect.rectPosY;
+
+        if ( !timelineState && ( isInsideResizeLeft || isInsideResizeRight ) ){
+            timeline.canvas.style.cursor = "col-resize";
+        }
+        
+        if ( e.type == "mousedown" && (isInsideResizeLeft || isInsideResizeRight) ){
+            this.resizing = isInsideResizeLeft ? -1 : 1; 
+        }
+
+        if( e.localX >= lpos && e.localX <= rpos && e.localY > windowRect.rectPosY && e.localY <= (windowRect.rectPosY + windowRect.rectHeight)) {
+            this.showLimits = true;
+        }
+        else if(!this.resizing) { // outside of window
+            
+            if(e.type == "mousedown") {
+                this.setCurveVisibility( false );
+            }
+            this.showLimits = false;
+        }
+
+        if ( this.resizing && e.type == "mousemove" ){
+            if ( this.resizing == 1 ){
+                const t = Math.max( 0.001, time - this.time );
+                this.recomputeGradient(this.leftSide, t);
+                LX.emit("@propW_maxT", t); 
+            }else{
+                const t = Math.max( 0.001, this.time - time );
+                this.recomputeGradient(t, this.rightSide);
+                LX.emit("@propW_minT", t); 
+            }
+            this.showLimits = true;
+            if(this.showCurve) {
+                this.updateCurve( true );
+            }
+        }
+        else if(timeline.grabbing && this.showCurve) {
+            this.updateCurve(); // update position of curvewidget
+        }
+
+        if ( e.type == "wheel" ){
+            this.updateCurve(true);
+        }
+
+        if( this.resizing ){
+            timeline.grabbing = false;
+            timeline.grabbingTimeBar = false;
+            timeline.grabbingScroll = false;
+            timeline.movingKeys = false;
+            timeline.timeBeforeMove = null;
+            timeline.boxSelection = false;
+            // timeline.unSelectAllKeyFrames();
+            timeline.unHoverAll();
+
+            if ( e.type == "mouseup" ){
+                this.resizing = 0;
+            }
+        }
+        
+        return true;
+    }
+
+    onDblClick( e ) {
+        if ( !this.enabler || !this.showLimits ){ return; }
+
+        const timeline = this.timeline;
+        const lpos = timeline.timeToX( this.time - this.leftSide );
+        const rpos = timeline.timeToX( this.time + this.rightSide );
+
+        if( e.localX >= lpos && e.localX <= rpos && e.localY > timeline.topMargin) {
+            timeline.grabbing = false;
+            this.setCurveVisibility( true );
+        }
+    }
+
+    setCurveVisibility( visibility ){
+        if (!visibility){
+            this.showCurve = false;
+            this.curveWidget.element.remove(); // detach from timeline (if any)
+        }else{
+            const oldVisibility = this.showCurve;
+            this.showCurve = true;
+            if ( !oldVisibility ){ // only do update on visibility change
+                this.timeline.canvasArea.root.appendChild( this.curveWidget.element );
+                this.updateCurve(true);
+            }
+        }
+
+    }
+
+    updateCurve( updateSize = false ) {
+        if( !(this.enabler && this.showCurve) ){ return false; }
+
+        const timeline = this.timeline;
+
+        const windowRect = this._getBoundingRectInnerWindow();
+
+		let areaRect = timeline.canvas.getBoundingClientRect();
+
+        this.curveWidget.element.style.left = areaRect.x + windowRect.rectPosX + "px";
+        this.curveWidget.element.style.top = areaRect.y + windowRect.rectPosY + windowRect.rectHeight -2 + "px";
+
+        if(updateSize) {
+            this.curveWidget.canvas.width = windowRect.rectWidth;
+
+            const radii = timeline.trackHeight * 0.4;
+			let leftRadius = windowRect.leftSize > radii ? radii : windowRect.leftSize;
+	        leftRadius = windowRect.rectHeight > leftRadius ? leftRadius : (windowRect.rectHeight*0.5);
+        
+	        let rightRadius = windowRect.rightSize > radii ? radii : windowRect.rightSize;
+	        rightRadius = windowRect.rectHeight > rightRadius ? rightRadius : (windowRect.rectHeight*0.5);
+
+			this.curveWidget.canvas.style.borderBottomLeftRadius = leftRadius + "px";
+			this.curveWidget.canvas.style.borderBottomRightRadius = rightRadius + "px";
+
+            this.curveWidget.redraw();
+        }
+    }
+
+    _getBoundingRectInnerWindow(){
+        const timeline = this.timeline;
+        let rightSize = timeline.timeToX(this.rightSide) - timeline.timeToX(0); 
+        let leftSize = timeline.timeToX(this.leftSide) - timeline.timeToX(0);
+
+        let rectWidth = leftSize + rightSize;
+		let rectHeight = Math.min(
+            timeline.canvas.height - timeline.topMargin - 2 - (this.showCurve ? this.curveWidget.canvas.clientHeight : 0), 
+            timeline.leftPanel.root.children[1].children[0].clientHeight - timeline.leftPanel.root.children[1].scrollTop + timeline.trackHeight*0.5
+        );
+        rectHeight = Math.max( rectHeight, 0 );
+
+        let rectPosX = timeline.timeToX( this.time - this.leftSide);
+        let rectPosY = timeline.topMargin + 1;
+
+        return { rightSize, leftSize, rectWidth, rectHeight, rectPosX, rectPosY };
+    }
+
+    draw( ){
+        if ( !this.enabler ){ return; }
+
+        const timeline = this.timeline;
+        const ctx = timeline.canvas.getContext("2d");
+
+        let { rightSize, leftSize, rectWidth, rectHeight, rectPosX, rectPosY } = this._getBoundingRectInnerWindow();
+
+        let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
+        gradient.addColorStop(0, this.gradientColorLimits);
+        for( let i = 0; i < this.gradient.length; ++i){
+            const g = this.gradient[i];
+            gradient.addColorStop(g[0], this.gradientColor + "," + g[1] +")");
+        }
+        gradient.addColorStop(1,this.gradientColorLimits);
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = this.borderColor;
+        const oldAlpha = ctx.globalAlpha;
+        ctx.globalAlpha = this.opacity;
+
+        // compute radii
+        let radii = this.showCurve ? (timeline.trackHeight * 0.4) : timeline.trackHeight;
+        let leftRadii = leftSize > radii ? radii : leftSize;
+        leftRadii = rectHeight > leftRadii ? leftRadii : rectHeight;
+        
+        let rightRadii = rightSize > radii ? radii : rightSize;
+        rightRadii = rectHeight > rightRadii ? rightRadii : rectHeight;
+                
+        let radiusTL, radiusBL, radiusTR, radiusBR;
+        radiusTL = leftRadii;
+        radiusBL = this.showCurve ? 0 : leftRadii;
+        radiusTR = rightRadii;
+        radiusBR = this.showCurve ? 0 : rightRadii;
+
+        // draw window rect
+        ctx.beginPath();
+
+        ctx.moveTo(rectPosX, rectPosY + radiusTL);
+        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL, rectPosY );
+        ctx.lineTo( rectPosX + rectWidth - radiusTR, rectPosY );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR );
+        ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR, rectPosY + rectHeight );
+        ctx.lineTo( rectPosX + radiusBL, rectPosY + rectHeight );
+        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL );
+
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.lineWidth = 1;
+        if(this.showCurve) {
+            rectHeight = rectHeight + this.curveWidget.canvas.clientHeight - 2;
+            ctx.beginPath();
+            ctx.lineTo(rectPosX, rectPosY + leftRadii);
+            ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + leftRadii, rectPosY );
+            ctx.lineTo( rectPosX + rectWidth - rightRadii, rectPosY );
+            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + rightRadii );
+            ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight - rightRadii );
+            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - rightRadii, rectPosY + rectHeight );
+            ctx.lineTo( rectPosX + leftRadii, rectPosY + rectHeight );
+            ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - leftRadii );
+            ctx.closePath();
+            ctx.stroke();
+        }
+        else if(this.showLimits){
+            ctx.beginPath();
+            ctx.moveTo(rectPosX, rectPosY + radiusTL*0.5);
+            ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL*0.5, rectPosY );
+            ctx.moveTo( rectPosX + rectWidth - radiusTR*0.5, rectPosY );
+            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR*0.5 );
+            ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR*0.5 );
+            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR*0.5, rectPosY + rectHeight );
+            ctx.moveTo( rectPosX + radiusBL*0.5, rectPosY + rectHeight );
+            ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL*0.5 );
+            ctx.stroke();
+        }
+
+        ctx.globalAlpha = oldAlpha;
+        
+    }
+}
 
 export { Gui, KeyframesGui, ScriptGui };
