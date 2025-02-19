@@ -51,7 +51,6 @@ class Gui {
         }
     }
 
-    
     showGuide() {
         
     }
@@ -214,19 +213,24 @@ class Gui {
                 }
             }
         ]);
-       
-        menubar.add("Login", {callback: () => {
-            const session = this.editor.FS.getSession();
-            if(this.prompt && this.prompt.root.checkVisibility())
-                return;
-            if(session && session.user.username != "signon")
-                this.showLogoutModal();
-            else
-                this.showLoginModal();            
-            
+        const user = this.editor.remoteFileSystem.session ? this.editor.remoteFileSystem.session.user : "" ;
+        menubar.add( (!user || user.username == "guest") ? "Login" : user.username, {
+            callback: () => {
+                const username =this.editor.remoteFileSystem.session.user.username;
+                if( this.prompt && this.prompt.root.checkVisibility() ) {
+                    return;
+                }
+                if( username != "guest" ) {
+                    this.showLogoutModal();
+                }
+                else {
+                    this.showLoginModal();
+                }                
             }
-        }, {float:"right"});
-        menubar.setButtonIcon("Github", "fa-brands fa-github", () => {window.open("https://github.com/upf-gti/animics")}, {float:"right"});
+        },
+        {float:"right"});
+
+        menubar.setButtonIcon("Github", "fa-brands fa-github", () => { window.open("https://github.com/upf-gti/animics") }, {float:"right"});
     }
 
     importFiles () {
@@ -241,22 +245,24 @@ class Gui {
     }
 
     changeLoginButton(username = "Login") {
-        let el = document.querySelector("#Login");
+        const el = document.querySelector("#Login");
         el.innerText = username;
     }
 
-    showLoginModal(session = {user: null, password: null}) {
+    showLoginModal() {
         this.prompt = new LX.Dialog("Login", (p) => {
+            let username = "";
+            let password = "";
             const refresh = (p, msg) => {
                 p.clear();
                 if(msg) {
                     p.addText(null, msg, null, {disabled: true, warning: true});
                 }
-                p.addText("User", session.user, (v) => {
-                    session.user = v;
+                p.addText("User", username, (v) => {
+                    username = v;
                 });
-                p.addText("Password", session.password, (v) => {
-                    session.password = v;
+                p.addText("Password", password, (v) => {
+                    password = v;
                 }, {type: "password"});
                 p.sameLine(2);
                 p.addButton(null, "Cancel", (v) => {
@@ -265,10 +271,10 @@ class Gui {
                 });
     
                 p.addButton(null, "Login", (v) => {
-                    this.editor.login(session, (session, response) => {
+                    this.editor.remoteFileSystem.login(username, password, (session, response) => {
                         if(response.status == 1) {
                             this.changeLoginButton(session.user.username);
-                            this.editor.getUnits();
+                            this.editor.remoteFileSystem.loadUnits();
                             this.prompt.close();
                             this.prompt = null;
                         }
@@ -297,9 +303,9 @@ class Gui {
 
     showLogoutModal() {
         this.prompt = LX.prompt( "Are you sure you want to logout?", "Logout", (v) => {
-            this.editor.logout(() => {
+            this.editor.ANIMICS.logout(() => {
                 this.changeLoginButton();
-                this.editor.FS.login("signon", "signon", this.editor.getUnits.bind(this.editor))
+                this.editor.ANIMICS.login("signon", "signon", this.editor.ANIMICS.getUnits.bind(this.editor))
 
             }); 
             this.prompt = null;
@@ -330,7 +336,7 @@ class Gui {
                 p.addButton(null, "Register",  () => {
                     if(pass === pass2)
                     {
-                        this.editor.createAccount(user, pass, email, (request) => {
+                        this.editor.remoteFileSystem.createAccount(user, pass, email, (request) => {
                             
                                 this.prompt.close();
                                 this.prompt = null;
@@ -405,46 +411,6 @@ class Gui {
         // Focus text prompt
         if(options.input !== false)
             dialog.root.querySelector('input').focus();
-    }
-
-    createSaveDialog() {
-        if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-            this.createNewSignDialog(null, "server");
-        }
-        else {
-            this.showExportAnimationsDialog( (format) => {
-
-                const saveDataToServer = (location,) => {
-                    let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
-                    for(let i = 0; i < animations.length; i++) {
-                        
-                        this.editor.updateData(animations[i].name, animations[i].data, "clips", location, () => {
-                            this.closeDialogs();
-                            LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-                        })
-                    }
-                }
-
-                const session = this.editor.FS.getSession();
-                if(!session.user || session.user.username == "signon") {
-                    this.prompt = new LX.Dialog("Alert", d => {
-                        d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                        d.sameLine(2);
-                        d.addButton(null, "Login", () => {
-                            this.prompt.close();
-                            this.showLoginModal();
-                        })
-                        d.addButton(null, "Ok", () => {
-                           saveDataToServer("local");
-                        })
-                    }, {closable: true, modal: true})
-                    
-                }
-                else {
-                    saveDataToServer("server");
-                }
-            }, [ "BVH", "BVH extended"]) // TO DO: ALLOW GLB AND GLTF 
-        }
     }
 
     createSceneUI(area) {
@@ -1891,23 +1857,59 @@ class KeyframesGui extends Gui {
             callback();
     }
 
+    createSaveDialog() {
+        this.showExportAnimationsDialog( (format) => {
+
+            const saveDataToServer = (location,) => {
+                let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
+                for(let i = 0; i < animations.length; i++) {
+                    
+                    this.editor.uploadData(animations[i].name, animations[i].data, "clips", location, () => {
+                        this.closeDialogs();
+                        LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                    })
+                }
+            }
+
+            const user = this.editor.remoteFileSystem.session.user;
+            if(!user || user.username == "guest") {
+                this.prompt = new LX.Dialog("Alert", d => {
+                    d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+                    d.sameLine(2);
+                    d.addButton(null, "Login", () => {
+                        this.prompt.close();
+                        this.showLoginModal();
+                    })
+                    d.addButton(null, "Ok", () => {
+                        saveDataToServer("local");
+                    })
+                }, {closable: true, modal: true})
+                
+            }
+            else {
+                saveDataToServer("server");
+            }
+        }, [ "BVH", "BVH extended"]) // TO DO: ALLOW GLB AND GLTF         
+    }
+
     createServerClipsDialog() {
         
-        let that = this;
-        const fs = this.editor.FS;
-        const session = fs.getSession();
+        const user = this.editor.remoteFileSystem.session.user;
+        const repository = this.editor.remoteFileSystem.repository;
 
-        if(this.prompt && this.prompt.root.checkVisibility()) {
+        if( this.prompt && this.prompt.root.checkVisibility() ) {
             return;
         }
         
         // Create a new dialog
-        let dialog = this.prompt = new LX.Dialog('Available clips', async (p) => {
+        const dialog = this.prompt = new LX.Dialog('Available clips', async (p) => {
             
             const innerSelect = async (asset, button, e, action) => {
-                let choice = document.getElementById("choice-insert-mode");
-                if(choice)
+                const choice = document.getElementById("choice-insert-mode");
+                if( choice ) {
                     choice.remove();
+                }
+
                 switch(button) {
                     case "Add as single clip":
                         this.mode = ClipModes.Phrase;
@@ -1916,7 +1918,7 @@ class KeyframesGui extends Gui {
                         this.mode = ClipModes.Keyframes;
                         break;                   
                 }
-                that.keyFramesTimeline.onUnselectKeyFrames();
+                this.keyFramesTimeline.onUnselectKeyFrames();
                 asset.animation.name = asset.id;
                 const modal = this.createAnimation();
                 this.editor.loadAnimation( asset.id, asset.animation );
@@ -1969,14 +1971,14 @@ class KeyframesGui extends Gui {
                 },
             ];
 
-            if(session.user.username != "signon") {
+            if(user.username != "public") {
                 preview_actions.push(
                 {
                     type: "bvh",
                     path: "@/Local",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.updateData(item.filename + ".bvh", item.data, "clips", "server", () => {
+                        this.editor.uploadData(item.filename + ".bvh", item.data, "clips", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -1988,7 +1990,7 @@ class KeyframesGui extends Gui {
                     path: "@/Local",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.updateData(item.filename + ".bvhe", item.data, "clips", "server", () => {
+                        this.editor.uploadData(item.filename + ".bvhe", item.data, "clips", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -2001,7 +2003,7 @@ class KeyframesGui extends Gui {
                     path: "@/Local",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.updateData(item.filename + ".glb", item.data, "clips", "server", () => {
+                        this.editor.uploadData(item.filename + ".glb", item.data, "clips", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -2014,7 +2016,7 @@ class KeyframesGui extends Gui {
                     path: "@/Local",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.updateData(item.filename + ".gltf", item.data, "clips", "server", () => {
+                        this.editor.uploadData(item.filename + ".gltf", item.data, "clips", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -2023,7 +2025,7 @@ class KeyframesGui extends Gui {
                 });
                 preview_actions.push({
                     type: "bvh",
-                    path: "@/"+ session.user.username,
+                    path: "@/"+ user.username,
                     name: 'Delete', 
                     callback: (item)=> {
                         this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
@@ -2041,7 +2043,7 @@ class KeyframesGui extends Gui {
                 });
                 preview_actions.push({
                     type: "bvhe",
-                    path: "@/"+ session.user.username,
+                    path: "@/"+ user.username,
                     name: 'Delete', 
                     callback: (item)=> {
                         this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
@@ -2059,7 +2061,7 @@ class KeyframesGui extends Gui {
                 });
                 preview_actions.push({
                     type: "glb",
-                    path: "@/"+ session.user.username,
+                    path: "@/"+ user.username,
                     name: 'Delete', 
                     callback: (item)=> {
                         this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
@@ -2077,7 +2079,7 @@ class KeyframesGui extends Gui {
                 });
                 preview_actions.push({
                     type: "gltf",
-                    path: "@/"+ session.user.username,
+                    path: "@/"+ user.username,
                     name: 'Delete', 
                     callback: (item)=> {
                         this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
@@ -2095,9 +2097,9 @@ class KeyframesGui extends Gui {
                 });
             }
             
-            let asset_browser = new LX.AssetView({  allowed_types: ["bvh", "bvhe", "glb", "gltf"],  preview_actions: preview_actions, context_menu: false});
-            
+            const asset_browser = new LX.AssetView({  allowed_types: ["bvh", "bvhe", "glb", "gltf"],  preview_actions: preview_actions, context_menu: false});
             p.attach( asset_browser );
+            
             const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
             modal.root.id = "loading";
 
@@ -2107,14 +2109,20 @@ class KeyframesGui extends Gui {
             }
             
             const loadData = () => {
-                asset_browser.load( this.editor.repository.clips, e => {
+                asset_browser.load( repository.clips, async e => {
                     switch(e.type) {
                         case LX.AssetViewEvent.ASSET_SELECTED:
                             if(e.item.type == "folder") {
                                 return;
                             }                      
                             if(!e.item.animation) {
-                                this.editor.fileToAnimation(e.item);
+                                const promise = new Promise((resolve) => {
+                                    this.editor.fileToAnimation(e.item, (file) => {
+                                        resolve(file.animation);
+                                    });
+                                })
+                                const animation = await promise;
+                                e.item.animation = animation;
                             }
                             break;
                         case LX.AssetViewEvent.ASSET_DELETED: 
@@ -2128,9 +2136,15 @@ class KeyframesGui extends Gui {
                             break;
                         case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                         if(e.item.type != "folder") {
-                            let choice = new LX.Dialog("Add clip", (p) => {
+                            let choice = new LX.Dialog("Add clip", async (p) => {
                                 if(!e.item.animation) {
-                                    this.editor.fileToAnimation(e.item);
+                                    const promise = new Promise((resolve) => {
+                                        this.editor.fileToAnimation(e.item, (file) => {
+                                            resolve(file.animation);
+                                        });
+                                    })
+                                    const animation = await promise;
+                                    e.item.animation = animation;
                                 }
                                 p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
                                 p.sameLine(2);
@@ -2141,14 +2155,13 @@ class KeyframesGui extends Gui {
                             break;
 
                         case LX.AssetViewEvent.ENTER_FOLDER:
-                            const session = this.editor.FS.getSession(); 
-                            if(e.item.unit && (!e.item.children.length || this.editor.refreshRepository && e.item.unit == session.user.username )) {
+                            if(e.item.unit && (!e.item.children.length || this.editor.remoteFileSystem.refreshRepository && e.item.unit == user.username )) {
                                 const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
                                 modal.root.id = "loading";
-                                this.editor.getFilesFromUnit(e.item.unit, "animics/clips/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
-                                    let files_data = [];
-                                    if(files) {
-                                        
+
+                                this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/clips/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                                    const files_data = [];
+                                    if( files ) {                                        
                                         for(let f = 0; f < files.length; f++) {
                                             files[f].id = files[f].filename;
                                             files[f].folder = e.item;
@@ -2166,7 +2179,7 @@ class KeyframesGui extends Gui {
                                         asset_browser._createTreePanel();
                                     asset_browser._refreshContent();
 
-                                    this.editor.refreshRepository = false;
+                                    this.editor.remoteFileSystem.refreshRepository = false;
                                     closeModal(modal);
                                 })
                             }
@@ -2175,17 +2188,17 @@ class KeyframesGui extends Gui {
                 })
             }
 
-            if(!this.editor.repository.clips.length) {
-                await this.editor.getAllUnitsFolders("clips", () => {
-                    this.editor.refreshRepository = false;
+            if( !repository.clips.length ) {
+                await this.editor.remoteFileSystem.loadAllUnitsFolders("clips", () => {
+                    this.editor.remoteFileSystem.refreshRepository = false;
                     closeModal(modal);
                     loadData();
                 });
             }
             else {
 
-                await this.editor.getFolders("clips", () => {
-                    this.editor.refreshRepository = false;
+                await this.editor.remoteFileSystem.loadFolders("clips", () => {
+                    this.editor.remoteFileSystem.refreshRepository = false;
 
                     closeModal(modal);
                     loadData();
@@ -3081,7 +3094,7 @@ class ScriptGui extends Gui {
                 }
                 const session = this.editor.FS.getSession();
                 if(!presetInfo.server) {
-                    this.editor.updateData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
+                    this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
                         saveDialog.close()
                         this.closeDialogs();
                         LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
@@ -3097,7 +3110,7 @@ class ScriptGui extends Gui {
                             alert.close();
                         })
                         d.addButton(null, "Ok", () => {
-                            this.editor.updateData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
+                            this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
                                 saveDialog.close();
                                 this.closeDialogs();
                                 alert.close();
@@ -3108,7 +3121,7 @@ class ScriptGui extends Gui {
                     }, {closable: true, modal: true})
                 }
                 else {
-                    this.editor.updateData(presetInfo.preset + ".bml", presetInfo.clips, presetInfo.type, "server", (filename) => {
+                    this.editor.uploadData(presetInfo.preset + ".bml", presetInfo.clips, presetInfo.type, "server", (filename) => {
                         saveDialog.close()
                         this.closeDialogs();
                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
@@ -3225,7 +3238,7 @@ class ScriptGui extends Gui {
                             alert.close();
                         })
                         d.addButton(null, "Ok", () => {
-                            this.editor.updateData(signInfo.id + ".bml", signInfo.clips , signInfo.type,  "local", (filename) => {
+                            this.editor.uploadData(signInfo.id + ".bml", signInfo.clips , signInfo.type,  "local", (filename) => {
                                 saveDialog.close();
                                 this.closeDialogs();
                                 alert.close();
@@ -3237,7 +3250,7 @@ class ScriptGui extends Gui {
                     
                 }
                 else {
-                    this.editor.updateData(signInfo.id + ".bml", signInfo.clips, signInfo.type, "server", (filename) => {
+                    this.editor.uploadData(signInfo.id + ".bml", signInfo.clips, signInfo.type, "server", (filename) => {
                         saveDialog.close()
                         this.closeDialogs();
                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
@@ -3476,23 +3489,26 @@ class ScriptGui extends Gui {
     
     createPresetsDialog() {
         
-        let that = this;
-        if(this.prompt && this.prompt.root.checkVisibility())
+        const repository = this.editor.remoteFileSystem.repository;
+
+        if( this.prompt && this.prompt.root.checkVisibility() ) {
             return;
+        }
 
         // Create a new dialog
-        let dialog = this.prompt = new LX.Dialog('Available presets', async (p) => {
+        const dialog = this.prompt = new LX.Dialog('Available presets', async (p) => {
 
             const innerSelect = (asset)  => {
                 this.clipsTimeline.unSelectAllClips();
                 
                 let name = asset.id.split(".");
-                if(name.length > 1)
+                if( name.length > 1 ) {
                     name.pop();
+                }
                 name = name.join(".");
 
                 let preset = {preset: name};
-                if(asset.type == "bml" && !asset.bml) {
+                if( asset.type == "bml" && !asset.bml ) {
                     this.editor.fileToBML(asset, async (data) =>  {
                         asset = data;
                         let {clips, duration} = this.dataToBMLClips(asset.bml);
@@ -3519,14 +3535,15 @@ class ScriptGui extends Gui {
                 callback: innerSelect.bind(this),
             }];
             
-            const session = this.editor.FS.getSession();
-            if(session.user.username != "signon") {
+            const user = this.editor.remoteFileSystem.session.user;
+            
+            if(user.username != "signon") {
                 preview_actions.push({
                     type: "Preset",
                     path: "@/Local",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.updateData(item.filename + ".bml", item.data, "presets", "server", () => {
+                        this.editor.uploadData(item.filename + ".bml", item.data, "presets", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -3535,7 +3552,7 @@ class ScriptGui extends Gui {
                 });
                 preview_actions.push({
                     type: "Preset",
-                    path: "@/"+ session.user.username,
+                    path: "@/"+ user.username,
                     name: 'Delete', 
                     callback: (item)=> {
                         this.editor.deleteData(item.fullpath, "presets", "server", (v) => {
@@ -3554,7 +3571,7 @@ class ScriptGui extends Gui {
                 });
                 preview_actions.push({
                     type: "bml",
-                    path: "@/"+ session.user.username,
+                    path: "@/"+ user.username,
                     name: 'Delete', 
                     callback: (item)=> {
                         this.editor.deleteData(item.fullpath, "presets", "server", (v) => {
@@ -3587,7 +3604,7 @@ class ScriptGui extends Gui {
             }
 
             const loadData = () => {
-                asset_browser.load( this.editor.repository.presets, e => {
+                asset_browser.load( repository.presets, e => {
                     switch(e.type) {
                         case LX.AssetViewEvent.ASSET_SELECTED: 
                             break;
@@ -3608,7 +3625,7 @@ class ScriptGui extends Gui {
                             if(e.item.unit && e.item.unit != "signon" && (!e.item.children.length || this.editor.refreshPresetsRepository && e.item.unit == session.user.username )) {
                                 const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
                                 modal.root.id = "loading";
-                                this.editor.getFilesFromUnit(e.item.unit, "animics/presets/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                                this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/presets/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
                                     let files_data = [];
                                     if(files) {
                                         
@@ -3638,7 +3655,7 @@ class ScriptGui extends Gui {
                 })
             }
 
-            if(!this.editor.repository.presets.length) {
+            if(!repository.presets.length) {
                 await this.editor.getAllUnitsFolders("presets", () => {
                     let values = ANIM.FacePresetClip.facePreset; //["Yes/No-Question", "Negative", "WH-word Questions", "Topic", "RH-Questions"];
 
@@ -3648,9 +3665,9 @@ class ScriptGui extends Gui {
                         let data = { id: values[i], type: "Preset" };
                         asset_data.push(data);
                     }
-                    for(let i = 0; i < this.editor.repository.presets.length; i++) {
-                        if(this.editor.repository.presets[i].id == "Public" || this.editor.repository.presets[i].id == "signon")
-                            this.editor.repository.presets[i].children = asset_data;
+                    for(let i = 0; i < repository.presets.length; i++) {
+                        if(repository.presets[i].id == "Public" ||repository.presets[i].id == "signon")
+                           repository.presets[i].children = asset_data;
                     }
                     closeModal(modal);
                     loadData();
@@ -3762,7 +3779,7 @@ class ScriptGui extends Gui {
                     path: "@/Local",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.updateData(item.filename + ".sigml", item.data, "signs", "server", () => {
+                        this.editor.uploadData(item.filename + ".sigml", item.data, "signs", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -3774,7 +3791,7 @@ class ScriptGui extends Gui {
                     path: "@/Local",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.updateData(item.filename + ".bml", item.data, "signs", "server", () => {
+                        this.editor.uploadData(item.filename + ".bml", item.data, "signs", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -3878,7 +3895,7 @@ class ScriptGui extends Gui {
                             if(e.item.unit && (!e.item.children.length || this.editor.refreshSignsRepository && e.item.unit == session.user.username )) {
                                 const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
                                 modal.root.id = "loading";
-                                this.editor.getFilesFromUnit(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                                this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
                                     let files_data = [];
                                     if(files) {
                                         
@@ -3957,6 +3974,10 @@ class ScriptGui extends Gui {
                 if(this.choice) this.choice.close()
             }
         });
+    }
+
+    createSaveDialog() {
+        this.createNewSignDialog(null, "server");
     }
 
     createExportBMLDialog() {

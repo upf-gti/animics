@@ -366,11 +366,12 @@ class VideoEditor {
 
         // Create video element and load it
         let video = this.video = options.video ?? document.createElement( 'video' );
+        this.video.loop = true;
+        
         if(options.src) {
             this.video.src = options.src;
+            this._loadVideo(options);
         }
-        this.video.loop = true;
-        this._loadVideo(options);
         if(options.videoArea) {
             options.videoArea.root.classList.add("lexvideoeditor");
             videoArea.attach(options.videoArea);

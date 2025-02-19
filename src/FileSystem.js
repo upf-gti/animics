@@ -1,118 +1,119 @@
 import { LFS } from './libs/litefileserver.js';
 
-class FileSystem {
+class RemoteFileSystem {
     
     constructor( callback ) {
         this.session = null;
-        this.parsers = {};
+
         this.host = "https://signon-lfs.gti.sb.upf.edu/";
-        this.root = this.host + "/files/";
-        this.ALLOW_GUEST_UPLOADS = false;
+        this.root = this.host + "files/";
+        
+        this.repository = {signs:[], presets: [], clips: []};
+        this.refreshRepository = true;
 
         // init server this.onReady.bind(this, user, pass, (s) => {this.session = s; callback;})
         LFS.setup(this.host + "src/", () => {
-
-            LFS.checkExistingSession(callback);
-        });
+            LFS.checkExistingSession( (session ) => {
+                this._setSession( session );
+                if( session ) {
+                    this.loadUnits();
+                }
+                callback( this.session );
+            }); 
+        });        
     }
-   
-    init() {
-      console.log(this);
+    
+    _setSession( session ) {
+        if( !session || !session.status ) {
+            session = null;
+        }
+
+        if( session && this.session && session.user.username === this.session.user.username ) {
+            return;
+        }
+
+        this.session = session;
     }
 
     getSession() {
         return this.session;
     }
 
-	setSession(session)
-	{
-		if(!session || !session.status)
-			session = null;
+    createAccount( user, password, email, on_complete, on_error ) {
+        LFS.createAccount( user, password, email, ( valid, request ) => {
+            if( !valid ) {
+                if( on_error ) {
+                    on_error( request );
+                }
+                return;
+            }
 
-		if(session && this.session && session.user.username === this.session.user.username)
-			return;
-
-		this.session = session;
-		this.user = session ? session.user : null;
-		//this.updateLoginArea();
-		// if( session && session.user && session.user.username == "guest" && this.preferences.show_guest_warning )
-		// 	this.showGuestWarning();
-	}
-
-    createAccount(user, password, email, on_complete, on_error, admin_token, userdata) {
-       LFS.createAccount( user, password, email, on_complete, on_error, admin_token, userdata )
+            this.login(user, pass, () => {
+                this.loadUnits();
+            
+                this.createFolders();
+                    
+                if(on_complete) {
+                    on_complete(request);
+                }
+            })
+        }, on_error, null, null );
     }
 
-	login(username, password, callback)
-	{
-        username = username || this.user;
-        password = password || this.pass;
-		if(!username || !password)
+	login( username, password, callback ) {
+		if( !username || !password ) {
 			return;
+        }
 
-		const inner_success = (session, response, resolve) =>
-		{
-            if(response.status == 1)
-			    this.setSession(session);
+		const inner_success = (session, response, resolve) => {
+            if( response.status == 1 ) {
+			    this._setSession( session );
+            }
             
-            if(resolve)
+            if( resolve ) {
                 resolve(session);
-			if(callback)
+            }
+
+			if( callback ) {
 				callback(this.session, response);
+            }
 		}
 
-		const inner_error = (err) =>
-		{
+		const inner_error = (err) => {
 			throw err;
 		}
-        return new Promise(resolve => LFS.login(username, password, (s,r) => inner_success(s,r,resolve), inner_error));
 
+        const promise = new Promise(resolve => {
+            LFS.login(username, password, (s,r) => inner_success(s,r,resolve), inner_error)
+        });
+
+        return promise;
 	}
 
-    logout(callback) {
-        this.session.logout(()=> {
+    logout( callback ) {
+
+        this.session.logout( () => {
             console.log("Logout done");
             this.session = null;
-            if(callback)
+            
+            const repo = {signs:[], presets: [], clips: []};
+
+            // Only leave local and public remote files in the repo. Remove the ones from the server
+            for( let folder in this.repository ) {
+                for( let i = 0; i < this.repository[folder].length; i++ ) {
+                    if( this.repository[folder][i].id == "Local" || this.repository[folder][i].id == "Public" ) {
+                        repo[folder].push(this.repository[folder][i]);
+                    }
+                }
+            }
+            this.repository = repo;
+
+            if( callback ) {
                 callback();
+            }
         });
     }
 
-    onReady(u, p, callback) {
-        // log the user login: function( username, password, on_complete)
-        LFS.login(u, p, callback);
-    }
-
-    onLogin( callback, session, req ){
-
-        if(!session)
-            throw("error in server login");
-
-        if(req.status == -1) // Error in login
-        {
-            console.error(req.msg);
-        }
-        else
-        {
-            this.session = session;
-            console.log("%cLOGGED " + session.user.username, "color: #7676cc; font-size: 16px" );
-        }
-
-        if(callback)
-        callback(req.status != -1, req.msg);
-    }
-
-    onLogout( callback, closed ){
-
-        if(closed)
-        {
-            this.session = null;
-            console.log("%cLOGGED OUT","color: #7676cc; font-size: 16px" );
-            if(callback)
-                callback();    
-        }
-    }
-    
     async uploadFile(path, file, metadata){
 
 
@@ -147,53 +148,128 @@ class FileSystem {
         });
     }
 
-    async getFiles( unit, folder ){
-        return new Promise( (resolve, reject)=>{
+    getFiles( unit, folder, on_complete, on_error ) {
+        if( !this.session ) {
+            on_error();
+        }
+        this.session.getFiles( unit, folder, on_complete, on_error );
+    }
+
+    // async getFolders( onFolders ) {
+    //     const session = this.session;
+    //     session.getUnitsAndFolders(onFolders);
+    // }
+
+    createFolders() {
+        const session = this.session;
+        if( !session ) {
+            return;
+        }
+
+        session.createFolder( session.user.username + "/animics/presets/", (v, r) => {console.log(v)} );
+        session.createFolder( session.user.username + "/animics/signs/", (v, r) => {console.log(v)} );
+        session.createFolder( session.user.username + "/animics/clips/", (v, r) => {console.log(v)} );
+    }
+
+    loadUnits() {
+        const session = this.session;
+        this.repository = {signs:[], presets: [], clips: []};
         
-            function onError(e){
-                reject(e);
-            }
-    
-            function onFiles(f){
-                // if(!f)
-                //     return onError("Error: folder \""+folder+"\" not found.");
-                resolve(f);
-            }
-
-            var session = this.session;
-
-            session.request( 
-                session.server_url,
-                { action: "files/getFilesInFolder", unit: unit, folder: folder }, function(resp){
-
-                if(resp.status < 1){
-                    onError(resp.msg);
-                    return;
+        session.getUnits( (units) => {
+            for( let i = 0; i < units.length; i++ ) {
+                if(units[i].name == "guest") {
+                    continue;
                 }
-                //resp.data = JSON.parse(resp.data);
-                LFS.Session.processFileList( resp.data, unit + "/" + folder );
-                onFiles(resp.data, resp);
-            });
+                const data = {
+                    id: units[i].name,
+                    type: "folder",
+                    unit: units[i].name,
+                    children: []
+                };
+                
+                this.repository.signs.push( Object.assign( {}, data ) );
+                this.repository.presets.push( Object.assign( {}, data ) );
+                this.repository.clips.push( Object.assign( {}, data ) );
+            }
         });
     }
 
-    async getFolders( onFolders ){
-        var session = this.session;
+    //Get folders from each user unit
+    async loadFolders( folder , callback) {
+        const session = this.session;
+        let count = 0;
+        for( let i = 0; i < this.repository[ folder ].length; i++ ) {
 
-        session.getUnitsAndFolders(onFolders);
+            const unit = this.repository[ folder ][i].id;
+            const variable = "refresh" + ( folder  == "signs" ? "Signs" : "Presets") + "Repository";
+            //get all folders for empty units
+            if( !(unit == "Local" || this.repository[ folder ][i].children.length) || this[variable] && unit == session.user.username ) {
 
+                await session.getFolders( unit, async ( folders ) =>  {
+                    const mainFolder = folders.animics[ folder ];
+                    const assets = [];
+                    if( mainFolder ) {
+                        for( let folder in mainFolder ) {
+                            assets.push({id: folder, type: "folder", folder: folder , children: [], unit: unit})
+                        }
+                    }
+
+                    this.repository[ folder ][i].children = assets;
+                    count++;
+                    
+                    if( this.repository[ folder ].length == count ) {
+                        if( callback ) {
+                            callback();
+                        }
+                    }
+                })
+                
+            }
+            else {
+                if( unit == "Local" ) {
+                    this.repository[ folder ][i] = this.localStorage[ folder ];
+                }
+
+                count++;
+                if( this.repository[ folder ].length == count ) {
+                    if(callback) {
+                        callback();
+                    }
+                }
+            }
+        }        
     }
 
-    createFolder ( fullpath, on_complete, on_error )
-    {
-        if(!fullpath)
-            throw("no fullpath specified");
+    async loadAllUnitsFolders( folder, callback ) {
+        const session = this.session;
+        const units_number = Object.keys(session.units).length;
+        let count = 0;
 
-        var session = this.session;
+        for( let unit in session.units ) {
+            //get all folders for empty units
+            await session.getFolders( unit, async ( folders ) =>  {
+                const mainFolder = folders.animics[ folder ];
+                const assets = [];
+                if( mainFolder ) {
+                    for( let folder in mainFolder ) {
+                        const data = {id: folder, type: "folder", folder:  folder , children: [], unit: unit};
+                        assets.push( data );
+                    }
+                }
+                const data = {id: unit, type:"folder",  children: assets, unit: unit};
+                this.repository[ folder ].push( data);
+                count++;
 
-        session.createFolder ( fullpath, on_complete, on_error );
-        
+                if( units_number == count ) {
+                    this.repository[ folder ].push(this.localStorage[ folder ]);
+                    
+                    if( callback ) {
+                        callback();
+                    }
+                }
+            })
+        }
     }
 }
 
-export { FileSystem };
+export { RemoteFileSystem };

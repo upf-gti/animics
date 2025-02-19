@@ -15,8 +15,6 @@ import { BMLController } from "./controller.js"
 import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 
-import { FileSystem } from "./FileSystem.js";
-
 import { LX } from "lexgui"
 import { Quaternion, Vector3 } from "./libs/three.module.js";
 
@@ -70,6 +68,7 @@ class Editor {
         this.currentTime = 0;
 
         this.ANIMICS = animics;
+        this.remoteFileSystem = animics.remoteFileSystem;
 
         this.enabled = true;
         this.editorArea = new LX.Area({id: "editor-area", width: "100%", height: "100%"});
@@ -90,12 +89,6 @@ class Editor {
 
     //Create canvas scene
     async init(settings, showGuide = true) {
-
-        // TO DO
-        // if(this.ANIMICS.fileSystem.session.user.username != "signon") {
-        //     showGuide = false;
-        // }
-
         
         this.createScene();
         this.disable()
@@ -724,6 +717,69 @@ class Editor {
         return files;
     }
 
+    uploadData(filename, data, type, location, callback) {
+        const extension = filename.split(".")[1];
+
+        if(location == "server") {
+            if(data.constructor.name == "Object") {
+                data = JSON.stringify(data, null, 4);
+            }
+    
+            this.uploadFile(filename, data, type, (v) => {
+                let refreshType = "Signs";
+                if(type == "presets") {
+                    refreshType = "Presets";
+                }
+                else if (type == "clips") {
+                    refreshType = ""
+                }
+                this["refresh" + refreshType + "Repository"] = true; 
+                if(callback) 
+                    callback(v);
+            });   
+            
+        }
+        else {
+            const id = filename.replace("." + extension, "");
+            this.localStorage[type].children.push({filename: id, id: id, folder: type, type: extension, data: data});
+            
+            if(callback)
+                callback(filename);
+        }
+    }
+
+    uploadFile(filename, data, type, callback = () => {}) {
+        const session = this.remoteFileSystem.session;
+        const username = session.user.username;
+        const folder = "animics/"+ type;
+
+        session.getFileInfo(username + "/" + folder + "/" + filename, (file) => {
+
+            if(file && file.size) {
+              
+                LX.prompt("Do you want to overwrite the file?", "File already exists", () => {
+                    this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(filename));
+                    }, 
+                    {input: false, on_cancel: () => {
+                        LX.prompt("Rename the file", "Save file", (v) => {
+                            if(v === "" || !v) {
+                                alert("You have to write a name.");
+                                return;
+                            }
+                            this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + v, new File([data], filename ), []).then( () => callback(v));
+                        }, {input: filename} )
+                    }
+                } )                
+            }
+            else {
+                this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(filename));
+            }
+        },
+        () => {
+            //create folder
+        });
+    }
+
     showPreview() {
         
         const sendData = (msg) => {
@@ -828,7 +884,6 @@ class KeyframeEditor extends Editor {
         this.animationModes = {FACE: 0, BODY: 1};
         this.animationMode = this.animationModes.BODY;
 
-        this.refreshRepository = false;
         this.localStorage = {clips: {id: "Local", type:"folder", children: []}};
     }
 
@@ -980,7 +1035,7 @@ class KeyframeEditor extends Editor {
         
         if(data.fullpath) {
             const extension = UTILS.getExtension(data.fullpath).toLowerCase();
-            LX.request({ url: this.FS.root + data.fullpath, dataType: 'text/plain', success: (f) => {
+            LX.request({ url: this.remoteFileSystem.root + data.fullpath, dataType: 'text/plain', success: (f) => {
                 const bytesize = f => new Blob([f]).size;
                 data.bytesize = bytesize();
                 if(extension.includes('bvhe')) {

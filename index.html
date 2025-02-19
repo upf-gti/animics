@@ -55,10 +55,11 @@
 		const importBtn = document.getElementById("import");
 		// const importScriptBtn = document.getElementById("import-script");
 
+		const animics = new Animics();
+		
 		const startAnimics = (settings) => {
 			body.innerHTML = "";
-
-			const animics = new Animics();
+			
 			animics.init(settings);
 			
 			window.global = {app: animics};

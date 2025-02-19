@@ -479,7 +479,7 @@ class VideoProcessor {
     }
     
     /**
-     * @description Create and processes a webcam recorded video and generate a raw animation. Called from Animics.
+     * @description Creates and processes a webcam recorded video and generates a raw animation. Called from Animics.
     */
     async processWebcam() {
         this.mode = "webcam";
