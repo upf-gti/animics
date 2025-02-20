@@ -749,7 +749,7 @@ class Editor {
 
         session.getFileInfo(username + "/" + folder + "/" + filename, (file) => {
 
-            if(file && file.size) {
+            if( file && file.size ) {
               
                 LX.prompt("Do you want to overwrite the file?", "File already exists", () => {
                     this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(filename));
@@ -761,12 +761,12 @@ class Editor {
                                 return;
                             }
                             this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + v, new File([data], filename ), []).then( () => callback(v));
-                        }, {input: filename} )
+                        }, {input: filename, accept: "Yes"} )
                     }
                 } )                
             }
             else {
-                this.FS.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(filename));
+                this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(filename));
             }
         },
         () => {
@@ -991,6 +991,7 @@ class KeyframeEditor extends Editor {
                     const promise = new Promise((resolve) => {
                         this.fileToAnimation(files[i], (file) => {
                             this.loadAnimation( file.name, file.animation );
+                            resolve(file.animation);
                             UTILS.hideLoading();
                         });
                     })
@@ -1036,11 +1037,12 @@ class KeyframeEditor extends Editor {
             const extension = UTILS.getExtension(data.fullpath).toLowerCase();
             LX.request({ url: this.remoteFileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
                 if( content == "{}" )  {
-                    callback(null);
+                    callback({content});
                     return;
                 }
                 const bytesize = content => new Blob([ content ]).size;
                 data.bytesize = bytesize();
+                data.content = content;
 
                 if( extension.includes('bvhe') ) {
                     data.animation = this.BVHloader.parseExtended( content );
@@ -1061,6 +1063,7 @@ class KeyframeEditor extends Editor {
 
             const innerParse = (event) => {
                 const content = event.srcElement ? event.srcElement.result : event;
+                data.content = content;
                 if( content == "{}" )  {
                     callback(null);
                     return;
@@ -2325,14 +2328,11 @@ class KeyframeEditor extends Editor {
         let bvhFace = "";
         let faceAction = this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation);
 
-        if(!faceAction && bindedAnim.mixerFaceAnimation) {
-            faceAction = this.currentCharacter.mixer.clipAction(bindedAnim.mixerFaceAnimation);                        
-            bvhFace = BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets.BodyMesh, this.animationFrameRate);
+        if( faceAction ) {
+            bvhFace += BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets, this.animationFrameRate);            
         }
-
         return bvhPose + bvhFace;
     }
-
 }
 
 class ScriptEditor extends Editor { 
@@ -2355,7 +2355,11 @@ class ScriptEditor extends Editor {
             return "";
         }
         const bvhPose = this.generateBVH( bindedAnim, skeleton );
-        const bvhFace = BVHExporter.exportMorphTargets(action, this.currentCharacter.morphTargets.BodyMesh, this.animationFrameRate);
+        let bvhFace = "";
+        for(let mesh in this.currentCharacter.morphTargets) {
+            
+            bvhFace += BVHExporter.exportMorphTargets(action, this.currentCharacter.morphTargets[mesh], this.animationFrameRate);
+        }
         return bvhPose + bvhFace;
     }
 

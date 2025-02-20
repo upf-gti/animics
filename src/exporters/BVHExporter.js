@@ -193,8 +193,15 @@ const BVHExporter = {
             console.error("Can not export animation with morph targets");
             return "";
         }
-        let morphTargets = Object.keys(morphTargetDictionary);
-        morphTargets.map((v) => {bvh += "\t" + v + "\n"});
+
+        const tracks = clip.tracks.filter( t => t.name.includes('morphTargetInfluences') );
+        tracks.map(( track ) => {
+                const names = track.name.split(".morphTargetInfluences[");
+                const morphTarget = names[1].replace("]", "");
+                bvh += "\t" + morphTarget + " " + names[0] + "\n"
+            });
+
+        
         bvh += "}\n";
         bvh += "MOTION\n";
         bvh += "Frames: " + numFrames + "\n";
@@ -204,33 +211,23 @@ const BVHExporter = {
         if(!interpolants.length) {
             return bvh;
         }
-        const getMorphTargetFrameData = (time, morphTarget) => {
+        const getMorphTargetFrameData = (time, tracks) => {
 
             let data = "";
-            for(let idx = 0; idx < morphTarget.length; idx++)
+            for(let idx = 0; idx < tracks.length; idx++)
             {
-                const tracks = clip.tracks.filter( t => t.name.includes('[' + morphTarget[idx] + ']') );
-                // No animation info            
-                if(!tracks.length){
-                    data += "0.000 "; // TO DO consider removing the blendshape instead of filling with 0
-                    // console.warn("No tracks for " + morphTarget[idx])
-                }
-                else {
-                   
-                    const t = tracks[0];
-                    const trackIndex = clip.tracks.indexOf( t );
-                    const interpolant = interpolants[ trackIndex ];
-                    const values = interpolant.evaluate(time);
-                    data += values[0].toFixed(3) + " ";
-                    
-                }
+                const t = tracks[idx];
+                const trackIndex = clip.tracks.indexOf( t );
+                const interpolant = interpolants[ trackIndex ];
+                const values = interpolant.evaluate(time);
+                data += values[0].toFixed(3) + " ";
             }
 
             return data;
         }
         
         for( let frameIdx = 0; frameIdx < numFrames; ++frameIdx ) {
-            bvh += getMorphTargetFrameData(frameIdx * frameTime, morphTargets);
+            bvh += getMorphTargetFrameData(frameIdx * frameTime, tracks);
             bvh += "\n";
         }
 

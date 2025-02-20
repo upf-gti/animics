@@ -224,7 +224,8 @@ class BlendshapesManager {
 
     // Convert THREEJS morph target animation into Mediapipe names format
     createMediapipeAnimation(animation) {
-        let auTracks = [];
+        const auTracks = [];
+        const trackNames = [];
 
         // Extract time and values of each track
         for (let i = 0; i < animation.tracks.length; i++) {
@@ -254,18 +255,20 @@ class BlendshapesManager {
                         if ( mappedMorphs.includes(morphTargetName) ) {
                             
                             const newName = this.getFormattedTrackName(actionUnit);
-                            if(!newName) {
+                            if(!newName || trackNames.indexOf( newName ) > -1) {
                                 continue;
                             }
+                            trackNames.push(newName);
                             auTracks.push( new THREE.NumberKeyframeTrack(newName, times, values ));
                             break;
                         }
                     } else if (mappedMorphs === morphTargetName) {
 
                         const newName = this.getFormattedTrackName(actionUnit);
-                        if(!newName) {
+                        if(!newName || trackNames.indexOf( newName ) > -1) {
                             continue;
                         }
+                        trackNames.push(newName);
                         auTracks.push( new THREE.NumberKeyframeTrack(newName, times, values ));
                         break;
                     }

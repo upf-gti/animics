@@ -686,17 +686,18 @@ class KeyframesGui extends Gui {
 
     onCreateMenuBar( menubar ) {
         
-        menubar.add("Project/New animation"); // TO DO
+        menubar.add("Project/New animation", {icon: "fa fa-plus"}); // TO DO
         
+        menubar.add("Project/Generate animations", {icon:"fa-solid fa-hands-asl-interpreting"});
         menubar.add("Project/Generate animations/From webcam", {icon: "fa fa-camera", callback: () => this.editor.captureVideo()});
         menubar.add("Project/Generate animations/From videos", {icon: "fa fa-photo-film", callback: () => this.importFiles(), short: "CTRL+O"});
 
-        menubar.add("Project/Import animations", {icon: "fa fa-cloud-arrow-down"});
+        menubar.add("Project/Import animations", {icon: "fa fa-file-import"});
         menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+O"});
-        menubar.add("Project/Import animations/From server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
+        menubar.add("Project/Import animations/From server", {icon: "fa fa-server", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
 
         // Export (download) animation
-        menubar.add("Project/Export animations", {icon: "fa fa-file-export"});
+        menubar.add("Project/Export animations", {icon: "fa fa-download"});
 
         menubar.add("Project/Export animations/Export BVH", {callback: () => {            
             this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH"));
@@ -709,7 +710,7 @@ class KeyframesGui extends Gui {
                 this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
         }});
         
-        menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() });
+        menubar.add("Project/Export videos & landmarks", {icon: "fa fa-file-video", callback: () => this.showExportVideosDialog() });
 
         // Save animation in server
         menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
@@ -854,14 +855,19 @@ class KeyframesGui extends Gui {
             }
         }
 
-        let zip = new JSZip();
+        if( !Object.keys(toExport).length ) {
+            LX.popup("There aren't videos or landmarks to export!", "", {position: [ "10px", "50px"], timeout: 5000})
+            return;
+        }
 
-        let options = { modal : true};
-        const dialog = this.prompt = new LX.Dialog("Export videos", p => {
+        const zip = new JSZip();
+
+        const options = { modal : true };
+        const dialog = this.prompt = new LX.Dialog("Export videos and Mediapipe data", p => {
             
             // animation elements
-            for( let aName in toExport ){
-                let anim = toExport[aName];
+            for( let aName in toExport ) {
+                const anim = toExport[aName];
                 p.sameLine();
                 p.addCheckbox(" ", anim.export, (v) => anim.export = v);//, {minWidth:"100px"});
                 p.addText(aName, anim.saveName, (v) => {
@@ -872,60 +878,75 @@ class KeyframesGui extends Gui {
 
             // accept / cancel
             p.sameLine(2);
-            p.addButton("", options.accept || "OK", (v, e) => { 
+            p.addButton("", options.accept || "Download", async (v, e) => { 
                 e.stopPropagation();
-                UTILS.makeLoading( "Preparing download...", 0.5 );
+                
+                UTILS.makeLoading( "Preparing files...", 0.5 );
+                const promises = [];
 
-                let promises = [];
-
-                for( let aName in toExport ){
-                    let anim = toExport[aName];
-                    if ( !anim.export ){ continue; }
+                for( let aName in toExport ) {
+                    const animation = toExport[aName];
+                    if ( !animation.export ) {
+                        continue;
+                    }
                     let extension = aName.lastIndexOf(".");
                     extension = extension == -1 ? ".webm" : aName.slice(extension);
-                    let saveName = anim.saveName + extension;
+                    const saveName = animation.saveName + extension;
 
                     // prepare videos so they can be downloaded
-                    let p = fetch( anim.videoURL )
+                    const promise = fetch( animation.videoURL )
                         .then( r => r.blob() )
                         .then( blob => UTILS.blobToBase64(blob) )
                         .then( binaryData => zip.file(saveName, binaryData, {base64:true} ) );
-                    promises.push(p);
+                    
+                    promises.push( promise );
 
                     // include landmarks in zip
                     // TODO: optimize json so it weights less
-                    zip.file( anim.saveName + ".json", 
-                        JSON.stringify({ startTime: anim.startTime, endTime: anim.endTime, landmarks: anim.landmarks, blendshapes: anim.blendshapes }, 
-                            function(key, val) {
-                                return (val !== null && val !== undefined && val.toFixed) ? Number(val.toFixed(4)) : val;
-                            } 
-                        ) 
+                    let data = {
+                        startTime: animation.startTime,
+                        endTime: animation.endTime,
+                        landmarks: animation.landmarks,
+                        blendshapes: animation.blendshapes
+                    };
+
+                    data = JSON.stringify( data, 
+                        function(key, val) {
+                            return (val !== null && val !== undefined && val.toFixed) ? Number(val.toFixed(4)) : val;
+                        } 
                     );
+
+                    zip.file( animation.saveName + ".json", data );
                 }
 
                 dialog.close();
 
                 // wait until all videos have been added to the zip before downloading
-                Promise.all( promises ).then( ()=>{
-                    zip.generateAsync({type:"base64"}).then( (base64) => {
-                        let d = document.createElement("a"); 
-                        d.href = "data:application/zip;base64," + base64;
-                        d.download = "videos.zip";
-                        d.click();
-                        $("#loading").fadeOut();
-                    }).catch( (e) => {console.log(e); $("#loading").fadeOut(); } );
-                })
+                await Promise.all( promises );
+
+                const base64 = await zip.generateAsync({type:"base64"});
+                const el = document.createElement("a"); 
+                el.href = "data:application/zip;base64," + base64;
+                el.download = "videos.zip";
+                el.click();
+                UTILS.hideLoading();
+                    // }).catch( (e) => {console.log(e); $("#loading").fadeOut(); } );
 
             }, { buttonClass: "accept" });
-            p.addButton("", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+            
+            p.addButton("", "Cancel", () => {
+                if(options.on_cancel) {
+                    options.on_cancel();
+                }
+                dialog.close();
+            });
 
         }, options);
-        dialog.root.style.width = "auto";
 
         // Focus text prompt
-        if(options.input !== false)
+        if(options.input !== false) {
             dialog.root.querySelector('input').focus();
-    
+        }
     }
 
     /** Create timelines */
@@ -1953,35 +1974,25 @@ class KeyframesGui extends Gui {
                     callback: innerSelect
                 },
                 {
-                    type: "bvhe",
-                    name: 'Add as single clip', 
-                    callback: innerSelect
+                    type: "bvh",
+                    name: 'View source', 
+                    callback: this.showSourceCode.bind(this)
                 },
                 {
                     type: "bvhe",
-                    name: 'Breakdown into keyframes', 
-                    callback: innerSelect
-                },
-                {
-                    type: "glb",
                     name: 'Add as single clip', 
                     callback: innerSelect
                 },
                 {
-                    type: "glb",
+                    type: "bvhe",
                     name: 'Breakdown into keyframes', 
                     callback: innerSelect
-                },
+                },                
                 {
-                    type: "gltf",
-                    name: 'Add as single clip', 
-                    callback: innerSelect
-                },
-                {
-                    type: "gltf",
-                    name: 'Breakdown into keyframes', 
-                    callback: innerSelect
-                },
+                    type: "bvhe",
+                    name: 'View source', 
+                    callback: this.showSourceCode.bind(this)
+                }
             ];
 
             if(user.username != "public") {
@@ -2162,15 +2173,16 @@ class KeyframesGui extends Gui {
                         const promise = new Promise((resolve) => {
                             this.editor.fileToAnimation(e.item, ( file ) => {
                                 if( file ) {
-                                    resolve(file.animation);
+                                    resolve(file);
                                 }
                                 else {
                                     resolve( null );
                                 }
                             });
                         })
-                        const animation = await promise;
-                        e.item.animation = animation;
+                        const parsedFile = await promise;
+                        e.item.animation = parsedFile.animation;
+                        e.item.content = parsedFile.content;
                     }
                     break;
                 case LX.AssetViewEvent.ASSET_DELETED: 
@@ -2189,15 +2201,16 @@ class KeyframesGui extends Gui {
                                 const promise = new Promise((resolve) => {
                                     this.editor.fileToAnimation(e.item, (file) => {
                                         if( file ) {
-                                            resolve(file.animation);
+                                            resolve(file);
                                         }
                                         else {
                                             resolve( null );
                                         }
                                     });
                                 })
-                                const animation = await promise;
-                                e.item.animation = animation;
+                                const parsedFile = await promise;
+                                e.item.animation = parsedFile.animation;
+                                e.item.content = parsedFile.content;
                             }
 
                             panel.addText(null, "How do you want to insert the clip?", null, {disabled:true});
@@ -2252,6 +2265,33 @@ class KeyframesGui extends Gui {
                     break;
             }
         })
+    }
+
+    showSourceCode( asset ) {
+        if( window.dialog ) {
+            window.dialog.destroy();
+        }
+    
+        window.dialog = new LX.PocketDialog("Editor", p => {
+            const area = new LX.Area();
+            p.attach( area );
+
+            const filename = asset.filename;
+            const type = asset.type;
+            const name = filename.replace("."+ type, "");
+                        
+            const codeEditor = new LX.CodeEditor(area, {
+                allow_add_scripts: false,
+                name: type,
+                title: name,
+                disable_edition: true
+            });
+            
+            codeEditor.setText( asset.content );
+            
+            codeEditor._changeLanguage( "JSON" );
+                     
+        }, { size: ["40%", "600px"], closable: true });
     }
 }
 
