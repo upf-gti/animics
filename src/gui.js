@@ -32,7 +32,6 @@ class Gui {
 
         this.sidePanel = right;
    
-
         //Create timelines (keyframes and clips)
         this.createTimelines( );
     }
@@ -46,9 +45,16 @@ class Gui {
         // Canvas UI buttons
         this.createSceneUI(this.canvasArea);
 
+        window.addEventListener("keydown", (event) => {
+            if( event.key == "Escape" ) {
+                this.closeDialogs(); 
+            }
+        })
+        
         if(showGuide) {
             this.showGuide();
         }
+
     }
 
     showGuide() {
@@ -625,14 +631,14 @@ class Gui {
         }
     }
 
-    createAnimation(options) {
+    createLoadingModal(options) {
         options = options || {size: ["80%", "70%"]};
 
         return new LX.Dialog(null, m => {
             const div = document.createElement("div");
             div.classList.add("load")
 
-            let icon = document.createElement("div");
+            const icon = document.createElement("div");
             icon.classList = "loading-icon big";
             div.appendChild(icon);
             
@@ -675,27 +681,25 @@ class KeyframesGui extends Gui {
         };
 
         this.boneProperties = {};
-        this.createVideoOverlay();
-       
+        this.createVideoOverlay();       
     }
 
     onCreateMenuBar( menubar ) {
         
-        // menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", short: "CTRL+O"});
-        menubar.add("Project/New animation");
+        menubar.add("Project/New animation"); // TO DO
         
-        menubar.add("Project/Generate animations/From webcam", {icon: "fa fa-camera", callback: () => this.editor.captureVideo(), short: "CTRL+I"});
-        menubar.add("Project/Generate animations/From videos", {icon: "fa fa-photo-film", callback: () => this.importFiles(), short: "CTRL+I"});
+        menubar.add("Project/Generate animations/From webcam", {icon: "fa fa-camera", callback: () => this.editor.captureVideo()});
+        menubar.add("Project/Generate animations/From videos", {icon: "fa fa-photo-film", callback: () => this.importFiles(), short: "CTRL+O"});
 
         menubar.add("Project/Import animations", {icon: "fa fa-cloud-arrow-down"});
-        menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+I"});
-        menubar.add("Project/Import animations/From server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+O"})
+        menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+O"});
+        menubar.add("Project/Import animations/From server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
 
         // Export (download) animation
         menubar.add("Project/Export animations", {icon: "fa fa-file-export"});
 
         menubar.add("Project/Export animations/Export BVH", {callback: () => {            
-            this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH"));            
+            this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH"));
         }});
         menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
             this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
@@ -1904,10 +1908,18 @@ class KeyframesGui extends Gui {
         // Create a new dialog
         const dialog = this.prompt = new LX.Dialog('Available clips', async (p) => {
             
-            const innerSelect = async (asset, button, e, action) => {
+            const innerSelect = async (asset, button, e, action) => {                
                 const choice = document.getElementById("choice-insert-mode");
                 if( choice ) {
                     choice.remove();
+                }
+                
+                if( !asset.animation ) {
+                    dialog.close();
+                    this.closeDialogs();
+                    LX.popup("The file is empty or has an incorrect format.", "Ops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });
+
+                    return;
                 }
 
                 switch(button) {
@@ -1920,15 +1932,16 @@ class KeyframesGui extends Gui {
                 }
                 this.keyFramesTimeline.onUnselectKeyFrames();
                 asset.animation.name = asset.id;
-                const modal = this.createAnimation();
+
+                const modal = this.createLoadingModal();
                 this.editor.loadAnimation( asset.id, asset.animation );
-                modal.close();
+                modal.destroy();
     
-                asset_browser.clear();
+                assetViewer.clear();
                 dialog.close();
             }
 
-            let preview_actions = [
+            const preview_actions = [
                 {
                     type: "bvh",
                     name: 'Add as single clip', 
@@ -2054,8 +2067,7 @@ class KeyframesGui extends Gui {
                                 LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
 
                             }
-                            this.closeDialogs();
-                            
+                            this.closeDialogs();                            
                         });
                     }
                 });
@@ -2090,133 +2102,44 @@ class KeyframesGui extends Gui {
                                 LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
 
                             }
-                            this.closeDialogs();
-                            
+                            this.closeDialogs();                            
                         });
                     }
                 });
             }
             
-            const asset_browser = new LX.AssetView({  allowed_types: ["bvh", "bvhe", "glb", "gltf"],  preview_actions: preview_actions, context_menu: false});
-            p.attach( asset_browser );
+            const assetViewer = new LX.AssetView({  allowed_types: ["bvh", "bvhe", "glb", "gltf"],  preview_actions: preview_actions, context_menu: false});
+            p.attach( assetViewer );
             
-            const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
-            modal.root.id = "loading";
-
-            const closeModal = (modal) => {
-                modal.panel.clear();
-                modal.root.remove();
-            }
+            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
             
-            const loadData = () => {
-                asset_browser.load( repository.clips, async e => {
-                    switch(e.type) {
-                        case LX.AssetViewEvent.ASSET_SELECTED:
-                            if(e.item.type == "folder") {
-                                return;
-                            }                      
-                            if(!e.item.animation) {
-                                const promise = new Promise((resolve) => {
-                                    this.editor.fileToAnimation(e.item, (file) => {
-                                        resolve(file.animation);
-                                    });
-                                })
-                                const animation = await promise;
-                                e.item.animation = animation;
-                            }
-                            break;
-                        case LX.AssetViewEvent.ASSET_DELETED: 
-                            console.log(e.item.id + " deleted"); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_CLONED: 
-                            console.log(e.item.id + " cloned"); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_RENAMED:
-                            console.log(e.item.id + " is now called " + e.value); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_DBLCLICKED: 
-                        if(e.item.type != "folder") {
-                            let choice = new LX.Dialog("Add clip", async (p) => {
-                                if(!e.item.animation) {
-                                    const promise = new Promise((resolve) => {
-                                        this.editor.fileToAnimation(e.item, (file) => {
-                                            resolve(file.animation);
-                                        });
-                                    })
-                                    const animation = await promise;
-                                    e.item.animation = animation;
-                                }
-                                p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
-                                p.sameLine(2);
-                                p.addButton(null, "Add as single clip", (v) => { choice.close(); this.mode = ClipModes.Phrase; this.closeDialogs(); innerSelect(e.item, v);} )
-                                p.addButton(null, "Breakdown into keyframes", (v) => { choice.close(); this.mode = ClipModes.Keyframes; this.closeDialogs(); innerSelect(e.item, v);} )
-                            }, {modal:true, closable: true, id: "choice-insert-mode"})
-                        }
-                            break;
-
-                        case LX.AssetViewEvent.ENTER_FOLDER:
-                            if(e.item.unit && (!e.item.children.length || this.editor.remoteFileSystem.refreshRepository && e.item.unit == user.username )) {
-                                const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
-                                modal.root.id = "loading";
-
-                                this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/clips/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
-                                    const files_data = [];
-                                    if( files ) {                                        
-                                        for(let f = 0; f < files.length; f++) {
-                                            files[f].id = files[f].filename;
-                                            files[f].folder = e.item;
-                                            files[f].type = UTILS.getExtension(files[f].filename);
-                                            if(files[f].type == "txt")
-                                                continue;
-                                            files_data.push(files[f]);
-                                        }
-                                        e.item.children = files_data;
-                                    }
-                                    asset_browser.currentData = files_data;
-                                    asset_browser._updatePath(asset_browser.currentData);
-
-                                    if(!asset_browser.skip_browser)
-                                        asset_browser._createTreePanel();
-                                    asset_browser._refreshContent();
-
-                                    this.editor.remoteFileSystem.refreshRepository = false;
-                                    closeModal(modal);
-                                })
-                            }
-                            break;
-                    }
-                })
-            }
+            this.loadAssets( assetViewer, repository, innerSelect );
 
             if( !repository.clips.length ) {
                 await this.editor.remoteFileSystem.loadAllUnitsFolders("clips", () => {
                     this.editor.remoteFileSystem.refreshRepository = false;
-                    closeModal(modal);
-                    loadData();
+                    modal.destroy();
+                    this.loadAssets( assetViewer, repository, innerSelect );
+
                 });
             }
             else {
-
                 await this.editor.remoteFileSystem.loadFolders("clips", () => {
                     this.editor.remoteFileSystem.refreshRepository = false;
-
-                    closeModal(modal);
-                    loadData();
+                    modal.destroy();
+                    this.loadAssets( assetViewer, repository, innerSelect );
                 });
             }
-            // }
-            // else {
-            //     closeModal(modal);
-            // }   
        
         }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
-            onclose: (root) => {
-                let loadingmodal = document.getElementById("loading")
-                if(loadingmodal) {
-                    loadingmodal.remove();
+            onclose: ( root ) => {
+
+                if( modal.destroy ) {
+                    modal.destroy();
                 }
                 root.remove();
+
                 this.prompt = null;
                 if(!LX.modal.hidden) {
                     LX.modal.toggle(true);
@@ -2226,6 +2149,109 @@ class KeyframesGui extends Gui {
                 }
             }
         });
+    }
+
+    loadAssets( assetViewer, repository, onSelectFile ) {
+        assetViewer.load( repository.clips, async e => {
+            switch(e.type) {
+                case LX.AssetViewEvent.ASSET_SELECTED:
+                    if(e.item.type == "folder") {
+                        return;
+                    }                      
+                    if(!e.item.animation) {
+                        const promise = new Promise((resolve) => {
+                            this.editor.fileToAnimation(e.item, ( file ) => {
+                                if( file ) {
+                                    resolve(file.animation);
+                                }
+                                else {
+                                    resolve( null );
+                                }
+                            });
+                        })
+                        const animation = await promise;
+                        e.item.animation = animation;
+                    }
+                    break;
+                case LX.AssetViewEvent.ASSET_DELETED: 
+                    console.log(e.item.id + " deleted"); 
+                    break;
+                case LX.AssetViewEvent.ASSET_CLONED: 
+                    console.log(e.item.id + " cloned"); 
+                    break;
+                case LX.AssetViewEvent.ASSET_RENAMED:
+                    console.log(e.item.id + " is now called " + e.value); 
+                    break;
+                case LX.AssetViewEvent.ASSET_DBLCLICKED: 
+                    if(e.item.type != "folder") {
+                        const dialog = new LX.Dialog("Add clip", async ( panel ) => {
+                            if(!e.item.animation) {
+                                const promise = new Promise((resolve) => {
+                                    this.editor.fileToAnimation(e.item, (file) => {
+                                        if( file ) {
+                                            resolve(file.animation);
+                                        }
+                                        else {
+                                            resolve( null );
+                                        }
+                                    });
+                                })
+                                const animation = await promise;
+                                e.item.animation = animation;
+                            }
+
+                            panel.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                            panel.sameLine(2);
+                            panel.addButton(null, "Add as single clip", (v) => { 
+                                dialog.close();
+                                this.mode = ClipModes.Phrase;
+                                this.closeDialogs(); 
+                                onSelectFile(e.item, v);
+                            });
+                            panel.addButton(null, "Breakdown into keyframes", (v) => {
+                                dialog.close();
+                                this.mode = ClipModes.Keyframes;
+                                this.closeDialogs();
+                                onSelectFile(e.item, v);
+                            });
+                        }, { modal: true, closable: true, id: "choice-insert-mode"})
+                    }
+                    break;
+
+                case LX.AssetViewEvent.ENTER_FOLDER:
+                    if(e.item.unit && (!e.item.children.length || this.editor.remoteFileSystem.refreshRepository && e.item.unit == user.username )) {
+                        const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+
+                        this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/clips/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                            const files_data = [];
+                            if( files ) {                                        
+                                for(let f = 0; f < files.length; f++) {
+                                    files[f].id = files[f].filename;
+                                    files[f].folder = e.item;
+                                    files[f].type = UTILS.getExtension(files[f].filename);
+                                    if(files[f].type == "txt")
+                                        continue;
+                                    files_data.push(files[f]);
+                                }
+                                e.item.children = files_data;
+                            }
+                            assetViewer.currentData = files_data;
+                            assetViewer._updatePath(assetViewer.currentData);
+
+                            if(!assetViewer.skip_browser) {
+                                assetViewer._createTreePanel();
+                            }
+
+                            assetViewer._refreshContent();
+
+                            this.editor.remoteFileSystem.refreshRepository = false;
+                            
+                            modal.destroy();
+                        })
+                    }
+                    break;
+            }
+        })
     }
 }
 
@@ -3595,7 +3621,7 @@ class ScriptGui extends Gui {
 
             p.attach( asset_browser );
 
-            const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
             modal.root.id = "loading";
             const closeModal = (modal ) => {
                 modal.panel.clear();
@@ -3623,7 +3649,7 @@ class ScriptGui extends Gui {
                         case LX.AssetViewEvent.ENTER_FOLDER:
                             const session = this.editor.FS.getSession(); 
                             if(e.item.unit && e.item.unit != "signon" && (!e.item.children.length || this.editor.refreshPresetsRepository && e.item.unit == session.user.username )) {
-                                const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                                const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
                                 modal.root.id = "loading";
                                 this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/presets/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
                                     let files_data = [];
@@ -3719,7 +3745,7 @@ class ScriptGui extends Gui {
                 }
                 that.clipsTimeline.unSelectAllClips();
                 asset.bml.name = asset.id;
-                const modal = this.createAnimation();
+                const modal = this.createLoadingModal();
 
                 
                 this.loadBMLClip(asset.bml)
@@ -3839,7 +3865,7 @@ class ScriptGui extends Gui {
             let asset_browser = new LX.AssetView({  allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
             
             p.attach( asset_browser );
-            const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
             modal.root.id = "loading";
             const closeModal = (modal ) => {
                 modal.panel.clear();
@@ -3893,7 +3919,7 @@ class ScriptGui extends Gui {
                         case LX.AssetViewEvent.ENTER_FOLDER:
                             const session = this.editor.FS.getSession(); 
                             if(e.item.unit && (!e.item.children.length || this.editor.refreshSignsRepository && e.item.unit == session.user.username )) {
-                                const modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                                const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
                                 modal.root.id = "loading";
                                 this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
                                     let files_data = [];
@@ -3926,7 +3952,7 @@ class ScriptGui extends Gui {
 
                 // if(!this.editor.dictionaries.length) {
                 //     if(!modal)
-                //         modal = this.createAnimation({closable:false , size: ["80%", "70%"]});
+                //         modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
                 //     setTimeout(loadData.bind(this,modal), 100);
                 // }
                 // else {

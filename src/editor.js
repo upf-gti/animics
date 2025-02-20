@@ -347,6 +347,13 @@ class Editor {
 
     bindEvents() {
 
+        // Cancel default browser listener
+        document.addEventListener( "keydown", (e) => {
+            if( e.ctrlKey && ( e.key == "o" || e.key == "O" ) ) {
+                e.preventDefault();
+            }
+        });
+
         this.editorArea.root.ondrop = async (e) => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -439,7 +446,7 @@ class Editor {
                     break;
                
 
-                case 'i': case 'I': // Import file from disk
+                case 'o': case 'O': // Import file from disk
                     if(e.ctrlKey && !e.shiftKey) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
@@ -447,19 +454,6 @@ class Editor {
                         this.gui.importFiles();
                     }
                     break;
-
-                case 'o': case 'O': // Open file from server
-                if(e.ctrlKey && !e.shiftKey) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-
-                    //TO DO: Script editor (onKeyDown)
-                    // if(this.mode == this.editionModes.SCRIPT) {
-                    //     this.gui.createSignsDialog();
-                    // }
-                
-                }
-                break;
             }
 
             this.onKeyDown(e);
@@ -899,10 +893,10 @@ class KeyframeEditor extends Editor {
                     }
                 }
             break;
-            case 'o': case 'O': // Open file from server
-                if(e.ctrlKey && !e.shiftKey) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
+            case 'i': case 'i': // Open file from server
+                if(event.ctrlKey && !event.shiftKey) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
 
                     this.gui.createServerClipsDialog();                    
                 }
@@ -1035,27 +1029,37 @@ class KeyframeEditor extends Editor {
         
         if(data.fullpath) {
             const extension = UTILS.getExtension(data.fullpath).toLowerCase();
-            LX.request({ url: this.remoteFileSystem.root + data.fullpath, dataType: 'text/plain', success: (f) => {
-                const bytesize = f => new Blob([f]).size;
-                data.bytesize = bytesize();
-                if(extension.includes('bvhe')) {
-                    data.animation = this.BVHloader.parseExtended( f );
+            LX.request({ url: this.remoteFileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
+                if( content == "{}" )  {
+                    callback(null);
+                    return;
                 }
-                else if(extension.includes('bvh')) {
-                    data.animation = { skeletonAnim: this.BVHloader.parse( f ) };
+                const bytesize = content => new Blob([ content ]).size;
+                data.bytesize = bytesize();
+
+                if( extension.includes('bvhe') ) {
+                    data.animation = this.BVHloader.parseExtended( content );
+                }
+                else if( extension.includes('bvh') ) {
+                    data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
                 }
                 else {
                     data.animation = null; // TO DO FOR GLB AND GLTF
                 }
-                if(callback)
+
+                if( callback ) {
                     callback(data);
+                }
             } });
         }
         else {
 
             const innerParse = (event) => {
                 const content = event.srcElement ? event.srcElement.result : event;
-                
+                if( content == "{}" )  {
+                    callback(null);
+                    return;
+                }
                 const type = data.type || UTILS.getExtension(data.name).toLowerCase();
                 
                 if(type.includes('bvhe')) {
