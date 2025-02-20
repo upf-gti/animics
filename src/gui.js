@@ -309,9 +309,11 @@ class Gui {
 
     showLogoutModal() {
         this.prompt = LX.prompt( "Are you sure you want to logout?", "Logout", (v) => {
-            this.editor.ANIMICS.logout(() => {
+            this.editor.remoteFileSystem.logout(() => {
+                this.editor.remoteFileSystem.login("guest", "guest", () => {
+                        this.editor.remoteFileSystem.loadUnits()
+                })
                 this.changeLoginButton();
-                this.editor.ANIMICS.login("signon", "signon", this.editor.ANIMICS.getUnits.bind(this.editor))
 
             }); 
             this.prompt = null;
@@ -367,12 +369,12 @@ class Gui {
             
     }
 
-    showExportAnimationsDialog(callback, formats = []) {
+    showExportAnimationsDialog(title, callback, formats = []) {
         let options = { modal : true};
 
         let value = "";
         let format = null;
-        const dialog = this.prompt = new LX.Dialog("Export all animations", p => {
+        const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             let animations = this.editor.loadedAnimations;
             for(let animationName in animations) { // animationName is of the source anim (not the bind)
                 let animation = animations[animationName]; 
@@ -459,6 +461,23 @@ class Gui {
                     }
                 }
             ];
+            if( editor.gizmo ) {
+                canvasButtons.push(
+                    {
+                        name: 'Joints',
+                        property: 'boneUseDepthBuffer',
+                        icon: 'fa-solid fa-circle-nodes',
+                        selectable: true,
+                        selected: true,
+                        callback: (v) =>  {
+                            if(editor.gizmo ) {
+                                editor.gizmo.bonePoints.material.depthTest = !editor.gizmo.bonePoints.material.depthTest;
+                            }
+                        }
+                    }
+                );
+            }
+            
         }
         
         canvasButtons = [...canvasButtons,
@@ -471,46 +490,31 @@ class Gui {
                 callback: (v, e) => {
                     editor.showGUI = !editor.showGUI;
 
-                    if(editor.scene.getObjectByName('Armature'))
+                    if( editor.scene.getObjectByName('Armature') ) {
                         editor.scene.getObjectByName('SkeletonHelper').visible = editor.showGUI;
-                    if(editor.mode != editor.editionModes.SCRIPT) {
+                    }
+
+                    if( editor.gizmo ) {
                         editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
                     }
+
                     editor.scene.getObjectByName('Grid').visible = editor.showGUI;
                     
                     if(!editor.showGUI) {
-                        if(editor.mode != editor.editionModes.SCRIPT) {
+                        if(editor.gizmo) {
                             editor.gizmo.stop();
                         }
                         this.hideTimeline();
                         this.sidePanel.parentArea.extend();  
-                        if(editor.mode != editor.editionModes.SCRIPT) {
-                            this.recordedVideo.hidden = true;
-                        }
+                        this.hideVideoOverlay();
 
                     } else {
                         this.showTimeline();
                         this.sidePanel.parentArea.reduce();  
-                        if(editor.mode != editor.editionModes.SCRIPT) {
-                            this.recordedVideo.hidden = false;
-                        }
+                        this.showVideoOverlay();
                     }                  
                 }
             },
-    
-            {
-                name: 'Joints',
-                property: 'boneUseDepthBuffer',
-                icon: 'fa-solid fa-circle-nodes',
-                selectable: true,
-                selected: true,
-                callback: (v) =>  {
-                    if(editor.mode != editor.editionModes.SCRIPT) {
-                        editor.gizmo.bonePoints.material.depthTest = !editor.gizmo.bonePoints.material.depthTest;
-                    }
-                }
-            },
-    
             {
                 name: 'Animation loop',
                 property: 'animLoop',
@@ -524,6 +528,7 @@ class Gui {
                 }
             }
         ]
+        
         area.addOverlayButtons(canvasButtons, { float: "htc" } );
     }
     
@@ -697,18 +702,20 @@ class KeyframesGui extends Gui {
         menubar.add("Project/Import animations/From server", {icon: "fa fa-server", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
 
         // Export (download) animation
-        menubar.add("Project/Export animations", {icon: "fa fa-download"});
+        menubar.add("Project/Export animations", {icon: "fa fa-download", callback: () => {            
+            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), ["BVH", "BVH extended", "GLB"]);
+        }});
 
-        menubar.add("Project/Export animations/Export BVH", {callback: () => {            
-            this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH"));
-        }});
-        menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
-            this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
-        }});
+        // menubar.add("Project/Export animations/Export BVH", {callback: () => {            
+        //     this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH"));
+        // }});
+        // menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
+        //     this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
+        // }});
         
-        menubar.add("Project/Export animations/Export GLB", {callback: () => {
-                this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
-        }});
+        // menubar.add("Project/Export animations/Export GLB", {callback: () => {
+        //         this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
+        // }});
         
         menubar.add("Project/Export videos & landmarks", {icon: "fa fa-file-video", callback: () => this.showExportVideosDialog() });
 
@@ -1883,7 +1890,7 @@ class KeyframesGui extends Gui {
     }
 
     createSaveDialog() {
-        this.showExportAnimationsDialog( (format) => {
+        this.showExportAnimationsDialog( "Save animations in server", (format) => {
 
             const saveDataToServer = (location,) => {
                 let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
