@@ -969,6 +969,7 @@ class KeyframeEditor extends Editor {
         const promises = [];
         // first valid file will determine the mode. Following files must be of the same format
         for(let i = 0; i < files.length; ++i){
+            UTILS.makeLoading("Loading animation: " + files[i].name );
             // MIME type is video
             if(files[i].type.startsWith("video/")) { 
                 if (!mode) { mode = "video"; }
@@ -982,22 +983,26 @@ class KeyframeEditor extends Editor {
             const extension = UTILS.getExtension(files[i].name).toLowerCase();
                             
             if(animExtensions.includes(extension)) { 
-                if (!mode) { mode = "bvh"; }
+                if (!mode) { 
+                    mode = "bvh"; 
+                }
                 
                 if ( mode == "bvh") {
-                    const modal = this.gui.createAnimation();
                     const promise = new Promise((resolve) => {
                         this.fileToAnimation(files[i], (file) => {
                             this.loadAnimation( file.name, file.animation );
-                            modal.close();
-                            resolve();
+                            UTILS.hideLoading();
                         });
                     })
                     promises.push( promise );
                 }
             }
         }
-        if(!resultFiles.length) {
+        if( !resultFiles.length ) {
+            if( !mode ) {
+                LX.popup("The file is empty or has an incorrect format.", "Ops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });
+            }
+            UTILS.hideLoading();
             return Promise.all( promises );
         }
 

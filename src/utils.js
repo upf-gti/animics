@@ -100,13 +100,16 @@ const UTILS = {
     },
 
 	makeLoading( string, opacity = 1 ) {
+		$("#loading").removeClass("hidden");
 		if($("#loading").is(':animated')) {
 			$("#loading").stop().animate({opacity:'100'});
+			$("#loading").fadeIn(0);
+		}
+		else {
+			$("#loading").fadeIn(100);
 		}
 		$("#loading p").text( string );
-		$("#loading").removeClass("hidden");
 		$("#loading").css({ background: "rgba(17,17,17," + opacity + ")" })
-		$("#loading").fadeIn();
 	},
 
 	hideLoading( ) {
