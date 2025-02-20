@@ -77,14 +77,14 @@
 			const scriptExtensions = ['json', 'bml', 'sigml'];
 
 			// First valid file will determine the mode. Following files must be of the same format
-			for(let i = 0; i < files.length; ++i){
+			for( let i = 0; i < files.length; ++i ) {
 				// MIME type is video
-				if(files[i].type.startsWith("video/")) { 
+				if( files[i].type.startsWith("video/") ) {
 					if ( !mode ) { 
-						mode = "video"; 
+						mode = "keyframe"; 
 					}
 					
-					if ( mode == "video" ) {			
+					if ( mode == "keyframe" ) {			
 						resultFiles.push( files[i] );
 					}
 					continue;
@@ -93,17 +93,17 @@
 				// other valid file formats
 				const extension = UTILS.getExtension(files[i].name).toLowerCase();
 								
-				if(animExtensions.includes(extension)) { 
+				if( animExtensions.includes(extension) ) {
 					if ( !mode ) {
-						mode = "bvh";
+						mode = "keyframe";
 					}
 					
-					if ( mode == "bvh") {
+					if ( mode == "keyframe") {
 						resultFiles.push( files[i] );
 					}
 				}
 
-				if(scriptExtensions.includes(extension)) { 
+				if( scriptExtensions.includes(extension) ) {
 					if ( !mode ) {
 						mode = "script";
 					}
@@ -115,7 +115,7 @@
 			}
 
 			if ( resultFiles.length ) {
-				return startAnimics({mode: mode, pendingResources: resultFiles});
+				return startAnimics({ mode, pendingResources: resultFiles});
 			}	
 				
 			alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");

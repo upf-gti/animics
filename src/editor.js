@@ -965,29 +965,19 @@ class KeyframeEditor extends Editor {
     async loadFiles(files) {
         const animExtensions = ['bvh','bvhe'];
         const resultFiles = [];
-        let mode = "";
         const promises = [];
-        // first valid file will determine the mode. Following files must be of the same format
+
+
         for(let i = 0; i < files.length; ++i){
             UTILS.makeLoading("Loading animation: " + files[i].name );
             // MIME type is video
-            if(files[i].type.startsWith("video/")) { 
-                if (!mode) { mode = "video"; }
-                
-                if ( mode == "video" ){
-                    resultFiles.push( files[i] );
-                }
+            if( files[i].type.startsWith("video/") ) {
+                resultFiles.push( files[i] );
                 continue;
             }
             // other valid file formats
-            const extension = UTILS.getExtension(files[i].name).toLowerCase();
-                            
-            if(animExtensions.includes(extension)) { 
-                if (!mode) { 
-                    mode = "bvh"; 
-                }
-                
-                if ( mode == "bvh") {
+            const extension = UTILS.getExtension(files[i].name).toLowerCase();                   
+            if( animExtensions.includes(extension) ) {
                     const promise = new Promise((resolve) => {
                         this.fileToAnimation(files[i], (file) => {
                             this.loadAnimation( file.name, file.animation );
@@ -996,29 +986,31 @@ class KeyframeEditor extends Editor {
                         });
                     })
                     promises.push( promise );
-                }
             }
-        }
-        if( !resultFiles.length ) {
-            if( !mode ) {
-                LX.popup("The file is empty or has an incorrect format.", "Ops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });
-            }
-            UTILS.hideLoading();
-            return Promise.all( promises );
         }
 
-        if( resultFiles.length && mode == "video" ) {
+        if( resultFiles.length ) {
             
             const animations = await this.ANIMICS.processVideos(resultFiles);
             if( !animations ) {
                 return false;
             }
 
-            for(let i = 0; i < animations.length; i++) {
-                this.buildAnimation(animations[i]);
-            }
-            return true;
+            const promise = new Promise((resolve) => {
+                for( let i = 0; i < animations.length; i++ ) {
+                    this.buildAnimation(animations[i]);
+                }
+                resolve();
+            })
+            promises.push(promise);
         }
+        if( !promises.length ) {
+            
+            LX.popup("The file is empty or has an incorrect format.", "Ops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });           
+            UTILS.hideLoading();
+        }
+
+        return Promise.all( promises );
     }
 
     async captureVideo() {
