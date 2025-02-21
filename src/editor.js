@@ -800,9 +800,7 @@ class Editor {
                 sendData(data);       
             }  
         }
-    
-        const data = [];
-     
+         
         if(this.isScriptMode()) {
             
             const json = this.generateBML();
@@ -810,13 +808,13 @@ class Editor {
                 return;
             }
 
-            data = JSON.stringify([{type: "bml", data: json.behaviours}]);
+            const data = JSON.stringify([{type: "bml", data: json.behaviours}]);
             openPreview(data);
         }
         else{
-            this.gui.showExportAnimationsDialog(() => {
+            this.gui.showExportAnimationsDialog("Preview animations", () => {
                 const files = this.export(this.getAnimationsToExport(), "BVH extended", false);
-                data = {type: "bvhe", data: files};
+                const data = {type: "bvhe", data: files};
                 openPreview(data);
             })            
         }        
