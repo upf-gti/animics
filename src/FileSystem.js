@@ -8,7 +8,9 @@ class RemoteFileSystem {
         this.host = "https://signon-lfs.gti.sb.upf.edu/";
         this.root = this.host + "files/";
         
-        this.repository = {signs:[], presets: [], clips:[]};
+        // this.repository = {signs:[], presets: [], clips:[]};
+        this.repository = {};
+
         this.refreshRepository = true;
 
         // init server this.onReady.bind(this, user, pass, (s) => {this.session = s; callback;})
@@ -100,11 +102,14 @@ class RemoteFileSystem {
 
             // Only leave local and public remote files in the repo. Remove the ones from the server
             for( let folder in this.repository ) {
-                for( let i = 0; i < this.repository[folder].length; i++ ) {
-                    if( this.repository[folder][i].id == "Local" || this.repository[folder][i].id == "Public" ) {
-                        repo[folder].push(this.repository[folder][i]);
-                    }
+                if( folder == "Local" || folder == "Public" ) {
+                    
+                    repo[folder] = this.repository[folder];
                 }
+                // for( let i = 0; i < this.repository[folder].length; i++ ) {
+                //     if( this.repository[folder][i].id == "Local" || this.repository[folder][i].id == "Public" ) {
+                //     }
+                // }
             }
             this.repository = repo;
 
@@ -173,8 +178,8 @@ class RemoteFileSystem {
 
     loadUnits() {
         const session = this.session;
-        this.repository = {signs:[], presets: [], clips: []};
-        
+        // this.repository = {signs:[], presets: [], clips: []};
+        this.repository = {};
         session.getUnits( (units) => {
             for( let i = 0; i < units.length; i++ ) {
                 if(units[i].name == "guest") {
@@ -186,10 +191,10 @@ class RemoteFileSystem {
                     unit: units[i].name,
                     children: []
                 };
-                
-                this.repository.signs.push( Object.assign( {}, data ) );
-                this.repository.presets.push( Object.assign( {}, data ) );
-                this.repository.clips.push( Object.assign( {}, data ) );
+                this.repository[units[i].name] = data;
+                // this.repository.signs.push( Object.assign( {}, data ) );
+                // this.repository.presets.push( Object.assign( {}, data ) );
+                // this.repository.clips.push( Object.assign( {}, data ) );
             }
         });
     }
