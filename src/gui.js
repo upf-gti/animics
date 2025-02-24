@@ -203,7 +203,9 @@ class Gui {
                         this.editor.play(this.editor, domEl);
                     }
                     domEl.classList.toggle('fa-play'), domEl.classList.toggle('fa-pause');
-                    if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) { this.editor.activeTimeline.changeState() };
+                    if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) {
+                        this.editor.activeTimeline.changeState();
+                    };
                 }
             },
             {
@@ -213,9 +215,12 @@ class Gui {
                     this.editor.stop(this.editor, domEl);
                     // domEl.innerHTML = "<i class='bi bi-play-fill'></i>";
                     console.log("pause!") 
-                    if(this.menubar.getButton("Play").children[0].classList.contains("fa-pause")) 
+                    if( this.menubar.getButton("Play").children[0].classList.contains("fa-pause") ) {
                         this.menubar.getButton("Play").children[0].classList.toggle('fa-pause'), this.menubar.getButton("Play").children[0].classList.toggle('fa-play');
-                    if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) { this.editor.activeTimeline.changeState() };
+                    }
+                    if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) {
+                        this.editor.activeTimeline.changeState();
+                    };
                 }
             }
         ]);
@@ -580,9 +585,11 @@ class Gui {
 
     resize(width, height) {
         //this.timelineArea.setSize([width, null]);
-        if (this.editor.activeTimeline){ 
+        if ( this.editor.activeTimeline ) { 
             this.editor.activeTimeline.resize();
-            if(this.propagationWindow){ this.propagationWindow.updateCurve(true); } // resize
+            if( this.propagationWindow ) {
+                this.propagationWindow.updateCurve(true);
+            } // resize
         }
     }
 
@@ -762,11 +769,8 @@ class KeyframesGui extends Gui {
         menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
             this.openSettings("gizmo");
         }});
-      
-
-       
-        menubar.add("Help/Tutorial", {callback: () => window.open("docs/keyframe_animation.html", "_blank")});
-        
+             
+        menubar.add("Help/Tutorial", {callback: () => window.open("docs/keyframe_animation.html", "_blank")});        
     }
 
     createBlendShapesInspector(bsNames, options = {}) {
@@ -1279,7 +1283,7 @@ class KeyframesGui extends Gui {
         this.sidePanel.attach(area);
        
         const [top, bottom] = area.split({type: "vertical", resize: false, sizes: "auto"});
-        // const [top, bottom] = area.sections;
+
         this.animationPanel = new LX.Panel({id:"animaiton"});
         top.attach(this.animationPanel);
         this.updateAnimationPanel( );
@@ -2204,7 +2208,7 @@ class KeyframesGui extends Gui {
                 case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                     if(e.item.type != "folder") {
                         const dialog = new LX.Dialog("Add clip", async ( panel ) => {
-                            if(!e.item.animation) {
+                            if( !e.item.animation ) {
                                 const promise = new Promise((resolve) => {
                                     this.editor.fileToAnimation(e.item, (file) => {
                                         if( file ) {
@@ -2245,7 +2249,7 @@ class KeyframesGui extends Gui {
                         this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/clips/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
                             const files_data = [];
                             if( files ) {                                        
-                                for(let f = 0; f < files.length; f++) {
+                                for( let f = 0; f < files.length; f++ ) {
                                     files[f].id = files[f].filename;
                                     files[f].folder = e.item;
                                     files[f].type = UTILS.getExtension(files[f].filename);
@@ -2258,7 +2262,7 @@ class KeyframesGui extends Gui {
                             assetViewer.currentData = files_data;
                             assetViewer._updatePath(assetViewer.currentData);
 
-                            if(!assetViewer.skip_browser) {
+                            if( !assetViewer.skip_browser ) {
                                 assetViewer._createTreePanel();
                             }
 
@@ -2308,9 +2312,73 @@ class ScriptGui extends Gui {
     constructor(editor) {
         
         super(editor);
+        
         this.mode = ClipModes.Actions;
         this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
         this.delayedUpdateTime = 500; //ms
+
+        this.animationPanel = new LX.Panel({id:"animaiton"});
+    }
+
+    onCreateMenuBar( menubar ) {
+        
+        menubar.add("Project/New animation", {icon: "fa fa-plus"}); // TO DO
+
+        menubar.add("Project/Import animations", {icon: "fa fa-file-import"});
+        menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+O"});
+        menubar.add("Project/Import animations/From server", {icon: "fa fa-server", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
+        /**
+         * menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
+                menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
+                menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
+        */
+        // Export (download) animation
+        menubar.add("Project/Export animations", {icon: "fa fa-download", callback: () => {            
+            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), ["BML", "BVH", "BVH extended", "GLB"]);
+        }});
+
+        // Save animation in server
+        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
+
+        menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
+
+        // menubar.add("Timeline/");
+        menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
+        menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
+        menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
+        menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
+        menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
+        menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
+        
+        menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
+        menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
+        menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
+        menubar.add("Timeline/Shortcuts/Delete keys");
+        menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
+        menubar.add("Timeline/Shortcuts/Delete keys/Multiple", { short: "Hold LSHIFT" });
+        menubar.add("Timeline/Shortcuts/Key Selection");
+        menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
+        menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
+        menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
+        menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
+        menubar.add("Timeline/Optimize all tracks", { callback: () => {
+                // optimize all tracks of current binded animation (if any)
+                this.clipsTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel                
+            }
+        });
+
+        menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
+        if(this.showVideo) {
+            menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
+                this.editor.setVideoVisibility( v );
+                this.showVideo = v;
+                // const tl = document.getElementById("capture");
+                // tl.style.display = this.showVideo ? "flex": "none";
+            }});
+        }
+
+        menubar.add("Help/Tutorial", {callback: () => window.open("docs/script_animation.html", "_blank")});
+        menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank")});   
     }
 
     delayedUpdateTracks( reset = true ){
@@ -2320,18 +2388,9 @@ class ScriptGui extends Gui {
         }
     }
 
-    onCreateMenuBar( menubar ) {
-        menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
-        menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
-        menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
-    }
-
     /** Create timelines */
-    createTimelines( area ) {
-                
-        // this.canvasArea = left;
-        this.sidePanel = right;
-               
+    createTimelines( ) {
+                               
         this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
            // trackHeight: 30,
             onAfterCreateTopBar: (panel) => {
@@ -2532,6 +2591,8 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onChangeTrackVisibility = (track, oldState) => { this.editor.updateTracks(); }
         this.timelineArea.attach(this.clipsTimeline.root);
         this.clipsTimeline.canvas.tabIndex = 1;
+
+        this.editor.activeTimeline = this.clipsTimeline;
     }
     
     dataToBMLClips(data, mode) {
@@ -2661,33 +2722,20 @@ class ScriptGui extends Gui {
         this.duration = this.clip.duration || duration;
     }
 
-    init( showGuide = true) {
-        this.createSidePanel();
-        this.updateMenubar();
-        if(showGuide) {
-            this.showGuide();
-        }
-        this.showTimeline();
-        // Canvas UI buttons
-        this.createSceneUI(this.canvasArea);
-    }
-
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
 
-        // let area = new LX.Area({className: "sidePanel", id: 'panel', scroll: true});  
-        // this.sidePanel.attach(area);
-       
-        let [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
-        // let [top, bottom] = area.sections;
-        this.animationPanel = new LX.Panel({id:"animaiton"});
+        const area = new LX.Area({className: "sidePanel", id: 'panel', scroll: true});  
+        this.sidePanel.attach(area);
+
+        const [top, bottom] = area.split({type: "vertical", resize: false, sizes: "auto"});
+        
         top.attach(this.animationPanel);
         this.clipPanel = new LX.Panel({id:"bml-clip"});
         bottom.attach(this.clipPanel);
 
         this.updateAnimationPanel( );
         this.updateClipPanel( );
-        
     }
 
     updateAnimationPanel( options = {}) {
@@ -2699,8 +2747,8 @@ class ScriptGui extends Gui {
             widgets.clear();
             widgets.addTitle("Animation");
 
-            let anim = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
-            let saveName = anim ? anim.saveName : "";
+            const animation = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
+            let saveName = animation ? animation.saveName : "";
             widgets.addText("Name", saveName || "", (v) =>{ 
                 anim.saveName = v; 
             } )
@@ -3085,6 +3133,42 @@ class ScriptGui extends Gui {
     })
 
     }
+
+    createSaveDialog() {
+        this.showExportAnimationsDialog( "Save animations in server", (format) => {
+
+            const saveDataToServer = (location,) => {
+                let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
+                for(let i = 0; i < animations.length; i++) {
+                    
+                    this.editor.uploadData(animations[i].name, animations[i].data, "clips", location, () => {
+                        this.closeDialogs();
+                        LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                    })
+                }
+            }
+
+            const user = this.editor.remoteFileSystem.session.user;
+            if(!user || user.username == "guest") {
+                this.prompt = new LX.Dialog("Alert", d => {
+                    d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+                    d.sameLine(2);
+                    d.addButton(null, "Login", () => {
+                        this.prompt.close();
+                        this.showLoginModal();
+                    })
+                    d.addButton(null, "Ok", () => {
+                        saveDataToServer("local");
+                    })
+                }, {closable: true, modal: true})
+                
+            }
+            else {
+                saveDataToServer("server");
+            }
+        }, [ "BML"]) // TO DO: ALLOW GLB AND GLTF         
+    }
+
 
    createNewPresetDialog() {
 
@@ -3581,10 +3665,10 @@ class ScriptGui extends Gui {
                 name = name.join(".");
 
                 let preset = {preset: name};
-                if( asset.type == "bml" && !asset.bml ) {
-                    this.editor.fileToBML(asset, async (data) =>  {
+                if( asset.type == "bml" && !asset.animation ) {
+                    this.editor.fileToAnimation(asset, async (data) =>  {
                         asset = data;
-                        let {clips, duration} = this.dataToBMLClips(asset.bml);
+                        let {clips, duration} = this.dataToBMLClips(asset.animation);
                         preset.clips = clips;
                         let presetClip = new ANIM.FacePresetClip(preset);
                         this.clipsTimeline.addClips(presetClip.clips, this.clipsTimeline.currentTime);
@@ -3791,11 +3875,11 @@ class ScriptGui extends Gui {
                         break;
                 }
                 that.clipsTimeline.unSelectAllClips();
-                asset.bml.name = asset.id;
+                asset.animation.name = asset.id;
                 const modal = this.createLoadingModal();
 
                 
-                this.loadBMLClip(asset.bml)
+                this.loadBMLClip(asset.animation)
                 modal.close();
     
                 asset_browser.clear();
@@ -3929,8 +4013,8 @@ class ScriptGui extends Gui {
                                 return;
                             }
                             
-                            if(!e.item.bml) {
-                                this.editor.fileToBML(e.item);
+                            if(!e.item.animation) {
+                                this.editor.fileToAnimation(e.item);
                             }
                             
                             if(e.multiple)
@@ -3951,8 +4035,8 @@ class ScriptGui extends Gui {
                         case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                             if(e.item.type != "folder") {
                                 let choice = new LX.Dialog("Add sign", (p) => {
-                                    if(!e.item.bml) {
-                                        this.editor.fileToBML(e.item);
+                                    if(!e.item.animation) {
+                                        this.editor.fileToAnimation(e.item);
                                     }
                                     p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
                                     p.sameLine(3);
@@ -4053,6 +4137,330 @@ class ScriptGui extends Gui {
         this.createNewSignDialog(null, "server");
     }
 
+    createServerClipsDialog() {
+        
+        const user = this.editor.remoteFileSystem.session.user;
+        const repository = this.editor.remoteFileSystem.repository;
+
+        if( this.prompt && this.prompt.root.checkVisibility() ) {
+            return;
+        }
+
+        // Create a new dialog
+        const dialog = this.prompt = new LX.Dialog('Available animations', async (p) => {
+            
+            const innerSelect = async (asset, button, e, action) => {
+                const choice = document.getElementById("choice-insert-mode");
+                if(choice) {
+                    choice.remove();
+                }
+                switch(button) {
+                    case "Add as single clip":
+                        this.mode = ClipModes.Phrase;
+                        break;
+                    case "Breakdown into glosses":
+                        this.mode = ClipModes.Glosses;
+                        break;
+                    case "Breakdown into action clips":
+                        this.mode = ClipModes.Actions;
+                        break;
+                }
+                this.clipsTimeline.unSelectAllClips();
+                asset.animation.name = asset.id;
+                const modal = this.createLoadingModal();
+                
+                this.loadBMLClip(asset.animation)
+                modal.close();
+    
+                asset_browser.clear();
+                dialog.close();
+            }
+
+
+            const preview_actions = [
+                {
+                    type: "sigml",
+                    name: 'View source', 
+                    callback: this.showSourceCode.bind(this)
+                },
+                {
+                    type: "sigml",
+                    name: 'Add as single clip', 
+                    callback: innerSelect
+                },
+                {
+                    type: "sigml",
+                    name: 'Breakdown into glosses', 
+                    callback: innerSelect
+                },
+                {
+                    type: "sigml",
+                    name: 'Breakdown into action clips', 
+                    callback: innerSelect
+                },
+                {
+                    type: "bml",
+                    name: 'View source', 
+                    callback: this.showSourceCode.bind(this)
+                },
+                {
+                    type: "bml",
+                    name: 'Add as single clip', 
+                    callback: innerSelect
+                },
+                {
+                    type: "bml",
+                    name: 'Breakdown into glosses', 
+                    callback: innerSelect
+                },
+                {
+                    type: "bml",
+                    name: 'Breakdown into action clips', 
+                    callback: innerSelect
+                }
+            ];
+
+            if(user.username != "public") {
+                preview_actions.push(
+                {
+                    type: "sigml",
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.uploadData(item.filename + ".sigml", item.data, "signs", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "bml",
+                    path: "@/Local",
+                    name: 'Upload to server', 
+                    callback: (item)=> {
+                        this.editor.uploadData(item.filename + ".bml", item.data, "signs", "server", () => {
+                            this.closeDialogs();
+                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "sigml",
+                    path: "@/"+ user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "signs", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Sign removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+                preview_actions.push({
+                    type: "bml",
+                    path: "@/"+ user.username,
+                    name: 'Delete', 
+                    callback: (item)=> {
+                        this.editor.deleteData(item.fullpath, "signs", "server", (v) => {
+                            if(v === true) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Sign removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }
+                            this.closeDialogs();
+                            
+                        });
+                    }
+                });
+            }
+            
+            const assetViewer = new LX.AssetView({  allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
+            p.attach( assetViewer );
+
+            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+            
+            this.loadAssets( assetViewer, repository.signs, innerSelect );
+            this.loadAssets( assetViewer, repository.presets, innerSelect );
+            
+            if( !repository.signs.length ) {
+                await this.editor.remoteFileSystem.loadAllUnitsFolders("signs", () => {
+                    this.editor.remoteFileSystem.refreshSignsRepository = false;
+                    modal.destroy();
+                    this.loadAssets( assetViewer, repository.signs, innerSelect );
+                });
+            }
+            else {
+
+                await this.editor.remoteFileSystem.loadFolders("signs", () => {
+                    this.editor.remoteFileSystem.refreshSignsRepository = false;
+
+                    modal.destroy();
+                    this.loadAssets( assetViewer, repository.signs, innerSelect );
+                });
+            }
+
+            if( !repository.presets.length ) {
+                await this.editor.remoteFileSystem.loadAllUnitsFolders("presets", () => {
+                    this.editor.remoteFileSystem.refreshPresetsRepository = false;
+                    modal.destroy();
+                    this.loadAssets( assetViewer, repository.presets, innerSelect, "presets" );
+                });
+            }
+            else {
+
+                await this.editor.remoteFileSystem.loadFolders("presets", () => {
+                    this.editor.remoteFileSystem.refreshPresetsRepository = false;
+
+                    modal.destroy();
+                    this.loadAssets( assetViewer, repository.presets, innerSelect, "presets" );
+                });
+            }
+        }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
+    
+            onclose: (root) => {
+                let loadingmodal = document.getElementById("loading")
+                if(loadingmodal)
+                    loadingmodal.remove();
+                root.remove();
+                this.prompt = null;
+                if(!LX.modal.hidden)                 
+                    LX.modal.toggle(true);
+                if(this.choice) this.choice.close()
+            }
+        });
+    }
+
+    loadAssets( assetViewer, repository, onSelectFile, type = "signs" ) {
+        assetViewer.load( repository , async e => {
+            switch(e.type) {
+                case LX.AssetViewEvent.ASSET_SELECTED: 
+                    //request data
+                    if( e.item.type == "folder" ) {
+                        return;
+                    }
+                    
+                    if( !e.item.animation ) {
+                        const promise = new Promise((resolve) => {
+                            this.editor.fileToAnimation(e.item, ( file ) => {
+                                if( file ) {
+                                    resolve(file);
+                                }
+                                else {
+                                    resolve( null );
+                                }
+                            });
+                        })
+
+                        const parsedFile = await promise;
+                        e.item.animation = parsedFile.animation;
+                        e.item.content = parsedFile.content;
+                    }
+                    
+                    if(e.multiple) {
+                        console.log("Selected: ", e.item);
+                    }
+                    else {
+                        console.log(e.item.id + " selected");
+                    }
+                        
+                    break;
+                case LX.AssetViewEvent.ASSET_DELETED: 
+                    console.log(e.item.id + " deleted"); 
+                    break;
+                case LX.AssetViewEvent.ASSET_CLONED: 
+                    console.log(e.item.id + " cloned"); 
+                    break;
+                case LX.AssetViewEvent.ASSET_RENAMED:
+                    console.log(e.item.id + " is now called " + e.value); 
+                    break;
+                case LX.AssetViewEvent.ASSET_DBLCLICKED: 
+                    if(e.item.type != "folder") {
+                        const dialog = new LX.Dialog("Add sign", async (p) => {
+                            if( !e.item.animation ) {
+                                const promise = new Promise((resolve) => {
+                                    this.editor.fileToAnimation(e.item, (file) => {
+                                        if( file ) {
+                                            resolve(file);
+                                        }
+                                        else {
+                                            resolve( null );
+                                        }
+                                    });
+                                })
+                                const parsedFile = await promise;
+                                e.item.animation = parsedFile.animation;
+                                e.item.content = parsedFile.content;
+                            }
+
+                            p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                            p.sameLine(3);
+                            p.addButton(null, "Add as single clip", (v) => {
+                                dialog.close();
+                                this.mode = ClipModes.Phrase;
+                                this.closeDialogs();
+                                ionSelectFile(e.item, v);
+                            });
+                            p.addButton(null, "Breakdown into glosses", (v) => {
+                                dialog.close();
+                                this.mode = ClipModes.Glosses;
+                                this.closeDialogs();
+                                onSelectFile(e.item, v);
+                            });
+                            p.addButton(null, "Breakdown into action clips", (v) => {
+                                dialog.close();
+                                this.mode = ClipModes.Actions;
+                                this.closeDialogs();
+                                onSelectFile(e.item, v);
+                            });
+                        }, {modal:true, closable: true, id: "choice-insert-mode"})
+                    }
+                    break;
+
+                case LX.AssetViewEvent.ENTER_FOLDER:
+                    if( e.item.unit && (!e.item.children.length || this.editor.remoteFileSystem.refreshSignsRepository && e.item.unit == user.username )) {
+                        
+                        const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+                        this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/" + type + "/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                            const files_data = [];
+                            if( files ) {
+                                
+                                for( let f = 0; f < files.length; f++ ) {
+                                    files[f].id = files[f].filename;
+                                    files[f].folder = e.item;
+                                    files[f].type = UTILS.getExtension(files[f].filename);
+                                    if(files[f].type == "txt")
+                                        continue;
+                                    files_data.push(files[f]);
+                                }
+                                e.item.children = files_data;
+                            }
+                            assetViewer.currentData = files_data;
+                            assetViewer._updatePath(assetViewer.currentData);
+
+                            if( !assetViewer.skip_browser ) {
+                                assetViewer._createTreePanel();
+                            }
+                            assetViewer._refreshContent();
+
+                            this.editor.remoteFileSystem.refreshSignsRepository = false;
+                            modal.destroy();
+                        })
+                    }
+                    break;
+            }
+        })
+    }
+
     createExportBMLDialog() {
         this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export(null, "", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )  
     }
@@ -4080,7 +4488,7 @@ class ScriptGui extends Gui {
                 code_editor.setText(text);
                 if(asset.type == "sigml") {
                     code_editor.addTab("bml", false, name);
-                    let t = JSON.stringify(asset.bml.behaviours, function(key, value) {
+                    let t = JSON.stringify(asset.animation.behaviours, function(key, value) {
                         // limit precision of floats
                         if (typeof value === 'number') {
                             return parseFloat(value.toFixed(3));
@@ -4100,16 +4508,16 @@ class ScriptGui extends Gui {
                 LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
                     const bytesize = f => new Blob([f]).size;
                     asset.bytesize = bytesize();
-                    asset.bml = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                    asset.bml.behaviours = asset.bml.data;
+                    asset.animation = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                    asset.animation.behaviours = asset.animation.data;
                     let text = f.replaceAll('\r', '').replaceAll('\t', '');
                     setText(text)
                 } });
             } else {
                 //from local
-                asset.bml = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
-                asset.bml.behaviours = asset.bml.data;              
-                let text = JSON.stringify(asset.bml.behaviours);
+                asset.animation = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
+                asset.animation.behaviours = asset.animation.data;              
+                let text = JSON.stringify(asset.animation.behaviours);
                 setText(text);
             }
         }, { size: ["40%", "600px"], closable: true });

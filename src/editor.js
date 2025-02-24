@@ -71,8 +71,13 @@ class Editor {
         this.remoteFileSystem = animics.remoteFileSystem;
 
         this.enabled = true;
-        this.editorArea = new LX.Area({id: "editor-area", width: "100%", height: "100%"});
         
+        // Only used in KeyframeEditor. But it might be useful in ScriptEditor for having a video reference in the future
+        this.video = document.createElement( "video" );
+        this.video.startTime = 0;
+        this.video.sync = false; // If TRUE, synchronize video with animation. BVH/e always FALSE
+
+        this.editorArea = new LX.Area({id: "editor-area", width: "100%", height: "100%"});
         animics.mainArea.attach(this.editorArea);
     }
 
@@ -224,7 +229,7 @@ class Editor {
         // Load current character
         this.loadCharacter(this.character);
         
-        while(!this.loadedCharacters[this.character] || ( !this.nnSkeleton && this.inferenceMode == this.animationInferenceModes.NN ) ) {
+        while(!this.loadedCharacters[this.character] ) {
             await new Promise(r => setTimeout(r, 1000));            
         }        
 
@@ -300,15 +305,16 @@ class Editor {
 
                 skeletonHelper.visible = false;
                 fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
-                    let config = JSON.parse( text );
+                    const config = JSON.parse( text );
                     this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
+                    this.changeCharacter(characterName);
                 })
             }
             else {
                 this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
+                this.changeCharacter(characterName);
             }
 
-            this.changeCharacter(characterName);
         });   
     }
 
@@ -338,6 +344,95 @@ class Editor {
         }
         
         UTILS.hideLoading();
+    }
+
+    fileToAnimation (data, callback)  {
+        
+        if(data.fullpath) {
+            const extension = UTILS.getExtension(data.fullpath).toLowerCase();
+            LX.request({ url: this.remoteFileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
+                if( content == "{}" )  {
+                    callback({content});
+                    return;
+                }
+                const bytesize = content => new Blob([ content ]).size;
+                data.bytesize = bytesize();
+                data.content = content;
+
+                if( extension.includes('bvhe') ) {
+                    data.animation = this.BVHloader.parseExtended( content );
+                }
+                else if( extension.includes('bvh') ) {
+                    data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
+                }
+                else if( extension.includes('sigml') ) {
+                    data.animation = sigmlStringToBML( content );
+                    if( Array.isArray(data.animation) ) {
+                        data.animation = { behaviours: data.animation };
+                    }
+                }
+                else if( extension.includes( "bml" ) || extension.includes("json") ) {
+                    data.animation = JSON.parse( content );
+                    if( Array.isArray(data.animation) ) {
+                        data.animation = { behaviours: data.animation };
+                    }
+                }
+                else {
+                    data.animation = null; // TO DO FOR GLB AND GLTF
+                }
+
+                if( callback ) {
+                    callback(data);
+                }
+            } });
+        }
+        else {
+
+            const innerParse = (event) => {
+                const content = event.srcElement ? event.srcElement.result : event;
+                data.content = content;
+                if( content == "{}" )  {
+                    callback(null);
+                    return;
+                }
+                const type = data.type || UTILS.getExtension(data.name).toLowerCase();
+                
+                if(type.includes('bvhe')) {
+                    data.animation = this.BVHloader.parseExtended( content );
+                }
+                else if(type.includes('bvh')) {
+                    data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
+                }
+                else if( type.includes('sigml') ) {
+                    data.animation = sigmlStringToBML( content );
+                    if( Array.isArray(data.animation) ) {
+                        data.animation = { behaviours: data.animation };
+                    }
+                }
+                else if( type.includes( "bml" ) || type.includes("json") ) {
+                    data.animation = JSON.parse( content );
+                    if( Array.isArray(data.animation) ) {
+                        data.animation = { behaviours: data.animation };
+                    }
+                }
+                else {
+                    data.animation = null; // TO DO FOR GLB AND GLTF
+                }
+
+                if(callback) {
+                    callback(data)
+                }
+            }
+            const content = data.data ? data.data : data;
+            if(content.constructor.name == "Blob" || content.constructor.name == "File") {
+                const reader = new FileReader();
+                reader.readAsText(content);
+                reader.onloadend = innerParse;
+            }
+            else {
+                innerParse(content, data)
+            }
+        }
     }
 
     setPlaybackRate(v){    
@@ -695,12 +790,14 @@ class Editor {
                     else {
                         files.push({name: clipName, data: UTILS.dataToFile(bvh, clipName, "text/plain")});
                     }
-                }                
+                }
                 break;
 
             default:
-                let json = this.generateBML();
-                if(!json) return;
+                const json = this.generateBML();
+                if( !json ) {
+                    return;  
+                } 
                 UTILS.download(JSON.stringify(json), (name || json.name) + '.bml', "application/json");
                 console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
                 break;
@@ -778,30 +875,31 @@ class Editor {
         
         const sendData = (msg) => {
             if(this.performsApp)
-                this.realizer.postMessage(msg);
+                this._realizer.postMessage(msg);
             else {
                 setTimeout(sendData.bind(this, msg), 1000)
             }
         }
         
         const openPreview = (data) => {
-            if(!this.realizer || this.realizer.closed) {
-                this.realizer = window.open(Editor.PERFORMS_PATH, "Preview");
-                this.realizer.onload = (e, d) => {
+            if( !this._realizer || this._realizer.closed ) {
+                this._realizer = window.open(Editor.PERFORMS_PATH, "Preview");
+                this._realizer.onload = (e, d) => {
                     this.performsApp = e.currentTarget.global.app;
                     sendData(data);
                 }
     
-                this.realizer.addEventListener("beforeunload", () => {
-                    this.realizer = null
+                this._realizer.addEventListener("beforeunload", () => {
+                    this._realizer = null
                 });
             }
             else {
                 sendData(data);       
-            }  
+            }
+            this._realizer.focus();
         }
          
-        if(this.isScriptMode()) {
+        if( this.isScriptMode() ) {
             
             const json = this.generateBML();
             if(!json)  {
@@ -811,7 +909,7 @@ class Editor {
             const data = JSON.stringify([{type: "bml", data: json.behaviours}]);
             openPreview(data);
         }
-        else{
+        else {
             this.gui.showExportAnimationsDialog("Preview animations", () => {
                 const files = this.export(this.getAnimationsToExport(), "BVH extended", false);
                 const data = {type: "bvhe", data: files};
@@ -834,7 +932,7 @@ class Editor {
     onSetTime() {} // Abstract
     clearAllTracks() {} // Abstract
     updateAnimationAction(animation, idx, replace = false) {}
-    setAnimation(type) {};
+    setTimeline(type) {};
 
     processPendingResources(resources) {} // Abstract
 }
@@ -853,7 +951,8 @@ class KeyframeEditor extends Editor {
         this.defaultScaleSnapValue = 1;
 
         this.showSkeleton = true;
-        
+        this.gizmo = null;
+
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
         this.selectedBone = "mixamorig_Hips";
@@ -866,9 +965,6 @@ class KeyframeEditor extends Editor {
         this.retargeting = null;
         
         this.mapNames = MapNames.map_llnames[this.character];
-        this.video = document.createElement( "video" );
-        this.video.startTime = 0;
-        this.video.sync = false; // If TRUE, synchronize video with animation. BVH/e always FALSE
 
         // Create GUI
         this.gui = new KeyframesGui(this);
@@ -985,6 +1081,9 @@ class KeyframeEditor extends Editor {
                     })
                     promises.push( promise );
             }
+            else {
+                alert(extension + ": Format not supported.\n\nFormats accepted:\n\t'bml', 'sigml', 'json'\n\t");
+            }
         }
 
         if( resultFiles.length ) {
@@ -1019,70 +1118,6 @@ class KeyframeEditor extends Editor {
         }
         this.buildAnimation(animation);
         
-    }
-
-    fileToAnimation (data, callback)  {
-        
-        if(data.fullpath) {
-            const extension = UTILS.getExtension(data.fullpath).toLowerCase();
-            LX.request({ url: this.remoteFileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
-                if( content == "{}" )  {
-                    callback({content});
-                    return;
-                }
-                const bytesize = content => new Blob([ content ]).size;
-                data.bytesize = bytesize();
-                data.content = content;
-
-                if( extension.includes('bvhe') ) {
-                    data.animation = this.BVHloader.parseExtended( content );
-                }
-                else if( extension.includes('bvh') ) {
-                    data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
-                }
-                else {
-                    data.animation = null; // TO DO FOR GLB AND GLTF
-                }
-
-                if( callback ) {
-                    callback(data);
-                }
-            } });
-        }
-        else {
-
-            const innerParse = (event) => {
-                const content = event.srcElement ? event.srcElement.result : event;
-                data.content = content;
-                if( content == "{}" )  {
-                    callback(null);
-                    return;
-                }
-                const type = data.type || UTILS.getExtension(data.name).toLowerCase();
-                
-                if(type.includes('bvhe')) {
-                    data.animation = this.BVHloader.parseExtended( content );
-                }
-                else if(type.includes('bvh')) {
-                    data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
-                }
-                else {
-                    data.animation = null; // TO DO FOR GLB AND GLTF
-                }
-                if(callback) {
-                    callback(data)
-                }
-            }
-            const content = data.data ? data.data : data;
-            if(content.constructor.name == "Blob" || content.constructor.name == "File") {
-                const reader = new FileReader();
-                reader.readAsText(content);
-                reader.onloadend = innerParse;
-            }
-            else {
-                innerParse(content, data)
-            }
-        }
     }
 
     /**Create face and body animations from mediapipe and load character*/
@@ -1134,7 +1169,7 @@ class KeyframeEditor extends Editor {
         this.bindAnimationToCharacter(data.name);
     }
 
-    // load animation from bvh file
+    // load animation from bvh or bvhe file
     loadAnimation(name, animationData) {
 
         let skeleton = null;
@@ -1488,15 +1523,15 @@ class KeyframeEditor extends Editor {
      */
     bindAnimationToCharacter(animationName) {
         
-        let animation = this.loadedAnimations[animationName];
-        if(!animation) {
+        const animation = this.loadedAnimations[animationName];
+        if( !animation ) {
             console.warn(animationName + " not found");
             return false;
         }
 
         this.currentAnimation = animationName;
 
-        if ( animationName != this.currentAnimation ){
+        if ( animationName != this.currentAnimation ) {
             this.gui.keyFramesTimeline.unSelectAllKeyFrames();
             this.gui.keyFramesTimeline.unHoverAll();
             this.gui.keyFramesTimeline.currentTime = 0;
@@ -1603,7 +1638,7 @@ class KeyframeEditor extends Editor {
         mixer.clipAction(bindedAnim.mixerBodyAnimation).setEffectiveWeight(1.0).play();
         
         // set timeline animations
-        this.setAnimation(this.animationMode);
+        this.setTimeline(this.animationMode);
         this.gizmo.updateBones();
         // mixer.setTime(0);
 
@@ -1824,7 +1859,7 @@ class KeyframeEditor extends Editor {
      * @param {animationModes} type 
      * @returns 
      */
-    setAnimation(type) {
+    setTimeline(type) {
 
         let currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
         
@@ -2017,7 +2052,7 @@ class KeyframeEditor extends Editor {
         throw("No gizmo attached to scene");
     
         if(this.animationMode != this.animationModes.BODY) {
-            this.setAnimation(this.animationModes.BODY);
+            this.setTimeline(this.animationModes.BODY);
             return; // will call again setSelectedBone
         }
         this.selectedBone = name;
@@ -2134,7 +2169,7 @@ class KeyframeEditor extends Editor {
     setSelectedActionUnit(au) {
 
         if(this.animationMode != this.animationModes.FACE) {
-            this.setAnimation(this.animationModes.FACE);
+            this.setTimeline(this.animationModes.FACE);
         }
         this.activeTimeline.setSelectedItems([au]);
         if(this.selectedAU == au) {
@@ -2300,11 +2335,11 @@ class KeyframeEditor extends Editor {
 
     /** ------------------------ Generate formatted data --------------------------*/
 
-    generateBVH(bindedAnim, skeleton) {
+    generateBVH( bindedAnim, skeleton ) {
         let bvhPose = "";
         let bodyAction = this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation);
         
-        if(!bodyAction && bindedAnim.mixerBodyAnimation) {
+        if( !bodyAction && bindedAnim.mixerBodyAnimation ) {
             bodyAction = this.currentCharacter.mixer.clipAction(bindedAnim.mixerBodyAnimation);     
         }
         
@@ -2313,8 +2348,8 @@ class KeyframeEditor extends Editor {
         return bvhPose;
     }
 
-    generateBVHE(bindedAnim, skeleton) {
-        const bvhPose = this.generateBVH(bindedAnim, skeleton);
+    generateBVHE( bindedAnim, skeleton ) {
+        const bvhPose = this.generateBVH( bindedAnim, skeleton );
         let bvhFace = "";
         let faceAction = this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation);
 
@@ -2329,9 +2364,307 @@ class ScriptEditor extends Editor {
     constructor( animics ) {
         super(animics);
 
+        this.dominantHand = "Right";
+        
+        this.onDrawTimeline = null;
+	    this.onDrawSettings = null;
+
+        // Create GUI
+        this.gui = new ScriptGui(this);
     }
 
-    generateBVH( bindedAnim, skeleton) {
+    async initCharacters()
+    {
+        // Load current character
+        this.loadCharacter(this.character);
+
+        while(!this.loadedCharacters[this.character] || !this.loadedCharacters[this.character].bmlManager.ECAcontroller) {
+            await new Promise(r => setTimeout(r, 1000));            
+        }  
+    }
+
+    async processPendingResources( resources ) {
+        if( !resources ) {
+            this.loadAnimation("New animation", {});
+            return true;
+        }
+        
+        // TO DO
+        const loaded = await this.loadFiles(resources);
+        if( !loaded ) {
+            await this.processPendingResources();
+        }
+    }
+
+    async loadFiles( files ) {
+        const formats = ['json', 'bml', 'sigml'];
+        const resultFiles = [];
+        const promises = [];
+        
+        for(let i = 0; i < files.length; ++i){
+            const extension = UTILS.getExtension(files[i].name).toLowerCase();
+            UTILS.makeLoading("Loading animation: " + files[i].name );
+            
+            if( formats.includes(extension) ) {
+                const promise = new Promise( (resolve) => {
+                    this.fileToAnimation( files[i], (file) => {
+
+                        let empty = true;
+                        if( this.activeTimeline.animationClip.tracks.length ) {
+                            for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; i++ ) {
+                                if( this.activeTimeline.animationClip.tracks[i].clips.length ){
+                                    empty = false;
+                                    break;
+                                }
+                            }   
+                        }
+                        const animation = file.animation;
+
+                        if( empty ) {
+                            this.activeTimeline.currentTime = 0;
+                            this.clipName = animation.name;
+                            this.gui.loadBMLClip( animation );
+                            this.loadAnimation( file.name, animation );
+
+                            resolve(file.animation);
+                            UTILS.hideLoading();
+                        }
+                        else {
+                            UTILS.hideLoading()
+                            this.gui.prompt = new LX.Dialog("Import animation" , ( panel ) => {
+                                panel.addText("", "There is already an animation. What do you want to do?", null, {disabled: true});
+                                panel.sameLine(3);
+                                panel.addButton(null, "Replace", () => { 
+                                    this.clearAllTracks(false);
+                                    this.clipName = animation.name;
+                                    this.activeTimeline.currentTime = 0;
+                                    this.gui.loadBMLClip( animation );
+                                    this.loadAnimation( file.name, animation );
+                                    this.gui.prompt.close();
+                                    resolve(file.animation);
+                                    UTILS.hideLoading();
+                                }, { buttonClass: "accept" });
+
+                                panel.addButton(null, "Concatenate", () => { 
+                                    this.gui.loadBMLClip( animation );
+                                    this.loadAnimation( file.name, animation );
+
+                                    this.gui.prompt.close();
+                                    resolve(file.animation);
+                                    UTILS.hideLoading();
+                                }, { buttonClass: "accept" });
+                                panel.addButton(null, "Cancel", () => { 
+                                    this.gui.prompt.close();
+                                    UTILS.hideLoading();
+                                    resolve();
+                                });
+                            })
+                        }
+                    } );
+                })
+                promises.push( promise );
+            }
+            else {
+                alert(extension + ": Format not supported.\n\nFormats accepted:\n\t'bml', 'sigml', 'json'\n\t");
+            }
+        }
+        if( !promises.length ) {
+            
+            LX.popup("The file is empty or has an incorrect format.", "Ops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });           
+            UTILS.hideLoading();
+        }
+
+        return Promise.all( promises );
+    }
+
+    loadAnimation(name, animationData) { 
+
+        let saveName = "";
+
+        if ( name ) {
+            let extensionIdx = name.lastIndexOf(".");
+            if ( extensionIdx == -1 ){ // no extension
+                extensionIdx = name.length; 
+            }
+            saveName = name.slice(0,extensionIdx);
+        }
+
+        this.loadedAnimations[name] = {
+            name: name,
+            saveName: saveName,
+            export: true,
+            inputAnimation: animationData, // bml file imported. This needs to be converted by the timeline's setAnimationClip.
+            scriptAnimation: null, // if null, bind will take care. 
+            type: "script"
+        };
+
+        this.bindAnimationToCharacter( name );
+    }
+
+    /**
+     * ScriptEditor: fetches a loaded animation and applies it to the character. The first time an animation is binded, it is processed and saved. Afterwards, this functino just changes between existing animations 
+     * @param {String} animationName 
+    */    
+    bindAnimationToCharacter( animationName ) {
+        
+        const animation = this.loadedAnimations[animationName];
+        if( !animation ) {
+            console.warn(animationName + " not found");
+            return false;
+        }
+
+        if ( animationName != this.currentAnimation ) {
+            this.gui.clipsTimeline.currentTime = 0;
+            this.gui.clipsTimeline.unSelectAllClips();
+            this.gui.clipsTimeline.unHoverAll();
+        }
+
+        this.currentAnimation = animationName;
+
+        // create timeline animation for the first time
+        if ( !animation.scriptAnimation ){
+            this.gui.clipsTimeline.setAnimationClip(null, true); //generate empty animation 
+            animation.scriptAnimation = this.gui.clipsTimeline.animationClip;
+            this.gui.loadBMLClip(animation.inputAnimation); // process bml and add clips
+            delete animation.inputAnimation;
+        }
+        
+        animation.scriptAnimation.name = animationName;
+        
+        if( !this.bindedAnimations[animationName] ) {
+            this.bindedAnimations[animationName] = {};
+        }
+        this.bindedAnimations[animationName][this.currentCharacter.name] = { mixerAnimation: null };
+    
+        this.updateAnimationAction( animation.scriptAnimation );
+        this.setTimeline();
+        this.gui.updateAnimationPanel();
+        return true;
+    }
+
+    /**
+     * set timeline to active timeline (show timeline) 
+     * @returns 
+     */
+    setTimeline() {
+
+        const currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
+        this.activeTimeline = this.gui.clipsTimeline;
+        this.activeTimeline.currentTime = currentTime;
+        this.setTime(currentTime, true);
+        this.activeTimeline.updateHeader();
+    }
+
+    /**
+     * Updates current mixer and mixerAnimation with the timeline animationClip
+     * @param {ClipTimeline animationClip} animation 
+     */
+    updateAnimationAction(animation) {
+        // Remove current animation clip
+        let mixer = this.currentCharacter.mixer;
+        mixer.stopAllAction();
+
+        while (mixer._actions.length) {
+            mixer.uncacheAction(mixer._actions[0]._clip); // removes action
+        }
+
+        let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(animation, this.animationFrameRate);
+        mixerAnimation.name = this.currentAnimation;
+        mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();
+        mixer.setTime(this.activeTimeline.currentTime);
+        
+        this.bindedAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation = mixerAnimation;    
+    }
+    
+    updateTracks() {
+
+        const animationData = this.getCurrentAnimation();
+        animationData.scriptAnimation = this.activeTimeline.animationClip;
+       
+        this.updateAnimationAction(animationData.scriptAnimation);
+    }
+
+    clearAllTracks( showConfirmation = true ) {
+        if( !this.activeTimeline.animationClip ) {
+            return;
+        }
+        
+        const clearTracks = () => {
+            for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
+
+                const track = this.activeTimeline.animationClip.tracks[i];
+                const idx = track.idx;
+                
+                this.activeTimeline.clearTrack(idx);
+            
+                if( this.activeTimeline.onPreProcessTrack ) {
+                    this.activeTimeline.onPreProcessTrack( track, track.idx );
+                }
+            }
+            this.updateTracks();
+            this.gui.updateClipPanel();
+        }
+        
+        if( showConfirmation ) {
+            this.gui.showClearTracksConfirmation(clearTracks);
+        }
+        else {
+            clearTracks();
+        }
+    }
+
+    generateBML() {
+        const animation = this.getCurrentAnimation();
+        const data = animation.scriptAnimation;
+
+        const json =  {
+            behaviours: [],
+            //indices: [],
+            name : animation ? animation.saveName : "BML animation",
+            duration: data ? data.duration : 0,
+        }
+
+        let empty = true;
+        if( data ) {
+            for( let i = 0; i < data.tracks.length; i++ ) {
+                if( data.tracks[i].clips.length ){
+                    empty = false;
+                    break;
+                }
+            }   
+        }
+        if( empty ) {
+            alert("You can't export an animation with empty tracks.")
+            return null;
+        }
+       
+        for( let i = 0; i < data.tracks.length; i++ ) {
+            for(let j = 0; j < data.tracks[i].clips.length; j++) {
+                let clips = data.tracks[i].clips[j];
+                if( clips.toJSON ) {
+                    clips = clips.toJSON();
+                }
+                if( clips ) {
+                    if( clips.type == "glossa") {
+                        const actions = { faceLexeme: [], gaze: [], head: [], gesture: [], speech: []};
+                       
+                        for( let action in actions ) {
+                            if( clips[action] ) {
+                                json.behaviours = json.behaviours.concat( clips[action]);
+                            }
+                        }
+                    }
+                    else {
+                        json.behaviours.push( data );
+                    }
+                }
+            }
+        }
+
+        return json;
+    }
+    
+    generateBVH( bindedAnim, skeleton ) {
         const action = this.currentCharacter.mixer.clipAction(bindedAnim.mixerAnimation);
         if(!action) {
             return "";
@@ -2340,15 +2673,12 @@ class ScriptEditor extends Editor {
     }
 
     generateBVHE( bindedAnim, skeleton) {
-        const action = this.currentCharacter.mixer.clipAction(bindedAnim.mixerAnimation);
-        if(!action) {
-            return "";
-        }
         const bvhPose = this.generateBVH( bindedAnim, skeleton );
+        const action = this.currentCharacter.mixer.clipAction(bindedAnim.mixerAnimation);
+        
         let bvhFace = "";
-        for(let mesh in this.currentCharacter.morphTargets) {
-            
-            bvhFace += BVHExporter.exportMorphTargets(action, this.currentCharacter.morphTargets[mesh], this.animationFrameRate);
+        if( action ) {
+            bvhFace += BVHExporter.exportMorphTargets(action, this.currentCharacter.morphTargets, this.animationFrameRate);            
         }
         return bvhPose + bvhFace;
     }

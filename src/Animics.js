@@ -36,10 +36,10 @@ class Animics {
                 this.editor = new KeyframeEditor(this);
             
                 break;
-            // case 'bml': case 'json': case 'sigml': case 'script':
-            //     this.editor = new ScriptEditor(this);
+            case 'bml': case 'json': case 'sigml': case 'script':
+                this.editor = new ScriptEditor(this);
             //     callback = this.onScriptProject.bind(this, settings.pendingResources );
-            //     break;
+                break;
             default:                  
                 alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
                 return false;  

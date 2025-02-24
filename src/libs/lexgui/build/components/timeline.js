@@ -3274,7 +3274,6 @@ class ClipsTimeline extends Timeline {
      */
 
     optimizeTracks() {
-        this.addClip()
     }
 
    /**
