@@ -28,8 +28,8 @@ THREE.ShaderChunk[ 'morphtarget_pars_vertex' ] = "#ifdef USE_MORPHTARGETS\n	unif
 THREE.ShaderChunk[ 'morphtarget_vertex' ] = "#ifdef USE_MORPHTARGETS\n	transformed *= morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		for ( int i = 0; i < MORPHTARGETS_COUNT; i ++ ) {\n			#ifndef USE_MORPHNORMALS\n				transformed += getMorph( gl_VertexID, i, 0, 1 ) * morphTargetInfluences[ i ];\n			#else\n				transformed += getMorph( gl_VertexID, i, 0, 2 ) * morphTargetInfluences[ i ];\n			#endif\n		}\n	#else\n		transformed += morphTarget0 * morphTargetInfluences[ 0 ];\n		transformed += morphTarget1 * morphTargetInfluences[ 1 ];\n		transformed += morphTarget2 * morphTargetInfluences[ 2 ];\n		transformed += morphTarget3 * morphTargetInfluences[ 3 ];\n		#ifndef USE_MORPHNORMALS\n			transformed += morphTarget4 * morphTargetInfluences[ 4 ];\n			transformed += morphTarget5 * morphTargetInfluences[ 5 ];\n			transformed += morphTarget6 * morphTargetInfluences[ 6 ];\n			transformed += morphTarget7 * morphTargetInfluences[ 7 ];\n		#endif\n	#endif\n#endif"; 
 
 class Editor {
-    static RESOURCES_PATH = "https://webglstudio.org/3Dcharacters/";
-    static PERFORMS_PATH = "https://webglstudio.org/projects/signon/performs";
+    static RESOURCES_PATH = "https://resources.gti.upf.edu/3Dcharacters/";
+    static PERFORMS_PATH = "https://performs.gti.upf.edu/";
     
     constructor(app, mode) {
         
@@ -916,7 +916,6 @@ class Editor {
             // let bvh = BVHExporter.export(this.currentCharacter.mixer._actions[0], this.currentCharacter.skeletonHelper, this.animationFrameRate);
             // window.localStorage.setItem('bvhskeletonpreview', bvh);
             // // window.localStorage.setItem('bvhblendshapespreview', bvh);
-            // url = "https://webglstudio.org/users/arodriguez/demos/animationLoader/?load=bvhskeletonpreview";
         }
 
         
