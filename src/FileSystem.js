@@ -5,7 +5,7 @@ class RemoteFileSystem {
     constructor( callback, folders = []) {
         this.session = null;
 
-        this.host = "https://signon-lfs.gti.sb.upf.edu/";
+        this.host = "https://signon-lfs.gti.upf.edu/";
         this.root = this.host + "files/";
         
         // this.repository = {signs:[], presets: [], clips:[]};
