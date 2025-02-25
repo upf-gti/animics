@@ -2136,7 +2136,6 @@ class KeyframesGui extends Gui {
     }
 
     loadAssets( assetViewer, repository, onSelectFile ) {
-        const user = this.editor.remoteFileSystem.session.user;
         assetViewer.load( repository, async e => {
             switch(e.type) {
                 case LX.AssetViewEvent.ASSET_SELECTED:
@@ -2209,7 +2208,7 @@ class KeyframesGui extends Gui {
                     if( e.item.unit && !e.item.children.length ) {
                         const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
 
-                        this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                        this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
                             const files_data = [];
                             if( files ) {                                        
                                 for( let f = 0; f < files.length; f++ ) {
@@ -3673,17 +3672,17 @@ class ScriptGui extends Gui {
                     path: "@/"+ user.username,
                     name: 'Delete', 
                     callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "presets", "server", (v) => {
-                            if(v === true) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Preset removed!", {position: [ "10px", "50px"], timeout: 5000});
+                        this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                            if(v) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                item.folder.children = v;
+                                assetViewer._deleteItem(item);
                             }
                             else {
                                 LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
 
                             }
-                            
-                            this.closeDialogs();
-                            
+                            // this.closeDialogs();                            
                         });
                     }
                 });
@@ -3692,18 +3691,17 @@ class ScriptGui extends Gui {
                     path: "@/"+ user.username,
                     name: 'Delete', 
                     callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "presets", "server", (v) => {
-                            if(v === true) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Preset removed!", {position: [ "10px", "50px"], timeout: 5000});
+                        this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                            if(v) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                item.folder.children = v;
+                                assetViewer._deleteItem(item);
                             }
                             else {
                                 LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
 
                             }
-                            loadData();
-                            item.folder.domEl.click()
-                            // this.closeDialogs();
-                            
+                            // this.closeDialogs();                            
                         });
                     }
                 });
@@ -4133,10 +4131,9 @@ class ScriptGui extends Gui {
                 this.loadBMLClip(asset.animation)
                 modal.close();
     
-                asset_browser.clear();
+                assetViewer.clear();
                 dialog.close();
             }
-
 
             const preview_actions = [
                 {
@@ -4181,112 +4178,142 @@ class ScriptGui extends Gui {
                 }
             ];
 
-            if(user.username != "public") {
-                preview_actions.push(
-                {
-                    type: "sigml",
-                    path: "@/Local",
-                    name: 'Upload to server', 
-                    callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".sigml", item.data, "signs", "server", () => {
-                            this.closeDialogs();
-                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
-                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "bml",
-                    path: "@/Local",
-                    name: 'Upload to server', 
-                    callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".bml", item.data, "signs", "server", () => {
-                            this.closeDialogs();
-                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
-                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "sigml",
-                    path: "@/"+ user.username,
-                    name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "signs", "server", (v) => {
-                            if(v === true) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Sign removed!", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }
-                            this.closeDialogs();
-                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "bml",
-                    path: "@/"+ user.username,
-                    name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "signs", "server", (v) => {
-                            if(v === true) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Sign removed!", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }
-                            this.closeDialogs();
-                            
-                        });
-                    }
-                });
+            if(user.username != "guest") {
+                const folders = ["signs", "presets", "clips"];
+                for( let i = 0; i < folders.length; i++ ) {
+                    const folder = folders[i];
+                    preview_actions.push(
+                    {
+                        type: "sigml",
+                        path: "@/Local/" + folder,
+                        name: 'Upload to server', 
+                        callback: (item)=> {
+                            this.editor.uploadData(item.filename + ".sigml", item.data, folder, "server", () => {
+                                this.closeDialogs();
+                                LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New "+ folder +"!", {position: [ "10px", "50px"], timeout: 5000});
+                                
+                            });
+                        }
+                    });
+                    preview_actions.push({
+                        type: "bml",
+                        path: "@/Local/" + folder,
+                        name: 'Upload to server', 
+                        callback: (item)=> {
+                            this.editor.uploadData(item.filename + ".bml", item.data, folder, "server", () => {
+                                this.closeDialogs();
+                                LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New "+ folder +"!", {position: [ "10px", "50px"], timeout: 5000});
+                                
+                            });
+                        }
+                    });
+                    preview_actions.push({
+                        type: "bvh",
+                        path: "@/Local/" + folder,
+                        name: 'Delete', 
+                        callback: ( item )=> {
+                            this.editor.localStorage[0].children.map( child => {
+                                if( child.id == folder ) {
+                                    const i = child.children.indexOf(item);
+                                    const items = child.children;
+                                    child.children = items.slice(0, i).concat(items.slice(i+1));  
+                                }
+                            })
+                        }
+                    });
+                    preview_actions.push({
+                        type: "bvhe",
+                        path: "@/Local/" + folder,
+                        name: 'Delete', 
+                        callback: ( item )=> {
+                            cthis.editor.localStorage[0].children.map( child => {
+                                if( child.id == folder ) {
+                                    const i = child.children.indexOf(item);
+                                    const items = child.children;
+                                    child.children = items.slice(0, i).concat(items.slice(i+1));  
+                                }
+                            })                        
+                        }
+                    });    
+                    preview_actions.push({
+                        type: "sigml",
+                        path: "@/"+ user.username + "/" + folder,
+                        name: 'Delete', 
+                        callback: (item)=> {
+                            this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                                if(v) {
+                                    LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                    item.folder.children = v;
+                                    assetViewer._deleteItem(item);
+                                }
+                                else {
+                                    LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+    
+                                }
+                                // this.closeDialogs();                            
+                            });
+                        }
+                    });
+                    preview_actions.push({
+                        type: "bml",
+                        path: "@/"+ user.username + "/" + folder,
+                        name: 'Delete', 
+                        callback: (item)=> {
+                            this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                                if(v) {
+                                    LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                    item.folder.children = v;
+                                    assetViewer._deleteItem(item);
+                                }
+                                else {
+                                    LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+    
+                                }
+                                // this.closeDialogs();                            
+                            });
+                        }
+                    });
+                }
             }
             
             const assetViewer = new LX.AssetView({  allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
             p.attach( assetViewer );
 
             const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-            
-            this.loadAssets( assetViewer, repository.signs, innerSelect );
-            this.loadAssets( assetViewer, repository.presets, innerSelect );
-            
+         
             if( !repository.length ) {
                 await this.editor.remoteFileSystem.loadAllUnitsFolders( () => {
-                    this.editor.remoteFileSystem.refreshSignsRepository = false;
+                    let repository = this.editor.remoteFileSystem.repository;
+                    this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
                     modal.destroy();
-                    this.loadAssets( assetViewer, repository.signs, innerSelect );
                 }, ["signs", "presets"]);
             }
-            else {
-
-                await this.editor.remoteFileSystem.loadFolders(() => {
-                    this.editor.remoteFileSystem.refreshSignsRepository = false;
-
-                    modal.destroy();
-                    this.loadAssets( assetViewer, repository.signs, innerSelect );
-                }, ["signs", "presets"]);
+            else {            
+                this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
+                modal.destroy();
             }
 
             
-        }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
+        }, { title:'Available animations', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
             onclose: (root) => {
-                let loadingmodal = document.getElementById("loading")
-                if(loadingmodal)
-                    loadingmodal.remove();
+                if( modal.destroy ) {
+                    modal.destroy();
+                }
                 root.remove();
+
                 this.prompt = null;
-                if(!LX.modal.hidden)                 
+                if( !LX.modal.hidden ) {
                     LX.modal.toggle(true);
-                if(this.choice) this.choice.close()
+                }
+                if( this.choice ) {
+                    this.choice.close();
+                }
             }
         });
     }
 
-    loadAssets( assetViewer, repository, onSelectFile, type = "signs" ) {
+    loadAssets( assetViewer, repository, onSelectFile ) {
         assetViewer.load( repository , async e => {
             switch(e.type) {
                 case LX.AssetViewEvent.ASSET_SELECTED: 
@@ -4354,7 +4381,7 @@ class ScriptGui extends Gui {
                                 dialog.close();
                                 this.mode = ClipModes.Phrase;
                                 this.closeDialogs();
-                                ionSelectFile(e.item, v);
+                                onSelectFile(e.item, v);
                             });
                             p.addButton(null, "Breakdown into glosses", (v) => {
                                 dialog.close();
@@ -4373,10 +4400,10 @@ class ScriptGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    if( e.item.unit && (!e.item.children.length || this.editor.remoteFileSystem.refreshSignsRepository && e.item.unit == user.username )) {
-                        
+                    if( e.item.unit && !e.item.children.length ) {                        
                         const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-                        this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/" + type + "/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+
+                        this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
                             const files_data = [];
                             if( files ) {
                                 
@@ -4398,7 +4425,6 @@ class ScriptGui extends Gui {
                             }
                             assetViewer._refreshContent();
 
-                            this.editor.remoteFileSystem.refreshSignsRepository = false;
                             modal.destroy();
                         })
                     }
@@ -4411,8 +4437,7 @@ class ScriptGui extends Gui {
         this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export(null, "", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )  
     }
 
-    showSourceCode (asset) 
-    {
+    showSourceCode (asset) {
         if(window.dialog) 
             window.dialog.destroy();
     

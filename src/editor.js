@@ -2394,6 +2394,7 @@ class ScriptEditor extends Editor {
 
         // Create GUI
         this.gui = new ScriptGui(this);
+        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "presets", type:"folder", children: []}, {id: "signs", type:"folder", children: []}]} ];
     }
 
     async initCharacters()

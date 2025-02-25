@@ -317,12 +317,12 @@ class RemoteFileSystem {
                     const assets = [];
                     const mainFolder = folders.animics[ folder ];
                     if( mainFolder ) {
-                        for( let folder in mainFolder ) {
-                            const data = {id: folder, type: "folder", folder:  folder , children: [], unit: unit};
+                        for( let folderc in mainFolder ) {
+                            const data = {id: folderc, type: "folder", folder:  folderc , children: [], unit: unit, fullpath: "animics/"+ folder + "/" + folderc};
                             assets.push( data );
                         }                    
                     }                    
-                    foldersData.push( {id: folder, type: "folder", folder: folder , children: assets, unit: unit} )
+                    foldersData.push( {id: folder, type: "folder", folder: folder , children: assets, unit: unit, fullpath: "animics/"+ folder } )
                 }
                 const data = {id: unit, type: "folder", children: foldersData, unit: unit};
                 this.repository[i] = data;
