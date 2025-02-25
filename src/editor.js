@@ -808,6 +808,14 @@ class Editor {
         return files;
     }
 
+    /**
+     * 
+     * @param {String} filename 
+     * @param {String or Object} data file data
+     * @param {String} type (folder) data type: "clips", "signs", "presets"
+     * @param {String} location where the file has to be saved: it can be "server" or "local"
+     * @param {*} callback 
+     */
     uploadData(filename, data, type, location, callback) {
         const extension = filename.split(".")[1];
 
@@ -816,59 +824,74 @@ class Editor {
                 data = JSON.stringify(data, null, 4);
             }
     
-            this.uploadFile(filename, data, type, (v) => {
-                let refreshType = "Signs";
-                if(type == "presets") {
-                    refreshType = "Presets";
-                }
-                else if (type == "clips") {
-                    refreshType = ""
-                }
-                this["refresh" + refreshType + "Repository"] = true; 
-                if(callback) 
+            this.uploadFileToServer(filename, data, type, (v) => {
+                const unit = this.remoteFileSystem.session.user.username;
+                this.remoteFileSystem.repository.map( item => {
+                    if(item.id == unit) {
+                        for(let i = 0; i < item.children.length; i++) {
+                            if( item.children[i].id == type ) {
+                                item.children[i].children = v;
+                                break;
+                            }
+                        }
+                    }
+                })
+                
+                if( callback ) {
                     callback(v);
+                }
             });   
             
         }
         else {
-            const id = filename.replace("." + extension, "");
-            this.localStorage[type].children.push({filename: id, id: id, folder: type, type: extension, data: data});
+            this.localStorage[0].children.map ( child => {
+                if( child.id == type ) {
+                    child.children.push({filename: filename, id: filename, folder: type, type: extension, data: data});
+                }
+            })            
             
-            if(callback)
+            if( callback ) {
                 callback(filename);
+            }
         }
     }
 
-    uploadFile(filename, data, type, callback = () => {}) {
+    uploadFileToServer(filename, data, type, callback = () => {}) {
         const session = this.remoteFileSystem.session;
         const username = session.user.username;
         const folder = "animics/"+ type;
 
-        session.getFileInfo(username + "/" + folder + "/" + filename, (file) => {
+        // Check if the file already exists
+        session.getFileInfo(username + "/" + folder + "/" + filename, async (file) => {
 
             if( file && file.size ) {
               
-                LX.prompt("Do you want to overwrite the file?", "File already exists", () => {
-                    this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(filename));
+                LX.prompt("Do you want to overwrite the file?", "File already exists", async () => {
+                        const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                        callback(files);
                     }, 
-                    {input: false, on_cancel: () => {
-                        LX.prompt("Rename the file", "Save file", (v) => {
+                    {
+                        input: false,
+                        on_cancel: () => {
+                        LX.prompt("Rename the file", "Save file", async (v) => {
                             if(v === "" || !v) {
                                 alert("You have to write a name.");
                                 return;
                             }
-                            this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + v, new File([data], filename ), []).then( () => callback(v));
+                            const files = await this.remoteFileSystem.uploadFile(folder, v, new File([data], v ), []);
+                            callback(files);
                         }, {input: filename, accept: "Yes"} )
                     }
                 } )                
             }
             else {
-                this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(filename));
+                const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                callback(files);
             }
         },
         () => {
             //create folder
-        });
+        });    
     }
 
     showPreview() {
@@ -972,7 +995,7 @@ class KeyframeEditor extends Editor {
         this.animationModes = {FACE: 0, BODY: 1};
         this.animationMode = this.animationModes.BODY;
 
-        this.localStorage = {clips: {id: "Local", type:"folder", children: []}};
+        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", children: []}]}];
     }
 
     onKeyDown ( event ) {

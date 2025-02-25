@@ -225,7 +225,8 @@ class Gui {
             }
         ]);
         const user = this.editor.remoteFileSystem.session ? this.editor.remoteFileSystem.session.user : "" ;
-        menubar.add( (!user || user.username == "guest") ? "Login" : user.username, {
+        const loginName = (!user || user.username == "guest") ? "Login" : user.username;
+        menubar.add( loginName, {
             callback: () => {
                 const username =this.editor.remoteFileSystem.session.user.username;
                 if( this.prompt && this.prompt.root.checkVisibility() ) {
@@ -237,10 +238,11 @@ class Gui {
                 else {
                     this.showLoginModal();
                 }                
-            }
+            },
         },
         {float:"right"});
-
+        const button = document.getElementById( loginName );
+        button.id = "login";
         menubar.setButtonIcon("Github", "fa-brands fa-github", () => { window.open("https://github.com/upf-gti/animics") }, {float:"right"});
     }
 
@@ -256,7 +258,7 @@ class Gui {
     }
 
     changeLoginButton(username = "Login") {
-        const el = document.querySelector("#Login");
+        const el = document.getElementById("login");
         el.innerText = username;
     }
 
@@ -285,7 +287,8 @@ class Gui {
                     this.editor.remoteFileSystem.login(username, password, (session, response) => {
                         if(response.status == 1) {
                             this.changeLoginButton(session.user.username);
-                            this.editor.remoteFileSystem.loadUnits();
+                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
+                            this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
                             this.prompt.close();
                             this.prompt = null;
                         }
@@ -316,13 +319,15 @@ class Gui {
         this.prompt = LX.prompt( "Are you sure you want to logout?", "Logout", (v) => {
             this.editor.remoteFileSystem.logout(() => {
                 this.editor.remoteFileSystem.login("guest", "guest", () => {
-                        this.editor.remoteFileSystem.loadUnits()
+                    const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
+                    this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
                 })
                 this.changeLoginButton();
 
             }); 
             this.prompt = null;
         } , {input: false, accept: "Logout", modal: true})
+        
         this.prompt.onclose = () => {
             this.prompt = null;
         }
@@ -1930,8 +1935,9 @@ class KeyframesGui extends Gui {
 
     createServerClipsDialog() {
         
-        const user = this.editor.remoteFileSystem.session.user;
-        const repository = this.editor.remoteFileSystem.repository;
+        const session = this.editor.remoteFileSystem.session;
+        const user = session.user;
+        let repository = this.editor.remoteFileSystem.repository;
 
         if( this.prompt && this.prompt.root.checkVisibility() ) {
             return;
@@ -2006,14 +2012,14 @@ class KeyframesGui extends Gui {
                 }
             ];
 
-            if(user.username != "public") {
+            if(user.username != "guest") {
                 preview_actions.push(
                 {
                     type: "bvh",
-                    path: "@/Local",
+                    path: "@/Local/clips",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".bvh", item.data, "clips", "server", () => {
+                        this.editor.uploadData(item.filename, item.data, "clips", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -2022,36 +2028,10 @@ class KeyframesGui extends Gui {
                 });
                 preview_actions.push({
                     type: "bvhe",
-                    path: "@/Local",
+                    path: "@/Local/clips",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".bvhe", item.data, "clips", "server", () => {
-                            this.closeDialogs();
-                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-                            
-                        });
-                    }
-                });
-                preview_actions.push(
-                {
-                    type: "glb",
-                    path: "@/Local",
-                    name: 'Upload to server', 
-                    callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".glb", item.data, "clips", "server", () => {
-                            this.closeDialogs();
-                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-                            
-                        });
-                    }
-                });
-                preview_actions.push(
-                {
-                    type: "gltf",
-                    path: "@/Local",
-                    name: 'Upload to server', 
-                    callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".gltf", item.data, "clips", "server", () => {
+                        this.editor.uploadData(item.filename, item.data, "clips", "server", () => {
                             this.closeDialogs();
                             LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                             
@@ -2060,97 +2040,79 @@ class KeyframesGui extends Gui {
                 });
                 preview_actions.push({
                     type: "bvh",
-                    path: "@/"+ user.username,
+                    path: "@/Local/clips",
                     name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
-                            if(v === true) {
+                    callback: ( item )=> {
+                        const i = this.editor.localStorage[0].children[0].children.indexOf(item);
+                        const items = this.editor.localStorage[0].children[0].children;
+                        this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));  
+                    }
+                });
+                preview_actions.push({
+                    type: "bvhe",
+                    path: "@/Local/clips",
+                    name: 'Delete', 
+                    callback: ( item )=> {
+                        const i = this.editor.localStorage[0].children[0].children.indexOf(item);
+                        const items = this.editor.localStorage[0].children[0].children;
+                        this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));                        
+                    }
+                });             
+                preview_actions.push({
+                    type: "bvh",
+                    path: "@/"+ user.username + "/clips",
+                    name: 'Delete', 
+                    callback: ( item )=> {
+                        this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                            if(v) {
                                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                item.folder.children = v;
+                                assetViewer._deleteItem(item);
                             }
                             else {
                                 LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
 
                             }
-                            this.closeDialogs();
-                            
+                            // this.closeDialogs();                            
                         });
                     }
                 });
                 preview_actions.push({
                     type: "bvhe",
-                    path: "@/"+ user.username,
+                    path: "@/"+ user.username + "/clips",
                     name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
-                            if(v === true) {
+                    callback: ( item )=> {
+                        this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                            if(v) {
                                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                item.folder.children = v;
+                                assetViewer._deleteItem(item);
                             }
                             else {
                                 LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
 
                             }
-                            this.closeDialogs();                            
+                            // this.closeDialogs();                            
                         });
                     }
-                });
-                preview_actions.push({
-                    type: "glb",
-                    path: "@/"+ user.username,
-                    name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
-                            if(v === true) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }
-                            this.closeDialogs();
-                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "gltf",
-                    path: "@/"+ user.username,
-                    name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "clips", "server", (v) => {
-                            if(v === true) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }
-                            this.closeDialogs();                            
-                        });
-                    }
-                });
+                });            
             }
             
             const assetViewer = new LX.AssetView({  allowed_types: ["bvh", "bvhe", "glb", "gltf"],  preview_actions: preview_actions, context_menu: false});
             p.attach( assetViewer );
             
             const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-            
-            this.loadAssets( assetViewer, repository, innerSelect );
 
-            if( !repository.clips.length ) {
-                await this.editor.remoteFileSystem.loadAllUnitsFolders("clips", () => {
-                    this.editor.remoteFileSystem.refreshRepository = false;
+            if( !repository.length ) {
+                await this.editor.remoteFileSystem.loadAllUnitsFolders(() => {
+                    let repository = this.editor.remoteFileSystem.repository;
+                    this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
                     modal.destroy();
-                    this.loadAssets( assetViewer, repository, innerSelect );
-
-                });
-            }
+                }, ["clips"]);
+            }            
             else {
-                await this.editor.remoteFileSystem.loadFolders("clips", () => {
-                    this.editor.remoteFileSystem.refreshRepository = false;
-                    modal.destroy();
-                    this.loadAssets( assetViewer, repository, innerSelect );
-                });
+                this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
+                modal.destroy();
             }
        
         }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
@@ -2163,18 +2125,19 @@ class KeyframesGui extends Gui {
                 root.remove();
 
                 this.prompt = null;
-                if(!LX.modal.hidden) {
+                if( !LX.modal.hidden ) {
                     LX.modal.toggle(true);
                 }
-                if(this.choice) {
-                    this.choice.close()
+                if( this.choice ) {
+                    this.choice.close();
                 }
             }
         });
     }
 
     loadAssets( assetViewer, repository, onSelectFile ) {
-        assetViewer.load( repository.clips, async e => {
+        const user = this.editor.remoteFileSystem.session.user;
+        assetViewer.load( repository, async e => {
             switch(e.type) {
                 case LX.AssetViewEvent.ASSET_SELECTED:
                     if(e.item.type == "folder") {
@@ -2243,10 +2206,10 @@ class KeyframesGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    if(e.item.unit && (!e.item.children.length || this.editor.remoteFileSystem.refreshRepository && e.item.unit == user.username )) {
+                    if( e.item.unit && !e.item.children.length ) {
                         const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
 
-                        this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/clips/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
+                        this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
                             const files_data = [];
                             if( files ) {                                        
                                 for( let f = 0; f < files.length; f++ ) {
@@ -2268,11 +2231,9 @@ class KeyframesGui extends Gui {
 
                             assetViewer._refreshContent();
 
-                            this.editor.remoteFileSystem.refreshRepository = false;
-                            
                             modal.destroy();
-                        })
-                    }
+                        });
+                    }                
                     break;
             }
         })
@@ -4292,39 +4253,24 @@ class ScriptGui extends Gui {
             this.loadAssets( assetViewer, repository.signs, innerSelect );
             this.loadAssets( assetViewer, repository.presets, innerSelect );
             
-            if( !repository.signs.length ) {
-                await this.editor.remoteFileSystem.loadAllUnitsFolders("signs", () => {
+            if( !repository.length ) {
+                await this.editor.remoteFileSystem.loadAllUnitsFolders( () => {
                     this.editor.remoteFileSystem.refreshSignsRepository = false;
                     modal.destroy();
                     this.loadAssets( assetViewer, repository.signs, innerSelect );
-                });
+                }, ["signs", "presets"]);
             }
             else {
 
-                await this.editor.remoteFileSystem.loadFolders("signs", () => {
+                await this.editor.remoteFileSystem.loadFolders(() => {
                     this.editor.remoteFileSystem.refreshSignsRepository = false;
 
                     modal.destroy();
                     this.loadAssets( assetViewer, repository.signs, innerSelect );
-                });
+                }, ["signs", "presets"]);
             }
 
-            if( !repository.presets.length ) {
-                await this.editor.remoteFileSystem.loadAllUnitsFolders("presets", () => {
-                    this.editor.remoteFileSystem.refreshPresetsRepository = false;
-                    modal.destroy();
-                    this.loadAssets( assetViewer, repository.presets, innerSelect, "presets" );
-                });
-            }
-            else {
-
-                await this.editor.remoteFileSystem.loadFolders("presets", () => {
-                    this.editor.remoteFileSystem.refreshPresetsRepository = false;
-
-                    modal.destroy();
-                    this.loadAssets( assetViewer, repository.presets, innerSelect, "presets" );
-                });
-            }
+            
         }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
             onclose: (root) => {
