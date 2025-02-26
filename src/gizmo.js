@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ShaderChunk } from "./utils.js";
+import { ShaderChunk } from "./Utils.js";
 import { TransformControls } from './controls/TransformControls.js';
 import { CCDIKSolver, FABRIKSolver } from "./IKSolver.js"
 import { IKHelper } from "./IKHelper.js"

@@ -1,7 +1,7 @@
 import { LX } from 'lexgui';
 import 'lexgui/components/videoeditor.js';
 import { MediaPipe } from "./Mediapipe.js";
-import { UTILS } from './utils.js';
+import { UTILS } from './Utils.js';
 
 class VideoProcessor {
     constructor(animics) {

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { CompareThreshold } from "../utils.js"
+import { CompareThreshold } from "./Utils.js"
 import { BVHLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/BVHLoader.js';
 
 // Overwrite/add methods

@@ -3,9 +3,9 @@ import { OrbitControls } from "./controls/OrbitControls.js";
 import { BVHLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/BVHLoader.js';
 import { BVHExporter } from "./exporters/BVHExporter.js";
 import { createAnimationFromRotations, createEmptyAnimation } from "./skeleton.js";
-import { KeyframesGui, ScriptGui } from "./gui.js";
-import { Gizmo } from "./gizmo.js";
-import { UTILS } from "./utils.js"
+import { KeyframesGui, ScriptGui } from "./Gui.js";
+import { Gizmo } from "./Gizmo.js";
+import { UTILS } from "./Utils.js"
 import { NN } from "./ML.js"
 import { OrientationHelper } from "./libs/OrientationHelper.js";
 import { AnimationRetargeting, findIndexOfBone, findIndexOfBoneByName } from './retargeting.js'
@@ -227,102 +227,106 @@ class Editor {
     async initCharacters() {
       
         // Load current character
-        this.loadCharacter(this.character);
+        await this.loadCharacter(this.character);
         
-        while(!this.loadedCharacters[this.character] ) {
-            await new Promise(r => setTimeout(r, 1000));            
-        }        
+        // while(!this.loadedCharacters[this.character] ) {
+        //     await new Promise(r => setTimeout(r, 1000));            
+        // }        
 
     }
 
-    loadCharacter(characterName) {
+    async loadCharacter(characterName) {
 
         let modelName = characterName.split("/");
         UTILS.makeLoading("Loading GLTF [" + modelName[modelName.length - 1] +"]...")
-        // Load the target model (Eva) 
-        this.loaderGLB.load(Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb", (gltf) => {
-            const model = gltf.scene;
-            model.name = characterName;
-            model.visible = true;
-            
-            let skeleton;
-            let morphTargets = {};
-            let skinnedMeshes = {};
-            this.loadedCharacters[characterName] = {}
-
-            model.traverse( o => {
-                if (o.isMesh || o.isSkinnedMesh) {
-                    o.castShadow = true;
-                    o.receiveShadow = true;
-                    o.frustumCulled = false;
-                    if ( o.skeleton ){ 
-                        skeleton = o.skeleton;
+        // Load the target model (Eva)
+        return new Promise( resolve => {
+            this.loaderGLB.load(Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb", (gltf) => {
+                const model = gltf.scene;
+                model.name = characterName;
+                model.visible = true;
+                
+                let skeleton;
+                let morphTargets = {};
+                let skinnedMeshes = {};
+                this.loadedCharacters[characterName] = {}
+    
+                model.traverse( o => {
+                    if (o.isMesh || o.isSkinnedMesh) {
+                        o.castShadow = true;
+                        o.receiveShadow = true;
+                        o.frustumCulled = false;
+                        if ( o.skeleton ){ 
+                            skeleton = o.skeleton;
+                        }
+                        if (o.name == "Body")
+                                o.name == "BodyMesh";
+                        if(o.morphTargetDictionary)
+                        {
+                            morphTargets[o.name] = o.morphTargetDictionary;
+                            skinnedMeshes[o.name] = o;
+                        }
+                        o.material.side = THREE.FrontSide;                    
                     }
-                    if (o.name == "Body")
-                            o.name == "BodyMesh";
-                    if(o.morphTargetDictionary)
-                    {
-                        morphTargets[o.name] = o.morphTargetDictionary;
-                        skinnedMeshes[o.name] = o;
-                    }
-                    o.material.side = THREE.FrontSide;                    
+                } );
+                
+                // Create skeleton helper
+                let skeletonHelper = new THREE.SkeletonHelper(model);
+                skeletonHelper.name = "SkeletonHelper";            
+                skeletonHelper.skeleton = skeleton;
+    
+                // Create mixer for animation
+                let mixer = new THREE.AnimationMixer(model);  
+               
+                // Add loaded data to the character
+                this.loadedCharacters[characterName] = {
+                    name: characterName, model, morphTargets, skinnedMeshes, mixer, skeletonHelper
+                };
+               
+                if( this.isScriptMode() ) {
+                    let eyesTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffff00 , depthWrite: false }) );
+                    eyesTarget.name = "eyesTarget";
+                    eyesTarget.position.set(0, 2.5, 15); 
+                    
+                    let headTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xff0000 , depthWrite: false }) );
+                    headTarget.name = "headTarget";
+                    headTarget.position.set(0, 2.5, 15); 
+                    
+                    let neckTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0x00fff0 , depthWrite: false }) );
+                    neckTarget.name = "neckTarget";
+                    neckTarget.position.set(0, 2.5, 15); 
+    
+                    this.scene.add(eyesTarget);
+                    this.scene.add(headTarget);
+                    this.scene.add(neckTarget);
+                    
+                    model.eyesTarget = eyesTarget;
+                    model.headTarget = headTarget;
+                    model.neckTarget = neckTarget;
+    
+                    skeletonHelper.visible = false;
+                    fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
+                        const config = JSON.parse( text );
+                        this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
+                        this.changeCharacter(characterName);
+                        resolve();
+                    })
                 }
-            } );
-            
-            // Create skeleton helper
-            let skeletonHelper = new THREE.SkeletonHelper(model);
-            skeletonHelper.name = "SkeletonHelper";            
-            skeletonHelper.skeleton = skeleton;
-
-            // Create mixer for animation
-            let mixer = new THREE.AnimationMixer(model);  
-           
-            // Add loaded data to the character
-            this.loadedCharacters[characterName] = {
-                name: characterName, model, morphTargets, skinnedMeshes, mixer, skeletonHelper
-            };
-           
-            if( this.isScriptMode() ) {
-                let eyesTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffff00 , depthWrite: false }) );
-                eyesTarget.name = "eyesTarget";
-                eyesTarget.position.set(0, 2.5, 15); 
-                
-                let headTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xff0000 , depthWrite: false }) );
-                headTarget.name = "headTarget";
-                headTarget.position.set(0, 2.5, 15); 
-                
-                let neckTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0x00fff0 , depthWrite: false }) );
-                neckTarget.name = "neckTarget";
-                neckTarget.position.set(0, 2.5, 15); 
-
-                this.scene.add(eyesTarget);
-                this.scene.add(headTarget);
-                this.scene.add(neckTarget);
-                
-                model.eyesTarget = eyesTarget;
-                model.headTarget = headTarget;
-                model.neckTarget = neckTarget;
-
-                skeletonHelper.visible = false;
-                fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
-                    const config = JSON.parse( text );
-                    this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
+                else {
+                    this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
                     this.changeCharacter(characterName);
-                })
-            }
-            else {
-                this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
-                this.changeCharacter(characterName);
-            }
-
-        });   
+                    resolve();
+                }
+    
+            });
+        })
     }
 
-    changeCharacter(characterName) {
+    async changeCharacter(characterName) {
         // Check if the character is already loaded
         if( !this.loadedCharacters[characterName] ) {
             console.warn(characterName + " not loaded");
-            this.loadCharacter(characterName);
+            await this.loadCharacter(characterName);
             return;
         }
 
@@ -370,11 +374,17 @@ class Editor {
                     if( Array.isArray(data.animation) ) {
                         data.animation = { behaviours: data.animation };
                     }
+                    else if( Array.isArray(data.animation.data) ) {
+                        data.animation.behaviours = data.animation.data;
+                    }
                 }
                 else if( extension.includes( "bml" ) || extension.includes("json") ) {
                     data.animation = JSON.parse( content );
                     if( Array.isArray(data.animation) ) {
                         data.animation = { behaviours: data.animation };
+                    }
+                    else if( Array.isArray(data.animation.data) ) {
+                        data.animation.behaviours = data.animation.data;
                     }
                 }
                 else {
@@ -408,11 +418,17 @@ class Editor {
                     if( Array.isArray(data.animation) ) {
                         data.animation = { behaviours: data.animation };
                     }
+                    else if( Array.isArray(data.animation.data) ) {
+                        data.animation.behaviours = data.animation.data;
+                    }
                 }
                 else if( type.includes( "bml" ) || type.includes("json") ) {
                     data.animation = JSON.parse( content );
                     if( Array.isArray(data.animation) ) {
                         data.animation = { behaviours: data.animation };
+                    }
+                    else if( Array.isArray(data.animation.data) ) {
+                        data.animation.behaviours = data.animation.data;
                     }
                 }
                 else {
@@ -424,9 +440,9 @@ class Editor {
                 }
             }
             const content = data.data ? data.data : data;
-            if(content.constructor.name == "Blob" || content.constructor.name == "File") {
+            if(content instanceof Blob || content instanceof File) {
                 const reader = new FileReader();
-                reader.readAsText(content);
+                reader.readAsText(content);                
                 reader.onloadend = innerParse;
             }
             else {
@@ -454,7 +470,7 @@ class Editor {
 			e.stopPropagation();
 	
 			const files = e.dataTransfer.files;
-            if(!files.length) {
+            if( !files.length ) {
                 return;
             }
 			await this.loadFiles(files);
@@ -464,10 +480,10 @@ class Editor {
             switch ( e.key ) {
                 case " ": // Spacebar - Play/Stop animation       
                     if(e.target.constructor.name != 'HTMLInputElement') {
-
                         e.preventDefault();
                         e.stopImmediatePropagation();
-                        let playElement = this.editorArea.root.querySelector("[title = Play]");
+
+                        const playElement = this.editorArea.root.querySelector("[title = Play]");
                         if ( playElement ){ 
                             playElement.children[0].click();
                         }
@@ -479,76 +495,60 @@ class Editor {
                 break;
 
                 case 'z': case 'Z': // Undo
-                    if(e.ctrlKey) {
+                    if( e.ctrlKey ) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
 
-                        // TO DO: Implement it for Script editors
                         this.undo();
-
-                        // if(this.activeTimeline.undo) {
-                        //     this.activeTimeline.undo();
-
-                        //     if(this.mode == this.editionModes.SCRIPT) {
-                        //         this.gui.updateClipPanel();
-                        //     }
-                        // }
                     }
                     break;
 
                 case 'y': case 'Y': // Redo
-                    if(e.ctrlKey) {
+                    if( e.ctrlKey ) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
-                        // TO DO: Implement it for Script editors
+
                         this.redo();
-                        // if(this.activeTimeline.redo) {
-                        //     this.activeTimeline.redo();
-                        //     if(this.mode == this.editionModes.SCRIPT) {
-                        //         this.gui.updateClipPanel();
-                        //     }
-                        // }
                     }
                     break;
                 
                 case 's': case 'S': // Save animation/s to server
-                    if(e.ctrlKey) {
+                    if( e.ctrlKey ) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
                         
                         this.gui.createSaveDialog();
                     }
                     break;
-
-                case 'e': case 'E': // Export animation/s
-                    if(e.ctrlKey) {
-                        if(e.altKey) {
-                            e.preventDefault();
-                            e.stopImmediatePropagation();
-                            LX.prompt("File name", "Export GLB", (v) => this.export(null, "GLB", true, v), {input: this.clipName, required: true} )     
-                        }
-                    }
-                    break;
-
+                
                 case 'a': case 'A': // Select 
-                    if(e.ctrlKey) {
+                    if( e.ctrlKey ) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
-                        if(this.activeTimeline.selectAll) {
+
+                        if( this.activeTimeline.selectAll ) {
                             this.activeTimeline.selectAll();
                         }
                     }
                     break;
-               
 
                 case 'o': case 'O': // Import file from disk
-                    if(e.ctrlKey && !e.shiftKey) {
+                    if( e.ctrlKey && !e.shiftKey ) {
                         e.preventDefault();
                         e.stopImmediatePropagation();
 
                         this.gui.importFiles();
                     }
                     break;
+
+                case 'i': case 'i': // Open file from server
+                    if( e.ctrlKey && !e.shiftKey ) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+
+                        this.gui.createServerClipsDialog();
+                    }
+                break;
             }
 
             this.onKeyDown(e);
@@ -763,10 +763,12 @@ class Editor {
                 );
                 break;
             
-            case 'BVH': case 'BVH extended':
+            case 'BVH': case 'BVH extended': 
+            {
                 let skeleton = this.currentCharacter.skeletonHelper.skeleton;
-                
-                for(let a in animsToExport) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
+                const fileType = "text/plain";
+
+                for( let a in animsToExport ) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
                     const animation = animsToExport[a];
                     const bindedAnim = this.bindedAnimations[animation.name][this.currentCharacter.name];
                                         
@@ -785,21 +787,28 @@ class Editor {
                     }
 
                     if(download) {
-                        UTILS.download(bvh, clipName, "text/plain" );
+                        UTILS.download(bvh, clipName, fileType );
                     }
                     else {
-                        files.push({name: clipName, data: UTILS.dataToFile(bvh, clipName, "text/plain")});
+                        files.push({name: clipName, data: UTILS.dataToFile(bvh, clipName, fileType)});
                     }
                 }
                 break;
-
+            }
             default:
                 const json = this.generateBML();
                 if( !json ) {
                     return;  
-                } 
-                UTILS.download(JSON.stringify(json), (name || json.name) + '.bml', "application/json");
-                console.log(type + " ANIMATION EXPORTATION IS NOT YET SUPPORTED");
+                }
+
+                let clipName = (name || json.name) + '.bml';
+                const fileType = "application/json";
+                if( download ) {
+                    UTILS.download(JSON.stringify(json), clipName, fileType);
+                }
+                else {
+                    files.push( {name: clipName, data: UTILS.dataToFile(JSON.stringify(json), clipName, fileType)} );
+                }
                 break;
     
         }
@@ -944,7 +953,7 @@ class Editor {
     isScriptMode() {
         return this.constructor == ScriptEditor;
     }
-
+    
     onKeyDown( event ) {} // Abstract
     redo() {}
     undo() {}
@@ -1010,14 +1019,17 @@ class KeyframeEditor extends Editor {
                     }
                 }
             break;
-            case 'i': case 'i': // Open file from server
-                if(event.ctrlKey && !event.shiftKey) {
-                    event.preventDefault();
-                    event.stopImmediatePropagation();
 
-                    this.gui.createServerClipsDialog();                    
+            case 'e': case 'E': // Export animation/s
+                if(e.ctrlKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.gui.showExportAnimationsDialog("Export animations", ( format ) => {
+                        this.export( this.getAnimationsToExport(), format );
+                    }, ["BVH", "BVH extended", "GLB"]);
                 }
             break;
+
         }
     }
     
@@ -1039,7 +1051,7 @@ class KeyframeEditor extends Editor {
         this.gizmo = new Gizmo(this);
 
         // Load current character
-        this.loadCharacter(this.character);
+        await this.loadCharacter(this.character);
         
         if ( this.inferenceMode == this.animationInferenceModes.NN ) {
             this.loadNNSkeleton();
@@ -2397,14 +2409,51 @@ class ScriptEditor extends Editor {
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "presets", type:"folder", children: []}, {id: "signs", type:"folder", children: []}]} ];
     }
 
+    onKeyDown( e ) {
+        switch( e.key ) {
+            case 'e': case 'E': // Export animation/s
+                if(e.ctrlKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.gui.showExportAnimationsDialog("Export animations", ( format ) => {
+                        this.export( this.getAnimationsToExport(), format );
+                    }, ["BML", "BVH", "BVH extended", "GLB"]);
+                }
+            break;
+
+            case 'b': case 'B': // Add behaviour clips
+                if(e.ctrlKey) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.gui.createClipsDialog();
+                }
+            break;
+        }
+    }
+
+    undo() {
+        
+        if( this.activeTimeline.undo ) {
+            this.activeTimeline.undo();
+            this.gui.updateClipPanel();
+        }
+    }
+
+    redo() {
+        if( this.activeTimeline.redo ) {
+            this.activeTimeline.redo();
+            this.gui.updateClipPanel();
+        }
+    }
+
     async initCharacters()
     {
         // Load current character
-        this.loadCharacter(this.character);
+        await this.loadCharacter(this.character);
 
-        while(!this.loadedCharacters[this.character] || !this.loadedCharacters[this.character].bmlManager.ECAcontroller) {
-            await new Promise(r => setTimeout(r, 1000));            
-        }  
+        // while(!this.loadedCharacters[this.character] || !this.loadedCharacters[this.character].bmlManager.ECAcontroller) {
+        //     await new Promise(r => setTimeout(r, 1000));            
+        // }  
     }
 
     async processPendingResources( resources ) {
@@ -2471,16 +2520,16 @@ class ScriptEditor extends Editor {
 
                                 panel.addButton(null, "Concatenate", () => { 
                                     this.gui.loadBMLClip( animation );
-                                    this.loadAnimation( file.name, animation );
-
                                     this.gui.prompt.close();
                                     resolve(file.animation);
                                     UTILS.hideLoading();
+
                                 }, { buttonClass: "accept" });
+
                                 panel.addButton(null, "Cancel", () => { 
                                     this.gui.prompt.close();
-                                    UTILS.hideLoading();
                                     resolve();
+                                    UTILS.hideLoading();
                                 });
                             })
                         }
@@ -2522,7 +2571,7 @@ class ScriptEditor extends Editor {
             type: "script"
         };
 
-        this.bindAnimationToCharacter( name );
+        this.bindAnimationToCharacter( name );        
     }
 
     /**
@@ -2679,7 +2728,7 @@ class ScriptEditor extends Editor {
                         }
                     }
                     else {
-                        json.behaviours.push( data );
+                        json.behaviours.push( clips );
                     }
                 }
             }

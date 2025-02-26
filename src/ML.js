@@ -1,7 +1,7 @@
 import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
 import { TFModel } from "./libs/tensorFlowWrap.module.js";
 import * as THREE from "three";
-import { UTILS } from "./utils.js"
+import { UTILS } from "./Utils.js"
 
 class NN {
 

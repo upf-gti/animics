@@ -1,9 +1,9 @@
-import { UTILS } from "./utils.js";
+import { UTILS } from "./Utils.js";
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
 import 'lexgui/components/timeline.js';
-import { Gizmo } from "./gizmo.js";
+import { Gizmo } from "./Gizmo.js";
 
 class Gui {
 
@@ -72,123 +72,42 @@ class Gui {
             m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});   
         });
 
-        // var that = this;
-        let menubar = this.menubar;     
+        const menubar = this.menubar;     
         
-        // menubar.add("Project/");
-        // menubar.add("Project/Import animation", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+I"});
+        menubar.add("Project/");
+        menubar.add("Project/New animation", {icon: "fa fa-plus"}); // TO DO
+
+        menubar.add("Project/Import animations", {icon: "fa fa-file-import"});
+        menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+O"});
+        menubar.add("Project/Import animations/From database", {icon: "fa fa-server", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
+
+
+        menubar.add("Timeline/");
+
+        menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
+        menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
+        menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
+        menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
+        menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
+    
+        menubar.add("Timeline/Optimize all tracks", { callback: () => {
+            // optimize all tracks of current binded animation (if any)
+             this.clipsTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel                
+            }
+        });
+
+        menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
+        if(this.showVideo) {
+            menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
+                this.editor.setVideoVisibility( v );
+                this.showVideo = v;
+                // const tl = document.getElementById("capture");
+                // tl.style.display = this.showVideo ? "flex": "none";
+            }});
+        }
 
         this.onCreateMenuBar(menubar);
         
-        // if(this.editor.mode != this.editor.editionModes.SCRIPT) {
-        //     menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", callback: () => this.createServerClipsDialog(), short: "CTRL+O"});
-        // }
-        // else {
-        //     menubar.add("Project/Load animation from server", {icon: "fa fa-cloud-arrow-down", short: "CTRL+O"});
-        //     menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
-        //     menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
-        //     menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
-        // }
-          
-        // if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-        //     // Export animation
-        //     menubar.add("Project/Export animation", {icon: "fa fa-file-export"});
-        //     menubar.add("Project/Export animation/Export BML", {callback: () => this.createExportBMLDialog() 
-        //     });
-        //     menubar.add("Project/Export animation/Export extended BVH", {callback: () => {
-        //         this.prompt = LX.prompt("File name", "Export BVH animation", (v) => this.editor.export(null, "BVH extended", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true } );
-        //     }});
-        // }
-        // else {
-        //     // Export animation
-        //     menubar.add("Project/Export animations", {icon: "fa fa-file-export"});
-    
-        //     menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
-        //         this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
-        //     }});
-        // }
-        
-        // menubar.add("Project/Export character & animations", {icon: "fa fa-download"});
-        // menubar.add("Project/Export character & animations/Export GLB", {callback: () => {
-        //         this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
-        // }});
-        
-        // // Save animation
-        // menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
-
-        // menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
-
-        // // menubar.add("Timeline/");
-        // menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
-        // menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
-        // menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
-        // menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
-        // menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
-        // menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
-        
-        // if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-        //     menubar.add("Timeline/Shortcuts/Create preset", { short: "Right click" });
-        //     menubar.add("Timeline/Shortcuts/Add clip", { short: "CTRL+K" });
-        //     menubar.add("Timeline/Shortcuts/Add preset", { short: "CTRL+P" });
-        //     menubar.add("Timeline/Shortcuts/Add sign", { short: "CTRL+L" });
-        //     menubar.add("Timeline/Shortcuts/Move clips", { short: "Hold CTRL" });
-        //     menubar.add("Timeline/Shortcuts/Add clips", { short: "Right Click" });
-        //     menubar.add("Timeline/Shortcuts/Copy clips", { short: "Right Click" });
-        //     menubar.add("Timeline/Shortcuts/Copy clips", { short: "CTRL+C" });
-        //     menubar.add("Timeline/Shortcuts/Delete clips");
-        //     menubar.add("Timeline/Shortcuts/Delete clips/Single", { short: "DEL" });
-        //     menubar.add("Timeline/Shortcuts/Delete clip/Multiple", { short: "Hold LSHIFT+DEL" });
-        //     menubar.add("Timeline/Shortcuts/Clip Selection");
-        //     menubar.add("Timeline/Shortcuts/Clip Selection/Single", { short: "Left Click" });
-        //     menubar.add("Timeline/Shortcuts/Clip Selection/Multiple", { short: "Hold LSHIFT" });
-        // }
-        // else {
-        //     menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
-        //     menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
-        //     menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
-        //     menubar.add("Timeline/Shortcuts/Delete keys");
-        //     menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
-        //     menubar.add("Timeline/Shortcuts/Delete keys/Multiple", { short: "Hold LSHIFT" });
-        //     menubar.add("Timeline/Shortcuts/Key Selection");
-        //     menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
-        //     menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
-        //     menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
-        //     menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
-        //     menubar.add("Timeline/Optimize all tracks", { callback: () => {
-        //             // optimize all tracks of current binded animation (if any)
-        //             this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
-        //             this.keyFramesTimeline.optimizeTracks();
-        //         }
-        //     });
-
-        //     menubar.add("Project/Export videos & landmarks", { callback: () => this.showExportVideosDialog() })
-        // }
-
-
-        // menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
-        // if(this.showVideo) {
-        //     menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
-        //         this.editor.setVideoVisibility( v );
-        //         this.showVideo = v;
-        //         // const tl = document.getElementById("capture");
-        //         // tl.style.display = this.showVideo ? "flex": "none";
-        //     }});
-        // }
-        // if (this.editor.mode != this.editor.editionModes.SCRIPT){
-        //     menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
-        //         this.openSettings("gizmo");
-        //     }});
-        // }
-
-        // if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-        //     // menubar.add("Help/");
-        //     menubar.add("Help/Tutorial", {callback: () => window.open("docs/script_animation.html", "_blank")});
-        //     menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank")});
-        // }
-        // else {
-        //     menubar.add("Help/Tutorial", {callback: () => window.open("docs/keyframe_animation.html", "_blank")});
-        // }
-
         menubar.addButtons( [
             {
                 title: "Play",
@@ -379,14 +298,15 @@ class Gui {
             
     }
 
-    showExportAnimationsDialog(title, callback, formats = []) {
-        let options = { modal : true};
+    showExportAnimationsDialog(title, callback, options = { formats: [], folders: [] }) {
+        options.modal = true;
 
         let value = "";
         let format = null;
+        let folder = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
-            let animations = this.editor.loadedAnimations;
-            for(let animationName in animations) { // animationName is of the source anim (not the bind)
+            const animations = this.editor.loadedAnimations;
+            for( let animationName in animations ) { // animationName is of the source anim (not the bind)
                 let animation = animations[animationName]; 
                 p.sameLine();
                 p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px"});
@@ -398,13 +318,23 @@ class Gui {
                 }, {placeholder: "...", minWidth:"100px"} );
                 p.endLine();
             }
-            if(formats.length) {
-                format = format || formats[0];
-                let buttons = [];
-                for(let i = 0; i < formats.length; i++) {
-                    buttons.push({ value: formats[i], callback: (v) => {format = v} });
+
+            if( options.formats.length ) {
+                format = format || options.formats[0];
+                const buttons = [];
+                for(let i = 0; i < options.formats.length; i++) {
+                    buttons.push({ value: options.formats[i], callback: (v) => {format = v} });
                 }
                 p.addComboButtons("Save as", buttons, {selected: format});
+            }
+
+            if( options.folders.length ) {
+                folder = folder || options.folders[0];
+                const buttons = [];
+                for(let i = 0; i < options.folders.length; i++) {
+                    buttons.push({ value: options.folders[i], callback: (v) => {folder = v} });
+                }
+                p.addComboButtons("Save in", buttons, {selected: folder});
             }
 
             p.sameLine(2);
@@ -417,7 +347,7 @@ class Gui {
                 }else {
 
                     if(callback) {
-                        callback(format);
+                        callback(format, folder);
                     }
                     dialog.close() ;
                 }
@@ -427,8 +357,9 @@ class Gui {
         }, options);
 
         // Focus text prompt
-        if(options.input !== false)
+        if( options.input !== false ) {
             dialog.root.querySelector('input').focus();
+        }
     }
 
     createSceneUI(area) {
@@ -452,8 +383,7 @@ class Gui {
                         model.visible = editor.showSkin;
                         
                     }
-                },
-        
+                },        
                 {
                     name: 'Skeleton',
                     property: 'showSkeleton',
@@ -471,6 +401,7 @@ class Gui {
                     }
                 }
             ];
+
             if( editor.gizmo ) {
                 canvasButtons.push(
                     {
@@ -486,8 +417,7 @@ class Gui {
                         }
                     }
                 );
-            }
-            
+            }            
         }
         
         canvasButtons = [...canvasButtons,
@@ -544,11 +474,13 @@ class Gui {
     
     openSettings( settings ) {
         
-        let prevDialog = document.getElementById("settings-dialog");
-        if(prevDialog) prevDialog.remove();
+        const prevDialog = document.getElementById("settings-dialog");
+        if( prevDialog ) {
+            prevDialog.remove();
+        }
         
-        const dialog = new LX.Dialog(UTILS.firstToUpperCase(settings), p => {
-            if(settings == 'gizmo' && this.editor.mode != this.editor.editionModes.SCRIPT) {
+        const dialog = new LX.Dialog( UTILS.firstToUpperCase(settings), p => {
+            if( settings == 'gizmo' ) {
                 this.editor.gizmo.showOptions( p );
             }
         }, { id: 'settings-dialog', close: true, width: 380, height: 210, scroll: false, draggable: true});
@@ -701,59 +633,38 @@ class KeyframesGui extends Gui {
         this.createVideoOverlay();       
     }
 
-    onCreateMenuBar( menubar ) {
-        
-        menubar.add("Project/New animation", {icon: "fa fa-plus"}); // TO DO
+    onCreateMenuBar( menubar ) {    
         
         menubar.add("Project/Generate animations", {icon:"fa-solid fa-hands-asl-interpreting"});
         menubar.add("Project/Generate animations/From webcam", {icon: "fa fa-camera", callback: () => this.editor.captureVideo()});
         menubar.add("Project/Generate animations/From videos", {icon: "fa fa-photo-film", callback: () => this.importFiles(), short: "CTRL+O"});
-
-        menubar.add("Project/Import animations", {icon: "fa fa-file-import"});
-        menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+O"});
-        menubar.add("Project/Import animations/From server", {icon: "fa fa-server", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
-
+       
         // Export (download) animation
-        menubar.add("Project/Export animations", {icon: "fa fa-download", callback: () => {            
-            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), ["BVH", "BVH extended", "GLB"]);
+        menubar.add("Project/Export animations", {short: "CTRL+E", icon: "fa fa-download", callback: () => {            
+            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), {formats: ["BVH", "BVH extended", "GLB"]});
         }});
-
-        // menubar.add("Project/Export animations/Export BVH", {callback: () => {            
-        //     this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH"));
-        // }});
-        // menubar.add("Project/Export animations/Export extended BVH", {callback: () => {            
-        //     this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "BVH extended"));            
-        // }});
-        
-        // menubar.add("Project/Export animations/Export GLB", {callback: () => {
-        //         this.showExportAnimationsDialog(() => this.editor.export( this.editor.getAnimationsToExport(), "GLB"));            
-        // }});
-        
+       
         menubar.add("Project/Export videos & landmarks", {icon: "fa fa-file-video", callback: () => this.showExportVideosDialog() });
 
         // Save animation in server
         menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
 
         menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
-
-        // menubar.add("Timeline/");
-        menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
-        menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
-        menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
-        menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
-        menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
-        menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
         
         menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
         menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
         menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
+        menubar.add("Timeline/Shortcuts/Copy keys", { short: "Right Click" });
+        menubar.add("Timeline/Shortcuts/Copy keys", { short: "CTRL+C" });
+        menubar.add("Timeline/Shortcuts/Paste keys", { short: "Right Click" });
+        menubar.add("Timeline/Shortcuts/Paste keys", { short: "CTRL+V" });
         menubar.add("Timeline/Shortcuts/Delete keys");
         menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
         menubar.add("Timeline/Shortcuts/Delete keys/Multiple", { short: "Hold LSHIFT" });
-        menubar.add("Timeline/Shortcuts/Key Selection");
-        menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
-        menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
-        menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
+        menubar.add("Timeline/Shortcuts/Key selection");
+        menubar.add("Timeline/Shortcuts/Key selection/Single", { short: "Left Click" });
+        menubar.add("Timeline/Shortcuts/Key selection/Multiple", { short: "Hold LSHIFT" });
+        menubar.add("Timeline/Shortcuts/Key selection/Box", { short: "Hold LSHIFT+Drag" });
         menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
         menubar.add("Timeline/Optimize all tracks", { callback: () => {
                 // optimize all tracks of current binded animation (if any)
@@ -762,15 +673,6 @@ class KeyframesGui extends Gui {
             }
         });
 
-        menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
-        if(this.showVideo) {
-            menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
-                this.editor.setVideoVisibility( v );
-                this.showVideo = v;
-                // const tl = document.getElementById("capture");
-                // tl.style.display = this.showVideo ? "flex": "none";
-            }});
-        }
         menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
             this.openSettings("gizmo");
         }});
@@ -1299,14 +1201,14 @@ class KeyframesGui extends Gui {
         const bodyArea = new LX.Area({className: "sidePanel", id: 'Body', scroll: true});  
         const faceArea = new LX.Area({className: "sidePanel", id: 'Face', scroll: true});  
         tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {
-            this.editor.setAnimation(this.editor.animationModes.BODY)
+            this.editor.setTimeline(this.editor.animationModes.BODY)
             // this.updatePropagationWindowCurve();
             this.propagationWindow.setTimeline( this.keyFramesTimeline );
         }}  );
         
 
         tabs.add( "Face", faceArea, { onSelect: (e,v) => {
-            this.editor.setAnimation(this.editor.animationModes.FACE); 
+            this.editor.setTimeline(this.editor.animationModes.FACE); 
             this.selectActionUnitArea(this.editor.getSelectedActionUnit());
             // this.updatePropagationWindowCurve();
             this.propagationWindow.setTimeline( this.curvesTimeline );
@@ -1930,7 +1832,7 @@ class KeyframesGui extends Gui {
             else {
                 saveDataToServer("server");
             }
-        }, [ "BVH", "BVH extended"]) // TO DO: ALLOW GLB AND GLTF         
+        }, {formats: [ "BVH", "BVH extended"]});
     }
 
     createServerClipsDialog() {
@@ -2282,61 +2184,31 @@ class ScriptGui extends Gui {
 
     onCreateMenuBar( menubar ) {
         
-        menubar.add("Project/New animation", {icon: "fa fa-plus"}); // TO DO
-
-        menubar.add("Project/Import animations", {icon: "fa fa-file-import"});
-        menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+O"});
-        menubar.add("Project/Import animations/From server", {icon: "fa fa-server", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
-        /**
-         * menubar.add("Project/Load animation from server/Clip", {callback: () => this.createClipsDialog(), short: "CTRL+O"});
-                menubar.add("Project/Load animation from server/Preset", {callback: () => this.createPresetsDialog(), short: "CTRL+P"});
-                menubar.add("Project/Load animation from server/Sign", {callback: () => this.createSignsDialog(), short: "CTRL+k"});
-        */
         // Export (download) animation
-        menubar.add("Project/Export animations", {icon: "fa fa-download", callback: () => {            
-            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), ["BML", "BVH", "BVH extended", "GLB"]);
+        menubar.add("Project/Export animations", {short: "CTRL+E", icon: "fa fa-download", callback: () => {            
+            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
         }});
 
         // Save animation in server
-        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
+        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa-solid fa-upload"});
 
         menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
-
-        // menubar.add("Timeline/");
-        menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
-        menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
-        menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
-        menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
-        menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
-        menubar.add("Timeline/Shortcuts/Save sign", { short: "CTRL+S" });
         
-        menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
-        menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
-        menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
-        menubar.add("Timeline/Shortcuts/Delete keys");
-        menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
-        menubar.add("Timeline/Shortcuts/Delete keys/Multiple", { short: "Hold LSHIFT" });
-        menubar.add("Timeline/Shortcuts/Key Selection");
-        menubar.add("Timeline/Shortcuts/Key Selection/Single", { short: "Left Click" });
-        menubar.add("Timeline/Shortcuts/Key Selection/Multiple", { short: "Hold LSHIFT" });
-        menubar.add("Timeline/Shortcuts/Key Selection/Box", { short: "Hold LSHIFT+Drag" });
-        menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
-        menubar.add("Timeline/Optimize all tracks", { callback: () => {
-                // optimize all tracks of current binded animation (if any)
-                this.clipsTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel                
-            }
-        });
-
-        menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
-        if(this.showVideo) {
-            menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
-                this.editor.setVideoVisibility( v );
-                this.showVideo = v;
-                // const tl = document.getElementById("capture");
-                // tl.style.display = this.showVideo ? "flex": "none";
-            }});
-        }
-
+        menubar.add("Timeline/Shortcuts/Move clips", { short: "Hold CTRL" });
+        menubar.add("Timeline/Shortcuts/Add clips", { short: "Right Click" });
+        menubar.add("Timeline/Shortcuts/Add behaviour", { short: "CTRL+B" });
+        menubar.add("Timeline/Shortcuts/Copy clips", { short: "Right Click" });
+        menubar.add("Timeline/Shortcuts/Copy clips", { short: "CTRL+C" });
+        menubar.add("Timeline/Shortcuts/Paste clips", { short: "Right Click" });
+        menubar.add("Timeline/Shortcuts/Paste clips", { short: "CTRL+V" });
+        menubar.add("Timeline/Shortcuts/Delete clips");
+        menubar.add("Timeline/Shortcuts/Delete clips/Single", { short: "DEL" });
+        menubar.add("Timeline/Shortcuts/Delete clips/Multiple", { short: "Hold LSHIFT + DEL" });
+        menubar.add("Timeline/Shortcuts/Clip selection");
+        menubar.add("Timeline/Shortcuts/Clip selection/Single", { short: "Left Click" });
+        menubar.add("Timeline/Shortcuts/Clip selection/Multiple", { short: "Hold LSHIFT" });
+        menubar.add("Timeline/Shortcuts/Clip selection/Box", { short: "Hold LSHIFT+Drag" });
+       
         menubar.add("Help/Tutorial", {callback: () => window.open("docs/script_animation.html", "_blank")});
         menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank")});   
     }
@@ -2515,16 +2387,12 @@ class ScriptGui extends Gui {
             else{
                 actions.push(
                     {
-                        title: "Add clip",
+                        title: "Add behaviour",
                         callback: this.createClipsDialog.bind(this)
-                    },
+                    },                    
                     {
-                        title: "Add preset",
-                        callback: this.createPresetsDialog.bind(this)
-                    },
-                    {
-                        title: "Add sign",
-                        callback: this.createSignsDialog.bind(this)
+                        title: "Add animation",
+                        callback: this.createServerClipsDialog.bind(this)
                     }
                 );
                 
@@ -2715,9 +2583,8 @@ class ScriptGui extends Gui {
             
             widgets.addSeparator();
             widgets.addComboButtons("Dominant hand", [{value: "Left", callback: (v) => this.editor.dominantHand = v}, {value:"Right", callback: (v) => this.editor.dominantHand = v}], {selected: this.editor.dominantHand})
-            widgets.addButton(null, "Add clip", () => this.createClipsDialog(), {title: "CTRL+K"} )
-            widgets.addButton(null, "Add preset", () => this.createPresetsDialog(), {title: "CTRL+P"} )
-            widgets.addButton(null, "Add sign", () => this.createSignsDialog(), {title: "CTRL+L"} )
+            widgets.addButton(null, "Add behaviour", () => this.createClipsDialog(), {title: "CTRL+K"} )
+            widgets.addButton(null, "Add animation", () => this.createServerClipsDialog(), {title: "CTRL+L"} )
             widgets.addSeparator();
         }
         widgets.onRefresh(options);
@@ -2739,25 +2606,25 @@ class ScriptGui extends Gui {
         let w = null;
 
         w = widgets.get("Start");
-        if ( w ){ 
+        if ( w ) { 
             w.set(clip.start, true);
         }
         w = widgets.get("Duration");
-        if ( w ){ 
+        if ( w ) { 
             w.set(clip.duration, true);
         }
 
 
-        if( clip.fadein != undefined ){ 
+        if( clip.fadein != undefined ) { 
             clip.fadein = Math.clamp(clip.fadein, clip.start, clip.start + clip.duration); 
             w = widgets.get("Attack Peak (s)");
-            if ( w ){ 
+            if ( w ) { 
                 clip.attackPeak = clip.fadein;
                 w.setLimits(0, clip.fadeout - clip.start, 0.001);
                 w.set(clip.fadein - clip.start, true);
             }
             w = widgets.get("Ready (s)");
-            if ( w ){ 
+            if ( w ) { 
                 clip.ready = clip.fadein;
                 w.setLimits(0, clip.fadeout - clip.start, 0.001);
                 w.set(clip.fadein - clip.start, true);
@@ -2765,44 +2632,44 @@ class ScriptGui extends Gui {
         }
 
 
-        if( clip.fadeout != undefined ){ 
+        if( clip.fadeout != undefined ) { 
             clip.fadeout = Math.clamp(clip.fadeout, clip.fadein, clip.start + clip.duration); 
             w = widgets.get("Relax (s)");
-            if ( w ){ 
+            if ( w ) { 
                 clip.relax = clip.fadeout;
                 w.setLimits( clip.fadein - clip.start, clip.duration, 0.001);
                 w.set(clip.fadeout - clip.start, true);
             }
         }
 
-        if( clip.strokeStart != undefined ){ 
+        if( clip.strokeStart != undefined ) { 
             clip.strokeStart = Math.clamp(clip.strokeStart, clip.fadein, clip.fadeout); 
             w = widgets.get("Stroke start (s)");
-            if ( w ){ 
+            if ( w ) { 
                 w.setLimits( clip.fadein - clip.start, clip.fadeout - clip.start, 0.001);
                 w.set(clip.strokeStart - clip.start, true);
             }
         }
-        if( clip.strokeEnd != undefined ){ 
+        if( clip.strokeEnd != undefined ) { 
             clip.strokeEnd = Math.clamp(clip.strokeEnd, clip.strokeStart ?? clip.fadein, clip.fadeout); 
             w = widgets.get("Stroke end (s)");
-            if ( w ){ 
+            if ( w ) { 
                 w.setLimits( (clip.strokeStart ?? clip.fadein) - clip.start, clip.fadeout-clip.start, 0.001);
                 w.set(clip.strokeEnd - clip.start, true);
             }
         }
-        if( clip.stroke != undefined ){ 
+        if( clip.stroke != undefined ) { 
             clip.stroke = Math.clamp(clip.stroke, clip.strokeStart ?? clip.fadein, clip.strokeEnd ?? clip.fadeout); 
             w = widgets.get("Stroke (s)");
-            if ( w ){ 
+            if ( w ) { 
                 w.setLimits( (clip.strokeStart ?? clip.fadein) - clip.start, (clip.strokeEnd ?? clip.fadeout) - clip.start, 0.001);
                 w.set(clip.stroke - clip.start, true);
             }
         }
 
-        if ( checkCurve ){
+        if ( checkCurve ) {
             w = widgets.get("Synchronization");
-            if ( w ){
+            if ( w ) {
                 w.set([[(clip.fadein-clip.start)/clip.duration,0.5],[(clip.fadeout-clip.start)/clip.duration,0.5]], true);
             }
         }
@@ -3095,13 +2962,13 @@ class ScriptGui extends Gui {
     }
 
     createSaveDialog() {
-        this.showExportAnimationsDialog( "Save animations in server", (format) => {
+        this.showExportAnimationsDialog( "Save animations in server", (format, folder) => {
 
             const saveDataToServer = (location,) => {
                 let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
                 for(let i = 0; i < animations.length; i++) {
                     
-                    this.editor.uploadData(animations[i].name, animations[i].data, "clips", location, () => {
+                    this.editor.uploadData(animations[i].name, animations[i].data, folder, location, () => {
                         this.closeDialogs();
                         LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                     })
@@ -3126,7 +2993,7 @@ class ScriptGui extends Gui {
             else {
                 saveDataToServer("server");
             }
-        }, [ "BML"]) // TO DO: ALLOW GLB AND GLTF         
+        }, {formats: [ "BML"], folders:[ "presets", "signs"]} );
     }
 
 
@@ -3386,6 +3253,11 @@ class ScriptGui extends Gui {
         }, {modal: true, closable: true})
     }
 
+        
+    // createSaveDialog() {
+    //     this.createNewSignDialog(null, "server");
+    // }
+
     createClipsDialog() {
         // Create a new dialog
         let that = this;
@@ -3428,7 +3300,7 @@ class ScriptGui extends Gui {
         }];
 
         let asset_browser = null;
-        let dialog = this.prompt = new LX.Dialog('BML clips', (p) => {
+        let dialog = this.prompt = new LX.Dialog('Available behaviours', (p) => {
 
             let asset_data = [{id: "Face", type: "folder", children: []}, {id: "Head", type: "folder",  children: []}, {id: "Arms", type: "folder",  children: []}, {id: "Hands", type: "folder",  children: []}, {id: "Body", type: "folder",  children: []}];
                 
@@ -3601,499 +3473,6 @@ class ScriptGui extends Gui {
             }
          });
        
-    }
-
-    
-    createPresetsDialog() {
-        
-        const repository = this.editor.remoteFileSystem.repository;
-
-        if( this.prompt && this.prompt.root.checkVisibility() ) {
-            return;
-        }
-
-        // Create a new dialog
-        const dialog = this.prompt = new LX.Dialog('Available presets', async (p) => {
-
-            const innerSelect = (asset)  => {
-                this.clipsTimeline.unSelectAllClips();
-                
-                let name = asset.id.split(".");
-                if( name.length > 1 ) {
-                    name.pop();
-                }
-                name = name.join(".");
-
-                let preset = {preset: name};
-                if( asset.type == "bml" && !asset.animation ) {
-                    this.editor.fileToAnimation(asset, async (data) =>  {
-                        asset = data;
-                        let {clips, duration} = this.dataToBMLClips(asset.animation);
-                        preset.clips = clips;
-                        let presetClip = new ANIM.FacePresetClip(preset);
-                        this.clipsTimeline.addClips(presetClip.clips, this.clipsTimeline.currentTime);
-                    });
-                }
-                else {
-                    let presetClip = new ANIM.FacePresetClip(preset);
-                    this.clipsTimeline.addClips(presetClip.clips, this.clipsTimeline.currentTime);
-                }
-                this.prompt.close();
-            }
-            
-            let preview_actions = [{
-                type: "Preset",
-                name: 'Add', 
-                callback: innerSelect.bind(this),
-            },
-            {
-                type: "bml",
-                name: 'Add', 
-                callback: innerSelect.bind(this),
-            }];
-            
-            const user = this.editor.remoteFileSystem.session.user;
-            
-            if(user.username != "signon") {
-                preview_actions.push({
-                    type: "Preset",
-                    path: "@/Local",
-                    name: 'Upload to server', 
-                    callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".bml", item.data, "presets", "server", () => {
-                            this.closeDialogs();
-                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
-                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "Preset",
-                    path: "@/"+ user.username,
-                    name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
-                            if(v) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                item.folder.children = v;
-                                assetViewer._deleteItem(item);
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }
-                            // this.closeDialogs();                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "bml",
-                    path: "@/"+ user.username,
-                    name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
-                            if(v) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                item.folder.children = v;
-                                assetViewer._deleteItem(item);
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }
-                            // this.closeDialogs();                            
-                        });
-                    }
-                });
-            }
-            
-            let asset_browser = new LX.AssetView({  allowed_types: ["Preset"], preview_actions: preview_actions, context_menu: false });
-
-            p.attach( asset_browser );
-
-            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-            modal.root.id = "loading";
-            const closeModal = (modal ) => {
-                modal.panel.clear();
-                modal.root.remove();
-
-            }
-
-            const loadData = () => {
-                asset_browser.load( repository.presets, e => {
-                    switch(e.type) {
-                        case LX.AssetViewEvent.ASSET_SELECTED: 
-                            break;
-                        case LX.AssetViewEvent.ASSET_DELETED: 
-                            console.log(e.item.id + " deleted"); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_CLONED: 
-                            console.log(e.item.id + " cloned"); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_RENAMED:
-                            console.log(e.item.id + " is now called " + e.value); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_DBLCLICKED:
-                            innerSelect(e.item);
-                            break;
-                        case LX.AssetViewEvent.ENTER_FOLDER:
-                            const session = this.editor.FS.getSession(); 
-                            if(e.item.unit && e.item.unit != "signon" && (!e.item.children.length || this.editor.refreshPresetsRepository && e.item.unit == session.user.username )) {
-                                const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-                                modal.root.id = "loading";
-                                this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/presets/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
-                                    let files_data = [];
-                                    if(files) {
-                                        
-                                        for(let f = 0; f < files.length; f++) {
-                                            files[f].id = files[f].filename;
-                                            files[f].folder = e.item;
-                                            files[f].type = UTILS.getExtension(files[f].filename);
-                                            if(files[f].type == "txt")
-                                                continue;
-                                            files_data.push(files[f]);
-                                        }
-                                        e.item.children = files_data;
-                                    
-                                    }
-                                    asset_browser.currentData = files_data;
-                                    asset_browser._updatePath(asset_browser.currentData);
-                                    if(!asset_browser.skip_browser)
-                                        asset_browser._createTreePanel();
-                                    asset_browser._refreshContent();
-
-                                    this.editor.refreshPresetsRepository = false;
-                                    closeModal(modal);
-                                })
-                            }
-                            break;
-                    }
-                })
-            }
-
-            if(!repository.presets.length) {
-                await this.editor.getAllUnitsFolders("presets", () => {
-                    let values = ANIM.FacePresetClip.facePreset; //["Yes/No-Question", "Negative", "WH-word Questions", "Topic", "RH-Questions"];
-
-                    let asset_data = [];            
-                    // Create a collection of widgets values
-                    for(let i = 0; i < values.length; i++){
-                        let data = { id: values[i], type: "Preset" };
-                        asset_data.push(data);
-                    }
-                    for(let i = 0; i < repository.presets.length; i++) {
-                        if(repository.presets[i].id == "Public" ||repository.presets[i].id == "signon")
-                           repository.presets[i].children = asset_data;
-                    }
-                    closeModal(modal);
-                    loadData();
-                });
-            }
-            else {
-
-                await this.editor.getFolders("presets", () => {
-                    closeModal(modal);
-                    loadData();
-                });
-            }
-        }, { title:'Presets', close: true, minimize: false, size: ["60%", "60%"], scroll: true, resizable: true, draggable: false, modal: true,
-    
-            onclose: (root) => {
-                
-                root.remove();
-                this.prompt = null;
-            }
-        });
-    }
-
-    createSignsDialog() {
-        
-        let that = this;
-        const fs = this.editor.FS;
-        const session = fs.getSession();
-
-        if(this.prompt && this.prompt.root.checkVisibility())
-            return;
-        
-            // Create a new dialog
-        let dialog = this.prompt = new LX.Dialog('Available signs', async (p) => {
-            
-            const innerSelect = async (asset, button, e, action) => {
-                let choice = document.getElementById("choice-insert-mode");
-                if(choice)
-                    choice.remove();
-                switch(button) {
-                    case "Add as single clip":
-                        this.mode = ClipModes.Phrase;
-                        break;
-                    case "Breakdown into glosses":
-                        this.mode = ClipModes.Glosses;
-                        break;
-                    case "Breakdown into action clips":
-                        this.mode = ClipModes.Actions;
-                        break;
-                }
-                that.clipsTimeline.unSelectAllClips();
-                asset.animation.name = asset.id;
-                const modal = this.createLoadingModal();
-
-                
-                this.loadBMLClip(asset.animation)
-                modal.close();
-    
-                asset_browser.clear();
-                dialog.close();
-            }
-
-            let preview_actions = [
-                {
-                    type: "sigml",
-                    name: 'View source', 
-                    callback: this.showSourceCode.bind(this)
-                },
-                {
-                    type: "sigml",
-                    name: 'Add as single clip', 
-                    callback: innerSelect
-                },
-                {
-                    type: "sigml",
-                    name: 'Breakdown into glosses', 
-                    callback: innerSelect
-                },
-                {
-                    type: "sigml",
-                    name: 'Breakdown into action clips', 
-                    callback: innerSelect
-                },
-                {
-                    type: "bml",
-                    name: 'View source', 
-                    callback: this.showSourceCode.bind(this)
-                },
-                {
-                    type: "bml",
-                    name: 'Add as single clip', 
-                    callback: innerSelect
-                },
-                {
-                    type: "bml",
-                    name: 'Breakdown into glosses', 
-                    callback: innerSelect
-                },
-                {
-                    type: "bml",
-                    name: 'Breakdown into action clips', 
-                    callback: innerSelect
-                }
-            ];
-
-            if(session.user.username != "signon") {
-                preview_actions.push(
-                {
-                    type: "sigml",
-                    path: "@/Local",
-                    name: 'Upload to server', 
-                    callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".sigml", item.data, "signs", "server", () => {
-                            this.closeDialogs();
-                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
-                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "bml",
-                    path: "@/Local",
-                    name: 'Upload to server', 
-                    callback: (item)=> {
-                        this.editor.uploadData(item.filename + ".bml", item.data, "signs", "server", () => {
-                            this.closeDialogs();
-                            LX.popup('"' + item.filename + '"' + " uploaded successfully.", "New sign!", {position: [ "10px", "50px"], timeout: 5000});
-                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "sigml",
-                    path: "@/"+ session.user.username,
-                    name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "signs", "server", (v) => {
-                            if(v === true) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Sign removed!", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }
-                            this.closeDialogs();
-                            
-                        });
-                    }
-                });
-                preview_actions.push({
-                    type: "bml",
-                    path: "@/"+ session.user.username,
-                    name: 'Delete', 
-                    callback: (item)=> {
-                        this.editor.deleteData(item.fullpath, "signs", "server", (v) => {
-                            if(v === true) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Sign removed!", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }
-                            this.closeDialogs();
-                            
-                        });
-                    }
-                });
-            }
-            
-            let asset_browser = new LX.AssetView({  allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
-            
-            p.attach( asset_browser );
-            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-            modal.root.id = "loading";
-            const closeModal = (modal ) => {
-                modal.panel.clear();
-                modal.root.remove();
-
-            }
-            
-            const loadData = () => {
-                asset_browser.load( this.editor.repository.signs, e => {
-                    switch(e.type) {
-                        case LX.AssetViewEvent.ASSET_SELECTED: 
-                            //request data
-                            if(e.item.type == "folder") {
-                                return;
-                            }
-                            
-                            if(!e.item.animation) {
-                                this.editor.fileToAnimation(e.item);
-                            }
-                            
-                            if(e.multiple)
-                                console.log("Selected: ", e.item); 
-                            else
-                                console.log(e.item.id + " selected"); 
-                                
-                            break;
-                        case LX.AssetViewEvent.ASSET_DELETED: 
-                            console.log(e.item.id + " deleted"); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_CLONED: 
-                            console.log(e.item.id + " cloned"); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_RENAMED:
-                            console.log(e.item.id + " is now called " + e.value); 
-                            break;
-                        case LX.AssetViewEvent.ASSET_DBLCLICKED: 
-                            if(e.item.type != "folder") {
-                                let choice = new LX.Dialog("Add sign", (p) => {
-                                    if(!e.item.animation) {
-                                        this.editor.fileToAnimation(e.item);
-                                    }
-                                    p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
-                                    p.sameLine(3);
-                                    p.addButton(null, "Add as single clip", (v) => { choice.close(); this.mode = ClipModes.Phrase; this.closeDialogs(); innerSelect(e.item, v);} )
-                                    p.addButton(null, "Breakdown into glosses", (v) => { choice.close(); this.mode = ClipModes.Glosses; this.closeDialogs(); innerSelect(e.item, v);} )
-                                    p.addButton(null, "Breakdown into action clips", (v) => { choice.close(); this.mode = ClipModes.Actions; this.closeDialogs(); innerSelect(e.item, v);} )
-                                }, {modal:true, closable: true, id: "choice-insert-mode"})
-                            }
-                            break;
-
-                        case LX.AssetViewEvent.ENTER_FOLDER:
-                            const session = this.editor.FS.getSession(); 
-                            if(e.item.unit && (!e.item.children.length || this.editor.refreshSignsRepository && e.item.unit == session.user.username )) {
-                                const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-                                modal.root.id = "loading";
-                                this.editor.remoteFileSystem.getFiles(e.item.unit, "animics/signs/" + (e.item.id == e.item.unit ? "" : e.item.id), (files, resp) => {
-                                    let files_data = [];
-                                    if(files) {
-                                        
-                                        for(let f = 0; f < files.length; f++) {
-                                            files[f].id = files[f].filename;
-                                            files[f].folder = e.item;
-                                            files[f].type = UTILS.getExtension(files[f].filename);
-                                            if(files[f].type == "txt")
-                                                continue;
-                                            files_data.push(files[f]);
-                                        }
-                                        e.item.children = files_data;
-                                    }
-                                    asset_browser.currentData = files_data;
-                                    asset_browser._updatePath(asset_browser.currentData);
-
-                                    if(!asset_browser.skip_browser)
-                                        asset_browser._createTreePanel();
-                                    asset_browser._refreshContent();
-
-                                    this.editor.refreshSignsRepository = false;
-                                    closeModal(modal);
-                                })
-                            }
-                            break;
-                    }
-                })
-
-                // if(!this.editor.dictionaries.length) {
-                //     if(!modal)
-                //         modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-                //     setTimeout(loadData.bind(this,modal), 100);
-                // }
-                // else {
-                //     if(modal) {
-                //         modal.panel.clear();
-                //         modal.root.remove();
-                //     }
-                        
-                    
-                // }
-                
-            }
-            
-            if(!this.editor.repository.signs.length) {
-                await this.editor.getAllUnitsFolders("signs", () => {
-                    this.editor.refreshSignsRepository = false;
-                    closeModal(modal);
-                    loadData();
-                });
-            }
-            else {
-
-                await this.editor.getFolders("signs", () => {
-                    this.editor.refreshSignsRepository = false;
-
-                    closeModal(modal);
-                    loadData();
-                });
-            }
-            // }
-            // else {
-            //     closeModal(modal);
-            // }   
-       
-        }, { title:'Signs', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
-    
-            onclose: (root) => {
-                let loadingmodal = document.getElementById("loading")
-                if(loadingmodal)
-                    loadingmodal.remove();
-                root.remove();
-                this.prompt = null;
-                if(!LX.modal.hidden)                 
-                    LX.modal.toggle(true);
-                if(this.choice) this.choice.close()
-            }
-        });
-    }
-
-    createSaveDialog() {
-        this.createNewSignDialog(null, "server");
     }
 
     createServerClipsDialog() {
@@ -4473,17 +3852,20 @@ class ScriptGui extends Gui {
                 }
                 code_editor._changeLanguage( "JSON" );
             }
+
+            
             //from server
             if(asset.fullpath) {
-                const fs = this.editor.FS;
-                LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
-                    const bytesize = f => new Blob([f]).size;
-                    asset.bytesize = bytesize();
-                    asset.animation = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                    asset.animation.behaviours = asset.animation.data;
-                    let text = f.replaceAll('\r', '').replaceAll('\t', '');
-                    setText(text)
-                } });
+                setText(asset.content)
+                // const fs = this.editor.FS;
+                // LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
+                //     const bytesize = f => new Blob([f]).size;
+                //     asset.bytesize = bytesize();
+                //     asset.animation = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                //     asset.animation.behaviours = asset.animation.data;
+                //     let text = f.replaceAll('\r', '').replaceAll('\t', '');
+                //     setText(text)
+                // } });
             } else {
                 //from local
                 asset.animation = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
@@ -4495,6 +3877,33 @@ class ScriptGui extends Gui {
 
     }
 
+//     showSourceCode( asset ) {
+//         if( window.dialog ) {
+//             window.dialog.destroy();
+//         }
+    
+//         window.dialog = new LX.PocketDialog("Editor", p => {
+//             const area = new LX.Area();
+//             p.attach( area );
+
+//             const filename = asset.filename;
+//             const type = asset.type;
+//             const name = filename.replace("."+ type, "");
+                        
+//             const codeEditor = new LX.CodeEditor(area, {
+//                 allow_add_scripts: false,
+//                 name: type,
+//                 title: name,
+//                 disable_edition: true
+//             });
+            
+//             codeEditor.setText( asset.content );
+            
+//             codeEditor._changeLanguage( "JSON" );
+                     
+//         }, { size: ["40%", "600px"], closable: true });
+//     }
+// }
 
     createSceneUI(area) {
 

@@ -1,7 +1,7 @@
 import { KeyframeEditor, ScriptEditor } from "./Editor.js";
 import { VideoProcessor } from "./VideoProcessor.js";
 import { RemoteFileSystem } from "./FileSystem.js";
-import { UTILS } from './utils.js';
+import { UTILS } from './Utils.js';
 
 import { LX } from 'lexgui';
 

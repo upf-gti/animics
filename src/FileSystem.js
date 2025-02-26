@@ -318,11 +318,18 @@ class RemoteFileSystem {
                     const mainFolder = folders.animics[ folder ];
                     if( mainFolder ) {
                         for( let folderc in mainFolder ) {
-                            const data = {id: folderc, type: "folder", folder:  folderc , children: [], unit: unit, fullpath: "animics/"+ folder + "/" + folderc};
+                            const data = {id: folderc, type: "folder", folder:  folderc , children: [], unit: unit, fullpath: "animics/"+ folder + "/" + folderc};                            
                             assets.push( data );
-                        }                    
-                    }                    
-                    foldersData.push( {id: folder, type: "folder", folder: folder , children: assets, unit: unit, fullpath: "animics/"+ folder } )
+                        }
+                    }
+                    const folderData = {id: folder, type: "folder", folder: folder , children: assets, unit: unit, fullpath: "animics/"+ folder };
+                    if( folder == "presets" ) {
+                        folderData.icon = "fa fa-tags";
+                    }
+                    else if( folder == "signs") {
+                        folderData.icon = "fa fa-hands";
+                    }
+                    foldersData.push( folderData )
                 }
                 const data = {id: unit, type: "folder", children: foldersData, unit: unit};
                 this.repository[i] = data;
