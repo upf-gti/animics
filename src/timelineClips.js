@@ -877,8 +877,10 @@ ANIM.registerClipType( FacePresetClip );
 FacePresetClip.prototype.configure = function(o)
 {
 	this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-	if(o.end) this.duration = (o.end - o.start) || 1;
+	if(o.duration) 
+		this.duration = o.duration || 1;
+	if(o.end) 
+		this.duration = (o.end - o.start) || 1;
 	this.properties.preset = o.preset || this.properties.preset;
 	if(FacePresetClip.facePreset.indexOf(this.properties.preset) < 0){
 		FacePresetClip.facePreset.push(this.properties.preset);
@@ -889,8 +891,7 @@ FacePresetClip.prototype.configure = function(o)
 	}
 	// if(o.clips)
 	// 	this.clips = [...o.clips];
-	if(o.properties)
-	{
+	if(o.properties) {
 		Object.assign(this.properties, o.properties);
 		this.id = this.properties.preset + "-" + Math.ceil(getTime());
 	}

@@ -1007,7 +1007,7 @@ class KeyframeEditor extends Editor {
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", children: []}]}];
     }
 
-    onKeyDown ( event ) {
+    onKeyDown( event ) {
         switch( event.key ) {
 
             case 'w': case 'W': // Show/hide propagation window
@@ -1021,12 +1021,12 @@ class KeyframeEditor extends Editor {
             break;
 
             case 'e': case 'E': // Export animation/s
-                if(e.ctrlKey) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-                    this.gui.showExportAnimationsDialog("Export animations", ( format ) => {
-                        this.export( this.getAnimationsToExport(), format );
-                    }, ["BVH", "BVH extended", "GLB"]);
+                if( event.ctrlKey ) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    this.gui.showExportAnimationsDialog("Export animations", ( info ) => {
+                        this.export( this.getAnimationsToExport(), info.format );
+                    }, {formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
                 }
             break;
 
@@ -2409,22 +2409,22 @@ class ScriptEditor extends Editor {
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "presets", type:"folder", children: []}, {id: "signs", type:"folder", children: []}]} ];
     }
 
-    onKeyDown( e ) {
-        switch( e.key ) {
+    onKeyDown( event ) {
+        switch( event.key ) {
             case 'e': case 'E': // Export animation/s
-                if(e.ctrlKey) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-                    this.gui.showExportAnimationsDialog("Export animations", ( format ) => {
-                        this.export( this.getAnimationsToExport(), format );
-                    }, ["BML", "BVH", "BVH extended", "GLB"]);
+                if( event.ctrlKey ) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    this.gui.showExportAnimationsDialog("Export animations", ( info ) => {
+                        this.export( this.getAnimationsToExport(), info.format );
+                    }, {formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
                 }
             break;
 
             case 'b': case 'B': // Add behaviour clips
-                if(e.ctrlKey) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
+                if( event.ctrlKey ) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
                     this.gui.createClipsDialog();
                 }
             break;

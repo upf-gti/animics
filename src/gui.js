@@ -298,12 +298,13 @@ class Gui {
             
     }
 
-    showExportAnimationsDialog(title, callback, options = { formats: [], folders: [] }) {
+    showExportAnimationsDialog(title, callback, options = { formats: [], folders: [], from: [] }) {
         options.modal = true;
 
         let value = "";
         let format = null;
         let folder = null;
+        let from = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             const animations = this.editor.loadedAnimations;
             for( let animationName in animations ) { // animationName is of the source anim (not the bind)
@@ -319,23 +320,32 @@ class Gui {
                 p.endLine();
             }
 
-            if( options.formats.length ) {
-                format = format || options.formats[0];
+            if ( options.from && options.from.length ) {
+                from = from || options.selectedFrom || options.from[0];               
                 const buttons = [];
-                for(let i = 0; i < options.formats.length; i++) {
-                    buttons.push({ value: options.formats[i], callback: (v) => {format = v} });
+                for(let i = 0; i < options.from.length; i++) {
+                    buttons.push({ value: options.from[i], callback: (v) => {from = v} });
                 }
-                p.addComboButtons("Save as", buttons, {selected: format});
+                p.addComboButtons("Save from", buttons, {selected: from});
             }
 
-            if( options.folders.length ) {
-                folder = folder || options.folders[0];
+            if( options.folders && options.folders.length ) {
+                folder = folder || options.selectedFolder || options.folders[0];
                 const buttons = [];
                 for(let i = 0; i < options.folders.length; i++) {
                     buttons.push({ value: options.folders[i], callback: (v) => {folder = v} });
                 }
                 p.addComboButtons("Save in", buttons, {selected: folder});
             }
+
+            if( options.formats && options.formats.length ) {
+                format = format || options.selectedFormat || options.formats[0];
+                const buttons = [];
+                for(let i = 0; i < options.formats.length; i++) {
+                    buttons.push({ value: options.formats[i], callback: (v) => {format = v} });
+                }
+                p.addComboButtons("Save as", buttons, {selected: format});
+            }            
 
             p.sameLine(2);
             p.addButton("", options.accept || "OK", (v, e) => { 
@@ -344,10 +354,10 @@ class Gui {
 
                     text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
                     dialog.close() ;
-                }else {
-
-                    if(callback) {
-                        callback(format, folder);
+                }
+                else {
+                    if( callback ) {
+                        callback({format, folder, from});
                     }
                     dialog.close() ;
                 }
@@ -641,7 +651,7 @@ class KeyframesGui extends Gui {
        
         // Export (download) animation
         menubar.add("Project/Export animations", {short: "CTRL+E", icon: "fa fa-download", callback: () => {            
-            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), {formats: ["BVH", "BVH extended", "GLB"]});
+            this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
         }});
        
         menubar.add("Project/Export videos & landmarks", {icon: "fa fa-file-video", callback: () => this.showExportVideosDialog() });
@@ -1801,13 +1811,13 @@ class KeyframesGui extends Gui {
     }
 
     createSaveDialog() {
-        this.showExportAnimationsDialog( "Save animations in server", (format) => {
+        this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = (location,) => {
-                let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
-                for(let i = 0; i < animations.length; i++) {
+                const animations = this.editor.export(this.editor.getAnimationsToExport(), info.format, false);
+                for( let i = 0; i < animations.length; i++ ) {
                     
-                    this.editor.uploadData(animations[i].name, animations[i].data, "clips", location, () => {
+                    this.editor.uploadData( animations[i].name, animations[i].data, "clips", location, () => {
                         this.closeDialogs();
                         LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                     })
@@ -1832,7 +1842,7 @@ class KeyframesGui extends Gui {
             else {
                 saveDataToServer("server");
             }
-        }, {formats: [ "BVH", "BVH extended"]});
+        }, {formats: [ "BVH", "BVH extended"], selectedFormat: "BVH extended"});
     }
 
     createServerClipsDialog() {
@@ -2186,7 +2196,7 @@ class ScriptGui extends Gui {
         
         // Export (download) animation
         menubar.add("Project/Export animations", {short: "CTRL+E", icon: "fa fa-download", callback: () => {            
-            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
+            this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
         }});
 
         // Save animation in server
@@ -2334,7 +2344,8 @@ class ScriptGui extends Gui {
                                     return -1;
                                 return 1;
                             });
-                            this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
+                            this.createSaveDialog( "presets");
+                            // this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
                         }
                     }
                 )
@@ -2377,9 +2388,8 @@ class ScriptGui extends Gui {
                                         return -1;
                                     return 1;
                                 });
-                                this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");
-                            
-                            
+                                this.createSaveDialog();
+                                // this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");                            
                         }
                     }
                 )
@@ -2689,7 +2699,7 @@ class ScriptGui extends Gui {
             widgets.clear();
             if(!clip) {
                 if(this.clipsTimeline.lastClipsSelected.length > 1) {
-                    widgets.addButton(null, "Create preset", (v, e) => this.createNewPresetDialog());
+                    widgets.addButton(null, "Create preset", (v, e) => this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
                 }
                 return;
             }
@@ -2961,14 +2971,48 @@ class ScriptGui extends Gui {
 
     }
 
-    createSaveDialog() {
-        this.showExportAnimationsDialog( "Save animations in server", (format, folder) => {
+    createSaveDialog( folder ) {
+        this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
-            const saveDataToServer = (location,) => {
-                let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
-                for(let i = 0; i < animations.length; i++) {
+            const saveDataToServer = ( location ) => {
+                let animations = this.editor.export(this.editor.getAnimationsToExport(), info.format, false);
+                if(info.from == "Selected clips") {
+                    this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                        if( a[0]<b[0] ) {
+                            return -1;
+                        }
+                        return 1;
+                    });
                     
-                    this.editor.uploadData(animations[i].name, animations[i].data, folder, location, () => {
+                    const presetData = { clips:[], duration:0 };
+
+                    let globalStart = 10000;
+                    let globalEnd = -10000;
+                    let clips = this.clipsTimeline.lastClipsSelected;
+                    for( let i = 0; i < clips.length; i++ ) {
+                        const [trackIdx, clipIdx] = clips[i];
+                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                        if(clip.ready!=undefined) clip.ready = clip.fadein;
+                        if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                        if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                        if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                        presetData.clips.push(clip);
+                        globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
+                        globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                    }
+                    presetData.duration = globalEnd - globalStart;
+                    presetData.preset = animations[0].name;
+                    const preset = new ANIM.FacePresetClip( presetData );
+    
+                    //Convert data to bml file format
+                    const data = preset.toJSON();
+                    presetData.data = data.clips;
+                    animations = [{name: animations[0].name, data: UTILS.dataToFile(JSON.stringify(presetData.data), animations[0].name, "application/json")}]
+                }
+
+                for( let i = 0; i < animations.length; i++ ) {                    
+                    this.editor.uploadData(animations[i].name, animations[i].data, info.folder, location, () => {
                         this.closeDialogs();
                         LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                     })
@@ -2976,7 +3020,7 @@ class ScriptGui extends Gui {
             }
 
             const user = this.editor.remoteFileSystem.session.user;
-            if(!user || user.username == "guest") {
+            if( !user || user.username == "guest" ) {
                 this.prompt = new LX.Dialog("Alert", d => {
                     d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
                     d.sameLine(2);
@@ -2993,270 +3037,265 @@ class ScriptGui extends Gui {
             else {
                 saveDataToServer("server");
             }
-        }, {formats: [ "BML"], folders:[ "presets", "signs"]} );
+        }, {formats: [ "BML"], folders:["signs",  "presets"], from: ["All clips", "Selected clips"], selectedFolder: folder, selectedFrom: (folder == "signs" ? "All clips" : null) } );
     }
 
 
-   createNewPresetDialog() {
+//    createNewPresetDialog() {
 
-        const saveDialog = this.prompt = new LX.Dialog("Save preset", (p) => {
-            let presetInfo = { from: "Selected clips", type: "presets", server: false, clips:[] };
+//         const saveDialog = this.prompt = new LX.Dialog("Save preset", (p) => {
+//             let presetInfo = { from: "Selected clips", type: "presets", server: false, clips:[] };
 
-            p.addComboButtons("Save from", [{value: "Selected clips", callback: (v) => {
-                presetInfo.from = v;
+//             p.addComboButtons("Save from", [{value: "Selected clips", callback: (v) => {
+//                 presetInfo.from = v;
 
-            }}, {value: "All clips", callback: (v) => {
-                presetInfo.from = v;
-            }}], {selected: presetInfo.from});
-            p.addCheckbox("Upload to server", presetInfo.server, (v) =>  presetInfo.server = v);
+//             }}, {value: "All clips", callback: (v) => {
+//                 presetInfo.from = v;
+//             }}], {selected: presetInfo.from});
+//             p.addCheckbox("Upload to server", presetInfo.server, (v) =>  presetInfo.server = v);
            
-            p.addText("Name", "", (v) => {
-                presetInfo.preset = v;
-            })
-            p.sameLine(2);
-            p.addButton(null, "Cancel", () => this.prompt.close());
-            p.addButton(null, "Save", () => {
+//             p.addText("Name", "", (v) => {
+//                 presetInfo.preset = v;
+//             })
+//             p.sameLine(2);
+//             p.addButton(null, "Cancel", () => this.prompt.close());
+//             p.addButton(null, "Save", () => {
                 
-                let clips = null;
-                let globalStart = 10000;
-                let globalEnd = -10000;
+//                 let clips = null;
+//                 let globalStart = 10000;
+//                 let globalEnd = -10000;
 
-                if(presetInfo.preset === "" || !presetInfo.preset) {
-                    alert("You have to write a name.");
-                    return;
-                }
-                if(!presetInfo.clips.length) {
-                    if(presetInfo.from == "Selected clips") {
-                        this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                            if(a[0]<b[0]) 
-                                return -1;
-                            return 1;
-                        });
+//                 if(presetInfo.preset === "" || !presetInfo.preset) {
+//                     alert("You have to write a name.");
+//                     return;
+//                 }
+//                 if(!presetInfo.clips.length) {
+//                     if(presetInfo.from == "Selected clips") {
+//                         this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+//                             if(a[0]<b[0]) 
+//                                 return -1;
+//                             return 1;
+//                         });
                         
-                        clips = this.clipsTimeline.lastClipsSelected;
-                        for(let i = 0; i < clips.length; i++){
-                            const [trackIdx, clipIdx] = clips[i];
-                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                            if(clip.ready!=undefined) clip.ready = clip.fadein;
-                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                            presetInfo.clips.push(clip);
-                            globalStart = Math.min(globalStart, clip.start || globalStart);
-                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                        }
-                    } 
-                    else {
-                        const tracks = this.clipsTimeline.animationClip.tracks;
-                        for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-                            for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
-                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                                if(clip.ready!=undefined) clip.ready = clip.fadein;
-                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                                presetInfo.clips.push(clip);
-                                globalStart = Math.min(globalStart, clip.start || globalStart);
-                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                            }
-                        }
-                    }
+//                         clips = this.clipsTimeline.lastClipsSelected;
+//                         for(let i = 0; i < clips.length; i++){
+//                             const [trackIdx, clipIdx] = clips[i];
+//                             const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+//                             if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+//                             if(clip.ready!=undefined) clip.ready = clip.fadein;
+//                             if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+//                             if(clip.relax!=undefined) clip.relax = clip.fadeout;
+//                             if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+//                             presetInfo.clips.push(clip);
+//                             globalStart = Math.min(globalStart, clip.start || globalStart);
+//                             globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+//                         }
+//                     } 
+//                     else {
+//                         const tracks = this.clipsTimeline.animationClip.tracks;
+//                         for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+//                             for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+//                                 if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
+//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
+//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+//                                 presetInfo.clips.push(clip);
+//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
+//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+//                             }
+//                         }
+//                     }
                     
-                    presetInfo.duration = globalEnd - globalStart;
-                    let preset = new ANIM.FacePresetClip(presetInfo);
+//                     presetInfo.duration = globalEnd - globalStart;
+//                     let preset = new ANIM.FacePresetClip(presetInfo);
     
-                    //Convert data to bml file format
-                    let data = preset.toJSON();
-                    presetInfo.clips = data.clips;
-                }
+//                     //Convert data to bml file format
+//                     let data = preset.toJSON();
+//                     presetInfo.clips = data.clips;
+//                 }
                 
-                if(!presetInfo.clips.length) {
-                    alert("You can't create an empty preset.")
-                    return;
-                }
-                const session = this.editor.FS.getSession();
-                if(!presetInfo.server) {
-                    this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
-                        saveDialog.close()
-                        this.closeDialogs();
-                        LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
-                        // this.repository.presets[1] = this.localStorage.presets;
-                    });
-                }
-                else if(!session.user || session.user.username == "signon") {
-                    let alert = new LX.Dialog("Alert", d => {
-                        d.addText(null, "The preset will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                        d.sameLine(2);
-                        d.addButton(null, "Login", () => {
-                            this.showLoginModal();
-                            alert.close();
-                        })
-                        d.addButton(null, "Ok", () => {
-                            this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
-                                saveDialog.close();
-                                this.closeDialogs();
-                                alert.close();
-                                LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
-                                // this.repository.presets[1] = this.localStorage.presets;
-                            });
-                        })
-                    }, {closable: true, modal: true})
-                }
-                else {
-                    this.editor.uploadData(presetInfo.preset + ".bml", presetInfo.clips, presetInfo.type, "server", (filename) => {
-                        saveDialog.close()
-                        this.closeDialogs();
-                        LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+//                 if(!presetInfo.clips.length) {
+//                     alert("You can't create an empty preset.")
+//                     return;
+//                 }
+//                 const session = this.editor.FS.getSession();
+//                 if(!presetInfo.server) {
+//                     this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
+//                         saveDialog.close()
+//                         this.closeDialogs();
+//                         LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+//                         // this.repository.presets[1] = this.localStorage.presets;
+//                     });
+//                 }
+//                 else if(!session.user || session.user.username == "signon") {
+//                     let alert = new LX.Dialog("Alert", d => {
+//                         d.addText(null, "The preset will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+//                         d.sameLine(2);
+//                         d.addButton(null, "Login", () => {
+//                             this.showLoginModal();
+//                             alert.close();
+//                         })
+//                         d.addButton(null, "Ok", () => {
+//                             this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
+//                                 saveDialog.close();
+//                                 this.closeDialogs();
+//                                 alert.close();
+//                                 LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+//                                 // this.repository.presets[1] = this.localStorage.presets;
+//                             });
+//                         })
+//                     }, {closable: true, modal: true})
+//                 }
+//                 else {
+//                     this.editor.uploadData(presetInfo.preset + ".bml", presetInfo.clips, presetInfo.type, "server", (filename) => {
+//                         saveDialog.close()
+//                         this.closeDialogs();
+//                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
                         
-                    });
-                }
+//                     });
+//                 }
 
-            }, { buttonClass: "accept" });
-        }, {modal: true, closable: true,  onclose: (root) => {
+//             }, { buttonClass: "accept" });
+//         }, {modal: true, closable: true,  onclose: (root) => {
                         
-            root.remove();
-            this.prompt = null;
-        } });
+//             root.remove();
+//             this.prompt = null;
+//         } });
 
        
-    }
+//     }
 
-   createNewSignDialog(clips, location) {
+//    createNewSignDialog(clips, location) {
         
-        const saveDialog = this.prompt = new LX.Dialog("Save animation", (p) => {
-            let signInfo = {clips:[], type: "signs"};
+//         const saveDialog = this.prompt = new LX.Dialog("Save animation", (p) => {
+//             let signInfo = {clips:[], type: "signs"};
 
-            p.addText("Sign name", "", (v) => {
-                signInfo.id = v;
-            })
-            p.sameLine(2);
-            p.addButton(null, "Cancel", () => this.prompt.close());
-            p.addButton(null, "Save", () => {
+//             p.addText("Sign name", "", (v) => {
+//                 signInfo.id = v;
+//             })
+//             p.sameLine(2);
+//             p.addButton(null, "Cancel", () => this.prompt.close());
+//             p.addButton(null, "Save", () => {
 
-                if(signInfo.id === "" || !signInfo.id) {
-                    alert("You have to write a name.")
-                    return;
-                }
-                if(!signInfo.clips.length) {
-                    let globalStart = 10000;
-                    let globalEnd = -10000;
+//                 if(signInfo.id === "" || !signInfo.id) {
+//                     alert("You have to write a name.")
+//                     return;
+//                 }
+//                 if(!signInfo.clips.length) {
+//                     let globalStart = 10000;
+//                     let globalEnd = -10000;
 
-                    const tracks = this.clipsTimeline.animationClip.tracks;
-                    if(clips) {
-                        for(let i = 0; i < clips.length; i++){
-                                let [trackIdx, clipIdx] = clips[i];
-                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                                if(clip.ready!=undefined) clip.ready = clip.fadein;
-                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                                signInfo.clips.push(clip);
-                                globalStart = Math.min(globalStart, clip.start || globalStart);
-                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                        }
-                    }
-                    else {
-                        for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-                            for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
-                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                                if(clip.ready!=undefined) clip.ready = clip.fadein;
-                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                                signInfo.clips.push(clip);
-                                globalStart = Math.min(globalStart, clip.start || globalStart);
-                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                            }
-                        }
-                    }
+//                     const tracks = this.clipsTimeline.animationClip.tracks;
+//                     if(clips) {
+//                         for(let i = 0; i < clips.length; i++){
+//                                 let [trackIdx, clipIdx] = clips[i];
+//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+//                                 if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
+//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
+//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+//                                 signInfo.clips.push(clip);
+//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
+//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+//                         }
+//                     }
+//                     else {
+//                         for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+//                             for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+//                             if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
+//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
+//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+//                                 signInfo.clips.push(clip);
+//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
+//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+//                             }
+//                         }
+//                     }
                     
-                    signInfo.duration = globalEnd - globalStart;
-                    let sign = new ANIM.SuperClip(signInfo);
+//                     signInfo.duration = globalEnd - globalStart;
+//                     let sign = new ANIM.SuperClip(signInfo);
 
-                    //Convert data to bml file format
-                    let data = sign.toJSON();
-                    delete data.id;
-                    delete data.start;
-                    delete data.end;
-                    delete data.type;
-                    let bml = [];
-                    for(let b in data) {
-                        if(b == "glossa") {
+//                     //Convert data to bml file format
+//                     let data = sign.toJSON();
+//                     delete data.id;
+//                     delete data.start;
+//                     delete data.end;
+//                     delete data.type;
+//                     let bml = [];
+//                     for(let b in data) {
+//                         if(b == "glossa") {
 
-                            delete data[b].id;
-                            delete data[b].start;
-                            delete data[b].end;
-                            delete data[b].type;
-                            for(let i = 0; i < data[b].length; i++) {
-                                delete data[b][i].id;
-                                delete data[b][i].start;
-                                delete data[b][i].end;
-                                delete data[b][i].type;
-                                for(let g in data[b][i]) {
+//                             delete data[b].id;
+//                             delete data[b].start;
+//                             delete data[b].end;
+//                             delete data[b].type;
+//                             for(let i = 0; i < data[b].length; i++) {
+//                                 delete data[b][i].id;
+//                                 delete data[b][i].start;
+//                                 delete data[b][i].end;
+//                                 delete data[b][i].type;
+//                                 for(let g in data[b][i]) {
 
-                                    bml = [...bml, ...data[b][i][g]];
-                                }
-                            }
-                        }
-                        else
-                            bml = [...bml, ...data[b]];
-                    }
-                    signInfo.clips = bml;
-                }
+//                                     bml = [...bml, ...data[b][i][g]];
+//                                 }
+//                             }
+//                         }
+//                         else
+//                             bml = [...bml, ...data[b]];
+//                     }
+//                     signInfo.clips = bml;
+//                 }
 
-                if(!signInfo.clips.length) {
-                    alert("You can't save an animation with empty tracks.")
-                    return;
-                }
-                const session = this.editor.FS.getSession();
-                if(!session.user || session.user.username == "signon") {
-                    let alert = new LX.Dialog("Alert", d => {
-                        d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                        d.sameLine(2);
-                        d.addButton(null, "Login", () => {
-                            this.showLoginModal();
-                            alert.close();
-                        })
-                        d.addButton(null, "Ok", () => {
-                            this.editor.uploadData(signInfo.id + ".bml", signInfo.clips , signInfo.type,  "local", (filename) => {
-                                saveDialog.close();
-                                this.closeDialogs();
-                                alert.close();
-                                LX.popup('"' + filename + '"' + " created successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
-                                // this.repository.presets[1] = this.localStorage.presets;
-                            });
-                        })
-                    }, {closable: true, modal: true})
+//                 if(!signInfo.clips.length) {
+//                     alert("You can't save an animation with empty tracks.")
+//                     return;
+//                 }
+//                 const session = this.editor.FS.getSession();
+//                 if(!session.user || session.user.username == "signon") {
+//                     let alert = new LX.Dialog("Alert", d => {
+//                         d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+//                         d.sameLine(2);
+//                         d.addButton(null, "Login", () => {
+//                             this.showLoginModal();
+//                             alert.close();
+//                         })
+//                         d.addButton(null, "Ok", () => {
+//                             this.editor.uploadData(signInfo.id + ".bml", signInfo.clips , signInfo.type,  "local", (filename) => {
+//                                 saveDialog.close();
+//                                 this.closeDialogs();
+//                                 alert.close();
+//                                 LX.popup('"' + filename + '"' + " created successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+//                                 // this.repository.presets[1] = this.localStorage.presets;
+//                             });
+//                         })
+//                     }, {closable: true, modal: true})
                     
-                }
-                else {
-                    this.editor.uploadData(signInfo.id + ".bml", signInfo.clips, signInfo.type, "server", (filename) => {
-                        saveDialog.close()
-                        this.closeDialogs();
-                        LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+//                 }
+//                 else {
+//                     this.editor.uploadData(signInfo.id + ".bml", signInfo.clips, signInfo.type, "server", (filename) => {
+//                         saveDialog.close()
+//                         this.closeDialogs();
+//                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
                         
-                    });
-                }
-            },
-            {
-                onclose: (root) => {
+//                     });
+//                 }
+//             },
+//             {
+//                 onclose: (root) => {
                 
-                    root.remove();
-                    this.prompt = null;
-                }, 
-                buttonClass: "accept" 
-            } )
-        }, {modal: true, closable: true})
-    }
-
-        
-    // createSaveDialog() {
-    //     this.createNewSignDialog(null, "server");
-    // }
+//                     root.remove();
+//                     this.prompt = null;
+//                 }, 
+//                 buttonClass: "accept" 
+//             } )
+//         }, {modal: true, closable: true})
+//     }
 
     createClipsDialog() {
         // Create a new dialog
