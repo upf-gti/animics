@@ -298,12 +298,13 @@ class Gui {
             
     }
 
-    showExportAnimationsDialog(title, callback, options = { formats: [], folders: [] }) {
+    showExportAnimationsDialog(title, callback, options = { formats: [], folders: [], from: [] }) {
         options.modal = true;
 
         let value = "";
         let format = null;
         let folder = null;
+        let from = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             const animations = this.editor.loadedAnimations;
             for( let animationName in animations ) { // animationName is of the source anim (not the bind)
@@ -319,23 +320,32 @@ class Gui {
                 p.endLine();
             }
 
-            if( options.formats.length ) {
-                format = format || options.formats[0];
+            if ( options.from && options.from.length ) {
+                from = from || options.selectedFrom || options.from[0];               
                 const buttons = [];
-                for(let i = 0; i < options.formats.length; i++) {
-                    buttons.push({ value: options.formats[i], callback: (v) => {format = v} });
+                for(let i = 0; i < options.from.length; i++) {
+                    buttons.push({ value: options.from[i], callback: (v) => {from = v} });
                 }
-                p.addComboButtons("Save as", buttons, {selected: format});
+                p.addComboButtons("Save from", buttons, {selected: from});
             }
 
-            if( options.folders.length ) {
-                folder = folder || options.folders[0];
+            if( options.folders && options.folders.length ) {
+                folder = folder || options.selectedFolder || options.folders[0];
                 const buttons = [];
                 for(let i = 0; i < options.folders.length; i++) {
                     buttons.push({ value: options.folders[i], callback: (v) => {folder = v} });
                 }
                 p.addComboButtons("Save in", buttons, {selected: folder});
             }
+
+            if( options.formats && options.formats.length ) {
+                format = format || options.selectedFormat || options.formats[0];
+                const buttons = [];
+                for(let i = 0; i < options.formats.length; i++) {
+                    buttons.push({ value: options.formats[i], callback: (v) => {format = v} });
+                }
+                p.addComboButtons("Save as", buttons, {selected: format});
+            }            
 
             p.sameLine(2);
             p.addButton("", options.accept || "OK", (v, e) => { 
@@ -344,10 +354,10 @@ class Gui {
 
                     text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
                     dialog.close() ;
-                }else {
-
-                    if(callback) {
-                        callback(format, folder);
+                }
+                else {
+                    if( callback ) {
+                        callback({format, folder, from});
                     }
                     dialog.close() ;
                 }
@@ -641,7 +651,7 @@ class KeyframesGui extends Gui {
        
         // Export (download) animation
         menubar.add("Project/Export animations", {short: "CTRL+E", icon: "fa fa-download", callback: () => {            
-            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), {formats: ["BVH", "BVH extended", "GLB"]});
+            this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
         }});
        
         menubar.add("Project/Export videos & landmarks", {icon: "fa fa-file-video", callback: () => this.showExportVideosDialog() });
@@ -1801,13 +1811,13 @@ class KeyframesGui extends Gui {
     }
 
     createSaveDialog() {
-        this.showExportAnimationsDialog( "Save animations in server", (format) => {
+        this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = (location,) => {
-                let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
-                for(let i = 0; i < animations.length; i++) {
+                const animations = this.editor.export(this.editor.getAnimationsToExport(), info.format, false);
+                for( let i = 0; i < animations.length; i++ ) {
                     
-                    this.editor.uploadData(animations[i].name, animations[i].data, "clips", location, () => {
+                    this.editor.uploadData( animations[i].name, animations[i].data, "clips", location, () => {
                         this.closeDialogs();
                         LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                     })
@@ -1832,7 +1842,7 @@ class KeyframesGui extends Gui {
             else {
                 saveDataToServer("server");
             }
-        }, {formats: [ "BVH", "BVH extended"]});
+        }, {formats: [ "BVH", "BVH extended"], selectedFormat: "BVH extended"});
     }
 
     createServerClipsDialog() {
@@ -1881,7 +1891,12 @@ class KeyframesGui extends Gui {
                 dialog.close();
             }
 
-            const preview_actions = [
+            const previewActions = [
+                {
+                    type: "bvh",
+                    name: 'View source', 
+                    callback: this.showSourceCode.bind(this)
+                },
                 {
                     type: "bvh",
                     name: 'Add as single clip', 
@@ -1893,7 +1908,7 @@ class KeyframesGui extends Gui {
                     callback: innerSelect
                 },
                 {
-                    type: "bvh",
+                    type: "bvhe",
                     name: 'View source', 
                     callback: this.showSourceCode.bind(this)
                 },
@@ -1907,15 +1922,10 @@ class KeyframesGui extends Gui {
                     name: 'Breakdown into keyframes', 
                     callback: innerSelect
                 },                
-                {
-                    type: "bvhe",
-                    name: 'View source', 
-                    callback: this.showSourceCode.bind(this)
-                }
             ];
 
-            if(user.username != "guest") {
-                preview_actions.push(
+            if( user.username != "guest" ) {
+                previewActions.push(
                 {
                     type: "bvh",
                     path: "@/Local/clips",
@@ -1928,7 +1938,7 @@ class KeyframesGui extends Gui {
                         });
                     }
                 });
-                preview_actions.push({
+                previewActions.push({
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Upload to server', 
@@ -1940,7 +1950,7 @@ class KeyframesGui extends Gui {
                         });
                     }
                 });
-                preview_actions.push({
+                previewActions.push({
                     type: "bvh",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -1950,7 +1960,7 @@ class KeyframesGui extends Gui {
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));  
                     }
                 });
-                preview_actions.push({
+                previewActions.push({
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -1960,7 +1970,7 @@ class KeyframesGui extends Gui {
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));                        
                     }
                 });             
-                preview_actions.push({
+                previewActions.push({
                     type: "bvh",
                     path: "@/"+ user.username + "/clips",
                     name: 'Delete', 
@@ -1979,7 +1989,7 @@ class KeyframesGui extends Gui {
                         });
                     }
                 });
-                preview_actions.push({
+                previewActions.push({
                     type: "bvhe",
                     path: "@/"+ user.username + "/clips",
                     name: 'Delete', 
@@ -2000,7 +2010,7 @@ class KeyframesGui extends Gui {
                 });            
             }
             
-            const assetViewer = new LX.AssetView({  allowed_types: ["bvh", "bvhe", "glb", "gltf"],  preview_actions: preview_actions, context_menu: false});
+            const assetViewer = new LX.AssetView({  allowedTypes: ["bvh", "bvhe", "glb", "gltf"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
             
             const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
@@ -2117,6 +2127,7 @@ class KeyframesGui extends Gui {
                                     files[f].id = files[f].filename;
                                     files[f].folder = e.item;
                                     files[f].type = UTILS.getExtension(files[f].filename);
+                                    files[f].lastModified = files[f].timestamp;
                                     if(files[f].type == "txt")
                                         continue;
                                     files_data.push(files[f]);
@@ -2126,7 +2137,7 @@ class KeyframesGui extends Gui {
                             assetViewer.currentData = files_data;
                             assetViewer._updatePath(assetViewer.currentData);
 
-                            if( !assetViewer.skip_browser ) {
+                            if( !assetViewer.skipBrowser ) {
                                 assetViewer._createTreePanel();
                             }
 
@@ -2186,7 +2197,7 @@ class ScriptGui extends Gui {
         
         // Export (download) animation
         menubar.add("Project/Export animations", {short: "CTRL+E", icon: "fa fa-download", callback: () => {            
-            this.showExportAnimationsDialog("Export animations", ( format ) => this.editor.export( this.editor.getAnimationsToExport(), format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
+            this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
         }});
 
         // Save animation in server
@@ -2334,7 +2345,8 @@ class ScriptGui extends Gui {
                                     return -1;
                                 return 1;
                             });
-                            this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
+                            this.createSaveDialog( "presets");
+                            // this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
                         }
                     }
                 )
@@ -2377,9 +2389,8 @@ class ScriptGui extends Gui {
                                         return -1;
                                     return 1;
                                 });
-                                this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");
-                            
-                            
+                                this.createSaveDialog();
+                                // this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");                            
                         }
                     }
                 )
@@ -2689,7 +2700,7 @@ class ScriptGui extends Gui {
             widgets.clear();
             if(!clip) {
                 if(this.clipsTimeline.lastClipsSelected.length > 1) {
-                    widgets.addButton(null, "Create preset", (v, e) => this.createNewPresetDialog());
+                    widgets.addButton(null, "Create preset", (v, e) => this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
                 }
                 return;
             }
@@ -2946,11 +2957,10 @@ class ScriptGui extends Gui {
         
     }
 
-    showGuide() {
-        
+    showGuide() {       
         this.prompt = new LX.Dialog("How to start?", (p) =>{
             p.addText(null, "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard.", null, {disabled: true, height: "50%"})
-            p.addText(null, "Go to Menubar/Timeline/Shortcuts/ for more information about the tool.", null, {disabled: true, height: "50%"})
+            p.addText(null, "Go to 'Help' for more information about the application.", null, {disabled: true, height: "50%"})
         }, {closable: true, onclose: (root) => {
             root.remove();
             this.prompt = null;
@@ -2961,14 +2971,48 @@ class ScriptGui extends Gui {
 
     }
 
-    createSaveDialog() {
-        this.showExportAnimationsDialog( "Save animations in server", (format, folder) => {
+    createSaveDialog( folder ) {
+        this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
-            const saveDataToServer = (location,) => {
-                let animations = this.editor.export(this.editor.getAnimationsToExport(), format, false);
-                for(let i = 0; i < animations.length; i++) {
+            const saveDataToServer = ( location ) => {
+                let animations = this.editor.export(this.editor.getAnimationsToExport(), info.format, false);
+                if(info.from == "Selected clips") {
+                    this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                        if( a[0]<b[0] ) {
+                            return -1;
+                        }
+                        return 1;
+                    });
                     
-                    this.editor.uploadData(animations[i].name, animations[i].data, folder, location, () => {
+                    const presetData = { clips:[], duration:0 };
+
+                    let globalStart = 10000;
+                    let globalEnd = -10000;
+                    let clips = this.clipsTimeline.lastClipsSelected;
+                    for( let i = 0; i < clips.length; i++ ) {
+                        const [trackIdx, clipIdx] = clips[i];
+                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                        if(clip.ready!=undefined) clip.ready = clip.fadein;
+                        if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                        if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                        if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                        presetData.clips.push(clip);
+                        globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
+                        globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                    }
+                    presetData.duration = globalEnd - globalStart;
+                    presetData.preset = animations[0].name;
+                    const preset = new ANIM.FacePresetClip( presetData );
+    
+                    //Convert data to bml file format
+                    const data = preset.toJSON();
+                    presetData.data = data.clips;
+                    animations = [{name: animations[0].name, data: UTILS.dataToFile(JSON.stringify(presetData.data), animations[0].name, "application/json")}]
+                }
+
+                for( let i = 0; i < animations.length; i++ ) {                    
+                    this.editor.uploadData(animations[i].name, animations[i].data, info.folder, location, () => {
                         this.closeDialogs();
                         LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                     })
@@ -2976,7 +3020,7 @@ class ScriptGui extends Gui {
             }
 
             const user = this.editor.remoteFileSystem.session.user;
-            if(!user || user.username == "guest") {
+            if( !user || user.username == "guest" ) {
                 this.prompt = new LX.Dialog("Alert", d => {
                     d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
                     d.sameLine(2);
@@ -2993,270 +3037,265 @@ class ScriptGui extends Gui {
             else {
                 saveDataToServer("server");
             }
-        }, {formats: [ "BML"], folders:[ "presets", "signs"]} );
+        }, {formats: [ "BML"], folders:["signs",  "presets"], from: ["All clips", "Selected clips"], selectedFolder: folder, selectedFrom: (folder == "signs" ? "All clips" : null) } );
     }
 
 
-   createNewPresetDialog() {
+//    createNewPresetDialog() {
 
-        const saveDialog = this.prompt = new LX.Dialog("Save preset", (p) => {
-            let presetInfo = { from: "Selected clips", type: "presets", server: false, clips:[] };
+//         const saveDialog = this.prompt = new LX.Dialog("Save preset", (p) => {
+//             let presetInfo = { from: "Selected clips", type: "presets", server: false, clips:[] };
 
-            p.addComboButtons("Save from", [{value: "Selected clips", callback: (v) => {
-                presetInfo.from = v;
+//             p.addComboButtons("Save from", [{value: "Selected clips", callback: (v) => {
+//                 presetInfo.from = v;
 
-            }}, {value: "All clips", callback: (v) => {
-                presetInfo.from = v;
-            }}], {selected: presetInfo.from});
-            p.addCheckbox("Upload to server", presetInfo.server, (v) =>  presetInfo.server = v);
+//             }}, {value: "All clips", callback: (v) => {
+//                 presetInfo.from = v;
+//             }}], {selected: presetInfo.from});
+//             p.addCheckbox("Upload to server", presetInfo.server, (v) =>  presetInfo.server = v);
            
-            p.addText("Name", "", (v) => {
-                presetInfo.preset = v;
-            })
-            p.sameLine(2);
-            p.addButton(null, "Cancel", () => this.prompt.close());
-            p.addButton(null, "Save", () => {
+//             p.addText("Name", "", (v) => {
+//                 presetInfo.preset = v;
+//             })
+//             p.sameLine(2);
+//             p.addButton(null, "Cancel", () => this.prompt.close());
+//             p.addButton(null, "Save", () => {
                 
-                let clips = null;
-                let globalStart = 10000;
-                let globalEnd = -10000;
+//                 let clips = null;
+//                 let globalStart = 10000;
+//                 let globalEnd = -10000;
 
-                if(presetInfo.preset === "" || !presetInfo.preset) {
-                    alert("You have to write a name.");
-                    return;
-                }
-                if(!presetInfo.clips.length) {
-                    if(presetInfo.from == "Selected clips") {
-                        this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                            if(a[0]<b[0]) 
-                                return -1;
-                            return 1;
-                        });
+//                 if(presetInfo.preset === "" || !presetInfo.preset) {
+//                     alert("You have to write a name.");
+//                     return;
+//                 }
+//                 if(!presetInfo.clips.length) {
+//                     if(presetInfo.from == "Selected clips") {
+//                         this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+//                             if(a[0]<b[0]) 
+//                                 return -1;
+//                             return 1;
+//                         });
                         
-                        clips = this.clipsTimeline.lastClipsSelected;
-                        for(let i = 0; i < clips.length; i++){
-                            const [trackIdx, clipIdx] = clips[i];
-                            const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                            if(clip.ready!=undefined) clip.ready = clip.fadein;
-                            if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                            if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                            if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                            presetInfo.clips.push(clip);
-                            globalStart = Math.min(globalStart, clip.start || globalStart);
-                            globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                        }
-                    } 
-                    else {
-                        const tracks = this.clipsTimeline.animationClip.tracks;
-                        for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-                            for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
-                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                                if(clip.ready!=undefined) clip.ready = clip.fadein;
-                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                                presetInfo.clips.push(clip);
-                                globalStart = Math.min(globalStart, clip.start || globalStart);
-                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                            }
-                        }
-                    }
+//                         clips = this.clipsTimeline.lastClipsSelected;
+//                         for(let i = 0; i < clips.length; i++){
+//                             const [trackIdx, clipIdx] = clips[i];
+//                             const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+//                             if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+//                             if(clip.ready!=undefined) clip.ready = clip.fadein;
+//                             if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+//                             if(clip.relax!=undefined) clip.relax = clip.fadeout;
+//                             if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+//                             presetInfo.clips.push(clip);
+//                             globalStart = Math.min(globalStart, clip.start || globalStart);
+//                             globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+//                         }
+//                     } 
+//                     else {
+//                         const tracks = this.clipsTimeline.animationClip.tracks;
+//                         for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+//                             for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+//                                 if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
+//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
+//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+//                                 presetInfo.clips.push(clip);
+//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
+//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+//                             }
+//                         }
+//                     }
                     
-                    presetInfo.duration = globalEnd - globalStart;
-                    let preset = new ANIM.FacePresetClip(presetInfo);
+//                     presetInfo.duration = globalEnd - globalStart;
+//                     let preset = new ANIM.FacePresetClip(presetInfo);
     
-                    //Convert data to bml file format
-                    let data = preset.toJSON();
-                    presetInfo.clips = data.clips;
-                }
+//                     //Convert data to bml file format
+//                     let data = preset.toJSON();
+//                     presetInfo.clips = data.clips;
+//                 }
                 
-                if(!presetInfo.clips.length) {
-                    alert("You can't create an empty preset.")
-                    return;
-                }
-                const session = this.editor.FS.getSession();
-                if(!presetInfo.server) {
-                    this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
-                        saveDialog.close()
-                        this.closeDialogs();
-                        LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
-                        // this.repository.presets[1] = this.localStorage.presets;
-                    });
-                }
-                else if(!session.user || session.user.username == "signon") {
-                    let alert = new LX.Dialog("Alert", d => {
-                        d.addText(null, "The preset will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                        d.sameLine(2);
-                        d.addButton(null, "Login", () => {
-                            this.showLoginModal();
-                            alert.close();
-                        })
-                        d.addButton(null, "Ok", () => {
-                            this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
-                                saveDialog.close();
-                                this.closeDialogs();
-                                alert.close();
-                                LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
-                                // this.repository.presets[1] = this.localStorage.presets;
-                            });
-                        })
-                    }, {closable: true, modal: true})
-                }
-                else {
-                    this.editor.uploadData(presetInfo.preset + ".bml", presetInfo.clips, presetInfo.type, "server", (filename) => {
-                        saveDialog.close()
-                        this.closeDialogs();
-                        LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+//                 if(!presetInfo.clips.length) {
+//                     alert("You can't create an empty preset.")
+//                     return;
+//                 }
+//                 const session = this.editor.FS.getSession();
+//                 if(!presetInfo.server) {
+//                     this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
+//                         saveDialog.close()
+//                         this.closeDialogs();
+//                         LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+//                         // this.repository.presets[1] = this.localStorage.presets;
+//                     });
+//                 }
+//                 else if(!session.user || session.user.username == "signon") {
+//                     let alert = new LX.Dialog("Alert", d => {
+//                         d.addText(null, "The preset will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+//                         d.sameLine(2);
+//                         d.addButton(null, "Login", () => {
+//                             this.showLoginModal();
+//                             alert.close();
+//                         })
+//                         d.addButton(null, "Ok", () => {
+//                             this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
+//                                 saveDialog.close();
+//                                 this.closeDialogs();
+//                                 alert.close();
+//                                 LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
+//                                 // this.repository.presets[1] = this.localStorage.presets;
+//                             });
+//                         })
+//                     }, {closable: true, modal: true})
+//                 }
+//                 else {
+//                     this.editor.uploadData(presetInfo.preset + ".bml", presetInfo.clips, presetInfo.type, "server", (filename) => {
+//                         saveDialog.close()
+//                         this.closeDialogs();
+//                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
                         
-                    });
-                }
+//                     });
+//                 }
 
-            }, { buttonClass: "accept" });
-        }, {modal: true, closable: true,  onclose: (root) => {
+//             }, { buttonClass: "accept" });
+//         }, {modal: true, closable: true,  onclose: (root) => {
                         
-            root.remove();
-            this.prompt = null;
-        } });
+//             root.remove();
+//             this.prompt = null;
+//         } });
 
        
-    }
+//     }
 
-   createNewSignDialog(clips, location) {
+//    createNewSignDialog(clips, location) {
         
-        const saveDialog = this.prompt = new LX.Dialog("Save animation", (p) => {
-            let signInfo = {clips:[], type: "signs"};
+//         const saveDialog = this.prompt = new LX.Dialog("Save animation", (p) => {
+//             let signInfo = {clips:[], type: "signs"};
 
-            p.addText("Sign name", "", (v) => {
-                signInfo.id = v;
-            })
-            p.sameLine(2);
-            p.addButton(null, "Cancel", () => this.prompt.close());
-            p.addButton(null, "Save", () => {
+//             p.addText("Sign name", "", (v) => {
+//                 signInfo.id = v;
+//             })
+//             p.sameLine(2);
+//             p.addButton(null, "Cancel", () => this.prompt.close());
+//             p.addButton(null, "Save", () => {
 
-                if(signInfo.id === "" || !signInfo.id) {
-                    alert("You have to write a name.")
-                    return;
-                }
-                if(!signInfo.clips.length) {
-                    let globalStart = 10000;
-                    let globalEnd = -10000;
+//                 if(signInfo.id === "" || !signInfo.id) {
+//                     alert("You have to write a name.")
+//                     return;
+//                 }
+//                 if(!signInfo.clips.length) {
+//                     let globalStart = 10000;
+//                     let globalEnd = -10000;
 
-                    const tracks = this.clipsTimeline.animationClip.tracks;
-                    if(clips) {
-                        for(let i = 0; i < clips.length; i++){
-                                let [trackIdx, clipIdx] = clips[i];
-                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                                if(clip.ready!=undefined) clip.ready = clip.fadein;
-                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                                signInfo.clips.push(clip);
-                                globalStart = Math.min(globalStart, clip.start || globalStart);
-                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                        }
-                    }
-                    else {
-                        for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-                            for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
-                                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                            if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                                if(clip.ready!=undefined) clip.ready = clip.fadein;
-                                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                                if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                                signInfo.clips.push(clip);
-                                globalStart = Math.min(globalStart, clip.start || globalStart);
-                                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                            }
-                        }
-                    }
+//                     const tracks = this.clipsTimeline.animationClip.tracks;
+//                     if(clips) {
+//                         for(let i = 0; i < clips.length; i++){
+//                                 let [trackIdx, clipIdx] = clips[i];
+//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+//                                 if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
+//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
+//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+//                                 signInfo.clips.push(clip);
+//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
+//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+//                         }
+//                     }
+//                     else {
+//                         for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
+//                             for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
+//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+//                             if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
+//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
+//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+//                                 signInfo.clips.push(clip);
+//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
+//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+//                             }
+//                         }
+//                     }
                     
-                    signInfo.duration = globalEnd - globalStart;
-                    let sign = new ANIM.SuperClip(signInfo);
+//                     signInfo.duration = globalEnd - globalStart;
+//                     let sign = new ANIM.SuperClip(signInfo);
 
-                    //Convert data to bml file format
-                    let data = sign.toJSON();
-                    delete data.id;
-                    delete data.start;
-                    delete data.end;
-                    delete data.type;
-                    let bml = [];
-                    for(let b in data) {
-                        if(b == "glossa") {
+//                     //Convert data to bml file format
+//                     let data = sign.toJSON();
+//                     delete data.id;
+//                     delete data.start;
+//                     delete data.end;
+//                     delete data.type;
+//                     let bml = [];
+//                     for(let b in data) {
+//                         if(b == "glossa") {
 
-                            delete data[b].id;
-                            delete data[b].start;
-                            delete data[b].end;
-                            delete data[b].type;
-                            for(let i = 0; i < data[b].length; i++) {
-                                delete data[b][i].id;
-                                delete data[b][i].start;
-                                delete data[b][i].end;
-                                delete data[b][i].type;
-                                for(let g in data[b][i]) {
+//                             delete data[b].id;
+//                             delete data[b].start;
+//                             delete data[b].end;
+//                             delete data[b].type;
+//                             for(let i = 0; i < data[b].length; i++) {
+//                                 delete data[b][i].id;
+//                                 delete data[b][i].start;
+//                                 delete data[b][i].end;
+//                                 delete data[b][i].type;
+//                                 for(let g in data[b][i]) {
 
-                                    bml = [...bml, ...data[b][i][g]];
-                                }
-                            }
-                        }
-                        else
-                            bml = [...bml, ...data[b]];
-                    }
-                    signInfo.clips = bml;
-                }
+//                                     bml = [...bml, ...data[b][i][g]];
+//                                 }
+//                             }
+//                         }
+//                         else
+//                             bml = [...bml, ...data[b]];
+//                     }
+//                     signInfo.clips = bml;
+//                 }
 
-                if(!signInfo.clips.length) {
-                    alert("You can't save an animation with empty tracks.")
-                    return;
-                }
-                const session = this.editor.FS.getSession();
-                if(!session.user || session.user.username == "signon") {
-                    let alert = new LX.Dialog("Alert", d => {
-                        d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                        d.sameLine(2);
-                        d.addButton(null, "Login", () => {
-                            this.showLoginModal();
-                            alert.close();
-                        })
-                        d.addButton(null, "Ok", () => {
-                            this.editor.uploadData(signInfo.id + ".bml", signInfo.clips , signInfo.type,  "local", (filename) => {
-                                saveDialog.close();
-                                this.closeDialogs();
-                                alert.close();
-                                LX.popup('"' + filename + '"' + " created successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
-                                // this.repository.presets[1] = this.localStorage.presets;
-                            });
-                        })
-                    }, {closable: true, modal: true})
+//                 if(!signInfo.clips.length) {
+//                     alert("You can't save an animation with empty tracks.")
+//                     return;
+//                 }
+//                 const session = this.editor.FS.getSession();
+//                 if(!session.user || session.user.username == "signon") {
+//                     let alert = new LX.Dialog("Alert", d => {
+//                         d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
+//                         d.sameLine(2);
+//                         d.addButton(null, "Login", () => {
+//                             this.showLoginModal();
+//                             alert.close();
+//                         })
+//                         d.addButton(null, "Ok", () => {
+//                             this.editor.uploadData(signInfo.id + ".bml", signInfo.clips , signInfo.type,  "local", (filename) => {
+//                                 saveDialog.close();
+//                                 this.closeDialogs();
+//                                 alert.close();
+//                                 LX.popup('"' + filename + '"' + " created successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+//                                 // this.repository.presets[1] = this.localStorage.presets;
+//                             });
+//                         })
+//                     }, {closable: true, modal: true})
                     
-                }
-                else {
-                    this.editor.uploadData(signInfo.id + ".bml", signInfo.clips, signInfo.type, "server", (filename) => {
-                        saveDialog.close()
-                        this.closeDialogs();
-                        LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
+//                 }
+//                 else {
+//                     this.editor.uploadData(signInfo.id + ".bml", signInfo.clips, signInfo.type, "server", (filename) => {
+//                         saveDialog.close()
+//                         this.closeDialogs();
+//                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
                         
-                    });
-                }
-            },
-            {
-                onclose: (root) => {
+//                     });
+//                 }
+//             },
+//             {
+//                 onclose: (root) => {
                 
-                    root.remove();
-                    this.prompt = null;
-                }, 
-                buttonClass: "accept" 
-            } )
-        }, {modal: true, closable: true})
-    }
-
-        
-    // createSaveDialog() {
-    //     this.createNewSignDialog(null, "server");
-    // }
+//                     root.remove();
+//                     this.prompt = null;
+//                 }, 
+//                 buttonClass: "accept" 
+//             } )
+//         }, {modal: true, closable: true})
+//     }
 
     createClipsDialog() {
         // Create a new dialog
@@ -3292,11 +3331,11 @@ class ScriptGui extends Gui {
                 asset_browser.clear();
                 dialog.close();
         }
-        let preview_actions =  [{
+        let previewActions =  [{
             type: "Clip",
             name: 'Add clip', 
             callback: innerSelect,
-            allowed_types: ["Clip"]
+            allowedTypes: ["Clip"]
         }];
 
         let asset_browser = null;
@@ -3317,19 +3356,19 @@ class ScriptGui extends Gui {
                 }
                 lexemes.push(data);
             }
-            preview_actions.push({
+            previewActions.push({
                 type: "FaceLexemeClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
             // Face lexemes & Mouthing clips
             asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Mouthing", type: "MouthingClip"}];
-            preview_actions.push({
+            previewActions.push({
                 type: "MouthingClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
             // HEAD
             // Gaze clip
@@ -3343,11 +3382,11 @@ class ScriptGui extends Gui {
                 gazes.push(data);
             }
 
-            preview_actions.push({
+            previewActions.push({
                 type: "GazeClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
             // Head movemen clip
             values = ANIM.HeadClip.lexemes;
@@ -3359,86 +3398,86 @@ class ScriptGui extends Gui {
                 }
                 movements.push(data);
             }
-            preview_actions.push({
+            previewActions.push({
                 type: "HeadClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
             asset_data[1].children = [{ id: "Gaze", type: "folder", children: gazes}, {id: "Head movement", type: "folder", children: movements}];
 
             asset_data[2].children = [{id: "Elbow Raise", type: "ElbowRaiseClip"}, {id: "Shoulder Raise", type: "ShoulderClip"}, {id:"Shoulder Hunch", type: "ShoulderClip"}, {id: "Arm Location", type: "ArmLocationClip"}, {id: "Hand Constellation", type: "HandConstellationClip"}, {id: "Directed Motion", type: "DirectedMotionClip"}, {id: "Circular Motion", type: "CircularMotionClip"}];
-            preview_actions.push({
+            previewActions.push({
                 type: "ElbowRaiseClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
-            preview_actions.push({
+            previewActions.push({
                 type: "ShoulderClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
-            preview_actions.push({
+            previewActions.push({
                 type: "ArmLocationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
-            preview_actions.push({
+            previewActions.push({
                 type: "HandConstellationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
-            preview_actions.push({
+            previewActions.push({
                 type: "DirectedMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
-            preview_actions.push({
+            previewActions.push({
                 type: "CircularMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
             asset_data[3].children = [{id: "Palm Orientation", type: "PalmOrientationClip"}, {id: "Hand Orientation", type: "HandOrientationClip"}, {id: "Handshape", type: "HandshapeClip"}, {id: "Wrist Motion", type: "WristMotionClip"}, {id: "Fingerplay Motion", type: "FingerplayMotionClip"}];
-            preview_actions.push({
+            previewActions.push({
                 type: "PalmOrientationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
-            preview_actions.push({
+            previewActions.push({
                 type: "HandOrientationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
-            preview_actions.push({
+            previewActions.push({
                 type: "WristMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
-            preview_actions.push({
+            previewActions.push({
                 type: "FingerplayMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
             // BODY
             asset_data[4].children.push({id: "Body movement", type: "BodyMovementClip"});
-            preview_actions.push({
+            previewActions.push({
                 type: "BodyMovementClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowed_types: ["Clip"]
+                allowedTypes: ["Clip"]
             })
 
-            asset_browser = new LX.AssetView({ preview_actions });
+            asset_browser = new LX.AssetView({ previewActions });
             p.attach( asset_browser );
 
             asset_browser.load( asset_data, (e,v) => {
@@ -3465,7 +3504,7 @@ class ScriptGui extends Gui {
                         break;
                 }
             })
-        },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, context_menu: false,
+        },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, contextMenu: false,
             onclose: (root) => {
             
                 root.remove();
@@ -3514,7 +3553,7 @@ class ScriptGui extends Gui {
                 dialog.close();
             }
 
-            const preview_actions = [
+            const previewActions = [
                 {
                     type: "sigml",
                     name: 'View source', 
@@ -3557,11 +3596,11 @@ class ScriptGui extends Gui {
                 }
             ];
 
-            if(user.username != "guest") {
+            if( user.username != "guest" ) {
                 const folders = ["signs", "presets", "clips"];
                 for( let i = 0; i < folders.length; i++ ) {
                     const folder = folders[i];
-                    preview_actions.push(
+                    previewActions.push(
                     {
                         type: "sigml",
                         path: "@/Local/" + folder,
@@ -3574,7 +3613,7 @@ class ScriptGui extends Gui {
                             });
                         }
                     });
-                    preview_actions.push({
+                    previewActions.push({
                         type: "bml",
                         path: "@/Local/" + folder,
                         name: 'Upload to server', 
@@ -3586,7 +3625,7 @@ class ScriptGui extends Gui {
                             });
                         }
                     });
-                    preview_actions.push({
+                    previewActions.push({
                         type: "bvh",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -3600,7 +3639,7 @@ class ScriptGui extends Gui {
                             })
                         }
                     });
-                    preview_actions.push({
+                    previewActions.push({
                         type: "bvhe",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -3614,7 +3653,7 @@ class ScriptGui extends Gui {
                             })                        
                         }
                     });    
-                    preview_actions.push({
+                    previewActions.push({
                         type: "sigml",
                         path: "@/"+ user.username + "/" + folder,
                         name: 'Delete', 
@@ -3633,7 +3672,7 @@ class ScriptGui extends Gui {
                             });
                         }
                     });
-                    preview_actions.push({
+                    previewActions.push({
                         type: "bml",
                         path: "@/"+ user.username + "/" + folder,
                         name: 'Delete', 
@@ -3655,7 +3694,7 @@ class ScriptGui extends Gui {
                 }
             }
             
-            const assetViewer = new LX.AssetView({  allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
+            const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
 
             const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
@@ -3737,7 +3776,7 @@ class ScriptGui extends Gui {
                     break;
                 case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                     if(e.item.type != "folder") {
-                        const dialog = new LX.Dialog("Add sign", async (p) => {
+                        const dialog = new LX.Dialog("Add clip", async (p) => {
                             if( !e.item.animation ) {
                                 const promise = new Promise((resolve) => {
                                     this.editor.fileToAnimation(e.item, (file) => {
@@ -3790,8 +3829,10 @@ class ScriptGui extends Gui {
                                     files[f].id = files[f].filename;
                                     files[f].folder = e.item;
                                     files[f].type = UTILS.getExtension(files[f].filename);
-                                    if(files[f].type == "txt")
+                                    files[f].lastModified = files[f].timestamp;
+                                    if(files[f].type == "txt") {
                                         continue;
+                                    }
                                     files_data.push(files[f]);
                                 }
                                 e.item.children = files_data;
@@ -3799,7 +3840,7 @@ class ScriptGui extends Gui {
                             assetViewer.currentData = files_data;
                             assetViewer._updatePath(assetViewer.currentData);
 
-                            if( !assetViewer.skip_browser ) {
+                            if( !assetViewer.skipBrowser ) {
                                 assetViewer._createTreePanel();
                             }
                             assetViewer._refreshContent();
@@ -3817,93 +3858,49 @@ class ScriptGui extends Gui {
     }
 
     showSourceCode (asset) {
-        if(window.dialog) 
+        if( window.dialog ) {
             window.dialog.destroy();
+        }
     
         window.dialog = new LX.PocketDialog("Editor", p => {
             const area = new LX.Area();
             p.attach( area );
+
             const filename = asset.filename;
             const type = asset.type;
             const name = filename.replace("."+ type, "");
             
-            const setText = (text) => {
-                let code_editor = new LX.CodeEditor(area, {
-                    allow_add_scripts: false,
-                    name: type,
-                    title: name,
-                    disable_edition: true
-                });
-                
-                code_editor.setText(text);
-                if(asset.type == "sigml") {
-                    code_editor.addTab("bml", false, name);
-                    let t = JSON.stringify(asset.animation.behaviours, function(key, value) {
-                        // limit precision of floats
-                        if (typeof value === 'number') {
-                            return parseFloat(value.toFixed(3));
-                        }
-                        if(key == "gloss") {
-                            return value.replaceAll(":", "_")
-                        }
-                        return value;
-                    });
-                    code_editor.openedTabs["bml"].lines = code_editor.toJSONFormat(t).split('\n');    
-                }
-                code_editor._changeLanguage( "JSON" );
-            }
+            const codeEditor = new LX.CodeEditor(area, {
+                allow_add_scripts: false,
+                name: type,
+                title: name,
+                disable_edition: true
+            });
 
-            
-            //from server
-            if(asset.fullpath) {
-                setText(asset.content)
-                // const fs = this.editor.FS;
-                // LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
-                //     const bytesize = f => new Blob([f]).size;
-                //     asset.bytesize = bytesize();
-                //     asset.animation = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
-                //     asset.animation.behaviours = asset.animation.data;
-                //     let text = f.replaceAll('\r', '').replaceAll('\t', '');
-                //     setText(text)
-                // } });
-            } else {
-                //from local
-                asset.animation = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
-                asset.animation.behaviours = asset.animation.data;              
-                let text = JSON.stringify(asset.animation.behaviours);
-                setText(text);
+            const text = JSON.stringify(asset.animation.behaviours, (key, value) => {
+                // limit precision of floats
+                if( typeof value === 'number' ) {
+                    return parseFloat(value.toFixed(3));
+                }
+                if( key == "gloss" ) {
+                    return value.replaceAll(":", "_")
+                }
+                return value;
+            });
+            if( asset.type == "sigml" ) {
+                codeEditor.setText(asset.content);
+                codeEditor.addTab("bml", false, name);
+                codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
+                codeEditor.openedTabs["bml"].language = 'JSON'
             }
+            else {
+                codeEditor.setText(codeEditor.toJSONFormat(text));
+            }
+            codeEditor._changeLanguage( "JSON" );
+            
         }, { size: ["40%", "600px"], closable: true });
 
     }
-
-//     showSourceCode( asset ) {
-//         if( window.dialog ) {
-//             window.dialog.destroy();
-//         }
-    
-//         window.dialog = new LX.PocketDialog("Editor", p => {
-//             const area = new LX.Area();
-//             p.attach( area );
-
-//             const filename = asset.filename;
-//             const type = asset.type;
-//             const name = filename.replace("."+ type, "");
-                        
-//             const codeEditor = new LX.CodeEditor(area, {
-//                 allow_add_scripts: false,
-//                 name: type,
-//                 title: name,
-//                 disable_edition: true
-//             });
-            
-//             codeEditor.setText( asset.content );
-            
-//             codeEditor._changeLanguage( "JSON" );
-                     
-//         }, { size: ["40%", "600px"], closable: true });
-//     }
-// }
 
     createSceneUI(area) {
 
@@ -3931,9 +3928,6 @@ class ScriptGui extends Gui {
                         this.sidePanel.parentArea.extend();
 
                     }
-                    
-                    // const video = document.getElementById("capture");
-                    // video.style.display = editor.showGUI ? "flex" : "none";
                 }
             },
     
