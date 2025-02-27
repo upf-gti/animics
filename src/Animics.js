@@ -9,21 +9,28 @@ class Animics {
     static Modes = {KEYFRAME: 0, SCRIPT: 1};
 
     constructor() {
+        this.remoteFileSystem = null;    
+    }
 
-        this.remoteFileSystem = new RemoteFileSystem( async (session) => {
-            if( !session ) {
-                console.log("Auto login of guest user")
-    
-                this.remoteFileSystem.login("guest", "guest", (session) => {
-                    
-                    this.remoteFileSystem.loadUnits();
-                });
-            }
-            else if( this.editor ) {
-                this.editor.gui.changeLoginButton( session.user.username );
-            }              
-        });   
+    loadSession() {
+        return new Promise( resolve => {
+            this.remoteFileSystem = new RemoteFileSystem( async (session) => {
+                if( !session ) {
+                    console.log("Auto login of guest user")
         
+                    this.remoteFileSystem.login("guest", "guest", (session) => {
+                        
+                        this.remoteFileSystem.loadUnits();
+                        resolve();
+                        return;
+                    });
+                }
+                else if( this.editor ) {
+                    this.editor.gui.changeLoginButton( session.user.username );
+                }   
+                resolve();
+            });   
+        })
     }
 
     init(settings = {}) {
@@ -52,8 +59,8 @@ class Animics {
             this.mode = Animics.Modes.KEYFRAME;
             this.videoProcessor = new VideoProcessor(this);
         }
-            
-        this.editor.init(settings, false);        
+        const session = this.remoteFileSystem.session;
+        this.editor.init(settings, session.user.username == "guest");
         
         window.addEventListener("resize", this.onResize.bind(this));
         return true;
