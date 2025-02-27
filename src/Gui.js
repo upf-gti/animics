@@ -1891,12 +1891,7 @@ class KeyframesGui extends Gui {
                 dialog.close();
             }
 
-            const previewActions = [
-                {
-                    type: "bvh",
-                    name: 'View source', 
-                    callback: this.showSourceCode.bind(this)
-                },
+            const preview_actions = [
                 {
                     type: "bvh",
                     name: 'Add as single clip', 
@@ -1908,7 +1903,7 @@ class KeyframesGui extends Gui {
                     callback: innerSelect
                 },
                 {
-                    type: "bvhe",
+                    type: "bvh",
                     name: 'View source', 
                     callback: this.showSourceCode.bind(this)
                 },
@@ -1922,10 +1917,15 @@ class KeyframesGui extends Gui {
                     name: 'Breakdown into keyframes', 
                     callback: innerSelect
                 },                
+                {
+                    type: "bvhe",
+                    name: 'View source', 
+                    callback: this.showSourceCode.bind(this)
+                }
             ];
 
-            if( user.username != "guest" ) {
-                previewActions.push(
+            if(user.username != "guest") {
+                preview_actions.push(
                 {
                     type: "bvh",
                     path: "@/Local/clips",
@@ -1938,7 +1938,7 @@ class KeyframesGui extends Gui {
                         });
                     }
                 });
-                previewActions.push({
+                preview_actions.push({
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Upload to server', 
@@ -1950,7 +1950,7 @@ class KeyframesGui extends Gui {
                         });
                     }
                 });
-                previewActions.push({
+                preview_actions.push({
                     type: "bvh",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -1960,7 +1960,7 @@ class KeyframesGui extends Gui {
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));  
                     }
                 });
-                previewActions.push({
+                preview_actions.push({
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -1970,7 +1970,7 @@ class KeyframesGui extends Gui {
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));                        
                     }
                 });             
-                previewActions.push({
+                preview_actions.push({
                     type: "bvh",
                     path: "@/"+ user.username + "/clips",
                     name: 'Delete', 
@@ -1989,7 +1989,7 @@ class KeyframesGui extends Gui {
                         });
                     }
                 });
-                previewActions.push({
+                preview_actions.push({
                     type: "bvhe",
                     path: "@/"+ user.username + "/clips",
                     name: 'Delete', 
@@ -2010,7 +2010,7 @@ class KeyframesGui extends Gui {
                 });            
             }
             
-            const assetViewer = new LX.AssetView({  allowedTypes: ["bvh", "bvhe", "glb", "gltf"],  previewActions: previewActions, contextMenu: false});
+            const assetViewer = new LX.AssetView({  allowed_types: ["bvh", "bvhe", "glb", "gltf"],  preview_actions: preview_actions, context_menu: false});
             p.attach( assetViewer );
             
             const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
@@ -2127,7 +2127,6 @@ class KeyframesGui extends Gui {
                                     files[f].id = files[f].filename;
                                     files[f].folder = e.item;
                                     files[f].type = UTILS.getExtension(files[f].filename);
-                                    files[f].lastModified = files[f].timestamp;
                                     if(files[f].type == "txt")
                                         continue;
                                     files_data.push(files[f]);
@@ -2137,7 +2136,7 @@ class KeyframesGui extends Gui {
                             assetViewer.currentData = files_data;
                             assetViewer._updatePath(assetViewer.currentData);
 
-                            if( !assetViewer.skipBrowser ) {
+                            if( !assetViewer.skip_browser ) {
                                 assetViewer._createTreePanel();
                             }
 
@@ -2957,10 +2956,11 @@ class ScriptGui extends Gui {
         
     }
 
-    showGuide() {       
+    showGuide() {
+        
         this.prompt = new LX.Dialog("How to start?", (p) =>{
             p.addText(null, "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard.", null, {disabled: true, height: "50%"})
-            p.addText(null, "Go to 'Help' for more information about the application.", null, {disabled: true, height: "50%"})
+            p.addText(null, "Go to Menubar/Timeline/Shortcuts/ for more information about the tool.", null, {disabled: true, height: "50%"})
         }, {closable: true, onclose: (root) => {
             root.remove();
             this.prompt = null;
@@ -3331,11 +3331,11 @@ class ScriptGui extends Gui {
                 asset_browser.clear();
                 dialog.close();
         }
-        let previewActions =  [{
+        let preview_actions =  [{
             type: "Clip",
             name: 'Add clip', 
             callback: innerSelect,
-            allowedTypes: ["Clip"]
+            allowed_types: ["Clip"]
         }];
 
         let asset_browser = null;
@@ -3356,19 +3356,19 @@ class ScriptGui extends Gui {
                 }
                 lexemes.push(data);
             }
-            previewActions.push({
+            preview_actions.push({
                 type: "FaceLexemeClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
             // Face lexemes & Mouthing clips
             asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Mouthing", type: "MouthingClip"}];
-            previewActions.push({
+            preview_actions.push({
                 type: "MouthingClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
             // HEAD
             // Gaze clip
@@ -3382,11 +3382,11 @@ class ScriptGui extends Gui {
                 gazes.push(data);
             }
 
-            previewActions.push({
+            preview_actions.push({
                 type: "GazeClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
             // Head movemen clip
             values = ANIM.HeadClip.lexemes;
@@ -3398,86 +3398,86 @@ class ScriptGui extends Gui {
                 }
                 movements.push(data);
             }
-            previewActions.push({
+            preview_actions.push({
                 type: "HeadClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
             asset_data[1].children = [{ id: "Gaze", type: "folder", children: gazes}, {id: "Head movement", type: "folder", children: movements}];
 
             asset_data[2].children = [{id: "Elbow Raise", type: "ElbowRaiseClip"}, {id: "Shoulder Raise", type: "ShoulderClip"}, {id:"Shoulder Hunch", type: "ShoulderClip"}, {id: "Arm Location", type: "ArmLocationClip"}, {id: "Hand Constellation", type: "HandConstellationClip"}, {id: "Directed Motion", type: "DirectedMotionClip"}, {id: "Circular Motion", type: "CircularMotionClip"}];
-            previewActions.push({
+            preview_actions.push({
                 type: "ElbowRaiseClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
-            previewActions.push({
+            preview_actions.push({
                 type: "ShoulderClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
-            previewActions.push({
+            preview_actions.push({
                 type: "ArmLocationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
-            previewActions.push({
+            preview_actions.push({
                 type: "HandConstellationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
-            previewActions.push({
+            preview_actions.push({
                 type: "DirectedMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
-            previewActions.push({
+            preview_actions.push({
                 type: "CircularMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
             asset_data[3].children = [{id: "Palm Orientation", type: "PalmOrientationClip"}, {id: "Hand Orientation", type: "HandOrientationClip"}, {id: "Handshape", type: "HandshapeClip"}, {id: "Wrist Motion", type: "WristMotionClip"}, {id: "Fingerplay Motion", type: "FingerplayMotionClip"}];
-            previewActions.push({
+            preview_actions.push({
                 type: "PalmOrientationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
-            previewActions.push({
+            preview_actions.push({
                 type: "HandOrientationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
-            previewActions.push({
+            preview_actions.push({
                 type: "WristMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
-            previewActions.push({
+            preview_actions.push({
                 type: "FingerplayMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
             // BODY
             asset_data[4].children.push({id: "Body movement", type: "BodyMovementClip"});
-            previewActions.push({
+            preview_actions.push({
                 type: "BodyMovementClip",
                 name: 'Add clip', 
                 callback: innerSelect,
-                allowedTypes: ["Clip"]
+                allowed_types: ["Clip"]
             })
 
-            asset_browser = new LX.AssetView({ previewActions });
+            asset_browser = new LX.AssetView({ preview_actions });
             p.attach( asset_browser );
 
             asset_browser.load( asset_data, (e,v) => {
@@ -3504,7 +3504,7 @@ class ScriptGui extends Gui {
                         break;
                 }
             })
-        },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, contextMenu: false,
+        },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, context_menu: false,
             onclose: (root) => {
             
                 root.remove();
@@ -3553,7 +3553,7 @@ class ScriptGui extends Gui {
                 dialog.close();
             }
 
-            const previewActions = [
+            const preview_actions = [
                 {
                     type: "sigml",
                     name: 'View source', 
@@ -3596,11 +3596,11 @@ class ScriptGui extends Gui {
                 }
             ];
 
-            if( user.username != "guest" ) {
+            if(user.username != "guest") {
                 const folders = ["signs", "presets", "clips"];
                 for( let i = 0; i < folders.length; i++ ) {
                     const folder = folders[i];
-                    previewActions.push(
+                    preview_actions.push(
                     {
                         type: "sigml",
                         path: "@/Local/" + folder,
@@ -3613,7 +3613,7 @@ class ScriptGui extends Gui {
                             });
                         }
                     });
-                    previewActions.push({
+                    preview_actions.push({
                         type: "bml",
                         path: "@/Local/" + folder,
                         name: 'Upload to server', 
@@ -3625,7 +3625,7 @@ class ScriptGui extends Gui {
                             });
                         }
                     });
-                    previewActions.push({
+                    preview_actions.push({
                         type: "bvh",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -3639,7 +3639,7 @@ class ScriptGui extends Gui {
                             })
                         }
                     });
-                    previewActions.push({
+                    preview_actions.push({
                         type: "bvhe",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -3653,7 +3653,7 @@ class ScriptGui extends Gui {
                             })                        
                         }
                     });    
-                    previewActions.push({
+                    preview_actions.push({
                         type: "sigml",
                         path: "@/"+ user.username + "/" + folder,
                         name: 'Delete', 
@@ -3672,7 +3672,7 @@ class ScriptGui extends Gui {
                             });
                         }
                     });
-                    previewActions.push({
+                    preview_actions.push({
                         type: "bml",
                         path: "@/"+ user.username + "/" + folder,
                         name: 'Delete', 
@@ -3694,7 +3694,7 @@ class ScriptGui extends Gui {
                 }
             }
             
-            const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: false});
+            const assetViewer = new LX.AssetView({  allowed_types: ["sigml", "bml"],  preview_actions: preview_actions, context_menu: false});
             p.attach( assetViewer );
 
             const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
@@ -3776,7 +3776,7 @@ class ScriptGui extends Gui {
                     break;
                 case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                     if(e.item.type != "folder") {
-                        const dialog = new LX.Dialog("Add clip", async (p) => {
+                        const dialog = new LX.Dialog("Add sign", async (p) => {
                             if( !e.item.animation ) {
                                 const promise = new Promise((resolve) => {
                                     this.editor.fileToAnimation(e.item, (file) => {
@@ -3829,10 +3829,8 @@ class ScriptGui extends Gui {
                                     files[f].id = files[f].filename;
                                     files[f].folder = e.item;
                                     files[f].type = UTILS.getExtension(files[f].filename);
-                                    files[f].lastModified = files[f].timestamp;
-                                    if(files[f].type == "txt") {
+                                    if(files[f].type == "txt")
                                         continue;
-                                    }
                                     files_data.push(files[f]);
                                 }
                                 e.item.children = files_data;
@@ -3840,7 +3838,7 @@ class ScriptGui extends Gui {
                             assetViewer.currentData = files_data;
                             assetViewer._updatePath(assetViewer.currentData);
 
-                            if( !assetViewer.skipBrowser ) {
+                            if( !assetViewer.skip_browser ) {
                                 assetViewer._createTreePanel();
                             }
                             assetViewer._refreshContent();
@@ -3858,49 +3856,93 @@ class ScriptGui extends Gui {
     }
 
     showSourceCode (asset) {
-        if( window.dialog ) {
+        if(window.dialog) 
             window.dialog.destroy();
-        }
     
         window.dialog = new LX.PocketDialog("Editor", p => {
             const area = new LX.Area();
             p.attach( area );
-
             const filename = asset.filename;
             const type = asset.type;
             const name = filename.replace("."+ type, "");
             
-            const codeEditor = new LX.CodeEditor(area, {
-                allow_add_scripts: false,
-                name: type,
-                title: name,
-                disable_edition: true
-            });
+            const setText = (text) => {
+                let code_editor = new LX.CodeEditor(area, {
+                    allow_add_scripts: false,
+                    name: type,
+                    title: name,
+                    disable_edition: true
+                });
+                
+                code_editor.setText(text);
+                if(asset.type == "sigml") {
+                    code_editor.addTab("bml", false, name);
+                    let t = JSON.stringify(asset.animation.behaviours, function(key, value) {
+                        // limit precision of floats
+                        if (typeof value === 'number') {
+                            return parseFloat(value.toFixed(3));
+                        }
+                        if(key == "gloss") {
+                            return value.replaceAll(":", "_")
+                        }
+                        return value;
+                    });
+                    code_editor.openedTabs["bml"].lines = code_editor.toJSONFormat(t).split('\n');    
+                }
+                code_editor._changeLanguage( "JSON" );
+            }
 
-            const text = JSON.stringify(asset.animation.behaviours, (key, value) => {
-                // limit precision of floats
-                if( typeof value === 'number' ) {
-                    return parseFloat(value.toFixed(3));
-                }
-                if( key == "gloss" ) {
-                    return value.replaceAll(":", "_")
-                }
-                return value;
-            });
-            if( asset.type == "sigml" ) {
-                codeEditor.setText(asset.content);
-                codeEditor.addTab("bml", false, name);
-                codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
-                codeEditor.openedTabs["bml"].language = 'JSON'
-            }
-            else {
-                codeEditor.setText(codeEditor.toJSONFormat(text));
-            }
-            codeEditor._changeLanguage( "JSON" );
             
+            //from server
+            if(asset.fullpath) {
+                setText(asset.content)
+                // const fs = this.editor.FS;
+                // LX.request({ url: fs.root+ "/"+ asset.fullpath, dataType: 'text/plain', success: (f) => {
+                //     const bytesize = f => new Blob([f]).size;
+                //     asset.bytesize = bytesize();
+                //     asset.animation = asset.type == "bml" ?  {data: JSON.parse(f)} : sigmlStringToBML(f);
+                //     asset.animation.behaviours = asset.animation.data;
+                //     let text = f.replaceAll('\r', '').replaceAll('\t', '');
+                //     setText(text)
+                // } });
+            } else {
+                //from local
+                asset.animation = asset.type == "bml" ?  {data: (typeof sd == "string") ? JSON.parse(asset.data) : asset.data } : sigmlStringToBML(asset.data);
+                asset.animation.behaviours = asset.animation.data;              
+                let text = JSON.stringify(asset.animation.behaviours);
+                setText(text);
+            }
         }, { size: ["40%", "600px"], closable: true });
 
     }
+
+//     showSourceCode( asset ) {
+//         if( window.dialog ) {
+//             window.dialog.destroy();
+//         }
+    
+//         window.dialog = new LX.PocketDialog("Editor", p => {
+//             const area = new LX.Area();
+//             p.attach( area );
+
+//             const filename = asset.filename;
+//             const type = asset.type;
+//             const name = filename.replace("."+ type, "");
+                        
+//             const codeEditor = new LX.CodeEditor(area, {
+//                 allow_add_scripts: false,
+//                 name: type,
+//                 title: name,
+//                 disable_edition: true
+//             });
+            
+//             codeEditor.setText( asset.content );
+            
+//             codeEditor._changeLanguage( "JSON" );
+                     
+//         }, { size: ["40%", "600px"], closable: true });
+//     }
+// }
 
     createSceneUI(area) {
 
@@ -3928,6 +3970,9 @@ class ScriptGui extends Gui {
                         this.sidePanel.parentArea.extend();
 
                     }
+                    
+                    // const video = document.getElementById("capture");
+                    // video.style.display = editor.showGUI ? "flex" : "none";
                 }
             },
     

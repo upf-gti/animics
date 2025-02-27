@@ -463,9 +463,6 @@ class Editor {
             if( e.ctrlKey && ( e.key == "o" || e.key == "O" ) ) {
                 e.preventDefault();
             }
-            if( e.ctrlKey && ( e.key == "s" || e.key == "S" ) ) {
-                e.preventDefault();
-            }
         });
 
         this.editorArea.root.ondrop = async (e) => {
