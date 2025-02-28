@@ -165,7 +165,7 @@ class Gui {
         menubar.setButtonIcon("Github", "fa-brands fa-github", () => { window.open("https://github.com/upf-gti/animics") }, {float:"right"});
     }
 
-    importFiles () {
+    importFiles() {
         
         const input = document.createElement('input');
         input.type = 'file';
@@ -176,7 +176,7 @@ class Gui {
         }
     }
 
-    changeLoginButton(username = "Login") {
+    changeLoginButton( username = "Login" ) {
         const el = document.getElementById("login");
         el.innerText = username;
     }
@@ -610,6 +610,13 @@ class Gui {
             m.attach(area);
         }, options);
     }
+
+    highlightSelector( ) {
+        const el = document.getElementById("animation-selector");
+        if( el ) {
+            el.getElementsByClassName("lexbutton")[0].classList.add("highlight-border");
+        }
+    }
 };
 
 class KeyframesGui extends Gui {
@@ -886,7 +893,7 @@ class KeyframesGui extends Gui {
                 panel.addDropdown("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
-                }, {signal: "@on_animation_loaded"})
+                }, {signal: "@on_animation_loaded", id:"animation-selector"})
                 
             },
             onAfterCreateTopBar: (panel) => {

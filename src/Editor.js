@@ -477,6 +477,8 @@ class Editor {
                 return;
             }
 			await this.loadFiles(files);
+            this.gui.highlightSelector();
+
         };
 
         this.editorArea.root.addEventListener( 'keydown', (e) => {
@@ -1087,10 +1089,10 @@ class KeyframeEditor extends Editor {
             return true;
         }
         
-        // TO DO
         const loaded = await this.loadFiles(resources);
         if( !loaded ) {
             await this.processPendingResources();
+            this.gui.highlightSelector();
         }
     }
 
