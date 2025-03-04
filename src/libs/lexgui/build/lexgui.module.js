@@ -8,7 +8,7 @@
 */
 
 var LX = {
-    version: "0.1.38",
+    version: "0.1.42",
     ready: false,
     components: [], // specific pre-build components
     signals: {} // events and triggers
@@ -26,9 +26,11 @@ LX.CURVE_MOVEOUT_DELETE = 1;
 
 function clamp( num, min, max ) { return Math.min( Math.max( num, min ), max ); }
 function round( number, precision ) { return +(( number ).toFixed( precision ?? 2 ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' )); }
+function remapRange( oldValue, oldMin, oldMax, newMin, newMax ) { return ((( oldValue - oldMin ) * ( newMax - newMin )) / ( oldMax - oldMin )) + newMin; }
 
 LX.clamp = clamp;
 LX.round = round;
+LX.remapRange = remapRange;
 
 function getSupportedDOMName( string )
 {
@@ -178,37 +180,69 @@ class vec2 {
     len () { return Math.sqrt( this.len2() ); }
     nrm ( v0 = new vec2() ) { v0.set( this.x, this.y ); return v0.mul( 1.0 / this.len(), v0 ); }
     dst ( v ) { return v.sub( this ).len(); }
+    clp ( min, max, v0 = new vec2() ) { v0.set( clamp( this.x, min, max ), clamp( this.y, min, max ) ); return v0; }
 };
 
 LX.vec2 = vec2;
 
 // Other utils
 
+/**
+ * @method makeDraggable
+ * @param {Element} domEl
+ * @param {Object} options
+ * autoAdjust (Bool): Sets in a correct position at the beggining
+ * dragMargin (Number): Margin of drag container
+ * onMove (Function): Called each move event
+ * onDragStart (Function): Called when drag event starts
+ */
 function makeDraggable( domEl, options = { } ) {
 
-    let offsetX;
-    let offsetY;
+    let offsetX = 0;
+    let offsetY = 0;
     let currentTarget = null;
     let targetClass = options.targetClass;
+    let dragMargin = options.dragMargin ?? 3;
+
+    let _computePosition = ( e, top, left ) => {
+        const nullRect = { x: 0, y: 0, width: 0, height: 0 };
+        const parentRect = domEl.parentElement ? domEl.parentElement.getBoundingClientRect() : nullRect;
+        const isFixed = ( domEl.style.position == "fixed" );
+        const fixedOffset = isFixed ? new LX.vec2( parentRect.x, parentRect.y ) : new LX.vec2();
+        left = left ?? e.clientX - offsetX - parentRect.x;
+        top = top ?? e.clientY - offsetY - parentRect.y;
+        domEl.style.left = clamp( left, dragMargin + fixedOffset.x, fixedOffset.x + parentRect.width - domEl.offsetWidth - dragMargin ) + 'px';
+        domEl.style.top = clamp( top, dragMargin + fixedOffset.y, fixedOffset.y + parentRect.height - domEl.offsetHeight - dragMargin ) + 'px';
+    };
+
+    // Initial adjustment
+    if( options.autoAdjust )
+    {
+       _computePosition( null, parseInt( domEl.style.left ), parseInt( domEl.style.top ) )
+    }
 
     let id = LX.UTILS.uidGenerator();
     domEl[ 'draggable-id' ] = id;
 
     const defaultMoveFunc = e => {
-        if( !currentTarget ) return;
-        const parentRect = domEl.parentElement.getBoundingClientRect();
-        let left = e.clientX - offsetX - parentRect.left;
-        let top = e.clientY - offsetY - parentRect.top;
-        if( left > 3 && ( left + domEl.offsetWidth + 6 ) <= window.innerWidth )
-            domEl.style.left = left + 'px';
-        if( top > 3 && ( top + domEl.offsetHeight + 6 ) <= window.innerHeight )
-            domEl.style.top = top + 'px';
+        if( !currentTarget )
+        {
+            return;
+        }
+
+        _computePosition( e );
     };
 
     const customMoveFunc = e => {
-        if( !currentTarget ) return;
+        if( !currentTarget )
+        {
+            return;
+        }
+
         if( options.onMove )
+        {
             options.onMove( currentTarget );
+        }
     };
 
     let onMove = options.onMove ? customMoveFunc : defaultMoveFunc;
@@ -216,7 +250,7 @@ function makeDraggable( domEl, options = { } ) {
 
     domEl.setAttribute( 'draggable', true );
     domEl.addEventListener( "mousedown", function( e ) {
-        currentTarget = (e.target.classList.contains(targetClass) || !targetClass) ? e.target : null;
+        currentTarget = ( e.target.classList.contains( targetClass ) || !targetClass ) ? e.target : null;
     } );
 
     domEl.addEventListener( "dragstart", function( e ) {
@@ -230,15 +264,21 @@ function makeDraggable( domEl, options = { } ) {
         e.dataTransfer.setDragImage( img, 0, 0 );
         e.dataTransfer.effectAllowed = "move";
         const rect = e.target.getBoundingClientRect();
-        offsetX = e.clientX - rect.x;
-        offsetY = e.clientY - rect.y;
+        const parentRect = currentTarget.parentElement.getBoundingClientRect();
+        const isFixed = ( currentTarget.style.position == "fixed" );
+        const fixedOffset = isFixed ? new LX.vec2( parentRect.x, parentRect.y ) : new LX.vec2();
+        offsetX = e.clientX - rect.x - fixedOffset.x;
+        offsetY = e.clientY - rect.y - fixedOffset.y;
         document.addEventListener( "mousemove", onMove );
         if( onDragStart )
+        {
             onDragStart( currentTarget, e );
+        }
     }, false );
     
     document.addEventListener( 'mouseup', () => {
-        if( currentTarget ) {
+        if( currentTarget )
+        {
             currentTarget = null;
             document.removeEventListener( "mousemove", onMove );
         }
@@ -458,7 +498,7 @@ function create_global_searchbar( root ) {
  * @param {Object} options 
  * container: Root location for the gui (default is the document body)
  * id: Id of the main area
- * skip_default_area: Skip creation of main area
+ * skipDefaultArea: Skip creation of main area
  */
 
 function init( options = { } )
@@ -503,7 +543,8 @@ function init( options = { } )
     var link = document.createElement( 'link' );
     link.rel = 'stylesheet';
     link.type = 'text/css';
-    link.href = 'https://use.fontawesome.com/releases/v6.6.0/css/all.css';
+    link.crossOrigin = 'anonymous';
+    link.href = 'https://use.fontawesome.com/releases/v6.7.2/css/all.css';
     head.appendChild( link );
 
     // Global vars
@@ -514,8 +555,10 @@ function init( options = { } )
     this.ready = true;
     this.menubars = [ ];
 
-    if( !options.skip_default_area )
+    if( !options.skipDefaultArea )
+    {
         this.main_area = new Area( { id: options.id ?? 'mainarea' } );
+    }
 
     return this.main_area;
 }
@@ -532,16 +575,18 @@ LX.init = init;
  * draggable: Dialog can be dragged [false]
  */
 
-function message(text, title, options = {})
+function message( text, title, options = {} )
 {
-    if(!text)
-        throw("No message to show");
+    if( !text )
+    {
+        throw( "No message to show" );
+    }
 
     options.modal = true;
 
-    return new Dialog(title, p => {
-        p.addTextArea(null, text, null, { disabled: true, fitHeight: true  });
-    }, options);
+    return new Dialog( title, p => {
+        p.addTextArea( null, text, null, { disabled: true, fitHeight: true  } );
+    }, options );
 }
 
 LX.message = message;
@@ -621,7 +666,8 @@ function prompt( text, title, callback, options = {} )
                 text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
                 dialog.close();
                 prompt( text, title, callback, options );
-            }else
+            }
+            else
             {
                 if( callback ) callback.call( this, value );
                 dialog.close();
@@ -679,7 +725,8 @@ class TreeEvent {
     }
     
     string() {
-        switch(this.type) {
+        switch( this.type )
+        {
             case TreeEvent.NONE: return "tree_event_none";
             case TreeEvent.NODE_SELECTED: return "tree_event_selected";
             case TreeEvent.NODE_DELETED: return "tree_event_deleted";
@@ -700,7 +747,9 @@ function emit( signalName, value, options = {} )
     const data = LX.signals[ signalName ];
 
     if( !data )
-    return;
+    {
+        return;
+    }
 
     const target = options.target;
 
@@ -739,10 +788,14 @@ function addSignal( name, obj, callback )
     obj[name] = callback;
 
     if( !LX.signals[ name ] )
+    {
         LX.signals[ name ] = [];
+    }
     
     if( LX.signals[ name ].indexOf( obj ) > -1 )
+    {
         return;
+    }
 
     LX.signals[ name ].push( obj );
 }
@@ -762,7 +815,7 @@ class Area {
      * className: Add class to the element
      * width: Width of the area element [fit space]
      * height: Height of the area element [fit space]
-     * no_append: Create but not append to GUI root [false]
+     * skipAppend: Create but not append to GUI root [false]
      */
 
     constructor( options = {} ) {
@@ -802,7 +855,7 @@ class Area {
         this.sections = [];
         this.panels = [];
 
-        if( !options.no_append )
+        if( !options.skipAppend )
         {
             var lexroot = document.getElementById("lexroot");
             lexroot.appendChild( this.root );
@@ -833,96 +886,101 @@ class Area {
             
             const draggable = options.draggable ?? true;
             if( draggable )
-                makeDraggable( root );
+            {
+                makeDraggable( root, options );
+            }
 
-            if( options.resizeable ) {
+            if( options.resizeable )
+            {
                 root.classList.add("resizeable");
             }
             
             if( options.resize )
             {                  
-                this.split_bar = document.createElement("div");
+                this.splitBar = document.createElement("div");
                 let type = (overlay == "left") || (overlay == "right") ? "horizontal" : "vertical";
-                this.type = overlay;;
-                this.split_bar.className = "lexsplitbar " + type;
+                this.type = overlay;
+                this.splitBar.className = "lexsplitbar " + type;
 
                 if( overlay == "right" )
                 {
-                    this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                    this.split_bar.style.left = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
+                    this.splitBar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                    this.splitBar.style.left = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 } 
                 else if( overlay == "left" )
                 {
                     let size = Math.min(document.body.clientWidth - LX.DEFAULT_SPLITBAR_SIZE, this.root.clientWidth);
-                    this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                    this.split_bar.style.left = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
+                    this.splitBar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                    this.splitBar.style.left = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 }
                 else if( overlay == "top" )
                 {
                     let size = Math.min(document.body.clientHeight - LX.DEFAULT_SPLITBAR_SIZE, this.root.clientHeight);
-                    this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                    this.split_bar.style.top = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
+                    this.splitBar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                    this.splitBar.style.top = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 }
                 else if( overlay == "bottom" )
                 {
-                    this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                    this.split_bar.style.top = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
+                    this.splitBar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                    this.splitBar.style.top = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 }
 
-                this.split_bar.addEventListener("mousedown", inner_mousedown);
-                this.root.appendChild( this.split_bar );
+                this.splitBar.addEventListener("mousedown", inner_mousedown);
+                this.root.appendChild( this.splitBar );
                 
                 var that = this;
-                var last_pos = [ 0, 0 ];
+                var lastMousePosition = [ 0, 0 ];
                 
                 function inner_mousedown( e )
                 {
                     var doc = that.root.ownerDocument;
                     doc.addEventListener( 'mousemove', inner_mousemove );
                     doc.addEventListener( 'mouseup', inner_mouseup );
-                    last_pos[ 0 ] = e.x;
-                    last_pos[ 1 ] = e.y;
+                    lastMousePosition[ 0 ] = e.x;
+                    lastMousePosition[ 1 ] = e.y;
                     e.stopPropagation();
                     e.preventDefault();
                     document.body.classList.add( 'nocursor' );
-                    that.split_bar.classList.add( 'nocursor' );
+                    that.splitBar.classList.add( 'nocursor' );
                 }
 
                 function inner_mousemove( e )
                 {
                     switch( that.type ) {
                         case "right":
-                            var dt = ( last_pos[ 0 ] - e.x );
+                            var dt = ( lastMousePosition[ 0 ] - e.x );
                             var size = ( that.root.offsetWidth + dt );
                             that.root.style.width = size + "px";
                             break;
                         case "left":
-                            var dt = ( last_pos[ 0 ] - e.x );
+                            var dt = ( lastMousePosition[ 0 ] - e.x );
                             var size = Math.min(document.body.clientWidth - LX.DEFAULT_SPLITBAR_SIZE, (that.root.offsetWidth - dt));
                             that.root.style.width = size + "px";
-                            that.split_bar.style.left = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
+                            that.splitBar.style.left = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
                             break;
                         case "top":
-                            var dt = ( last_pos[ 1 ] - e.y );
+                            var dt = ( lastMousePosition[ 1 ] - e.y );
                             var size = Math.min(document.body.clientHeight - LX.DEFAULT_SPLITBAR_SIZE, (that.root.offsetHeight - dt));
                             that.root.style.height = size + "px";
-                            that.split_bar.style.top = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
+                            that.splitBar.style.top = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
                             break;
                         case "bottom":
-                            var dt = ( last_pos[ 1 ] - e.y );
+                            var dt = ( lastMousePosition[ 1 ] - e.y );
                             var size = ( that.root.offsetHeight + dt );
                             that.root.style.height = size + "px";
                             break;
                     }
                     
-                    last_pos[ 0 ] = e.x;
-                    last_pos[ 1 ] = e.y;
+                    lastMousePosition[ 0 ] = e.x;
+                    lastMousePosition[ 1 ] = e.y;
                     e.stopPropagation();
                     e.preventDefault();
                     
                     // Resize events   
                     if( that.onresize )
+                    {
                         that.onresize( that.root.getBoundingClientRect() );
+                    }
                 }
 
                 function inner_mouseup( e )
@@ -931,7 +989,7 @@ class Area {
                     doc.removeEventListener( 'mousemove', inner_mousemove );
                     doc.removeEventListener( 'mouseup', inner_mouseup );
                     document.body.classList.remove( 'nocursor' );
-                    that.split_bar.classList.remove( 'nocursor' );
+                    that.splitBar.classList.remove( 'nocursor' );
                 }
             }
         }
@@ -945,13 +1003,16 @@ class Area {
     attach( content ) {
 
         // Append to last split section if area has been split
-        if(this.sections.length) {
-            this.sections[1].attach( content );
+        if( this.sections.length)
+        {
+            this.sections[ 1 ].attach( content );
             return;
         }
 
-        if(!content)
-        throw("no content to attach");
+        if( !content )
+        {
+            throw("no content to attach");
+        }
 
         content.parent = this;
 
@@ -996,14 +1057,14 @@ class Area {
         }
 
         // Create areas
-        var area1 = new Area( { no_append: true, className: "split" + ( options.menubar || options.sidebar ? "" : " origin" ) } );
-        var area2 = new Area( { no_append: true, className: "split"} );
+        var area1 = new Area( { skipAppend: true, className: "split" + ( options.menubar || options.sidebar ? "" : " origin" ) } );
+        var area2 = new Area( { skipAppend: true, className: "split" } );
 
         area1.parentArea = this;
         area2.parentArea = this;
 
         let minimizable = options.minimizable ?? false;
-        let resize = (options.resize ?? true) || minimizable;
+        let resize = ( options.resize ?? true ) || minimizable;
 
         var data = "0px";
         this.offset = 0;
@@ -1011,19 +1072,19 @@ class Area {
         if( resize )
         {
             this.resize = resize;
-            this.split_bar = document.createElement( "div" );
-            this.split_bar.className = "lexsplitbar " + type;
+            this.splitBar = document.createElement( "div" );
+            this.splitBar.className = "lexsplitbar " + type;
 
             if( type == "horizontal" )
             {
-                this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                this.splitBar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
             }
             else
             {
-                this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                this.splitBar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
             }
 
-            this.split_bar.addEventListener( 'mousedown', inner_mousedown );
+            this.splitBar.addEventListener( 'mousedown', inner_mousedown );
 
             data = ( LX.DEFAULT_SPLITBAR_SIZE / 2 ) + "px"; // updates
 
@@ -1040,7 +1101,7 @@ class Area {
                     flushCss(area2.root);
                 });
 
-                this.split_bar.addEventListener("contextmenu", e => {
+                this.splitBar.addEventListener("contextmenu", e => {
                     e.preventDefault();
                     addContextMenu(null, e, c => {
                         c.add("Extend", { disabled: this.split_extended, callback: () => { this.extend() } });
@@ -1071,7 +1132,7 @@ class Area {
             area1.root.style.width = "100%";
             area2.root.style.width = "100%";
 
-            if(auto)
+            if( auto )
             {
                 area1.root.style.height = "auto";
 
@@ -1105,11 +1166,11 @@ class Area {
 
         if( resize )
         {
-            this.root.appendChild(this.split_bar);
+            this.root.appendChild(this.splitBar);
         }
 
         this.root.appendChild( area2.root );
-        this.sections = [area1, area2];
+        this.sections = [ area1, area2 ];
         this.type = type;
 
         // Update sizes
@@ -1121,41 +1182,41 @@ class Area {
         }
 
         var that = this;
-        var last_pos = [ 0, 0 ];
+        var lastMousePosition = [ 0, 0 ];
 
         function inner_mousedown( e )
         {
             var doc = that.root.ownerDocument;
             doc.addEventListener( 'mousemove', inner_mousemove );
             doc.addEventListener( 'mouseup', inner_mouseup );
-            last_pos[0] = e.x;
-            last_pos[1] = e.y;
+            lastMousePosition[0] = e.x;
+            lastMousePosition[1] = e.y;
             e.stopPropagation();
             e.preventDefault();
             document.body.classList.add( 'nocursor' );
-            that.split_bar.classList.add( 'nocursor' );
+            that.splitBar.classList.add( 'nocursor' );
         }
 
         function inner_mousemove( e )
         {
             if(that.type == "horizontal")
             {
-                that._moveSplit( last_pos[ 0 ] - e.x );
+                that._moveSplit( lastMousePosition[ 0 ] - e.x );
             }
             else
             {
-                that._moveSplit( last_pos[ 1 ] - e.y );
+                that._moveSplit( lastMousePosition[ 1 ] - e.y );
             }
             
-            last_pos[ 0 ] = e.x;
-            last_pos[ 1 ] = e.y;
+            lastMousePosition[ 0 ] = e.x;
+            lastMousePosition[ 1 ] = e.y;
 
             const widgets = that.root.querySelectorAll( ".lexwidget" );
 
             // Send area resize to every widget in the area
             for( let widget of widgets )
             {
-                const jsInstance = widget.jsIinstance;
+                const jsInstance = widget.jsInstance;
 
                 if( jsInstance.onresize )
                 {
@@ -1173,7 +1234,7 @@ class Area {
             doc.removeEventListener( 'mousemove', inner_mousemove );
             doc.removeEventListener( 'mouseup', inner_mouseup );
             document.body.classList.remove( 'nocursor' );
-            that.split_bar.classList.remove( 'nocursor' );
+            that.splitBar.classList.remove( 'nocursor' );
         }
 
         return this.sections;
@@ -1195,23 +1256,33 @@ class Area {
     * @method resize
     * Resize element
     */
-    setSize(size) {
+    setSize( size ) {
         
-        let [width, height] = size;
+        let [ width, height ] = size;
 
-        if(width != undefined && width.constructor == Number)
+        if( width != undefined && width.constructor == Number )
+        {
             width += "px";
-        if(height != undefined && height.constructor == Number)
+        }
+
+        if( height != undefined && height.constructor == Number )
+        {
             height += "px";
+        }
 
-        if(width)
+        if( width )
+        {
             this.root.style.width = width;
-        if(height)
+        }
+
+        if( height )
+        {
             this.root.style.height = height;
+        }
 
-        this.size = [this.root.clientWidth, this.root.clientHeight];
+        this.size = [ this.root.clientWidth, this.root.clientHeight ];
 
-        this.propagateEvent("onresize");
+        this.propagateEvent( "onresize" );
     }
 
     /**
@@ -1221,7 +1292,9 @@ class Area {
     extend() {
 
         if( this.split_extended )
-        return;
+        {
+            return;
+        }
 
         let [area1, area2] = this.sections;
         this.split_extended = true;
@@ -1593,8 +1666,8 @@ class Area {
     _disableSplitResize() {
 
         this.resize = false;
-        this.split_bar.remove();
-        delete this.split_bar;
+        this.splitBar.remove();
+        delete this.splitBar;
     }
 
     _update() {
@@ -1890,11 +1963,15 @@ class Tabs {
 
         const tabEl = this.tabDOMs[ name ];
 
-        if(!tabEl || tabEl.fixed)
-        return;
+        if( !tabEl || tabEl.fixed )
+        {
+            return;
+        }
 
         if( this.onclose )
+        {
             this.onclose( name );
+        }
 
         // Delete tab element
         this.tabDOMs[ name ].remove();
@@ -1905,11 +1982,12 @@ class Tabs {
         delete this.tabs[ name ];
 
         // Select last tab
-        const last_tab = this.root.lastChild;
-        if(last_tab && !last_tab.fixed)
+        const lastTab = this.root.lastChild;
+        if( lastTab && !lastTab.fixed )
+        {
             this.root.lastChild.click();
+        }
     }
-
 }
 
 LX.Tabs = Tabs;
@@ -2410,6 +2488,18 @@ class SideBar {
         desc.innerHTML = key;
         entry.appendChild( desc );
 
+        button.addEventListener("mouseenter", () => {
+            setTimeout( () => {
+                desc.style.display = "unset";
+            }, 100 );
+        });
+
+        button.addEventListener("mouseleave", () => {
+            setTimeout( () => {
+                desc.style.display = "none";
+            }, 100 );
+        });
+
         entry.addEventListener("click", () => {
 
             const f = options.callback;
@@ -2477,6 +2567,8 @@ class Widget {
     static SEPARATOR    = 22;
     static KNOB         = 23;
     static SIZE         = 24;
+    static PAD          = 25;
+    static FORM         = 26;
 
     static NO_CONTEXT_TYPES = [
         Widget.BUTTON,
@@ -2562,6 +2654,8 @@ class Widget {
             case Widget.CURVE: return "Curve";
             case Widget.KNOB: return "Knob";
             case Widget.SIZE: return "Size";
+            case Widget.PAD: return "Pad";
+            case Widget.FORM: return "Form";
             case Widget.CUSTOM: return this.customName;
         }
     }
@@ -2656,40 +2750,50 @@ function ADD_CUSTOM_WIDGET( custom_widget_name, options = {} )
             custom_widgets.className = "lexcustomitems";
             custom_widgets.toggleAttribute('hidden', true);
             
-            element.appendChild(container);
-            element.appendChild(custom_widgets);
+            element.appendChild( container );
+            element.appendChild( custom_widgets );
 
-            if( instance ) {
-                
+            if( instance )
+            {
+
                 this.queue( custom_widgets );
                 
-                const on_instance_changed = (key, value, event) => {
-                    instance[key] = value;
-                    this._trigger( new IEvent(name, instance, event), callback );
+                const on_instance_changed = ( key, value, event ) => {
+                    instance[ key ] = value;
+                    this._trigger( new IEvent( name, instance, event ), callback );
                 };
 
                 for( let key in default_instance )
                 {
-                    const value = instance[key] ?? default_instance[key];
+                    const value = instance[ key ] ?? default_instance[ key ];
                     
-                    switch(value.constructor) {
+                    switch( value.constructor )
+                    {
                         case String:
-                            if(value[0] === '#')
-                                this.addColor(key, value, on_instance_changed.bind(this, key));
+                            if( value[ 0 ] === '#' )
+                            {
+                                this.addColor( key, value, on_instance_changed.bind( this, key ) );
+                            }
                             else
-                                this.addText(key, value, on_instance_changed.bind(this, key));
+                            {
+                                this.addText( key, value, on_instance_changed.bind( this, key ) );
+                            }
                             break;
                         case Number:
-                            this.addNumber(key, value, on_instance_changed.bind(this, key));
+                            this.addNumber( key, value, on_instance_changed.bind( this, key ) );
                             break;
                         case Boolean:
-                            this.addCheckbox(key, value, on_instance_changed.bind(this, key));
+                            this.addCheckbox( key, value, on_instance_changed.bind( this, key ) );
                             break;
                         case Array:
                             if( value.length > 4 )
-                                this.addArray(key, value, on_instance_changed.bind(this, key));    
+                            {
+                                this.addArray( key, value, on_instance_changed.bind( this, key ) );
+                            }
                             else
-                                this._add_vector(value.length, key, value, on_instance_changed.bind(this, key));
+                            {
+                                this._add_vector( value.length, key, value, on_instance_changed.bind( this, key ) );
+                            }
                             break;
                     }
                 }
@@ -2728,37 +2832,40 @@ class NodeTree {
     _create_item( parent, node, level = 0, selectedId ) {
 
         const that = this;
-        const node_filter_input = this.domEl.querySelector("#lexnodetree_filter");
+        const node_filter_input = this.domEl.querySelector( "#lexnodetree_filter" );
 
         node.children = node.children ?? [];
-        if(node_filter_input && !node.id.includes(node_filter_input.value) || (selectedId != undefined) && selectedId != node.id)
+        if( node_filter_input && !node.id.includes( node_filter_input.value ) || (selectedId != undefined) && selectedId != node.id )
         {
             for( var i = 0; i < node.children.length; ++i )
-                this._create_item( node, node.children[i], level + 1, selectedId );
+            {
+                this._create_item( node, node.children[ i ], level + 1, selectedId );
+            }
             return;
         }
 
-        const list = this.domEl.querySelector("ul");
+        const list = this.domEl.querySelector( 'ul' );
 
         node.visible = node.visible ?? true;
         node.parent = parent;
-        let is_parent = node.children.length > 0;
-        let is_selected = this.selected.indexOf( node ) > -1 || node.selected;
+        let isParent = node.children.length > 0;
+        let isSelected = this.selected.indexOf( node ) > -1 || node.selected;
         
-        if( this.options.only_folders ) {
+        if( this.options.onlyFolders )
+        {
             let has_folders = false;
             node.children.forEach( c => has_folders |= (c.type == 'folder') );
-            is_parent = !!has_folders;
+            isParent = !!has_folders;
         }
 
         let item = document.createElement('li');
-        item.className = "lextreeitem " + "datalevel" + level + (is_parent ? " parent" : "") + (is_selected ? " selected" : "");
+        item.className = "lextreeitem " + "datalevel" + level + (isParent ? " parent" : "") + (isSelected ? " selected" : "");
         item.id = LX.getSupportedDOMName( node.id );
         item.tabIndex = "0";
 
         // Select hierarchy icon
         let icon = (this.options.skip_default_icon ?? true) ? "" : "fa-solid fa-square"; // Default: no childs
-        if( is_parent ) icon = node.closed ? "fa-solid fa-caret-right" : "fa-solid fa-caret-down";
+        if( isParent ) icon = node.closed ? "fa-solid fa-caret-right" : "fa-solid fa-caret-down";
         item.innerHTML = "<a class='" + icon + " hierarchy'></a>";
         
         // Add display icon
@@ -2778,18 +2885,20 @@ class NodeTree {
 
         item.innerHTML += (node.rename ? "" : node.id);
 
-        item.setAttribute('draggable', true);
-        item.style.paddingLeft = ((is_parent ? 0 : 3 ) + (3 + (level+1) * 15)) + "px";
-        list.appendChild(item);
+        item.setAttribute( 'draggable', true );
+        item.style.paddingLeft = ((isParent ? 0 : 3 ) + (3 + (level+1) * 15)) + "px";
+        list.appendChild( item );
 
         // Callbacks
         item.addEventListener("click", e => {
-            if( handled ) {
+            if( handled )
+            {
                 handled = false;
                 return;
             }
 
-            if( !e.shiftKey ) {
+            if( !e.shiftKey )
+            {
                 list.querySelectorAll( "li" ).forEach( e => { e.classList.remove( 'selected' ); } );
                 this.selected.length = 0;
             }
@@ -2805,16 +2914,18 @@ class NodeTree {
             }
 
             // Only Show children...
-            if( is_parent && node.id.length > 1 /* Strange case... */) {
+            if( isParent && node.id.length > 1 /* Strange case... */) {
                 node.closed = false;
-                if( that.onevent ) {
-                    const event = new TreeEvent(TreeEvent.NODE_CARETCHANGED, node, node.closed);
+                if( that.onevent )
+                {
+                    const event = new TreeEvent( TreeEvent.NODE_CARETCHANGED, node, node.closed );
                     that.onevent( event );
                 }
                 that.frefresh( node.id );
             }
 
-            if( that.onevent ) {
+            if( that.onevent )
+            {
                 const event = new TreeEvent(TreeEvent.NODE_SELECTED, e.shiftKey ? this.selected : node );
                 event.multiple = e.shiftKey;
                 that.onevent( event );
@@ -2837,85 +2948,87 @@ class NodeTree {
             }
         });
 
-        item.addEventListener("contextmenu", e => {
+        item.addEventListener( "contextmenu", e => {
+
             e.preventDefault();
-            if(that.onevent) {
-                const event = new TreeEvent(TreeEvent.NODE_CONTEXTMENU, this.selected.length > 1 ? this.selected : node, e);
-                event.multiple = this.selected.length > 1;
 
-                LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.value, m => {
-                    event.panel = m;
-                });
+            if( that.onevent )
+            {
+                return;
+            }
 
-                that.onevent( event );
+            const event = new TreeEvent(TreeEvent.NODE_CONTEXTMENU, this.selected.length > 1 ? this.selected : node, e);
+            event.multiple = this.selected.length > 1;
 
-                if( ( this.options.addDefault ?? false ) == true )
+            LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.value, m => {
+                event.panel = m;
+            });
+
+            that.onevent( event );
+
+            if( ( this.options.addDefault ?? false ) == true )
+            {
+                if( event.panel.items )
                 {
-                    if( event.panel.items )
-                    {
-                        event.panel.add( "" );
-                    }
-    
-                    event.panel.add( "Select Children", () => {
-    
-                        const selectChildren = ( n ) => {
-                            
-                            if( n.closed )
-                            {
-                                return;
-                            }
-    
-                            for( let child of n.children ?? [] )
-                            {
-                                if( !child )
-                                {
-                                    continue;   
-                                }
-    
-                                let nodeItem = this.domEl.querySelector( '#' + child.id );
-                                nodeItem.classList.add('selected');
-                                this.selected.push( child ); 
-                                selectChildren( child );
-                            }
-                        };
-    
-                        // Add childs of the clicked node
-                        selectChildren( node );
-    
-                    } );
-                    
-                    // event.panel.add( "Clone", { callback: () => {
-    
-                    // } } );
-    
-                    event.panel.add( "Delete", { callback: () => {
-    
-                        // It's the root node
-                        if( !node.parent )
+                    event.panel.add( "" );
+                }
+
+                event.panel.add( "Select Children", () => {
+
+                    const selectChildren = ( n ) => {
+
+                        if( n.closed )
                         {
                             return;
                         }
-    
-                        if( that.onevent ) {
-                            const event = new TreeEvent( TreeEvent.NODE_DELETED, node, e );
-                            that.onevent( event );
+
+                        for( let child of n.children ?? [] )
+                        {
+                            if( !child )
+                            {
+                                continue;
+                            }
+
+                            let nodeItem = this.domEl.querySelector( '#' + child.id );
+                            nodeItem.classList.add('selected');
+                            this.selected.push( child );
+                            selectChildren( child );
                         }
-    
-                        // Delete nodes now
-                        let childs = node.parent.children;
-                        const index = childs.indexOf( node );
-                        childs.splice( index, 1 );
-    
-                        this.refresh();
-                    } } );
-                }
+                    };
+
+                    // Add childs of the clicked node
+                    selectChildren( node );
+                } );
+
+                event.panel.add( "Delete", { callback: () => {
+
+                    // It's the root node
+                    if( !node.parent )
+                    {
+                        return;
+                    }
+
+                    if( that.onevent ) {
+                        const event = new TreeEvent( TreeEvent.NODE_DELETED, node, e );
+                        that.onevent( event );
+                    }
+
+                    // Delete nodes now
+                    let childs = node.parent.children;
+                    const index = childs.indexOf( node );
+                    childs.splice( index, 1 );
+
+                    this.refresh();
+                } } );
             }
         });
 
         item.addEventListener("keydown", e => {
 
             if( node.rename )
+            {
                 return;
+            }
 
             e.preventDefault();
 
@@ -2944,7 +3057,10 @@ class NodeTree {
                 var selected = this.selected.length > 1 ? ( e.key == "ArrowUp" ? this.selected.shift() : this.selected.pop() ) : this.selected[ 0 ];
                 var el = this.domEl.querySelector( "#" + LX.getSupportedDOMName( selected.id ) );
                 var sibling = e.key == "ArrowUp" ? el.previousSibling : el.nextSibling;
-                if( sibling ) sibling.click();
+                if( sibling )
+                {
+                    sibling.click();
+                }
             }
         });
 
@@ -3050,7 +3166,7 @@ class NodeTree {
         let handled = false;
 
         // Show/hide children
-        if(is_parent) {
+        if(isParent) {
             item.querySelector('a.hierarchy').addEventListener("click", function(e) {
                 
                 handled = true;
@@ -3114,7 +3230,7 @@ class NodeTree {
         {
             let child = node.children[i];
 
-            if( this.options.only_folders && child.type != 'folder')
+            if( this.options.onlyFolders && child.type != 'folder')
                 continue;
 
             this._create_item( node, child, level + 1 );
@@ -3188,19 +3304,25 @@ class Panel {
     getValue( name ) {
 
         let widget = this.widgets[ name ];
-        if(!widget)
-            throw("No widget called " + name);
+
+        if( !widget )
+        {
+            throw( "No widget called " + name );
+        }
 
         return widget.value();
     }
 
-    setValue( name, value ) {
+    setValue( name, value, skipCallback ) {
 
         let widget = this.widgets[ name ];
-        if(!widget)
-            throw("No widget called " + name);
 
-        return widget.set(value);
+        if( !widget )
+        {
+            throw( "No widget called " + name );
+        }
+
+        return widget.set( value, skipCallback );
     }
 
     /**
@@ -3380,8 +3502,8 @@ class Panel {
     }
 
     static _dispatch_event( element, type, data, bubbles, cancelable ) {
-        let event = new CustomEvent(type, { 'detail': data, 'bubbles': bubbles, 'cancelable': cancelable });
-        element.dispatchEvent(event);
+        let event = new CustomEvent( type, { 'detail': data, 'bubbles': bubbles, 'cancelable': cancelable } );
+        element.dispatchEvent( event );
     }
 
     static _add_reset_property( container, callback ) {
@@ -3389,8 +3511,8 @@ class Panel {
         domEl.style.display = "none";
         domEl.style.marginRight = "6px";
         domEl.className = "lexicon fa fa-rotate-left";
-        domEl.addEventListener("click", callback);
-        container.appendChild(domEl);
+        domEl.addEventListener( "click", callback );
+        container.appendChild( domEl );
         return domEl;
     }
 
@@ -3400,39 +3522,45 @@ class Panel {
 
     create_widget( name, type, options = {} ) {
 
-        let widget = new Widget(name, type, options);
+        let widget = new Widget( name, type, options );
 
-        let element = document.createElement('div');
+        let element = document.createElement( 'div' );
         element.className = "lexwidget";
-        if(options.id)
-            element.id = options.id;
-        if(options.className)
+        element.id = options.id ?? "";
+        element.title = options.title ?? "";
+
+        if( options.className )
+        {
             element.className += " " + options.className;
-        if(options.title)
-            element.title = options.title;
+        }
 
         if( type != Widget.TITLE )
         {
             element.style.width = "calc(100% - " + (this.current_branch || type == Widget.FILE ? 10 : 20) + "px)";
-            if( options.width ) {
+
+            if( options.width )
+            {
                 element.style.width = element.style.minWidth = options.width;
             }
-            if( options.maxWidth ) {
+            if( options.maxWidth )
+            {
                 element.style.maxWidth = options.maxWidth;
             }
-            if( options.minWidth ) {
+            if( options.minWidth )
+            {
                 element.style.minWidth = options.minWidth;
             }
-            if( options.height ) {
+            if( options.height )
+            {
                 element.style.height = element.style.minHeight = options.height;
             }
         }
 
-        if(name != undefined) {
-
-            if(!(options.no_name ?? false) )
+        if( name != undefined )
+        {
+            if( !(options.hideName ?? false) )
             {
-                let domName = document.createElement('div');
+                let domName = document.createElement( 'div' );
                 domName.className = "lexwidgetname";
                 if( options.justifyName )
                 {
@@ -3445,27 +3573,32 @@ class Panel {
                 element.domName = domName;
 
                 // Copy-paste info
-                domName.addEventListener('contextmenu', function(e) {
+                domName.addEventListener('contextmenu', function( e ) {
                     e.preventDefault();
-                    widget.oncontextmenu(e);
+                    widget.oncontextmenu( e );
                 });
             }
             
             this.widgets[ name ] = widget;
         }
 
-        if(options.signal)
+        if( options.signal )
         {
-            if(!name) {
-                if(!this.signals)
+            if( !name )
+            {
+                if( !this.signals )
+                {
                     this.signals = [];
-                this.signals.push({[options.signal]: widget})
+                }
+
+                this.signals.push( { [ options.signal ]: widget } )
             }
+
             LX.addSignal( options.signal, widget );
         }
 
         widget.domEl = element;
-        element.jsIinstance = widget;
+        element.jsInstance = widget;
 
         const insert_widget = el => {
             if(options.container)
@@ -3535,7 +3668,7 @@ class Panel {
         element.className += " lexfilter noname";
         
         let input = document.createElement('input');
-        input.id = 'input-filter';
+        input.className = 'lexinput-filter';
         input.setAttribute("placeholder", options.placeholder);
         input.style.width =  "calc( 100% - 17px )";
         input.value = options.filterValue || "";
@@ -3988,14 +4121,17 @@ class Panel {
      * disabled: Make the widget disabled [false]
      * icon: Icon class to show as button value
      * img: Path to image to show as button value
+     * title: Text to show in native Element title
      */
 
     addButton( name, value, callback, options = {} ) {
 
-        let widget = this.create_widget(name, Widget.BUTTON, options);
+        let widget = this.create_widget( name, Widget.BUTTON, options );
+
         widget.onGetValue = () => {
             return wValue.innerText;
         };
+
         widget.onSetValue = ( newValue, skipCallback ) => {
             wValue.innerHTML = 
             (options.icon ? "<a class='" + options.icon + "'></a>" : 
@@ -4004,36 +4140,50 @@ class Panel {
 
         let element = widget.domEl;
 
-        var wValue = document.createElement('button');
-        if(options.icon || options.img) 
-            wValue.title = value;
+        var wValue = document.createElement( 'button' );
+        wValue.title = options.title ?? "";
         wValue.className = "lexbutton";
-        if(options.selected)
-            wValue.classList.add("selected");
-        if(options.buttonClass)
-            wValue.classList.add(options.buttonClass);
+
+        if( options.selected )
+        {
+            wValue.classList.add( "selected" );
+        }
+
+        if( options.buttonClass )
+        {
+            wValue.classList.add( options.buttonClass );
+        }
+
         wValue.innerHTML = 
             (options.icon ? "<a class='" + options.icon + "'></a>" : 
             ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + (value || "") + "</span>" ));
 
         wValue.style.width = "calc( 100% - " + (options.nameWidth ?? LX.DEFAULT_NAME_WIDTH) + ")";
 
-        if(options.disabled)
-            wValue.setAttribute("disabled", true);
+        if( options.disabled )
+        {
+            wValue.setAttribute( "disabled", true );
+        }
 
         wValue.addEventListener("click", e => {
-            if( options.selectable ) {
+            if( options.selectable )
+            {
                 if( options.parent )
+                {
                     options.parent.querySelectorAll(".lexbutton.selected").forEach( e => { if(e == wValue) return; e.classList.remove("selected") } );
+                }
+
                 wValue.classList.toggle('selected');
             }
-            this._trigger( new IEvent(name, value, e), callback );   
+
+            this._trigger( new IEvent( name, value, e ), callback );
         });
 
-        element.appendChild(wValue);
+        element.appendChild( wValue );
 
         // Remove branch padding and margins
-        if(!widget.name) {
+        if( !widget.name )
+        {
             wValue.className += " noname";
             wValue.style.width = "100%";
         }
@@ -4123,7 +4273,7 @@ class Panel {
 
     addCard( name, options = {} ) {
 
-        options.no_name = true;
+        options.hideName = true;
         let widget = this.create_widget(name, Widget.CARD, options);
         let element = widget.domEl;
 
@@ -4175,6 +4325,89 @@ class Panel {
     }
 
     /**
+     * @method addForm
+     * @param {String} name Widget name
+     * @param {Object} data Form data
+     * @param {Function} callback Callback function on submit form
+     * @param {*} options:
+     * actionName: Text to be shown in the button
+     */
+
+    addForm( name, data, callback, options = {} ) {
+
+        if( data.constructor != Object )
+        {
+            console.error( "Form data must be an Object" );
+            return;
+        }
+
+        // Always hide name for this one
+        options.hideName = true;
+
+        let widget = this.create_widget( name, Widget.FORM, options );
+
+        widget.onGetValue = () => {
+            return container.formData;
+        };
+
+        widget.onSetValue = ( newValue, skipCallback ) => {
+            container.formData = newValue;
+            const entries = container.querySelectorAll( ".lexwidget" );
+            for( let i = 0; i < entries.length; ++i )
+            {
+                const entry = entries[ i ];
+                if( entry.jsInstance.type != LX.Widget.TEXT )
+                {
+                    continue;
+                }
+                let entryName = entries[ i ].querySelector( ".lexwidgetname" ).innerText;
+                let entryInput = entries[ i ].querySelector( ".lextext input" );
+                entryInput.value = newValue[ entryName ] ?? "";
+                Panel._dispatch_event( entryInput, "focusout", skipCallback );
+            }
+        };
+
+        // Add widget value
+
+        let element = widget.domEl;
+
+        let container = document.createElement( 'div' );
+        container.className = "lexformdata";
+
+        this.queue( container );
+
+        container.formData = {};
+
+        for( let entry in data )
+        {
+            const entryData = data[ entry ];
+            this.addText( entry, entryData.constructor == Object ? entryData.value : entryData, ( value ) => {
+                container.formData[ entry ] = value;
+            }, entryData );
+
+            container.formData[ entry ] = entryData.constructor == Object ? entryData.value : entryData;
+        }
+
+        this.addButton( null, options.actionName ?? "Submit", ( value, event ) => {
+            if( callback )
+            {
+                callback( container.formData, event );
+            }
+        } );
+
+        this.clearQueue();
+
+        element.appendChild( container );
+
+        if( !widget.name || options.hideName ) {
+            element.className += " noname";
+            container.style.width = "100%";
+        }
+
+        return widget;
+    }
+
+    /**
      * @method addContent
      * @param {HTMLElement} element
      */
@@ -4198,27 +4431,29 @@ class Panel {
     async addImage( url, options = {} ) {
 
         if( !url )
-        return;
+        {
+            return;
+        }
 
-        options.no_name = true;
-        let widget = this.create_widget(null, Widget.IMAGE, options);
+        options.hideName = true;
+        let widget = this.create_widget( null, Widget.IMAGE, options );
         let element = widget.domEl;
 
-        let container = document.createElement('div');
+        let container = document.createElement( 'div' );
         container.className = "leximage";
         container.style.width = "100%";
 
-        let img = document.createElement('img');
+        let img = document.createElement( 'img' );
         img.src = url;
 
-        for(let s in options.style) {
-
-            img.style[s] = options.style[s];
+        for( let s in options.style )
+        {
+            img.style[ s ] = options.style[ s ];
         }
 
         await img.decode();
-        container.appendChild(img);
-        element.appendChild(container);
+        container.appendChild( img );
+        element.appendChild( container );
 
         return widget;
     }
@@ -4317,7 +4552,7 @@ class Panel {
                 setTimeout( () => delete this.unfocus_event, 200 );
             } else if ( e.relatedTarget && e.relatedTarget.tagName == "INPUT" ) {
                 return;
-            }else if ( e.target.id == 'input-filter' ) {
+            }else if ( e.target.className == 'lexinput-filter' ) {
                 return;
             }
             this.toggleAttribute( 'hidden', true );
@@ -5292,7 +5527,6 @@ class Panel {
         vecinput.addEventListener( "mousedown", inner_mousedown );
 
         var that = this;
-        var lastY = 0;
 
         function inner_mousedown( e )
         {
@@ -5304,12 +5538,15 @@ class Panel {
             var doc = that.root.ownerDocument;
             doc.addEventListener( 'mousemove', inner_mousemove );
             doc.addEventListener( 'mouseup', inner_mouseup );
-            lastY = e.pageY;
-            document.body.classList.add( 'nocursor' );
             document.body.classList.add( 'noevents' );
             dragIcon.classList.remove( 'hidden' );
             e.stopImmediatePropagation();
             e.stopPropagation();
+
+            if( !document.pointerLockElement )
+            {
+                vecinput.requestPointerLock();
+            }
 
             if( options.onPress )
             {
@@ -5319,8 +5556,10 @@ class Panel {
 
         function inner_mousemove( e )
         {
-            if ( lastY != e.pageY ) {
-                let dt = lastY - e.pageY;
+            let dt = -e.movementY;
+
+            if ( dt != 0 )
+            {
                 let mult = options.step ?? 1;
                 if( e.shiftKey ) mult *= 10;
                 else if( e.altKey ) mult *= 0.1;
@@ -5329,7 +5568,6 @@ class Panel {
                 Panel._dispatch_event( vecinput, "change" );
             }
 
-            lastY = e.pageY;
             e.stopPropagation();
             e.preventDefault();
         }
@@ -5339,9 +5577,13 @@ class Panel {
             var doc = that.root.ownerDocument;
             doc.removeEventListener( 'mousemove', inner_mousemove );
             doc.removeEventListener( 'mouseup', inner_mouseup );
-            document.body.classList.remove( 'nocursor' );
             document.body.classList.remove( 'noevents' );
             dragIcon.classList.add( 'hidden' );
+
+            if( document.pointerLockElement )
+            {
+                document.exitPointerLock();
+            }
 
             if( options.onRelease )
             {
@@ -5435,7 +5677,7 @@ class Panel {
 
             if( value[ i ].constructor == Number )
             {
-                value[ i ] = clamp(value[ i ], +vecinput.min, +vecinput.max);
+                value[ i ] = clamp( value[ i ], +vecinput.min, +vecinput.max );
                 value[ i ] = round( value[ i ], options.precision );
             }
 
@@ -5477,7 +5719,9 @@ class Panel {
             vecinput.addEventListener( "change", e => {
 
                 if( isNaN( e.target.value ) )
+                {
                     return;
+                }
 
                 const skipCallback = e.detail;
 
@@ -5488,7 +5732,7 @@ class Panel {
                 if( !skipCallback )
                 {
                     let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                    if( btn ) btn.style.display = val != vecinput.iValue ? "block": "none";
+                    if( btn ) btn.style.display = val != vecinput.iValue ? "block" : "none";
                 }
 
                 if( locker.locked )
@@ -5497,7 +5741,8 @@ class Panel {
                         v.value = val;
                         value[ v.idx ] = val;
                     }
-                } else
+                }
+                else
                 {
                     vecinput.value = val;
                     value[ e.target.idx ] = val;
@@ -5511,7 +5756,7 @@ class Panel {
             vecinput.addEventListener( "mousedown", inner_mousedown );
 
             var that = this;
-            var lastY = 0;
+
             function inner_mousedown( e )
             {
                 if( document.activeElement == vecinput )
@@ -5522,12 +5767,15 @@ class Panel {
                 var doc = that.root.ownerDocument;
                 doc.addEventListener( 'mousemove', inner_mousemove );
                 doc.addEventListener( 'mouseup', inner_mouseup );
-                lastY = e.pageY;
-                document.body.classList.add( 'nocursor' );
                 document.body.classList.add( 'noevents' );
                 dragIcon.classList.remove( 'hidden' );
                 e.stopImmediatePropagation();
                 e.stopPropagation();
+
+                if( !document.pointerLockElement )
+                {
+                    vecinput.requestPointerLock();
+                }
 
                 if( options.onPress )
                 {
@@ -5537,8 +5785,10 @@ class Panel {
 
             function inner_mousemove( e )
             {
-                if ( lastY != e.pageY ) {
-                    let dt = lastY - e.pageY;
+                let dt = -e.movementY;
+
+                if ( dt != 0 )
+                {
                     let mult = options.step ?? 1;
                     if( e.shiftKey ) mult = 10;
                     else if( e.altKey ) mult = 0.1;
@@ -5557,7 +5807,6 @@ class Panel {
                     }
                 }
 
-                lastY = e.pageY;
                 e.stopPropagation();
                 e.preventDefault();
             }
@@ -5567,9 +5816,13 @@ class Panel {
                 var doc = that.root.ownerDocument;
                 doc.removeEventListener( 'mousemove', inner_mousemove );
                 doc.removeEventListener( 'mouseup', inner_mouseup );
-                document.body.classList.remove( 'nocursor' );
                 document.body.classList.remove( 'noevents' );
                 dragIcon.classList.add('hidden');
+
+                if( document.pointerLockElement )
+                {
+                    document.exitPointerLock();
+                }
 
                 if( options.onRelease )
                 {
@@ -5608,7 +5861,9 @@ class Panel {
             {
                 this.classList.add( "fa-lock" );
                 this.classList.remove( "fa-lock-open" );
-            } else {
+            }
+            else
+            {
                 this.classList.add( "fa-lock-open" );
                 this.classList.remove( "fa-lock" );
             }
@@ -5731,6 +5986,131 @@ class Panel {
     }
 
     /**
+     * @method addPad
+     * @param {String} name Widget name
+     * @param {Number} value Pad value
+     * @param {Function} callback Callback function on change
+     * @param {*} options:
+     * disabled: Make the widget disabled [false]
+     * min, max: Min and Max values
+     * onPress: Callback function on mouse down
+     * onRelease: Callback function on mouse up
+     */
+
+    addPad( name, value, callback, options = {} ) {
+
+        if( !name )
+        {
+            throw( "Set Widget Name!" );
+        }
+
+        let widget = this.create_widget( name, Widget.PAD, options );
+
+        widget.onGetValue = () => {
+            return thumb.value.xy;
+        };
+
+        widget.onSetValue = ( newValue, skipCallback ) => {
+            thumb.value.set( newValue[ 0 ], newValue[ 1 ] );
+            _updateValue( thumb.value );
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, thumb.value.xy ), callback );
+            }
+        };
+
+        let element = widget.domEl;
+
+        var container = document.createElement( 'div' );
+        container.className = "lexpad";
+        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+
+        let pad = document.createElement('div');
+        pad.id = "lexpad-" + name;
+        pad.className = "lexinnerpad";
+        pad.style.width = options.padSize ?? '96px';
+        pad.style.height = options.padSize ?? '96px';
+
+        let thumb = document.createElement('div');
+        thumb.className = "lexpadthumb";
+        thumb.value = new LX.vec2( value[ 0 ], value[ 1 ] );
+        thumb.min = options.min ?? 0;
+        thumb.max = options.max ?? 1;
+
+        let _updateValue = v => {
+            const [ w, h ] = [ pad.offsetWidth, pad.offsetHeight ];
+            const value0to1 = new LX.vec2( remapRange( v.x, thumb.min, thumb.max, 0.0, 1.0 ), remapRange( v.y, thumb.min, thumb.max, 0.0, 1.0 ) );
+            thumb.style.transform = `translate(calc( ${ w * value0to1.x }px - 50% ), calc( ${ h * value0to1.y }px - 50%)`;
+        }
+
+        doAsync( () => {
+            _updateValue( thumb.value )
+        } );
+
+        pad.appendChild( thumb );
+        container.appendChild( pad );
+        element.appendChild( container );
+
+        pad.addEventListener( "mousedown", innerMouseDown );
+
+        let that = this;
+
+        function innerMouseDown( e )
+        {
+            if( document.activeElement == thumb )
+            {
+                return;
+            }
+
+            var doc = that.root.ownerDocument;
+            doc.addEventListener( 'mousemove', innerMouseMove );
+            doc.addEventListener( 'mouseup', innerMouseUp );
+            document.body.classList.add( 'nocursor' );
+            document.body.classList.add( 'noevents' );
+            e.stopImmediatePropagation();
+            e.stopPropagation();
+
+            if( options.onPress )
+            {
+                options.onPress.bind( thumb )( e, thumb );
+            }
+        }
+
+        function innerMouseMove( e )
+        {
+            const rect = pad.getBoundingClientRect();
+            const relativePosition = new LX.vec2( e.x - rect.x, e.y - rect.y );
+            relativePosition.clp( 0.0, pad.offsetWidth, relativePosition);
+            const [ w, h ] = [ pad.offsetWidth, pad.offsetHeight ];
+            const value0to1 = relativePosition.div( new LX.vec2( pad.offsetWidth, pad.offsetHeight ) );
+
+            thumb.style.transform = `translate(calc( ${ w * value0to1.x }px - 50% ), calc( ${ h * value0to1.y }px - 50%)`;
+            thumb.value = new LX.vec2( remapRange( value0to1.x, 0.0, 1.0, thumb.min, thumb.max ), remapRange( value0to1.y, 0.0, 1.0, thumb.min, thumb.max ) );
+
+            that._trigger( new IEvent( name, thumb.value.xy, e ), callback );
+
+            e.stopPropagation();
+            e.preventDefault();
+        }
+
+        function innerMouseUp( e )
+        {
+            var doc = that.root.ownerDocument;
+            doc.removeEventListener( 'mousemove', innerMouseMove );
+            doc.removeEventListener( 'mouseup', innerMouseUp );
+            document.body.classList.remove( 'nocursor' );
+            document.body.classList.remove( 'noevents' );
+
+            if( options.onRelease )
+            {
+                options.onRelease.bind( thumb )( e, thumb );
+            }
+        }
+
+        return widget;
+    }
+
+    /**
      * @method addProgress
      * @param {String} name Widget name
      * @param {Number} value Progress value 
@@ -5744,7 +6124,8 @@ class Panel {
 
     addProgress( name, value, options = {} ) {
 
-        if(!name) {
+        if( !name )
+        {
             throw("Set Widget Name!");
         }
 
@@ -5775,46 +6156,74 @@ class Panel {
         progress.max = options.max ?? 1;
         progress.value = value;
         
-        if(options.low)
+        if( options.low )
             progress.low = options.low;
-        if(options.high)
+        if( options.high )
             progress.high = options.high;
-        if(options.optimum)
+        if( options.optimum )
             progress.optimum = options.optimum;
 
-        container.appendChild(progress);
-        element.appendChild(container);
+        container.appendChild( progress );
+        element.appendChild( container );
 
-        if(options.showValue) {
-            if(document.getElementById('progressvalue-' + name ))
+        if( options.showValue )
+        {
+            if( document.getElementById('progressvalue-' + name ) )
+            {
                 document.getElementById('progressvalue-' + name ).remove();
+            }
+
             let span = document.createElement("span");
             span.id = "progressvalue-" + name;
             span.style.padding = "0px 5px";
             span.innerText = value;
-            container.appendChild(span);
+            container.appendChild( span );
         }
 
-        if(options.editable) {
-            progress.classList.add("editable");
-            progress.addEventListener("mousemove", inner_mousemove.bind(this, value));
-            progress.addEventListener("mouseup", inner_mouseup.bind(this, progress));
+        if( options.editable )
+        {
+            progress.classList.add( "editable" );
+            progress.addEventListener( "mousedown", inner_mousedown );
 
-            function inner_mousemove(value, e) {
-            
-                if(e.which < 1)
-                    return;
-                let v = this.getValue(name, value);
-                v+=e.movementX/100;
-                v = v.toFixed(2);
-                this.setValue(name, v);
+            var that = this;
 
-                if(options.callback)
-                    options.callback(v, e);
+            function inner_mousedown( e )
+            {
+                var doc = that.root.ownerDocument;
+                doc.addEventListener( 'mousemove', inner_mousemove );
+                doc.addEventListener( 'mouseup', inner_mouseup );
+                document.body.classList.add( 'noevents' );
+                e.stopImmediatePropagation();
+                e.stopPropagation();
             }
 
-            function inner_mouseup(el) {
-                el.removeEventListener("mousemove", inner_mousemove);
+            function inner_mousemove( e )
+            {
+                let dt = -e.movementX;
+
+                if ( dt != 0 )
+                {
+                    let v = that.getValue( name, value );
+                    v += e.movementX / 100;
+                    v = round( v );
+                    that.setValue( name, v );
+
+                    if( options.callback )
+                    {
+                        options.callback( v, e );
+                    }
+                }
+
+                e.stopPropagation();
+                e.preventDefault();
+            }
+
+            function inner_mouseup( e )
+            {
+                var doc = that.root.ownerDocument;
+                doc.removeEventListener( 'mousemove', inner_mousemove );
+                doc.removeEventListener( 'mouseup', inner_mouseup );
+                document.body.classList.remove( 'noevents' );
             }
         }
 
@@ -6233,8 +6642,7 @@ class Branch {
 
         this.grabber = grabber;
 
-        function getBranchHeight(){
-            
+        function getBranchHeight() {
             return that.root.offsetHeight - that.root.children[0].offsetHeight;
         }
 
@@ -6288,20 +6696,23 @@ class Branch {
         var size = this.grabber.style.marginLeft;
 
         // Update sizes of widgets inside
-        for(var i = 0; i < this.widgets.length;i++) {
+        for(var i = 0; i < this.widgets.length; i++) {
 
-            let widget = this.widgets[i];
+            let widget = this.widgets[ i ];
             let element = widget.domEl;
 
-            if(element.children.length < 2)
+            if( element.children.length < 2 )
+            {
                 continue;
+            }
 
-            var name = element.children[0];
-            var value = element.children[1];
+            var name = element.children[ 0 ];
+            var value = element.children[ 1 ];
 
             name.style.width = size;
             let padding = "0px";
-            switch(widget.type) {
+            switch( widget.type )
+            {
                 case Widget.FILE:
                     padding = "10%";
                     break;
@@ -6314,7 +6725,10 @@ class Branch {
             value.style.width = "-webkit-calc( 100% - " + size + " - " + padding + " )";
             value.style.width = "calc( 100% - " + size + " - " + padding + " )";
 
-            if(widget.onresize) widget.onresize();
+            if( widget.onresize )
+            {
+                widget.onresize();
+            }
         }
     }
 };
@@ -6331,8 +6745,10 @@ class Dialog {
 
     constructor( title, callback, options = {} ) {
         
-        if(!callback)
-        console.warn("Content is empty, add some widgets using 'callback' parameter!");
+        if( !callback )
+        {
+            console.warn("Content is empty, add some widgets using 'callback' parameter!");
+        }
 
         this._oncreate = callback;
         this.id = simple_guidGenerator();
@@ -6342,8 +6758,10 @@ class Dialog {
             draggable = options.draggable ?? true,
             modal = options.modal ?? false;
 
-        if(modal)
-            LX.modal.toggle(false);
+        if( modal )
+        {
+            LX.modal.toggle( false );
+        }
 
         var root = document.createElement('div');
         root.className = "lexdialog " + (options.class ?? "");
@@ -6354,8 +6772,8 @@ class Dialog {
 
         var titleDiv = document.createElement('div');
 
-        if(title) {
-
+        if( title )
+        {
             titleDiv.className = "lexdialogtitle";
             titleDiv.innerHTML = title;
             titleDiv.setAttribute('draggable', false);
@@ -6459,7 +6877,9 @@ class Dialog {
         this.title = titleDiv;
 
         if( draggable )
-            makeDraggable( root, { targetClass: 'lexdialogtitle' } );
+        {
+            makeDraggable( root, Object.assign( { targetClass: 'lexdialogtitle' }, options ) );
+        }
 
         // Process position and size
         if(size.length && typeof(size[0]) != "string")
@@ -7001,12 +7421,12 @@ class Curve {
             if( o.xrange ) element.xrange = o.xrange;
             if( o.yrange ) element.yrange = o.yrange;
             if( o.smooth ) element.smooth = o.smooth;
-            // var rect = canvas.parentElement.getBoundingClientRect();
-            // if( canvas.parentElement.parentElement ) rect = canvas.parentElement.parentElement.getBoundingClientRect();
-            // if( rect && canvas.width != rect.width && rect.width && rect.width < 1000 )
-            // {
-            //     canvas.width = rect.width;
-            // }
+            var rect = canvas.parentElement.getBoundingClientRect();
+            if( canvas.parentElement.parentElement ) rect = canvas.parentElement.parentElement.getBoundingClientRect();
+            if( rect && canvas.width != rect.width && rect.width && rect.width < 1000 )
+            {
+                canvas.width = rect.width;
+            }
 
             var ctx = canvas.getContext( "2d" );
             ctx.setTransform( 1, 0, 0, 1, 0, 0 );
@@ -7276,12 +7696,12 @@ class AssetView {
         this.layout = options.layout ?? AssetView.LAYOUT_CONTENT;
         this.contentPage = 1;
 
-        if(options.root_path)
+        if( options.rootPath )
         {
-            if(options.root_path.constructor !== String)
+            if(options.rootPath.constructor !== String)
                 console.warn("Asset Root Path must be a String (now is " + path.constructor.name + ")");
             else
-                this.rootPath = options.root_path;
+                this.rootPath = options.rootPath;
         }
 
         let div = document.createElement('div');
@@ -7293,13 +7713,15 @@ class AssetView {
 
         let left, right, contentArea = area;
 
-        this.skip_browser = options.skip_browser ?? false;
-        this.skip_preview = options.skip_preview ?? false;
-        this.only_folders = options.only_folders ?? true;
-        this.preview_actions = options.preview_actions ?? [];
-        this.context_menu = options.context_menu ?? [];
+        this.skipBrowser = options.skipBrowser ?? false;
+        this.skipPreview = options.skipPreview ?? false;
+        this.useNativeTitle = options.useNativeTitle ?? false;
+        this.onlyFolders = options.onlyFolders ?? true;
+        this.previewActions = options.previewActions ?? [];
+        this.contextMenu = options.contextMenu ?? [];
+        this.onRefreshContent = options.onRefreshContent;
 
-        if( !this.skip_browser )
+        if( !this.skipBrowser )
         {
             [left, right] = area.split({ type: "horizontal", sizes: ["15%", "85%"]});
             contentArea = right;
@@ -7308,28 +7730,34 @@ class AssetView {
             right.setLimitBox( 512, 0 );
         }
 
-        if( !this.skip_preview )
-            [contentArea, right] = contentArea.split({ type: "horizontal", sizes: ["80%", "20%"]});
+        if( !this.skipPreview )
+        {
+            [ contentArea, right ] = contentArea.split({ type: "horizontal", sizes: ["80%", "20%"]});
+        }
         
-        this.allowedTypes = options.allowed_types || ["None", "Image", "Mesh", "Script", "JSON", "Clip"];
+        this.allowedTypes = options.allowedTypes || ["None", "Image", "Mesh", "Script", "JSON", "Clip"];
 
         this.prevData = [];
         this.nextData = [];
         this.data = [];
 
-        this._processData(this.data, null);
+        this._processData( this.data, null );
 
         this.currentData = this.data;
         this.path = ['@'];
 
-        if(!this.skip_browser)
-            this._createTreePanel(left);
+        if( !this.skipBrowser )
+        {
+            this._createTreePanel( left );
+        }
 
-        this._createContentPanel(contentArea);
+        this._createContentPanel( contentArea );
         
         // Create resource preview panel
-        if( !this.skip_preview )
-            this.previewPanel = right.addPanel({className: 'lexassetcontentpanel', style: { overflow: 'scroll' }});
+        if( !this.skipPreview )
+        {
+            this.previewPanel = right.addPanel( {className: 'lexassetcontentpanel', style: { overflow: 'scroll' }} );
+        }
     }
 
     /**
@@ -7343,12 +7771,15 @@ class AssetView {
         
         this.data = data;
 
-        this._processData(this.data, null);
+        this._processData( this.data, null );
         this.currentData = this.data;
-        this.path = ['@'];
+        this.path = [ '@' ];
 
-        if(!this.skip_browser)
-            this._createTreePanel(this.area);
+        if( !this.skipBrowser )
+        {
+            this._createTreePanel( this.area );
+        }
+
         this._refreshContent();
 
         this.onevent = onevent;
@@ -7358,12 +7789,21 @@ class AssetView {
     * @method clear
     */
     clear() {
-        if(this.previewPanel)
+
+        if( this.previewPanel )
+        {
             this.previewPanel.clear();
-        if(this.leftPanel)
+        }
+
+        if( this.leftPanel )
+        {
             this.leftPanel.clear();
-        if(this.rightPanel)
+        }
+
+        if( this.rightPanel )
+        {
             this.rightPanel.clear()
+        }
     }
 
     /**
@@ -7374,14 +7814,16 @@ class AssetView {
 
         if( data.constructor !== Array )
         {
-            data['folder'] = parent;
+            data[ 'folder' ] = parent;
             data.children = data.children ?? [];
         }
 
         let list = data.constructor === Array ? data : data.children;
 
         for( var i = 0; i < list.length; ++i )
-            this._processData( list[i], data );
+        {
+            this._processData( list[ i ], data );
+        }
     }
 
     /**
@@ -7393,9 +7835,9 @@ class AssetView {
         this.path.length = 0;
 
         const push_parents_id = i => {
-            if(!i) return;
+            if( !i ) return;
             let list = i.children ? i.children : i;
-            let c = list[0];
+            let c = list[ 0 ];
             if( !c ) return;
             if( !c.folder ) return;
             this.path.push( c.folder.id ?? '@' );
@@ -7404,19 +7846,22 @@ class AssetView {
 
         push_parents_id( data );
 
-        LX.emit("@on_folder_change", this.path.reverse().join('/'));
+        LX.emit( "@on_folder_change", this.path.reverse().join('/') );
     }
 
     /**
     * @method _createTreePanel
     */
 
-    _createTreePanel(area) {
+    _createTreePanel( area ) {
 
-        if(this.leftPanel)
+        if( this.leftPanel )
+        {
             this.leftPanel.clear();
-        else {
-            this.leftPanel = area.addPanel({className: 'lexassetbrowserpanel'});
+        }
+        else
+        {
+            this.leftPanel = area.addPanel({ className: 'lexassetbrowserpanel' });
         }
 
         // Process data to show in tree
@@ -7425,21 +7870,24 @@ class AssetView {
             children: this.data
         }
 
-        this.tree = this.leftPanel.addTree("Content Browser", tree_data, { 
+        this.tree = this.leftPanel.addTree( "Content Browser", tree_data, {
             // icons: tree_icons, 
             filter: false,
-            only_folders: this.only_folders,
-            onevent: (event) => { 
+            onlyFolders: this.onlyFolders,
+            onevent: event => {
 
                 let node = event.node;
                 let value = event.value;
 
-                switch(event.type) {
+                switch( event.type )
+                {
                     case LX.TreeEvent.NODE_SELECTED: 
-                        if(!event.multiple) {
+                        if( !event.multiple )
+                        {
                             this._enterFolder( node );
                         }
-                        if(!node.parent) {
+                        if( !node.parent )
+                        {
                             this.prevData.push( this.currentData );
                             this.currentData = this.data;
                             this._refreshContent();
@@ -7461,9 +7909,9 @@ class AssetView {
     * @method _setContentLayout
     */
 
-    _setContentLayout( layout_mode ) {
+    _setContentLayout( layoutMode ) {
 
-        this.layout = layout_mode;
+        this.layout = layoutMode;
 
         this._refreshContent();
     }
@@ -7472,15 +7920,18 @@ class AssetView {
     * @method _createContentPanel
     */
 
-    _createContentPanel(area) {
+    _createContentPanel( area ) {
 
-        if(this.rightPanel)
+        if( this.rightPanel )
+        {
             this.rightPanel.clear();
-        else {
-            this.rightPanel = area.addPanel({className: 'lexassetcontentpanel'});
+        }
+        else
+        {
+            this.rightPanel = area.addPanel({ className: 'lexassetcontentpanel' });
         }
 
-        const on_sort = (value, event) => {
+        const on_sort = ( value, event ) => {
             const cmenu = addContextMenu( "Sort by", event, c => {
                 c.add("Name", () => this._sortData('id') );
                 c.add("Type", () => this._sortData('type') );
@@ -7490,10 +7941,12 @@ class AssetView {
             } );
             const parent = this.parent.root.parentElement;
             if( parent.classList.contains('lexdialog') )
+            {
                 cmenu.root.style.zIndex = (+getComputedStyle( parent ).zIndex) + 1;
+            }
         }
 
-        const on_change_view = (value, event) => {
+        const on_change_view = ( value, event ) => {
             const cmenu = addContextMenu( "Layout", event, c => {
                 c.add("Content", () => this._setContentLayout( AssetView.LAYOUT_CONTENT ) );
                 c.add("");
@@ -7504,36 +7957,40 @@ class AssetView {
                 cmenu.root.style.zIndex = (+getComputedStyle( parent ).zIndex) + 1;
         }
 
-        const on_change_page = (value, event) => {
-            if(!this.allow_next_page)
+        const on_change_page = ( value, event ) => {
+            if( !this.allowNextPage )
+            {
                 return;
-            const last_page = this.contentPage;
+            }
+            const lastPage = this.contentPage;
             this.contentPage += value;
             this.contentPage = Math.min( this.contentPage, (((this.currentData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1 );
             this.contentPage = Math.max( this.contentPage, 1 );
 
-            if( last_page != this.contentPage )
+            if( lastPage != this.contentPage )
+            {
                 this._refreshContent();
+            }
         }
 
         this.rightPanel.sameLine();
-        this.rightPanel.addDropdown("Filter", this.allowedTypes, this.allowedTypes[0], (v) => this._refreshContent.call(this, null, v), { width: "20%", minWidth: "128px" });
-        this.rightPanel.addText(null, this.search_value ?? "", (v) => this._refreshContent.call(this, v, null), { placeholder: "Search assets.." });
-        this.rightPanel.addButton(null, "<a class='fa fa-arrow-up-short-wide'></a>", on_sort.bind(this), { className: "micro", title: "Sort" });
-        this.rightPanel.addButton(null, "<a class='fa-solid fa-grip'></a>", on_change_view.bind(this), { className: "micro", title: "View" });
+        this.rightPanel.addDropdown( "Filter", this.allowedTypes, this.allowedTypes[ 0 ], v => this._refreshContent.call(this, null, v), { width: "20%", minWidth: "128px" } );
+        this.rightPanel.addText( null, this.searchValue ?? "", v => this._refreshContent.call(this, v, null), { placeholder: "Search assets.." } );
+        this.rightPanel.addButton( null, "<a class='fa fa-arrow-up-short-wide'></a>", on_sort.bind(this), { className: "micro", title: "Sort" } );
+        this.rightPanel.addButton( null, "<a class='fa-solid fa-grip'></a>", on_change_view.bind(this), { className: "micro", title: "View" } );
         // Content Pages
-        this.rightPanel.addButton(null, "<a class='fa-solid fa-angles-left'></a>", on_change_page.bind(this, -1), { className: "micro", title: "Previous Page" });
-        this.rightPanel.addButton(null, "<a class='fa-solid fa-angles-right'></a>", on_change_page.bind(this, 1), { className: "micro", title: "Next Page" });
+        this.rightPanel.addButton( null, "<a class='fa-solid fa-angles-left'></a>", on_change_page.bind(this, -1), { className: "micro", title: "Previous Page" } );
+        this.rightPanel.addButton( null, "<a class='fa-solid fa-angles-right'></a>", on_change_page.bind(this, 1), { className: "micro", title: "Next Page" } );
         this.rightPanel.endLine();
 
-        if( !this.skip_browser )
+        if( !this.skipBrowser )
         {
             this.rightPanel.sameLine();
             this.rightPanel.addComboButtons( null, [
                 {
                     value: "Left",
                     icon: "fa-solid fa-left-long",
-                    callback:  (domEl) => { 
+                    callback: domEl => {
                         if(!this.prevData.length) return;
                         this.nextData.push( this.currentData );
                         this.currentData = this.prevData.pop();
@@ -7544,7 +8001,7 @@ class AssetView {
                 {
                     value: "Right",
                     icon: "fa-solid fa-right-long",
-                    callback:  (domEl) => { 
+                    callback: domEl => {
                         if(!this.nextData.length) return;
                         this.prevData.push( this.currentData );
                         this.currentData = this.nextData.pop();
@@ -7555,7 +8012,7 @@ class AssetView {
                 {
                     value: "Refresh",
                     icon: "fa-solid fa-arrows-rotate",
-                    callback:  (domEl) => { this._refreshContent(); }
+                    callback: domEl => { this._refreshContent(); }
                 }
             ], { width: "auto", noSelection: true } );
             this.rightPanel.addText(null, this.path.join('/'), null, { disabled: true, signal: "@on_folder_change", style: { fontWeight: "bolder", fontSize: "16px", color: "#aaa" } });
@@ -7567,17 +8024,17 @@ class AssetView {
         this.content.className = "lexassetscontent";
         this.rightPanel.root.appendChild(this.content);
 
-        this.content.addEventListener('dragenter', function(e) {
+        this.content.addEventListener('dragenter', function( e ) {
             e.preventDefault();
             this.classList.add('dragging');
         });
-        this.content.addEventListener('dragleave', function(e) {
+        this.content.addEventListener('dragleave', function( e ) {
             e.preventDefault();
             this.classList.remove('dragging');
         });
-        this.content.addEventListener('drop', (e) => {
+        this.content.addEventListener('drop', ( e ) => {
             e.preventDefault();
-            this._processDrop(e);
+            this._processDrop( e );
         });
         this.content.addEventListener('click', function() {
             this.querySelectorAll('.lexassetitem').forEach( i => i.classList.remove('selected') );
@@ -7586,38 +8043,90 @@ class AssetView {
         this._refreshContent();
     }
 
-    _refreshContent(search_value, filter) {
+    _refreshContent( searchValue, filter ) {
 
-        const is_content_layout = (this.layout == AssetView.LAYOUT_CONTENT); // default
+        const isContentLayout = ( this.layout == AssetView.LAYOUT_CONTENT ); // default
 
-        this.filter = filter ?? (this.filter ?? "None");
-        this.search_value = search_value ?? (this.search_value ?? "");
+        this.filter = filter ?? ( this.filter ?? "None" );
+        this.searchValue = searchValue ?? (this.searchValue ?? "");
         this.content.innerHTML = "";
-        this.content.className = (is_content_layout ? "lexassetscontent" : "lexassetscontent list");
+        this.content.className = (isContentLayout ? "lexassetscontent" : "lexassetscontent list");
         let that = this;
         
         const add_item = function(item) {
 
-            const type = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+            const type = item.type.charAt( 0 ).toUpperCase() + item.type.slice( 1 );
             const extension = getExtension( item.id );
-            const is_folder = type === "Folder";
+            const isFolder = type === "Folder";
 
             let itemEl = document.createElement('li');
             itemEl.className = "lexassetitem " + item.type.toLowerCase();
-            itemEl.title = type + ": " + item.id;
             itemEl.tabIndex = -1;
-            that.content.appendChild(itemEl);
+            that.content.appendChild( itemEl );
 
-            if(item.selected != undefined) {
+            if( !that.useNativeTitle )
+            {
+                let desc = document.createElement( 'span' );
+                desc.className = 'lexitemdesc';
+                desc.innerHTML = "File: " + item.id + "<br>Type: " + type;
+                that.content.appendChild( desc );
+
+                itemEl.addEventListener("mousemove", e => {
+
+                    if( !isContentLayout )
+                    {
+                        return;
+                    }
+
+                    const rect = itemEl.getBoundingClientRect();
+                    const targetRect = e.target.getBoundingClientRect();
+                    const parentRect = desc.parentElement.getBoundingClientRect();
+
+                    let localOffsetX = targetRect.x - parentRect.x - ( targetRect.x - rect.x );
+                    let localOffsetY = targetRect.y - parentRect.y - ( targetRect.y - rect.y );
+
+                    if( e.target.classList.contains( "lexassettitle" ) )
+                    {
+                        localOffsetY += ( targetRect.y - rect.y );
+                    }
+
+                    desc.style.left = (localOffsetX + e.offsetX + 12) + "px";
+                    desc.style.top = (localOffsetY + e.offsetY) + "px";
+                });
+
+                itemEl.addEventListener("mouseenter", () => {
+                    if( isContentLayout )
+                    {
+                        desc.style.display = "unset";
+                    }
+                });
+
+                itemEl.addEventListener("mouseleave", () => {
+                    if( isContentLayout )
+                    {
+                        setTimeout( () => {
+                            desc.style.display = "none";
+                        }, 100 );
+                    }
+                });
+            }
+            else
+            {
+                itemEl.title = type + ": " + item.id;
+            }
+
+            if( item.selected != undefined )
+            {
                 let span = document.createElement('span');
                 span.className = "lexcheckbox"; 
                 let checkbox_input = document.createElement('input');
                 checkbox_input.type = "checkbox";
                 checkbox_input.className = "checkbox";
                 checkbox_input.checked = item.selected;
-                checkbox_input.addEventListener('change', (e, v) => {
+                checkbox_input.addEventListener('change', ( e, v ) => {
                     item.selected = !item.selected;
-                    if(that.onevent) {
+                    if( that.onevent )
+                    {
                         const event = new AssetViewEvent(AssetViewEvent.ASSET_CHECKED, e.shiftKey ? [item] : item );
                         event.multiple = !!e.shiftKey;
                         that.onevent( event );
@@ -7629,22 +8138,23 @@ class AssetView {
                 itemEl.appendChild(span);
                 
             }
+
             let title = document.createElement('span');
             title.className = "lexassettitle";
             title.innerText = item.id;
-            itemEl.appendChild(title);
+            itemEl.appendChild( title );
 
-            if( !that.skip_preview ) {
+            if( !that.skipPreview ) {
 
                 let preview = null;
-                const has_image = item.src && (['png', 'jpg'].indexOf( getExtension( item.src ) ) > -1 || item.src.includes("data:image/") ); // Support b64 image as src
+                const hasImage = item.src && (['png', 'jpg'].indexOf( getExtension( item.src ) ) > -1 || item.src.includes("data:image/") ); // Support b64 image as src
 
-                if( has_image || is_folder || !is_content_layout)
+                if( hasImage || isFolder || !isContentLayout)
                 {
                     preview = document.createElement('img');
-                    let real_src = item.unknown_extension ? that.rootPath + "images/file.png" : (is_folder ? that.rootPath + "images/folder.png" : item.src);
-                    preview.src = (is_content_layout || is_folder ? real_src : that.rootPath + "images/file.png");
-                    itemEl.appendChild(preview);
+                    let real_src = item.unknown_extension ? that.rootPath + "images/file.png" : (isFolder ? that.rootPath + "images/folder.png" : item.src);
+                    preview.src = (isContentLayout || isFolder ? real_src : that.rootPath + "images/file.png");
+                    itemEl.appendChild( preview );
                 }
                 else
                 {
@@ -7670,7 +8180,7 @@ class AssetView {
                 }
             }
 
-            if( !is_folder )
+            if( !isFolder )
             {
                 let info = document.createElement('span');
                 info.className = "lexassetinfo";
@@ -7682,30 +8192,37 @@ class AssetView {
                 e.stopImmediatePropagation();
                 e.stopPropagation();
 
-                const is_double_click = e.detail == LX.MOUSE_DOUBLE_CLICK;
+                const isDoubleClick = ( e.detail == LX.MOUSE_DOUBLE_CLICK );
 
-                if(!is_double_click)
+                if( !isDoubleClick )
                 {
-                    if(!e.shiftKey)
+                    if( !e.shiftKey )
+                    {
                         that.content.querySelectorAll('.lexassetitem').forEach( i => i.classList.remove('selected') );
+                    }
+
                     this.classList.add('selected');
-                    if( !that.skip_preview )
+
+                    if( !that.skipPreview )
+                    {
                         that._previewAsset( item );
+                    }
                 } 
-                else if(is_folder) 
+                else if( isFolder )
                 {
                     that._enterFolder( item );
                     return;
                 }
 
-                if(that.onevent) {
-                    const event = new AssetViewEvent(is_double_click ? AssetViewEvent.ASSET_DBLCLICKED : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
+                if( that.onevent )
+                {
+                    const event = new AssetViewEvent(isDoubleClick ? AssetViewEvent.ASSET_DBLCLICKED : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
                     event.multiple = !!e.shiftKey;
                     that.onevent( event );
                 }
             });
 
-            if( that.context_menu )
+            if( that.contextMenu )
             {
                 itemEl.addEventListener('contextmenu', function(e) {
                     e.preventDefault();
@@ -7713,15 +8230,21 @@ class AssetView {
                     const multiple = that.content.querySelectorAll('.selected').length;
 
                     LX.addContextMenu( multiple > 1 ? (multiple + " selected") : 
-                                is_folder ? item.id : item.type, e, m => {
-                        if(multiple <= 1)   
+                                isFolder ? item.id : item.type, e, m => {
+                        if( multiple <= 1 )
+                        {
                             m.add("Rename");
-                        if( !is_folder )
-                            m.add("Clone", that._clone_item.bind(that, item));
-                        if(multiple <= 1)
+                        }
+                        if( !isFolder )
+                        {
+                            m.add("Clone", that._cloneItem.bind( that, item ));
+                        }
+                        if( multiple <= 1 )
+                        {
                             m.add("Properties");
+                        }
                         m.add("");
-                        m.add("Delete", that._delete_item.bind(that, item));
+                        m.add("Delete", that._deleteItem.bind( that, item ));
                     });
                 });
             }
@@ -7735,21 +8258,23 @@ class AssetView {
 
         const fr = new FileReader();
 
-        const filtered_data = this.currentData.filter( _i => {
+        const filteredData = this.currentData.filter( _i => {
             return (this.filter != "None" ? _i.type.toLowerCase() == this.filter.toLowerCase() : true) &&
-                _i.id.toLowerCase().includes(this.search_value.toLowerCase())
+                _i.id.toLowerCase().includes(this.searchValue.toLowerCase())
         } );
 
-        if(filter || search_value) {
+        if( filter || searchValue )
+        {
             this.contentPage = 1;
         }
-        // Show all data if using filters
-        const start_index = (this.contentPage - 1) * AssetView.MAX_PAGE_ELEMENTS;
-        const end_index = Math.min( start_index + AssetView.MAX_PAGE_ELEMENTS, filtered_data.length );
 
-        for( let i = start_index; i < end_index; ++i )
+        // Show all data if using filters
+        const startIndex = (this.contentPage - 1) * AssetView.MAX_PAGE_ELEMENTS;
+        const endIndex = Math.min( startIndex + AssetView.MAX_PAGE_ELEMENTS, filteredData.length );
+
+        for( let i = startIndex; i < endIndex; ++i )
         {
-            let item = filtered_data[i];
+            let item = filteredData[ i ];
 
             if( item.path )
             {
@@ -7760,7 +8285,7 @@ class AssetView {
                         item.src = e.currentTarget.result;  // This is a base64 string...
                         item._path = item.path;
                         delete item.path;
-                        this._refreshContent(search_value, filter);
+                        this._refreshContent( searchValue, filter );
                     };
                 } });
             }else
@@ -7768,15 +8293,21 @@ class AssetView {
                 item.domEl = add_item( item );
             }
         }
-        this.allow_next_page = filtered_data.length - 1 > AssetView.MAX_PAGE_ELEMENTS;
-        LX.emit("@on_page_change", "Page " + this.contentPage + " / " + ((((filtered_data.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1));
+
+        this.allowNextPage = filteredData.length - 1 > AssetView.MAX_PAGE_ELEMENTS;
+        LX.emit("@on_page_change", "Page " + this.contentPage + " / " + ((((filteredData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1));
+
+        if( this.onRefreshContent )
+        {
+            this.onRefreshContent( searchValue, filter );
+        }
     }
 
     /**
     * @method _previewAsset
     */
 
-    _previewAsset(file) {
+    _previewAsset( file ) {
 
         const is_base_64 = file.src && file.src.includes("data:image/");
 
@@ -7785,34 +8316,37 @@ class AssetView {
 
         if( file.type == 'image' || file.src )
         {
-            const has_image = ['png', 'jpg'].indexOf( getExtension( file.src ) ) > -1 || is_base_64;
-            if( has_image )
-                this.previewPanel.addImage(file.src, { style: { width: "100%" } });
+            const hasImage = ['png', 'jpg'].indexOf( getExtension( file.src ) ) > -1 || is_base_64;
+            if( hasImage )
+            {
+                this.previewPanel.addImage( file.src, { style: { width: "100%" } } );
+            }
         }
 
         const options = { disabled: true };
 
         this.previewPanel.addText("Filename", file.id, null, options);
-        if(file._path || file.src ) this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options);
+        if( file.lastModified ) this.previewPanel.addText("Last Modified", new Date( file.lastModified ).toLocaleString(), null, options);
+        if( file._path || file.src ) this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options);
         this.previewPanel.addText("Path", this.path.join('/'), null, options);
         this.previewPanel.addText("Type", file.type, null, options);
-        if(file.bytesize) this.previewPanel.addText("Size", (file.bytesize/1024).toPrecision(3) + " KBs", null, options);
-        if(file.type == "folder") this.previewPanel.addText("Files", file.children ? file.children.length.toString() : "0", null, options);
+        if( file.bytesize ) this.previewPanel.addText("Size", (file.bytesize/1024).toPrecision(3) + " KBs", null, options);
+        if( file.type == "folder" ) this.previewPanel.addText("Files", file.children ? file.children.length.toString() : "0", null, options);
 
         this.previewPanel.addSeparator();
         
-        const preview_actions = [...this.preview_actions];
+        const previewActions = [...this.previewActions];
 
-        if( !preview_actions.length )
+        if( !previewActions.length )
         {
             // By default
-            preview_actions.push({
+            previewActions.push({
                 name: 'Download', 
                 callback: () => LX.downloadURL(file.src, file.id)
             });
         }
 
-        for( let action of preview_actions )
+        for( let action of previewActions )
         {
             if( action.type && action.type !== file.type || action.path && action.path !== this.path.join('/') )
                 continue;
@@ -7822,7 +8356,7 @@ class AssetView {
         this.previewPanel.merge();
     }
 
-    _processDrop(e) {
+    _processDrop( e ) {
 
         const fr = new FileReader();
         const num_files = e.dataTransfer.files.length;
@@ -7842,7 +8376,8 @@ class AssetView {
                 let item = {
                     "id": file.name,
                     "src": e.currentTarget.result,
-                    "extension": ext
+                    "extension": ext,
+                    "lastModified": file.lastModified
                 };
 
                 switch(ext)
@@ -7867,7 +8402,7 @@ class AssetView {
                 
                 if(i == (num_files - 1)) {
                     this._refreshContent();
-                    if( !this.skip_browser )
+                    if( !this.skipBrowser )
                         this.tree.refresh();
                 }
             };
@@ -7887,10 +8422,10 @@ class AssetView {
         this._refreshContent();
     }
 
-    _enterFolder( folder_item ) {
+    _enterFolder( folderItem ) {
 
         this.prevData.push( this.currentData );
-        this.currentData = folder_item.children;
+        this.currentData = folderItem.children;
         this.contentPage = 1;
         this._refreshContent();
 
@@ -7898,46 +8433,57 @@ class AssetView {
         this._updatePath(this.currentData);
 
         // Trigger event
-        if(this.onevent) {
-            const event = new AssetViewEvent(AssetViewEvent.ENTER_FOLDER, folder_item);
+        if( this.onevent )
+        {
+            const event = new AssetViewEvent( AssetViewEvent.ENTER_FOLDER, folderItem );
             this.onevent( event );
         }
     }
 
     _deleteItem( item ) {
 
-        const idx = this.currentData.indexOf(item);
-        if(idx > -1) {
-            this.currentData.splice(idx, 1);
-            this._refreshContent(this.search_value, this.filter);
-
-            if(this.onevent) {
-                const event = new AssetViewEvent(AssetViewEvent.ASSET_DELETED, item );
-                this.onevent( event );
-            }
-
-            this.tree.refresh();
-            this._processData(this.data);
+        const idx = this.currentData.indexOf( item );
+        if(idx < 0)
+        {
+            console.error( "[AssetView Error] Cannot delete. Item not found." );
+            return;
         }
+
+        this.currentData.splice( idx, 1 );
+        this._refreshContent( this.searchValue, this.filter );
+
+        if(this.onevent)
+        {
+            const event = new AssetViewEvent( AssetViewEvent.ASSET_DELETED, item );
+            this.onevent( event );
+        }
+
+        this.tree.refresh();
+        this._processData( this.data );
     }
 
     _cloneItem( item ) {
 
-        const idx = this.currentData.indexOf(item);
-        if(idx > -1) {
-            delete item.domEl;
-            delete item.folder;
-            const new_item = deepCopy( item );
-            this.currentData.splice(idx, 0, new_item);
-            this._refreshContent(this.search_value, this.filter);
-
-            if(this.onevent) {
-                const event = new AssetViewEvent(AssetViewEvent.ASSET_CLONED, item );
-                this.onevent( event );
-            }
-
-            this._processData(this.data);
+        const idx = this.currentData.indexOf( item );
+        if( idx < 0 )
+        {
+            return;
         }
+
+        delete item.domEl;
+        delete item.folder;
+        const new_item = deepCopy( item );
+        this.currentData.splice( idx, 0, new_item );
+
+        this._refreshContent( this.searchValue, this.filter );
+
+        if( this.onevent )
+        {
+            const event = new AssetViewEvent( AssetViewEvent.ASSET_CLONED, item );
+            this.onevent( event );
+        }
+
+        this._processData( this.data );
     }
 }
 
@@ -7955,7 +8501,7 @@ Object.assign(LX, {
     * @param {Object} request object with all the parameters like data (for sending forms), dataType, success, error
     * @param {Function} on_complete
     **/
-    request(request) {
+    request( request ) {
 
         var dataType = request.dataType || "text";
         if(dataType == "json") //parse it locally
@@ -8196,6 +8742,10 @@ Element.prototype.hasClass = function( list ) {
     return !!r.length;
 }
 
+Element.prototype.addClass = function( className ) {
+    if( className ) this.classList.add( className );
+}
+
 Element.prototype.getComputedSize = function() {
     const cs = getComputedStyle( this );
     return {
@@ -8208,7 +8758,6 @@ LX.UTILS = {
     getTime() { return new Date().getTime() },
     compareThreshold( v, p, n, t ) { return Math.abs(v - p) >= t || Math.abs(v - n) >= t },
     compareThresholdRange( v0, v1, t0, t1 ) { return v0 >= t0 && v0 <= t1 || v1 >= t0 && v1 <= t1 || v0 <= t0 && v1 >= t1},
-    clamp (num, min, max) { return Math.min(Math.max(num, min), max) },
     uidGenerator: simple_guidGenerator,
     deleteElement( el ) { if( el ) el.remove(); },
     flushCss(element) {

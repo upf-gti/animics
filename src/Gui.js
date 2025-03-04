@@ -27,7 +27,7 @@ class Gui {
         left.id = "canvasarea";
         left.root.style.position = "relative";
         right.id = "sidepanel";
-        this.mainArea.split_bar.style.zIndex = right.root.style.zIndex = 1;
+        this.mainArea.splitBar.style.zIndex = right.root.style.zIndex = 1;
         [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
 
         this.sidePanel = right;

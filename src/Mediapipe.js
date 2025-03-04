@@ -136,37 +136,94 @@ class MediaPipe {
     
        
         const lm = results.landmarksResults;
+
         if ( lm.PLM ) {
-            this.drawingUtils.drawConnectors( lm.PLM, PoseLandmarker.POSE_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //'#00FF00'
-            this.drawingUtils.drawLandmarks( lm.PLM, {color: '#1a2025',fillColor: 'rgba(255, 255, 255, 1)', lineWidth: 2}); //'#00FF00'
+            const PLM = [ ...lm.PLM]; // clone array
+            // Convert to original image space
+            if( results.rect ) {
+                for( let i = 0; i < PLM.length; i++ ) {
+                    //PLM are normalized landmakrs
+                    let x = PLM[i].x * results.rect.width; 
+                    x += results.rect.x;
+                    x /= results.image.width;
+                    PLM[i].x = x;
+
+                    let y = PLM[i].y * results.rect.height;
+                    y += results.rect.y;
+                    y /= results.image.height;
+                    PLM[i].y = y;
+                }
+            }
+
+            this.drawingUtils.drawConnectors( PLM, PoseLandmarker.POSE_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //'#00FF00'
+            this.drawingUtils.drawLandmarks( PLM, {color: '#1a2025',fillColor: 'rgba(255, 255, 255, 1)', lineWidth: 2}); //'#00FF00'
         }
         // drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION, {color: '#C0C0C070', lineWidth: 1});
         if ( lm.LLM ) {
-            this.drawingUtils.drawConnectors( lm.LLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#CC0000
-            this.drawingUtils.drawLandmarks( lm.LLM, {color: '#1a2025',fillColor: 'rgba(58, 161, 156, 1)', lineWidth: 2}); //'#00FF00'
+            const LLM = [ ...lm.LLM]; // clone array
+            // Convert to original image space
+            if( results.rect ) {
+                for( let i = 0; i < LLM.length; i++ ) {
+                    //LLM are normalized landmakrs
+                    let x = LLM[i].x * results.rect.width; 
+                    x += results.rect.x;
+                    x /= results.image.width;
+                    LLM[i].x = x;
+
+                    let y = LLM[i].y * results.rect.height;
+                    y += results.rect.y;
+                    y /= results.image.height;
+                    LLM[i].y = y;
+                }
+            }
+            this.drawingUtils.drawConnectors( LLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#CC0000
+            this.drawingUtils.drawLandmarks( LLM, {color: '#1a2025',fillColor: 'rgba(58, 161, 156, 1)', lineWidth: 2}); //'#00FF00'
         }
         if ( lm.RLM ) {
-            this.drawingUtils.drawConnectors( lm.RLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#00CC00
-            this.drawingUtils.drawLandmarks( lm.RLM, {color: '#1a2025',fillColor: 'rgba(196, 113, 35, 1)', lineWidth: 2});
+            const RLM = [ ...lm.RLM]; // clone array
+            // Convert to original image space
+            if( results.rect ) {
+                for( let i = 0; i < RLM.length; i++ ) {
+                    //RLM are normalized landmakrs
+                    let x = RLM[i].x * results.rect.width; 
+                    x += results.rect.x;
+                    x /= results.image.width;
+                    RLM[i].x = x;
+
+                    let y = RLM[i].y * results.rect.height;
+                    y += results.rect.y;
+                    y /= results.image.height;
+                    RLM[i].y = y;
+                }
+            }
+            this.drawingUtils.drawConnectors( RLM, HandLandmarker.HAND_CONNECTIONS, {color: '#1a2025', lineWidth: 4}); //#00CC00
+            this.drawingUtils.drawLandmarks( RLM, {color: '#1a2025',fillColor: 'rgba(196, 113, 35, 1)', lineWidth: 2});
         }
         
         canvasCtx.globalCompositeOperation = 'source-in';
         canvasCtx.restore();
     }
 
-    async processFrame(videoElement) {
+    async processFrame(videoElement, rect) {
         // take same image for face, pose, hand detectors and ui 
         if ( !videoElement.duration ) {
             return;
         }
 
-        const image = await createImageBitmap( videoElement );
+        const originalImage = await createImageBitmap( videoElement);
+        let croppedImage = originalImage;
+        
+        if( rect ) {
+            const {x, y, width, height} = rect;
+            croppedImage = await createImageBitmap( videoElement, x, y, width, height );
+        }
+
         const time = performance.now()//Date.now();
 
         // it would probably be more optimal to use hollistic. But it does not return certain types of values 
-        const detectionsFace = this.faceLandmarker.detectForVideo(image, time);
-        const detectionsPose = this.poseDetector.detectForVideo(image,time);
-        const detectionsHands = this.handDetector.detectForVideo(image,time);
+        const detectionsFace = this.faceLandmarker.detectForVideo(croppedImage, time);
+        const detectionsPose = this.poseDetector.detectForVideo(croppedImage, time);
+        const detectionsHands = this.handDetector.detectForVideo(croppedImage, time);
         // let holistic_results = this.holisticLandmarker.detectForVideo(videoElement,time);
         
         //miliseconds
@@ -175,9 +232,10 @@ class MediaPipe {
         const results = {
             dt: dt, // miliseconds
             currentTime: videoElement.currentTime, //seconds. Both a video and a stream update videoElement.currentTime
-            image: image, // display same image that was used for inference
+            image: originalImage, // display same image that was used for inference
             blendshapesResults: this.processBlendshapes( detectionsFace, dt ),
-            landmarksResults: this.processLandmarks( detectionsFace, detectionsPose, detectionsHands, dt )
+            landmarksResults: this.processLandmarks( detectionsFace, detectionsPose, detectionsHands, dt ),
+            rect // cropped area rect
         }      
 
         if ( this.drawingUtils.autoDraw ) {
@@ -186,7 +244,8 @@ class MediaPipe {
 
         // TODO: consider keeping the image until this.currentResults is modified. This way, the image used in mediapipe can be displayed at any time
         delete results.image;
-        image.close();
+        croppedImage.close();
+        originalImage.close();
 
         if ( this.recording ) {
             if ( results.landmarksResults.PWLM ) { 
@@ -358,16 +417,25 @@ class MediaPipe {
     
     /**
      * sets mediapipe to process videoElement from [startTime, endTime] at each dt. It automatically starts recording
-     * @param {HTMLVideoElement*} videoElement 
-     * @param {Number} startTime seconds
-     * @param {Number} endTime seconds
-     * @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
-     * @param {Function} onEnded 
+     * @param {HTMLVideoElement*} videoElement
+     * @param {Object} [options={}] :
+     *      @param {Number} startTime seconds
+     *      @param {Number} endTime seconds
+     *      @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
+     *      @param {Function} callback
+     *      @param {Boolean} live If it's live recording, mirror canvas
+     *      @param {Object} rect Cropped area {x,y,w,h} 
      */
-    async processVideoOffline( videoElement,  startTime = -1, endTime = -1, dt = 0.04, onEnded = null, live = false ) { // dt=seconds, default 25 fps
+    async processVideoOffline( videoElement,  options = {} ) { // dt=seconds, default 25 fps
         // PROBLEMS: still reading speed (browser speed). Captures frames at specified fps (dt) instead of the actual available video frames
         // PROS: Ensures current time has loaded correctly before sending to mediapipe. Better support than requestVideoCallback
-        this.mirrorCanvas = live;
+        let startTime = options.startTime > -1 ? options.startTime : -1;
+        let endTime = options.endTime || -1;
+        let dt = options.dt || 0.04;
+        const onEnded = options.callback;
+        const rect = options.rect;
+
+        this.mirrorCanvas = options.live || false;
         this.stopVideoProcessing(); // stop previous video processing, if any
 
         // Hacky solution for video duration bug. Some videos do not have duration in metadata and browser has to discover it while playing/decoding the video
@@ -388,7 +456,7 @@ class MediaPipe {
         const listener = async () => {
             let cvp = this.currentVideoProcessing;
 
-            await this.processFrame(cvp.videoElement);
+            await this.processFrame(cvp.videoElement, rect);
  
             cvp.currentTime = cvp.currentTime + cvp.dt;
             if (cvp.currentTime <= cvp.endTime){

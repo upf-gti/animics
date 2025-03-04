@@ -132,7 +132,7 @@ class VideoProcessor {
 
         // const [leftArea, rightArea] = area.split({sizes:["75%","25%"], minimizable: true});
 
-        this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo})
+        this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo, crop: true})
         this.videoEditor.hideControls();
         this.videoEditor.onResize = (size) => {
             let width = size[0];
@@ -165,6 +165,10 @@ class VideoProcessor {
             if ( this.mediapipeOnlineEnabler ) { 
                 this.mediapipe.processVideoOnline(video, this.mode == "webcam"); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
             }            
+        }
+
+        this.videoEditor.onCropArea = ( rect ) => {
+            this.mediapipe.processFrame(recordedVideo, rect);
         }
     }
 
@@ -348,6 +352,8 @@ class VideoProcessor {
         this.mode = "video";
         this.enable();
 
+        const canvasVideo = this.canvasVideo;
+        
         const animations = [];
         for(let i = 0; i < videos.length; i++) {
             UTILS.makeLoading(videos.length == 1 ? "Loading video..." : ("Loading video " + (i + 1) + "/ " + videos.length));
@@ -357,6 +363,14 @@ class VideoProcessor {
             if( !animation ) {
                 return null;
             }
+            const canvasRect = canvasVideo.getBoundingClientRect();
+            let cropRect = this.videoEditor.getCroppedArea();
+            const left = (canvasRect.x - cropRect.x)/ canvasRect.width;
+            const top = (canvasRect.y - cropRect.y)/ canvasRect.height;
+            const right = (canvasRect.right - cropRect.right) / canvasRect.width;
+            const bottom = (canvasRect.bottom - cropRect.bottom) / canvasRect.height;
+           
+            animation.rect = {left, right, top, bottom};
             UTILS.hideLoading();
             animations.push( animation );
         }
@@ -457,7 +471,7 @@ class VideoProcessor {
         this.mediapipe.setOptions( { autoDraw: true } );
 
         const promise = new Promise( resolve => {
-            this.mediapipe.processVideoOffline( video, animationData.startTime, animationData.endTime, animationData.dt, () =>{
+            this.mediapipe.processVideoOffline( video, { startTime: animationData.startTime, endTime: animationData.endTime, dt: animationData.dt, callback: () =>{
                 animationData.landmarks = this.mediapipe.landmarks;
                 animationData.blendshapes = this.mediapipe.blendshapes;
     
@@ -472,7 +486,7 @@ class VideoProcessor {
                 resolve(animationData);
                 UTILS.hideLoading();
     
-            }, animationData.live )
+            }, live: animationData.live, rect: this.videoEditor.getCroppedArea() } )
            
         })        
         return promise;    

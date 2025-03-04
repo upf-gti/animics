@@ -1203,7 +1203,7 @@ class KeyframeEditor extends Editor {
         }
         
         // Create face animation from mediapipe action units
-        let faceAnimation = this.currentCharacter.blendshapesManager.createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
+        const faceAnimation = this.currentCharacter.blendshapesManager.createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units THREEjs AnimationClip
 
         this.bindAnimationToCharacter(data.name);
@@ -1687,7 +1687,18 @@ class KeyframeEditor extends Editor {
             this.setVideoVisibility(true);
             this.video.onloadeddata = () =>{
                 this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
+                        
                 this.video.click();
+                
+                if( animation.rect ) {
+                    const videoRect = this.video.getBoundingClientRect();
+                    let rect = animation.rect;
+                    rect.left = videoRect.left - rect.left * videoRect.width;
+                    rect.right = rect.right * videoRect.width;
+                    rect.top = videoRect.top - rect.top * videoRect.height;
+                    rect.bottom = rect.bottom * videoRect.height;
+                    this.video.style.clipPath = `inset( ${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px)`; // (startY endX endY startX)     
+                }
                 if ( this.activeTimeline.playing ){
                     this.video.play();
                 }            
