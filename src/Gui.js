@@ -723,40 +723,61 @@ class KeyframesGui extends Gui {
         const area = new LX.Area({                
             id: "editor-video", draggable: true, resizeable: true, width: width + "px", height: height + "px", overlay:"left", left: "20px", top: "20px"
         });
-        area.root.style.background = "transparent";
+        area.root.style.background = "#00000017";
+        area.root.style.borderRadius = "5px";
         area.root.style.overflow = "none";
         
         const video = this.editor.video; 
         video.style.width = "99%";       
-        video.style.height = "99%";
+        video.style.height = "auto";
         video.style.borderRadius = "5px";
        
         area.attach(video);
         this.canvasArea.attach(area);
 
         // adjust div to video aspect ratio. This forces the resizing tool to be on the video
-        area.root.onmouseup = function(){
+        area.root.onmouseup = ( event ) => {
             // this == area
-            const v = this.children[0];
+            const v = video;
             const aspectRatio = v.videoWidth / v.videoHeight;
-            const currentRatio = this.clientWidth / this.clientHeight;
+            const currentRatio = area.root.clientWidth / area.root.clientHeight;
             if ( currentRatio < aspectRatio ){ // div higher than the video
-                let lastHeight = this.clientHeight;
-                let newHeight = this.clientWidth / aspectRatio;
-                this.style.height = newHeight + "px";
-                this.style.top = (this.offsetTop + 0.5 * ( lastHeight - newHeight ) ) + "px";
+                let lastHeight = area.root.clientHeight;
+                let newHeight = area.root.clientWidth / aspectRatio;
+                area.root.style.height = newHeight + "px";
+                area.root.style.top = (area.root.offsetTop + 0.5 * ( lastHeight - newHeight ) ) + "px";            
             }
             else { // div wider than the video
-                let lastWidth = this.clientWidth;
-                let newWidth = this.clientHeight * aspectRatio;
-                this.style.width = newWidth + "px";
-                this.style.left = (this.offsetLeft + 0.5 * ( lastWidth - newWidth ) ) + "px";
+                let lastWidth = area.root.clientWidth;
+                let newWidth = area.root.clientHeight * aspectRatio;
+                area.root.style.width = newWidth + "px";
+                area.root.style.left = (area.root.offsetLeft + 0.5 * ( lastWidth - newWidth ) ) + "px";
             }
-        }
 
+            this.computeVideoArea(event.rect);
+            // v.style.clipPath = `inset( ${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px)`; // (startY endX endY startX)
+        }
         this.hideVideoOverlay();
     }
     
+    computeVideoArea( rect ) {
+        const videoRect = this.editor.video.getBoundingClientRect();
+        if( !rect ) {
+            rect = this.editor.getCurrentAnimation().rect;
+            if( !rect ) {
+                return;
+            }
+        }
+
+        const newRect = {};
+        newRect.left = rect.left * videoRect.width;
+        newRect.right = rect.right * videoRect.width;
+        newRect.top = rect.top * videoRect.height;
+        newRect.bottom = rect.bottom * videoRect.height;
+
+        this.editor.video.style.clipPath = `inset( ${newRect.top}px ${newRect.right}px ${newRect.bottom}px ${newRect.left}px)`; // (startY endX endY startX)   
+    }
+
     showVideoOverlay( needsMirror = false ) {
         const el = document.getElementById("editor-video");
         if( el ) {

@@ -1689,16 +1689,13 @@ class KeyframeEditor extends Editor {
                 this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
                         
                 this.video.click();
+                const event = new Event("mouseup");
                 
                 if( animation.rect ) {
-                    const videoRect = this.video.getBoundingClientRect();
-                    let rect = animation.rect;
-                    rect.left = videoRect.left - rect.left * videoRect.width;
-                    rect.right = rect.right * videoRect.width;
-                    rect.top = videoRect.top - rect.top * videoRect.height;
-                    rect.bottom = rect.bottom * videoRect.height;
-                    this.video.style.clipPath = `inset( ${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px)`; // (startY endX endY startX)     
+                    event.rect = animation.rect;
                 }
+                
+                this.video.parentElement.dispatchEvent(event);
                 if ( this.activeTimeline.playing ){
                     this.video.play();
                 }            

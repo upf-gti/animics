@@ -365,8 +365,8 @@ class VideoProcessor {
             }
             const canvasRect = canvasVideo.getBoundingClientRect();
             let cropRect = this.videoEditor.getCroppedArea();
-            const left = (canvasRect.x - cropRect.x)/ canvasRect.width;
-            const top = (canvasRect.y - cropRect.y)/ canvasRect.height;
+            const left = (cropRect.x - canvasRect.x)/ canvasRect.width;
+            const top = (cropRect.y - canvasRect.y)/ canvasRect.height;
             const right = (canvasRect.right - cropRect.right) / canvasRect.width;
             const bottom = (canvasRect.bottom - cropRect.bottom) / canvasRect.height;
            
