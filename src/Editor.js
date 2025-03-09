@@ -398,7 +398,7 @@ class Editor {
         }
         else {
 
-            const innerParse = (event) => {
+            const innerParse = async (event) => {
                 const content = event.srcElement ? event.srcElement.result : event;
                 data.content = content;
                 if( content == "{}" )  {
@@ -412,6 +412,63 @@ class Editor {
                 }
                 else if(type.includes('bvh')) {
                     data.animation = { skeletonAnim: this.BVHloader.parse( content ) };
+                }
+                else if(type.includes('glb')) {
+                    data.animation = await new Promise( (resolve, reject) => {
+                        this.loaderGLB.load( content, (glb) => {
+                            const model = glb.scene;
+                            let skeleton = null;
+
+                            model.traverse( object => {
+                                if ( object.skeleton ) { 
+                                    skeleton = object.skeleton;
+                                    return;
+                                }
+                            })
+
+                            const animations = [];
+                            for( let i = 0; i < glb.animations.length; i++ ) {
+                                const animation = glb.animations[i];
+                                const bodyTracks = [];
+                                const faceTracks = [];
+
+                                for( let t = 0; t < animation.tracks.length; t++ ) {
+                                    const track = animation.tracks[t];
+                                    if( track.constructor != THREE.NumberKeyframeTrack ) {
+                                        // Tracks that don't affect morph targets can be left as-is.
+                                        bodyTracks.push(track);
+                                        continue;
+                                    }
+                                    const times = track.times;
+                                    
+                                    const sourceTrackBinding = THREE.PropertyBinding.parseTrackName( track.name );
+                                    if( !sourceTrackBinding.propertyIndex ) {
+                                        // this track affects all morph targets together (are merged)
+
+                                        const sourceTrackNode = THREE.PropertyBinding.findNode( model, sourceTrackBinding.nodeName );
+                                        const targetCount = sourceTrackNode.morphTargetInfluences.length;
+
+                                        for( let morphTarget in sourceTrackNode.morphTargetDictionary ) {
+                                            
+                                            const morphTargetIdx = sourceTrackNode.morphTargetDictionary[morphTarget];
+                                            const values = new track.ValueBufferType( track.times.length );
+                                            for ( let j = 0; j < times.length; j ++ ) {
+
+                                                values[j] = track.values[j * targetCount + morphTargetIdx];
+                                            }
+                                            faceTracks.push( new THREE.NumberKeyframeTrack(track.name + "[" + morphTarget + "]", times, values, track.getInterpolation()))
+                                        }
+                                    }
+                                    else {
+                                        faceTracks.push(track);
+                                    }
+                                }
+                                const skeletonAnim = new THREE.AnimationClip("bodyAnimation", animation.duration, bodyTracks, animation.blendMode);
+                                const blendshapesAnim = new THREE.AnimationClip("faceAnimation", animation.duration, faceTracks, animation.blendMode);
+                                animations.push( { name: animation.name, skeletonAnim: { clip: skeletonAnim, skeleton} , blendshapesAnim: { clip: blendshapesAnim } })
+                            }
+                            resolve(animations)
+                        })})
                 }
                 else if( type.includes('sigml') ) {
                     data.animation = sigmlStringToBML( content );
@@ -440,9 +497,15 @@ class Editor {
                 }
             }
             const content = data.data ? data.data : data;
+            const type = content.type || UTILS.getExtension(content.name).toLowerCase();
             if(content instanceof Blob || content instanceof File) {
                 const reader = new FileReader();
-                reader.readAsText(content);                
+                if(content instanceof Blob && type.includes("glb") ) {
+                    reader.readAsDataURL(content);
+                }
+                else {
+                    reader.readAsText(content);                
+                }
                 reader.onloadend = innerParse;
             }
             else {
@@ -1097,7 +1160,7 @@ class KeyframeEditor extends Editor {
     }
 
     async loadFiles(files) {
-        const animExtensions = ['bvh','bvhe'];
+        const animExtensions = ['bvh','bvhe', 'glb'];
         const resultFiles = [];
         const promises = [];
 
@@ -1114,8 +1177,16 @@ class KeyframeEditor extends Editor {
             if( animExtensions.includes(extension) ) {
                     const promise = new Promise((resolve) => {
                         this.fileToAnimation(files[i], (file) => {
-                            this.loadAnimation( file.name, file.animation );
-                            resolve(file.animation);
+                            if( file.animation.constructor == Array ) { //glb animations
+                                for(let f = 0; f < file.animation.length; f++ ) {
+                                    this.loadAnimation( file.animation[f].name, file.animation[f] );
+                                }
+                                resolve(file.animation[0]);
+                            }
+                            else {
+                                this.loadAnimation( file.name, file.animation );
+                                resolve(file.animaiton);
+                            }
                             UTILS.hideLoading();
                         });
                     })
@@ -1564,6 +1635,9 @@ class KeyframeEditor extends Editor {
     bindAnimationToCharacter(animationName) {
         
         const animation = this.loadedAnimations[animationName];
+        let faceAnimation = null;
+        let bodyAnimation = null;
+
         if( !animation ) {
             console.warn(animationName + " not found");
             return false;
@@ -1591,17 +1665,23 @@ class KeyframeEditor extends Editor {
 
         // if not yet binded, create it. Otherwise just change to the existing animation
         if ( !this.bindedAnimations[animationName] || !this.bindedAnimations[animationName][this.currentCharacter.name] ) {
-            let bodyAnimation = animation.bodyAnimation;        
+            bodyAnimation = animation.bodyAnimation;        
             let skeletonAnimation = null;
-        
+           
+            const otherTracks = []; // blendshapes     
+
             if(bodyAnimation) {
                 if ( animation.type == "video" && this.inferenceMode == this.animationInferenceModes.M3D ){ // mediapipe3d animation inference algorithm
                     bodyAnimation = this.createBodyAnimationFromWorldLandmarks( animation.bodyAnimation, this.currentCharacter.skeletonHelper.skeleton );
                 } 
                 else { // bvh (and old ML system) retarget an existing animation
-                    let tracks = [];        
+                    const tracks = [];
                     // Remove position changes (only keep i == 0, hips)
                     for (let i = 0; i < bodyAnimation.tracks.length; i++) {
+                        if(bodyAnimation.tracks[i].constructor == THREE.NumberKeyframeTrack ) {
+                            otherTracks.push(bodyAnimation.tracks[i]);
+                            continue;
+                        }
                         if(i && bodyAnimation.tracks[i].name.includes('position')) {
                             continue;
                         }
@@ -1632,9 +1712,15 @@ class KeyframeEditor extends Editor {
 
                 bodyAnimation.name = "bodyAnimation";   // mixer
                 skeletonAnimation.name = "bodyAnimation";  // timeline
+
+                if(otherTracks.length) {
+                    faceAnimation = new THREE.AnimationClip("faceAnimation", bodyAnimation.duration, otherTracks);
+                }
             }
                 
-            let faceAnimation = animation.faceAnimation;        
+            if( animation.faceAnimation ) {
+                faceAnimation = faceAnimation ? animation.faceAnimation.tracks.concat(faceAnimation.tracks) : animation.faceAnimation;
+            }      
             let auAnimation = null;
             if(faceAnimation) {
                                 
