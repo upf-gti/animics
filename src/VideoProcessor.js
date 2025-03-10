@@ -168,6 +168,16 @@ class VideoProcessor {
         }
 
         this.videoEditor.onCropArea = ( rect ) => {
+            const canvasRect = canvasVideo.getBoundingClientRect();
+            let cropRect = this.videoEditor.getCroppedArea();
+            const left = (cropRect.x - canvasRect.x)/ canvasRect.width;
+            const top = (cropRect.y - canvasRect.y)/ canvasRect.height;
+            const right = (canvasRect.right - cropRect.right) / canvasRect.width;
+            const bottom = (canvasRect.bottom - cropRect.bottom) / canvasRect.height;
+            const width = cropRect.width / canvasRect.width;
+            const height = cropRect.height / canvasRect.height;
+
+            rect = {x: left, y: top, width,height};
             this.mediapipe.processFrame(recordedVideo, rect);
         }
     }
@@ -473,6 +483,15 @@ class VideoProcessor {
         this.mediapipe.setOptions( { autoDraw: true } );
 
         const promise = new Promise( resolve => {
+            const canvasRect = video.getBoundingClientRect();
+            let cropRect = this.videoEditor.getCroppedArea();
+            const left = (cropRect.x - canvasRect.x)/ canvasRect.width;
+            const top = (cropRect.y - canvasRect.y)/ canvasRect.height;
+            const width = cropRect.width / canvasRect.width;
+            const height = cropRect.height / canvasRect.height;
+
+            const rect = {x: left, y: top, width,height};
+
             this.mediapipe.processVideoOffline( video, { startTime: animationData.startTime, endTime: animationData.endTime, dt: animationData.dt, callback: () =>{
                 animationData.landmarks = this.mediapipe.landmarks;
                 animationData.blendshapes = this.mediapipe.blendshapes;
@@ -488,7 +507,7 @@ class VideoProcessor {
                 resolve(animationData);
                 UTILS.hideLoading();
     
-            }, live: animationData.live, rect: this.videoEditor.getCroppedArea() } )
+            }, live: animationData.live, rect} )
            
         })        
         return promise;    

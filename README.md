@@ -1,6 +1,6 @@
 # Animics
 
-This web application estimates computer animations from a single-camera input video. It is hosted in this [link](https://webglstudio.org/projects/signon/animics/).
+This web application estimates computer animations from a single-camera input video. It is hosted in this [link](https://animics.gti.upf.edu/).
 
 ## Description
 

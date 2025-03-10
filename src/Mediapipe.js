@@ -214,8 +214,15 @@ class MediaPipe {
         let croppedImage = originalImage;
         
         if( rect ) {
-            const {x, y, width, height} = rect;
-            croppedImage = await createImageBitmap( videoElement, x, y, width, height );
+            let {x, y, width, height} = rect;
+            
+            x *= videoElement.videoWidth;
+            y *= videoElement.videoHeight;
+            width*= videoElement.videoWidth;
+            height *= videoElement.videoHeight;
+
+            rect = {x, y, width, height};
+            croppedImage = await createImageBitmap( videoElement, x, y, width, height, {resizeWidth: width, resizeHeight: height, resizeQuality:"high"} );
         }
 
         const time = performance.now()//Date.now();
