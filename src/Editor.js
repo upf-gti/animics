@@ -27,8 +27,8 @@ THREE.ShaderChunk[ 'morphtarget_vertex' ] = "#ifdef USE_MORPHTARGETS\n	transform
 
 
 class Editor {
-    static RESOURCES_PATH = "https://webglstudio.org/3Dcharacters/";
-    static PERFORMS_PATH = "https://webglstudio.org/projects/signon/performs";
+    static RESOURCES_PATH = "https://resources.gti.upf.edu/3Dcharacters/";
+    static PERFORMS_PATH = "https://performs.gti.upf.edu/";
     
     constructor( animics ) {
         

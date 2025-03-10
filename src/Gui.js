@@ -2619,7 +2619,7 @@ class ScriptGui extends Gui {
             const animation = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
             let saveName = animation ? animation.saveName : "";
             widgets.addText("Name", saveName || "", (v) =>{ 
-                anim.saveName = v; 
+                animation.saveName = v; 
             } )
             
             widgets.addSeparator();
