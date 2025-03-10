@@ -53,7 +53,7 @@ class VideoProcessor {
             icon: "fa-solid fa-info",
             name: "Properties",
             callback: (v, e) => {
-                if(this.processorArea.split_extended) {
+                if(this.processorArea.splitExtended) {
                     this.processorArea.reduce();
                 }
                 else {
@@ -369,8 +369,10 @@ class VideoProcessor {
             const top = (cropRect.y - canvasRect.y)/ canvasRect.height;
             const right = (canvasRect.right - cropRect.right) / canvasRect.width;
             const bottom = (canvasRect.bottom - cropRect.bottom) / canvasRect.height;
+            const width = cropRect.width / canvasRect.width;
+            const height = cropRect.height / canvasRect.height;
            
-            animation.rect = {left, right, top, bottom};
+            animation.rect = {left, right, top, bottom, width, height};
             UTILS.hideLoading();
             animations.push( animation );
         }

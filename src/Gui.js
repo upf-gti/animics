@@ -730,7 +730,7 @@ class KeyframesGui extends Gui {
         const video = this.editor.video; 
         video.style.width = "99%";       
         video.style.height = "auto";
-        video.style.borderRadius = "5px";
+        // video.style.borderRadius = "5px";
        
         area.attach(video);
         this.canvasArea.attach(area);
@@ -775,7 +775,9 @@ class KeyframesGui extends Gui {
         newRect.top = rect.top * videoRect.height;
         newRect.bottom = rect.bottom * videoRect.height;
 
-        this.editor.video.style.clipPath = `inset( ${newRect.top}px ${newRect.right}px ${newRect.bottom}px ${newRect.left}px)`; // (startY endX endY startX)   
+        // this.editor.video.style.clipPath = `inset( ${newRect.top}px ${newRect.right}px ${newRect.bottom}px ${newRect.left}px)`; // (startY endX endY startX)   
+        this.editor.video.style.webkitMask = `linear-gradient(#000 0 0) ${newRect.left}px ${newRect.top}px / ${videoRect.width*rect.width}px ${videoRect.height*rect.height}px, linear-gradient(rgba(0, 0, 0, 0.3) 0 0)`;
+        this.editor.video.style.webkitMaskRepeat = 'no-repeat';
     }
 
     showVideoOverlay( needsMirror = false ) {
