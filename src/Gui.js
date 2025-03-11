@@ -1003,24 +1003,24 @@ class KeyframesGui extends Gui {
             this.editor.gizmo.stop();
         }
 
-        let that = this;
-        this.keyFramesTimeline.showContextMenu = function ( e ) {
+        
+        this.keyFramesTimeline.showContextMenu =  ( e ) => {
             
             e.preventDefault();
             e.stopPropagation();
 
             let actions = [];
             //let track = this.NMFtimeline.clip.tracks[0];
-            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
-                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value)
+            if(this.keyFramesTimeline.lastKeyFramesSelected && this.keyFramesTimeline.lastKeyFramesSelected.length) {
+                if(this.keyFramesTimeline.lastKeyFramesSelected.length == 1 && this.keyFramesTimeline.clipboard && this.keyFramesTimeline.clipboard.value)
                 {
                     actions.push(
                         {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
-                                let [id, localTrackIdx, keyIdx, trackIdx] = this.lastKeyFramesSelected[0];
-                                this.pasteKeyFrameValue(e, this.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
-                                that.editor.updateAnimationAction(that.keyFramesTimeline.animationClip, trackIdx);
+                                let [id, localTrackIdx, keyIdx, trackIdx] = this.keyFramesTimeline.lastKeyFramesSelected[0];
+                                this.pasteKeyFrameValue(e, this.keyFramesTimeline.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
+                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
                             }
                         }
                     )
@@ -1028,15 +1028,15 @@ class KeyframesGui extends Gui {
                 actions.push(
                     {
                         title: "Copy",// + " <i class='bi bi-clipboard-fill float-right'></i>",
-                        callback: () => copySelectedContent()
+                        callback: () => this.keyFramesTimeline.copySelectedContent()
                     }
                 )
                 actions.push(
                     {
                         title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
                         callback: () => {
-                            deleteSelectedContent();
-                            that.editor.updateAnimationAction(that.keyFramesTimeline.animationClip, -1);
+                            this.keyFramesTimeline.deleteSelectedContent();
+                            this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
                         }
                     }
                 )
@@ -1047,14 +1047,14 @@ class KeyframesGui extends Gui {
                 }
                 
                 let [name, type] = [e.track.name, e.track.type]
-                if(that.boneProperties[type]) {
+                if(this.boneProperties[type]) {
                     
                     actions.push(
                         {
                             title: "Add",
                             callback: () => {
-                                this.addKeyFrame( e.track, that.boneProperties[type].toArray() )
-                                that.editor.updateAnimationAction(that.keyFramesTimeline.animationClip, -1);
+                                this.keyFramesTimeline.addKeyFrame( e.track, this.boneProperties[type].toArray() )
+                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
                             }
                         }
                     )
@@ -1067,7 +1067,7 @@ class KeyframesGui extends Gui {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
                                 this.pasteContent()
-                                that.editor.updateAnimationAction(that.keyFramesTimeline.animationClip, -1);
+                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
                             }
                         }
                     )
