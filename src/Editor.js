@@ -982,21 +982,15 @@ class Editor {
         }
         
         const openPreview = (data) => {
+
             if( !this._realizer || this._realizer.closed ) {
                 this._realizer = window.open(Editor.PERFORMS_PATH, "Preview");
-                this._realizer.onload = (e, d) => {
-                    this.performsApp = e.currentTarget.global.app;
-                    sendData(data);
-                }
-    
-                this._realizer.addEventListener("beforeunload", () => {
-                    this._realizer = null
-                });
+                setTimeout(() => this._realizer.postMessage(data, "*"), 1000); // wait a while to have the page loaded (onloaded has CORS error)                
             }
             else {
-                sendData(data);       
+                this._realizer.focus();                
+                this._realizer.postMessage(data, "*");
             }
-            this._realizer.focus();
         }
          
         if( this.isScriptMode() ) {
