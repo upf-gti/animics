@@ -2194,7 +2194,7 @@ class KeyframeEditor extends Editor {
                                 interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = [0];
                             }
                             else {
-                                // TODO optimize if necessary
+                                // TO DO optimize if necessary
                                 let skeleton =this.currentCharacter.skeletonHelper.skeleton;
                                 let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
                                 let boneIdx = findIndexOfBoneByName(skeleton, track.name);

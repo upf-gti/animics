@@ -18,7 +18,7 @@ class Gui {
         // Create menu bar
         this.createMenubar(editor.editorArea);
 
-        [this.menubar, this.mainArea] = editor.editorArea.sections;
+        [this.menubarArea, this.mainArea] = editor.editorArea.sections;
         // split main area
         this.mainArea.split({sizes:["80%","20%"], minimizable: true});
 
@@ -112,35 +112,38 @@ class Gui {
             {
                 title: "Play",
                 icon: "fa-solid fa-play",
-                callback:  (event) => { 
-                    const domEl = event.srcElement;
-                    console.log("play!"); 
+                // swap: "fa-solid fa-pause",
+                callback:  (event, swapValue) => { 
                     if(this.editor.state ) {
-                        this.editor.pause(this.editor, domEl);    
+                        this.editor.pause();    
                     }
                     else {
-                        
-                        this.editor.play(this.editor, domEl);
+                        this.editor.play();
                     }
-                    domEl.classList.toggle('fa-play'), domEl.classList.toggle('fa-pause');
                     if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) {
                         this.editor.activeTimeline.changeState();
                     };
+
+                    // TO DO remove if lexgui version > 0.1.43
+                    this.menubar.getButton("Play").children[0].classList.toggle('fa-pause');
+                    this.menubar.getButton("Play").children[0].classList.toggle('fa-play');
                 }
             },
             {
                 title: "Stop",
                 icon: "fa-solid fa-stop",
                 callback:  (domEl) => { 
-                    this.editor.stop(this.editor, domEl);
-                    // domEl.innerHTML = "<i class='bi bi-play-fill'></i>";
-                    console.log("pause!") 
-                    if( this.menubar.getButton("Play").children[0].classList.contains("fa-pause") ) {
-                        this.menubar.getButton("Play").children[0].classList.toggle('fa-pause'), this.menubar.getButton("Play").children[0].classList.toggle('fa-play');
-                    }
+
+                    // TO DO uncomment if lexgui is updated from 1.43
+                    // this.menubar.getButton("Play").setState(false); 
                     if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) {
                         this.editor.activeTimeline.changeState();
                     };
+                    if( this.menubar.getButton("Play").children[0].classList.contains("fa-pause") ) {
+                        this.menubar.getButton("Play").children[0].classList.remove('fa-pause');
+                        this.menubar.getButton("Play").children[0].classList.add('fa-play');
+                    }
+                    this.editor.stop();
                 }
             }
         ]);
@@ -889,7 +892,6 @@ class KeyframesGui extends Gui {
                 el.download = "videos.zip";
                 el.click();
                 UTILS.hideLoading();
-                    // }).catch( (e) => {console.log(e); $("#loading").fadeOut(); } );
 
             }, { buttonClass: "accept" });
             
