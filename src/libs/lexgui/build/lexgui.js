@@ -12,7 +12,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
     */
 
     var LX = global.LX = {
-        version: "0.1.38",
+        version: "0.1.46",
         ready: false,
         components: [], // specific pre-build components
         signals: {} // events and triggers
@@ -29,122 +29,44 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
     LX.CURVE_MOVEOUT_DELETE = 1;
 
     function clamp( num, min, max ) { return Math.min( Math.max( num, min ), max ); }
-    function round( number, precision ) { return +(( number ).toFixed( precision ?? 2 ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' )); }
-    
-    function getSupportedDOMName( string )
-    {
-        return string.replace(/\s/g, '').replaceAll('@', '_').replaceAll('+', '_plus_').replaceAll('.', ''); 
-    }
+    function round( number, precision ) { return precision == 0 ? Math.floor( number ) : +(( number ).toFixed( precision ?? 2 ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' )); }
+    function remapRange( oldValue, oldMin, oldMax, newMin, newMax ) { return ((( oldValue - oldMin ) * ( newMax - newMin )) / ( oldMax - oldMin )) + newMin; }
 
-    LX.getSupportedDOMName = getSupportedDOMName;
-
-    function has( component_name )
-    {
-        return (LX.components.indexOf( component_name ) > -1);
-    }
-
-    LX.has = has;
-
-    function getExtension( s )
-    { 
-        return s.includes('.') ? s.split('.').pop() : null;
-    }
-
-    LX.getExtension = getExtension;
-
-    function deepCopy( o )
-    { 
-        return JSON.parse(JSON.stringify(o)) 
-    }
-
-    LX.deepCopy = deepCopy;
-
-    function setThemeColor( colorName, color )
-    {
-        var r = document.querySelector( ':root' );
-        r.style.setProperty( '--' + colorName, color );
-    }
-
-    LX.setThemeColor = setThemeColor;
-
-    function getThemeColor( colorName )
-    {
-        var r = getComputedStyle( document.querySelector( ':root' ) );
-        return r.getPropertyValue( '--' + colorName );
-    }
-
-    LX.getThemeColor = getThemeColor;
-
-    function getBase64Image( img ) {
-        var canvas = document.createElement( 'canvas' );
-        canvas.width = img.width;
-        canvas.height = img.height;
-        var ctx = canvas.getContext( '2d' );
-        ctx.drawImage( img, 0, 0 );
-        return canvas.toDataURL( 'image/png' );
-    }
-
-    LX.getBase64Image = getBase64Image;
-
-    function hexToRgb( hexStr ) {
-        const red = parseInt( hexStr.substring( 1, 3 ), 16 ) / 255;
-        const green = parseInt( hexStr.substring( 3, 5 ), 16 ) / 255;
-        const blue = parseInt( hexStr.substring( 5, 7 ), 16 ) / 255;
-        return [ red, green, blue ];
-    }
-    
-    LX.hexToRgb = hexToRgb;
-    
-    function rgbToHex( rgb ) {
-        let hex = "#";
-        for( let c of rgb ) {
-            c = Math.floor( c * 255 );
-            hex += c.toString( 16 );
-        }
-        return hex;
-    }
-    
-    LX.rgbToHex = rgbToHex;
-
-    function measureRealWidth( value, paddingPlusMargin = 8 ) {
-        var i = document.createElement( "span" );
-        i.className = "lexinputmeasure";
-        i.innerHTML = value;
-        document.body.appendChild( i );
-        var rect = i.getBoundingClientRect();
-        LX.UTILS.deleteElement( i );
-        return rect.width + paddingPlusMargin;
-    }
-
-    LX.measureRealWidth = measureRealWidth;
-
-    function simple_guidGenerator() {
-        var S4 = function() {
-           return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
-        };
-        return (S4()+"-"+S4()+"-"+S4());
-    }
-
-    LX.guidGenerator = simple_guidGenerator;
+    LX.clamp = clamp;
+    LX.round = round;
+    LX.remapRange = remapRange;
 
     // Timer that works everywhere (from litegraph.js)
-    if (typeof performance != "undefined") {
-        LX.getTime = performance.now.bind(performance);
-    } else if (typeof Date != "undefined" && Date.now) {
-        LX.getTime = Date.now.bind(Date);
-    } else if (typeof process != "undefined") {
+    if ( typeof performance != "undefined" )
+    {
+        LX.getTime = performance.now.bind( performance );
+    }
+    else if( typeof Date != "undefined" && Date.now )
+    {
+        LX.getTime = Date.now.bind( Date );
+    }
+    else if ( typeof process != "undefined" )
+    {
         LX.getTime = function() {
             var t = process.hrtime();
-            return t[0] * 0.001 + t[1] * 1e-6;
+            return t[ 0 ] * 0.001 + t[ 1 ] * 1e-6;
         };
-    } else {
-        LX.getTime = function getTime() {
+    }
+    else
+    {
+        LX.getTime = function() {
             return new Date().getTime();
         };
     }
 
     let ASYNC_ENABLED = true;
 
+    /**
+     * @method doAsync
+     * @description Call a function asynchronously
+     * @param {Function} fn Function to call
+     * @param {Number} ms Time to wait until calling the function (in milliseconds)
+     */
     function doAsync( fn, ms ) {
         if( ASYNC_ENABLED )
         {
@@ -156,70 +78,294 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         }
     }
 
-    // Math classes
+    LX.doAsync = doAsync;
 
-    class vec2 {
+    /**
+     * @method getSupportedDOMName
+     * @description Convert a text string to a valid DOM name
+     * @param {String} text Original text
+     */
+    function getSupportedDOMName( text )
+    {
+        return text.replace(/\s/g, '').replaceAll('@', '_').replaceAll('+', '_plus_').replaceAll('.', '');
+    }
 
-        constructor( x, y ) {
-            this.x = x ?? 0;
-            this.y = y ?? ( x ?? 0 );
+    LX.getSupportedDOMName = getSupportedDOMName;
+
+    /**
+     * @method has
+     * @description Ask if LexGUI is using a specific component
+     * @param {String} componentName Name of the LexGUI component
+     */
+    function has( componentName )
+    {
+        return ( LX.components.indexOf( componentName ) > -1 );
+    }
+
+    LX.has = has;
+
+    /**
+     * @method getExtension
+     * @description Get a extension from a path/url/filename
+     * @param {String} name
+     */
+    function getExtension( name )
+    {
+        return name.includes('.') ? name.split('.').pop() : null;
+    }
+
+    LX.getExtension = getExtension;
+
+    /**
+     * @method deepCopy
+     * @description Create a deep copy with no references from an object
+     * @param {Object} obj
+     */
+    function deepCopy( obj )
+    {
+        return JSON.parse( JSON.stringify( obj ) )
+    }
+
+    LX.deepCopy = deepCopy;
+
+    /**
+     * @method setTheme
+     * @description Set dark or light theme
+     * @param {String} colorScheme Name of the scheme
+     */
+    function setTheme( colorScheme )
+    {
+        colorScheme = ( colorScheme == "light" ) ? "light" : "dark";
+        document.documentElement.setAttribute( "data-theme", colorScheme );
+        LX.emit( "@on_new_color_scheme", colorScheme );
+    }
+
+    LX.setTheme = setTheme;
+
+    /**
+     * @method setThemeColor
+     * @description Sets a new value for one of the main theme variables
+     * @param {String} colorName Name of the theme variable
+     * @param {String} color Color in rgba/hex
+     */
+    function setThemeColor( colorName, color )
+    {
+        var r = document.querySelector( ':root' );
+        r.style.setProperty( '--' + colorName, color );
+    }
+
+    LX.setThemeColor = setThemeColor;
+
+    /**
+     * @method getThemeColor
+     * @description Get the value for one of the main theme variables
+     * @param {String} colorName Name of the theme variable
+     */
+    function getThemeColor( colorName )
+    {
+        const r = getComputedStyle( document.querySelector( ':root' ) );
+        const value = r.getPropertyValue( '--' + colorName );
+        const theme = document.documentElement.getAttribute( "data-theme" );
+
+        if( value.includes( "light-dark" ) )
+        {
+            const currentScheme = r.getPropertyValue( "color-scheme" );
+
+            if( currentScheme == "light" )
+            {
+                return value.substring( value.indexOf( '(' ) + 1, value.indexOf( ',' ) ).replace( /\s/g, '' );
+            }
+            else
+            {
+                return value.substring( value.indexOf( ',' ) + 1, value.indexOf( ')' ) ).replace( /\s/g, '' );
+            }
         }
-    
-        get xy() { return [ this.x, this.y ]; }
-        get yx() { return [ this.y, this.x ]; }
-    
-        set ( x, y ) { this.x = x; this.y = y; }
-        add ( v, v0 = new vec2() ) { v0.set( this.x + v.x, this.y + v.y ); return v0; }
-        sub ( v, v0 = new vec2() ) { v0.set( this.x - v.x, this.y - v.y ); return v0; }
-        mul ( v, v0 = new vec2() ) { if( v.constructor == Number ) { v = new vec2( v ) } v0.set( this.x * v.x, this.y * v.y ); return v0; }
-        div ( v, v0 = new vec2() ) { if( v.constructor == Number ) { v = new vec2( v ) } v0.set( this.x / v.x, this.y / v.y ); return v0; }
-        abs ( v0 = new vec2() ) { v0.set( Math.abs( this.x ), Math.abs( this.y ) ); return v0; }
-        dot ( v ) { return this.x * v.x + this.y * v.y; }
-        len2 () { return this.dot( this ) }
-        len () { return Math.sqrt( this.len2() ); }
-        nrm ( v0 = new vec2() ) { v0.set( this.x, this.y ); return v0.mul( 1.0 / this.len(), v0 ); }
-        dst ( v ) { return v.sub( this ).len(); }
-    };
 
-    LX.vec2 = vec2;
+        return value;
+    }
 
-    // Other utils
+    LX.getThemeColor = getThemeColor;
 
-    function makeDraggable( domEl, options = { } ) {
+    /**
+     * @method getBase64Image
+     * @description Convert an image to a base64 string
+     * @param {Image} img
+     */
+    function getBase64Image( img )
+    {
+        var canvas = document.createElement( 'canvas' );
+        canvas.width = img.width;
+        canvas.height = img.height;
+        var ctx = canvas.getContext( '2d' );
+        ctx.drawImage( img, 0, 0 );
+        return canvas.toDataURL( 'image/png' );
+    }
 
-        let offsetX;
-        let offsetY;
+    LX.getBase64Image = getBase64Image;
+
+    /**
+     * @method hexToRgb
+     * @description Convert a hexadecimal string to a valid RGB color array
+     * @param {String} hexStr Hexadecimal color
+     */
+    function hexToRgb( hexStr )
+    {
+        const red = parseInt( hexStr.substring( 1, 3 ), 16 ) / 255;
+        const green = parseInt( hexStr.substring( 3, 5 ), 16 ) / 255;
+        const blue = parseInt( hexStr.substring( 5, 7 ), 16 ) / 255;
+        return [ red, green, blue ];
+    }
+
+    LX.hexToRgb = hexToRgb;
+
+    /**
+     * @method rgbToHex
+     * @description Convert a RGB color array to a hexadecimal string
+     * @param {Array} rgb Array containing R, G, B, A*
+     */
+    function rgbToHex( rgb )
+    {
+        let hex = "#";
+        for( let c of rgb ) {
+            c = Math.floor( c * 255 );
+            hex += c.toString( 16 );
+        }
+        return hex;
+    }
+
+    LX.rgbToHex = rgbToHex;
+
+    /**
+     * @method measureRealWidth
+     * @description Measure the pixel width of a text
+     * @param {Object} value Text to measure
+     * @param {Number} paddingPlusMargin Padding offset
+     */
+    function measureRealWidth( value, paddingPlusMargin = 8 )
+    {
+        var i = document.createElement( "span" );
+        i.className = "lexinputmeasure";
+        i.innerHTML = value;
+        document.body.appendChild( i );
+        var rect = i.getBoundingClientRect();
+        LX.UTILS.deleteElement( i );
+        return rect.width + paddingPlusMargin;
+    }
+
+    LX.measureRealWidth = measureRealWidth;
+
+    /**
+     * @method simple_guidGenerator
+     * @description Get a random unique id
+     */
+    function simple_guidGenerator()
+    {
+        var S4 = function() {
+            return (((1+Math.random())*0x10000)|0).toString(16).substring(1);
+        };
+        return (S4()+"-"+S4()+"-"+S4());
+    }
+
+    LX.guidGenerator = simple_guidGenerator;
+
+    /**
+     * @method buildTextPattern
+     * @description Create a validation pattern using specific options
+     * @param {Object} options
+     * lowercase (Boolean): Text must contain a lowercase char
+     * uppercase (Boolean): Text must contain an uppercase char
+     * digit (Boolean): Text must contain a digit
+     * specialChar (Boolean): Text must contain a special char
+     * noSpaces (Boolean): Do not allow spaces in text
+     * minLength (Number): Text minimum length
+     * maxLength (Number): Text maximum length
+     * asRegExp (Boolean): Return pattern as Regular Expression instance
+     */
+    function buildTextPattern( options = {} )
+    {
+        let patterns = [];
+        if ( options.lowercase ) patterns.push("(?=.*[a-z])");
+        if ( options.uppercase ) patterns.push("(?=.*[A-Z])");
+        if ( options.digit ) patterns.push("(?=.*\\d)");
+        if ( options.specialChar ) patterns.push("(?=.*[@#$%^&+=!])");
+        if ( options.noSpaces ) patterns.push("(?!.*\\s)");
+
+        let minLength = options.minLength || 0;
+        let maxLength = options.maxLength || ""; // Empty means no max length restriction
+
+        let pattern = `^${ patterns.join("") }.{${ minLength },${ maxLength }}$`;
+        return options.asRegExp ? new RegExp( pattern ) : pattern;
+    }
+
+    LX.buildTextPattern = buildTextPattern;
+
+    /**
+     * @method makeDraggable
+     * @description Allow an element to be dragged
+     * @param {Element} domEl
+     * @param {Object} options
+     * autoAdjust (Bool): Sets in a correct position at the beggining
+     * dragMargin (Number): Margin of drag container
+     * onMove (Function): Called each move event
+     * onDragStart (Function): Called when drag event starts
+     */
+    function makeDraggable( domEl, options = { } )
+    {
+        let offsetX = 0;
+        let offsetY = 0;
         let currentTarget = null;
         let targetClass = options.targetClass;
-    
+        let dragMargin = options.dragMargin ?? 3;
+
+        let _computePosition = ( e, top, left ) => {
+            const nullRect = { x: 0, y: 0, width: 0, height: 0 };
+            const parentRect = domEl.parentElement ? domEl.parentElement.getBoundingClientRect() : nullRect;
+            const isFixed = ( domEl.style.position == "fixed" );
+            const fixedOffset = isFixed ? new LX.vec2( parentRect.x, parentRect.y ) : new LX.vec2();
+            left = left ?? e.clientX - offsetX - parentRect.x;
+            top = top ?? e.clientY - offsetY - parentRect.y;
+            domEl.style.left = clamp( left, dragMargin + fixedOffset.x, fixedOffset.x + parentRect.width - domEl.offsetWidth - dragMargin ) + 'px';
+            domEl.style.top = clamp( top, dragMargin + fixedOffset.y, fixedOffset.y + parentRect.height - domEl.offsetHeight - dragMargin ) + 'px';
+        };
+
+        // Initial adjustment
+        if( options.autoAdjust )
+        {
+           _computePosition( null, parseInt( domEl.style.left ), parseInt( domEl.style.top ) )
+        }
+
         let id = LX.UTILS.uidGenerator();
         domEl[ 'draggable-id' ] = id;
-    
+
         const defaultMoveFunc = e => {
-            if( !currentTarget ) return;
-            const parentRect = domEl.parentElement.getBoundingClientRect();
-            let left = e.clientX - offsetX - parentRect.left;
-            let top = e.clientY - offsetY - parentRect.top;
-            if( left > 3 && ( left + domEl.offsetWidth + 6 ) <= window.innerWidth )
-                domEl.style.left = left + 'px';
-            if( top > 3 && ( top + domEl.offsetHeight + 6 ) <= window.innerHeight )
-                domEl.style.top = top + 'px';
+            if( !currentTarget )
+            {
+                return;
+            }
+
+            _computePosition( e );
         };
-    
+
         const customMoveFunc = e => {
-            if( !currentTarget ) return;
+            if( !currentTarget )
+            {
+                return;
+            }
+
             if( options.onMove )
+            {
                 options.onMove( currentTarget );
+            }
         };
-    
+
         let onMove = options.onMove ? customMoveFunc : defaultMoveFunc;
         let onDragStart = options.onDragStart;
-    
+
         domEl.setAttribute( 'draggable', true );
         domEl.addEventListener( "mousedown", function( e ) {
-            currentTarget = (e.target.classList.contains(targetClass) || !targetClass) ? e.target : null;
+            currentTarget = ( e.target.classList.contains( targetClass ) || !targetClass ) ? e.target : null;
         } );
-    
+
         domEl.addEventListener( "dragstart", function( e ) {
             e.preventDefault();
             e.stopPropagation();
@@ -231,96 +377,246 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             e.dataTransfer.setDragImage( img, 0, 0 );
             e.dataTransfer.effectAllowed = "move";
             const rect = e.target.getBoundingClientRect();
-            offsetX = e.clientX - rect.x;
-            offsetY = e.clientY - rect.y;
+            const parentRect = currentTarget.parentElement.getBoundingClientRect();
+            const isFixed = ( currentTarget.style.position == "fixed" );
+            const fixedOffset = isFixed ? new LX.vec2( parentRect.x, parentRect.y ) : new LX.vec2();
+            offsetX = e.clientX - rect.x - fixedOffset.x;
+            offsetY = e.clientY - rect.y - fixedOffset.y;
             document.addEventListener( "mousemove", onMove );
             if( onDragStart )
+            {
                 onDragStart( currentTarget, e );
+            }
         }, false );
-        
+
         document.addEventListener( 'mouseup', () => {
-            if( currentTarget ) {
+            if( currentTarget )
+            {
                 currentTarget = null;
                 document.removeEventListener( "mousemove", onMove );
             }
         } );
     }
-    
+
     LX.makeDraggable = makeDraggable;
 
-    function create_global_searchbar( root ) {
+    /**
+     * @method makeCodeSnippet
+     * @description Create a code snippet in a specific language
+     * @param {String} code
+     * @param {Array} size
+     * @param {Object} options
+     * language (String):
+     * windowMode (Boolean):
+     * lineNumbers (Boolean):
+     * firstLine (Number): TODO
+     * linesAdded (Array):
+     * linesRemoved (Array):
+     * tabName (String):
+     */
+    function makeCodeSnippet( code, size, options = { } )
+    {
+        if( !LX.has('CodeEditor') )
+        {
+            console.error( "Import the CodeEditor component to create snippets!" );
+            return;
+        }
 
-        let global_search = document.createElement("div");
-        global_search.id = "global_search";
-        global_search.className = "hidden";
-        global_search.tabIndex = -1;
-        root.appendChild( global_search );
+        const snippet = document.createElement( "div" );
+        snippet.className = "lexcodesnippet";
+        snippet.style.width = size ? size[ 0 ] : "auto";
+        snippet.style.height = size ? size[ 1 ] : "auto";
+        const area = new Area( { noAppend: true } );
+        let editor = new LX.CodeEditor( area, {
+            skipInfo: true,
+            disableEdition: true,
+            allowAddScripts: false,
+            name: options.tabName,
+            // showTab: options.showTab ?? true
+        } );
+        editor.setText( code, options.language ?? "Plain Text" );
+
+        if( options.linesAdded )
+        {
+            const code = editor.root.querySelector( ".code" );
+            for( let l of options.linesAdded )
+            {
+                if( l.constructor == Number )
+                {
+                    code.childNodes[ l - 1 ].classList.add( "added" );
+                }
+                else if( l.constructor == Array ) // It's a range
+                {
+                    for( let i = ( l[0] - 1 ); i <= ( l[1] - 1 ); i++ )
+                    {
+                        code.childNodes[ i ].classList.add( "added" );
+                    }
+                }
+            }
+        }
+
+        if( options.linesRemoved )
+        {
+            const code = editor.root.querySelector( ".code" );
+            for( let l of options.linesRemoved )
+            {
+                if( l.constructor == Number )
+                {
+                    code.childNodes[ l - 1 ].classList.add( "removed" );
+                }
+                else if( l.constructor == Array ) // It's a range
+                {
+                    for( let i = ( l[0] - 1 ); i <= ( l[1] - 1 ); i++ )
+                    {
+                        code.childNodes[ i ].classList.add( "removed" );
+                    }
+                }
+            }
+        }
+
+        if( options.windowMode )
+        {
+            const windowActionButtons = document.createElement( "div" );
+            windowActionButtons.className = "lexwindowbuttons";
+            const aButton = document.createElement( "span" );
+            aButton.style.background = "#ee4f50";
+            const bButton = document.createElement( "span" );
+            bButton.style.background = "#f5b720";
+            const cButton = document.createElement( "span" );
+            cButton.style.background = "#53ca29";
+            windowActionButtons.appendChild( aButton );
+            windowActionButtons.appendChild( bButton );
+            windowActionButtons.appendChild( cButton );
+            const tabs = editor.root.querySelector( ".lexareatabs" );
+            tabs.prepend( windowActionButtons );
+        }
+
+        if( !( options.lineNumbers ?? true ) )
+        {
+            editor.root.classList.add( "no-gutter" );
+        }
+
+        snippet.appendChild( area.root );
+        return snippet;
+    }
+
+    LX.makeCodeSnippet = makeCodeSnippet;
+
+    // Math classes
+
+    class vec2 {
+
+        constructor( x, y ) {
+            this.x = x ?? 0;
+            this.y = y ?? ( x ?? 0 );
+        }
+
+        get xy() { return [ this.x, this.y ]; }
+        get yx() { return [ this.y, this.x ]; }
+
+        set ( x, y ) { this.x = x; this.y = y; }
+        add ( v, v0 = new vec2() ) { v0.set( this.x + v.x, this.y + v.y ); return v0; }
+        sub ( v, v0 = new vec2() ) { v0.set( this.x - v.x, this.y - v.y ); return v0; }
+        mul ( v, v0 = new vec2() ) { if( v.constructor == Number ) { v = new vec2( v ) } v0.set( this.x * v.x, this.y * v.y ); return v0; }
+        div ( v, v0 = new vec2() ) { if( v.constructor == Number ) { v = new vec2( v ) } v0.set( this.x / v.x, this.y / v.y ); return v0; }
+        abs ( v0 = new vec2() ) { v0.set( Math.abs( this.x ), Math.abs( this.y ) ); return v0; }
+        dot ( v ) { return this.x * v.x + this.y * v.y; }
+        len2 () { return this.dot( this ) }
+        len () { return Math.sqrt( this.len2() ); }
+        nrm ( v0 = new vec2() ) { v0.set( this.x, this.y ); return v0.mul( 1.0 / this.len(), v0 ); }
+        dst ( v ) { return v.sub( this ).len(); }
+        clp ( min, max, v0 = new vec2() ) { v0.set( clamp( this.x, min, max ), clamp( this.y, min, max ) ); return v0; }
+    };
+
+    LX.vec2 = vec2;
+
+    function create_global_searchbar( root )
+    {
+
+        let globalSearch = document.createElement("div");
+        globalSearch.id = "global-search";
+        globalSearch.className = "hidden";
+        globalSearch.tabIndex = -1;
+        root.appendChild( globalSearch );
 
         let allItems = [];
         let hoverElId = null;
 
-        global_search.addEventListener('keydown', function(e) {
+        globalSearch.addEventListener('keydown', function( e ) {
             e.stopPropagation();
             e.stopImmediatePropagation();
             hoverElId = hoverElId ?? -1;
-            if( e.key == 'Escape' ) {
+            if( e.key == 'Escape' )
+            {
                 this.classList.add("hidden");
-                reset_bar(true);
+                _resetBar( true );
             }
-            else if( e.key == 'Enter' ) {
+            else if( e.key == 'Enter' )
+            {
                 const el = allItems[ hoverElId ];
-                if(el) {
-                    const is_checkbox = (el.item.type && el.item.type === 'checkbox');
+                if( el )
+                {
+                    const isCheckbox = (el.item.type && el.item.type === 'checkbox');
                     this.classList.toggle('hidden');
-                    if(is_checkbox)  {
+                    if( isCheckbox )
+                    {
                         el.item.checked = !el.item.checked;
-                        el.callback.call(window, el.item.checked, el.entry_name);
+                        el.callback.call( window, el.item.checked, el.entry_name );
                     }
                     else
-                        el.callback.call(window, el.entry_name);
+                    {
+                        el.callback.call( window, el.entry_name );
+                    }
                 }
             }
-            else if ( e.key == 'ArrowDown' && hoverElId < (allItems.length - 1) ) {
+            else if ( e.key == 'ArrowDown' && hoverElId < (allItems.length - 1) )
+            {
                 hoverElId++;
-                global_search.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+                globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
                 allItems[ hoverElId ].classList.add('hovered');
 
                 let dt = allItems[ hoverElId ].offsetHeight * (hoverElId + 1) - itemContainer.offsetHeight;
-                if( dt > 0) {
+                if( dt > 0 )
+                {
                     itemContainer.scrollTo({
                         top: dt,
                         behavior: "smooth",
                     });
                 }
 
-            } else if ( e.key == 'ArrowUp' && hoverElId > 0 ) {
+            } else if ( e.key == 'ArrowUp' && hoverElId > 0 )
+            {
                 hoverElId--;
-                global_search.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+                globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
                 allItems[ hoverElId ].classList.add('hovered');
             }
         });
 
-        global_search.addEventListener('focusout', function(e) {
-           if(e.relatedTarget == e.currentTarget) return;
+        globalSearch.addEventListener('focusout', function( e ) {
+            if( e.relatedTarget == e.currentTarget )
+            {
+                return;
+            }
             e.stopPropagation();
             e.stopImmediatePropagation();
-            this.classList.add("hidden");
-            reset_bar(true);
+            this.classList.add( "hidden" );
+            _resetBar( true );
         });
 
         root.addEventListener('keydown', e => {
-            if( e.key == ' ' && e.ctrlKey ) {
+            if( e.key == ' ' && e.ctrlKey )
+            {
                 e.stopImmediatePropagation();
                 e.stopPropagation();
-                global_search.classList.toggle('hidden');
-                global_search.querySelector('input').focus();
-                add_elements( undefined );
+                globalSearch.classList.toggle('hidden');
+                globalSearch.querySelector('input').focus();
+                _addElements( undefined );
             }
             else
             {
                 for( let c of LX.components )
                 {
-                    if( !LX[c] || !LX[c].prototype.onKeyPressed )
+                    if( !LX[ c ] || !LX[ c ].prototype.onKeyPressed )
                     {
                         continue;
                     }
@@ -334,36 +630,68 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             }
         });
 
-        let icon = document.createElement("a");
-        icon.className = "fa-solid fa-magnifying-glass";
+        const header = document.createElement( "div" );
+        header.className = "gs-header";
 
-        let input = document.createElement("input");
+        const icon = document.createElement("a");
+        icon.className = "fa-solid fa-magnifying-glass";
+        header.appendChild( icon );
+
+        const input = document.createElement("input");
         input.placeholder = "Search...";
         input.value = "";
+        header.appendChild( input );
 
-        let itemContainer = document.createElement("div");
+        const tabArea = new Area( {
+            width: "100%",
+            skipAppend: true,
+            className: "gs-tabs"
+        } );
+
+        const gsTabs = tabArea.addTabs();
+        let gsFilter = null;
+
+        // These tabs will serve as buttons by now
+        // Filter stuff depending of the type of search
+        {
+            const _onSelectTab = ( e, tabName ) => {
+                gsFilter = tabName;
+            }
+
+            gsTabs.add( "All", document.createElement('div'), { selected: true, onSelect: _onSelectTab } );
+            // gsTabs.add( "Main", document.createElement('div'), { onSelect: _onSelectTab } );
+        }
+
+        const itemContainer = document.createElement("div");
         itemContainer.className = "searchitembox";
 
-        let ref_previous;
+        let refPrevious = null;
 
-        const reset_bar = (reset_input) => {
+        const _resetBar = (reset_input) => {
             itemContainer.innerHTML = "";
             allItems.length = 0;
             hoverElId = null;
             if(reset_input) input.value = "";
         }
 
-        const add_element = (t, c, p, i) => {
-            if(!t.length) return;
+        const _addElement = ( t, c, p, i ) => {
 
-            if(ref_previous) ref_previous.classList.remove('last');
+            if( !t.length )
+            {
+                return;
+            }
+
+            if( refPrevious ) refPrevious.classList.remove('last');
 
             let searchItem = document.createElement("div");
             searchItem.className = "searchitem last";
-            const is_checkbox = (i && i.type && i.type === 'checkbox');
-            if(is_checkbox) {
+            const isCheckbox = (i && i.type && i.type === 'checkbox');
+            if( isCheckbox )
+            {
                 searchItem.innerHTML = "<a class='fa fa-check'></a><span>" + p + t + "</span>"
-            } else {
+            }
+            else
+            {
                 searchItem.innerHTML = p + t;
             }
             searchItem.entry_name = t;
@@ -371,29 +699,32 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             searchItem.item = i;
             searchItem.addEventListener('click', function(e) {
                 this.callback.call(window, this.entry_name);
-                global_search.classList.toggle('hidden');
-                reset_bar(true);
+                globalSearch.classList.toggle('hidden');
+                _resetBar( true );
             });
             searchItem.addEventListener('mouseenter', function(e) {
-                global_search.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+                globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
                 this.classList.add('hovered');
-                hoverElId = allItems.indexOf(this);
+                hoverElId = allItems.indexOf( this );
             });
             searchItem.addEventListener('mouseleave', function(e) {
                 this.classList.remove('hovered');
             });
             allItems.push( searchItem );
-            itemContainer.appendChild(searchItem);
-            ref_previous = searchItem;
+            itemContainer.appendChild( searchItem );
+            refPrevious = searchItem;
         }
 
-        const propagate_add = ( item, filter, path ) => {
+        const _propagateAdd = ( item, filter, path ) => {
 
             const key = Object.keys( item )[ 0 ];
             let name = item.name ?? path + key;
-            if( name.toLowerCase().includes( filter ) ) {
+            if( name.toLowerCase().includes( filter ) )
+            {
                 if( item.callback )
-                    add_element( item.name ?? key, item.callback, path, item );
+                {
+                    _addElement( item.name ?? key, item.callback, path, item );
+                }
             }
 
             // is sidebar..
@@ -403,33 +734,36 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             path += key + " > ";
 
             for( let c of item[ key ] )
-                propagate_add( c, filter, path );
+                _propagateAdd( c, filter, path );
         };
 
-        const add_elements = filter => {
-            
-            reset_bar();
+        const _addElements = filter => {
+
+            _resetBar();
 
             for( let m of LX.menubars )
-                for( let i of m.items ) {
-                    propagate_add( i, filter, "" );
+            {
+                for( let i of m.items )
+                {
+                    _propagateAdd( i, filter, "" );
                 }
+            }
 
             if( LX.has('CodeEditor') )
             {
                 const instances = LX.CodeEditor.getInstances();
                 if(!instances.length) return;
-    
+
                 const languages = instances[ 0 ].languages;
-    
+
                 for( let l of Object.keys( languages ) ) {
-    
+
                     const key = "Language: " + l;
                     const icon = instances[ 0 ]._getFileIcon( null, languages[ l ].ext );
-    
+
                     let value = icon.includes( 'fa-' ) ? "<i class='" + icon + "'></i>" :
                             "<img src='" + ( "https://raw.githubusercontent.com/jxarco/lexgui.js/master/" + icon ) + "'>";
-    
+
                     value += key + " <span class='lang-ext'>(" + languages[ l ].ext + ")</span>";
                     if( key.toLowerCase().includes( filter ) ) {
                         add_element( value, () => {
@@ -443,22 +777,23 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         }
 
         input.addEventListener('input', function(e) {
-            add_elements( this.value.toLowerCase() );
+            _addElements( this.value.toLowerCase() );
         });
-        
-        global_search.appendChild(icon);
-        global_search.appendChild(input);
-        global_search.appendChild(itemContainer);
 
-        return global_search;
+        globalSearch.appendChild( header );
+        globalSearch.appendChild( tabArea.root );
+        globalSearch.appendChild( itemContainer );
+
+        return globalSearch;
     }
 
     /**
      * @method init
-     * @param {Object} options 
+     * @param {Object} options
      * container: Root location for the gui (default is the document body)
      * id: Id of the main area
-     * skip_default_area: Skip creation of main area
+     * skipRoot: Skip adding LX root container
+     * skipDefaultArea: Skip creation of main area
      */
 
     function init( options = { } )
@@ -471,7 +806,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         var root = document.createElement( 'div' );
         root.id = "lexroot";
         root.tabIndex = -1;
-        
+
         var modal = document.createElement( 'div' );
         modal.id = "modal";
 
@@ -483,15 +818,19 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         // this.modal.toggle = function( force ) { this.toggleAttribute( 'hidden', force ); };
 
         this.modal.classList.add( 'hiddenOpacity' );
-        this.modal.toggle = function( force ) { this.classList.toggle( 'hiddenOpacity', force ); };  
+        this.modal.toggle = function( force ) { this.classList.toggle( 'hiddenOpacity', force ); };
 
         if( options.container )
             this.container = document.getElementById( options.container );
-            
+
         this.global_search = create_global_searchbar( this.container );
 
         this.container.appendChild( modal );
-        this.container.appendChild( root );
+
+        if( !options.skipRoot )
+        {
+            this.container.appendChild( root );
+        }
 
         // Disable drag icon
         root.addEventListener( 'dragover', function( e ) {
@@ -503,7 +842,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         var link = document.createElement( 'link' );
         link.rel = 'stylesheet';
         link.type = 'text/css';
-        link.href = 'https://use.fontawesome.com/releases/v6.6.0/css/all.css';
+        link.href = 'https://use.fontawesome.com/releases/v6.7.2/css/all.css';
         head.appendChild( link );
 
         // Global vars
@@ -514,8 +853,19 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         this.ready = true;
         this.menubars = [ ];
 
-        if( !options.skip_default_area )
+        if( !options.skipRoot && !options.skipDefaultArea )
+        {
             this.main_area = new Area( { id: options.id ?? 'mainarea' } );
+        }
+
+        if( ( options.autoTheme ?? true ) && window.matchMedia && window.matchMedia( "(prefers-color-scheme: light)" ).matches )
+        {
+            LX.setTheme( "light" );
+
+            window.matchMedia( "(prefers-color-scheme: dark)" ).addEventListener( "change", event => {
+                LX.setTheme( event.matches ? "dark" : "light" );
+            });
+        }
 
         return this.main_area;
     }
@@ -524,33 +874,35 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
     /**
      * @method message
-     * @param {String} text 
+     * @param {String} text
      * @param {String} title (Optional)
-     * @param {*} options 
+     * @param {*} options
      * id: Id of the message dialog
      * position: Dialog position in screen [screen centered]
      * draggable: Dialog can be dragged [false]
      */
 
-    function message(text, title, options = {})
+    function message( text, title, options = {} )
     {
-        if(!text)
-            throw("No message to show");
+        if( !text )
+        {
+            throw( "No message to show" );
+        }
 
         options.modal = true;
 
-        return new Dialog(title, p => {
-            p.addTextArea(null, text, null, { disabled: true, fitHeight: true  });
-        }, options);
+        return new Dialog( title, p => {
+            p.addTextArea( null, text, null, { disabled: true, fitHeight: true  } );
+        }, options );
     }
 
     LX.message = message;
 
     /**
      * @method popup
-     * @param {String} text 
+     * @param {String} text
      * @param {String} title (Optional)
-     * @param {*} options 
+     * @param {*} options
      * id: Id of the message dialog
      * time: (Number) Delay time before close automatically (ms). Defalut: [3000]
      * position: (Array) [x,y] Dialog position in screen. Default: [screen centered]
@@ -567,19 +919,19 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         options.size = options.size ?? [ "auto", "auto" ];
         options.class = "lexpopup";
 
-        const time = options.timeout || 3000; 
+        const time = options.timeout || 3000;
         const dialog = new Dialog( title, p => {
             p.addTextArea( null, text, null, { disabled: true, fitHeight: true } );
         }, options );
-        
+
         dialog.root.classList.add( 'fadein' );
         setTimeout(() => {
             dialog.root.classList.remove( 'fadein' );
             dialog.root.classList.add( 'fadeout' );
         }, time - 1000 );
-        
+
         setTimeout( dialog.close, time );
-        
+
         return dialog;
     }
 
@@ -587,9 +939,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
     /**
      * @method prompt
-     * @param {String} text 
+     * @param {String} text
      * @param {String} title (Optional)
-     * @param {*} options 
+     * @param {*} options
      * id: Id of the prompt dialog
      * position: Dialog position in screen [screen centered]
      * draggable: Dialog can be dragged [false]
@@ -621,12 +973,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
                     dialog.close();
                     prompt( text, title, callback, options );
-                }else
+                }
+                else
                 {
                     if( callback ) callback.call( this, value );
                     dialog.close();
                 }
-            }, { buttonClass: "accept" });
+            }, { buttonClass: "primary" });
 
             p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
 
@@ -637,11 +990,30 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         {
             dialog.root.querySelector( 'input' ).focus();
         }
-        
+
         return dialog;
     }
 
     LX.prompt = prompt;
+
+    /**
+     * @method badge
+     * @param {String} text
+     * @param {String} className
+     * @param {*} options
+     * style: Style attributes to override
+     */
+
+    function badge( text, className, options = {} )
+    {
+        const container = document.createElement( "div" );
+        container.innerHTML = text;
+        container.className = "lexbadge " + ( className ?? "" );
+        Object.assign( container.style, options.style ?? {} );
+        return container.outerHTML;
+    }
+
+    LX.badge = badge;
 
     /*
     *   Events and Signals
@@ -676,9 +1048,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this.value = value;
             this.multiple = false; // Multiple selection
         }
-        
+
         string() {
-            switch(this.type) {
+            switch( this.type )
+            {
                 case TreeEvent.NONE: return "tree_event_none";
                 case TreeEvent.NODE_SELECTED: return "tree_event_selected";
                 case TreeEvent.NODE_DELETED: return "tree_event_deleted";
@@ -699,7 +1072,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         const data = LX.signals[ signalName ];
 
         if( !data )
-        return;
+        {
+            return;
+        }
 
         const target = options.target;
 
@@ -718,7 +1093,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             if( obj.constructor === Widget )
             {
                 obj.set( value, options.skipCallback ?? true );
-                
+
                 if( obj.options && obj.options.callback )
                 {
                     obj.options.callback( value, data );
@@ -726,7 +1101,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             }
             else
             {
-                obj[ signalName ].call( obj, value );
+                // This is a function callback!
+                const fn = obj;
+                fn( null, value );
             }
         }
     }
@@ -735,13 +1112,17 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
     function addSignal( name, obj, callback )
     {
-        obj[name] = callback;
+        obj[ name ] = callback;
 
         if( !LX.signals[ name ] )
+        {
             LX.signals[ name ] = [];
-        
+        }
+
         if( LX.signals[ name ].indexOf( obj ) > -1 )
+        {
             return;
+        }
 
         LX.signals[ name ].push( obj );
     }
@@ -756,12 +1137,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
         /**
          * @constructor Area
-         * @param {*} options 
+         * @param {*} options
          * id: Id of the element
          * className: Add class to the element
          * width: Width of the area element [fit space]
          * height: Height of the area element [fit space]
-         * no_append: Create but not append to GUI root [false]
+         * skipAppend: Create but not append to GUI root [false]
+         * minWidth: Minimum width to be applied when resizing
+        * minHeight: Minimum height to be applied when resizing
+        * maxWidth: Maximum width to be applied when resizing
+        * maxHeight: Maximum height to be applied when resizing
          */
 
         constructor( options = {} ) {
@@ -776,13 +1161,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             {
                 root.className += " " + options.className;
             }
-    
+
             var width = options.width || "calc( 100% )";
             var height = options.height || "100%";
-            
+
             // This has default options..
             this.setLimitBox( options.minWidth, options.minHeight, options.maxWidth, options.maxHeight );
-    
+
             if( width.constructor == Number )
             {
                 width += "px";
@@ -791,17 +1176,17 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             {
                 height += "px";
             }
-    
+
             root.style.width = width;
             root.style.height = height;
-    
+
             this.offset = 0;
             this.root = root;
             this.size = [ this.root.offsetWidth, this.root.offsetHeight ];
             this.sections = [];
             this.panels = [];
-    
-            if( !options.no_append )
+
+            if( !options.skipAppend )
             {
                 var lexroot = document.getElementById("lexroot");
                 lexroot.appendChild( this.root );
@@ -832,96 +1217,101 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 const draggable = options.draggable ?? true;
                 if( draggable )
-                    makeDraggable( root );
+                {
+                    makeDraggable( root, options );
+                }
 
-                if( options.resizeable ) {
+                if( options.resizeable )
+                {
                     root.classList.add("resizeable");
                 }
 
                 if( options.resize )
-                {                  
-                    this.split_bar = document.createElement("div");
+                {
+                    this.splitBar = document.createElement("div");
                     let type = (overlay == "left") || (overlay == "right") ? "horizontal" : "vertical";
-                    this.type = overlay;;
-                    this.split_bar.className = "lexsplitbar " + type;
+                    this.type = overlay;
+                    this.splitBar.className = "lexsplitbar " + type;
 
                     if( overlay == "right" )
                     {
-                        this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                        this.split_bar.style.left = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
-                    } 
+                        this.splitBar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                        this.splitBar.style.left = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
+                    }
                     else if( overlay == "left" )
                     {
                         let size = Math.min(document.body.clientWidth - LX.DEFAULT_SPLITBAR_SIZE, this.root.clientWidth);
-                        this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                        this.split_bar.style.left = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
+                        this.splitBar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                        this.splitBar.style.left = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                     }
                     else if( overlay == "top" )
                     {
                         let size = Math.min(document.body.clientHeight - LX.DEFAULT_SPLITBAR_SIZE, this.root.clientHeight);
-                        this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                        this.split_bar.style.top = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
+                        this.splitBar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                        this.splitBar.style.top = size + (LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                     }
                     else if( overlay == "bottom" )
                     {
-                        this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
-                        this.split_bar.style.top = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
+                        this.splitBar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                        this.splitBar.style.top = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                     }
 
-                    this.split_bar.addEventListener("mousedown", inner_mousedown);
-                    this.root.appendChild( this.split_bar );
-                    
+                    this.splitBar.addEventListener("mousedown", inner_mousedown);
+                    this.root.appendChild( this.splitBar );
+
                     var that = this;
-                    var last_pos = [ 0, 0 ];
-                    
+                    var lastMousePosition = [ 0, 0 ];
+
                     function inner_mousedown( e )
                     {
                         var doc = that.root.ownerDocument;
                         doc.addEventListener( 'mousemove', inner_mousemove );
                         doc.addEventListener( 'mouseup', inner_mouseup );
-                        last_pos[ 0 ] = e.x;
-                        last_pos[ 1 ] = e.y;
+                        lastMousePosition[ 0 ] = e.x;
+                        lastMousePosition[ 1 ] = e.y;
                         e.stopPropagation();
                         e.preventDefault();
                         document.body.classList.add( 'nocursor' );
-                        that.split_bar.classList.add( 'nocursor' );
+                        that.splitBar.classList.add( 'nocursor' );
                     }
 
                     function inner_mousemove( e )
                     {
                         switch( that.type ) {
                             case "right":
-                                var dt = ( last_pos[ 0 ] - e.x );
+                                var dt = ( lastMousePosition[ 0 ] - e.x );
                                 var size = ( that.root.offsetWidth + dt );
                                 that.root.style.width = size + "px";
                                 break;
                             case "left":
-                                var dt = ( last_pos[ 0 ] - e.x );
+                                var dt = ( lastMousePosition[ 0 ] - e.x );
                                 var size = Math.min(document.body.clientWidth - LX.DEFAULT_SPLITBAR_SIZE, (that.root.offsetWidth - dt));
                                 that.root.style.width = size + "px";
-                                that.split_bar.style.left = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
+                                that.splitBar.style.left = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
                                 break;
                             case "top":
-                                var dt = ( last_pos[ 1 ] - e.y );
+                                var dt = ( lastMousePosition[ 1 ] - e.y );
                                 var size = Math.min(document.body.clientHeight - LX.DEFAULT_SPLITBAR_SIZE, (that.root.offsetHeight - dt));
                                 that.root.style.height = size + "px";
-                                that.split_bar.style.top = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
+                                that.splitBar.style.top = size + LX.DEFAULT_SPLITBAR_SIZE/2 + "px";
                                 break;
                             case "bottom":
-                                var dt = ( last_pos[ 1 ] - e.y );
+                                var dt = ( lastMousePosition[ 1 ] - e.y );
                                 var size = ( that.root.offsetHeight + dt );
                                 that.root.style.height = size + "px";
                                 break;
                         }
-                        
-                        last_pos[ 0 ] = e.x;
-                        last_pos[ 1 ] = e.y;
+
+                        lastMousePosition[ 0 ] = e.x;
+                        lastMousePosition[ 1 ] = e.y;
                         e.stopPropagation();
                         e.preventDefault();
-                        
-                        // Resize events   
+
+                        // Resize events
                         if( that.onresize )
+                        {
                             that.onresize( that.root.getBoundingClientRect() );
+                        }
                     }
 
                     function inner_mouseup( e )
@@ -930,7 +1320,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         doc.removeEventListener( 'mousemove', inner_mousemove );
                         doc.removeEventListener( 'mouseup', inner_mouseup );
                         document.body.classList.remove( 'nocursor' );
-                        that.split_bar.classList.remove( 'nocursor' );
+                        that.splitBar.classList.remove( 'nocursor' );
                     }
                 }
             }
@@ -944,13 +1334,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         attach( content ) {
 
             // Append to last split section if area has been split
-            if(this.sections.length) {
-                this.sections[1].attach( content );
+            if( this.sections.length )
+            {
+                this.sections[ 1 ].attach( content );
                 return;
             }
 
-            if(!content)
-            throw("no content to attach");
+            if( !content )
+            {
+                throw("no content to attach");
+            }
 
             content.parent = this;
 
@@ -960,11 +1353,11 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
         /**
          * @method split
-         * @param {*} options 
+         * @param {*} options
          * type: Split mode (horizontal, vertical) ["horizontal"]
          * sizes: Size of each new area (Array) ["50%", "50%"]
          */
-        
+
         split( options = {} ) {
 
             if( this.sections.length )
@@ -977,7 +1370,6 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             var type = options.type || "horizontal";
             var sizes = options.sizes || [ "50%", "50%" ];
-            var infer_height = false;
             var auto = (options.sizes === 'auto');
 
             if( !sizes[ 1 ] )
@@ -991,18 +1383,17 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 }
 
                 sizes[ 1 ] = "calc( 100% - " + size + " )";
-                infer_height = true;
             }
 
             // Create areas
-            var area1 = new Area( { no_append: true, className: "split" + ( options.menubar || options.sidebar ? "" : " origin" ) } );
-            var area2 = new Area( { no_append: true, className: "split"} );
+            var area1 = new Area( { skipAppend: true, className: "split" + ( options.menubar || options.sidebar ? "" : " origin" ) } );
+            var area2 = new Area( { skipAppend: true, className: "split" } );
 
             area1.parentArea = this;
             area2.parentArea = this;
 
             let minimizable = options.minimizable ?? false;
-            let resize = (options.resize ?? true) || minimizable;
+            let resize = ( options.resize ?? true ) || minimizable;
 
             var data = "0px";
             this.offset = 0;
@@ -1010,40 +1401,40 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             if( resize )
             {
                 this.resize = resize;
-                this.split_bar = document.createElement( "div" );
-                this.split_bar.className = "lexsplitbar " + type;
+                this.splitBar = document.createElement( "div" );
+                this.splitBar.className = "lexsplitbar " + type;
 
                 if( type == "horizontal" )
                 {
-                    this.split_bar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                    this.splitBar.style.width = LX.DEFAULT_SPLITBAR_SIZE + "px";
                 }
                 else
                 {
-                    this.split_bar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
+                    this.splitBar.style.height = LX.DEFAULT_SPLITBAR_SIZE + "px";
                 }
 
-                this.split_bar.addEventListener( 'mousedown', inner_mousedown );
+                this.splitBar.addEventListener( 'mousedown', innerMouseDown );
 
                 data = ( LX.DEFAULT_SPLITBAR_SIZE / 2 ) + "px"; // updates
 
                 // Being minimizable means it's also resizeable!
                 if( minimizable )
                 {
-                    this.split_extended = false;
+                    this.splitExtended = false;
 
                     // Keep state of the animation when ends...
                     area2.root.addEventListener('animationend', e => {
-                        const opacity = getComputedStyle(area2.root).opacity;
+                        const opacity = getComputedStyle( area2.root ).opacity;
                         area2.root.classList.remove( e.animationName + "-" + type );
                         area2.root.style.opacity = opacity;
                         flushCss(area2.root);
                     });
-    
-                    this.split_bar.addEventListener("contextmenu", e => {
+
+                    this.splitBar.addEventListener("contextmenu", e => {
                         e.preventDefault();
                         addContextMenu(null, e, c => {
-                            c.add("Extend", { disabled: this.split_extended, callback: () => { this.extend() } });
-                            c.add("Reduce", { disabled: !this.split_extended, callback: () => { this.reduce() } });
+                            c.add("Extend", { disabled: this.splitExtended, callback: () => { this.extend() } });
+                            c.add("Reduce", { disabled: !this.splitExtended, callback: () => { this.reduce() } });
                         });
                     });
                 }
@@ -1055,9 +1446,14 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     width2 = sizes[ 1 ];
 
                 if( width1.constructor == Number )
+                {
                     width1 += "px";
+                }
+
                 if( width2.constructor == Number )
+                {
                     width2 += "px";
+                }
 
                 area1.root.style.width = "calc( " + width1 + " - " + data + " )";
                 area1.root.style.height = "calc(100% - 0px)";
@@ -1070,7 +1466,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 area1.root.style.width = "100%";
                 area2.root.style.width = "100%";
 
-                if(auto)
+                if( auto )
                 {
                     area1.root.style.height = "auto";
 
@@ -1089,11 +1485,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     var height1 = sizes[ 0 ],
                         height2 = sizes[ 1 ];
 
-                    if(height1.constructor == Number)
+                    if( height1.constructor == Number )
+                    {
                         height1 += "px";
-                    if(height2.constructor == Number)
+                    }
+
+                    if( height2.constructor == Number )
+                    {
                         height2 += "px";
-    
+                    }
+
                     area1.root.style.width = "100%";
                     area1.root.style.height = "calc( " + height1 + " - " + data + " )";
                     area2.root.style.height = "calc( " + height2 + " - " + data + " )";
@@ -1102,13 +1503,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             this.root.appendChild( area1.root );
 
-            if( resize ) 
+            if( resize )
             {
-                this.root.appendChild(this.split_bar);
+                this.root.appendChild(this.splitBar);
             }
 
             this.root.appendChild( area2.root );
-            this.sections = [area1, area2];
+            this.sections = [ area1, area2 ];
             this.type = type;
 
             // Update sizes
@@ -1120,41 +1521,35 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             }
 
             var that = this;
-            var last_pos = [ 0, 0 ];
 
-            function inner_mousedown( e )
+            function innerMouseDown( e )
             {
                 var doc = that.root.ownerDocument;
-                doc.addEventListener( 'mousemove', inner_mousemove );
-                doc.addEventListener( 'mouseup', inner_mouseup );
-                last_pos[0] = e.x;
-                last_pos[1] = e.y;
+                doc.addEventListener( 'mousemove', innerMouseMove );
+                doc.addEventListener( 'mouseup', innerMouseUp );
                 e.stopPropagation();
                 e.preventDefault();
                 document.body.classList.add( 'nocursor' );
-                that.split_bar.classList.add( 'nocursor' );
+                that.splitBar.classList.add( 'nocursor' );
             }
 
-            function inner_mousemove( e )
+            function innerMouseMove( e )
             {
-                if(that.type == "horizontal")
+                if( that.type == "horizontal" )
                 {
-                    that._moveSplit( last_pos[ 0 ] - e.x );
+                    that._moveSplit( -e.movementX );
                 }
                 else
                 {
-                    that._moveSplit( last_pos[ 1 ] - e.y );
+                    that._moveSplit( -e.movementY );
                 }
-
-                last_pos[ 0 ] = e.x;
-                last_pos[ 1 ] = e.y;
 
                 const widgets = that.root.querySelectorAll( ".lexwidget" );
 
                 // Send area resize to every widget in the area
                 for( let widget of widgets )
                 {
-                    const jsInstance = widget.jsIinstance;
+                    const jsInstance = widget.jsInstance;
 
                     if( jsInstance.onresize )
                     {
@@ -1166,13 +1561,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 e.preventDefault();
             }
 
-            function inner_mouseup( e )
+            function innerMouseUp( e )
             {
                 var doc = that.root.ownerDocument;
-                doc.removeEventListener( 'mousemove', inner_mousemove );
-                doc.removeEventListener( 'mouseup', inner_mouseup );
+                doc.removeEventListener( 'mousemove', innerMouseMove );
+                doc.removeEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.remove( 'nocursor' );
-                that.split_bar.classList.remove( 'nocursor' );
+                that.splitBar.classList.remove( 'nocursor' );
             }
 
             return this.sections;
@@ -1194,23 +1589,33 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         * @method resize
         * Resize element
         */
-        setSize(size) {
-            
-            let [width, height] = size;
-    
-            if(width != undefined && width.constructor == Number)
+        setSize( size ) {
+
+            let [ width, height ] = size;
+
+            if( width != undefined && width.constructor == Number )
+            {
                 width += "px";
-            if(height != undefined && height.constructor == Number)
+            }
+
+            if( height != undefined && height.constructor == Number )
+            {
                 height += "px";
-    
-            if(width)
+            }
+
+            if( width )
+            {
                 this.root.style.width = width;
-            if(height)
+            }
+
+            if( height )
+            {
                 this.root.style.height = height;
+            }
 
-            this.size = [this.root.clientWidth, this.root.clientHeight];
+            this.size = [ this.root.clientWidth, this.root.clientHeight ];
 
-            this.propagateEvent("onresize");
+            this.propagateEvent( "onresize" );
         }
 
         /**
@@ -1219,20 +1624,22 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         */
         extend() {
 
-            if( this.split_extended )
-            return;
+            if( this.splitExtended )
+            {
+                return;
+            }
 
             let [area1, area2] = this.sections;
-            this.split_extended = true;
+            this.splitExtended = true;
 
             if(this.type == "vertical")
             {
                 this.offset = area2.root.offsetHeight;
                 area2.root.classList.add("fadeout-vertical");
-                this._moveSplit(-Infinity, true); 
+                this._moveSplit(-Infinity, true);
 
             }
-            else 
+            else
             {
                 this.offset = area2.root.offsetWidth - 8; // Force some height here...
                 area2.root.classList.add("fadeout-horizontal");
@@ -1249,10 +1656,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         */
         reduce() {
 
-            if( !this.split_extended )
+            if( !this.splitExtended )
             return;
-            
-            this.split_extended = false;
+
+            this.splitExtended = false;
             let [area1, area2] = this.sections;
 
             if(this.type == "vertical")
@@ -1330,7 +1737,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          */
 
         addMenubar( callback, options = {} ) {
-            
+
             let menubar = new Menubar(options);
 
             if(callback) callback( menubar );
@@ -1375,10 +1782,11 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          */
 
         addOverlayButtons( buttons, options = {} ) {
-            
+
             // Add to last split section if area has been split
-            if(this.sections.length) {
-                this.sections[1].addOverlayButtons(  buttons, options );
+            if( this.sections.length )
+            {
+                this.sections[ 1 ].addOverlayButtons(  buttons, options );
                 return;
             }
 
@@ -1388,8 +1796,14 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this.root.style.position = "relative";
 
             options.className = "lexoverlaybuttons";
-            options.width = "calc( 100% - 24px )";
-            options.height = "auto";
+
+            let overlayPanel = this.addPanel( options );
+            let overlayGroup = null;
+
+            const container = document.createElement("div");
+            container.className = "lexoverlaybuttonscontainer";
+            container.appendChild( overlayPanel.root );
+            this.attach( container );
 
             const float = options.float;
 
@@ -1401,24 +1815,21 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     switch( t )
                     {
                     case 'h': break;
-                    case 'v': options.className += " vertical"; break;
+                    case 'v': container.className += " vertical"; break;
                     case 't': break;
-                    case 'm': options.className += " middle"; break;
-                    case 'b': options.className += " bottom"; break;
+                    case 'm': container.className += " middle"; break;
+                    case 'b': container.className += " bottom"; break;
                     case 'l': break;
-                    case 'c': options.className += " center"; break;
-                    case 'r': options.className += " right"; break;
+                    case 'c': container.className += " center"; break;
+                    case 'r': container.className += " right"; break;
                     }
                 }
             }
 
-            let overlayPanel = this.addPanel( options );
-            let overlaygroup;
-            
-            const add_button = function(b, group, last) {
+            const _addButton = function( b, group, last ) {
 
-                const _options = { 
-                    width: "auto", 
+                const _options = {
+                    width: "auto",
                     selectable: b.selectable,
                     selected: b.selected,
                     icon: b.icon,
@@ -1428,55 +1839,54 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 if( group )
                 {
-                    if(!overlaygroup) {
-                        overlaygroup = document.createElement('div');
-                        overlaygroup.className = "lexoverlaygroup";
-                        overlayPanel.queuedContainer = overlaygroup;
+                    if( !overlayGroup )
+                    {
+                        overlayGroup = document.createElement('div');
+                        overlayGroup.className = "lexoverlaygroup";
+                        overlayPanel.queuedContainer = overlayGroup;
                     }
 
-                    _options.parent = overlaygroup;
+                    _options.parent = overlayGroup;
                 }
 
                 let callback = b.callback;
 
                 if( b.options )
                 {
-                    callback = function(value, event) {
-                        LX.addContextMenu(null, event, function(c) {
-                            for( let o of b.options )
-                                c.add(o, () => {
-                                    if( b.name == o ) return;
-                                    b.name = o;
-                                    b.callback( o );
-                                    refresh_panel();
-                                });
-                        });
-                    };
+                    overlayPanel.addDropdown( null, b.options, b.name, callback, _options );
+                }
+                else
+                {
+                    overlayPanel.addButton( null, b.name, function( value, event ) {
+                        if( b.selectable )
+                        {
+                            if( b.group )
+                            {
+                                let _prev = b.selected;
+                                b.group.forEach( sub => sub.selected = false );
+                                b.selected = !_prev;
+                            }
+                            else
+                            {
+                                b.selected = !b.selected;
+                            }
+                        }
+
+                        callback( value, event );
+
+                    }, _options );
                 }
 
-                overlayPanel.addButton( null, b.name, function(value, event) {
-                    if(b.selectable) {
-                        if( b.group ) {
-                            let _prev = b.selected;
-                            b.group.forEach( sub => sub.selected = false );
-                            b.selected = !_prev;
-                        }
-                        else
-                            b.selected = !b.selected;
-                    }
-                    callback( value, event );
-                }, _options );
-
                 // ends the group
-                if(overlaygroup && last)
+                if( overlayGroup && last )
                 {
-                    overlayPanel.root.appendChild( overlaygroup );
-                    overlaygroup = null;
+                    overlayPanel.root.appendChild( overlayGroup );
+                    overlayGroup = null;
                     overlayPanel.clearQueue();
                 }
             }
 
-            const refresh_panel = function() {
+            const _refreshPanel = function() {
 
                 overlayPanel.clear();
 
@@ -1486,15 +1896,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     {
                         for( let i = 0; i < b.length; ++i )
                         {
-                            let sub = b[i];
+                            let sub = b[ i ];
                             sub.group = b;
-                            add_button(sub, true, i == (b.length - 1));
+                            _addButton(sub, true, i == ( b.length - 1 ));
                         }
-                    }else
-                    {
-                        add_button(b);
                     }
-    
+                    else
+                    {
+                        _addButton( b );
+                    }
+
                 }
 
                 // Add floating info
@@ -1503,16 +1914,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     var height = 0;
                     overlayPanel.root.childNodes.forEach( c => { height += c.offsetHeight; } );
 
-                    if( options.className.includes("middle") )
+                    if( container.className.includes( "middle" ) )
                     {
-                        overlayPanel.root.style.top = "-moz-calc( 50% - " + (height * 0.5) + "px )";
-                        overlayPanel.root.style.top = "-webkit-calc( 50% - " + (height * 0.5) + "px )";
-                        overlayPanel.root.style.top = "calc( 50% - " + (height * 0.5) + "px )";
+                        container.style.top = "-moz-calc( 50% - " + (height * 0.5) + "px )";
+                        container.style.top = "-webkit-calc( 50% - " + (height * 0.5) + "px )";
+                        container.style.top = "calc( 50% - " + (height * 0.5) + "px )";
                     }
                 }
             }
 
-            refresh_panel();
+            _refreshPanel();
         }
 
         /**
@@ -1528,73 +1939,85 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             {
                 this.parentArea._disableSplitResize();
                 // Compensate split bar...
-                this.root.style.paddingTop = "4px"; 
+                this.root.style.paddingTop = "4px";
             }
 
             return tabs;
         }
 
-        _moveSplit( dt, force_animation = false, force_width = 0 ) {
+        _moveSplit( dt, forceAnimation = false, forceWidth = 0 ) {
 
             if( !this.type )
+            {
                 throw( "No split area" );
+            }
 
             if( dt === undefined ) // Splitbar didn't move!
+            {
                 return;
+            }
 
-            var a1 = this.sections[ 0 ];
-            var a2 = this.sections[ 1 ];
-            var splitinfo = " - "+ LX.DEFAULT_SPLITBAR_SIZE + "px";
+            const a1 = this.sections[ 0 ];
+            var a1Root = a1.root;
+
+            if( !a1Root.classList.contains( "origin" ) )
+            {
+                a1Root = a1Root.parentElement;
+            }
+
+            const a2 = this.sections[ 1 ];
+            const a2Root = a2.root;
+            const splitData = " - "+ LX.DEFAULT_SPLITBAR_SIZE + "px";
 
             let transition = null;
-            if( !force_animation )
+            if( !forceAnimation )
             {
                 // Remove transitions for this change..
-                transition = a1.root.style.transition;
-                a1.root.style.transition = a2.root.style.transition = "none";
-                flushCss( a1.root );
-                flushCss( a2.root );
+                transition = a1Root.style.transition;
+                a1Root.style.transition = a2Root.style.transition = "none";
+                flushCss( a1Root );
+                flushCss( a2Root );
             }
 
             if( this.type == "horizontal" )
             {
-                var size = Math.max( a2.root.offsetWidth + dt, parseInt( a2.minWidth ) );
-                if( force_width ) size = force_width;
-                a1.root.style.width = "-moz-calc( 100% - " + size + "px " + splitinfo + " )";
-                a1.root.style.width = "-webkit-calc( 100% - " + size + "px " + splitinfo + " )";
-                a1.root.style.width = "calc( 100% - " + size + "px " + splitinfo + " )";
-                a1.root.style.minWidth = parseInt( a1.minWidth ) + "px";
-                a2.root.style.width = size + "px";
-                if( a1.maxWidth != Infinity ) a2.root.style.minWidth = "calc( 100% - " + parseInt( a1.maxWidth ) + "px" + " )";
+                var size = Math.max( a2Root.offsetWidth + dt, parseInt( a2.minWidth ) );
+                if( forceWidth ) size = forceWidth;
+                a1Root.style.width = "-moz-calc( 100% - " + size + "px " + splitData + " )";
+                a1Root.style.width = "-webkit-calc( 100% - " + size + "px " + splitData + " )";
+                a1Root.style.width = "calc( 100% - " + size + "px " + splitData + " )";
+                a1Root.style.minWidth = parseInt( a1.minWidth ) + "px";
+                a2Root.style.width = size + "px";
+                if( a1.maxWidth != Infinity ) a2Root.style.minWidth = "calc( 100% - " + parseInt( a1.maxWidth ) + "px" + " )";
             }
             else
             {
-                var size = Math.max((a2.root.offsetHeight + dt) + a2.offset, parseInt(a2.minHeight));
-                if( force_width ) size = force_width;
-                a1.root.style.height = "-moz-calc( 100% - " + size + "px " + splitinfo + " )";
-                a1.root.style.height = "-webkit-calc( 100% - " + size + "px " + splitinfo + " )";
-                a1.root.style.height = "calc( 100% - " + size + "px " + splitinfo + " )";
-                a1.root.style.minHeight = a1.minHeight + "px";
-                a2.root.style.height = ( size - a2.offset ) + "px";
+                var size = Math.max((a2Root.offsetHeight + dt) + a2.offset, parseInt(a2.minHeight));
+                if( forceWidth ) size = forceWidth;
+                a1Root.style.height = "-moz-calc( 100% - " + size + "px " + splitData + " )";
+                a1Root.style.height = "-webkit-calc( 100% - " + size + "px " + splitData + " )";
+                a1Root.style.height = "calc( 100% - " + size + "px " + splitData + " )";
+                a1Root.style.minHeight = a1.minHeight + "px";
+                a2Root.style.height = ( size - a2.offset ) + "px";
             }
-                
-            if( !force_animation )
+
+            if( !forceAnimation )
             {
                 // Reapply transitions
-                a1.root.style.transition = a2.root.style.transition = transition;
+                a1Root.style.transition = a2Root.style.transition = transition;
             }
 
             this._update();
 
-            // Resize events   
+            // Resize events
             this.propagateEvent( 'onresize' );
         }
 
         _disableSplitResize() {
 
             this.resize = false;
-            this.split_bar.remove();
-            delete this.split_bar;
+            this.splitBar.remove();
+            delete this.splitBar;
         }
 
         _update() {
@@ -1709,11 +2132,11 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             }
 
             // debug
-            if(folding) 
+            if(folding)
             {
                 this.folded = true;
                 this.folding = folding;
-                
+
                 if(folding == "up") area.root.insertChildAtIndex(area.sections[1].root, 0);
 
                 // Listen resize event on parent area
@@ -1740,7 +2163,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 this.root.querySelectorAll( 'span' ).forEach( s => s.classList.remove( 'selected' ) );
                 this.area.root.querySelectorAll( '.lextabcontent' ).forEach( c => c.style.display = 'none' );
             }
-            
+
             isSelected = !Object.keys( this.tabs ).length && !this.folding ? true : isSelected;
 
             let contentEl = content.root ? content.root : content;
@@ -1768,7 +2191,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             tabEl.className = "lexareatab" + ( isSelected ? " selected" : "" );
             tabEl.innerHTML = ( options.icon ?? "" ) + name;
             tabEl.id = name.replace( /\s/g, '' ) + Tabs.TAB_ID++;
-            tabEl.title = options.title;
+            tabEl.title = options.title ?? "";
             tabEl.selected = isSelected ?? false;
             tabEl.fixed = options.fixed;
             tabEl.instance = this;
@@ -1783,9 +2206,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 if( this.parentElement.childNodes.length == 1 )
                 {
                     this.parentElement.childNodes[ 0 ].click(); // single tab!!
-                } 
+                }
             } );
-            
+
             tabEl.addEventListener("click", e => {
 
                 e.preventDefault();
@@ -1796,11 +2219,11 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     // For folding tabs
                     const lastValue = tabEl.selected;
                     tabEl.parentElement.querySelectorAll( 'span' ).forEach( s => s.selected = false );
-                    tabEl.selected = !lastValue; 
+                    tabEl.selected = !lastValue;
                     // Manage selected
                     tabEl.parentElement.querySelectorAll( 'span' ).forEach( s => s.classList.remove( 'selected' ));
                     tabEl.classList.toggle('selected', ( this.folding && tabEl.selected ));
-                    // Manage visibility 
+                    // Manage visibility
                     tabEl.instance.area.root.querySelectorAll( '.lextabcontent' ).forEach( c => c.style.display = 'none' );
                     contentEl.style.display = contentEl.originalDisplay;
                     tabEl.instance.selected = tabEl.dataset.name;
@@ -1829,7 +2252,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             tabEl.addEventListener("contextmenu", e => {
                 e.preventDefault();
                 e.stopPropagation();
-    
+
                 if( options.onContextMenu )
                 {
                     options.onContextMenu( e, tabEl.dataset.name );
@@ -1844,16 +2267,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     this.delete( tabEl.dataset[ "name" ] );
                 }
             });
-            
+
             tabEl.setAttribute( 'draggable', true );
             tabEl.addEventListener( 'dragstart', function( e ) {
                 if( this.parentElement.childNodes.length == 1 ){
                     e.preventDefault();
                     return;
-                } 
+                }
                 e.dataTransfer.setData( 'source', e.target.id );
             });
-            
+
             // Attach content
             tabEl.childIndex = ( this.root.childElementCount - 1 );
             this.root.appendChild( tabEl );
@@ -1890,11 +2313,15 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             const tabEl = this.tabDOMs[ name ];
 
-            if(!tabEl || tabEl.fixed)
-            return;
+            if( !tabEl || tabEl.fixed )
+            {
+                return;
+            }
 
             if( this.onclose )
+            {
                 this.onclose( name );
+            }
 
             // Delete tab element
             this.tabDOMs[ name ].remove();
@@ -1905,11 +2332,12 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             delete this.tabs[ name ];
 
             // Select last tab
-            const last_tab = this.root.lastChild;
-            if(last_tab && !last_tab.fixed)
+            const lastTab = this.root.lastChild;
+            if( lastTab && !lastTab.fixed )
+            {
                 this.root.lastChild.click();
+            }
         }
-
     }
 
     LX.Tabs = Tabs;
@@ -1927,7 +2355,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             if(options.float)
                 this.root.style.justifyContent = options.float;
             this.items = [];
-            
+
             this.icons = {};
             this.shorts = {};
             this.buttons = [];
@@ -1966,7 +2394,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 } );
 
                 if(found) {
-                    insert( tokens[idx++], found );    
+                    insert( tokens[idx++], found );
                 }
                 else {
                     let item = {};
@@ -1979,7 +2407,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         item[ 'checked' ] = options.checked;
                     }
                     list.push( item );
-                    insert( next_token, item[ token ] ); 
+                    insert( next_token, item[ token ] );
                 }
             };
 
@@ -1994,24 +2422,24 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 // Item already created
                 if( this.root.querySelector("#" + pKey) )
-                    continue;   
+                    continue;
 
                 let entry = document.createElement('div');
                 entry.className = "lexmenuentry";
                 entry.id = pKey;
                 entry.innerHTML = "<span>" + key + "</span>";
-                if(options.position == "left") {	
-                    this.root.prepend( entry );	
-                }	
-                else {	
-                    if(options.position == "right") 	
-                        entry.right = true;	
-                    if(this.root.lastChild && this.root.lastChild.right) {	
-                        this.root.lastChild.before( entry );	
-                    }	
-                    else {	
-                        this.root.appendChild( entry );	
-                    }	
+                if(options.position == "left") {
+                    this.root.prepend( entry );
+                }
+                else {
+                    if(options.position == "right")
+                        entry.right = true;
+                    if(this.root.lastChild && this.root.lastChild.right) {
+                        this.root.lastChild.before( entry );
+                    }
+                    else {
+                        this.root.appendChild( entry );
+                    }
                 }
 
                 const create_submenu = function( o, k, c, d ) {
@@ -2035,21 +2463,21 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         const subitem = o[k][i];
                         const subkey = Object.keys(subitem)[0];
                         const hasSubmenu = subitem[ subkey ].length;
-                        const is_checkbox = subitem[ 'type' ] == 'checkbox';
+                        const isCheckbox = subitem[ 'type' ] == 'checkbox';
                         let subentry = document.createElement('div');
                         subentry.className = "lexcontextmenuentry";
                         subentry.className += (i == o[k].length - 1 ? " last" : "");
                         if(subkey == '')
                             subentry.className = " lexseparator";
                         else {
-                            
+
                             subentry.id = subkey;
                             let subentrycont = document.createElement('div');
                             subentrycont.innerHTML = "";
                             subentrycont.classList = "lexcontextmenuentrycontainer";
                             subentry.appendChild(subentrycont);
                             const icon = that.icons[ subkey ];
-                            if(is_checkbox){
+                            if(isCheckbox){
                                 subentrycont.innerHTML += "<input type='checkbox' >";
                             }else if(icon) {
                                 subentrycont.innerHTML += "<a class='" + icon + " fa-sm'></a>";
@@ -2069,8 +2497,8 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                                 const f = subitem[ 'callback' ];
                                 if(f) {
                                     f.call( this, subitem.checked, subkey, subentry );
-                                    that.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());  
-                                } 
+                                    that.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
+                                }
                                 e.stopPropagation();
                                 e.stopImmediatePropagation();
                             })
@@ -2100,8 +2528,8 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                             const f = subitem[ 'callback' ];
                             if(f) {
                                 f.call( this, checkbox_input ? subitem.checked : subkey, checkbox_input ? subkey : subentry );
-                                that.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());  
-                            } 
+                                that.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
+                            }
                             e.stopPropagation();
                             e.stopImmediatePropagation();
                         });
@@ -2147,7 +2575,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     if(f) {
                         f.call( this, key, entry );
                         return;
-                    } 
+                    }
 
                     // Manage selected
                     this.root.querySelectorAll(".lexmenuentry").forEach( e => e.classList.remove( 'selected' ) );
@@ -2179,7 +2607,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          * @param {Array} tokens: split path strings
         */
         getSubitem(item, tokens) {
-           
+
             let subitem = null;
             let path = tokens[0];
             for(let i = 0; i < item.length; i++) {
@@ -2193,7 +2621,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         tokens.splice(0,1);
                         return this.getSubitem(item[i][path], tokens);
                     }
-                     
+
                 }
             }
         }
@@ -2205,7 +2633,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         getItem( path ) {
             // process path
             const tokens = path.split("/");
-            
+
             return this.getSubitem(this.items, tokens)
         }
 
@@ -2232,18 +2660,18 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 button.style.maxHeight = "calc(100% - 10px)";
                 button.style.alignItems = "center";
 
-                if(options.float == "right")	
-                    button.right = true;	
-                if(this.root.lastChild && this.root.lastChild.right) {	
-                    this.root.lastChild.before( button );	
+                if(options.float == "right")
+                    button.right = true;
+                if(this.root.lastChild && this.root.lastChild.right) {
+                    this.root.lastChild.before( button );
                 }
                 else if(options.float == "left") {
                     this.root.prepend(button);
-                }	
-                else {	
-                    this.root.appendChild( button );	
                 }
-    
+                else {
+                    this.root.appendChild( button );
+                }
+
                 const _b = button.querySelector('a');
                 _b.addEventListener("click", (e) => {
                     if(callback && !disabled)
@@ -2273,18 +2701,18 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 button.style.padding = "5px";
                 button.style.alignItems = "center";
 
-                if(options.float == "right")	
-                    button.right = true;	
-                if(this.root.lastChild && this.root.lastChild.right) {	
-                    this.root.lastChild.before( button );	
-                }	
+                if(options.float == "right")
+                    button.right = true;
+                if(this.root.lastChild && this.root.lastChild.right) {
+                    this.root.lastChild.before( button );
+                }
                 else if(options.float == "left") {
                     this.root.prepend(button);
                 }
-                else {	
-                    this.root.appendChild( button );	
+                else {
+                    this.root.appendChild( button );
                 }
-    
+
                 const _b = button.querySelector('a');
                 _b.addEventListener("click", (e) => {
                     if(callback && !disabled)
@@ -2302,44 +2730,86 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
         addButtons( buttons, options = {} ) {
 
-            if(!buttons)
-                throw("No buttons to add!");
-
-            if(!this.buttonContainer)
+            if( !buttons )
             {
-                this.buttonContainer = document.createElement('div');
+                throw( "No buttons to add!" );
+            }
+
+            if( !this.buttonContainer )
+            {
+                this.buttonContainer = document.createElement( "div" );
                 this.buttonContainer.className = "lexmenubuttons";
-                this.buttonContainer.classList.add(options.float ?? 'center');
-                if(options.position == "right")	
-                    this.buttonContainer.right = true;	
-                if(this.root.lastChild && this.root.lastChild.right) {	
-                    this.root.lastChild.before( this.buttonContainer );	
-                }	
-                else {	
-                    this.root.appendChild( this.buttonContainer );	
-                }      
+                this.buttonContainer.classList.add( options.float ?? "center" );
+
+                if( options.position == "right" )
+                {
+                    this.buttonContainer.right = true;
+                }
+
+                if( this.root.lastChild && this.root.lastChild.right )
+                {
+                    this.root.lastChild.before( this.buttonContainer );
+                }
+                else
+                {
+                    this.root.appendChild( this.buttonContainer );
+                }
             }
 
             for( let i = 0; i < buttons.length; ++i )
             {
-                let data = buttons[i];
-                let button = document.createElement('div');
+                let data = buttons[ i ];
+                let button = document.createElement( "label" );
                 const title = data.title;
                 let disabled = data.disabled ?? false;
                 button.className = "lexmenubutton" + (disabled ? " disabled" : "");
                 button.title = title ?? "";
-                button.innerHTML = "<a class='" + data.icon + " lexicon'></a>";
                 this.buttonContainer.appendChild( button );
-    
-                const _b = button.querySelector('a');
-                _b.addEventListener("click", (e) => {
-                    disabled = e.target.parentElement.classList.contains("disabled");
-                    if(data.callback && !disabled)
-                        data.callback.call( this, _b, e );
+
+                const icon = document.createElement( "a" );
+                icon.className = data.icon + " lexicon";
+                button.appendChild( icon );
+
+                let trigger = icon;
+
+                if( data.swap )
+                {
+                    button.classList.add( "swap" );
+                    icon.classList.add( "swap-off" );
+
+                    const input = document.createElement( "input" );
+                    input.type = "checkbox";
+                    button.prepend( input );
+                    trigger = input;
+
+                    const swapIcon = document.createElement( "a" );
+                    swapIcon.className = data.swap + " swap-on lexicon";
+                    button.appendChild( swapIcon );
+
+                    button.swap = function() {
+                        const swapInput = this.querySelector( "input" );
+                        swapInput.checked = !swapInput.checked;
+                    };
+
+                    // Set if swap has to be performed
+                    button.setState = function( v ) {
+                        const swapInput = this.querySelector( "input" );
+                        swapInput.checked = v;
+                    };
+                }
+
+                trigger.addEventListener("click", e => {
+                    if( data.callback && !disabled )
+                    {
+                        const swapInput = button.querySelector( "input" );
+                        data.callback.call( this, e, swapInput?.checked );
+                    }
                 });
 
-                if(title)
+                if( title )
+                {
                     this.buttons[ title ] = button;
+                }
             }
         }
     };
@@ -2410,6 +2880,18 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             desc.innerHTML = key;
             entry.appendChild( desc );
 
+            button.addEventListener("mouseenter", () => {
+                setTimeout( () => {
+                    desc.style.display = "unset";
+                }, 100 );
+            });
+
+            button.addEventListener("mouseleave", () => {
+                setTimeout( () => {
+                    desc.style.display = "none";
+                }, 100 );
+            });
+
             entry.addEventListener("click", () => {
 
                 const f = options.callback;
@@ -2451,32 +2933,37 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
      */
 
     class Widget {
-        
+
         static NONE         = 0;
         static TEXT         = 1;
         static TEXTAREA     = 2;
         static BUTTON       = 3;
         static DROPDOWN     = 4;
         static CHECKBOX     = 5;
-        static COLOR        = 6;
-        static NUMBER       = 7;
-        static TITLE        = 8;
-        static VECTOR       = 9;
-        static TREE         = 10;
-        static PROGRESS     = 11;
-        static FILE         = 12;
-        static LAYERS       = 13;
-        static ARRAY        = 14;
-        static LIST         = 15;
-        static TAGS         = 16;
-        static CURVE        = 17;
-        static CARD         = 18;
-        static IMAGE        = 19;
-        static CONTENT      = 20;
-        static CUSTOM       = 21;
-        static SEPARATOR    = 22;
-        static KNOB         = 23;
-        static SIZE         = 24;
+        static TOGGLE       = 6;
+        static COLOR        = 7;
+        static NUMBER       = 8;
+        static TITLE        = 9;
+        static VECTOR       = 10;
+        static TREE         = 11;
+        static PROGRESS     = 12;
+        static FILE         = 13;
+        static LAYERS       = 14;
+        static ARRAY        = 15;
+        static LIST         = 16;
+        static TAGS         = 17;
+        static CURVE        = 18;
+        static CARD         = 19;
+        static IMAGE        = 20;
+        static CONTENT      = 21;
+        static CUSTOM       = 22;
+        static SEPARATOR    = 23;
+        static KNOB         = 24;
+        static SIZE         = 25;
+        static PAD          = 26;
+        static FORM         = 27;
+        static DIAL         = 28;
+        static COUNTER      = 29;
 
         static NO_CONTEXT_TYPES = [
             Widget.BUTTON,
@@ -2505,7 +2992,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             if( this.onSetValue )
                 return this.onSetValue( value, skipCallback );
-    
+
             console.warn("Can't set value of " + this.typeName());
         }
 
@@ -2549,6 +3036,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 case Widget.BUTTON: return "Button";
                 case Widget.DROPDOWN: return "Dropdown";
                 case Widget.CHECKBOX: return "Checkbox";
+                case Widget.TOGGLE: return "Toggle";
                 case Widget.COLOR: return "Color";
                 case Widget.NUMBER: return "Number";
                 case Widget.VECTOR: return "Vector";
@@ -2562,8 +3050,14 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 case Widget.CURVE: return "Curve";
                 case Widget.KNOB: return "Knob";
                 case Widget.SIZE: return "Size";
+                case Widget.PAD: return "Pad";
+                case Widget.FORM: return "Form";
+                case Widget.DIAL: return "Dial";
+                case Widget.COUNTER: return "Counter";
                 case Widget.CUSTOM: return this.customName;
             }
+
+            console.error( `Unknown Widget type: ${ this.type }` );
         }
 
         refresh() {
@@ -2611,33 +3105,33 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 container = document.createElement('div');
                 container.className = "lexcustomcontainer";
                 container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
-    
+
                 this.queue(container);
 
                 let buttonName = "<a class='fa-solid " + (options.icon ?? "fa-cube")  + "' style='float:left'></a>";
                 buttonName += custom_widget_name + (!instance ? " [empty]" : "");
                 // Add alwayis icon to keep spacing right
                 buttonName += "<a class='fa-solid " + (instance ? "fa-bars-staggered" : " ") + " menu' style='float:right; width:5%;'></a>";
-                
+
                 let buttonEl = this.addButton(null, buttonName, (value, event) => {
 
                     if( instance ) {
                         element.querySelector(".lexcustomitems").toggleAttribute('hidden');
                     }
                     else {
-                        addContextMenu(null, event, c => {    
-                            c.add("New " + custom_widget_name, () => { 
+                        addContextMenu(null, event, c => {
+                            c.add("New " + custom_widget_name, () => {
                                 instance = {};
                                 refresh_widget();
                                 element.querySelector(".lexcustomitems").toggleAttribute('hidden', false);
                             });
                         });
                     }
-    
+
                 }, { buttonClass: 'custom' });
-                
+
                 this.clearQueue();
-    
+
                 if(instance)
                     buttonEl.querySelector('a.menu').addEventListener('click', e => {
                         e.stopImmediatePropagation();
@@ -2649,47 +3143,57 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                             });
                         });
                     });
-    
+
                 // Show elements
-    
+
                 custom_widgets = document.createElement('div');
                 custom_widgets.className = "lexcustomitems";
                 custom_widgets.toggleAttribute('hidden', true);
-                
-                element.appendChild(container);
-                element.appendChild(custom_widgets);
-    
-                if( instance ) {
-                    
+
+                element.appendChild( container );
+                element.appendChild( custom_widgets );
+
+                if( instance )
+                {
+
                     this.queue( custom_widgets );
-                    
-                    const on_instance_changed = (key, value, event) => {
-                        instance[key] = value;
-                        this._trigger( new IEvent(name, instance, event), callback );
+
+                    const on_instance_changed = ( key, value, event ) => {
+                        instance[ key ] = value;
+                        this._trigger( new IEvent( name, instance, event ), callback );
                     };
 
                     for( let key in default_instance )
                     {
-                        const value = instance[key] ?? default_instance[key];
-                        
-                        switch(value.constructor) {
+                        const value = instance[ key ] ?? default_instance[ key ];
+
+                        switch( value.constructor )
+                        {
                             case String:
-                                if(value[0] === '#')
-                                    this.addColor(key, value, on_instance_changed.bind(this, key));
+                                if( value[ 0 ] === '#' )
+                                {
+                                    this.addColor( key, value, on_instance_changed.bind( this, key ) );
+                                }
                                 else
-                                    this.addText(key, value, on_instance_changed.bind(this, key));
+                                {
+                                    this.addText( key, value, on_instance_changed.bind( this, key ) );
+                                }
                                 break;
                             case Number:
-                                this.addNumber(key, value, on_instance_changed.bind(this, key));
+                                this.addNumber( key, value, on_instance_changed.bind( this, key ) );
                                 break;
                             case Boolean:
-                                this.addCheckbox(key, value, on_instance_changed.bind(this, key));
+                                this.addCheckbox( key, value, on_instance_changed.bind( this, key ) );
                                 break;
                             case Array:
                                 if( value.length > 4 )
-                                    this.addArray(key, value, on_instance_changed.bind(this, key));    
+                                {
+                                    this.addArray( key, value, on_instance_changed.bind( this, key ) );
+                                }
                                 else
-                                    this._add_vector(value.length, key, value, on_instance_changed.bind(this, key));
+                                {
+                                    this._add_vector( value.length, key, value, on_instance_changed.bind( this, key ) );
+                                }
                                 break;
                         }
                     }
@@ -2703,13 +3207,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
     }
 
     LX.ADD_CUSTOM_WIDGET = ADD_CUSTOM_WIDGET;
-    
+
     /**
      * @class NodeTree
      */
 
     class NodeTree {
-            
+
         constructor(domEl, data, options) {
             this.domEl = domEl;
             this.data = data;
@@ -2727,42 +3231,45 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         _create_item( parent, node, level = 0, selectedId ) {
 
             const that = this;
-            const node_filter_input = this.domEl.querySelector("#lexnodetree_filter");
+            const node_filter_input = this.domEl.querySelector( "#lexnodetree_filter" );
 
             node.children = node.children ?? [];
-            if(node_filter_input && !node.id.includes(node_filter_input.value) || (selectedId != undefined) && selectedId != node.id)
+            if( node_filter_input && !node.id.includes( node_filter_input.value ) || (selectedId != undefined) && selectedId != node.id )
             {
                 for( var i = 0; i < node.children.length; ++i )
-                    this._create_item( node, node.children[i], level + 1, selectedId );
+                {
+                    this._create_item( node, node.children[ i ], level + 1, selectedId );
+                }
                 return;
             }
 
-            const list = this.domEl.querySelector("ul");
+            const list = this.domEl.querySelector( 'ul' );
 
             node.visible = node.visible ?? true;
             node.parent = parent;
-            let is_parent = node.children.length > 0;
-            let is_selected = this.selected.indexOf( node ) > -1;
-            
-            if( this.options.only_folders ) {
+            let isParent = node.children.length > 0;
+            let isSelected = this.selected.indexOf( node ) > -1;
+
+            if( this.options.onlyFolders )
+            {
                 let has_folders = false;
                 node.children.forEach( c => has_folders |= (c.type == 'folder') );
-                is_parent = !!has_folders;
+                isParent = !!has_folders;
             }
 
             let item = document.createElement('li');
-            item.className = "lextreeitem " + "datalevel" + level + (is_parent ? " parent" : "") + (is_selected ? " selected" : "");
+            item.className = "lextreeitem " + "datalevel" + level + (isParent ? " parent" : "") + (isSelected ? " selected" : "");
             item.id = LX.getSupportedDOMName( node.id );
             item.tabIndex = "0";
 
             // Select hierarchy icon
             let icon = (this.options.skip_default_icon ?? true) ? "" : "fa-solid fa-square"; // Default: no childs
-            if( is_parent ) icon = node.closed ? "fa-solid fa-caret-right" : "fa-solid fa-caret-down";
+            if( isParent ) icon = node.closed ? "fa-solid fa-caret-right" : "fa-solid fa-caret-down";
             item.innerHTML = "<a class='" + icon + " hierarchy'></a>";
-            
+
             // Add display icon
             icon = node.icon;
-            
+
             // Process icon
             if( node.icon )
             {
@@ -2777,22 +3284,24 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             item.innerHTML += (node.rename ? "" : node.id);
 
-            item.setAttribute('draggable', true);
-            item.style.paddingLeft = ((is_parent ? 0 : 3 ) + (3 + (level+1) * 15)) + "px";
-            list.appendChild(item);
+            item.setAttribute( 'draggable', true );
+            item.style.paddingLeft = ((isParent ? 0 : 3 ) + (3 + (level+1) * 15)) + "px";
+            list.appendChild( item );
 
             // Callbacks
             item.addEventListener("click", e => {
-                if( handled ) {
+                if( handled )
+                {
                     handled = false;
                     return;
                 }
 
-                if(!e.shiftKey) {
+                if( !e.shiftKey )
+                {
                     list.querySelectorAll("li").forEach( e => { e.classList.remove('selected'); } );
                     this.selected.length = 0;
                 }
-                
+
                 // Add or remove
                 const idx = this.selected.indexOf( node );
                 if( idx > -1 ) {
@@ -2804,16 +3313,18 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 }
 
                 // Only Show children...
-                if(is_parent && node.id.length > 1 /* Strange case... */) {
+                if(isParent && node.id.length > 1 /* Strange case... */) {
                     node.closed = false;
-                    if(that.onevent) {
-                        const event = new TreeEvent(TreeEvent.NODE_CARETCHANGED, node, node.closed);
+                    if( that.onevent )
+                    {
+                        const event = new TreeEvent( TreeEvent.NODE_CARETCHANGED, node, node.closed );
                         that.onevent( event );
                     }
                     that.frefresh( node.id );
                 }
 
-                if(that.onevent) {
+                if( that.onevent )
+                {
                     const event = new TreeEvent(TreeEvent.NODE_SELECTED, e.shiftKey ? this.selected : node );
                     event.multiple = e.shiftKey;
                     that.onevent( event );
@@ -2821,37 +3332,110 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             });
 
             item.addEventListener("dblclick", function() {
+
                 if( that.options.rename ?? true )
                 {
                     // Trigger rename
                     node.rename = true;
                     that.refresh();
                 }
+
                 if( that.onevent )
                 {
-                    const event = new TreeEvent(TreeEvent.NODE_DBLCLICKED, node);
+                    const event = new TreeEvent( TreeEvent.NODE_DBLCLICKED, node );
                     that.onevent( event );
                 }
             });
 
-            item.addEventListener("contextmenu", e => {
+            item.addEventListener( "contextmenu", e => {
+
                 e.preventDefault();
-                if(that.onevent) {
-                    const event = new TreeEvent(TreeEvent.NODE_CONTEXTMENU, this.selected.length > 1 ? this.selected : node, e);
-                    event.multiple = this.selected.length > 1;
-                    that.onevent( event );
+
+                if( !that.onevent )
+                {
+                    return;
+                }
+
+                const event = new TreeEvent(TreeEvent.NODE_CONTEXTMENU, this.selected.length > 1 ? this.selected : node, e);
+                event.multiple = this.selected.length > 1;
+
+                LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.value, m => {
+                    event.panel = m;
+                });
+
+                that.onevent( event );
+
+                if( ( this.options.addDefault ?? false ) == true )
+                {
+                    if( event.panel.items )
+                    {
+                        event.panel.add( "" );
+                    }
+
+                    event.panel.add( "Select Children", () => {
+
+                        const selectChildren = ( n ) => {
+
+                            if( n.closed )
+                            {
+                                return;
+                            }
+
+                            for( let child of n.children ?? [] )
+                            {
+                                if( !child )
+                                {
+                                    continue;
+                                }
+
+                                let nodeItem = this.domEl.querySelector( '#' + child.id );
+                                nodeItem.classList.add('selected');
+                                this.selected.push( child );
+                                selectChildren( child );
+                            }
+                        };
+
+                        // Add childs of the clicked node
+                        selectChildren( node );
+                    } );
+
+                    event.panel.add( "Delete", { callback: () => {
+
+                        // It's the root node
+                        if( !node.parent )
+                        {
+                            return;
+                        }
+
+                        if( that.onevent ) {
+                            const event = new TreeEvent( TreeEvent.NODE_DELETED, node, e );
+                            that.onevent( event );
+                        }
+
+                        // Delete nodes now
+                        let childs = node.parent.children;
+                        const index = childs.indexOf( node );
+                        childs.splice( index, 1 );
+
+                        this.refresh();
+                    } } );
                 }
             });
 
             item.addEventListener("keydown", e => {
-                if(node.rename)
-                return;
+
+                if( node.rename )
+                {
+                    return;
+                }
+
                 e.preventDefault();
+
                 if( e.key == "Delete" )
                 {
                     // Send event now so we have the info in selected array..
-                    if(that.onevent) {
-                        const event = new TreeEvent(TreeEvent.NODE_DELETED, this.selected.length > 1 ? this.selected : node, e);
+                    if( that.onevent ) {
+                        const event = new TreeEvent( TreeEvent.NODE_DELETED, this.selected.length > 1 ? this.selected : node, e );
                         event.multiple = this.selected.length > 1;
                         that.onevent( event );
                     }
@@ -2869,10 +3453,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 }
                 else if( e.key == "ArrowUp" || e.key == "ArrowDown" ) // Unique or zero selected
                 {
-                    var selected = this.selected.length > 1 ? (e.key == "ArrowUp" ? this.selected.shift() : this.selected.pop()) : this.selected[0];
-                    var el = this.domEl.querySelector("#" + LX.getSupportedDOMName( selected.id ) );
+                    var selected = this.selected.length > 1 ? ( e.key == "ArrowUp" ? this.selected.shift() : this.selected.pop() ) : this.selected[ 0 ];
+                    var el = this.domEl.querySelector( "#" + LX.getSupportedDOMName( selected.id ) );
                     var sibling = e.key == "ArrowUp" ? el.previousSibling : el.nextSibling;
-                    if( sibling ) sibling.click();
+                    if( sibling )
+                    {
+                        sibling.click();
+                    }
                 }
             });
 
@@ -2881,7 +3468,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             let name_input = document.createElement('input');
             name_input.toggleAttribute('hidden', !node.rename);
             name_input.value = node.id;
-            item.appendChild(name_input);            
+            item.appendChild(name_input);
 
             if(node.rename) {
                 item.classList.add('selected');
@@ -2974,13 +3561,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     delete window.__tree_node_dragged;
                 });
             }
-            
+
             let handled = false;
 
             // Show/hide children
-            if(is_parent) {
+            if(isParent) {
                 item.querySelector('a.hierarchy').addEventListener("click", function(e) {
-                    
+
                     handled = true;
                     e.stopImmediatePropagation();
                     e.stopPropagation();
@@ -3014,8 +3601,8 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 item.appendChild(visibility);
             }
-            
-            if(node.actions) 
+
+            if(node.actions)
             {
                 for(var i = 0; i < node.actions.length; ++i) {
                     let a = node.actions[i];
@@ -3042,7 +3629,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             {
                 let child = node.children[i];
 
-                if( this.options.only_folders && child.type != 'folder')
+                if( this.options.onlyFolders && child.type != 'folder')
                     continue;
 
                 this._create_item( node, child, level + 1 );
@@ -3054,14 +3641,14 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this.domEl.querySelector( "ul" ).innerHTML = "";
             this._create_item( null, this.data, 0, selectedId );
         }
-    
+
         /* Refreshes the tree and focuses current element */
         frefresh( id ) {
             this.refresh();
             var el = this.domEl.querySelector( "#" + id );
             if( el ) el.focus();
         }
-    
+
         select( id ) {
             this.refresh( null, id );
         }
@@ -3074,11 +3661,12 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
     class Panel {
 
         /**
-         * @param {*} options 
+         * @param {*} options
          * id: Id of the element
          * className: Add class to the element
          * width: Width of the panel element [fit space]
          * height: Height of the panel element [fit space]
+         * style: CSS Style object to be applied to the panel
          */
 
         constructor( options = {} )  {
@@ -3116,19 +3704,25 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         getValue( name ) {
 
             let widget = this.widgets[ name ];
-            if(!widget)
-                throw("No widget called " + name);
+
+            if( !widget )
+            {
+                throw( "No widget called " + name );
+            }
 
             return widget.value();
         }
 
-        setValue( name, value ) {
+        setValue( name, value, skipCallback ) {
 
             let widget = this.widgets[ name ];
-            if(!widget)
-                throw("No widget called " + name);
 
-            return widget.set(value);
+            if( !widget )
+            {
+                throw( "No widget called " + name );
+            }
+
+            return widget.set( value, skipCallback );
         }
 
         /**
@@ -3219,7 +3813,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     this._inlineContainer.style.justifyContent = justifyContent;
                 }
             }
-            
+
             // Push all elements single element or Array[element, container]
             for( let item of this._inlineWidgets )
             {
@@ -3227,17 +3821,17 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 if(is_pair)
                 {
-                    // eg. an array, inline items appended later to 
+                    // eg. an array, inline items appended later to
                     if(this._inline_queued_container)
                         this._inlineContainer.appendChild( item[0] );
                     // eg. a dropdown, item is appended to parent, not to inline cont.
                     else
                         item[1].appendChild(item[0]);
-                } 
+                }
                 else
                     this._inlineContainer.appendChild( item );
             }
-            
+
             if(!this._inline_queued_container)
             {
                 if(this.current_branch)
@@ -3257,7 +3851,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         /**
          * @method branch
          * @param {String} name Name of the branch/section
-         * @param {*} options 
+         * @param {*} options
          * id: Id of the branch
          * className: Add class to the branch
          * closed: Set branch collapsed/opened [false]
@@ -3307,9 +3901,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             return (typeof arg == 'undefined' ? def : arg);
         }
 
-        static _dispatch_event( element, type, bubbles, cancelable ) {
-            let event = new Event(type, { 'bubbles': bubbles, 'cancelable': cancelable });
-            element.dispatchEvent(event);
+        static _dispatch_event( element, type, data, bubbles, cancelable ) {
+            let event = new CustomEvent( type, { 'detail': data, 'bubbles': bubbles, 'cancelable': cancelable } );
+            element.dispatchEvent( event );
         }
 
         static _add_reset_property( container, callback ) {
@@ -3317,8 +3911,8 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             domEl.style.display = "none";
             domEl.style.marginRight = "6px";
             domEl.className = "lexicon fa fa-rotate-left";
-            domEl.addEventListener("click", callback);
-            container.appendChild(domEl);
+            domEl.addEventListener( "click", callback );
+            container.appendChild( domEl );
             return domEl;
         }
 
@@ -3328,39 +3922,45 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
         create_widget( name, type, options = {} ) {
 
-            let widget = new Widget(name, type, options);
+            let widget = new Widget( name, type, options );
 
-            let element = document.createElement('div');
+            let element = document.createElement( 'div' );
             element.className = "lexwidget";
-            if(options.id)
-                element.id = options.id;
-            if(options.className)
+            element.id = options.id ?? "";
+            element.title = options.title ?? "";
+
+            if( options.className )
+            {
                 element.className += " " + options.className;
-            if(options.title)
-                element.title = options.title;
+            }
 
             if( type != Widget.TITLE )
             {
                 element.style.width = "calc(100% - " + (this.current_branch || type == Widget.FILE ? 10 : 20) + "px)";
-                if( options.width ) {
+
+                if( options.width )
+                {
                     element.style.width = element.style.minWidth = options.width;
                 }
-                if( options.maxWidth ) {
+                if( options.maxWidth )
+                {
                     element.style.maxWidth = options.maxWidth;
                 }
-                if( options.minWidth ) {
+                if( options.minWidth )
+                {
                     element.style.minWidth = options.minWidth;
                 }
-                if( options.height ) {
+                if( options.height )
+                {
                     element.style.height = element.style.minHeight = options.height;
                 }
             }
 
-            if(name != undefined) {
-
-                if(!(options.no_name ?? false) )
+            if( name != undefined )
+            {
+                if( !(options.hideName ?? false) )
                 {
-                    let domName = document.createElement('div');
+                    let domName = document.createElement( 'div' );
                     domName.className = "lexwidgetname";
                     if( options.justifyName )
                     {
@@ -3371,28 +3971,34 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     domName.style.width = options.nameWidth || LX.DEFAULT_NAME_WIDTH;
                     element.appendChild(domName);
                     element.domName = domName;
-    
+
                     // Copy-paste info
-                    domName.addEventListener('contextmenu', function(e) {
+                    domName.addEventListener('contextmenu', function( e ) {
                         e.preventDefault();
-                        widget.oncontextmenu(e);
+                        widget.oncontextmenu( e );
                     });
                 }
-                
+
                 this.widgets[ name ] = widget;
             }
 
-            if(options.signal)
+            if( options.signal )
             {
-                if(!name) {
-                    if(!this.signals)
+                if( !name )
+                {
+                    if( !this.signals )
+                    {
                         this.signals = [];
-                    this.signals.push({[options.signal]: widget})
+                    }
+
+                    this.signals.push( { [ options.signal ]: widget } )
                 }
+
                 LX.addSignal( options.signal, widget );
             }
 
             widget.domEl = element;
+            element.jsInstance = widget;
 
             const insert_widget = el => {
                 if(options.container)
@@ -3401,7 +4007,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                     if(this.current_branch)
                     {
-                        if(!options.skipWidget) 
+                        if(!options.skipWidget)
                             this.current_branch.widgets.push( widget );
                         this.current_branch.content.appendChild( el );
                     }
@@ -3410,7 +4016,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         el.classList.add("nobranch");
                         this.root.appendChild( el );
                     }
-                } 
+                }
                 // Append content to queued tab container
                 else {
                     this.queuedContainer.appendChild( el );
@@ -3421,7 +4027,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 if(!this.queuedContainer) {
                     this._inlineWidgets.push( el );
-                } 
+                }
                 // Append content to queued tab container
                 else {
                     this._inlineWidgets.push( [el, this.queuedContainer] );
@@ -3460,9 +4066,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             let widget = this.create_widget(null, Widget.TEXT, options);
             let element = widget.domEl;
             element.className += " lexfilter noname";
-            
+
             let input = document.createElement('input');
-            input.id = 'input-filter';
+            input.className = 'lexinput-filter';
             input.setAttribute("placeholder", options.placeholder);
             input.style.width =  "calc( 100% - 17px )";
             input.value = options.filterValue || "";
@@ -3472,9 +4078,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             element.appendChild(input);
             element.appendChild(searchIcon);
 
-            input.addEventListener("input", (e) => { 
+            input.addEventListener("input", (e) => {
                 if(options.callback)
-                    options.callback(input.value, e); 
+                    options.callback(input.value, e);
             });
 
             return element;
@@ -3486,7 +4092,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 if(b.name !== branchName)
                     continue;
-                
+
                 // remove all widgets
                 for( let w of b.widgets ) {
                     if(w.domEl.classList.contains('lexfilter'))
@@ -3548,7 +4154,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             if( callback )
                 callback.call( this, event.value, event.domEvent, event.name );
-    
+
             if( this.onevent )
                 this.onevent.call( this, event );
         }
@@ -3623,41 +4229,50 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         /**
          * @method addTitle
          * @param {String} name Title name
+         * @param {*} options:
+         * link: Href in case title is an hyperlink
+         * target: Target name of the iframe (if any)
+         * icon: FA class of the icon (if any)
+         * iconColor: Color of title icon (if any)
+         * style: CSS to override
          */
 
         addTitle( name, options = {} ) {
 
-            if(!name) {
-                throw("Set Widget Name!");
+            if( !name )
+            {
+                throw( "Can't create Title without text!" );
             }
 
-            let widget = this.create_widget(null, Widget.TITLE, options);
+            let widget = this.create_widget( null, Widget.TITLE, options );
             let element = widget.domEl;
             element.className = "lextitle";
 
-            if(options.icon) {
-                let icon = document.createElement('a');
-                icon.className = options.icon;
-                icon.style.color = options.icon_color || "";
-                element.appendChild(icon);
-            }
-
-            let text = document.createElement('span');
-            text.innerText = name;
-            element.appendChild(text);
-
-            Object.assign(element.style, options.style ?? {});
-
-            if(options.link != undefined)
+            if( options.icon )
             {
-                let link_el = document.createElement('a');
-                link_el.innerText = name;
-                link_el.href = options.link;
-                link_el.target = options.target ?? "";
-                link_el.className = "lextitle link";
-                Object.assign(link_el.style, options.style ?? {});
-                element.replaceWith(link_el);
+                let icon = document.createElement( 'a' );
+                icon.className = options.icon;
+                icon.style.color = options.iconColor || "";
+                element.appendChild( icon );
             }
+
+            let text = document.createElement( "span");
+            text.innerText = name;
+            element.appendChild( text );
+
+            Object.assign( element.style, options.style ?? {} );
+
+            if( options.link != undefined )
+            {
+                let linkDom = document.createElement('a');
+                linkDom.innerText = name;
+                linkDom.href = options.link;
+                linkDom.target = options.target ?? "";
+                linkDom.className = "lextitle link";
+                Object.assign( linkDom.style, options.style ?? {} );
+                element.replaceWith( linkDom );
+            }
+
             return element;
         }
 
@@ -3668,7 +4283,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          * @param {Function} callback Callback function on change
          * @param {*} options:
          * disabled: Make the widget disabled [false]
+         * required: Make the input required
          * placeholder: Add input placeholder
+         * pattern: Regular expression that value must match
          * trigger: Choose onchange trigger (default, input) [default]
          * inputWidth: Width of the text input
          * skipReset: Don't add the reset value button when value changes
@@ -3683,13 +4300,20 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             widget.onGetValue = () => {
                 return wValue.value;
             };
+
             widget.onSetValue = ( newValue, skipCallback ) => {
                 this.disabled ? wValue.innerText = newValue : wValue.value = newValue;
                 Panel._dispatch_event( wValue, "focusout", skipCallback );
             };
-    
+
+            widget.valid = () => {
+                if( wValue.pattern == "" ) { return true; }
+                const regexp = new RegExp( wValue.pattern );
+                return regexp.test( wValue.value );
+            };
+
             let element = widget.domEl;
-    
+
             // Add reset functionality
             if( widget.name && !( options.skipReset ?? false ) ) {
                 Panel._add_reset_property( element.domName, function() {
@@ -3698,17 +4322,22 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     Panel._dispatch_event( wValue, "focusout" );
                 } );
             }
-            
+
             // Add widget value
-    
+
             let container = document.createElement( 'div' );
             container.className = "lextext" + ( options.warning ? " lexwarning" : "" );
             container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + " )";
             container.style.display = "flex";
-    
+
+            if( options.textClass )
+            {
+                container.classList.add( options.textClass );
+            }
+
             this.disabled = ( options.disabled || options.warning ) ?? ( options.url ? true : false );
             let wValue = null;
-    
+
             if( !this.disabled )
             {
                 wValue = document.createElement( 'input' );
@@ -3716,19 +4345,38 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 wValue.value = wValue.iValue = value || "";
                 wValue.style.width = "100%";
                 wValue.style.textAlign = options.float ?? "";
-    
-                if( options.placeholder )
-                    wValue.setAttribute( "placeholder", options.placeholder );
-    
+
+                wValue.setAttribute( "placeholder", options.placeholder ?? "" );
+
+                if( options.required )
+                {
+                    wValue.setAttribute( "required", options.required );
+                }
+
+                if( options.pattern )
+                {
+                    wValue.setAttribute( "pattern", options.pattern );
+                }
+
                 var resolve = ( function( val, event ) {
+
+                    if( !widget.valid() )
+                    {
+                        return;
+                    }
+
                     const skipCallback = event.detail;
                     let btn = element.querySelector( ".lexwidgetname .lexicon" );
                     if( btn ) btn.style.display = ( val != wValue.iValue ? "block" : "none" );
-                    if( !skipCallback ) this._trigger( new IEvent( name, val, event ), callback );
+                    if( !skipCallback )
+                    {
+                        this._trigger( new IEvent( name, val, event ), callback );
+                    }
+
                 }).bind( this );
-    
+
                 const trigger = options.trigger ?? 'default';
-    
+
                 if( trigger == 'default' )
                 {
                     wValue.addEventListener( "keyup", function( e ){
@@ -3745,19 +4393,19 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         resolve( e.target.value, e );
                     });
                 }
-    
+
                 wValue.addEventListener( "mousedown", function( e ){
                     e.stopImmediatePropagation();
                     e.stopPropagation();
                 });
-    
+
                 if( options.icon )
                 {
                     let icon = document.createElement( 'a' );
                     icon.className = "inputicon " + options.icon;
                     container.appendChild( icon );
                 }
-    
+
             } else
             {
                 wValue = document.createElement( options.url ? 'a' : 'div' );
@@ -3771,18 +4419,18 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 wValue.style.width = "100%";
                 wValue.style.textAlign = options.float ?? "";
             }
-    
+
             Object.assign( wValue.style, options.style ?? {} );
-    
+
             container.appendChild( wValue );
             element.appendChild( container );
-            
+
             // Remove branch padding and margins
             if( !widget.name ) {
                 element.className += " noname";
                 container.style.width = "100%";
             }
-    
+
             return widget;
         }
 
@@ -3823,7 +4471,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     Panel._dispatch_event( wValue, "focusout" );
                 });
             }
-            
+
             // Add widget value
 
             let container = document.createElement( 'div' );
@@ -3876,7 +4524,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             container.appendChild(wValue);
             element.appendChild(container);
-            
+
             // Remove branch padding and margins
             if(!widget.name) {
                 element.className += " noname";
@@ -3905,7 +4553,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             options.disabled = true;
             return this.addText( null, value, null, options );
         }
-        
+
         /**
          * @method addButton
          * @param {String} name Widget name
@@ -3915,52 +4563,64 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          * disabled: Make the widget disabled [false]
          * icon: Icon class to show as button value
          * img: Path to image to show as button value
+         * title: Text to show in native Element title
          */
 
         addButton( name, value, callback, options = {} ) {
 
-            let widget = this.create_widget(name, Widget.BUTTON, options);
+            let widget = this.create_widget( name, Widget.BUTTON, options );
+
             widget.onGetValue = () => {
                 return wValue.innerText;
             };
+
             widget.onSetValue = ( newValue, skipCallback ) => {
-                wValue.innerHTML = 
-                (options.icon ? "<a class='" + options.icon + "'></a>" : 
+                wValue.innerHTML =
+                (options.icon ? "<a class='" + options.icon + "'></a>" :
                 ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + (newValue || "") + "</span>" ));
             };
-            
+
             let element = widget.domEl;
 
-            var wValue = document.createElement('button');
-            if(options.icon || options.img) 
-                wValue.title = value;
-            wValue.className = "lexbutton";
-            if(options.selected)
-                wValue.classList.add("selected");
-            if(options.buttonClass)
-                wValue.classList.add(options.buttonClass);
-            wValue.innerHTML = 
-                (options.icon ? "<a class='" + options.icon + "'></a>" : 
+            var wValue = document.createElement( 'button' );
+            wValue.title = options.title ?? "";
+            wValue.className = "lexbutton " + ( options.buttonClass ?? "" );
+
+            if( options.selected )
+            {
+                wValue.classList.add( "selected" );
+            }
+
+            wValue.innerHTML =
+                (options.icon ? "<a class='" + options.icon + "'></a>" :
                 ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + (value || "") + "</span>" ));
 
             wValue.style.width = "calc( 100% - " + (options.nameWidth ?? LX.DEFAULT_NAME_WIDTH) + ")";
 
-            if(options.disabled)
-                wValue.setAttribute("disabled", true);
+            if( options.disabled )
+            {
+                wValue.setAttribute( "disabled", true );
+            }
 
             wValue.addEventListener("click", e => {
-                if( options.selectable ) {
+                if( options.selectable )
+                {
                     if( options.parent )
+                    {
                         options.parent.querySelectorAll(".lexbutton.selected").forEach( e => { if(e == wValue) return; e.classList.remove("selected") } );
+                    }
+
                     wValue.classList.toggle('selected');
                 }
-                this._trigger( new IEvent(name, value, e), callback );   
+
+                this._trigger( new IEvent( name, value, e ), callback );
             });
 
-            element.appendChild(wValue);
+            element.appendChild( wValue );
 
             // Remove branch padding and margins
-            if(!widget.name) {
+            if( !widget.name )
+            {
                 wValue.className += " noname";
                 wValue.style.width = "100%";
             }
@@ -3986,7 +4646,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             let container = document.createElement('div');
             container.className = "lexcombobuttons ";
             if( options.float ) container.className += options.float;
-            container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";   
+            container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
             let should_select = !(options.noSelection ?? false);
             for( let b of values )
@@ -3999,24 +4659,24 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 if(options.buttonClass)
                     buttonEl.classList.add(options.buttonClass);
 
-                if(options.selected == b.value) 
+                if(options.selected == b.value)
                     buttonEl.classList.add("selected");
-                    
+
                 buttonEl.innerHTML = (b.icon ? "<a class='" + b.icon +"'></a>" : "") + "<span>" + (b.icon ? "" : b.value) + "</span>";
-              
+
                 if(options.disabled)
                     buttonEl.setAttribute("disabled", true);
-                
+
                 buttonEl.addEventListener("click", function(e) {
                     if(should_select) {
                         container.querySelectorAll('button').forEach( s => s.classList.remove('selected'));
                         this.classList.add('selected');
                     }
-                    that._trigger( new IEvent(name, b.value, e), b.callback );   
+                    that._trigger( new IEvent(name, b.value, e), b.callback );
                 });
-    
+
                 container.appendChild(buttonEl);
-                
+
                 // Remove branch padding and margins
                 if(widget.name === undefined) {
                     buttonEl.className += " noname";
@@ -4047,7 +4707,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
         addCard( name, options = {} ) {
 
-            options.no_name = true;
+            options.hideName = true;
             let widget = this.create_widget(name, Widget.CARD, options);
             let element = widget.domEl;
 
@@ -4085,11 +4745,11 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             }
 
             container.appendChild(name_el);
-            
+
             if( options.callback ) {
                 container.style.cursor = "pointer";
                 container.addEventListener("click", (e) => {
-                    this._trigger( new IEvent(name, null, e), options.callback );   
+                    this._trigger( new IEvent(name, null, e), options.callback );
                 });
             }
 
@@ -4099,17 +4759,140 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         }
 
         /**
+         * @method addForm
+         * @param {String} name Widget name
+         * @param {Object} data Form data
+         * @param {Function} callback Callback function on submit form
+         * @param {*} options:
+         * actionName: Text to be shown in the button
+         */
+
+        addForm( name, data, callback, options = {} ) {
+
+            if( data.constructor != Object )
+            {
+                console.error( "Form data must be an Object" );
+                return;
+            }
+
+            // Always hide name for this one
+            options.hideName = true;
+
+            let widget = this.create_widget( name, Widget.FORM, options );
+
+            widget.onGetValue = () => {
+                return container.formData;
+            };
+
+            widget.onSetValue = ( newValue, skipCallback ) => {
+                container.formData = newValue;
+                const entries = container.querySelectorAll( ".lexwidget" );
+                for( let i = 0; i < entries.length; ++i )
+                {
+                    const entry = entries[ i ];
+                    if( entry.jsInstance.type != LX.Widget.TEXT )
+                    {
+                        continue;
+                    }
+                    let entryName = entries[ i ].querySelector( ".lexwidgetname" ).innerText;
+                    let entryInput = entries[ i ].querySelector( ".lextext input" );
+                    entryInput.value = newValue[ entryName ] ?? "";
+                    Panel._dispatch_event( entryInput, "focusout", skipCallback );
+                }
+            };
+
+            // Add widget value
+
+            let element = widget.domEl;
+
+            let container = document.createElement( 'div' );
+            container.className = "lexformdata";
+
+            this.queue( container );
+
+            container.formData = {};
+
+            for( let entry in data )
+            {
+                let entryData = data[ entry ];
+
+                if( entryData.constructor != Object )
+                {
+                    entryData = { };
+                }
+
+                entryData.placeholder = entryData.placeholder ?? entry;
+                entryData.width = "calc(100% - 10px)";
+
+                this.addLabel( entry, { textClass: "formlabel" } );
+
+                entryData.textWidget = this.addText( null, entryData.constructor == Object ? entryData.value : entryData, ( value ) => {
+                    container.formData[ entry ] = value;
+                }, entryData );
+
+                container.formData[ entry ] = entryData.constructor == Object ? entryData.value : entryData;
+            }
+
+            this.addBlank( );
+
+            this.addButton( null, options.actionName ?? "Submit", ( value, event ) => {
+
+                for( let entry in data )
+                {
+                    let entryData = data[ entry ];
+
+                    if( !entryData.textWidget.valid() )
+                    {
+                        return;
+                    }
+                }
+
+                if( callback )
+                {
+                    callback( container.formData, event );
+                }
+            }, { buttonClass: "primary", width: "calc(100% - 10px)" } );
+
+            this.clearQueue();
+
+            element.appendChild( container );
+
+            if( !widget.name || options.hideName ) {
+                element.className += " noname";
+                container.style.width = "100%";
+            }
+
+            return widget;
+        }
+
+        /**
          * @method addContent
-         * @param {HTMLElement} element
+         * @param {HTMLElement/String} element
          */
 
         addContent( element, options = {} ) {
 
             if( !element )
-            return;
+            {
+                return;
+            }
 
-            let widget = this.create_widget(null, Widget.CONTENT, options);
-            widget.domEl.appendChild(element);
+            if( element.constructor == String )
+            {
+                const tmp = document.createElement( "div" );
+                tmp.innerHTML = element;
+                if( tmp.childElementCount > 1 )
+                {
+                    element = tmp;
+                }
+                else
+                {
+                    element = tmp.firstElementChild;
+                }
+            }
+
+            let widget = this.create_widget( null, Widget.CONTENT, options );
+            widget.domEl.appendChild( element );
             return widget;
         }
 
@@ -4122,27 +4905,29 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         async addImage( url, options = {} ) {
 
             if( !url )
-            return;
+            {
+                return;
+            }
 
-            options.no_name = true;
-            let widget = this.create_widget(null, Widget.IMAGE, options);
+            options.hideName = true;
+            let widget = this.create_widget( null, Widget.IMAGE, options );
             let element = widget.domEl;
 
-            let container = document.createElement('div');
+            let container = document.createElement( 'div' );
             container.className = "leximage";
             container.style.width = "100%";
 
-            let img = document.createElement('img');
+            let img = document.createElement( 'img' );
             img.src = url;
 
-            for(let s in options.style) {
-
-                img.style[s] = options.style[s];
+            for( let s in options.style )
+            {
+                img.style[ s ] = options.style[ s ];
             }
 
             await img.decode();
-            container.appendChild(img);
-            element.appendChild(container);
+            container.appendChild( img );
+            element.appendChild( container );
 
             return widget;
         }
@@ -4198,33 +4983,69 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             wValue.name = name;
             wValue.iValue = value;
 
-            // Add dropdown widget button  
+            // Add dropdown widget button
             let buttonName = value;
             buttonName += "<a class='fa-solid fa-angle-down' style='float:right; margin-right: 3px;'></a>";
 
             this.queue(container);
 
-            let selectedOption = this.addButton( null, buttonName, (value, event) => {
-                if( list.unfocus_event ) {
+            const _getMaxListWidth = () => {
+
+                let maxWidth = 0;
+                for( let i of values )
+                {
+                    const iString = String( i );
+                    maxWidth = Math.max( iString.length, maxWidth );
+                }
+                return Math.max( maxWidth * 10, 80 );
+            };
+
+            let selectedOption = this.addButton( null, buttonName, ( value, event ) => {
+                if( list.unfocus_event )
+                {
                     delete list.unfocus_event;
                     return;
                 }
-                const topPosition = selectedOption.getBoundingClientRect().y;
-                list.style.top = (topPosition + selectedOption.offsetHeight) + 'px';
+
+                list.toggleAttribute( "hidden" );
+                list.classList.remove( "place-above" );
+
+                const listHeight = 26 * values.length;
+                const rect = selectedOption.getBoundingClientRect();
+                const topPosition = rect.y;
+
+                let maxY = window.innerHeight;
+                let overflowContainer = list.getParentArea();
+
+                if( overflowContainer )
+                {
+                    const parentRect = overflowContainer.getBoundingClientRect();
+                    maxY = parentRect.y + parentRect.height;
+                }
+
+                list.style.top = ( topPosition + selectedOption.offsetHeight ) + 'px';
+
+                const showAbove = ( topPosition + listHeight ) > maxY;
+                if( showAbove )
+                {
+                    list.style.top = ( topPosition - listHeight ) + 'px';
+                    list.classList.add( "place-above" );
+                }
+
                 list.style.width = (event.currentTarget.clientWidth) + 'px';
-                list.toggleAttribute('hidden');
+                list.style.minWidth = (_getMaxListWidth()) + 'px';
                 list.focus();
-            }, { buttonClass: 'array', skipInlineCount: true });
+            }, { buttonClass: "array", skipInlineCount: true });
 
             this.clearQueue();
 
-            selectedOption.style.width = "100%";   
+            selectedOption.style.width = "100%";
 
             selectedOption.refresh = (v) => {
                 if(selectedOption.querySelector("span").innerText == "")
                     selectedOption.querySelector("span").innerText = v;
                 else
-                    selectedOption.querySelector("span").innerHTML = selectedOption.querySelector("span").innerHTML.replaceAll(selectedOption.querySelector("span").innerText, v); 
+                    selectedOption.querySelector("span").innerHTML = selectedOption.querySelector("span").innerHTML.replaceAll(selectedOption.querySelector("span").innerText, v);
             }
 
             // Add dropdown options container
@@ -4236,12 +5057,17 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             list.addEventListener( 'focusout', function( e ) {
                 e.stopPropagation();
                 e.stopImmediatePropagation();
-                if(e.relatedTarget === selectedOption.querySelector( 'button' )) {
+                if( e.relatedTarget === selectedOption.querySelector( 'button' ) )
+                {
                     this.unfocus_event = true;
                     setTimeout( () => delete this.unfocus_event, 200 );
-                } else if ( e.relatedTarget && e.relatedTarget.tagName == "INPUT" ) {
+                }
+                else if ( e.relatedTarget && e.relatedTarget.tagName == "INPUT" )
+                {
                     return;
-                }else if ( e.target.id == 'input-filter' ) {
+                }
+                else if ( e.target.className == 'lexinput-filter' )
+                {
                     return;
                 }
                 this.toggleAttribute( 'hidden', true );
@@ -4250,28 +5076,33 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             // Add filter options
             let filter = null;
             if(options.filter ?? false)
+            {
                 filter = this._addFilter("Search option", {container: list, callback: this._search_options.bind(list, values)});
+            }
 
             // Create option list to empty it easily..
-            const list_options = document.createElement('span');
-            list.appendChild(list_options);
-            
-            if( filter ) {
-                list.prepend(filter);
-                list_options.style.height = "calc(100% - 25px)";
-    
-                filter.addEventListener('focusout', function(e) {
+            const listOptions = document.createElement('span');
+            list.appendChild( listOptions );
+
+            if( filter )
+            {
+                list.prepend( filter );
+                listOptions.style.height = "calc(100% - 25px)";
+
+                filter.addEventListener('focusout', function( e ) {
                     if (e.relatedTarget && e.relatedTarget.tagName == "UL" && e.relatedTarget.classList.contains("lexoptions"))
+                    {
                         return;
-                    list.toggleAttribute('hidden', true);
+                    }
+                    list.toggleAttribute( 'hidden', true );
                 });
             }
 
             // Add dropdown options list
-            list.refresh = (options) => {
+            list.refresh = options => {
 
                 // Empty list
-                list_options.innerHTML = "";
+                listOptions.innerHTML = "";
 
                 for(let i = 0; i < options.length; i++)
                 {
@@ -4291,7 +5122,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                         let btn = element.querySelector(".lexwidgetname .lexicon");
                         if(btn) btn.style.display = (value != wValue.iValue ? "block" : "none");
-                        that._trigger( new IEvent(name, value, null), callback ); 
+                        that._trigger( new IEvent(name, value, null), callback );
 
                         // Reset filter
                         if(filter)
@@ -4330,18 +5161,20 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         option.setAttribute("title", iValue.value);
                         if(value == iValue.value)
                             li.classList.add("selected");
-                    }      
-                    list_options.appendChild(li);
+                    }
+
+                    listOptions.appendChild( li );
                 }
             }
 
-            list.refresh(values);
+            list.refresh( values );
 
-            container.appendChild(list);
-            element.appendChild(container);
+            container.appendChild( list );
+            element.appendChild( container );
 
             // Remove branch padding and margins
-            if(!widget.name) {
+            if( !widget.name )
+            {
                 element.className += " noname";
                 container.style.width = "100%";
             }
@@ -4431,6 +5264,86 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         }
 
         /**
+         * @method addDial
+         * @param {String} name Widget name
+         * @param {Array of Array} values Array of 2N Arrays of each value of the dial
+         * @param {Function} callback Callback function on change
+         * @param {*} options:
+         * skipReset: Don't add the reset value button when value changes
+         * bgColor: Widget background color
+         * pointsColor: Curve points color
+         * lineColor: Curve line color
+         * noOverlap: Points do not overlap, replacing themselves if necessary
+         * allowAddValues: Support adding values on click
+         * smooth: Curve smoothness
+         * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
+        */
+
+        addDial( name, values, callback, options = {} ) {
+
+            let that = this;
+            let widget = this.create_widget(name, Widget.DIAL, options);
+
+            widget.onGetValue = () => {
+                return JSON.parse(JSON.stringify(curveInstance.element.value));
+            };
+
+            widget.onSetValue = ( newValue, skipCallback ) => {
+                let btn = element.querySelector( ".lexwidgetname .lexicon" );
+                if( btn ) btn.style.display = ( newValue != curveInstance.element.value ? "block" : "none" );
+                curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
+                curveInstance.redraw();
+                if( !skipCallback ) that._trigger( new IEvent( name, curveInstance.element.value, null ), callback );
+            };
+
+            let element = widget.domEl;
+            let defaultValues = JSON.parse( JSON.stringify( values ) );
+
+            // Add reset functionality
+            if( widget.name && !(options.skipReset ?? false) )
+            {
+                Panel._add_reset_property(element.domName, function(e) {
+                    this.style.display = "none";
+                    curveInstance.element.value = JSON.parse( JSON.stringify( defaultValues ) );
+                    curveInstance.redraw();
+                    that._trigger( new IEvent( name, curveInstance.element.value, e ), callback );
+                });
+            }
+
+            // Add widget value
+
+            var container = document.createElement( 'div' );
+            container.className = "lexcurve";
+            container.style.width = widget.name ? "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")" : '100%';
+
+            options.callback = (v, e) => {
+                let btn = element.querySelector(".lexwidgetname .lexicon");
+                if(btn) btn.style.display = (v != defaultValues ? "block" : "none");
+                that._trigger( new IEvent(name, v, e), callback );
+            };
+
+            options.name = name;
+
+            let curveInstance = new Dial( this, values, options );
+            container.appendChild( curveInstance.element );
+            element.appendChild( container );
+
+            // Resize
+            widget.onresize = curveInstance.redraw.bind( curveInstance );
+            widget.curveInstance = curveInstance;
+
+            doAsync(() => {
+                curveInstance.element.style.height = curveInstance.element.offsetWidth + "px";
+                curveInstance.canvas.width = curveInstance.element.offsetWidth;
+                container.style.width = curveInstance.element.offsetWidth + "px";
+                curveInstance.canvas.height = curveInstance.canvas.width;
+                curveInstance.redraw();
+            });
+
+            return widget;
+        }
+
+        /**
          * @method addLayers
          * @param {String} name Widget name
          * @param {Number} value Flag value by default option
@@ -4485,7 +5398,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 for(var i = 0; i < (16 - nbits); ++i) {
                     binary = '0' + binary;
                 }
-    
+
                 for( let bit = 0; bit < 16; ++bit )
                 {
                     let layer = document.createElement('div');
@@ -4493,32 +5406,32 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     if( value != undefined )
                     {
                         const valueBit = binary[ 16 - bit - 1 ];
-                        if(valueBit != undefined && valueBit == '1') 
-                            layer.classList.add('selected');    
+                        if(valueBit != undefined && valueBit == '1')
+                            layer.classList.add('selected');
                     }
                     layer.innerText = bit + 1;
                     layer.title = "Bit " + bit + ", value " + (1 << bit);
                     container.appendChild( layer );
-                    
+
                     layer.addEventListener("click", e => {
-    
+
                         e.stopPropagation();
                         e.stopImmediatePropagation();
                         e.target.classList.toggle('selected');
                         value ^= ( 1 << bit );
                         element.value = value;
-    
+
                         let btn = element.querySelector(".lexwidgetname .lexicon");
                         if(btn) btn.style.display = (value != defaultValue ? "block" : "none");
-    
+
                         this._trigger( new IEvent(name, value, e), callback );
                     });
                 }
-    
+
             };
 
             setLayers();
-            
+
             element.appendChild(container);
 
             return widget;
@@ -4563,7 +5476,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             var container = document.createElement('div');
             container.className = "lexarray";
             container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
-            
+
             this.queue( container );
 
             const angle_down = `<a class='fa-solid fa-angle-down' style='float:right; margin-right: 3px;'></a>`;
@@ -4573,7 +5486,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this.addButton(null, buttonName, () => {
                 element.querySelector(".lexarrayitems").toggleAttribute('hidden');
             }, { buttonClass: 'array' });
-            
+
             this.clearQueue();
 
             // Show elements
@@ -4581,7 +5494,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             let array_items = document.createElement('div');
             array_items.className = "lexarrayitems";
             array_items.toggleAttribute('hidden',  true);
-            
+
             element.appendChild(container);
             element.appendChild(array_items);
 
@@ -4662,7 +5575,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         addList( name, values, value, callback, options = {} ) {
 
             let widget = this.create_widget( name, Widget.LIST, options );
-    
+
             widget.onGetValue = () => {
                 return value;
             };
@@ -4674,56 +5587,56 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 value = newValue;
                 if( !skipCallback ) this._trigger( new IEvent( name, newValue ), callback );
             };
-    
+
             widget.updateValues = ( newValues ) => {
-    
+
                 values = newValues;
                 listContainer.innerHTML = "";
-                
+
                 for( let i = 0; i < values.length; ++i )
                 {
                     let icon = null;
                     let itemValue = values[ i ];
-    
+
                     if( itemValue.constructor === Array )
                     {
                         icon = itemValue[ 1 ];
                         itemValue = itemValue[ 0 ];
                     }
-    
+
                     let listElement = document.createElement( 'div' );
                     listElement.className = "lexlistitem" + ( value == itemValue ? " selected" : "" );
                     listElement.innerHTML = "<span>" + itemValue + "</span>" + ( icon ? "<a class='" + icon + "'></a>" : "" );
-    
+
                     listElement.addEventListener( 'click', e => {
                         listContainer.querySelectorAll( '.lexlistitem' ).forEach( e => e.classList.remove( 'selected' ) );
                         listElement.classList.toggle( 'selected' );
                         value = itemValue;
                         this._trigger( new IEvent( name, itemValue, e ), callback );
                     });
-    
+
                     listContainer.appendChild( listElement );
                 }
             };
-    
+
             let element = widget.domEl;
-    
+
             // Show list
-    
+
             let listContainer = document.createElement( 'div' );
             listContainer.className = "lexlist";
             listContainer.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
-    
+
             widget.updateValues( values );
-    
+
             // Remove branch padding and margins
             if( !widget.name ) {
                 element.className += " noname";
                 listContainer.style.width = "100%";
             }
-    
+
             element.appendChild( listContainer );
-    
+
             return widget;
         }
 
@@ -4768,40 +5681,45 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             // Show tags
 
-            let tags_container = document.createElement('div');
-            tags_container.className = "lextags";
-            tags_container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+            const tagsContainer = document.createElement('div');
+            tagsContainer.className = "lextags";
+            tagsContainer.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
             const create_tags = () => {
 
-                tags_container.innerHTML = "";
-    
+                tagsContainer.innerHTML = "";
+
                 for( let i = 0; i < value.length; ++i )
                 {
-                    let tag_name = value[i];
-                    let tag = document.createElement('span');
+                    const tagName = value[i];
+                    const tag = document.createElement('span');
                     tag.className = "lextag";
-                    tag.innerHTML = tag_name;
-    
-                    tag.addEventListener('click', function( e ) {
-                        this.remove();
-                        value.splice( value.indexOf( tag_name ), 1 );
+                    tag.innerHTML = tagName;
+
+                    const removeButton = document.createElement('a');
+                    removeButton.className = "lextagrmb fa-solid fa-xmark lexicon";
+                    tag.appendChild( removeButton );
+
+                    removeButton.addEventListener( 'click', e => {
+                        tag.remove();
+                        value.splice( value.indexOf( tagName ), 1 );
                         let btn = element.querySelector( ".lexwidgetname .lexicon" );
                         if( btn ) btn.style.display = ( value != defaultValue ? "block" : "none" );
                         that._trigger( new IEvent( name, value, e ), callback );
-                    });
-    
-                    tags_container.appendChild( tag );
+                    } );
+
+                    tagsContainer.appendChild( tag );
                 }
-    
-                let tag_input = document.createElement( 'input' );
-                tag_input.value = "";
-                tag_input.placeholder = "Tag...";
-                tags_container.insertChildAtIndex( tag_input, 0 );
-    
-                tag_input.onkeydown = function( e ) {
+
+                let tagInput = document.createElement( 'input' );
+                tagInput.value = "";
+                tagInput.placeholder = "Add tag...";
+                tagsContainer.appendChild( tagInput );
+
+                tagInput.onkeydown = function( e ) {
                     const val = this.value.replace(/\s/g, '');
-                    if( e.key == ' ') { 
+                    if( e.key == ' ' || e.key == 'Enter' )
+                    {
                         e.preventDefault();
                         if( !val.length || value.indexOf( val ) > -1 )
                             return;
@@ -4812,19 +5730,20 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         that._trigger( new IEvent( name, value, e ), callback );
                     }
                 };
-    
-                tag_input.focus();
+
+                tagInput.focus();
             }
 
             create_tags();
 
             // Remove branch padding and margins
-            if(!widget.name) {
+            if( !widget.name )
+            {
                 element.className += " noname";
-                tags_container.style.width = "100%";
+                tagsContainer.style.width = "100%";
             }
 
-            element.appendChild(tags_container);
+            element.appendChild( tagsContainer );
 
             return widget;
         }
@@ -4837,87 +5756,75 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          * @param {*} options:
          * disabled: Make the widget disabled [false]
          * suboptions: Callback to add widgets in case of TRUE value
+         * className: Customize colors
          */
 
         addCheckbox( name, value, callback, options = {} ) {
 
-            if( !name ) {
+            if( !name )
+            {
                 throw( "Set Widget Name!" );
             }
-    
+
             let widget = this.create_widget( name, Widget.CHECKBOX, options );
-    
+
             widget.onGetValue = () => {
-                return flag.value;
+                return checkbox.checked;
             };
+
             widget.onSetValue = ( newValue, skipCallback ) => {
-                if( flag.value !== newValue )
-                    Panel._dispatch_event( toggle, "click", skipCallback );
+                if( checkbox.checked !== newValue )
+                {
+                    checkbox.checked = newValue;
+                    Panel._dispatch_event( checkbox, "change", skipCallback );
+                }
             };
-    
+
             let element = widget.domEl;
-    
+
             // Add reset functionality
             Panel._add_reset_property( element.domName, function() {
-                Panel._dispatch_event( toggle, "click" );
+                checkbox.checked = !checkbox.checked;
+                Panel._dispatch_event( checkbox, "change" );
             });
-            
+
             // Add widget value
 
             var container = document.createElement('div');
             container.className = "lexcheckboxcont";
 
-            let toggle = document.createElement('span');
-            toggle.className = "lexcheckbox";
+            let checkbox = document.createElement('input');
+            checkbox.type = "checkbox";
+            checkbox.className = "lexcheckbox " + ( options.className ?? "" );
+            checkbox.checked = value;
+            checkbox.iValue = value;
+            checkbox.disabled = options.disabled ?? false;
 
-            let flag = document.createElement('span');
-            flag.value = flag.iValue = value || false;
-            flag.className = "checkbox " + (flag.value ? "on" : "");
-            flag.id = "checkbox"+simple_guidGenerator();
-            flag.innerHTML = "<a class='fa-solid fa-check' style='display: " + (flag.value ? "block" : "none") + "'></a>";
+            let valueName = document.createElement( 'span' );
+            valueName.className = "checkboxtext";
+            valueName.innerHTML = "On";
 
-            if( options.disabled ) {
-                flag.disabled = true;
-                toggle.className += " disabled";
-            }
+            container.appendChild( checkbox );
+            container.appendChild( valueName );
 
-            toggle.appendChild( flag );
+            checkbox.addEventListener( "change" , e => {
 
-            let value_name = document.createElement( 'span' );
-            value_name.id = "checkboxtext";
-            value_name.innerHTML = "On";
+                const skipCallback = ( e.detail?.constructor == Number ? null : e.detail );
 
-            container.appendChild( toggle );
-            container.appendChild( value_name );
-
-            toggle.addEventListener( "click" , e => {
-
-                let flag = toggle.querySelector( ".checkbox" );
-                if( flag.disabled )
-                    return;
-    
-                const skipCallback = ( e.detail.constructor == Number ? null : e.detail );
-
-                let check = toggle.querySelector( ".checkbox a" );
-    
-                flag.value = !flag.value;
-                flag.className = "checkbox " + ( flag.value ? "on" : "" );
-                check.style.display = flag.value ? "block" : "none";
-    
                 // Reset button (default value)
                 if( !skipCallback )
                 {
                     let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                    if( btn ) btn.style.display = flag.value != flag.iValue ? "block": "none";
+                    if( btn ) btn.style.display = checkbox.checked != checkbox.iValue ? "block": "none";
                 }
-    
+
                 // Open suboptions
                 let submenu = element.querySelector( ".lexcheckboxsubmenu" );
-                if( submenu ) submenu.toggleAttribute( 'hidden', !flag.value );
-    
-                if( !skipCallback ) this._trigger( new IEvent( name, flag.value, e ), callback );
+                if( submenu ) submenu.toggleAttribute( 'hidden', !checkbox.checked );
+
+                if( !skipCallback ) this._trigger( new IEvent( name, checkbox.checked, e ), callback );
             });
-    
+
             element.appendChild( container );
 
             if( options.suboptions )
@@ -4925,13 +5832,109 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 element.style.flexWrap = "wrap";
                 let suboptions = document.createElement('div');
                 suboptions.className = "lexcheckboxsubmenu";
-                suboptions.toggleAttribute('hidden', !flag.value);
+                suboptions.toggleAttribute( 'hidden', !checkbox.checked );
 
                 this.queue( suboptions );
                 options.suboptions.call(this, this);
                 this.clearQueue();
 
-                element.appendChild(suboptions);
+                element.appendChild( suboptions );
+            }
+
+            return widget;
+        }
+
+        /**
+         * @method addToggle
+         * @param {String} name Widget name
+         * @param {Boolean} value Value of the checkbox
+         * @param {Function} callback Callback function on change
+         * @param {*} options:
+         * disabled: Make the widget disabled [false]
+         * suboptions: Callback to add widgets in case of TRUE value
+         * className: Customize colors
+         */
+
+        addToggle( name, value, callback, options = {} ) {
+
+            if( !name )
+            {
+                throw( "Set Widget Name!" );
+            }
+
+            let widget = this.create_widget( name, Widget.TOGGLE, options );
+
+            widget.onGetValue = () => {
+                return toggle.checked;
+            };
+
+            widget.onSetValue = ( newValue, skipCallback ) => {
+                if( toggle.checked !== newValue )
+                {
+                    toggle.checked = newValue;
+                    Panel._dispatch_event( toggle, "change", skipCallback );
+                }
+            };
+
+            let element = widget.domEl;
+
+            // Add reset functionality
+            Panel._add_reset_property( element.domName, function() {
+                toggle.checked = !toggle.checked;
+                Panel._dispatch_event( toggle, "change" );
+            });
+
+            // Add widget value
+
+            var container = document.createElement('div');
+            container.className = "lextogglecont";
+
+            let toggle = document.createElement('input');
+            toggle.type = "checkbox";
+            toggle.className = "lextoggle " + ( options.className ?? "" );
+            toggle.checked = value;
+            toggle.iValue = value;
+            toggle.disabled = options.disabled ?? false;
+
+            let valueName = document.createElement( 'span' );
+            valueName.className = "toggletext";
+            valueName.innerHTML = "On";
+
+            container.appendChild( toggle );
+            container.appendChild( valueName );
+
+            toggle.addEventListener( "change" , e => {
+
+                const skipCallback = ( e.detail?.constructor == Number ? null : e.detail );
+
+                // Reset button (default value)
+                if( !skipCallback )
+                {
+                    let btn = element.querySelector( ".lexwidgetname .lexicon" );
+                    if( btn ) btn.style.display = toggle.checked != toggle.iValue ? "block": "none";
+                }
+
+                // Open suboptions
+                let submenu = element.querySelector( ".lextogglesubmenu" );
+                if( submenu ) submenu.toggleAttribute( 'hidden', !toggle.checked );
+
+                if( !skipCallback ) this._trigger( new IEvent( name, toggle.checked, e ), callback );
+            });
+
+            element.appendChild( container );
+
+            if( options.suboptions )
+            {
+                element.style.flexWrap = "wrap";
+                let suboptions = document.createElement('div');
+                suboptions.className = "lextogglesubmenu";
+                suboptions.toggleAttribute( 'hidden', !toggle.checked );
+
+                this.queue( suboptions );
+                options.suboptions.call(this, this);
+                this.clearQueue();
+
+                element.appendChild( suboptions );
             }
 
             return widget;
@@ -4952,9 +5955,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             if( !name ) {
                 throw( "Set Widget Name!" );
             }
-    
+
             let widget = this.create_widget( name, Widget.COLOR, options );
-    
+
             widget.onGetValue = () => {
                 return color.value;
             };
@@ -4962,23 +5965,23 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 color.value = newValue;
                 Panel._dispatch_event( color, "input", skipCallback );
             };
-    
+
             let element = widget.domEl;
             let change_from_input = false;
-    
+
             // Add reset functionality
             Panel._add_reset_property( element.domName, function() {
                 this.style.display = "none";
                 color.value = color.iValue;
                 Panel._dispatch_event( color, "input" );
             });
-    
+
             // Add widget value
-    
+
             var container = document.createElement( 'span' );
             container.className = "lexcolor";
             container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
-    
+
             let color = document.createElement( 'input' );
             color.style.width = "32px";
             color.type = 'color';
@@ -4986,49 +5989,49 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             color.id = "color" + simple_guidGenerator();
             color.useRGB = options.useRGB ?? false;
             color.value = color.iValue = value.constructor === Array ? rgbToHex( value ) : value;
-            
+
             if( options.disabled ) {
                 color.disabled = true;
             }
-    
+
             color.addEventListener( "input", e => {
                 let val = e.target.value;
-    
+
                 const skipCallback = e.detail;
-    
+
                 // Change value (always hex)
                 if( !change_from_input )
                     text_widget.set( val );
-    
+
                 // Reset button (default value)
                 if( !skipCallback )
                 {
                     let btn = element.querySelector( ".lexwidgetname .lexicon" );
                     if( btn ) btn.style.display = val != color.iValue ? "block": "none";
                 }
-    
+
                 if( color.useRGB )
                     val = hexToRgb( val );
-    
+
                 if( !skipCallback ) this._trigger( new IEvent( name, val, e ), callback );
             }, false );
-    
+
             container.appendChild( color );
-    
+
             this.queue( container );
-    
+
             const text_widget = this.addText( null, color.value, v => {
                 change_from_input = true;
                 widget.set( v );
                 change_from_input = false;
             }, { width: "calc( 100% - 32px )"});
-            
+
             text_widget.domEl.style.marginLeft = "4px";
-    
+
             this.clearQueue();
-    
+
             element.appendChild( container );
-    
+
             return widget;
         }
 
@@ -5075,7 +6078,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             // add widget value
 
             var container = document.createElement( 'div' );
-            container.className = "lexnumber";        
+            container.className = "lexnumber";
             container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
             let box = document.createElement( 'div' );
@@ -5160,7 +6163,14 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 };
             }
 
-            // Add wheel input
+            vecinput.addEventListener( "input", function( e ) {
+                let new_value = +this.valueAsNumber;
+                vecinput.value = round( new_value, options.precision );
+                if( options.units )
+                {
+                    vecinput.unitSpan.style.left = measureRealWidth( vecinput.value ) + "px";
+                }
+            }, false );
 
             vecinput.addEventListener( "wheel", function( e ) {
                 e.preventDefault();
@@ -5210,13 +6220,12 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 if( !skipCallback ) this._trigger( new IEvent( name, val, e ), callback );
             }, { passive: false });
-            
+
             // Add drag input
 
             vecinput.addEventListener( "mousedown", inner_mousedown );
 
             var that = this;
-            var lastY = 0;
 
             function inner_mousedown( e )
             {
@@ -5228,12 +6237,15 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 var doc = that.root.ownerDocument;
                 doc.addEventListener( 'mousemove', inner_mousemove );
                 doc.addEventListener( 'mouseup', inner_mouseup );
-                lastY = e.pageY;
-                document.body.classList.add( 'nocursor' );
                 document.body.classList.add( 'noevents' );
                 dragIcon.classList.remove( 'hidden' );
                 e.stopImmediatePropagation();
                 e.stopPropagation();
+
+                if( !document.pointerLockElement )
+                {
+                    vecinput.requestPointerLock();
+                }
 
                 if( options.onPress )
                 {
@@ -5243,8 +6255,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             function inner_mousemove( e )
             {
-                if ( lastY != e.pageY ) {
-                    let dt = lastY - e.pageY;
+                let dt = -e.movementY;
+
+                if ( dt != 0 )
+                {
                     let mult = options.step ?? 1;
                     if( e.shiftKey ) mult *= 10;
                     else if( e.altKey ) mult *= 0.1;
@@ -5253,7 +6267,6 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     Panel._dispatch_event( vecinput, "change" );
                 }
 
-                lastY = e.pageY;
                 e.stopPropagation();
                 e.preventDefault();
             }
@@ -5263,16 +6276,20 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 var doc = that.root.ownerDocument;
                 doc.removeEventListener( 'mousemove', inner_mousemove );
                 doc.removeEventListener( 'mouseup', inner_mouseup );
-                document.body.classList.remove( 'nocursor' );
                 document.body.classList.remove( 'noevents' );
                 dragIcon.classList.add( 'hidden' );
+
+                if( document.pointerLockElement )
+                {
+                    document.exitPointerLock();
+                }
 
                 if( options.onRelease )
                 {
                     options.onRelease.bind( vecinput )( e, vecinput );
                 }
             }
-            
+
             container.appendChild( box );
             element.appendChild( container );
 
@@ -5339,7 +6356,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             // Add widget value
 
             var container = document.createElement( 'div' );
-            container.className = "lexvector";        
+            container.className = "lexvector";
             container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
             for( let i = 0; i < num_components; ++i ) {
@@ -5359,7 +6376,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 if( value[ i ].constructor == Number )
                 {
-                    value[ i ] = clamp(value[ i ], +vecinput.min, +vecinput.max);
+                    value[ i ] = clamp( value[ i ], +vecinput.min, +vecinput.max );
                     value[ i ] = round( value[ i ], options.precision );
                 }
 
@@ -5401,7 +6418,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 vecinput.addEventListener( "change", e => {
 
                     if( isNaN( e.target.value ) )
+                    {
                         return;
+                    }
 
                     const skipCallback = e.detail;
 
@@ -5412,7 +6431,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     if( !skipCallback )
                     {
                         let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                        if( btn ) btn.style.display = val != vecinput.iValue ? "block": "none";
+                        if( btn ) btn.style.display = val != vecinput.iValue ? "block" : "none";
                     }
 
                     if( locker.locked )
@@ -5421,7 +6440,8 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                             v.value = val;
                             value[ v.idx ] = val;
                         }
-                    } else
+                    }
+                    else
                     {
                         vecinput.value = val;
                         value[ e.target.idx ] = val;
@@ -5429,13 +6449,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                     if( !skipCallback ) this._trigger( new IEvent( name, value, e ), callback );
                 }, false );
-                
+
                 // Add drag input
 
                 vecinput.addEventListener( "mousedown", inner_mousedown );
 
                 var that = this;
-                var lastY = 0;
+
                 function inner_mousedown( e )
                 {
                     if( document.activeElement == vecinput )
@@ -5446,12 +6466,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     var doc = that.root.ownerDocument;
                     doc.addEventListener( 'mousemove', inner_mousemove );
                     doc.addEventListener( 'mouseup', inner_mouseup );
-                    lastY = e.pageY;
                     document.body.classList.add( 'nocursor' );
                     document.body.classList.add( 'noevents' );
                     dragIcon.classList.remove( 'hidden' );
                     e.stopImmediatePropagation();
                     e.stopPropagation();
+
+                    if( !document.pointerLockElement )
+                    {
+                        vecinput.requestPointerLock();
+                    }
 
                     if( options.onPress )
                     {
@@ -5461,8 +6485,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
                 function inner_mousemove( e )
                 {
-                    if ( lastY != e.pageY ) {
-                        let dt = lastY - e.pageY;
+                    let dt = -e.movementY;
+
+                    if ( dt != 0 )
+                    {
                         let mult = options.step ?? 1;
                         if( e.shiftKey ) mult = 10;
                         else if( e.altKey ) mult = 0.1;
@@ -5481,7 +6507,6 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         }
                     }
 
-                    lastY = e.pageY;
                     e.stopPropagation();
                     e.preventDefault();
                 }
@@ -5491,9 +6516,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     var doc = that.root.ownerDocument;
                     doc.removeEventListener( 'mousemove', inner_mousemove );
                     doc.removeEventListener( 'mouseup', inner_mouseup );
-                    document.body.classList.remove( 'nocursor' );
                     document.body.classList.remove( 'noevents' );
                     dragIcon.classList.add('hidden');
+
+                    if( document.pointerLockElement )
+                    {
+                        document.exitPointerLock();
+                    }
 
                     if( options.onRelease )
                     {
@@ -5524,7 +6553,8 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             }
 
             let locker = document.createElement( 'a' );
-            locker.className = "fa-solid fa-lock-open lexicon";
+            locker.title = "Lock";
+            locker.className = "fa-solid fa-lock-open lexicon lock";
             container.appendChild( locker );
             locker.addEventListener( "click", function( e ) {
                 this.locked = !this.locked;
@@ -5532,12 +6562,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 {
                     this.classList.add( "fa-lock" );
                     this.classList.remove( "fa-lock-open" );
-                } else {
+                }
+                else {
                     this.classList.add( "fa-lock-open" );
                     this.classList.remove( "fa-lock" );
                 }
             }, false );
-            
+
             element.appendChild( container );
 
             return widget;
@@ -5546,7 +6577,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         /**
          * @method addVector N (2, 3, 4)
          * @param {String} name Widget name
-         * @param {Array} value Array of N components 
+         * @param {Array} value Array of N components
          * @param {Function} callback Callback function on change
          * @param {*} options:
          * disabled: Make the widget disabled [false]
@@ -5605,18 +6636,21 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             this.queue( element );
 
+            element.aspectRatio = ( value.length == 2 ? value[ 0 ] / value[ 1 ] : null );
             element.dimensions = [];
 
             for( let i = 0; i < value.length; ++i )
             {
-                const size = measureRealWidth( JSON.stringify( value[ i ] ), 24 ) + 'px';
                 element.dimensions[ i ] = this.addNumber( null, value[ i ], ( v ) => {
 
-                    const value = [];
+                    const value = widget.onGetValue();
 
-                    for( let i = 0; i < element.dimensions.length; ++i )
+                    if( element.locked )
                     {
-                        value.push( element.dimensions[ i ].onGetValue() );
+                        const ar = ( i == 0 ? 1.0 / element.aspectRatio : element.aspectRatio );
+                        const index = ( 1 + i ) % 2;
+                        value[ index ] = v * ar;
+                        element.dimensions[ index ].onSetValue( value[ index ], true );
                     }
 
                     if( callback )
@@ -5624,7 +6658,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         callback( value );
                     }
 
-                }, { width: size, min: 0, disabled: options.disabled } );
+                }, { min: 0, disabled: options.disabled, precision: options.precision } );
 
                 if( ( i + 1 ) != value.length )
                 {
@@ -5644,6 +6678,32 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 element.appendChild( unitSpan );
             }
 
+            // Lock aspect ratio
+            if( element.aspectRatio )
+            {
+                let locker = document.createElement( 'a' );
+                locker.title = "Lock Aspect Ratio";
+                locker.className = "fa-solid fa-lock-open lexicon lock";
+                element.appendChild( locker );
+                locker.addEventListener( "click", function( e ) {
+                    element.locked = !element.locked;
+                    if( element.locked )
+                    {
+                        this.classList.add( "fa-lock" );
+                        this.classList.remove( "fa-lock-open" );
+
+                        // Recompute ratio
+                        const value = widget.onGetValue();
+                        element.aspectRatio = value[ 0 ] / value[ 1 ];
+                    }
+                    else
+                    {
+                        this.classList.add( "fa-lock-open" );
+                        this.classList.remove( "fa-lock" );
+                    }
+                }, false );
+            }
+
             // Remove branch padding and margins
             if( !widget.name )
             {
@@ -5655,9 +6715,135 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         }
 
         /**
+         * @method addPad
+         * @param {String} name Widget name
+         * @param {Array} value Pad value
+         * @param {Function} callback Callback function on change
+         * @param {*} options:
+         * disabled: Make the widget disabled [false]
+         * min, max: Min and Max values
+         * padSize: Size of the pad (css)
+         * onPress: Callback function on mouse down
+         * onRelease: Callback function on mouse up
+         */
+
+        addPad( name, value, callback, options = {} ) {
+
+            if( !name )
+            {
+                throw( "Set Widget Name!" );
+            }
+
+            let widget = this.create_widget( name, Widget.PAD, options );
+
+            widget.onGetValue = () => {
+                return thumb.value.xy;
+            };
+
+            widget.onSetValue = ( newValue, skipCallback ) => {
+                thumb.value.set( newValue[ 0 ], newValue[ 1 ] );
+                _updateValue( thumb.value );
+                if( !skipCallback )
+                {
+                    this._trigger( new IEvent( name, thumb.value.xy ), callback );
+                }
+            };
+
+            let element = widget.domEl;
+
+            var container = document.createElement( 'div' );
+            container.className = "lexpad";
+            container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+
+            let pad = document.createElement('div');
+            pad.id = "lexpad-" + name;
+            pad.className = "lexinnerpad";
+            pad.style.width = options.padSize ?? '96px';
+            pad.style.height = options.padSize ?? '96px';
+
+            let thumb = document.createElement('div');
+            thumb.className = "lexpadthumb";
+            thumb.value = new LX.vec2( value[ 0 ], value[ 1 ] );
+            thumb.min = options.min ?? 0;
+            thumb.max = options.max ?? 1;
+
+            let _updateValue = v => {
+                const [ w, h ] = [ pad.offsetWidth, pad.offsetHeight ];
+                const value0to1 = new LX.vec2( remapRange( v.x, thumb.min, thumb.max, 0.0, 1.0 ), remapRange( v.y, thumb.min, thumb.max, 0.0, 1.0 ) );
+                thumb.style.transform = `translate(calc( ${ w * value0to1.x }px - 50% ), calc( ${ h * value0to1.y }px - 50%)`;
+            }
+
+            doAsync( () => {
+                _updateValue( thumb.value )
+            } );
+
+            pad.appendChild( thumb );
+            container.appendChild( pad );
+            element.appendChild( container );
+
+            pad.addEventListener( "mousedown", innerMouseDown );
+
+            let that = this;
+
+            function innerMouseDown( e )
+            {
+                if( document.activeElement == thumb )
+                {
+                    return;
+                }
+
+                var doc = that.root.ownerDocument;
+                doc.addEventListener( 'mousemove', innerMouseMove );
+                doc.addEventListener( 'mouseup', innerMouseUp );
+                document.body.classList.add( 'nocursor' );
+                document.body.classList.add( 'noevents' );
+                e.stopImmediatePropagation();
+                e.stopPropagation();
+
+                if( options.onPress )
+                {
+                    options.onPress.bind( thumb )( e, thumb );
+                }
+            }
+
+            function innerMouseMove( e )
+            {
+                const rect = pad.getBoundingClientRect();
+                const relativePosition = new LX.vec2( e.x - rect.x, e.y - rect.y );
+                relativePosition.clp( 0.0, pad.offsetWidth, relativePosition);
+                const [ w, h ] = [ pad.offsetWidth, pad.offsetHeight ];
+                const value0to1 = relativePosition.div( new LX.vec2( pad.offsetWidth, pad.offsetHeight ) );
+
+                thumb.style.transform = `translate(calc( ${ w * value0to1.x }px - 50% ), calc( ${ h * value0to1.y }px - 50%)`;
+                thumb.value = new LX.vec2( remapRange( value0to1.x, 0.0, 1.0, thumb.min, thumb.max ), remapRange( value0to1.y, 0.0, 1.0, thumb.min, thumb.max ) );
+
+                that._trigger( new IEvent( name, thumb.value.xy, e ), callback );
+
+                e.stopPropagation();
+                e.preventDefault();
+            }
+
+            function innerMouseUp( e )
+            {
+                var doc = that.root.ownerDocument;
+                doc.removeEventListener( 'mousemove', innerMouseMove );
+                doc.removeEventListener( 'mouseup', innerMouseUp );
+                document.body.classList.remove( 'nocursor' );
+                document.body.classList.remove( 'noevents' );
+
+                if( options.onRelease )
+                {
+                    options.onRelease.bind( thumb )( e, thumb );
+                }
+            }
+
+            return widget;
+        }
+
+        /**
          * @method addProgress
          * @param {String} name Widget name
-         * @param {Number} value Progress value 
+         * @param {Number} value Progress value
          * @param {*} options:
          * min, max: Min and Max values
          * low, optimum, high: Low and High boundary values, Optimum point in the range
@@ -5668,7 +6854,8 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
         addProgress( name, value, options = {} ) {
 
-            if(!name) {
+            if( !name )
+            {
                 throw("Set Widget Name!");
             }
 
@@ -5677,10 +6864,14 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             widget.onGetValue = () => {
                 return progress.value;
             };
+
             widget.onSetValue = ( newValue, skipCallback ) => {
                 element.querySelector("meter").value = newValue;
+                _updateColor();
                 if( element.querySelector("span") )
+                {
                     element.querySelector("span").innerText = newValue;
+                }
             };
 
             let element = widget.domEl;
@@ -5697,50 +6888,97 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             progress.step = "any";
             progress.min = options.min ?? 0;
             progress.max = options.max ?? 1;
+            progress.low = options.low ?? progress.low;
+            progress.high = options.high ?? progress.high;
+            progress.optimum = options.optimum ?? progress.optimum;
             progress.value = value;
-            
-            if(options.low)
-                progress.low = options.low;
-            if(options.high)
-                progress.high = options.high;
-            if(options.optimum)
-                progress.optimum = options.optimum;
 
-            container.appendChild(progress);
-            element.appendChild(container);
+            const _updateColor = () => {
 
-            if(options.showValue) {
-                if(document.getElementById('progressvalue-' + name ))
+                let backgroundColor = LX.getThemeColor( "global-selected" );
+
+                if( progress.low != undefined && progress.value < progress.low )
+                {
+                    backgroundColor = LX.getThemeColor( "global-color-error" );
+                }
+                else if( progress.high != undefined && progress.value < progress.high )
+                {
+                    backgroundColor = LX.getThemeColor( "global-color-warning" );
+                }
+
+                progress.style.background = `color-mix(in oklab, ${backgroundColor} 20%, transparent)`;
+            };
+
+            container.appendChild( progress );
+            element.appendChild( container );
+
+            if( options.showValue )
+            {
+                if( document.getElementById('progressvalue-' + name ) )
+                {
                     document.getElementById('progressvalue-' + name ).remove();
+                }
+
                 let span = document.createElement("span");
                 span.id = "progressvalue-" + name;
                 span.style.padding = "0px 5px";
                 span.innerText = value;
-                container.appendChild(span);
+                container.appendChild( span );
             }
 
-            if(options.editable) {
-                progress.classList.add("editable");
-                progress.addEventListener("mousemove", inner_mousemove.bind(this, value));
-                progress.addEventListener("mouseup", inner_mouseup.bind(this, progress));
+            if( options.editable )
+            {
+                progress.classList.add( "editable" );
+                progress.addEventListener( "mousedown", inner_mousedown );
 
-                function inner_mousemove(value, e) {
-                
-                    if(e.which < 1)
-                        return;
-                    let v = this.getValue(name, value);
-                    v+=e.movementX/100;
-                    v = v.toFixed(2);
-                    this.setValue(name, v);
+                const that = this;
 
-                    if(options.callback)
-                        options.callback(v, e);
+                function inner_mousedown( e )
+                {
+                    var doc = that.root.ownerDocument;
+                    doc.addEventListener( 'mousemove', inner_mousemove );
+                    doc.addEventListener( 'mouseup', inner_mouseup );
+                    document.body.classList.add( 'noevents' );
+                    progress.classList.add( "grabbing" );
+                    e.stopImmediatePropagation();
+                    e.stopPropagation();
+
+                    const rect = progress.getBoundingClientRect();
+                    const newValue = round( remapRange( e.offsetX, 0, rect.width, progress.min, progress.max ) );
+                    that.setValue( name, newValue );
                 }
 
-                function inner_mouseup(el) {
-                    el.removeEventListener("mousemove", inner_mousemove);
+                function inner_mousemove( e )
+                {
+                    let dt = e.movementX;
+
+                    if ( dt != 0 )
+                    {
+                        const rect = progress.getBoundingClientRect();
+                        const newValue = round( remapRange( e.offsetX - rect.x, 0, rect.width, progress.min, progress.max ) );
+                        that.setValue( name, newValue );
+
+                        if( options.callback )
+                        {
+                            options.callback( newValue, e );
+                        }
+                    }
+
+                    e.stopPropagation();
+                    e.preventDefault();
+                }
+
+                function inner_mouseup( e )
+                {
+                    var doc = that.root.ownerDocument;
+                    doc.removeEventListener( 'mousemove', inner_mousemove );
+                    doc.removeEventListener( 'mouseup', inner_mouseup );
+                    document.body.classList.remove( 'noevents' );
+                    progress.classList.remove( "grabbing" );
                 }
             }
+
+            _updateColor();
 
             return widget;
         }
@@ -5751,71 +6989,84 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          * @param {Function} callback Callback function on change
          * @param {*} options:
          * local: Ask for local file
+         * disabled: Make the widget disabled [false]
          * read: Return the file itself (False) or the contents (True)
          * type: type to read as [text (Default), buffer, bin, url]
          */
 
         addFile( name, callback, options = { } ) {
 
-            if( !name ) {
+            if( !name )
+            {
                 throw( "Set Widget Name!" );
             }
-    
+
             let widget = this.create_widget( name, Widget.FILE, options );
             let element = widget.domEl;
-    
+
             let local = options.local ?? true;
             let type = options.type ?? 'text';
-            let read = options.read ?? true; 
-    
+            let read = options.read ?? true;
+
             // Create hidden input
             let input = document.createElement( 'input' );
+            input.className = "lexfileinput";
             input.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + " - 10%)";
             input.type = 'file';
-    
+            input.disabled = options.disabled ?? false;
+
             if( options.placeholder )
+            {
                 input.placeholder = options.placeholder;
-    
+            }
+
             input.addEventListener( 'change', function( e ) {
-    
+
                 const files = e.target.files;
                 if( !files.length ) return;
                 if( read )
                 {
                     if( options.onBeforeRead )
                         options.onBeforeRead();
-    
+
                     const reader = new FileReader();
-    
+
                     if( type === 'text' ) reader.readAsText( files[ 0 ] );
                     else if( type === 'buffer' ) reader.readAsArrayBuffer( files[ 0 ] );
                     else if( type === 'bin' ) reader.readAsBinaryString( files[ 0 ] );
                     else if( type === 'url' ) reader.readAsDataURL( files[ 0 ] );
-    
+
                     reader.onload = e => { callback.call( this, e.target.result, files[ 0 ] ) } ;
                 }
                 else
                     callback( files[ 0 ] );
             });
-    
+
             element.appendChild( input );
-    
+
             this.queue( element );
-            
+
             if( local )
             {
+                let settingsDialog = null;
+
                 this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-gear'></a>", () => {
-                    
-                    new Dialog( "Load Settings", p => {
+
+                    if( settingsDialog )
+                    {
+                        return;
+                    }
+
+                    settingsDialog = new Dialog( "Load Settings", p => {
                         p.addDropdown( "Type", [ 'text', 'buffer', 'bin', 'url' ], type, v => { type = v } );
                         p.addButton( null, "Reload", v => { input.dispatchEvent( new Event( 'change' ) ) } );
-                    });
-                    
-                }, { className: "micro", skipInlineCount: true });
+                    }, { onclose: ( root ) => { root.remove(); settingsDialog = null; } } );
+
+                }, { className: "micro", skipInlineCount: true, title: "Settings" });
             }
-    
+
             this.clearQueue();
-    
+
             return widget;
         }
 
@@ -5873,7 +7124,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 node_filter_input.addEventListener('input', function(){
                     nodeTree.refresh();
                 });
-        
+
                 let searchIcon = document.createElement('a');
                 searchIcon.className = "lexicon fa-solid fa-magnifying-glass";
                 toolsDiv.appendChild(node_filter_input);
@@ -5907,11 +7158,11 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             element.className = "lexseparator";
             let widget = new Widget( null, Widget.SEPARATOR );
             widget.domEl = element;
-            
+
             if(this.current_branch) {
                 this.current_branch.content.appendChild( element );
                 this.current_branch.widgets.push( widget );
-            } else 
+            } else
                 this.root.appendChild(element);
         }
 
@@ -5923,7 +7174,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
          *      onCreate: Func to be called at tab creation
          *      onSelect: Func to be called on select tab (optional)
          * }
-         * @param {*} options 
+         * @param {*} options
          * vertical: Use vertical or horizontal tabs (vertical by default)
          * showNames: Show tab name only in horizontal tabs
          */
@@ -6005,8 +7256,93 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     this.clearQueue();
                 }
             }
-            
+
             this.addSeparator();
+        }
+
+        /**
+         * @method addCounter
+         * @param {String} name Widget name
+         * @param {Number} value Counter value
+         * @param {Function} callback Callback function on change
+         * @param {*} options:
+         * disabled: Make the widget disabled [false]
+         * min, max: Min and Max values
+         * step: Step for adding/substracting
+         * label: Text to show below the counter
+         */
+
+        addCounter( name, value, callback, options = { } ) {
+
+            let widget = this.create_widget( name, Widget.COUNTER, options );
+
+            widget.onGetValue = () => {
+                return counterText.count;
+            };
+
+            widget.onSetValue = ( newValue, skipCallback ) => {
+                _onChange( newValue, skipCallback );
+            };
+
+            let element = widget.domEl;
+
+            const min = options.min ?? 0;
+            const max = options.max ?? 100;
+            const step = options.step ?? 1;
+
+            const _onChange = ( value, skipCallback, event ) => {
+                value = clamp( value, min, max );
+                counterText.count = value;
+                counterText.innerHTML = value;
+                if( !skipCallback )
+                {
+                    this._trigger( new IEvent( name, value, event ), callback );
+                }
+            }
+
+            const container = document.createElement( 'div' );
+            container.className = "lexcounter";
+            element.appendChild( container );
+
+            this.queue( container );
+
+            this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-minus'></a>", (value, e) => {
+                let mult = step ?? 1;
+                if( e.shiftKey ) mult *= 10;
+                _onChange( counterText.count - mult, false, e );
+            }, { className: "micro", skipInlineCount: true, title: "Minus" });
+
+            this.clearQueue();
+
+            const containerBox = document.createElement( 'div' );
+            containerBox.className = "lexcounterbox";
+            container.appendChild( containerBox );
+
+            const counterText = document.createElement( 'span' );
+            counterText.className = "lexcountervalue";
+            counterText.innerHTML = value;
+            counterText.count = value;
+            containerBox.appendChild( counterText );
+
+            if( options.label )
+            {
+                const counterLabel = document.createElement( 'span' );
+                counterLabel.className = "lexcounterlabel";
+                counterLabel.innerHTML = options.label;
+                containerBox.appendChild( counterLabel );
+            }
+
+            this.queue( container );
+
+            this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-plus'></a>", (value, e) => {
+                let mult = step ?? 1;
+                if( e.shiftKey ) mult *= 10;
+                _onChange( counterText.count + mult, false, e );
+            }, { className: "micro", skipInlineCount: true, title: "Plus" });
+
+            this.clearQueue();
+
+            return widget;
         }
     }
 
@@ -6017,7 +7353,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
      */
 
     class Branch {
-        
+
         constructor( name, options = {} ) {
 
             this.name = name;
@@ -6132,70 +7468,67 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
         _addBranchSeparator() {
 
-            var element = document.createElement('div');
+            const element = document.createElement('div');
             element.className = "lexwidgetseparator";
             element.style.width = "100%";
             element.style.background = "none";
 
-            var grabber = document.createElement('div');
+            const grabber = document.createElement('div');
             grabber.innerHTML = "&#9662;";
-            grabber.style.marginLeft = LX.DEFAULT_NAME_WIDTH;
             element.appendChild(grabber);
 
-            var line = document.createElement('div');
+            doAsync( () => {
+                grabber.style.marginLeft = ((parseFloat(LX.DEFAULT_NAME_WIDTH) / 100.0) * this.content.offsetWidth) + "px";
+            }, 10 )
+
+            const line = document.createElement('div');
             line.style.width = "1px";
             line.style.marginLeft = "6px";
             line.style.marginTop = "2px";
             line.style.height = "0px"; // get in time
-            grabber.appendChild(line);
-            grabber.addEventListener("mousedown", inner_mousedown);
+            grabber.appendChild( line );
+            grabber.addEventListener( "mousedown", innerMouseDown );
 
             this.grabber = grabber;
 
-            function getBranchHeight(){
-                
+            function getBranchHeight() {
                 return that.root.offsetHeight - that.root.children[0].offsetHeight;
             }
 
-            var that = this;
-            var lastX = 0;
-            var lastXLine = 0;
-            function inner_mousedown(e)
+            let that = this;
+
+            function innerMouseDown( e )
             {
                 var doc = that.root.ownerDocument;
-                doc.addEventListener("mouseup",inner_mouseup);
-                doc.addEventListener("mousemove",inner_mousemove);
-                lastX = e.pageX;
-                lastXLine = e.pageX;
+                doc.addEventListener("mouseup", innerMouseUp);
+                doc.addEventListener("mousemove", innerMouseMove);
                 e.stopPropagation();
                 e.preventDefault();
-                var h = getBranchHeight();
+                const h = getBranchHeight();
                 line.style.height = (h-3) + "px";
                 document.body.classList.add('nocursor');
             }
-            
-            function inner_mousemove(e)
-            {
-                if (lastXLine != e.pageX) {
-                    var dt = lastXLine - e.pageX;
-                    var margin = parseFloat( grabber.style.marginLeft );
-                    grabber.style.marginLeft = clamp(margin - dt * 0.1, 10, 90) + "%";
-                }
 
-                lastXLine = e.pageX;
+            function innerMouseMove(e)
+            {
+                let dt = e.movementX;
+
+                if ( dt != 0 )
+                {
+                    const margin = parseFloat( grabber.style.marginLeft );
+                    grabber.style.marginLeft = clamp( margin + dt, 32, that.content.offsetWidth - 32 ) + "px";
+                }
             }
 
-            function inner_mouseup(e)
+            function innerMouseUp(e)
             {
-                if (lastX != e.pageX)
-                    that._updateWidgets();
-                lastX = e.pageX;
-                lastXLine = e.pageX;
+                that._updateWidgets();
+
                 line.style.height = "0px";
 
                 var doc = that.root.ownerDocument;
-                doc.removeEventListener("mouseup",inner_mouseup);
-                doc.removeEventListener("mousemove",inner_mousemove);
+                doc.removeEventListener("mouseup", innerMouseUp);
+                doc.removeEventListener("mousemove", innerMouseMove);
                 document.body.classList.remove('nocursor');
             }
 
@@ -6207,20 +7540,23 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             var size = this.grabber.style.marginLeft;
 
             // Update sizes of widgets inside
-            for(var i = 0; i < this.widgets.length;i++) {
+            for(var i = 0; i < this.widgets.length; i++) {
 
-                let widget = this.widgets[i];
+                let widget = this.widgets[ i ];
                 let element = widget.domEl;
 
-                if(element.children.length < 2)
+                if( element.children.length < 2 )
+                {
                     continue;
+                }
 
-                var name = element.children[0];
-                var value = element.children[1];
+                var name = element.children[ 0 ];
+                var value = element.children[ 1 ];
 
                 name.style.width = size;
                 let padding = "0px";
-                switch(widget.type) {
+                switch( widget.type )
+                {
                     case Widget.FILE:
                         padding = "10%";
                         break;
@@ -6233,12 +7569,113 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 value.style.width = "-webkit-calc( 100% - " + size + " - " + padding + " )";
                 value.style.width = "calc( 100% - " + size + " - " + padding + " )";
 
-                if(widget.onresize) widget.onresize();
+                if( widget.onresize )
+                {
+                    widget.onresize();
+                }
             }
         }
     };
 
     LX.Branch = Branch;
+
+    /**
+     * @class Footer
+     */
+
+    class Footer {
+        /**
+         * @param {*} options:
+         * columns: Array with data per column { title, items: [ { title, link } ]  }
+         * credits: html string
+         * socials: Array with data per item { title, link, iconHtml }
+        */
+        constructor( options = {} ) {
+
+            const root = document.createElement( "footer" );
+            root.className = "lexfooter";
+
+            const wrapper = document.createElement( "div" );
+            wrapper.className = "wrapper";
+            root.appendChild( wrapper );
+
+            if( options.columns && options.columns.constructor == Array )
+            {
+                const cols = document.createElement( "div" );
+                cols.className = "columns";
+                cols.style.gridTemplateColumns = "1fr ".repeat( options.columns.length );
+                wrapper.appendChild( cols );
+
+                for( let col of options.columns )
+                {
+                    const colDom = document.createElement( "div" );
+                    colDom.className = "col";
+                    cols.appendChild( colDom );
+
+                    const colTitle = document.createElement( "h2" );
+                    colTitle.innerHTML = col.title;
+                    colDom.appendChild( colTitle );
+
+                    if( !col.items || !col.items.length )
+                    {
+                        continue;
+                    }
+
+                    const itemListDom = document.createElement( "ul" );
+                    colDom.appendChild( itemListDom );
+
+                    for( let item of col.items )
+                    {
+                        const itemDom = document.createElement( "li" );
+                        itemDom.innerHTML = `<a class="" href="${ item.link }">${ item.title }</a>`;
+                        itemListDom.appendChild( itemDom );
+                    }
+                }
+            }
+
+            if( options.credits || options.socials )
+            {
+                const hr = document.createElement( "hr" );
+                wrapper.appendChild( hr );
+
+                const creditsSocials = document.createElement( "div" );
+                creditsSocials.className = "credits-and-socials";
+                wrapper.appendChild( creditsSocials );
+
+                if( options.credits )
+                {
+                    const credits = document.createElement( "p" );
+                    credits.innerHTML = options.credits;
+                    creditsSocials.appendChild( credits );
+                }
+
+                if( options.socials )
+                {
+                    const socials = document.createElement( "div" );
+                    socials.className = "social";
+
+                    for( let social of options.socials )
+                    {
+                        const itemDom = document.createElement( "a" );
+                        itemDom.title = social.title;
+                        itemDom.innerHTML = social.icon;
+                        itemDom.href = social.link;
+                        itemDom.target = "_blank";
+                        socials.appendChild( itemDom );
+                    }
+
+                    creditsSocials.appendChild( socials );
+                }
+            }
+
+            // Append directly to body
+            const parent = options.parent ?? document.body;
+            parent.appendChild( root );
+        }
+
+    }
+
+    LX.Footer = Footer;
 
     /**
      * @class Dialog
@@ -6249,9 +7686,11 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         static _last_id = 0;
 
         constructor( title, callback, options = {} ) {
-            
-            if(!callback)
-            console.warn("Content is empty, add some widgets using 'callback' parameter!");
+
+            if( !callback )
+            {
+                console.warn("Content is empty, add some widgets using 'callback' parameter!");
+            }
 
             this._oncreate = callback;
             this.id = simple_guidGenerator();
@@ -6261,8 +7700,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 draggable = options.draggable ?? true,
                 modal = options.modal ?? false;
 
-            if(modal)
-                LX.modal.toggle(false);
+            if( modal )
+            {
+                LX.modal.toggle( false );
+            }
 
             var root = document.createElement('div');
             root.className = "lexdialog " + (options.class ?? "");
@@ -6273,8 +7714,8 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             var titleDiv = document.createElement('div');
 
-            if(title) {
-
+            if( title )
+            {
                 titleDiv.className = "lexdialogtitle";
                 titleDiv.innerHTML = title;
                 titleDiv.setAttribute('draggable', false);
@@ -6282,31 +7723,36 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 titleDiv.oncontextmenu = function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-    
+
                     if(!LX.main_area || LX.main_area.type !== 'horizontal')
                         return;
 
                     addContextMenu("Dock", e, p => {
                         e.preventDefault();
-                        
-                        const get_next_panel = function(area) {
-                            let p = area.panels[0];
+
+                        const _getNextPanel = function( area ) {
+                            let p = area.panels[ 0 ];
                             if( p ) return p;
                             for(var s of area.sections){
-                                p = get_next_panel(s);
+                                p = _getNextPanel( s );
                                 if( p ) return p;
                             }
                         }
 
-                        const append_branch = function(panel) {
+                        const _appendBranch = function( panel ) {
                             let branch = panel.branches.find( b => b.name === title );
-                            if( !branch ) {
-                                panel.branch(title);
-                                branch = panel.branches.find( b => b.name === title );                                    
-                            }else
+                            if( !branch )
+                            {
+                                panel.branch( title );
+                                branch = panel.branches.find( b => b.name === title );
+                            }
+                            else
+                            {
                                 panel.root.appendChild( branch.root );
+                            }
 
-                            for( let w of that.widgets ) {
+                            for( let w of that.widgets )
+                            {
                                 branch.content.appendChild( w.domEl );
                             }
 
@@ -6317,16 +7763,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                             branch.root.classList.add('last');
                             root.remove();
                         }
-                        
+
                         // Right
-                        let rpanel = get_next_panel(LX.main_area.sections[1]);
+                        let rpanel = _getNextPanel(LX.main_area.sections[ 1 ]);
                         p.add('<i class="fa-regular fa-window-maximize fa-window-maximize fa-rotate-90">', {disabled: !rpanel, id: 'dock_options0', callback: () => {
-                            append_branch(rpanel);
+                            _appendBranch(rpanel);
                         }});
                         // Left
-                        let lpanel = get_next_panel(LX.main_area.sections[0]);
+                        let lpanel = _getNextPanel(LX.main_area.sections[ 0 ]);
                         p.add('<i class="fa-regular fa-window-maximize fa-window-maximize fa-rotate-270">', {disabled: !lpanel, id: 'dock_options1', callback: () => {
-                            append_branch(lpanel);
+                            _appendBranch(lpanel);
                         }});
                     }, { icon: "fa-regular fa-window-restore" });
                 };
@@ -6338,69 +7784,99 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             {
                 this.close = () => {
 
+                    if( options.onBeforeClose )
+                    {
+                        options.onBeforeClose( this );
+                    }
+
                     if( !options.onclose )
                     {
                         that.panel.clear();
                         root.remove();
-                    } else
+                    }
+                    else
                     {
                         options.onclose( this.root );
                     }
 
-                    if(modal)
-                        LX.modal.toggle(true);
+                    if( modal )
+                    {
+                        LX.modal.toggle( true );
+                    }
                 };
 
-                var closeButton = document.createElement('a');
+                var closeButton = document.createElement( 'a' );
                 closeButton.className = "lexdialogcloser fa-solid fa-xmark";
                 closeButton.title = "Close";
-                closeButton.addEventListener('click', this.close);
+                closeButton.addEventListener( "click", this.close );
 
-                if(title) titleDiv.appendChild(closeButton);
-                else {
-                    closeButton.classList.add("notitle");
-                    root.appendChild(closeButton);
+                if( title )
+                {
+                    titleDiv.appendChild( closeButton );
+                }
+                else
+                {
+                    closeButton.classList.add( "notitle" );
+                    root.appendChild( closeButton );
                 }
             }
 
             const panel = new Panel();
-            panel.root.classList.add('lexdialogcontent');
-            if(!title) panel.root.classList.add('notitle');
-            if(callback)
-                callback.call(this, panel);
-            root.appendChild(panel.root);
+            panel.root.classList.add( "lexdialogcontent" );
+
+            if( !title )
+            {
+                panel.root.classList.add( "notitle" );
+            }
+
+            if( callback )
+            {
+                callback.call( this, panel );
+            }
+
+            root.appendChild( panel.root );
 
             // Make branches have a distintive to manage some cases
             panel.root.querySelectorAll(".lexbranch").forEach( b => b.classList.add("dialog") );
-            
+
             this.panel = panel;
             this.root = root;
             this.title = titleDiv;
 
             if( draggable )
-                makeDraggable( root, { targetClass: 'lexdialogtitle' } );
+            {
+                makeDraggable( root, Object.assign( { targetClass: 'lexdialogtitle' }, options ) );
+            }
 
             // Process position and size
-            if(size.length && typeof(size[0]) != "string")
-                size[0] += "px";
-            if(size.length && typeof(size[1]) != "string")
-                size[1] += "px";
+            if( size.length && typeof(size[ 0 ]) != "string" )
+            {
+                size[ 0 ] += "px";
+            }
 
-            root.style.width = size[0] ? (size[0]) : "25%";
-            root.style.height = size[1] ? (size[1]) : "auto";
+            if( size.length && typeof(size[ 1 ]) != "string" )
+            {
+                size[ 1 ] += "px";
+            }
 
-            if(options.size) this.size = size;
-            
+            root.style.width = size[ 0 ] ? (size[ 0 ]) : "25%";
+            root.style.height = size[ 1 ] ? (size[ 1 ]) : "auto";
+
+            if( options.size )
+            {
+                this.size = size;
+            }
+
             let rect = root.getBoundingClientRect();
-            root.style.left = position[0] ? (position[0]) : "calc( 50% - " + (rect.width * 0.5) + "px )";
-            root.style.top = position[1] ? (position[1]) : "calc( 50% - " + (rect.height * 0.5) + "px )";
+            root.style.left = position[ 0 ] ? (position[ 0 ]) : "calc( 50% - " + ( rect.width * 0.5 ) + "px )";
+            root.style.top = position[ 1 ] ? (position[ 1 ]) : "calc( 50% - " + ( rect.height * 0.5 ) + "px )";
 
             panel.root.style.width = "calc( 100% - 30px )";
-            panel.root.style.height = title ? "calc( 100% - " + (titleDiv.offsetHeight + 30) + "px )" : "calc( 100% - 51px )";
+            panel.root.style.height = title ? "calc( 100% - " + ( titleDiv.offsetHeight + 30 ) + "px )" : "calc( 100% - 51px )";
         }
 
         destroy() {
-            
+
             this.root.remove();
         }
 
@@ -6411,7 +7887,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         }
 
         setPosition(x, y) {
-            
+
             this.root.style.left = x + "px";
             this.root.style.top = y + "px";
         }
@@ -6440,9 +7916,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             options.draggable = options.draggable ?? false;
             options.closable = options.closable ?? false;
-            
+
             super( title, callback, options );
-            
+
             let that = this;
             // Update margins on branch title closes/opens
             LX.addSignal("@on_branch_closed", this.panel, closed => {
@@ -6450,7 +7926,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     this.root.style.top = "calc(100% - " + (this.root.offsetHeight + 6) + "px)";
             });
 
-            // Custom 
+            // Custom
             this.root.classList.add( "pocket" );
             if( !options.position ) {
                 this.root.style.left = "calc(100% - " + (this.root.offsetWidth + 6) + "px)";
@@ -6464,7 +7940,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this.title.tabIndex = -1;
             this.title.addEventListener("click", e => {
 
-                // Sized dialogs have to keep their size 
+                // Sized dialogs have to keep their size
                 if( this.size )
                 {
                     if( !this.minimized ) this.root.style.height = "auto";
@@ -6475,7 +7951,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 this.minimized = !this.minimized;
 
                 if( this.dock_pos == PocketDialog.BOTTOM )
-                    that.root.style.top = this.root.classList.contains("minimized") ? 
+                    that.root.style.top = this.root.classList.contains("minimized") ?
                     "calc(100% - " + (that.title.offsetHeight + 6) + "px)" : "calc(100% - " + (that.root.offsetHeight + 6) + "px)";
             });
 
@@ -6490,10 +7966,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         const t = float[i];
                         switch( t )
                         {
-                        case 'b': 
+                        case 'b':
                             this.root.style.top = "calc(100% - " + (this.root.offsetHeight + 6) + "px)";
                             break;
-                        case 'l': 
+                        case 'l':
                             this.root.style.left = options.position ? options.position[ 1 ] : "0px";
                             break;
                         }
@@ -6527,19 +8003,19 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
     class ContextMenu {
 
         constructor( event, title, options = {} ) {
-            
+
             // remove all context menus
             document.body.querySelectorAll(".lexcontextmenubox").forEach(e => e.remove());
 
             this.root = document.createElement('div');
             this.root.className = "lexcontextmenubox";
-            this.root.style.left = (event.x - 48) + "px";
-            this.root.style.top = (event.y - 8) + "px";
+            this.root.style.left = (event.x - 48 + document.scrollingElement.scrollLeft) + "px";
+            this.root.style.top = (event.y - 8 + document.scrollingElement.scrollTop) + "px";
 
             this.root.addEventListener("mouseleave", function() {
                 this.remove();
             });
-            
+
             this.items = [];
             this.colors = {};
 
@@ -6556,9 +8032,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         _adjust_position( div, margin, useAbsolute = false ) {
 
             let rect = div.getBoundingClientRect();
-            
+
             if( !useAbsolute )
-            {   
+            {
                 let width = rect.width;
                 if( rect.left < 0 )
                 {
@@ -6585,7 +8061,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 {
                     div.style.left = div.offsetLeft + (dt - margin) + "px";
                 }
-                
+
                 dt = window.innerHeight - (rect.top + rect.height);
                 if( dt < 0 )
                 {
@@ -6645,14 +8121,14 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             entry.addEventListener("click", e => {
                 e.stopPropagation();
                 e.stopImmediatePropagation();
-                
+
                 if(disabled) return;
-                
+
                 const f = o[ 'callback' ];
                 if(f) {
                     f.call( this, k, entry );
                     this.root.remove();
-                } 
+                }
 
                 if( !hasSubmenu )
                 return;
@@ -6716,7 +8192,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 } );
 
                 if(found) {
-                    insert( tokens[idx++], found );    
+                    insert( tokens[idx++], found );
                 }
                 else {
                     let item = {};
@@ -6727,10 +8203,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         item[ 'id' ] = options.id;
                         item[ 'callback' ] = options.callback;
                         item[ 'disabled' ] = options.disabled ?? false;
-                    } 
+                    }
 
                     list.push( item );
-                    insert( next_token, item[ token ] ); 
+                    insert( next_token, item[ token ] );
                 }
             };
 
@@ -6815,15 +8291,15 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
     class Curve {
 
         constructor( panel, value, options = {} ) {
-    
+
             let element = document.createElement( "div" );
             element.className = "curve " + ( options.className ? options.className : "" );
             element.style.minHeight = "50px";
             element.style.width = options.width || "100%";
             element.style.minWidth = "50px";
             element.style.minHeight = "20px";
-    
-            element.bgcolor = options.bgColor || LX.getThemeColor( "global-dark-background" );
+
+            element.bgcolor = options.bgColor || LX.getThemeColor( "global-intense-background" );
             element.pointscolor = options.pointsColor || LX.getThemeColor( "global-selected-light" );
             element.linecolor = options.lineColor || "#555";
             element.value = value || [];
@@ -6837,24 +8313,30 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             element.draggable_y = options.draggableY ?? true;
             element.smooth = (options.smooth && typeof( options.smooth ) == 'number' ? options.smooth : 0.3) || false;
             element.move_out = options.moveOutAction ?? LX.CURVE_MOVEOUT_DELETE;
-    
+
+            LX.addSignal( "@on_new_color_scheme", (el, value) => {
+                element.bgcolor = options.bgColor || LX.getThemeColor( "global-intense-background" );
+                element.pointscolor = options.pointsColor || LX.getThemeColor( "global-selected-light" );
+                this.redraw();
+            } );
+
             this.element = element;
-    
+
             let canvas = document.createElement( "canvas" );
             canvas.width = options.width || 200;
             canvas.height = options.height || 50;
             element.appendChild( canvas );
             this.canvas = canvas;
-    
+
             element.addEventListener( "mousedown", onmousedown );
-    
+
             element.getValueAt = function( x ) {
-    
+
                 if( x < element.xrange[ 0 ] || x > element.xrange[ 1 ] )
                 {
                     return element.defaulty;
                 }
-    
+
                 var last = [ element.xrange[ 0 ], element.defaulty ];
                 var f = 0;
                 for( var i = 0; i < element.value.length; i += 1 )
@@ -6866,17 +8348,17 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         f = ( x - last[ 0 ] ) / (v[ 0 ] - last[ 0 ]);
                         return last[ 1 ] * ( 1 - f ) + v[ 1 ] * f;
                     }
-    
+
                     last = v;
                 }
-    
+
                 v = [ element.xrange[ 1 ], element.defaulty ];
                 f = (x - last[ 0 ]) / (v[ 0 ] - last[ 0 ]);
                 return last[ 1 ] * ( 1 - f ) + v[ 1 ] * f;
             }
-    
+
             element.resample = function( samples ) {
-    
+
                 var r = [];
                 var dx = (element.xrange[1] - element.xrange[ 0 ]) / samples;
                 for(var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
@@ -6885,9 +8367,9 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 }
                 return r;
             }
-    
+
             element.addValue = function(v) {
-    
+
                 for(var i = 0; i < element.value; i++) {
                     var value = element.value[i];
                     if(value[0] < v[0]) continue;
@@ -6895,27 +8377,27 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     redraw();
                     return;
                 }
-    
+
                 element.value.push(v);
                 redraw();
             }
-    
+
             //value to canvas
             function convert(v) {
                 return [ canvas.width * ( v[0] - element.xrange[0])/ (element.xrange[1]),
                     canvas.height * (v[1] - element.yrange[0])/ (element.yrange[1])];
             }
-    
+
             //canvas to value
             function unconvert(v) {
                 return [(v[0] * element.xrange[1] / canvas.width + element.xrange[0]),
                         (v[1] * element.yrange[1] / canvas.height + element.yrange[0])];
             }
-    
+
             var selected = -1;
-    
+
             element.redraw = function( o = {} )  {
-                
+
                 if( o.value ) element.value = o.value;
                 if( o.xrange ) element.xrange = o.xrange;
                 if( o.yrange ) element.yrange = o.yrange;
@@ -6926,23 +8408,23 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 {
                     canvas.width = rect.width;
                 }
-    
+
                 var ctx = canvas.getContext( "2d" );
                 ctx.setTransform( 1, 0, 0, 1, 0, 0 );
                 ctx.translate( 0, canvas.height );
                 ctx.scale( 1, -1 );
-    
+
                 ctx.fillStyle = element.bgcolor;
                 ctx.fillRect(0,0,canvas.width,canvas.height);
-    
+
                 ctx.strokeStyle = element.linecolor;
                 ctx.beginPath();
-    
+
                 //draw line
                 var pos = convert([ element.xrange[ 0 ],element.defaulty ]);
                 ctx.moveTo( pos[ 0 ], pos[ 1 ] );
                 let values = [pos[ 0 ], pos[ 1 ]];
-    
+
                 for(var i in element.value) {
                     var value = element.value[i];
                     pos = convert(value);
@@ -6951,7 +8433,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     if(!element.smooth)
                         ctx.lineTo( pos[ 0 ], pos[ 1 ] );
                 }
-    
+
                 pos = convert([ element.xrange[ 1 ], element.defaulty ]);
                 values.push(pos[ 0 ]);
                 values.push(pos[ 1 ]);
@@ -6964,7 +8446,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 {
                     LX.UTILS.drawSpline( ctx, values, element.smooth );
                 }
-    
+
                 // Draw points
                 for( var i = 0; i < element.value.length; i += 1 ) {
                     var value = element.value[ i ];
@@ -6977,7 +8459,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     ctx.arc( pos[ 0 ], pos[ 1 ], selected == i ? 4 : 3, 0, Math.PI * 2);
                     ctx.fill();
                 }
-    
+
                 if(element.show_samples) {
                     var samples = element.resample(element.show_samples);
                     ctx.fillStyle = "#888";
@@ -6991,43 +8473,43 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     }
                 }
             }
-    
+
             var last_mouse = [ 0, 0 ];
-    
+
             function onmousedown( e ) {
                 document.addEventListener( "mousemove", onmousemove );
                 document.addEventListener( "mouseup", onmouseup );
-    
+
                 var rect = canvas.getBoundingClientRect();
                 var mousex = e.clientX - rect.left;
                 var mousey = e.clientY - rect.top;
-    
+
                 selected = computeSelected( mousex, canvas.height - mousey );
-    
+
                 if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values ) {
                     var v = unconvert([ mousex, canvas.height - mousey ]);
                     element.value.push( v );
                     sortValues();
                     selected = element.value.indexOf( v );
                 }
-    
+
                 last_mouse = [ mousex, mousey ];
                 element.redraw();
                 e.preventDefault();
                 e.stopPropagation();
             }
-    
+
             function onmousemove( e ) {
-    
+
                 var rect = canvas.getBoundingClientRect();
                 var mousex = e.clientX - rect.left;
                 var mousey = e.clientY - rect.top;
-    
+
                 if( mousex < 0 ) mousex = 0;
                 else if( mousex > canvas.width ) mousex = canvas.width;
                 if( mousey < 0 ) mousey = 0;
                 else if( mousey > canvas.height ) mousey = canvas.height;
-    
+
                 // Dragging to remove
                 const currentMouseDiff = [ e.clientX - rect.left, e.clientY - rect.top ];
                 if( selected != -1 && distance( currentMouseDiff, [ mousex, mousey ] ) > canvas.height * 0.5 )
@@ -7043,25 +8525,25 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         value[ 0 ] = ( d[ 0 ] == 0.0 ) ? value[ 0 ] : ( d[ 0 ] < 0.0 ? element.xrange[ 0 ] : element.xrange[ 1 ] );
                         value[ 1 ] = ( d[ 1 ] == 0.0 ) ? value[ 1 ] : ( d[ 1 ] < 0.0 ? element.yrange[ 1 ] : element.yrange[ 0 ] );
                     }
-    
+
                     onmouseup( e );
                     return;
                 }
-    
+
                 var dx = element.draggable_x ? last_mouse[ 0 ] - mousex : 0;
                 var dy = element.draggable_y ? last_mouse[ 1 ] - mousey : 0;
                 var delta = unconvert([ -dx, dy ]);
-    
+
                 if( selected != -1 ) {
                     var minx = element.xrange[ 0 ];
                     var maxx = element.xrange[ 1 ];
-    
+
                     if( element.no_overlap )
                     {
                         if( selected > 0) minx = element.value[ selected - 1 ][ 0 ];
                         if( selected < ( element.value.length - 1 ) ) maxx = element.value[ selected + 1 ][ 0 ];
                     }
-    
+
                     var v = element.value[selected];
                     v[ 0 ] += delta[ 0 ];
                     v[ 1 ] += delta[ 1 ];
@@ -7070,17 +8552,17 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     if(v[ 1 ] < element.yrange[ 0 ]) v[ 1 ] = element.yrange[ 0 ];
                     else if(v[ 1 ] > element.yrange[ 1 ]) v[ 1 ] = element.yrange[ 1 ];
                 }
-    
+
                 sortValues();
                 element.redraw();
                 last_mouse[ 0 ] = mousex;
                 last_mouse[ 1 ] = mousey;
                 onchange( e );
-    
+
                 e.preventDefault();
                 e.stopPropagation();
             }
-    
+
             function onmouseup( e ) {
                 selected = -1;
                 element.redraw();
@@ -7090,16 +8572,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 e.preventDefault();
                 e.stopPropagation();
             }
-            
+
             function onchange( e ) {
                 if( options.callback )
                     options.callback.call( element, element.value, e );
             }
-    
+
             function distance(a,b) { return Math.sqrt( Math.pow(b[0]-a[0],2) + Math.pow(b[1]-a[1],2) ); };
-    
+
             function computeSelected( x, y ) {
-    
+
                 var minDistance = 100000;
                 var maxDistance = 8; //pixels
                 var selected = -1;
@@ -7116,7 +8598,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 }
                 return selected;
             }
-    
+
             function sortValues() {
                 var v = null;
                 if( selected != -1 )
@@ -7129,17 +8611,346 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     selected = element.value.indexOf( v );
                 }
             }
-            
+
             element.redraw();
             return this;
         }
-    
+
         redraw( options = {} ) {
             this.element.redraw( options );
         }
     }
 
     LX.Curve = Curve;
+
+    /**
+     * @class Dial
+     */
+
+    class Dial {
+
+        constructor( panel, value, options = {} ) {
+
+            let element = document.createElement( "div" );
+            element.className = "dial " + ( options.className ? options.className : "" );
+            element.style.width = element.style.height = options.size || "100%";
+            element.style.minWidth = element.style.minHeight = "50px";
+
+            element.bgcolor = options.bgColor || LX.getThemeColor( "global-dark-background" );
+            element.pointscolor = options.pointsColor || LX.getThemeColor( "global-selected-light" );
+            element.linecolor = options.lineColor || "#555";
+            element.value = value || [];
+            element.xrange = options.xrange || [ 0, 1 ]; // min, max
+            element.yrange = options.yrange || [ 0, 1 ]; // min, max
+            element.defaulty = options.defaulty != null ? options.defaulty : 0.0;
+            element.no_overlap = options.noOverlap || false;
+            element.show_samples = options.showSamples || 0;
+            element.allow_add_values = options.allowAddValues ?? true;
+            element.draggable_x = options.draggableX ?? true;
+            element.draggable_y = options.draggableY ?? true;
+            element.smooth = (options.smooth && typeof( options.smooth ) == 'number' ? options.smooth : 0.3) || false;
+            element.move_out = options.moveOutAction ?? LX.CURVE_MOVEOUT_DELETE;
+
+            this.element = element;
+
+            let canvas = document.createElement( "canvas" );
+            canvas.width = canvas.height = options.size || 200;
+            element.appendChild( canvas );
+            this.canvas = canvas;
+
+            element.addEventListener( "mousedown", onmousedown );
+
+            element.getValueAt = function( x ) {
+
+                if( x < element.xrange[ 0 ] || x > element.xrange[ 1 ] )
+                {
+                    return element.defaulty;
+                }
+
+                var last = [ element.xrange[ 0 ], element.defaulty ];
+                var f = 0;
+                for( var i = 0; i < element.value.length; i += 1 )
+                {
+                    var v = element.value[ i ];
+                    if( x == v[ 0 ] ) return v[ 1 ];
+                    if( x < v[ 0 ] )
+                    {
+                        f = ( x - last[ 0 ] ) / (v[ 0 ] - last[ 0 ]);
+                        return last[ 1 ] * ( 1 - f ) + v[ 1 ] * f;
+                    }
+
+                    last = v;
+                }
+
+                v = [ element.xrange[ 1 ], element.defaulty ];
+                f = (x - last[ 0 ]) / (v[ 0 ] - last[ 0 ]);
+                return last[ 1 ] * ( 1 - f ) + v[ 1 ] * f;
+            }
+
+            element.resample = function( samples ) {
+
+                var r = [];
+                var dx = (element.xrange[1] - element.xrange[ 0 ]) / samples;
+                for(var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
+                {
+                    r.push( element.getValueAt(i) );
+                }
+                return r;
+            }
+
+            element.addValue = function(v) {
+
+                for(var i = 0; i < element.value; i++) {
+                    var value = element.value[i];
+                    if(value[0] < v[0]) continue;
+                    element.value.splice(i,0,v);
+                    redraw();
+                    return;
+                }
+
+                element.value.push(v);
+                redraw();
+            }
+
+            //value to canvas
+            function convert(v, r) {
+
+                Math.pow(v[0],2)
+                return [ canvas.width * ( v[0] - element.xrange[0])/ (element.xrange[1]),
+                    canvas.height * (v[1] - element.yrange[0])/ (element.yrange[1])];
+            }
+
+            //canvas to value
+            function unconvert(v) {
+                return [(v[0] * element.xrange[1] / canvas.width + element.xrange[0]),
+                        (v[1] * element.yrange[1] / canvas.height + element.yrange[0])];
+            }
+
+            var selected = -1;
+
+            element.redraw = function( o = {} )  {
+
+                if( o.value ) element.value = o.value;
+                if( o.xrange ) element.xrange = o.xrange;
+                if( o.yrange ) element.yrange = o.yrange;
+                if( o.smooth ) element.smooth = o.smooth;
+                var rect = canvas.parentElement.getBoundingClientRect();
+                if( canvas.parentElement.parentElement ) rect = canvas.parentElement.parentElement.getBoundingClientRect();
+                if( rect && canvas.width != rect.width && rect.width && rect.width < 1000 )
+                {
+                    canvas.width = rect.width;
+                }
+
+                var ctx = canvas.getContext( "2d" );
+                ctx.setTransform( 1, 0, 0, 1, 0, 0 );
+                ctx.translate( 0, canvas.height );
+                ctx.scale( 1, -1 );
+
+                ctx.fillStyle = element.bgcolor;
+                ctx.fillRect(0,0,canvas.width,canvas.height);
+
+                ctx.strokeStyle = element.linecolor;
+                ctx.beginPath();
+
+                //draw line
+                var pos = convert([ element.xrange[ 0 ],element.defaulty ]);
+                ctx.moveTo( pos[ 0 ], pos[ 1 ] );
+                let values = [pos[ 0 ], pos[ 1 ]];
+
+                for(var i in element.value) {
+                    var value = element.value[i];
+                    pos = convert(value);
+                    values.push(pos[ 0 ]);
+                    values.push(pos[ 1 ]);
+
+                }
+
+                pos = convert([ element.xrange[ 1 ], element.defaulty ]);
+                values.push(pos[ 0 ]);
+                values.push(pos[ 1 ]);
+
+                // Draw points
+                const center =  [0,0];
+                pos = convert(center)
+                ctx.fillStyle = "gray";
+                ctx.beginPath();
+                ctx.arc( pos[ 0 ], pos[ 1 ], 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                for( var i = 0; i < element.value.length; i += 1 ) {
+                    var value = element.value[ i ];
+                    pos = convert( value );
+                    if( selected == i )
+                        ctx.fillStyle = "white";
+                    else
+                        ctx.fillStyle = element.pointscolor;
+                    ctx.beginPath();
+                    ctx.arc( pos[ 0 ], pos[ 1 ], selected == i ? 4 : 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                if(element.show_samples) {
+                    var samples = element.resample(element.show_samples);
+                    ctx.fillStyle = "#888";
+                    for(var i = 0; i < samples.length; i += 1)
+                    {
+                        var value = [ i * ((element.xrange[ 1 ] - element.xrange[ 0 ]) / element.show_samples) + element.xrange[ 0 ], samples[ i ] ];
+                        pos = convert(value);
+                        ctx.beginPath();
+                        ctx.arc( pos[ 0 ], pos[ 1 ], 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            var last_mouse = [ 0, 0 ];
+
+            function onmousedown( e ) {
+                document.addEventListener( "mousemove", onmousemove );
+                document.addEventListener( "mouseup", onmouseup );
+
+                var rect = canvas.getBoundingClientRect();
+                var mousex = e.clientX - rect.left;
+                var mousey = e.clientY - rect.top;
+
+                selected = computeSelected( mousex, canvas.height - mousey );
+
+                if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values ) {
+                    var v = unconvert([ mousex, canvas.height - mousey ]);
+                    element.value.push( v );
+                    sortValues();
+                    selected = element.value.indexOf( v );
+                }
+
+                last_mouse = [ mousex, mousey ];
+                element.redraw();
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            function onmousemove( e ) {
+
+                var rect = canvas.getBoundingClientRect();
+                var mousex = e.clientX - rect.left;
+                var mousey = e.clientY - rect.top;
+
+                if( mousex < 0 ) mousex = 0;
+                else if( mousex > canvas.width ) mousex = canvas.width;
+                if( mousey < 0 ) mousey = 0;
+                else if( mousey > canvas.height ) mousey = canvas.height;
+
+                // Dragging to remove
+                const currentMouseDiff = [ e.clientX - rect.left, e.clientY - rect.top ];
+                if( selected != -1 && distance( currentMouseDiff, [ mousex, mousey ] ) > canvas.height * 0.5 )
+                {
+                    if( element.move_out == LX.CURVE_MOVEOUT_DELETE)
+                    {
+                        element.value.splice( selected, 1 );
+                    }
+                    else
+                    {
+                        const d = [ currentMouseDiff[ 0 ] - mousex, currentMouseDiff[ 1 ] - mousey ];
+                        let value = element.value[ selected ];
+                        value[ 0 ] = ( d[ 0 ] == 0.0 ) ? value[ 0 ] : ( d[ 0 ] < 0.0 ? element.xrange[ 0 ] : element.xrange[ 1 ] );
+                        value[ 1 ] = ( d[ 1 ] == 0.0 ) ? value[ 1 ] : ( d[ 1 ] < 0.0 ? element.yrange[ 1 ] : element.yrange[ 0 ] );
+                    }
+
+                    onmouseup( e );
+                    return;
+                }
+
+                var dx = element.draggable_x ? last_mouse[ 0 ] - mousex : 0;
+                var dy = element.draggable_y ? last_mouse[ 1 ] - mousey : 0;
+                var delta = unconvert([ -dx, dy ]);
+
+                if( selected != -1 ) {
+                    var minx = element.xrange[ 0 ];
+                    var maxx = element.xrange[ 1 ];
+
+                    if( element.no_overlap )
+                    {
+                        if( selected > 0) minx = element.value[ selected - 1 ][ 0 ];
+                        if( selected < ( element.value.length - 1 ) ) maxx = element.value[ selected + 1 ][ 0 ];
+                    }
+
+                    var v = element.value[selected];
+                    v[ 0 ] += delta[ 0 ];
+                    v[ 1 ] += delta[ 1 ];
+                    if(v[ 0 ] < minx) v[ 0 ] = minx;
+                    else if(v[ 0 ] > maxx) v[ 0 ] = maxx;
+                    if(v[ 1 ] < element.yrange[ 0 ]) v[ 1 ] = element.yrange[ 0 ];
+                    else if(v[ 1 ] > element.yrange[ 1 ]) v[ 1 ] = element.yrange[ 1 ];
+                }
+
+                sortValues();
+                element.redraw();
+                last_mouse[ 0 ] = mousex;
+                last_mouse[ 1 ] = mousey;
+                onchange( e );
+
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            function onmouseup( e ) {
+                selected = -1;
+                element.redraw();
+                document.removeEventListener("mousemove", onmousemove);
+                document.removeEventListener("mouseup", onmouseup);
+                onchange(e);
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            function onchange( e ) {
+                if( options.callback )
+                    options.callback.call( element, element.value, e );
+            }
+
+            function distance(a,b) { return Math.sqrt( Math.pow(b[0]-a[0],2) + Math.pow(b[1]-a[1],2) ); };
+
+            function computeSelected( x, y ) {
+
+                var minDistance = 100000;
+                var maxDistance = 8; //pixels
+                var selected = -1;
+                for( var i = 0; i < element.value.length; i++ )
+                {
+                    var value = element.value[ i ];
+                    var pos = convert( value );
+                    var dist = distance( [ x,y ], pos );
+                    if( dist < minDistance && dist < maxDistance )
+                    {
+                        minDistance = dist;
+                        selected = i;
+                    }
+                }
+                return selected;
+            }
+
+            function sortValues() {
+                var v = null;
+                if( selected != -1 )
+                {
+                    v = element.value[ selected ];
+                }
+                element.value.sort(function( a,b ) { return a[ 0 ] - b[ 0 ]; });
+                if( v )
+                {
+                    selected = element.value.indexOf( v );
+                }
+            }
+
+            element.redraw();
+            return this;
+        }
+
+        redraw( options = {} ) {
+            this.element.redraw( options );
+        }
+    }
+
+    LX.Dial = Dial;
 
     class AssetViewEvent {
 
@@ -7151,14 +8962,14 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         static ASSET_DBLCLICKED = 5;
         static ENTER_FOLDER     = 6;
         static ASSET_CHECKED    = 7;
-    
+
         constructor( type, item, value ) {
             this.type = type || TreeEvent.NONE;
             this.item = item;
             this.value = value;
             this.multiple = false; // Multiple selection
         }
-        
+
         string() {
             switch(this.type) {
                 case AssetViewEvent.NONE: return "assetview_event_none";
@@ -7195,12 +9006,12 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this.layout = options.layout ?? AssetView.LAYOUT_CONTENT;
             this.contentPage = 1;
 
-            if(options.root_path)
+            if( options.rootPath )
             {
-                if(options.root_path.constructor !== String)
+                if(options.rootPath.constructor !== String)
                     console.warn("Asset Root Path must be a String (now is " + path.constructor.name + ")");
                 else
-                    this.rootPath = options.root_path;
+                    this.rootPath = options.rootPath;
             }
 
             let div = document.createElement('div');
@@ -7212,13 +9023,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             let left, right, contentArea = area;
 
-            this.skip_browser = options.skip_browser ?? false;
-            this.skip_preview = options.skip_preview ?? false;
-            this.only_folders = options.only_folders ?? true;
-            this.preview_actions = options.preview_actions ?? [];
-            this.context_menu = options.context_menu ?? [];
+            this.skipBrowser = options.skipBrowser ?? false;
+            this.skipPreview = options.skipPreview ?? false;
+            this.useNativeTitle = options.useNativeTitle ?? false;
+            this.onlyFolders = options.onlyFolders ?? true;
+            this.allowMultipleSelection = options.allowMultipleSelection ?? false;
+            this.previewActions = options.previewActions ?? [];
+            this.contextMenu = options.contextMenu ?? [];
+            this.onRefreshContent = options.onRefreshContent;
 
-            if( !this.skip_browser )
+            if( !this.skipBrowser )
             {
                 [left, right] = area.split({ type: "horizontal", sizes: ["15%", "85%"]});
                 contentArea = right;
@@ -7227,28 +9041,34 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 right.setLimitBox( 512, 0 );
             }
 
-            if( !this.skip_preview )
-                [contentArea, right] = contentArea.split({ type: "horizontal", sizes: ["80%", "20%"]});
-            
-            this.allowedTypes = options.allowed_types || ["None", "Image", "Mesh", "Script", "JSON", "Clip"];
+            if( !this.skipPreview )
+            {
+                [ contentArea, right ] = contentArea.split({ type: "horizontal", sizes: ["80%", "20%"]});
+            }
+
+            this.allowedTypes = options.allowedTypes || ["None", "Image", "Mesh", "Script", "JSON", "Clip"];
 
             this.prevData = [];
             this.nextData = [];
             this.data = [];
 
-            this._processData(this.data, null);
+            this._processData( this.data, null );
 
             this.currentData = this.data;
             this.path = ['@'];
 
-            if(!this.skip_browser)
-                this._createTreePanel(left);
+            if( !this.skipBrowser )
+            {
+                this._createTreePanel( left );
+            }
 
-            this._createContentPanel(contentArea);
-            
+            this._createContentPanel( contentArea );
+
             // Create resource preview panel
-            if( !this.skip_preview )
-                this.previewPanel = right.addPanel({className: 'lexassetcontentpanel', style: { overflow: 'scroll' }});
+            if( !this.skipPreview )
+            {
+                this.previewPanel = right.addPanel( {className: 'lexassetcontentpanel', style: { overflow: 'scroll' }} );
+            }
         }
 
         /**
@@ -7259,15 +9079,18 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             this.prevData.length = 0;
             this.nextData.length = 0;
-            
+
             this.data = data;
 
-            this._processData(this.data, null);
+            this._processData( this.data, null );
             this.currentData = this.data;
-            this.path = ['@'];
+            this.path = [ '@' ];
 
-            if(!this.skip_browser)
-                this._createTreePanel(this.area);
+            if( !this.skipBrowser )
+            {
+                this._createTreePanel( this.area );
+            }
+
             this._refreshContent();
 
             this.onevent = onevent;
@@ -7277,12 +9100,21 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         * @method clear
         */
         clear() {
-            if(this.previewPanel)
+
+            if( this.previewPanel )
+            {
                 this.previewPanel.clear();
-            if(this.leftPanel)
+            }
+
+            if( this.leftPanel )
+            {
                 this.leftPanel.clear();
-            if(this.rightPanel)
-             this.rightPanel.clear()
+            }
+
+            if( this.rightPanel )
+            {
+                this.rightPanel.clear()
+            }
         }
 
         /**
@@ -7293,14 +9125,16 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             if( data.constructor !== Array )
             {
-                data['folder'] = parent;
+                data[ 'folder' ] = parent;
                 data.children = data.children ?? [];
             }
 
             let list = data.constructor === Array ? data : data.children;
 
             for( var i = 0; i < list.length; ++i )
-                this._processData( list[i], data );
+            {
+                this._processData( list[ i ], data );
+            }
         }
 
         /**
@@ -7308,13 +9142,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         */
 
         _updatePath( data ) {
-            
+
             this.path.length = 0;
 
             const push_parents_id = i => {
-                if(!i) return;
+                if( !i ) return;
                 let list = i.children ? i.children : i;
-                let c = list[0];
+                let c = list[ 0 ];
                 if( !c ) return;
                 if( !c.folder ) return;
                 this.path.push( c.folder.id ?? '@' );
@@ -7323,19 +9157,22 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             push_parents_id( data );
 
-            LX.emit("@on_folder_change", this.path.reverse().join('/'));
+            LX.emit( "@on_folder_change", this.path.reverse().join('/') );
         }
 
         /**
         * @method _createTreePanel
         */
 
-        _createTreePanel(area) {
+        _createTreePanel( area ) {
 
             if(this.leftPanel)
+            {
                 this.leftPanel.clear();
-            else {
-                this.leftPanel = area.addPanel({className: 'lexassetbrowserpanel'});
+            }
+            else
+            {
+                this.leftPanel = area.addPanel({ className: 'lexassetbrowserpanel' });
             }
 
             // Process data to show in tree
@@ -7344,21 +9181,24 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 children: this.data
             }
 
-            this.tree = this.leftPanel.addTree("Content Browser", treeData, { 
-                // icons: tree_icons, 
+            this.tree = this.leftPanel.addTree( "Content Browser", treeData, {
+                // icons: tree_icons,
                 filter: false,
-                only_folders: this.only_folders,
-                onevent: (event) => { 
+                onlyFolders: this.onlyFolders,
+                onevent: event => {
 
                     let node = event.node;
                     let value = event.value;
 
-                    switch(event.type) {
-                        case LX.TreeEvent.NODE_SELECTED: 
-                            if(!event.multiple) {
+                    switch( event.type )
+                    {
+                        case LX.TreeEvent.NODE_SELECTED:
+                            if( !event.multiple )
+                            {
                                 this._enterFolder( node );
                             }
-                            if(!node.parent) {
+                            if( !node.parent )
+                            {
                                 this.prevData.push( this.currentData );
                                 this.currentData = this.data;
                                 this._refreshContent();
@@ -7367,22 +9207,22 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                                 LX.emit("@on_folder_change", this.path.join('/'));
                             }
                             break;
-                        case LX.TreeEvent.NODE_DRAGGED: 
+                        case LX.TreeEvent.NODE_DRAGGED:
                             node.folder = value;
                             this._refreshContent();
                             break;
                     }
                 },
-            });    
+            });
         }
 
         /**
         * @method _setContentLayout
         */
 
-        _setContentLayout( layout_mode ) {
+        _setContentLayout( layoutMode ) {
 
-            this.layout = layout_mode;
+            this.layout = layoutMode;
 
             this._refreshContent();
         }
@@ -7391,15 +9231,18 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         * @method _createContentPanel
         */
 
-        _createContentPanel(area) {
+        _createContentPanel( area ) {
 
-            if(this.rightPanel)
+            if( this.rightPanel )
+            {
                 this.rightPanel.clear();
-            else {
-                this.rightPanel = area.addPanel({className: 'lexassetcontentpanel'});
+            }
+            else
+            {
+                this.rightPanel = area.addPanel({ className: 'lexassetcontentpanel' });
             }
 
-            const on_sort = (value, event) => {
+            const on_sort = ( value, event ) => {
                 const cmenu = addContextMenu( "Sort by", event, c => {
                     c.add("Name", () => this._sortData('id') );
                     c.add("Type", () => this._sortData('type') );
@@ -7409,10 +9252,12 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 } );
                 const parent = this.parent.root.parentElement;
                 if( parent.classList.contains('lexdialog') )
+                {
                     cmenu.root.style.zIndex = (+getComputedStyle( parent ).zIndex) + 1;
+                }
             }
 
-            const on_change_view = (value, event) => {
+            const on_change_view = ( value, event ) => {
                 const cmenu = addContextMenu( "Layout", event, c => {
                     c.add("Content", () => this._setContentLayout( AssetView.LAYOUT_CONTENT ) );
                     c.add("");
@@ -7423,36 +9268,40 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     cmenu.root.style.zIndex = (+getComputedStyle( parent ).zIndex) + 1;
             }
 
-            const on_change_page = (value, event) => {
-                if(!this.allow_next_page)
+            const on_change_page = ( value, event ) => {
+                if( !this.allowNextPage )
+                {
                     return;
-                const last_page = this.contentPage;
+                }
+                const lastPage = this.contentPage;
                 this.contentPage += value;
                 this.contentPage = Math.min( this.contentPage, (((this.currentData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1 );
                 this.contentPage = Math.max( this.contentPage, 1 );
 
-                if( last_page != this.contentPage )
+                if( lastPage != this.contentPage )
+                {
                     this._refreshContent();
+                }
             }
 
             this.rightPanel.sameLine();
-            this.rightPanel.addDropdown("Filter", this.allowedTypes, this.allowedTypes[0], (v) => this._refreshContent.call(this, null, v), { width: "20%", minWidth: "128px" });
-            this.rightPanel.addText(null, this.search_value ?? "", (v) => this._refreshContent.call(this, v, null), { placeholder: "Search assets.." });
-            this.rightPanel.addButton(null, "<a class='fa fa-arrow-up-short-wide'></a>", on_sort.bind(this), { className: "micro", title: "Sort" });
-            this.rightPanel.addButton(null, "<a class='fa-solid fa-grip'></a>", on_change_view.bind(this), { className: "micro", title: "View" });
+            this.rightPanel.addDropdown( "Filter", this.allowedTypes, this.allowedTypes[ 0 ], v => this._refreshContent.call(this, null, v), { width: "20%", minWidth: "128px" } );
+            this.rightPanel.addText( null, this.searchValue ?? "", v => this._refreshContent.call(this, v, null), { placeholder: "Search assets.." } );
+            this.rightPanel.addButton( null, "<a class='fa fa-arrow-up-short-wide'></a>", on_sort.bind(this), { className: "micro", title: "Sort" } );
+            this.rightPanel.addButton( null, "<a class='fa-solid fa-grip'></a>", on_change_view.bind(this), { className: "micro", title: "View" } );
             // Content Pages
-            this.rightPanel.addButton(null, "<a class='fa-solid fa-angles-left'></a>", on_change_page.bind(this, -1), { className: "micro", title: "Previous Page" });
-            this.rightPanel.addButton(null, "<a class='fa-solid fa-angles-right'></a>", on_change_page.bind(this, 1), { className: "micro", title: "Next Page" });
+            this.rightPanel.addButton( null, "<a class='fa-solid fa-angles-left'></a>", on_change_page.bind(this, -1), { className: "micro", title: "Previous Page" }) ;
+            this.rightPanel.addButton( null, "<a class='fa-solid fa-angles-right'></a>", on_change_page.bind(this, 1), { className: "micro", title: "Next Page" } );
             this.rightPanel.endLine();
 
-            if( !this.skip_browser )
+            if( !this.skipBrowser )
             {
                 this.rightPanel.sameLine();
                 this.rightPanel.addComboButtons( null, [
                     {
                         value: "Left",
                         icon: "fa-solid fa-left-long",
-                        callback:  (domEl) => { 
+                        callback: domEl => {
                             if(!this.prevData.length) return;
                             this.nextData.push( this.currentData );
                             this.currentData = this.prevData.pop();
@@ -7463,7 +9312,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     {
                         value: "Right",
                         icon: "fa-solid fa-right-long",
-                        callback:  (domEl) => { 
+                        callback: domEl => {
                             if(!this.nextData.length) return;
                             this.prevData.push( this.currentData );
                             this.currentData = this.nextData.pop();
@@ -7474,7 +9323,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     {
                         value: "Refresh",
                         icon: "fa-solid fa-arrows-rotate",
-                        callback:  (domEl) => { this._refreshContent(); }
+                        callback: domEl => { this._refreshContent(); }
                     }
                 ], { width: "auto", noSelection: true } );
                 this.rightPanel.addText(null, this.path.join('/'), null, { disabled: true, signal: "@on_folder_change", style: { fontWeight: "bolder", fontSize: "16px", color: "#aaa" } });
@@ -7486,17 +9335,17 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this.content.className = "lexassetscontent";
             this.rightPanel.root.appendChild(this.content);
 
-            this.content.addEventListener('dragenter', function(e) {
+            this.content.addEventListener('dragenter', function( e ) {
                 e.preventDefault();
                 this.classList.add('dragging');
             });
-            this.content.addEventListener('dragleave', function(e) {
+            this.content.addEventListener('dragleave', function( e ) {
                 e.preventDefault();
                 this.classList.remove('dragging');
             });
-            this.content.addEventListener('drop', (e) => {
+            this.content.addEventListener('drop', ( e ) => {
                 e.preventDefault();
-                this._processDrop(e);
+                this._processDrop( e );
             });
             this.content.addEventListener('click', function() {
                 this.querySelectorAll('.lexassetitem').forEach( i => i.classList.remove('selected') );
@@ -7505,82 +9354,132 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this._refreshContent();
         }
 
-        _refreshContent(search_value, filter) {
+        _refreshContent( searchValue, filter ) {
 
-            const is_content_layout = (this.layout == AssetView.LAYOUT_CONTENT); // default
-    
-            this.filter = filter ?? (this.filter ?? "None");
-            this.search_value = search_value ?? (this.search_value ?? "");
+            const isContentLayout = ( this.layout == AssetView.LAYOUT_CONTENT ); // default
+
+            this.filter = filter ?? ( this.filter ?? "None" );
+            this.searchValue = searchValue ?? (this.searchValue ?? "");
             this.content.innerHTML = "";
-            this.content.className = (is_content_layout ? "lexassetscontent" : "lexassetscontent list");
+            this.content.className = (isContentLayout ? "lexassetscontent" : "lexassetscontent list");
             let that = this;
-            
+
             const add_item = function(item) {
-    
-                const type = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+
+                const type = item.type.charAt( 0 ).toUpperCase() + item.type.slice( 1 );
                 const extension = getExtension( item.id );
-                const is_folder = type === "Folder";
-    
+                const isFolder = type === "Folder";
+
                 let itemEl = document.createElement('li');
                 itemEl.className = "lexassetitem " + item.type.toLowerCase();
-                itemEl.title = type + ": " + item.id;
                 itemEl.tabIndex = -1;
-                that.content.appendChild(itemEl);
-    
-                if(item.selected != undefined) {
-                    let span = document.createElement('span');
-                    span.className = "lexcheckbox"; 
-                    let checkbox_input = document.createElement('input');
-                    checkbox_input.type = "checkbox";
-                    checkbox_input.className = "checkbox";
-                    checkbox_input.checked = item.selected;
-                    checkbox_input.addEventListener('change', (e, v) => {
+                that.content.appendChild( itemEl );
+
+                if( !that.useNativeTitle )
+                {
+                    let desc = document.createElement( 'span' );
+                    desc.className = 'lexitemdesc';
+                    desc.innerHTML = "File: " + item.id + "<br>Type: " + type;
+                    that.content.appendChild( desc );
+
+                    itemEl.addEventListener("mousemove", e => {
+
+                        if( !isContentLayout )
+                        {
+                            return;
+                        }
+
+                        const rect = itemEl.getBoundingClientRect();
+                        const targetRect = e.target.getBoundingClientRect();
+                        const parentRect = desc.parentElement.getBoundingClientRect();
+
+                        let localOffsetX = targetRect.x - parentRect.x - ( targetRect.x - rect.x );
+                        let localOffsetY = targetRect.y - parentRect.y - ( targetRect.y - rect.y );
+
+                        if( e.target.classList.contains( "lexassettitle" ) )
+                        {
+                            localOffsetY += ( targetRect.y - rect.y );
+                        }
+
+                        desc.style.left = (localOffsetX + e.offsetX + 12) + "px";
+                        desc.style.top = (localOffsetY + e.offsetY) + "px";
+                    });
+
+                    itemEl.addEventListener("mouseenter", () => {
+                        if( isContentLayout )
+                        {
+                            desc.style.display = "unset";
+                        }
+                    });
+
+                    itemEl.addEventListener("mouseleave", () => {
+                        if( isContentLayout )
+                        {
+                            setTimeout( () => {
+                                desc.style.display = "none";
+                            }, 100 );
+                        }
+                    });
+                }
+                else
+                {
+                    itemEl.title = type + ": " + item.id;
+                }
+
+                if( that.allowMultipleSelection )
+                {
+                    let checkbox = document.createElement( 'input' );
+                    checkbox.type = "checkbox";
+                    checkbox.className = "lexcheckbox";
+                    checkbox.checked = item.selected;
+                    checkbox.addEventListener('change', ( e, v ) => {
                         item.selected = !item.selected;
-                        if(that.onevent) {
+                        if( that.onevent )
+                        {
                             const event = new AssetViewEvent(AssetViewEvent.ASSET_CHECKED, e.shiftKey ? [item] : item );
                             event.multiple = !!e.shiftKey;
                             that.onevent( event );
                         }
                         e.stopPropagation();
                         e.stopImmediatePropagation();
-                    })
-                    span.appendChild(checkbox_input);
-                    itemEl.appendChild(span);
-                    
+                    });
+
+                    itemEl.appendChild( checkbox );
                 }
+
                 let title = document.createElement('span');
                 title.className = "lexassettitle";
                 title.innerText = item.id;
-                itemEl.appendChild(title);
-    
-                if( !that.skip_preview ) {
-    
+                itemEl.appendChild( title );
+
+                if( !that.skipPreview ) {
+
                     let preview = null;
-                    const has_image = item.src && (['png', 'jpg'].indexOf( getExtension( item.src ) ) > -1 || item.src.includes("data:image/") ); // Support b64 image as src
-    
-                    if( has_image || is_folder || !is_content_layout)
+                    const hasImage = item.src && (['png', 'jpg'].indexOf( getExtension( item.src ) ) > -1 || item.src.includes("data:image/") ); // Support b64 image as src
+
+                    if( hasImage || isFolder || !isContentLayout)
                     {
                         preview = document.createElement('img');
-                        let real_src = item.unknown_extension ? that.rootPath + "images/file.png" : (is_folder ? that.rootPath + "images/folder.png" : item.src);
-                        preview.src = (is_content_layout || is_folder ? real_src : that.rootPath + "images/file.png");
-                        itemEl.appendChild(preview);
+                        let real_src = item.unknown_extension ? that.rootPath + "images/file.png" : (isFolder ? that.rootPath + "images/folder.png" : item.src);
+                        preview.src = (isContentLayout || isFolder ? real_src : that.rootPath + "images/file.png");
+                        itemEl.appendChild( preview );
                     }
                     else
                     {
                         preview = document.createElement('svg');
                         preview.className = "asset-file-preview";
                         itemEl.appendChild(preview);
-                        
+
                         let textEl = document.createElement('text');
                         preview.appendChild(textEl);
                         // If no extension, e.g. Clip, use the type...
                         textEl.innerText = (!extension || extension == item.id) ? item.type.toUpperCase() : ("." + extension.toUpperCase());
-    
+
                         var newLength = textEl.innerText.length;
                         var charsPerLine = 2.5;
                         var newEmSize = charsPerLine / newLength;
                         var textBaseSize = 64;
-    
+
                         if(newEmSize < 1) {
                             var newFontSize = newEmSize * textBaseSize;
                             textEl.style.fontSize = newFontSize + "px";
@@ -7588,98 +9487,114 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         }
                     }
                 }
-    
-                if( !is_folder )
+
+                if( !isFolder )
                 {
                     let info = document.createElement('span');
                     info.className = "lexassetinfo";
                     info.innerText = type;
                     itemEl.appendChild(info);
                 }
-    
+
                 itemEl.addEventListener('click', function(e) {
                     e.stopImmediatePropagation();
                     e.stopPropagation();
-    
-                    const is_double_click = e.detail == LX.MOUSE_DOUBLE_CLICK;
-    
-                    if(!is_double_click)
+
+                    const isDoubleClick = ( e.detail == LX.MOUSE_DOUBLE_CLICK );
+
+                    if( !isDoubleClick )
                     {
-                        if(!e.shiftKey)
+                        if( !e.shiftKey )
+                        {
                             that.content.querySelectorAll('.lexassetitem').forEach( i => i.classList.remove('selected') );
+                        }
+
                         this.classList.add('selected');
-                        if( !that.skip_preview )
+                        that.selectedItem = item;
+
+                        if( !that.skipPreview )
+                        {
                             that._previewAsset( item );
-                    } 
-                    else if(is_folder) 
+                        }
+                    }
+                    else if( isFolder )
                     {
                         that._enterFolder( item );
                         return;
                     }
-    
-                    if(that.onevent) {
-                        const event = new AssetViewEvent(is_double_click ? AssetViewEvent.ASSET_DBLCLICKED : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
+
+                    if( that.onevent )
+                    {
+                        const event = new AssetViewEvent(isDoubleClick ? AssetViewEvent.ASSET_DBLCLICKED : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
                         event.multiple = !!e.shiftKey;
                         that.onevent( event );
                     }
                 });
-    
-                if( that.context_menu )
+
+                if( that.contextMenu )
                 {
                     itemEl.addEventListener('contextmenu', function(e) {
                         e.preventDefault();
-    
+
                         const multiple = that.content.querySelectorAll('.selected').length;
-    
-                        LX.addContextMenu( multiple > 1 ? (multiple + " selected") : 
-                                    is_folder ? item.id : item.type, e, m => {
-                            if(multiple <= 1)   
+
+                        LX.addContextMenu( multiple > 1 ? (multiple + " selected") :
+                                    isFolder ? item.id : item.type, e, m => {
+                            if( multiple <= 1 )
+                            {
                                 m.add("Rename");
-                            if( !is_folder )
-                                m.add("Clone", that._clone_item.bind(that, item));
-                            if(multiple <= 1)
+                            }
+                            if( !isFolder )
+                            {
+                                m.add("Clone", that._cloneItem.bind( that, item ));
+                            }
+                            if( multiple <= 1 )
+                            {
                                 m.add("Properties");
+                            }
                             m.add("");
-                            m.add("Delete", that._delete_item.bind(that, item));
+                            m.add("Delete", that._deleteItem.bind( that, item ));
                         });
                     });
                 }
-    
+
                 itemEl.addEventListener("dragstart", function(e) {
                     e.preventDefault();
                 }, false );
-    
+
                 return itemEl;
             }
-    
+
             const fr = new FileReader();
-    
-            const filtered_data = this.currentData.filter( _i => {
+
+            const filteredData = this.currentData.filter( _i => {
                 return (this.filter != "None" ? _i.type.toLowerCase() == this.filter.toLowerCase() : true) &&
-                    _i.id.toLowerCase().includes(this.search_value.toLowerCase())
+                    _i.id.toLowerCase().includes(this.searchValue.toLowerCase())
             } );
-    
-            if(filter || search_value) {
+
+            if( filter || searchValue )
+            {
                 this.contentPage = 1;
             }
+
             // Show all data if using filters
-            const start_index = (this.contentPage - 1) * AssetView.MAX_PAGE_ELEMENTS;
-            const end_index = Math.min( start_index + AssetView.MAX_PAGE_ELEMENTS, filtered_data.length );
-    
-            for( let i = start_index; i < end_index; ++i )
+            const startIndex = (this.contentPage - 1) * AssetView.MAX_PAGE_ELEMENTS;
+            const endIndex = Math.min( startIndex + AssetView.MAX_PAGE_ELEMENTS, filteredData.length );
+
+            for( let i = startIndex; i < endIndex; ++i )
             {
-                let item = filtered_data[i];
-    
+                let item = filteredData[ i ];
+
                 if( item.path )
                 {
                     LX.request({ url: item.path, dataType: 'blob', success: (f) => {
                         item.bytesize = f.size;
                         fr.readAsDataURL( f );
-                        fr.onload = e => { 
+                        fr.onload = e => {
                             item.src = e.currentTarget.result;  // This is a base64 string...
                             item._path = item.path;
                             delete item.path;
-                            this._refreshContent(search_value, filter);
+                            this._refreshContent( searchValue, filter );
                         };
                     } });
                 }else
@@ -7687,15 +9602,21 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     item.domEl = add_item( item );
                 }
             }
-            this.allow_next_page = filtered_data.length - 1 > AssetView.MAX_PAGE_ELEMENTS;
-            LX.emit("@on_page_change", "Page " + this.contentPage + " / " + ((((filtered_data.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1));
+
+            this.allowNextPage = filteredData.length - 1 > AssetView.MAX_PAGE_ELEMENTS;
+            LX.emit("@on_page_change", "Page " + this.contentPage + " / " + ((((filteredData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1));
+
+            if( this.onRefreshContent )
+            {
+                this.onRefreshContent( searchValue, filter );
+            }
         }
 
         /**
         * @method _previewAsset
         */
 
-        _previewAsset(file) {
+        _previewAsset( file ) {
 
             const is_base_64 = file.src && file.src.includes("data:image/");
 
@@ -7704,34 +9625,37 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
 
             if( file.type == 'image' || file.src )
             {
-                const has_image = ['png', 'jpg'].indexOf( getExtension( file.src ) ) > -1 || is_base_64;
-                if( has_image )
-                    this.previewPanel.addImage(file.src, { style: { width: "100%" } });
+                const hasImage = ['png', 'jpg'].indexOf( getExtension( file.src ) ) > -1 || is_base_64;
+                if( hasImage )
+                {
+                    this.previewPanel.addImage( file.src, { style: { width: "100%" } } );
+                }
             }
 
             const options = { disabled: true };
 
             this.previewPanel.addText("Filename", file.id, null, options);
-            if(file._path || file.src ) this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options);
+            if( file.lastModified ) this.previewPanel.addText("Last Modified", new Date( file.lastModified ).toLocaleString(), null, options);
+            if( file._path || file.src ) this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options);
             this.previewPanel.addText("Path", this.path.join('/'), null, options);
             this.previewPanel.addText("Type", file.type, null, options);
-            if(file.bytesize) this.previewPanel.addText("Size", (file.bytesize/1024).toPrecision(3) + " KBs", null, options);
-            if(file.type == "folder") this.previewPanel.addText("Files", file.children ? file.children.length.toString() : "0", null, options);
-            
-            this.previewPanel.addSeparator();
-            
-            const preview_actions = [...this.preview_actions];
+            if( file.bytesize ) this.previewPanel.addText("Size", (file.bytesize/1024).toPrecision(3) + " KBs", null, options);
+            if( file.type == "folder" ) this.previewPanel.addText("Files", file.children ? file.children.length.toString() : "0", null, options);
 
-            if( !preview_actions.length )
+            this.previewPanel.addSeparator();
+
+            const previewActions = [...this.previewActions];
+
+            if( !previewActions.length )
             {
                 // By default
-                preview_actions.push({
-                    name: 'Download', 
+                previewActions.push({
+                    name: 'Download',
                     callback: () => LX.downloadURL(file.src, file.id)
                 });
             }
 
-            for( let action of preview_actions )
+            for( let action of previewActions )
             {
                 if( action.type && action.type !== file.type || action.path && action.path !== this.path.join('/') )
                     continue;
@@ -7741,7 +9665,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this.previewPanel.merge();
         }
 
-        _processDrop(e) {
+        _processDrop( e ) {
 
             const fr = new FileReader();
             const num_files = e.dataTransfer.files.length;
@@ -7754,14 +9678,15 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 if(result) continue;
 
                 fr.readAsDataURL( file );
-                fr.onload = e => { 
-                    
+                fr.onload = e => {
+
                     let ext = file.name.substr(file.name.lastIndexOf('.') + 1).toLowerCase();
 
                     let item = {
                         "id": file.name,
                         "src": e.currentTarget.result,
-                        "extension": ext
+                        "extension": ext,
+                        "lastModified": file.lastModified
                     };
 
                     switch(ext)
@@ -7769,12 +9694,12 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     case 'png':
                     case 'jpg':
                         item.type = "image"; break;
-                    case 'js': 
-                    case 'css': 
+                    case 'js':
+                    case 'css':
                         item.type = "script"; break;
-                    case 'json': 
+                    case 'json':
                         item.type = "json"; break;
-                    case 'obj': 
+                    case 'obj':
                         item.type = "mesh"; break;
                     default:
                         item.type = ext;
@@ -7783,10 +9708,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                     }
 
                     this.currentData.push( item );
-                    
+
                     if(i == (num_files - 1)) {
                         this._refreshContent();
-                        if( !this.skip_browser )
+                        if( !this.skipBrowser )
                             this.tree.refresh();
                     }
                 };
@@ -7806,10 +9731,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this._refreshContent();
         }
 
-        _enterFolder( folder_item ) {
+        _enterFolder( folderItem ) {
 
             this.prevData.push( this.currentData );
-            this.currentData = folder_item.children;
+            this.currentData = folderItem.children;
             this.contentPage = 1;
             this._refreshContent();
 
@@ -7817,51 +9742,62 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             this._updatePath(this.currentData);
 
             // Trigger event
-            if(this.onevent) {
-                const event = new AssetViewEvent(AssetViewEvent.ENTER_FOLDER, folder_item);
+            if( this.onevent )
+            {
+                const event = new AssetViewEvent( AssetViewEvent.ENTER_FOLDER, folderItem );
                 this.onevent( event );
             }
         }
 
         _deleteItem( item ) {
 
-            const idx = this.currentData.indexOf(item);
-            if(idx > -1) {
-                this.currentData.splice(idx, 1);
-                this._refreshContent(this.search_value, this.filter);
-
-                if(this.onevent) {
-                    const event = new AssetViewEvent(AssetViewEvent.ASSET_DELETED, item );
-                    this.onevent( event );
-                }
-
-                this.tree.refresh();
-                this._processData(this.data);
+            const idx = this.currentData.indexOf( item );
+            if(idx < 0)
+            {
+                console.error( "[AssetView Error] Cannot delete. Item not found." );
+                return;
             }
+
+            this.currentData.splice( idx, 1 );
+            this._refreshContent( this.searchValue, this.filter );
+
+            if(this.onevent)
+            {
+                const event = new AssetViewEvent( AssetViewEvent.ASSET_DELETED, item );
+                this.onevent( event );
+            }
+
+            this.tree.refresh();
+            this._processData( this.data );
         }
 
         _cloneItem( item ) {
 
-            const idx = this.currentData.indexOf(item);
-            if(idx > -1) {
-                delete item.domEl;
-                delete item.folder;
-                const new_item = deepCopy( item );
-                this.currentData.splice(idx, 0, new_item);
-                this._refreshContent(this.search_value, this.filter);
-
-                if(this.onevent) {
-                    const event = new AssetViewEvent(AssetViewEvent.ASSET_CLONED, item );
-                    this.onevent( event );
-                }
-
-                this._processData(this.data);
+            const idx = this.currentData.indexOf( item );
+            if( idx < 0 )
+            {
+                return;
             }
+
+            delete item.domEl;
+            delete item.folder;
+            const new_item = deepCopy( item );
+            this.currentData.splice( idx, 0, new_item );
+
+            this._refreshContent( this.searchValue, this.filter );
+
+            if( this.onevent )
+            {
+                const event = new AssetViewEvent( AssetViewEvent.ASSET_CLONED, item );
+                this.onevent( event );
+            }
+
+            this._processData( this.data );
         }
     }
 
     LX.AssetView = AssetView;
-        
+
     /*
     *   Requests
     */
@@ -7869,12 +9805,12 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
     Object.assign(LX, {
 
         /**
-        * Request file from url (it could be a binary, text, etc.). If you want a simplied version use 
+        * Request file from url (it could be a binary, text, etc.). If you want a simplied version use
         * @method request
         * @param {Object} request object with all the parameters like data (for sending forms), dataType, success, error
         * @param {Function} on_complete
         **/
-        request(request) {
+        request( request ) {
 
             var dataType = request.dataType || "text";
             if(dataType == "json") //parse it locally
@@ -7886,7 +9822,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 //request.mimeType = "text/plain; charset=x-user-defined";
                 dataType = "arraybuffer";
                 request.mimeType = "application/octet-stream";
-            }	
+            }
 
             //regular case, use AJAX call
             var xhr = new XMLHttpRequest();
@@ -7989,7 +9925,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         requestBinary(url, on_complete, on_error ) {
             return this.request({ url: url, dataType:"binary", success: on_complete, error: on_error });
         },
-        
+
         /**
         * Request script and inserts it in the DOM
         * @method requireScript
@@ -8018,7 +9954,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 script.src = url[i] + ( version ? "?version=" + version : "" );
                 script.original_src = url[i];
                 script.async = false;
-                script.onload = function(e) { 
+                script.onload = function(e) {
                     total--;
                     loaded_scripts.push(this);
                     if(total)
@@ -8030,7 +9966,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                         on_complete( loaded_scripts );
                 };
                 if(on_error)
-                    script.onerror = function(err) { 
+                    script.onerror = function(err) {
                         on_error(err, this.original_src, this.num );
                     }
                 document.getElementsByTagName('head')[0].appendChild(script);
@@ -8054,7 +9990,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             {
                 LX.request({ url: url, dataType: 'blob', success: (f) => {
                     fr.readAsDataURL( f );
-                    fr.onload = e => { 
+                    fr.onload = e => {
                         _download(e.currentTarget.result);
                     };
                 } });
@@ -8115,6 +10051,10 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         return !!r.length;
     }
 
+    Element.prototype.addClass = function( className ) {
+        if( className ) this.classList.add( className );
+    }
+
     Element.prototype.getComputedSize = function() {
         const cs = getComputedStyle( this );
         return {
@@ -8123,11 +10063,18 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
         }
     }
 
+    Element.prototype.getParentArea = function() {
+        let parent = this.parentElement;
+        while( parent ) {
+            if( parent.classList.contains( "lexarea" ) ) { return parent; }
+            parent = parent.parentElement;
+        }
+    }
+
 	LX.UTILS = {
         getTime() { return new Date().getTime() },
         compareThreshold( v, p, n, t ) { return Math.abs(v - p) >= t || Math.abs(v - n) >= t },
         compareThresholdRange( v0, v1, t0, t1 ) { return v0 >= t0 && v0 <= t1 || v1 >= t0 && v1 <= t1 || v0 <= t0 && v1 >= t1},
-        clamp (num, min, max) { return Math.min(Math.max(num, min), max) },
         uidGenerator: simple_guidGenerator,
         deleteElement( el ) { if( el ) el.remove(); },
         flushCss(element) {
@@ -8137,31 +10084,31 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             element.offsetHeight;
         },
         getControlPoints( x0, y0, x1, y1, x2, y2 ,t ) {
-            
+
             //  x0,y0,x1,y1 are the coordinates of the end (knot) pts of this segment
             //  x2,y2 is the next knot -- not connected here but needed to calculate p2
             //  p1 is the control point calculated here, from x1 back toward x0.
-            //  p2 is the next control point, calculated here and returned to become the 
+            //  p2 is the next control point, calculated here and returned to become the
             //  next segment's p1.
             //  t is the 'tension' which controls how far the control points spread.
-            
+
             //  Scaling factors: distances from this knot to the previous and following knots.
             var d01=Math.sqrt(Math.pow(x1-x0,2)+Math.pow(y1-y0,2));
             var d12=Math.sqrt(Math.pow(x2-x1,2)+Math.pow(y2-y1,2));
-        
+
             var fa=t*d01/(d01+d12);
             var fb=t-fa;
-        
+
             var p1x=x1+fa*(x0-x2);
             var p1y=y1+fa*(y0-y2);
-        
+
             var p2x=x1-fb*(x0-x2);
-            var p2y=y1-fb*(y0-y2);  
-            
+            var p2y=y1-fb*(y0-y2);
+
             return [p1x,p1y,p2x,p2y]
         },
         drawSpline( ctx, pts, t ) {
-        
+
             ctx.save();
             var cp=[];   // array of control points, as x0,y0,x1,y1,...
             var n=pts.length;
@@ -8169,7 +10116,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             // Draw an open curve, not connected at the ends
             for(var i=0;i<n-4;i+=2) {
                 cp=cp.concat(LX.UTILS.getControlPoints(pts[i],pts[i+1],pts[i+2],pts[i+3],pts[i+4],pts[i+5],t));
-            }    
+            }
 
             for(var i=2;i<pts.length-5;i+=2) {
                 ctx.beginPath();
@@ -8177,7 +10124,7 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
                 ctx.bezierCurveTo(cp[2*i-2],cp[2*i-1],cp[2*i],cp[2*i+1],pts[i+2],pts[i+3]);
                 ctx.stroke();
                 ctx.closePath();
-                
+
             }
             //  For open curves the first and last arcs are simple quadratics.
             ctx.beginPath();
@@ -8185,13 +10132,13 @@ console.warn( 'Script "build/lexgui.js" is depracated and will be removed soon. 
             ctx.quadraticCurveTo(cp[0],cp[1],pts[2],pts[3]);
             ctx.stroke();
             ctx.closePath();
-        
+
             ctx.beginPath();
             ctx.moveTo(pts[n-2],pts[n-1]);
             ctx.quadraticCurveTo(cp[2*n-10],cp[2*n-9],pts[n-4],pts[n-3]);
             ctx.stroke();
             ctx.closePath();
-            
+
             ctx.restore();
         }
     };

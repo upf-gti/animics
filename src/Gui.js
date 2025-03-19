@@ -112,7 +112,7 @@ class Gui {
             {
                 title: "Play",
                 icon: "fa-solid fa-play",
-                // swap: "fa-solid fa-pause",
+                swap: "fa-solid fa-pause",
                 callback:  (event, swapValue) => { 
                     if(this.editor.state ) {
                         this.editor.pause();    
@@ -123,26 +123,18 @@ class Gui {
                     if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) {
                         this.editor.activeTimeline.changeState();
                     };
-
-                    // TO DO remove if lexgui version > 0.1.43
-                    this.menubar.getButton("Play").children[0].classList.toggle('fa-pause');
-                    this.menubar.getButton("Play").children[0].classList.toggle('fa-play');
                 }
             },
             {
                 title: "Stop",
                 icon: "fa-solid fa-stop",
-                callback:  (domEl) => { 
+                callback:  (event) => { 
 
-                    // TO DO uncomment if lexgui is updated from 1.43
-                    // this.menubar.getButton("Play").setState(false); 
+                    this.menubar.getButton("Play").setState(false); 
                     if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) {
                         this.editor.activeTimeline.changeState();
                     };
-                    if( this.menubar.getButton("Play").children[0].classList.contains("fa-pause") ) {
-                        this.menubar.getButton("Play").children[0].classList.remove('fa-pause');
-                        this.menubar.getButton("Play").children[0].classList.add('fa-play');
-                    }
+
                     this.editor.stop();
                 }
             }

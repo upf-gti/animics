@@ -380,9 +380,8 @@ class VideoEditor {
         
         if(options.src) {
             this.video.src = options.src;
+            this._loadVideo(options);
         }
-        this._loadVideo(options);
-
         if(options.videoArea) {
             options.videoArea.root.classList.add("lexvideoeditor");
             options.videoArea.attach(this.cropArea);

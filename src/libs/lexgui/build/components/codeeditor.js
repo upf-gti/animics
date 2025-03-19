@@ -88,7 +88,7 @@ class CodeSelection {
         {
             swapElements( this, 'fromX', 'toX' );
             swapElements( this, 'fromY', 'toY' );
-        } 
+        }
         else if( this.sameLine() && this.fromX > this.toX )
         {
             swapElements( this, 'fromX', 'toX' );
@@ -96,7 +96,7 @@ class CodeSelection {
     }
 
     selectInline( cursor, x, y, width, isSearchResult ) {
-        
+
         this.chars = width / this.editor.charWidth;
         this.fromX = x;
         this.toX = x + this.chars;
@@ -104,7 +104,7 @@ class CodeSelection {
 
         var domEl = document.createElement( 'div' );
         domEl.className = this.className;
-        
+
         domEl._top = y * this.editor.lineHeight;
         domEl.style.top = domEl._top + "px";
         domEl._left = x * this.editor.charWidth;
@@ -164,9 +164,9 @@ class ScrollBar {
         this.root = document.createElement( 'div' );
         this.root.className = "lexcodescrollbar";
 
-        if( type & ScrollBar.SCROLLBAR_VERTICAL ) 
+        if( type & ScrollBar.SCROLLBAR_VERTICAL )
             this.root.classList.add( 'vertical' );
-        else if( type & ScrollBar.SCROLLBAR_HORIZONTAL ) 
+        else if( type & ScrollBar.SCROLLBAR_HORIZONTAL )
             this.root.classList.add( 'horizontal' );
 
         this.thumb = document.createElement( 'div' );
@@ -176,11 +176,11 @@ class ScrollBar {
         this.root.appendChild( this.thumb );
 
         this.thumb.addEventListener( "mousedown", inner_mousedown );
-            
+
         this.lastPosition = new LX.vec2( 0, 0 );
 
         let that = this;
-        
+
         function inner_mousedown( e )
         {
             var doc = editor.root.ownerDocument;
@@ -194,7 +194,7 @@ class ScrollBar {
         function inner_mousemove( e )
         {
             var dt = that.lastPosition.sub( new LX.vec2( e.x, e.y ) );
-            if( that.type & ScrollBar.SCROLLBAR_VERTICAL ) 
+            if( that.type & ScrollBar.SCROLLBAR_VERTICAL )
                 editor.updateVerticalScrollFromScrollBar( dt.y )
             else
                 editor.updateHorizontalScrollFromScrollBar( dt.x )
@@ -239,7 +239,11 @@ class CodeEditor {
 
     /**
      * @param {*} options
-     * skip_info, allow_add_scripts, name
+     * name:
+     * skipInfo:
+     * fileExplorer:
+     * allowAddScripts:
+     * disableEdition:
      */
 
     constructor( area, options = {} ) {
@@ -247,11 +251,11 @@ class CodeEditor {
         window.editor = this;
 
         CodeEditor.__instances.push( this );
-        
+
         // File explorer
-        if( options.file_explorer ?? false )
+        if( options.fileExplorer ?? false )
         {
-            var [explorerArea, codeArea] = area.split({ sizes:["15%","85%"] });
+            var [ explorerArea, codeArea ] = area.split({ sizes:[ "15%","85%" ] });
             explorerArea.setLimitBox( 180, 20, 512 );
             this.explorerArea = explorerArea;
 
@@ -259,40 +263,42 @@ class CodeEditor {
 
             panel.addTitle( "EXPLORER" );
 
+            this._tabStorage = {};
+
             let sceneData = {
                 'id': 'WORKSPACE',
                 'skipVisibility': true,
                 'children': []
             };
-        
-            this.explorer = panel.addTree( null, sceneData, { 
+
+            this.explorer = panel.addTree( null, sceneData, {
                 filter: false,
                 rename: false,
                 skip_default_icon: true,
-                onevent: (event) => { 
+                onevent: (event) => {
                     switch(event.type) {
                         // case LX.TreeEvent.NODE_SELECTED:
                         //     if( !this.tabs.tabDOMs[ event.node.id ] ) break;
                         case LX.TreeEvent.NODE_DBLCLICKED:
                             this.loadTab( event.node.id );
                             break;
-                        case LX.TreeEvent.NODE_DELETED: 
+                        case LX.TreeEvent.NODE_DELETED:
                             this.tabs.delete( event.node.id );
                             delete this.loadedTabs[ event.node.id ];
                             break;
-                        // case LX.TreeEvent.NODE_CONTEXTMENU: 
+                        // case LX.TreeEvent.NODE_CONTEXTMENU:
                         //     LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.value, m => {
-                        //          
+                        //
                         //     });
                         //     break;
-                        // case LX.TreeEvent.NODE_DRAGGED: 
-                        //     console.log(event.node.id + " is now child of " + event.value.id); 
+                        // case LX.TreeEvent.NODE_DRAGGED:
+                        //     console.log(event.node.id + " is now child of " + event.value.id);
                         //     break;
                     }
                 }
-            });    
+            });
 
-            this.addExplorerItem = function( item ) 
+            this.addExplorerItem = function( item )
             {
                 if( !this.explorer.data.children.find( (value, index) => value.id === item.id ) )
                     this.explorer.data.children.push( item );
@@ -305,7 +311,10 @@ class CodeEditor {
         }
 
         this.base_area = area;
-        this.area = new LX.Area( { className: "lexcodeeditor", height: "100%", no_append: true } );
+        this.area = new LX.Area( { className: "lexcodeeditor", height: "100%", skipAppend: true } );
+
+        this.skipCodeInfo = options.skipInfo ?? false;
+        this.disableEdition = options.disableEdition ?? false;
 
         this.tabs = this.area.addTabs( { onclose: (name) => {
             delete this.openedTabs[ name ];
@@ -315,12 +324,16 @@ class CodeEditor {
                 this.cursors.classList.remove( 'show' );
             }
         } } );
-        this.tabs.root.addEventListener( 'dblclick', (e) => {
-            if( options.allow_add_scripts ?? true ) {
-                e.preventDefault();
-                this.addTab("unnamed.js", true);
-            }
-        } );
+
+        if( !this.disableEdition )
+        {
+            this.tabs.root.addEventListener( 'dblclick', (e) => {
+                if( options.allowAddScripts ?? true ) {
+                    e.preventDefault();
+                    this.addTab("unnamed.js", true);
+                }
+            } );
+        }
 
         // Full editor
         area.root.classList.add('codebasearea');
@@ -332,16 +345,17 @@ class CodeEditor {
         this.root.tabIndex = -1;
         area.attach( this.root );
 
-        this.skipCodeInfo = options.skip_info ?? false;
-        this.disableEdition = options.disable_edition ?? false;
-
         if( !this.disableEdition )
         {
             this.root.addEventListener( 'keydown', this.processKey.bind( this) );
             this.root.addEventListener( 'focus', this.processFocus.bind( this, true ) );
             this.root.addEventListener( 'focusout', this.processFocus.bind( this, false ) );
         }
-       
+        else
+        {
+            this.root.classList.add( "disabled" );
+        }
+
         this.root.addEventListener( 'mousedown', this.processMouse.bind(this) );
         this.root.addEventListener( 'mouseup', this.processMouse.bind(this) );
         this.root.addEventListener( 'mousemove', this.processMouse.bind(this) );
@@ -379,54 +393,58 @@ class CodeEditor {
             window.scroller = this.codeScroller;
 
             let lastScrollTopValue = -1;
-            this.codeScroller.addEventListener( 'scroll', e => {
 
-                if( this._discardScroll )
-                {
-                    this._discardScroll = false;
-                    return;
-                }
+            if( !this.disableEdition )
+            {
+                this.codeScroller.addEventListener( 'scroll', e => {
 
-                this.setScrollBarValue( 'vertical' );
-
-                const scrollTop = this.getScrollTop();
-
-                // Scroll down...
-                if( scrollTop > lastScrollTopValue )
-                {
-                    if( this.visibleLinesViewport.y < (this.code.lines.length - 1) )
+                    if( this._discardScroll )
                     {
-                        const totalLinesInViewport = ((this.codeScroller.offsetHeight - 36) / this.lineHeight)|0;
-                        const scrollDownBoundary = 
-                            ( Math.max( this.visibleLinesViewport.y - totalLinesInViewport, 0 ) - 1 ) * this.lineHeight; 
+                        this._discardScroll = false;
+                        return;
+                    }
 
-                        if( scrollTop >= scrollDownBoundary )
+                    this.setScrollBarValue( 'vertical' );
+
+                    const scrollTop = this.getScrollTop();
+
+                    // Scroll down...
+                    if( scrollTop > lastScrollTopValue )
+                    {
+                        if( this.visibleLinesViewport.y < (this.code.lines.length - 1) )
+                        {
+                            const totalLinesInViewport = ((this.codeScroller.offsetHeight - 36) / this.lineHeight)|0;
+                            const scrollDownBoundary =
+                                ( Math.max( this.visibleLinesViewport.y - totalLinesInViewport, 0 ) - 1 ) * this.lineHeight;
+
+                            if( scrollTop >= scrollDownBoundary )
+                                this.processLines( CodeEditor.UPDATE_VISIBLE_LINES );
+                        }
+                    }
+                    // Scroll up...
+                    else
+                    {
+                        const scrollUpBoundary = parseInt( this.code.style.top );
+                        if( scrollTop < scrollUpBoundary )
                             this.processLines( CodeEditor.UPDATE_VISIBLE_LINES );
                     }
-                }
-                // Scroll up...
-                else
-                {
-                    const scrollUpBoundary = parseInt( this.code.style.top );
-                    if( scrollTop < scrollUpBoundary )
-                        this.processLines( CodeEditor.UPDATE_VISIBLE_LINES );
-                }
 
-                lastScrollTopValue = scrollTop;
-            });
+                    lastScrollTopValue = scrollTop;
+                });
 
-            this.codeScroller.addEventListener( 'wheel', e => {
-                if( e.ctrlKey )
-                {
-                    e.preventDefault();
-                    ( e.deltaY > 0.0 ? this._decreaseFontSize() : this._increaseFontSize() );
-                }
-                else
-                {
-                    const dX = ( e.deltaY > 0.0 ? 10.0 : -10.0 ) * ( e.shiftKey ? 1.0 : 0.0 );
-                    if( dX != 0.0 ) this.setScrollBarValue( 'horizontal', dX );
-                }
-            });
+                this.codeScroller.addEventListener( 'wheel', e => {
+                    if( e.ctrlKey )
+                    {
+                        e.preventDefault();
+                        ( e.deltaY > 0.0 ? this._decreaseFontSize() : this._increaseFontSize() );
+                    }
+                    else
+                    {
+                        const dX = ( e.deltaY > 0.0 ? 10.0 : -10.0 ) * ( e.shiftKey ? 1.0 : 0.0 );
+                        if( dX != 0.0 ) this.setScrollBarValue( 'horizontal', dX );
+                    }
+                });
+            }
         }
 
         // This is only the container, line numbers are in the same line div
@@ -448,66 +466,69 @@ class CodeEditor {
             area.attach( this.hScrollbar.root );
         }
 
-        // Add autocomplete box
+        if( !this.disableEdition )
         {
-            var box = document.createElement( 'div' );
-            box.className = "autocomplete";
-            this.autocomplete = box;
-            this.tabs.area.attach( box );
+            // Add autocomplete box
+            {
+                var box = document.createElement( 'div' );
+                box.className = "autocomplete";
+                this.autocomplete = box;
+                this.tabs.area.attach( box );
 
-            this.isAutoCompleteActive = false;
-        }
+                this.isAutoCompleteActive = false;
+            }
 
-        // Add search box
-        {
-            var box = document.createElement( 'div' );
-            box.className = "searchbox";
-            
-            var searchPanel = new LX.Panel();
-            box.appendChild( searchPanel.root );
+            // Add search box
+            {
+                var box = document.createElement( 'div' );
+                box.className = "searchbox";
 
-            searchPanel.sameLine( 4 );
-            searchPanel.addText( null, "", null, { placeholder: "Find" } );
-            searchPanel.addButton( null, "up", () => this.search( null, true ), { className: 'micro', icon: "fa fa-arrow-up" } );
-            searchPanel.addButton( null, "down", () => this.search(), { className: 'micro', icon: "fa fa-arrow-down" } );
-            searchPanel.addButton( null, "x", this.hideSearchBox.bind( this ), { className: 'micro', icon: "fa fa-xmark" } );
+                var searchPanel = new LX.Panel();
+                box.appendChild( searchPanel.root );
 
-            box.querySelector( 'input' ).addEventListener( 'keyup', e => {
-                if( e.key == 'Escape' ) this.hideSearchBox();
-                else if( e.key == 'Enter' ) this.search( e.target.value, !!e.shiftKey );
-            } );
+                searchPanel.sameLine( 4 );
+                searchPanel.addText( null, "", null, { placeholder: "Find" } );
+                searchPanel.addButton( null, "up", () => this.search( null, true ), { className: 'micro', icon: "fa fa-arrow-up" } );
+                searchPanel.addButton( null, "down", () => this.search(), { className: 'micro', icon: "fa fa-arrow-down" } );
+                searchPanel.addButton( null, "x", this.hideSearchBox.bind( this ), { className: 'micro', icon: "fa fa-xmark" } );
 
-            this.searchbox = box;
-            this.tabs.area.attach( box );
-        }
+                box.querySelector( 'input' ).addEventListener( 'keyup', e => {
+                    if( e.key == 'Escape' ) this.hideSearchBox();
+                    else if( e.key == 'Enter' ) this.search( e.target.value, !!e.shiftKey );
+                } );
 
-        // Add search LINE box
-        {
-            var box = document.createElement( 'div' );
-            box.className = "searchbox gotoline";
-            
-            var searchPanel = new LX.Panel();
-            box.appendChild( searchPanel.root );
+                this.searchbox = box;
+                this.tabs.area.attach( box );
+            }
 
-            searchPanel.addText( null, "", ( value, event ) => {
-                input.value = ":" + value.replaceAll( ':', '' );
-                this.goToLine( input.value.slice( 1 ) );
-            }, { placeholder: "Go to line", trigger: "input" } );
+            // Add search LINE box
+            {
+                var box = document.createElement( 'div' );
+                box.className = "searchbox gotoline";
 
-            let input = box.querySelector( 'input' );
-            input.addEventListener( 'keyup', e => {
-                if( e.key == 'Escape' ) this.hideSearchLineBox();
-            } );
+                var searchPanel = new LX.Panel();
+                box.appendChild( searchPanel.root );
 
-            this.searchlinebox = box;
-            this.tabs.area.attach( box );
+                searchPanel.addText( null, "", ( value, event ) => {
+                    input.value = ":" + value.replaceAll( ':', '' );
+                    this.goToLine( input.value.slice( 1 ) );
+                }, { placeholder: "Go to line", trigger: "input" } );
+
+                let input = box.querySelector( 'input' );
+                input.addEventListener( 'keyup', e => {
+                    if( e.key == 'Escape' ) this.hideSearchLineBox();
+                } );
+
+                this.searchlinebox = box;
+                this.tabs.area.attach( box );
+            }
         }
 
         // Add code-sizer
         {
             this.codeSizer = document.createElement( 'div' );
             this.codeSizer.className = "code-sizer";
-            
+
             // Append all childs
             while( this.codeScroller.firstChild )
                 this.codeSizer.appendChild( this.codeScroller.firstChild );
@@ -549,7 +570,7 @@ class CodeEditor {
         };
 
         this.stringKeys = { // adding @ because some words are always true in (e.g. constructor..)
-            "@\"": "\"", 
+            "@\"": "\"",
             "@'": "'"
         };
 
@@ -559,8 +580,10 @@ class CodeEditor {
         this.languages = {
             'Plain Text': { ext: 'txt', blockComments: false, singleLineComments: false },
             'JavaScript': { ext: 'js' },
-            'C++': { ext: 'cpp' },
+            'C': { ext: [ 'c', 'h' ] },
+            'C++': { ext: [ 'cpp', 'hpp' ] },
             'CSS': { ext: 'css' },
+            'CMake': { ext: 'cmake', singleLineCommentToken: '#', blockComments: false, ignoreCase: true },
             'GLSL': { ext: 'glsl' },
             'WGSL': { ext: 'wgsl' },
             'JSON': { ext: 'json', blockComments: false, singleLineComments: false },
@@ -573,7 +596,7 @@ class CodeEditor {
         };
 
         this.specialKeys = [
-            'Backspace', 'Enter', 'ArrowUp', 'ArrowDown', 
+            'Backspace', 'Enter', 'ArrowUp', 'ArrowDown',
             'ArrowRight', 'ArrowLeft', 'Delete', 'Home',
             'End', 'Tab', 'Escape'
         ];
@@ -587,10 +610,10 @@ class CodeEditor {
             for( let lang in CodeEditor.keywords ) CodeEditor.keywords[lang] = CodeEditor.keywords[lang].reduce((a, v) => ({ ...a, [v]: true}), {});
             for( let lang in CodeEditor.utils ) CodeEditor.utils[lang] = CodeEditor.utils[lang].reduce((a, v) => ({ ...a, [v]: true}), {});
             for( let lang in CodeEditor.types ) CodeEditor.types[lang] = CodeEditor.types[lang].reduce((a, v) => ({ ...a, [v]: true}), {});
-            for( let lang in CodeEditor.builtin ) CodeEditor.builtin[lang] = CodeEditor.builtin[lang].reduce((a, v) => ({ ...a, [v]: true}), {});
+            for( let lang in CodeEditor.builtIn ) CodeEditor.builtIn[lang] = CodeEditor.builtIn[lang].reduce((a, v) => ({ ...a, [v]: true}), {});
             for( let lang in CodeEditor.statementsAndDeclarations ) CodeEditor.statementsAndDeclarations[lang] = CodeEditor.statementsAndDeclarations[lang].reduce((a, v) => ({ ...a, [v]: true}), {});
             for( let lang in CodeEditor.symbols ) CodeEditor.symbols[lang] = CodeEditor.symbols[lang].reduce((a, v) => ({ ...a, [v]: true}), {});
-    
+
             CodeEditor._staticReady = true;
         }
 
@@ -613,7 +636,7 @@ class CodeEditor {
             if( cursor.selection ) {
                 this.deleteSelection( cursor );
                 // Remove entire line when selecting with triple click
-                if( this._tripleClickSelection ) 
+                if( this._tripleClickSelection )
                 {
                     this.actions['Backspace'].callback( ln, cursor, e );
                     this.lineDown( cursor, true );
@@ -626,7 +649,7 @@ class CodeEditor {
 
                     var deleteFromPosition = cursor.position - 1;
                     var numCharsDeleted = 1;
-                    
+
                     // Delete full word
                     if( e.shiftKey )
                     {
@@ -646,7 +669,7 @@ class CodeEditor {
 
                     if( this.useAutoComplete )
                         this.showAutoCompleteBox( 'foo', cursor );
-                } 
+                }
                 else if( this.code.lines[ ln - 1 ] != undefined ) {
 
                     this.lineUp( cursor );
@@ -663,7 +686,7 @@ class CodeEditor {
         this.action( 'Delete', false, ( ln, cursor, e ) => {
 
             this._addUndoStep( cursor );
-            
+
             if( cursor.selection ) {
                 // Use 'Backspace' as it's the same callback...
                 this.actions['Backspace'].callback( ln, cursor, e );
@@ -674,7 +697,7 @@ class CodeEditor {
                 if( letter ) {
                     this.code.lines[ ln ] = sliceChars( this.code.lines[ ln ], cursor.position );
                     this.processLine( ln );
-                } 
+                }
                 else if( this.code.lines[ ln + 1 ] != undefined ) {
                     this.code.lines[ ln ] += this.code.lines[ ln + 1 ];
                     this.code.lines.splice( ln + 1, 1 );
@@ -684,7 +707,7 @@ class CodeEditor {
         });
 
         this.action( 'Tab', true, ( ln, cursor, e ) => {
-            
+
             if( this._skipTabs )
             {
                 this._skipTabs--;
@@ -712,7 +735,7 @@ class CodeEditor {
         }, "shiftKey");
 
         this.action( 'Home', false, ( ln, cursor, e ) => {
-            
+
             let idx = firstNonspaceIndex( this.code.lines[ ln ] );
 
             // We already are in the first non space index...
@@ -732,7 +755,7 @@ class CodeEditor {
             if( e.shiftKey && !e.cancelShift )
             {
                 // Get last selection range
-                if( cursor.selection ) 
+                if( cursor.selection )
                     lastX += cursor.selection.chars;
 
                 if( !cursor.selection )
@@ -750,9 +773,9 @@ class CodeEditor {
         });
 
         this.action( 'End', false, ( ln, cursor, e ) => {
-            
+
             if( ( e.shiftKey || e._shiftKey ) && !e.cancelShift ) {
-                
+
                 var string = this.code.lines[ ln ].substring( cursor.position );
                 if( !cursor.selection )
                     this.startSelection( cursor );
@@ -761,7 +784,7 @@ class CodeEditor {
                 else
                 {
                     this.resetCursorPos( CodeEditor.CURSOR_LEFT, cursor );
-                    this.cursorToString( cursor, this.code.lines[ ln ] );            
+                    this.cursorToString( cursor, this.code.lines[ ln ] );
                     this._processSelection( cursor, e );
                 }
             } else if( !e.keepSelection )
@@ -833,7 +856,7 @@ class CodeEditor {
                     if( !letter ) {
                         this.cursorToPosition( cursor, this.code.lines[ cursor.line ].length );
                     }
-                    
+
                     this._processSelection( cursor, e, false );
 
                 } else {
@@ -843,7 +866,7 @@ class CodeEditor {
                     var letter = this.getCharAtPos( cursor );
                     if( !letter ) this.actions['End'].callback( cursor.line, cursor, e );
                 }
-            } 
+            }
             // Move up autocomplete selection
             else
             {
@@ -874,7 +897,7 @@ class CodeEditor {
                 if( e.shiftKey ) {
                     this._processSelection( cursor, e );
                 }
-            } 
+            }
             // Move down autocomplete selection
             else
             {
@@ -910,7 +933,7 @@ class CodeEditor {
                 // Selections...
                 if( e.shiftKey ) {
                     if( !cursor.selection )
-                    this.startSelection( cursor ); 
+                    this.startSelection( cursor );
                 }
                 else
                     this.endSelection();
@@ -944,9 +967,9 @@ class CodeEditor {
                     }
                 }
                 else if( cursor.line > 0 ) {
-                    
+
                     if( e.shiftKey && !cursor.selection ) this.startSelection( cursor );
-                        
+
                     this.lineUp( cursor );
 
                     e.cancelShift = e.keepSelection = true;
@@ -961,7 +984,7 @@ class CodeEditor {
         this.action( 'ArrowRight', false, ( ln, cursor, e ) => {
 
             // Nothing to do..
-            if( cursor.line == this.code.lines.length - 1 && 
+            if( cursor.line == this.code.lines.length - 1 &&
                 cursor.position == this.code.lines[ cursor.line ].length )
             return;
 
@@ -1025,14 +1048,14 @@ class CodeEditor {
                     }
                 }
                 else if( this.code.lines[ cursor.line + 1 ] !== undefined ) {
-                    
+
                     if( e.shiftKey ) {
                         if( !cursor.selection ) this.startSelection( cursor );
                     }
                     else this.endSelection();
 
                     this.lineDown( cursor, true );
-                    
+
                     if( e.shiftKey ) this._processSelection( cursor, e, false );
 
                     this.hideAutoCompleteBox();
@@ -1041,14 +1064,16 @@ class CodeEditor {
         });
 
         // Default code tab
-    
+
         this.loadedTabs = { };
         this.openedTabs = { };
-        
-        if( options.allow_add_scripts ?? true )
-            this.addTab("+", false, "New File");
 
-        this.addTab( options.name || "untitled", true, options.title );
+        if( options.allowAddScripts ?? true )
+        {
+            this.addTab("+", false, "New File");
+        }
+
+        this.addTab( options.name || "untitled", true, options.title, { language: "Plain Text" } );
 
         // Create inspector panel
         let panel = this._createPanelInfo();
@@ -1064,7 +1089,7 @@ class CodeEditor {
                 display: "swap"
             }
         );
-        
+
         // Add to the document.fonts (FontFaceSet)
         document.fonts.add( commitMono );
 
@@ -1085,7 +1110,7 @@ class CodeEditor {
 
     // This received key inputs from the entire document...
     onKeyPressed( e ) {
-        
+
         // Toggle visibility of the file explorer
         if( e.key == 'b' && e.ctrlKey && this.explorer )
         {
@@ -1154,7 +1179,7 @@ class CodeEditor {
 
             // Add first line
             this.code.lines[ lidx ] = [
-                this.code.lines[ lidx ].slice( 0, cursor.position ), 
+                this.code.lines[ lidx ].slice( 0, cursor.position ),
                 first_line
             ].join('');
 
@@ -1181,8 +1206,8 @@ class CodeEditor {
         else
         {
             this.code.lines[ lidx ] = [
-                this.code.lines[ lidx ].slice( 0, cursor.position ), 
-                new_lines[ 0 ], 
+                this.code.lines[ lidx ].slice( 0, cursor.position ),
+                new_lines[ 0 ],
                 this.code.lines[ lidx ].slice( cursor.position )
             ].join('');
 
@@ -1191,7 +1216,7 @@ class CodeEditor {
         }
     }
 
-    loadFile( file ) {
+    loadFile( file, options = {} ) {
 
         const inner_add_tab = ( text, name, title ) => {
 
@@ -1207,16 +1232,25 @@ class CodeEditor {
 
             if( this.explorer )
             {
-                this._storedLines = this._storedLines ?? {};
-                this._storedLines[ name ] = lines;
-                this.addExplorerItem( { 'id': name, 'skipVisibility': true, 'icon': this._getFileIcon( name ) } );
+                this._tabStorage[ name ] = {
+                    lines: lines,
+                    options: options
+                };
+
+                const ext = this.languages[ options.language ] ?. ext;
+                this.addExplorerItem( { 'id': name, 'skipVisibility': true, 'icon': this._getFileIcon( name, ext ) } );
                 this.explorer.frefresh( name );
             }
             else
             {
-                this.addTab(name, true, title);
+                this.addTab( name, true, title, options );
                 this.code.lines = lines;
-                this._changeLanguageFromExtension( LX.getExtension( name ) );
+
+                // Default inferred language if not specified
+                if( !options.language )
+                {
+                    this._changeLanguageFromExtension( LX.getExtension( name ) );
+                }
             }
         };
 
@@ -1224,7 +1258,6 @@ class CodeEditor {
         {
             let filename = file;
             LX.request({ url: filename, success: text => {
-
                 const name = filename.substring(filename.lastIndexOf( '/' ) + 1);
                 inner_add_tab( text, name, filename );
             } });
@@ -1233,7 +1266,7 @@ class CodeEditor {
         {
             const fr = new FileReader();
             fr.readAsText( file );
-            fr.onload = e => { 
+            fr.onload = e => {
                 const text = e.currentTarget.result;
                 inner_add_tab( text, file.name );
             };
@@ -1251,7 +1284,7 @@ class CodeEditor {
 
             return;
         }
-         
+
         let cursor = document.createElement( 'div' );
         cursor.name = "cursor" + this.cursors.childElementCount;
         cursor.className = "cursor";
@@ -1268,7 +1301,7 @@ class CodeEditor {
 
         Object.defineProperty( cursor, 'line', {
             get: (v) => { return cursor._line },
-            set: (v) => { 
+            set: (v) => {
                 cursor._line = v;
                 if( cursor.isMain ) this._setActiveLine( v );
             }
@@ -1276,7 +1309,7 @@ class CodeEditor {
 
         Object.defineProperty( cursor, 'position', {
             get: (v) => { return cursor._position },
-            set: (v) => { 
+            set: (v) => {
                 cursor._position = v;
                 if( cursor.isMain ) this._updateDataInfoPanel( "@cursor-pos", "Col " + ( v + 1 ) );
             }
@@ -1335,7 +1368,7 @@ class CodeEditor {
             }
         }
 
-        if( deleteRedo ) 
+        if( deleteRedo )
         {
             // Remove all redo steps
             this.code.redoSteps.length = 0;
@@ -1417,10 +1450,16 @@ class CodeEditor {
         }
     }
 
-    _changeLanguage( lang ) {
+    _changeLanguage( lang, override = false ) {
 
         this.code.language = lang;
         this.highlight = lang;
+
+        if( override )
+        {
+            this.code.languageOverride = lang;
+        }
+
         this._updateDataInfoPanel( "@highlight", lang );
         this.processLines();
 
@@ -1437,7 +1476,8 @@ class CodeEditor {
             {
                 iconEl = document.createElement( 'i' );
                 iconEl.className = icon;
-            } else {
+            } else
+            {
                 iconEl = document.createElement( 'img' );
                 iconEl.src = "https://raw.githubusercontent.com/jxarco/lexgui.js/master/" + icon;
             }
@@ -1455,21 +1495,38 @@ class CodeEditor {
     }
 
     _changeLanguageFromExtension( ext ) {
-        
+
         if( !ext )
-        return this._changeLanguage( this.code.language );
+        {
+            return this._changeLanguage( this.code.language );
+        }
 
         for( let l in this.languages )
         {
-            if( this.languages[l].ext == ext )
-                return this._changeLanguage( l );
+            const langExtension = this.languages[ l ].ext;
+
+            if( langExtension.constructor == Array )
+            {
+                if( langExtension.indexOf( ext ) > -1 )
+                {
+                    return this._changeLanguage( l );
+                }
+            }
+            else
+            {
+                if( langExtension == ext )
+                {
+                    return this._changeLanguage( l );
+                }
+            }
+
         }
 
         this._changeLanguage( 'Plain Text' );
     }
 
     _createPanelInfo() {
-        
+
         if( !this.skipCodeInfo )
         {
             let panel = new LX.Panel({ className: "lexcodetabinfo", width: "calc(100%)", height: "auto" });
@@ -1491,8 +1548,12 @@ class CodeEditor {
             }, { width: "10%", nameWidth: "15%", signal: "@tab-spaces" });
             panel.addButton( "<b>{ }</b>", this.highlight, ( value, event ) => {
                 LX.addContextMenu( "Language", event, m => {
-                    for( const lang of Object.keys(this.languages) )
-                        m.add( lang, this._changeLanguage.bind(this) );
+                    for( const lang of Object.keys( this.languages ) )
+                    {
+                        m.add( lang, v => {
+                            this._changeLanguage( v, true )
+                        } );
+                    }
                 });
             }, { width: "17.5%", nameWidth: "15%", signal: "@highlight" });
             panel.endLine();
@@ -1517,12 +1578,36 @@ class CodeEditor {
     _getFileIcon( name, extension ) {
 
         const isNewTabButton = name ? ( name === '+' ) : false;
-        const ext = extension ?? LX.getExtension( name );
-        return ext == 'html' ? "fa-solid fa-code orange" : 
-            ext == 'css' ? "fa-solid fa-hashtag dodgerblue" : 
-            ext == 'xml' ? "fa-solid fa-rss orange" : 
-            ext == 'bat' ? "fa-brands fa-windows lightblue" : 
-            [ 'js', 'py', 'json', 'cpp', 'rs', 'md' ].indexOf( ext ) > -1 ? "images/" + ext + ".png" : 
+
+        if( !extension )
+        {
+            extension = LX.getExtension( name );
+        }
+        else
+        {
+            const possibleExtensions = [].concat( extension );
+
+            if( name )
+            {
+                const fileExtension = LX.getExtension( name );
+                const idx = possibleExtensions.indexOf( fileExtension );
+
+                if( idx > -1)
+                {
+                    extension = possibleExtensions[ idx ];
+                }
+            }
+            else
+            {
+                extension = possibleExtensions[ 0 ];
+            }
+        }
+
+        return extension == "html" ? "fa-solid fa-code orange" :
+            extension == "css" ? "fa-solid fa-hashtag dodgerblue" :
+            extension == "xml" ? "fa-solid fa-rss orange" :
+            extension == "bat" ? "fa-brands fa-windows lightblue" :
+            [ 'js', 'py', 'json', 'cpp', 'hpp', 'rs', 'md' ].indexOf( extension ) > -1 ? "images/" + extension + ".png" :
             !isNewTabButton ? "fa-solid fa-align-left gray" : undefined;
     }
 
@@ -1538,6 +1623,11 @@ class CodeEditor {
 
     _onSelectTab( isNewTabButton, event, name ) {
 
+        if( this.disableEdition )
+        {
+            return;
+        }
+
         if( isNewTabButton )
         {
             this._onNewTab( event );
@@ -1547,18 +1637,26 @@ class CodeEditor {
         this._removeSecondaryCursors();
         var cursor = this._getCurrentCursor( true );
 
-        this.saveCursor( cursor, this.code.cursorState );    
+        this.saveCursor( cursor, this.code.cursorState );
 
         this.code = this.loadedTabs[ name ];
-        this.restoreCursor( cursor, this.code.cursorState );    
+        this.restoreCursor( cursor, this.code.cursorState );
 
         this.endSelection();
-        this._changeLanguageFromExtension( LX.getExtension( name ) );
         this._updateDataInfoPanel( "@tab-name", name );
+
+        if( this.code.languageOverride )
+        {
+            this._changeLanguage( this.code.languageOverride );
+        }
+        else
+        {
+            this._changeLanguageFromExtension( LX.getExtension( name ) );
+        }
     }
 
     _onContextMenuTab( isNewTabButton, event, name,  ) {
-        
+
         if( isNewTabButton )
         return;
 
@@ -1569,8 +1667,8 @@ class CodeEditor {
         });
     }
 
-    addTab( name, selected, title ) {
-        
+    addTab( name, selected, title, options = {} ) {
+
         // If already loaded, set new name...
         const repeats = Object.keys( editor.loadedTabs ).slice( 1 ).reduce( ( v, key ) => {
             const noRepeatName = key.replace( /[_\d+]/g, '');
@@ -1578,7 +1676,9 @@ class CodeEditor {
         }, 0 );
 
         if( repeats > 0 )
+        {
             name = name.split( '.' ).join( '_' + repeats + '.' );
+        }
 
         const isNewTabButton = ( name === '+' );
 
@@ -1586,7 +1686,7 @@ class CodeEditor {
         let code = document.createElement( 'div' );
         code.className = 'code';
         code.lines = [ "" ];
-        code.language = "Plain Text";
+        code.language = options.language ?? "Plain Text";
         code.cursorState = {};
         code.undoSteps = [];
         code.redoSteps = [];
@@ -1613,7 +1713,7 @@ class CodeEditor {
 
         this.loadedTabs[ name ] = code;
         this.openedTabs[ name ] = code;
-        
+
         const tabIcon = this._getFileIcon( name );
 
         if( this.explorer && !isNewTabButton )
@@ -1622,25 +1722,31 @@ class CodeEditor {
             this.explorer.frefresh( name );
         }
 
-        this.tabs.add( name, code, { 
-            selected: selected, 
-            fixed: isNewTabButton, 
-            title: code.title, 
-            icon: tabIcon, 
+        this.tabs.add( name, code, {
+            selected: selected,
+            fixed: isNewTabButton,
+            title: code.title,
+            icon: tabIcon,
             onSelect: this._onSelectTab.bind( this, isNewTabButton ),
             onContextMenu: this._onContextMenuTab.bind( this, isNewTabButton )
         } );
 
         // Move into the sizer..
         this.codeSizer.appendChild( code );
-        
+
         this.endSelection();
 
         if( selected )
         {
-            this.code = code;  
+            this.code = code;
             this.resetCursorPos( CodeEditor.CURSOR_LEFT | CodeEditor.CURSOR_TOP );
             this.processLines();
+        }
+
+        if( options.language )
+        {
+            code.languageOverride = options.language;
+            this._changeLanguage( code.languageOverride );
         }
 
         this._updateDataInfoPanel( "@tab-name", name );
@@ -1663,41 +1769,53 @@ class CodeEditor {
         if( !code )
         {
             this.addTab( name, true );
-            // Unload lines from file...
-            if( this._storedLines[ name ] )
+
+            // Unload lines from storage...
+            const tabData = this._tabStorage[ name ];
+            if( tabData )
             {
-                this.code.lines = this._storedLines[ name ];
-                delete this._storedLines[ name ];
+                this.code.lines = tabData.lines;
+
+                if( tabData.options.language )
+                {
+                    this._changeLanguage( tabData.options.language, true );
+                }
+                else
+                {
+                    this._changeLanguageFromExtension( LX.getExtension( name ) );
+                }
+
+                delete this._tabStorage[ name ];
             }
-            this._changeLanguageFromExtension( LX.getExtension( name ) );
+
             return;
         }
 
         this.openedTabs[ name ] = code;
-        
+
         const isNewTabButton = ( name === '+' );
         const tabIcon = this._getFileIcon( name );
 
-        this.tabs.add(name, code, { 
-            selected: true, 
-            fixed: isNewTabButton, 
-            title: code.title, 
-            icon: tabIcon, 
+        this.tabs.add(name, code, {
+            selected: true,
+            fixed: isNewTabButton,
+            title: code.title,
+            icon: tabIcon,
             onSelect: this._onSelectTab.bind( this, isNewTabButton ),
             onContextMenu: this._onContextMenuTab.bind( this, isNewTabButton )
         });
 
         // Move into the sizer..
         this.codeSizer.appendChild( code );
-        
+
         this.endSelection();
 
         // Select as current...
-        this.code = code;  
+        this.code = code;
         this.resetCursorPos( CodeEditor.CURSOR_LEFT | CodeEditor.CURSOR_TOP );
         this.processLines();
         this._changeLanguageFromExtension( LX.getExtension( name ) );
-        this._updateDataInfoPanel( "@tab-name", tabname );
+        this._updateDataInfoPanel( "@tab-name", code.tabname );
     }
 
     loadTabFromFile() {
@@ -1747,7 +1865,7 @@ class CodeEditor {
 
                 if( cursor.selection )
                 {
-                    this.canOpenContextMenu |= (cursor.line >= cursor.selection.fromY && cursor.line <= cursor.selection.toY 
+                    this.canOpenContextMenu |= (cursor.line >= cursor.selection.fromY && cursor.line <= cursor.selection.toY
                                                 && cursor.position >= cursor.selection.fromX && cursor.position <= cursor.selection.toX);
                     if( this.canOpenContextMenu )
                         return;
@@ -1759,7 +1877,7 @@ class CodeEditor {
             this.endSelection();
             this.processClick( e );
         }
-        
+
         else if( e.type == 'mouseup' )
         {
             this._onMouseUp( e );
@@ -1807,11 +1925,11 @@ class CodeEditor {
                     m.add( "Cut", () => {  this._cutContent( cursor ); } );
                     m.add( "Paste", () => {  this._pasteContent( cursor ); } );
                     m.add( "" );
-                    m.add( "Format/JSON", () => { 
+                    m.add( "Format/JSON", () => {
                         let json = this.toJSONFormat( this.getText() );
                         if( !json )
                             return;
-                        this.code.lines = json.split( "\n" ); 
+                        this.code.lines = json.split( "\n" );
                         this.processLines();
                     } );
                 }
@@ -1859,7 +1977,7 @@ class CodeEditor {
             this.cursorToLine( cursor, ln, true );
             this.cursorToPosition( cursor, string.length );
         }
-        
+
         // Add new cursor
         else
         {
@@ -1905,7 +2023,7 @@ class CodeEditor {
             let ccw = true;
 
             // Check if we must change ccw or not ... (not with mouse)
-            if( !isMouseEvent && cursor.line >= cursor.selection.fromY && 
+            if( !isMouseEvent && cursor.line >= cursor.selection.fromY &&
                 (cursor.line == cursor.selection.fromY ? cursor.position >= cursor.selection.fromX : true) )
             {
                 ccw = ( e && this._lastSelectionKeyDir && ( e.key == 'ArrowRight' || e.key == 'ArrowDown' || e.key == 'End' ) );
@@ -1968,7 +2086,7 @@ class CodeEditor {
 
                 // Compute new width and selection margins
                 let string;
-                
+
                 if(sId == 0) // First line 2 cases (single line, multiline)
                 {
                     const reverse = fromX > toX;
@@ -1982,7 +2100,7 @@ class CodeEditor {
                     string = (i == toY) ? this.code.lines[ i ].substring( 0, toX ) : this.code.lines[ i ]; // Last line, any multiple line...
                     if( isVisible ) domEl.style.left = this.xPadding;
                 }
-                
+
                 const stringWidth = this.measureString( string );
                 cursor.selection.chars += stringWidth / this.charWidth;
 
@@ -2019,7 +2137,7 @@ class CodeEditor {
 
                 // Compute new width and selection margins
                 let string;
-                
+
                 if( sId == 0 )
                 {
                     string = this.code.lines[ i ].substr(toX);
@@ -2031,10 +2149,10 @@ class CodeEditor {
                     string = (i == fromY) ? this.code.lines[ i ].substring(0, fromX) : this.code.lines[ i ]; // Last line, any multiple line...
                     if( isVisible ) domEl.style.left = this.xPadding;
                 }
-                
+
                 const stringWidth = this.measureString( string );
                 cursor.selection.chars += stringWidth / this.charWidth;
-                
+
                 if( isVisible )
                 {
                     domEl.style.width = (stringWidth || 8) + "px";
@@ -2046,10 +2164,10 @@ class CodeEditor {
     }
 
     async processKey( e ) {
-        
+
         const numCursors = this.cursors.childElementCount;
 
-        if( !this.code || e.srcElement.constructor != HTMLDivElement ) 
+        if( !this.code || e.srcElement.constructor != HTMLDivElement )
         return;
 
         const key = e.key ?? e.detail.key;
@@ -2254,7 +2372,7 @@ class CodeEditor {
                 return;
             }
         }
-        
+
         // Apply binded actions...
 
         for( const actKey in this.actions ) {
@@ -2286,11 +2404,11 @@ class CodeEditor {
         const enclosableKeys = [ "\"", "'", "(", "{" ];
         if( enclosableKeys.indexOf( key ) > -1 )
         {
-            if( this._encloseSelectedWordWithKey( key, lidx, cursor ) ) 
+            if( this._encloseSelectedWordWithKey( key, lidx, cursor ) )
                 return;
         }
 
-        // Until this point, if there was a selection, we need 
+        // Until this point, if there was a selection, we need
         // to delete the content..
 
         if( cursor.selection )
@@ -2307,8 +2425,8 @@ class CodeEditor {
         if( !sameKeyNext )
         {
             this.code.lines[ lidx ] = [
-                this.code.lines[ lidx ].slice( 0, cursor.position ), 
-                key, 
+                this.code.lines[ lidx ].slice( 0, cursor.position ),
+                key,
                 this.code.lines[ lidx ].slice( cursor.position )
             ].join('');
         }
@@ -2316,7 +2434,7 @@ class CodeEditor {
         this.cursorToRight( key, cursor );
 
         //  Some custom cases for auto key pair (), {}, "", '', ...
-        
+
         const keyMustPair = (this.pairKeys[ key ] !== undefined);
         if( keyMustPair && !this.wasKeyPaired )
         {
@@ -2377,7 +2495,7 @@ class CodeEditor {
             text_to_copy = "\n" + this.code.lines[ cursor.line ];
         }
         else {
-            
+
             // Some selections don't depend on mouse up..
             if( cursor.selection ) cursor.selection.invertIfNecessary();
 
@@ -2386,11 +2504,11 @@ class CodeEditor {
 
             // Get linear start index
             let index = 0;
-            
+
             for( let i = 0; i <= cursor.selection.fromY; i++ )
                 index += ( i == cursor.selection.fromY ? cursor.selection.fromX : this.code.lines[ i ].length );
 
-            index += cursor.selection.fromY * separator.length; 
+            index += cursor.selection.fromY * separator.length;
             const num_chars = cursor.selection.chars + ( cursor.selection.toY - cursor.selection.fromY ) * separator.length;
             const text = code.substr( index, num_chars );
             const lines = text.split( separator );
@@ -2416,7 +2534,7 @@ class CodeEditor {
                 this.lineUp( cursor );
         }
         else {
-            
+
             // Some selections don't depend on mouse up..
             if( cursor.selection ) cursor.selection.invertIfNecessary();
 
@@ -2425,11 +2543,11 @@ class CodeEditor {
 
             // Get linear start index
             let index = 0;
-            
+
             for(let i = 0; i <= cursor.selection.fromY; i++)
                 index += (i == cursor.selection.fromY ? cursor.selection.fromX : this.code.lines[ i ].length);
 
-            index += cursor.selection.fromY * separator.length; 
+            index += cursor.selection.fromY * separator.length;
             const num_chars = cursor.selection.chars + (cursor.selection.toY - cursor.selection.fromY) * separator.length;
             const text = code.substr(index, num_chars);
             const lines = text.split(separator);
@@ -2442,7 +2560,7 @@ class CodeEditor {
     }
 
     _duplicateLine( lidx, cursor ) {
-        
+
         this.endSelection();
         this._addUndoStep( cursor, true );
         this.code.lines.splice( lidx, 0, this.code.lines[ lidx ] );
@@ -2599,20 +2717,20 @@ class CodeEditor {
     }
 
     processLines( mode ) {
-        
+
         var code_html = "";
         this._blockCommentCache.length = 0;
-        
+
         // Reset all lines content
         this.code.innerHTML = "";
-        
+
         // Get info about lines in viewport
         const lastScrollTop = this.getScrollTop();
-        this.firstLineInViewport = ( mode ?? CodeEditor.KEEP_VISIBLE_LINES ) & CodeEditor.UPDATE_VISIBLE_LINES ? 
+        this.firstLineInViewport = ( mode ?? CodeEditor.KEEP_VISIBLE_LINES ) & CodeEditor.UPDATE_VISIBLE_LINES ?
                                     ( (lastScrollTop / this.lineHeight)|0 ) : this.firstLineInViewport;
         const totalLinesInViewport = ((this.codeScroller.offsetHeight - 36) / this.lineHeight)|0;
-        this.visibleLinesViewport = new LX.vec2( 
-            Math.max( this.firstLineInViewport - this.lineScrollMargin.x, 0 ), 
+        this.visibleLinesViewport = new LX.vec2(
+            Math.max( this.firstLineInViewport - this.lineScrollMargin.x, 0 ),
             Math.min( this.firstLineInViewport + totalLinesInViewport + this.lineScrollMargin.y, this.code.lines.length )
         );
 
@@ -2622,15 +2740,15 @@ class CodeEditor {
             if( diff <= this.lineScrollMargin.y )
                 this.visibleLinesViewport.y += diff;
         }
-        
+
         // Process visible lines
         for( let i = this.visibleLinesViewport.x; i < this.visibleLinesViewport.y; ++i )
         {
             code_html += this.processLine( i, true );
         }
-        
+
         this.code.innerHTML = code_html;
-            
+
         // Update scroll data
         this.codeScroller.scrollTop = lastScrollTop;
         this.code.style.top = ( this.visibleLinesViewport.x * this.lineHeight ) + "px";
@@ -2668,10 +2786,10 @@ class CodeEditor {
         }
 
         // multi-line strings not supported by now
-        delete this._buildingString; 
+        delete this._buildingString;
         delete this._pendingString;
         delete this._markdownHeader;
-        
+
         let linestring = this.code.lines[ linenum ];
 
         // Single line
@@ -2706,14 +2824,14 @@ class CodeEditor {
                 it--;
                 prev = tokensToEvaluate[ it ];
             }
-            
+
             it = i + 1;
             let next = tokensToEvaluate[ it ];
             while( next == ' ' || next == '"' ) {
                 it++;
                 next = tokensToEvaluate[ it ];
             }
-            
+
             const token = tokensToEvaluate[ i ];
 
             if( lang.blockComments ?? true )
@@ -2731,7 +2849,8 @@ class CodeEditor {
                 nextWithSpaces: tokensToEvaluate[ i + 1 ],
                 tokenIndex: i,
                 isFirstToken: (i == 0),
-                isLastToken: (i == tokensToEvaluate.length - 1)
+                isLastToken: (i == tokensToEvaluate.length - 1),
+                tokens: tokensToEvaluate
             } );
         }
 
@@ -2753,10 +2872,10 @@ class CodeEditor {
             const stringKeys = Object.values( this.stringKeys );
             // Count times we started a string BEFORE the comment
             var err = false;
-            err |= stringKeys.some( function(v) { 
-                var re = new RegExp( v, "g" ); 
+            err |= stringKeys.some( function(v) {
+                var re = new RegExp( v, "g" );
                 var matches = (linestring.substring( 0, idx ).match( re ) || []);
-                return (matches.length % 2) !== 0; 
+                return (matches.length % 2) !== 0;
             } );
             return err ? undefined : idx;
         }
@@ -2839,9 +2958,21 @@ class CodeEditor {
         return tokens;
     }
 
-    _mustHightlightWord( token, kindArray ) {
+    _mustHightlightWord( token, kindArray, lang ) {
 
-        return kindArray[this.highlight] && kindArray[this.highlight][token] != undefined;
+        if( !lang )
+        {
+            lang = this.languages[ this.highlight ];
+        }
+
+        let t = token;
+
+        if( lang.ignoreCase )
+        {
+            t = t.toLowerCase();
+        }
+
+        return kindArray[ this.highlight ] && kindArray[ this.highlight ][ t ] != undefined;
     }
 
     _evaluateToken( ctxData ) {
@@ -2859,10 +2990,10 @@ class CodeEditor {
 
         var usePreviousTokenToCheckString = false;
 
-        if( highlight == 'cpp' && prev && prev.includes( '#' ) ) // preprocessor code..
+        if( [ 'cpp', 'c' ].indexOf( highlight ) > -1 && prev && prev.includes( '#' ) ) // preprocessor code..
         {
             customStringKeys['@<'] = '>';
-        } 
+        }
         else if( highlight == 'markdown' && ( ctxData.prevWithSpaces == '[' || ctxData.nextWithSpaces == ']' ) )
         {
             // console.warn(prev, token, next)
@@ -2883,43 +3014,43 @@ class CodeEditor {
             if( this._buildingString != undefined )
             {
                 checkIfStringEnded( usePreviousTokenToCheckString ? ctxData.nextWithSpaces : token );
-            } 
+            }
             else if( customStringKeys[ '@' + ( usePreviousTokenToCheckString ? ctxData.prevWithSpaces : token ) ] )
-            {   
+            {
                 // Start new string
                 this._buildingString = ( usePreviousTokenToCheckString ? ctxData.prevWithSpaces : token );
 
                 // Check if string ended in same token using next...
-                if( usePreviousTokenToCheckString ) 
+                if( usePreviousTokenToCheckString )
                 {
                     checkIfStringEnded( ctxData.nextWithSpaces );
                 }
             }
         }
-        
+
         const usesBlockComments = lang.blockComments ?? true;
         const blockCommentsTokens = lang.blockCommentsTokens ?? this.defaultBlockCommentTokens;
         const singleLineCommentToken = lang.singleLineCommentToken ?? this.defaultSingleLineCommentToken;
-        
+
         let token_classname = "";
         let discardToken = false;
 
         if( this._buildingBlockComment != undefined )
             token_classname = "cm-com";
-        
+
         else if( this._buildingString != undefined )
             discardToken = this._appendStringToken( token );
-        
-        else if( this._mustHightlightWord( token, CodeEditor.keywords ) && ( lang.tags ?? false ? ( this._enclosedByTokens( token, tokenIndex, '<', '>' ) ) : true ) )
+
+        else if( this._isKeyword( ctxData, lang ) )
             token_classname = "cm-kwd";
 
-        else if( this._mustHightlightWord( token, CodeEditor.builtin ) && ( lang.tags ?? false ? ( this._enclosedByTokens( token, tokenIndex, '<', '>' ) ) : true ) )
+        else if( this._mustHightlightWord( token, CodeEditor.builtIn, lang ) && ( lang.tags ?? false ? ( this._enclosedByTokens( token, tokenIndex, '<', '>' ) ) : true ) )
             token_classname = "cm-bln";
 
-        else if( this._mustHightlightWord( token, CodeEditor.statementsAndDeclarations ) )
+        else if( this._mustHightlightWord( token, CodeEditor.statementsAndDeclarations, lang ) )
             token_classname = "cm-std";
 
-        else if( this._mustHightlightWord( token, CodeEditor.symbols ) )
+        else if( this._mustHightlightWord( token, CodeEditor.symbols, lang ) )
             token_classname = "cm-sym";
 
         else if( token.substr( 0, singleLineCommentToken.length ) == singleLineCommentToken )
@@ -2928,16 +3059,16 @@ class CodeEditor {
         else if( this._isNumber( token ) || this._isNumber( token.replace(/[px]|[em]|%/g,'') ) )
             token_classname = "cm-dec";
 
-        else if( this._isCSSClass( token, prev, next ) )
+        else if( this._isCSSClass( ctxData ) )
             token_classname = "cm-kwd";
 
-        else if ( this._isType( token, prev, next ) )
+        else if ( this._isType( ctxData, lang ) )
             token_classname = "cm-typ";
 
         else if ( highlight == 'batch' && ( token == '@' || prev == ':' || prev == '@' ) )
             token_classname = "cm-kwd";
 
-        else if ( [ 'cpp', 'wgsl', 'glsl' ].indexOf( highlight ) > -1 && token.includes( '#' ) ) // C++ preprocessor
+        else if ( [ 'cpp', 'c', 'wgsl', 'glsl' ].indexOf( highlight ) > -1 && token.includes( '#' ) ) // C++ preprocessor
             token_classname = "cm-ppc";
 
         else if ( highlight == 'cpp' && prev == '<' && (next == '>' || next == '*') ) // Defining template type in C++
@@ -2951,7 +3082,7 @@ class CodeEditor {
 
         else if ( highlight == 'css' && prev == undefined && next == ':' ) // CSS attribute
             token_classname = "cm-typ";
-        
+
         else if ( this._markdownHeader || ( highlight == 'markdown' && isFirstToken && token.replaceAll('#', '').length != token.length ) ) // Header
         {
             token_classname = "cm-kwd";
@@ -2962,7 +3093,7 @@ class CodeEditor {
             token_classname = "cm-mtd";
 
 
-        if( usesBlockComments && this._buildingBlockComment != undefined 
+        if( usesBlockComments && this._buildingBlockComment != undefined
             && token.substr( 0, blockCommentsTokens[ 1 ].length ) == blockCommentsTokens[ 1 ] )
         {
             this._blockCommentCache.push( new LX.vec2( this._buildingBlockComment, this._currentLineNumber ) );
@@ -2981,14 +3112,18 @@ class CodeEditor {
         this._buildingString = this._stringEnded ? undefined : this._buildingString;
 
         if( discardToken )
+        {
             return "";
+        }
 
         token = token.replace( "<", "&lt;" );
         token = token.replace( ">", "&gt;" );
 
         // No highlighting, no need to put it inside another span..
         if( !token_classname.length )
+        {
             return token;
+        }
 
         return "<span class='" + highlight + " " + token_classname + "'>" + token + "</span>";
     }
@@ -3016,11 +3151,17 @@ class CodeEditor {
         const tagStartIndex = indexOfFrom( this._currentLineString, tagStart, tokenStartIndex, true );
         if( tagStartIndex < 0 ) // Not found..
             return;
+        const tagStartIndexOpposite = indexOfFrom( this._currentLineString, tagEnd, tokenStartIndex, true );
+        if( tagStartIndexOpposite >= 0  && tagStartIndexOpposite > tagStartIndex ) // Found the opposite first while reversing..
+            return;
         const tagEndIndex = indexOfFrom( this._currentLineString, tagEnd, tokenStartIndex );
         if( tagEndIndex < 0 ) // Not found..
             return;
 
-        return ( tagStartIndex < tokenStartIndex ) && ( tagEndIndex >= ( tokenStartIndex + token.length ) );
+        if( ( tagStartIndex < tokenStartIndex ) && ( tagEndIndex >= ( tokenStartIndex + token.length ) ) && !this._mustHightlightWord( token, CodeEditor.symbols ) )
+        {
+            return [ tagStartIndex, tagEndIndex ];
+        }
     }
 
     _inBlockCommentSection( line ) {
@@ -3028,52 +3169,104 @@ class CodeEditor {
         for( var section of this._blockCommentCache )
         {
             if( line >= section.x && line <= section.y )
+            {
                 return true;
+            }
         }
 
         return false;
     }
 
-    _isCSSClass( token, prev, next ) {
+    _isKeyword( ctxData, lang ) {
+
+        const token = ctxData.token;
+        const tokenIndex = ctxData.tokenIndex;
+        const tokens = ctxData.tokens;
+
+        let isKwd = this._mustHightlightWord( token, CodeEditor.keywords ) || this.highlight == 'XML';
+
+        if( this.highlight == 'CMake' )
+        {
+            // Highlight $ symbol
+            if( token == '$' && this._enclosedByTokens( tokens[ tokenIndex + 2 ], tokenIndex + 2, '{', '}' ) )
+            {
+                isKwd = true;
+            }
+            // Highlight what is between the { }
+            else if( this._enclosedByTokens( token, tokenIndex, '{', '}' ) )
+            {
+                isKwd |= ( ctxData.tokens[ tokenIndex - 2 ] == '$' );
+            }
+        }
+        else if( lang.tags )
+        {
+            isKwd &= ( this._enclosedByTokens( token, tokenIndex, '<', '>' ) != undefined );
+        }
+
+
+        return isKwd;
+    }
+
+    _isCSSClass( ctxData ) {
+
+        const token = ctxData.token;
+        const prev = ctxData.prev;
+        const next = ctxData.next;
 
         if( this.highlight != 'CSS' )
+        {
             return false;
+        }
 
-        return  ( prev == '.' || prev == '::' 
-                || ( prev == ':' && next == '{' ) 
+        return  ( prev == '.' || prev == '::'
+                || ( prev == ':' && next == '{' )
                 || ( token[ 0 ] == '#' && prev != ':' ) );
     }
 
     _isNumber( token ) {
 
-        if(this.highlight == 'C++')
+        const subToken = token.substring( 0, token.length - 1 );
+
+        if( this.highlight == 'C++' )
         {
             if( token.lastChar == 'f' )
-                return this._isNumber( token.substring(0, token.length - 1) )
+            {
+                return this._isNumber( subToken )
+            }
             else if( token.lastChar == 'u' )
-                return !(token.includes('.')) && this._isNumber( token.substring(0, token.length - 1) );
+            {
+                return !(token.includes('.')) && this._isNumber( subToken );
+            }
         }
-
-        else if(this.highlight == 'WGSL')
+        else if( this.highlight == 'WGSL' )
         {
             if( token.lastChar == 'u' )
-                return !(token.includes('.')) && this._isNumber( token.substring(0, token.length - 1) );
+            {
+                return !(token.includes('.')) && this._isNumber( subToken );
+            }
         }
-
-        else if(this.highlight == 'CSS')
+        else if( this.highlight == 'CSS' )
         {
             if( token.lastChar == '%' )
-                return this._isNumber( token.substring(0, token.length - 1) )
+            {
+                return this._isNumber( subToken )
+            }
         }
-        
-        return token.length && token != ' ' && !Number.isNaN(+token);
+
+        return token.length && token != ' ' && !Number.isNaN( +token );
     }
 
-    _isType( token, prev, next ) {
-        
+    _isType( ctxData, lang ) {
+
+        const token = ctxData.token;
+        const prev = ctxData.prev;
+        const next = ctxData.next;
+
         // Common case
-        if( this._mustHightlightWord( token, CodeEditor.types ) )
+        if( this._mustHightlightWord( token, CodeEditor.types, lang ) )
+        {
             return true;
+        }
 
         if( this.highlight == 'JavaScript' )
         {
@@ -3085,11 +3278,11 @@ class CodeEditor {
         }
         else if ( this.highlight == 'WGSL' )
         {
-            const not_kwd = !this._mustHightlightWord( token, CodeEditor.keywords );
-            return  (prev == 'struct' && next == '{') || 
-                    (not_kwd && prev == ':' && next == ';') || 
-            ( not_kwd && 
-                ( prev == ':' && next == ')' || prev == ':' && next == ',' || prev == '>' && next == '{' 
+            const not_kwd = !this._mustHightlightWord( token, CodeEditor.keywords, lang );
+            return  (prev == 'struct' && next == '{') ||
+                    (not_kwd && prev == ':' && next == ';') ||
+            ( not_kwd &&
+                ( prev == ':' && next == ')' || prev == ':' && next == ',' || prev == '>' && next == '{'
                     || prev == '<' && next == ',' || prev == '<' && next == '>' || prev == '>' && token != ';' && !next ));
         }
     }
@@ -3098,13 +3291,13 @@ class CodeEditor {
 
         if( !cursor.selection || (cursor.selection.fromY != cursor.selection.toY) )
         return false;
-        
+
         cursor.selection.invertIfNecessary();
 
         // Insert first..
         this.code.lines[ lidx ] = [
-            this.code.lines[ lidx ].slice(0, cursor.selection.fromX), 
-            key, 
+            this.code.lines[ lidx ].slice(0, cursor.selection.fromX),
+            key,
             this.code.lines[ lidx ].slice(cursor.selection.fromX)
         ].join('');
 
@@ -3123,14 +3316,14 @@ class CodeEditor {
 
         // Insert the other
         this.code.lines[ lidx ] = [
-            this.code.lines[ lidx ].slice(0, cursor.position), 
-            key, 
+            this.code.lines[ lidx ].slice(0, cursor.position),
+            key,
             this.code.lines[ lidx ].slice(cursor.position)
         ].join('');
 
         // Recompute and reposition current selection
-        
-        cursor.selection.fromX++; 
+
+        cursor.selection.fromX++;
         cursor.selection.toX++;
 
         this._processSelection( cursor );
@@ -3142,7 +3335,7 @@ class CodeEditor {
 
     lineUp( cursor, resetLeft ) {
 
-        if( this.code.lines[ cursor.line - 1 ] == undefined ) 
+        if( this.code.lines[ cursor.line - 1 ] == undefined )
             return false;
 
         cursor.line--;
@@ -3153,10 +3346,10 @@ class CodeEditor {
     }
 
     lineDown( cursor, resetLeft ) {
-        
-        if( this.code.lines[ cursor.line + 1 ] == undefined ) 
+
+        if( this.code.lines[ cursor.line + 1 ] == undefined )
             return false;
-    
+
         cursor.line++;
 
         this.cursorToBottom( cursor, resetLeft );
@@ -3195,9 +3388,11 @@ class CodeEditor {
 
     deleteSelection( cursor ) {
 
-        // I think it's not necessary but... 
-        if( this.disableEdition ) 
+        // I think it's not necessary but...
+        if( this.disableEdition )
+        {
             return;
+        }
 
         // Some selections don't depend on mouse up..
         if( cursor.selection ) cursor.selection.invertIfNecessary();
@@ -3210,14 +3405,14 @@ class CodeEditor {
         for( let i = 0; i <= cursor.selection.fromY; i++ )
             index += (i == cursor.selection.fromY ? cursor.selection.fromX : this.code.lines[ i ].length);
 
-        index += cursor.selection.fromY * separator.length; 
+        index += cursor.selection.fromY * separator.length;
 
         const num_chars = cursor.selection.chars + (cursor.selection.toY - cursor.selection.fromY) * separator.length;
         const pre = code.slice( 0, index );
         const post = code.slice( index + num_chars );
 
         this.code.lines = ( pre + post ).split( separator );
-        
+
         this.cursorToLine( cursor, cursor.selection.fromY, true );
         this.cursorToPosition( cursor, cursor.selection.fromX );
         this.endSelection( cursor );
@@ -3315,7 +3510,7 @@ class CodeEditor {
         cursor._top = Math.max(cursor._top, 0);
         cursor.style.top = "calc(" + cursor._top + "px)";
         this.restartBlink();
-        
+
         if( resetLeft )
             this.resetCursorPos( CodeEditor.CURSOR_LEFT, cursor );
 
@@ -3345,10 +3540,10 @@ class CodeEditor {
 
     cursorToString( cursor, text, reverse ) {
 
-        if( !text.length ) 
+        if( !text.length )
             return;
 
-        for( let char of text ) 
+        for( let char of text )
             reverse ? this.cursorToLeft( char, cursor ) : this.cursorToRight( char, cursor );
     }
 
@@ -3436,7 +3631,7 @@ class CodeEditor {
     }
 
     resetCursorPos( flag, cursor ) {
-        
+
         cursor = cursor ?? this._getCurrentCursor();
 
         if( flag & CodeEditor.CURSOR_LEFT )
@@ -3455,14 +3650,14 @@ class CodeEditor {
     }
 
     _addSpaceTabs( cursor, n ) {
-        
+
         for( var i = 0; i < n; ++i ) {
             this.actions[ 'Tab' ].callback( cursor.line, cursor, null );
         }
     }
 
     _addSpaces( n ) {
-        
+
         for( var i = 0; i < n; ++i ) {
             this.root.dispatchEvent( new CustomEvent( 'keydown', { 'detail': {
                 skip_undo: true,
@@ -3509,33 +3704,33 @@ class CodeEditor {
     }
 
     getScrollLeft() {
-        
+
         if( !this.codeScroller ) return 0;
         return this.codeScroller.scrollLeft;
     }
 
     getScrollTop() {
-        
+
         if( !this.codeScroller ) return 0;
         return this.codeScroller.scrollTop;
     }
 
     setScrollLeft( value ) {
-        
+
         if( !this.codeScroller ) return;
         this.codeScroller.scrollLeft = value;
         this.setScrollBarValue( 'horizontal', 0 );
     }
 
     setScrollTop( value ) {
-        
+
         if( !this.codeScroller ) return;
         this.codeScroller.scrollTop = value;
         this.setScrollBarValue( 'vertical' );
     }
 
     resize( pMaxLength ) {
-        
+
         setTimeout( () => {
 
             // Update max viewport
@@ -3593,7 +3788,7 @@ class CodeEditor {
         {
             const scrollBarHeight = this.vScrollbar.thumb.parentElement.offsetHeight;
             const scrollThumbHeight = this.vScrollbar.thumb.offsetHeight;
-    
+
             const scrollHeight = this.codeScroller.scrollHeight - this.codeScroller.clientHeight;
             const currentScroll = this.codeScroller.scrollTop;
 
@@ -3624,7 +3819,7 @@ class CodeEditor {
         const scrollBarWidth = this.hScrollbar.thumb.parentElement.offsetWidth;
         const scrollThumbWidth = this.hScrollbar.thumb.offsetWidth;
 
-        this.hScrollbar.thumb._left = LX.UTILS.clamp( value, 0, ( scrollBarWidth - scrollThumbWidth ) );
+        this.hScrollbar.thumb._left = LX.clamp( value, 0, ( scrollBarWidth - scrollThumbWidth ) );
         this.hScrollbar.thumb.style.left = this.hScrollbar.thumb._left + "px";
 
         // Scroll code
@@ -3632,13 +3827,13 @@ class CodeEditor {
         const scrollWidth = this.codeScroller.scrollWidth - this.codeScroller.clientWidth;
         const currentScroll = (this.hScrollbar.thumb._left * scrollWidth) / ( scrollBarWidth - scrollThumbWidth );
         this.codeScroller.scrollLeft = currentScroll;
-        
+
 
         this._discardScroll = true;
     }
 
     updateVerticalScrollFromScrollBar( value ) {
-        
+
         value = this.vScrollbar.thumb._top - value;
 
         // Move scrollbar thumb
@@ -3646,7 +3841,7 @@ class CodeEditor {
         const scrollBarHeight = this.vScrollbar.thumb.parentElement.offsetHeight;
         const scrollThumbHeight = this.vScrollbar.thumb.offsetHeight;
 
-        this.vScrollbar.thumb._top = LX.UTILS.clamp( value, 0, ( scrollBarHeight - scrollThumbHeight ) );
+        this.vScrollbar.thumb._top = LX.clamp( value, 0, ( scrollBarHeight - scrollThumbHeight ) );
         this.vScrollbar.thumb.style.top = this.vScrollbar.thumb._top + "px";
 
         // Scroll code
@@ -3657,12 +3852,12 @@ class CodeEditor {
     }
 
     getCharAtPos( cursor, offset = 0 ) {
-        
+
         return this.code.lines[ cursor.line ][ cursor.position + offset ];
     }
 
     getWordAtPos( cursor, offset = 0 ) {
-        
+
         const col = cursor.line;
         const words = this.code.lines[ col ];
 
@@ -3706,13 +3901,13 @@ class CodeEditor {
                 from--;
                 word = words.substring( from, to );
             }
-        } 
-        
+        }
+
         return [ word, from, to ];
     }
 
     _measureChar( char = "a", use_floating = false, get_bb = false ) {
-        
+
         var line = document.createElement( "pre" );
         var text = document.createElement( "span" );
         line.appendChild( text );
@@ -3776,7 +3971,7 @@ class CodeEditor {
     }
 
     showAutoCompleteBox( key, cursor ) {
-        
+
         if( !cursor.isMain )
             return;
 
@@ -3791,8 +3986,8 @@ class CodeEditor {
         let suggestions = [];
 
         // Add language special keys...
-        suggestions = suggestions.concat(   
-            Object.keys( CodeEditor.builtin[ this.highlight ] ?? {} ),
+        suggestions = suggestions.concat(
+            Object.keys( CodeEditor.builtIn[ this.highlight ] ?? {} ),
             Object.keys( CodeEditor.keywords[ this.highlight ] ?? {} ),
             Object.keys( CodeEditor.statementsAndDeclarations[ this.highlight ] ?? {} ),
             Object.keys( CodeEditor.types[ this.highlight ] ?? {} ),
@@ -3802,7 +3997,7 @@ class CodeEditor {
         // Add words in current tab plus remove current word
         // suggestions = suggestions.concat( Object.keys(this.code.tokens).filter( a => a != word ) );
 
-        // Remove 1/2 char words and duplicates...        
+        // Remove 1/2 char words and duplicates...
         suggestions = suggestions.filter( (value, index) => value.length > 2 && suggestions.indexOf(value) === index );
 
         // Order...
@@ -3817,7 +4012,7 @@ class CodeEditor {
             this.autocomplete.appendChild( pre );
 
             var icon = document.createElement( 'a' );
-            
+
             if( this._mustHightlightWord( s, CodeEditor.utils ) )
                 icon.className = "fa fa-cube";
             else if( this._mustHightlightWord( s, CodeEditor.types ) )
@@ -3829,7 +4024,7 @@ class CodeEditor {
 
             pre.addEventListener( 'click', () => {
                 this.autoCompleteWord( s );
-            } ); 
+            } );
 
             // Highlight the written part
             const index = s.toLowerCase().indexOf( word.toLowerCase() );
@@ -3868,6 +4063,11 @@ class CodeEditor {
 
     hideAutoCompleteBox() {
 
+        if( !this.autocomplete )
+        {
+            return;
+        }
+
         const isActive = this.isAutoCompleteActive;
         this.isAutoCompleteActive = false;
         this.autocomplete.classList.remove( 'show' );
@@ -3875,7 +4075,7 @@ class CodeEditor {
     }
 
     autoCompleteWord( suggestion ) {
-        
+
         if( !this.isAutoCompleteActive )
             return;
 
@@ -3902,7 +4102,7 @@ class CodeEditor {
     }
 
     _getSelectedAutoComplete() {
-        
+
         if( !this.isAutoCompleteActive )
         return;
 
@@ -3942,7 +4142,7 @@ class CodeEditor {
     }
 
     showSearchBox( clear ) {
-        
+
         this.hideSearchLineBox();
 
         this.searchbox.classList.add( 'opened' );
@@ -4011,7 +4211,7 @@ class CodeEditor {
         }
 
         const getIndex = l => {
-            
+
             var string = this.code.lines[ l ];
 
             if( reverse )
@@ -4065,10 +4265,10 @@ class CodeEditor {
             };
             return;
         }
-        
+
         /*
             Position idx is computed from last pos, which could be in same line,
-            so we search in the substring (first_ocurrence, end). That's why we 
+            so we search in the substring (first_ocurrence, end). That's why we
             have to add the length of the substring (0, first_ocurrence)
         */
 
@@ -4081,9 +4281,9 @@ class CodeEditor {
 
         this._lastTextFound = text;
 
-        this.codeScroller.scrollTo( 
-            Math.max( char * this.charWidth - this.codeScroller.clientWidth, 0 ), 
-            Math.max( line - 10, 0 ) * this.lineHeight 
+        this.codeScroller.scrollTo(
+            Math.max( char * this.charWidth - this.codeScroller.clientWidth, 0 ),
+            Math.max( line - 10, 0 ) * this.lineHeight
         );
 
         if( callback )
@@ -4107,7 +4307,7 @@ class CodeEditor {
     }
 
     showSearchLineBox() {
-        
+
         this.hideSearchBox();
 
         this.searchlinebox.classList.add( 'opened' );
@@ -4222,7 +4422,7 @@ class CodeEditor {
         var r = document.querySelector( ':root' );
         var s = getComputedStyle( r );
         var pixels = parseInt( s.getPropertyValue( "--code-editor-font-size" ) );
-        pixels = LX.UTILS.clamp( pixels + 1, CodeEditor.CODE_MIN_FONT_SIZE, CodeEditor.CODE_MAX_FONT_SIZE );
+        pixels = LX.clamp( pixels + 1, CodeEditor.CODE_MIN_FONT_SIZE, CodeEditor.CODE_MAX_FONT_SIZE );
         r.style.setProperty( "--code-editor-font-size", pixels + "px" );
         this.charWidth = this._measureChar( "a", true );
 
@@ -4248,7 +4448,7 @@ class CodeEditor {
         var r = document.querySelector( ':root' );
         var s = getComputedStyle( r );
         var pixels = parseInt( s.getPropertyValue( "--code-editor-font-size" ) );
-        pixels = LX.UTILS.clamp( pixels - 1, CodeEditor.CODE_MIN_FONT_SIZE, CodeEditor.CODE_MAX_FONT_SIZE );
+        pixels = LX.clamp( pixels - 1, CodeEditor.CODE_MIN_FONT_SIZE, CodeEditor.CODE_MAX_FONT_SIZE );
         r.style.setProperty( "--code-editor-font-size", pixels + "px" );
         this.charWidth = this._measureChar( "a", true );
 
@@ -4271,7 +4471,7 @@ class CodeEditor {
 
         delete this._currentLineString;
         delete this._currentLineNumber;
-        delete this._buildingString; 
+        delete this._buildingString;
         delete this._pendingString;
         delete this._buildingBlockComment;
         delete this._markdownHeader;
@@ -4283,8 +4483,13 @@ CodeEditor.keywords = {
 
     'JavaScript': ['var', 'let', 'const', 'this', 'in', 'of', 'true', 'false', 'new', 'function', 'NaN', 'static', 'class', 'constructor', 'null', 'typeof', 'debugger', 'abstract',
                   'arguments', 'extends', 'instanceof', 'Infinity'],
-    'C++': ['int', 'float', 'double', 'bool', 'char', 'wchar_t', 'const', 'static_cast', 'dynamic_cast', 'new', 'delete', 'void', 'true', 'false', 'auto', 'struct', 'typedef', 'nullptr', 
-            'NULL', 'unsigned', 'namespace'],
+    'C': ['int', 'float', 'double', 'long', 'short', 'char', 'const', 'void', 'true', 'false', 'auto', 'struct', 'typedef', 'signed', 'volatile', 'unsigned', 'static', 'extern', 'enum', 'register',
+        'union'],
+    'C++': ['int', 'float', 'double', 'bool', 'long', 'short', 'char', 'wchar_t', 'const', 'static_cast', 'dynamic_cast', 'new', 'delete', 'void', 'true', 'false', 'auto', 'struct', 'typedef', 'nullptr',
+            'NULL', 'signed', 'unsigned', 'namespace', 'enum', 'extern', 'union', 'sizeof', 'static'],
+    'CMake': ['cmake_minimum_required', 'set', 'not', 'if', 'endif', 'exists', 'string', 'strequal', 'add_definitions', 'macro', 'endmacro', 'file', 'list', 'source_group', 'add_executable',
+        'target_include_directories', 'set_target_properties', 'set_property', 'add_compile_options', 'add_link_options', 'include_directories', 'add_library', 'target_link_libraries',
+        'target_link_options', 'add_subdirectory', 'add_compile_definitions', 'project', 'cache'],
     'JSON': ['true', 'false'],
     'GLSL': ['true', 'false', 'function', 'int', 'float', 'vec2', 'vec3', 'vec4', 'mat2x2', 'mat3x3', 'mat4x4', 'struct'],
     'CSS': ['body', 'html', 'canvas', 'div', 'input', 'span', '.'],
@@ -4292,10 +4497,10 @@ CodeEditor.keywords = {
             'sampler', 'sampler_comparison', 'texture_depth_2d', 'texture_depth_2d_array', 'texture_depth_cube', 'texture_depth_cube_array', 'texture_depth_multisampled_2d',
             'texture_external', 'texture_1d', 'texture_2d', 'texture_2d_array', 'texture_3d', 'texture_cube', 'texture_cube_array', 'texture_storage_1d', 'texture_storage_2d',
             'texture_storage_2d_array', 'texture_storage_3d', 'vec2u', 'vec3u', 'vec4u'],
-    'Rust': ['as', 'const', 'crate', 'enum', 'extern', 'false', 'fn', 'impl', 'in', 'let', 'mod', 'move', 'mut', 'pub', 'ref', 'self', 'Self', 'static', 'struct', 'super', 'trait', 'true', 
+    'Rust': ['as', 'const', 'crate', 'enum', 'extern', 'false', 'fn', 'impl', 'in', 'let', 'mod', 'move', 'mut', 'pub', 'ref', 'self', 'Self', 'static', 'struct', 'super', 'trait', 'true',
              'type', 'unsafe', 'use', 'where', 'abstract', 'become', 'box', 'final', 'macro', 'override', 'priv', 'typeof', 'unsized', 'virtual'],
     'Python': ['False', 'def', 'None', 'True', 'in', 'is', 'and', 'lambda', 'nonlocal', 'not', 'or'],
-    'Batch': ['set', 'SET', 'echo', 'ECHO', 'off', 'OFF', 'del', 'DEL', 'defined', 'DEFINED', 'setlocal', 'SETLOCAL', 'enabledelayedexpansion', 'ENABLEDELAYEDEXPANSION', 'driverquery', 
+    'Batch': ['set', 'SET', 'echo', 'ECHO', 'off', 'OFF', 'del', 'DEL', 'defined', 'DEFINED', 'setlocal', 'SETLOCAL', 'enabledelayedexpansion', 'ENABLEDELAYEDEXPANSION', 'driverquery',
               'DRIVERQUERY', 'print', 'PRINT'],
     'HTML': ['html', 'meta', 'title', 'link', 'script', 'body', 'DOCTYPE', 'head', 'br', 'i', 'a', 'li', 'img', 'tr', 'td', 'h1', 'h2', 'h3', 'h4', 'h5'],
     'Markdown': ['br', 'i', 'a', 'li', 'img', 'table', 'title', 'tr', 'td', 'h1', 'h2', 'h3', 'h4', 'h5'],
@@ -4307,9 +4512,9 @@ CodeEditor.utils = { // These ones don't have hightlight, used as suggestions to
                   'bind', 'prototype', 'length', 'assign', 'entries', 'values', 'concat', 'substring', 'substr', 'splice', 'slice', 'buffer', 'appendChild', 'createElement', 'prompt',
                   'alert'],
     'WGSL': ['textureSample'],
-    'Python': ['abs', 'all', 'any', 'ascii', 'bin', 'bool', 'bytearray', 'bytes', 'callable', 'chr', 'classmethod', 'compile', 'complex', 'delattr', 'dict', 'dir', 'divmod', 
+    'Python': ['abs', 'all', 'any', 'ascii', 'bin', 'bool', 'bytearray', 'bytes', 'callable', 'chr', 'classmethod', 'compile', 'complex', 'delattr', 'dict', 'dir', 'divmod',
               'enumerate', 'eval', 'exec', 'filter', 'float', 'format', 'frozenset', 'getattr', 'globals', 'hasattr', 'hash', 'help', 'hex', 'id', 'input', 'int', 'isinstance',
-              'issubclass', 'iter', 'len', 'list', 'locals', 'map', 'max', 'memoryview', 'min', 'next', 'object', 'oct', 'open', 'ord', 'pow', 'print', 'property', 'range', 'repr', 
+              'issubclass', 'iter', 'len', 'list', 'locals', 'map', 'max', 'memoryview', 'min', 'next', 'object', 'oct', 'open', 'ord', 'pow', 'print', 'property', 'range', 'repr',
               'reversed', 'round', 'set', 'setattr', 'slice', 'sorted', 'staticmethod', 'str', 'sum', 'super', 'tuple', 'type', 'vars', 'zip']
 };
 
@@ -4318,14 +4523,14 @@ CodeEditor.types = {
     'JavaScript': ['Object', 'String', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'TextEncoder', 'TextDecoder', 'Array', 'ArrayBuffer', 'InputEvent', 'MouseEvent',
                    'Int8Array', 'Int16Array', 'Int32Array', 'Float32Array', 'Float64Array', 'Element'],
     'Rust': ['u128'],
-    'Python': ['int', 'type', 'float', 'map', 'list', 'ArithmeticError', 'AssertionError', 'AttributeError', 'Exception', 'EOFError', 'FloatingPointError', 'GeneratorExit', 
+    'Python': ['int', 'type', 'float', 'map', 'list', 'ArithmeticError', 'AssertionError', 'AttributeError', 'Exception', 'EOFError', 'FloatingPointError', 'GeneratorExit',
               'ImportError', 'IndentationError', 'IndexError', 'KeyError', 'KeyboardInterrupt', 'LookupError', 'MemoryError', 'NameError', 'NotImplementedError', 'OSError',
-              'OverflowError', 'ReferenceError', 'RuntimeError', 'StopIteration', 'SyntaxError', 'TabError', 'SystemError', 'SystemExit', 'TypeError', 'UnboundLocalError', 
+              'OverflowError', 'ReferenceError', 'RuntimeError', 'StopIteration', 'SyntaxError', 'TabError', 'SystemError', 'SystemExit', 'TypeError', 'UnboundLocalError',
               'UnicodeError', 'UnicodeEncodeError', 'UnicodeDecodeError', 'UnicodeTranslateError', 'ValueError', 'ZeroDivisionError'],
     'C++': ['uint8_t', 'uint16_t', 'uint32_t']
 };
 
-CodeEditor.builtin = {
+CodeEditor.builtIn = {
 
     'JavaScript': ['document', 'console', 'window', 'navigator', 'performance'],
     'CSS': ['*', '!important'],
@@ -4338,11 +4543,12 @@ CodeEditor.statementsAndDeclarations = {
 
     'JavaScript': ['for', 'if', 'else', 'case', 'switch', 'return', 'while', 'continue', 'break', 'do', 'import', 'from', 'throw', 'async', 'try', 'catch', 'await'],
     'CSS': ['@', 'import'],
-    'C++': ['std', 'for', 'if', 'else', 'return', 'continue', 'break', 'case', 'switch', 'while', 'using', 'glm', 'spdlog'],
+    'C': ['for', 'if', 'else', 'return', 'continue', 'break', 'case', 'switch', 'while', 'using', 'default', 'goto', 'do'],
+    'C++': ['std', 'for', 'if', 'else', 'return', 'continue', 'break', 'case', 'switch', 'while', 'using', 'glm', 'spdlog', 'default'],
     'GLSL': ['for', 'if', 'else', 'return', 'continue', 'break'],
     'WGSL': ['const','for', 'if', 'else', 'return', 'continue', 'break', 'storage', 'read', 'read_write', 'uniform', 'function', 'workgroup'],
     'Rust': ['break', 'else', 'continue', 'for', 'if', 'loop', 'match', 'return', 'while', 'do', 'yield'],
-    'Python': ['if', 'raise', 'del', 'import', 'return', 'elif', 'try', 'else', 'while', 'as', 'except', 'with', 'assert', 'finally', 'yield', 'break', 'for', 'class', 'continue', 
+    'Python': ['if', 'raise', 'del', 'import', 'return', 'elif', 'try', 'else', 'while', 'as', 'except', 'with', 'assert', 'finally', 'yield', 'break', 'for', 'class', 'continue',
               'global', 'pass', 'from'],
     'Batch': ['if', 'IF', 'for', 'FOR', 'in', 'IN', 'do', 'DO', 'call', 'CALL', 'goto', 'GOTO', 'exit', 'EXIT']
 };
@@ -4350,7 +4556,9 @@ CodeEditor.statementsAndDeclarations = {
 CodeEditor.symbols = {
 
     'JavaScript': ['<', '>', '[', ']', '{', '}', '(', ')', ';', '=', '|', '||', '&', '&&', '?', '??'],
+    'C': ['<', '>', '[', ']', '{', '}', '(', ')', ';', '=', '|', '||', '&', '&&', '?', '*', '-', '+'],
     'C++': ['<', '>', '[', ']', '{', '}', '(', ')', ';', '=', '|', '||', '&', '&&', '?', '::', '*', '-', '+'],
+    'CMake': ['{', '}'],
     'JSON': ['[', ']', '{', '}', '(', ')'],
     'GLSL': ['[', ']', '{', '}', '(', ')'],
     'WGSL': ['[', ']', '{', '}', '(', ')', '->'],
@@ -4358,7 +4566,8 @@ CodeEditor.symbols = {
     'Rust': ['<', '>', '[', ']', '(', ')', '='],
     'Python': ['<', '>', '[', ']', '(', ')', '='],
     'Batch': ['[', ']', '(', ')', '%'],
-    'HTML': ['<', '>', '/']
+    'HTML': ['<', '>', '/'],
+    'XML': ['<', '>', '/']
 };
 
 LX.CodeEditor = CodeEditor;
