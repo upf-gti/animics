@@ -112,7 +112,8 @@ class Gui {
             {
                 title: "Play",
                 icon: "fa-solid fa-play",
-                callback:  (domEl) => { 
+                callback:  (event) => { 
+                    const domEl = event.srcElement;
                     console.log("play!"); 
                     if(this.editor.state ) {
                         this.editor.pause(this.editor, domEl);    

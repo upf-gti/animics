@@ -14,6 +14,8 @@ import { GLTFExporter } from './exporters/GLTFExporoter.js'
 import { BMLController } from "./controller.js"
 import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
+import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
+
 
 import { LX } from "lexgui"
 import { Quaternion, Vector3 } from "./libs/three.module.js";
@@ -1263,8 +1265,11 @@ class KeyframeEditor extends Editor {
             // Create body animation from mediapipe landmakrs using ML
             this.loadedAnimations[data.name].bodyAnimation = createAnimationFromRotations("bodyAnimation", this.nn); // bones animation THREEjs AnimationClip
         }
-        else {
-            this.loadedAnimations[data.name].bodyAnimation = landmarks; // array of objects of type { FLM, PLM, LLM, RLM, PWLM, LWLM, RWLM }. Not an animation clip
+        else {    
+            this.loadedAnimations[data.name].originalBodyAnimation = landmarks; // array of objects of type { FLM, PLM, LLM, RLM, PWLM, LWLM, RWLM }. Not an animation clip
+            this.loadedAnimations[data.name].bodyAnimation = this.smoothMediapipeLandmarks( landmarks ); // array of objects of type { FLM, PLM, LLM, RLM, PWLM, LWLM, RWLM }. Not an animation clip
+            // TO DO consider exposing the smoothing as an option to the user. This would require moving the smoothing from mediapipe to the quat/pos tracks themselves 
+           
         }
         
         // Create face animation from mediapipe action units
@@ -1323,6 +1328,70 @@ class KeyframeEditor extends Editor {
 
         this.bindAnimationToCharacter(name);
     }
+
+    /**
+     * 
+     * @param {array of Mediapipe landmarks} inLandmarks each entry of the array is a frame containing an object with information about the mediapipe output { FLM, PLM, LLM, RLM, PWLM, LWLM, RWLM }
+     * @returns {array of Mediapipe landmarks} same heriarchy as inLandmarks but smoothed
+     */
+    smoothMediapipeLandmarks( inLandmarks,  ){
+        let outLandmarks = JSON.parse(JSON.stringify(inLandmarks));
+
+        let arrayToSmoothX = new Array( inLandmarks.length );
+        let arrayToSmoothY = new Array( inLandmarks.length );
+        let arrayToSmoothZ = new Array( inLandmarks.length );
+
+        let attributesToSmooth = [ "PWLM", "LWLM", "RWLM" ];
+        
+        for( let group of attributesToSmooth ){
+
+            let initialValues = null;
+            for( let f = 0; f < inLandmarks.length; ++f ){
+                if ( !inLandmarks[f][group] ){ continue; }
+                initialValues = inLandmarks[f][group];
+                break;
+            }
+            if ( !initialValues ){
+                return outLandmarks;
+            }
+
+            // for each landmark
+            for(let l = 0; l < initialValues.length; ++l ){
+
+                
+                //for each frame get the value to smooth (or a default one)
+                let values = initialValues[l]; // default values in case there is no landmark estimation for a frame
+                for( let f = 0; f < inLandmarks.length; ++f ){
+
+                    if (outLandmarks[f] && outLandmarks[f][group] ){
+                        values = outLandmarks[f][group][l];  // found a valid landmark, set it as default
+                    }
+                    arrayToSmoothX[f] = values.x;
+                    arrayToSmoothY[f] = values.y;
+                    arrayToSmoothZ[f] = values.z;
+
+                }
+
+                const smoothX = mlSavitzkyGolay(arrayToSmoothX, 1, { windowSize: 9, polynomial: 3, derivative: 0, pad: 'pre', padValue: 'replicate' }); //https://www.skypack.dev/view/ml-savitzky-golay
+                const smoothY = mlSavitzkyGolay(arrayToSmoothY, 1, { windowSize: 9, polynomial: 3, derivative: 0, pad: 'pre', padValue: 'replicate' }); //https://www.skypack.dev/view/ml-savitzky-golay
+                const smoothZ = mlSavitzkyGolay(arrayToSmoothZ, 1, { windowSize: 9, polynomial: 3, derivative: 0, pad: 'pre', padValue: 'replicate' }); //https://www.skypack.dev/view/ml-savitzky-golay
+
+                //for each frame, set smoothed values
+                for( let f = 0; f < inLandmarks.length; ++f ){
+                    if (outLandmarks[f] && outLandmarks[f][group] ){
+                        let values = outLandmarks[f][group][l];
+                        values.x = smoothX[f];
+                        values.y = smoothY[f];
+                        values.z = smoothZ[f];
+                    }
+
+                } 
+            } // end of landmark
+        } // end of attribute
+
+        return outLandmarks;
+    }
+
 
     // Array of objects. Each object is a frame with all world landmarks. See mediapipe.js detections
     createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton ){
