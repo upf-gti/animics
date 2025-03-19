@@ -97,6 +97,10 @@ class Gui {
         });
 
         menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
+
+        menubar.add("View/Theme");
+        menubar.add("View/Theme/Dark", { icon: "fa-solid fa-moon", callback: () => LX.setTheme("dark") } );
+        menubar.add("View/Theme/Light", { icon: "fa-solid fa-sun", callback: () => LX.setTheme("light") } );
         if(this.showVideo) {
             menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
                 this.editor.setVideoVisibility( v );
