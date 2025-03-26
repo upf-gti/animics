@@ -98,12 +98,6 @@ class Gui {
         menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
         menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
         menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
-    
-        menubar.add("Timeline/Optimize all tracks", { callback: () => {
-            // optimize all tracks of current binded animation (if any)
-             this.clipsTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel                
-            }
-        });
 
         menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
 
