@@ -75,7 +75,10 @@ class Gui {
         const menubar = this.menubar;     
         
         menubar.add("Project/");
-        menubar.add("Project/New animation", {icon: "fa fa-plus"}); // TO DO
+        menubar.add("Project/New animation", {icon: "fa fa-plus", callback: () => {
+            this.editor.loadAnimation("animation" + Math.floor( performance.now()*1000 ).toString(), {});
+            this.updateAnimationPanel();
+        }});
 
         menubar.add("Project/Import animations", {icon: "fa fa-file-import"});
         menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+O"});

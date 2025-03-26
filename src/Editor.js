@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "./controls/OrbitControls.js";
 import { BVHLoader } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/loaders/BVHLoader.js';
 import { BVHExporter } from "./exporters/BVHExporter.js";
-import { createAnimationFromRotations, createEmptyAnimation } from "./skeleton.js";
+import { createAnimationFromRotations, createEmptySkeletonAnimation } from "./skeleton.js";
 import { KeyframesGui, ScriptGui } from "./Gui.js";
 import { Gizmo } from "./Gizmo.js";
 import { UTILS } from "./Utils.js"
@@ -1142,9 +1142,8 @@ class KeyframeEditor extends Editor {
 
     async processPendingResources( resources ) {
         if( !resources ) {
-            let animation = {clip : createEmptyAnimation("bodyAnimation", this.currentCharacter.skeletonHelper.bones), skeleton: this.currentCharacter.skeletonHelper};
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
-            this.loadAnimation("new animation", { skeletonAnim : animation});
+            this.loadAnimation("new animation", {} );
             return true;
         }
         
@@ -1296,6 +1295,11 @@ class KeyframeEditor extends Editor {
             animationData.skeletonAnim.clip.name = "bodyAnimation";
             bodyAnimation = animationData.skeletonAnim.clip;
         }
+        else{ // Otherwise create empty body animation 
+            bodyAnimation = createEmptySkeletonAnimation("bodyAnimation", this.currentCharacter.skeletonHelper.bones);
+            skeleton = this.currentCharacter.skeletonHelper.skeleton;
+        }
+        
         // If it has face animation, it means that comes from BVHe
         if ( animationData && animationData.blendshapesAnim ) {
             animationData.blendshapesAnim.name = "faceAnimation";       
@@ -1303,7 +1307,7 @@ class KeyframeEditor extends Editor {
             // // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
             // faceAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
         }
-        else { // Otherwise, create empty animation
+        else { // Otherwise, create empty face animation
             // faceAnimation = THREE.AnimationClip.CreateFromMorphTargetSequence('BodyMesh', this.currentCharacter.model.getObjectByName("BodyMesh").geometry.morphAttributes.position, 24, false);
             faceAnimation = this.currentCharacter.blendshapesManager.createEmptyAnimation("faceAnimation");
             faceAnimation.duration = bodyAnimation.duration;

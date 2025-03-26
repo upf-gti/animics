@@ -676,7 +676,7 @@ function createAnimationFromRotations(name, nn) {
     return new THREE.AnimationClip(name || "sign_anim", length, tracks);
 }
 
-function createEmptyAnimation(name, bones) {
+function createEmptySkeletonAnimation(name, bones) {
     let boneTracks = [];
     // Create an empty keyframe for each bone (no transformation)
     for (let i = 0; i < bones.length; i++) {
@@ -745,4 +745,4 @@ function retargetNames(names) {
     return names;
 }
 
-export { createSkeleton, createAnimation, createAnimationFromRotations, createEmptyAnimation, createThreeJSSkeleton, updateThreeJSSkeleton, injectNewLandmarks, postProcessAnimation };
+export { createSkeleton, createAnimation, createAnimationFromRotations, createEmptySkeletonAnimation, createThreeJSSkeleton, updateThreeJSSkeleton, injectNewLandmarks, postProcessAnimation };
