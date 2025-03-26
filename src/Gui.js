@@ -125,8 +125,8 @@ class Gui {
                     else {
                         this.editor.play();
                     }
-                    if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) {
-                        this.editor.activeTimeline.changeState();
+                    if ( this.editor.activeTimeline ) {
+                        this.editor.activeTimeline.setState( this.editor.state );
                     };
                 }
             },
@@ -135,12 +135,12 @@ class Gui {
                 icon: "fa-solid fa-stop",
                 callback:  (event) => { 
 
+                    this.editor.stop();
                     this.menubar.getButton("Play").setState(false); 
-                    if ( this.editor.activeTimeline && this.editor.activeTimeline.playing != this.editor.state ) {
-                        this.editor.activeTimeline.changeState();
+                    if ( this.editor.activeTimeline ) {
+                        this.editor.activeTimeline.setState(false);
                     };
 
-                    this.editor.stop();
                 }
             }
         ]);
@@ -473,9 +473,7 @@ class Gui {
                 selected: true,
                 icon: 'fa-solid fa-person-walking-arrow-loop-left',
                 callback: (v) =>  {
-                    editor.animLoop = !editor.animLoop;
-                    editor.setAnimationLoop(editor.animLoop);
-                    
+                    editor.setAnimationLoop(!editor.animLoop);                    
                 }
             }
         ]
@@ -926,7 +924,6 @@ class KeyframesGui extends Gui {
                 }, {icon: 'fa-solid fa-trash', width: "40px"});                
             },
             onChangePlayMode: (loop) => {
-                this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
             },
             onShowConfiguration: (dialog) => {
@@ -1100,7 +1097,6 @@ class KeyframesGui extends Gui {
                 }, {signal: "@on_animation_loaded"})
             },
             onChangePlayMode: (loop) => {
-                this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
             }, 
             onShowConfiguration: (dialog) => {
@@ -2274,7 +2270,6 @@ class ScriptGui extends Gui {
                 
             },
             onChangePlayMode: (loop) => {
-                this.editor.animLoop = loop;
                 this.editor.setAnimationLoop(loop);
             },
             onShowConfiguration: (dialog) => {

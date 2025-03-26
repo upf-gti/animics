@@ -674,15 +674,9 @@ class Editor {
             this.setTime(0.0, true);
         } 
         else {
-            this.currentCharacter.mixer.setTime(0);
-            this.currentCharacter.mixer._actions[0].paused = true;
-            const stateBtn = document.querySelector("[title=Play]");
-            stateBtn.children[0].click();
-
-            if( this.video.sync ) {
-                this.video.pause();
-                this.video.currentTime = this.video.startTime;
-            }
+            this.stop();
+			this.gui.menubar.getButton("Play").setState(false);
+            this.activeTimeline.setState(false);
         }
     }
 
@@ -735,16 +729,17 @@ class Editor {
     }
 
     setAnimationLoop( loop ) {
-            
-        for(let i = 0; i < this.currentCharacter.mixer._actions.length; i++) {
-
-            if( loop ) {
-                this.currentCharacter.mixer._actions[i].loop = THREE.LoopOnce;
-            }
-            else {
-                this.currentCharacter.mixer._actions[i].loop = THREE.LoopRepeat;
-            }
-        }
+        this.animLoop = loop;
+        // animation loop is handled by update(). AnimationActions are on LoopRepeat Infinity by default
+        // the code below should no longer be necessary. Keeping it just in case for some time
+        // for(let i = 0; i < this.currentCharacter.mixer._actions.length; i++) {
+        //     if( loop ) {
+        //         this.currentCharacter.mixer._actions[i].setLoop(THREE.LoopRepeat, Infinity);
+        //     }
+        //     else {
+        //         this.currentCharacter.mixer._actions[i].setLoop(THREE.LoopRepeat, 1);
+        //     }
+        // }
     }
 
     getCurrentBindedAnimation() {
@@ -1299,7 +1294,7 @@ class KeyframeEditor extends Editor {
             bodyAnimation = createEmptySkeletonAnimation("bodyAnimation", this.currentCharacter.skeletonHelper.bones);
             skeleton = this.currentCharacter.skeletonHelper.skeleton;
         }
-        
+
         // If it has face animation, it means that comes from BVHe
         if ( animationData && animationData.blendshapesAnim ) {
             animationData.blendshapesAnim.name = "faceAnimation";       
