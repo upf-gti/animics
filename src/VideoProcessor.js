@@ -170,6 +170,7 @@ class VideoProcessor {
             }            
         }
 
+        // on mouse up of the croparea
         this.videoEditor.onCropArea = ( rect ) => {
             const canvasRect = canvasVideo.getBoundingClientRect();
             let cropRect = this.videoEditor.getCroppedArea();
@@ -181,7 +182,10 @@ class VideoProcessor {
             const height = cropRect.height / canvasRect.height;
 
             rect = {x: left, y: top, width,height};
-            this.mediapipe.processFrame(recordedVideo, rect);
+            this.mediapipe.cropRect = rect;
+            if ( this.mediapipeOnlineEnabler ) { 
+                this.mediapipe.processFrame(recordedVideo, rect);
+            } 
         }
     }
 
@@ -235,7 +239,7 @@ class VideoProcessor {
         // still in video recording or trimming stages. Online toggle is allowed
         this.mediapipeOnlineEnabler = !!bool;
         if ( this.mediapipeOnlineEnabler ) {
-            this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, this.mediapipeOnlineVideo == this.inputVideo && this.mode == "webcam" );
+            this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, { mirror: this.mediapipeOnlineVideo == this.inputVideo && this.mode == "webcam" } );
             this.mediapipeOnlineVideo.classList.add("hidden");
             this.canvasVideo.classList.remove("hidden");
         }

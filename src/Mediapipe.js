@@ -21,6 +21,7 @@ class MediaPipe {
         this.blendshapes = [];
         
         this.mirrorCanvas = false;
+        this.cropRect = null; //{ x:0, y:0, width: 1, height: 1 }; normalized coordinates
     }
 
     async init () {
@@ -369,8 +370,10 @@ class MediaPipe {
      * sets mediapipe to process videoElement on each rendered frame. It does not automatically start recording. 
      * Hardware capabilities affect the rate at which frames can be displayed and processed
      */
-    async processVideoOnline( videoElement, mirror = false ){
-        this.mirrorCanvas = mirror;
+    async processVideoOnline( videoElement, options = {} ){ //mirror = false ){
+        this.mirrorCanvas = !!options.mirror;
+        this.cropRect = options.rect ?? null;
+
         this.stopVideoProcessing(); // stop previous video processing, if any
         
         this.currentVideoProcessing = {
@@ -399,7 +402,7 @@ class MediaPipe {
             // update only if sufficient time has passed to avoid processing a paused video
             if ( Math.abs( videoElement.currentTime - cvp.currentTime ) > 0.001 ) { 
                 cvp.currentTime = videoElement.currentTime;
-                await this.processFrame( videoElement ); 
+                await this.processFrame( videoElement, this.cropRect ); 
             } 
             else {
                 this.drawCurrentResults();
@@ -427,12 +430,12 @@ class MediaPipe {
      * sets mediapipe to process videoElement from [startTime, endTime] at each dt. It automatically starts recording
      * @param {HTMLVideoElement*} videoElement
      * @param {Object} [options={}] :
-     *      @param {Number} startTime seconds
-     *      @param {Number} endTime seconds
-     *      @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
-     *      @param {Function} callback
-     *      @param {Boolean} mirror whether to flip horizontally (mirroring) the canvas. Useful for seeing correctly a webcam video
-     *      @param {Object} rect Cropped area {x,y,w,h} 
+     * @param {Number} startTime seconds
+     * @param {Number} endTime seconds
+     * @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
+     * @param {Function} callback
+     * @param {Boolean} mirror whether to flip horizontally (mirroring) the canvas. Useful for seeing correctly a webcam video
+     * @param {Object} rect Cropped area {x,y,w,h} 
      */
     async processVideoOffline( videoElement,  options = {} ) { // dt=seconds, default 25 fps
         // PROBLEMS: still reading speed (browser speed). Captures frames at specified fps (dt) instead of the actual available video frames
@@ -441,7 +444,7 @@ class MediaPipe {
         let endTime = options.endTime || -1;
         let dt = options.dt || 0.04;
         const onEnded = options.callback;
-        const rect = options.rect;
+        this.cropRect = options.rect ?? null;
 
         this.mirrorCanvas = options.mirror || false;
         this.stopVideoProcessing(); // stop previous video processing, if any
@@ -464,7 +467,7 @@ class MediaPipe {
         const listener = async () => {
             let cvp = this.currentVideoProcessing;
 
-            await this.processFrame(cvp.videoElement, rect);
+            await this.processFrame(cvp.videoElement, this.cropRect);
  
             cvp.currentTime = cvp.currentTime + cvp.dt;
             if (cvp.currentTime <= cvp.endTime){
