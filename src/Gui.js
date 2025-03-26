@@ -4245,7 +4245,7 @@ class PropagationWindow {
     }
 
     draw( ){
-        if ( !this.enabler ){ return; }
+        if ( !this.enabler || this.timeline.playing ){ return; }
 
         const timeline = this.timeline;
         const ctx = timeline.canvas.getContext("2d");
