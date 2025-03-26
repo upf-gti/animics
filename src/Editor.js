@@ -1943,7 +1943,6 @@ class KeyframeEditor extends Editor {
     }
 
     setVideoVisibility( visibility, needsMirror = false ){ // TO DO
-        //document.getElementById("capture").style.display = (visibility & this.video.sync) ? "" : "none";
         if(visibility && this.getCurrentAnimation().type == "video") {
             this.gui.showVideoOverlay(needsMirror);
         }

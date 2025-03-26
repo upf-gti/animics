@@ -105,8 +105,6 @@ class Gui {
             menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
                 this.editor.setVideoVisibility( v );
                 this.showVideo = v;
-                // const tl = document.getElementById("capture");
-                // tl.style.display = this.showVideo ? "flex": "none";
             }});
         }
 
