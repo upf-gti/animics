@@ -210,7 +210,8 @@ class MediaPipe {
             return;
         }
 
-        const originalImage = await createImageBitmap( videoElement);
+        // it does not care whether the videolement has some css mirroring it. It takes the raw video
+        const originalImage = await createImageBitmap(videoElement);
         let croppedImage = originalImage;
         
         if( rect ) {
@@ -368,8 +369,8 @@ class MediaPipe {
      * sets mediapipe to process videoElement on each rendered frame. It does not automatically start recording. 
      * Hardware capabilities affect the rate at which frames can be displayed and processed
      */
-    async processVideoOnline( videoElement, live = false ){
-        this.mirrorCanvas = live;
+    async processVideoOnline( videoElement, mirror = false ){
+        this.mirrorCanvas = mirror;
         this.stopVideoProcessing(); // stop previous video processing, if any
         
         this.currentVideoProcessing = {
@@ -430,7 +431,7 @@ class MediaPipe {
      *      @param {Number} endTime seconds
      *      @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
      *      @param {Function} callback
-     *      @param {Boolean} live If it's live recording, mirror canvas
+     *      @param {Boolean} mirror whether to flip horizontally (mirroring) the canvas. Useful for seeing correctly a webcam video
      *      @param {Object} rect Cropped area {x,y,w,h} 
      */
     async processVideoOffline( videoElement,  options = {} ) { // dt=seconds, default 25 fps
@@ -442,7 +443,7 @@ class MediaPipe {
         const onEnded = options.callback;
         const rect = options.rect;
 
-        this.mirrorCanvas = options.live || false;
+        this.mirrorCanvas = options.mirror || false;
         this.stopVideoProcessing(); // stop previous video processing, if any
 
         // Hacky solution for video duration bug. Some videos do not have duration in metadata and browser has to discover it while playing/decoding the video

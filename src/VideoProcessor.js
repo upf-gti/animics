@@ -161,9 +161,12 @@ class VideoProcessor {
         }
         
         this.videoEditor.onVideoLoaded = async (video) => {
+            // changing to trimming stage
+            // stop any current video process ("#inputVideo") and start processing this one ("#recording") which does not need mirror in mediapipe
+
             this.mediapipe.setOptions( { autoDraw: true } );
             if ( this.mediapipeOnlineEnabler ) { 
-                this.mediapipe.processVideoOnline(video, this.mode == "webcam"); // stop any current video process ("#inputVideo") and start processing this one ("#recording")
+                this.mediapipe.processVideoOnline(video) //this.mode == "webcam"); 
             }            
         }
 
@@ -232,7 +235,7 @@ class VideoProcessor {
         // still in video recording or trimming stages. Online toggle is allowed
         this.mediapipeOnlineEnabler = !!bool;
         if ( this.mediapipeOnlineEnabler ) {
-            this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, this.mode == "webcam" )
+            this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, this.mediapipeOnlineVideo == this.inputVideo && this.mode == "webcam" );
             this.mediapipeOnlineVideo.classList.add("hidden");
             this.canvasVideo.classList.remove("hidden");
         }
@@ -258,6 +261,8 @@ class VideoProcessor {
         
         recordedVideo.style.width = canvasVideo.width + "px";
         recordedVideo.style.height = canvasVideo.height + "px";
+    
+        this.mediapipe.mirrorCanvas = false; // we want the raw video. The mirror was only to make it easy to record for the user
 
         this.buttonsPanel.addButton(null, "Convert to animation", async (v) => {
             canvasVideo.classList.remove("hidden");
@@ -286,9 +291,11 @@ class VideoProcessor {
 
         const inputVideo = this.inputVideo;
         inputVideo.classList.remove("hidden");
+        inputVideo.classList.add("mirror");
 
         const recordedVideo = this.recordedVideo;
         recordedVideo.classList.add("hidden");
+        recordedVideo.classList.remove("mirror");
 
         this.buttonsPanel.addButton(null, "Record", () => {
             // start video recording 
@@ -507,7 +514,7 @@ class VideoProcessor {
                 resolve(animationData);
                 UTILS.hideLoading();
     
-            }, live: animationData.live, rect} )
+            }, mirror: false /*animationData.live*/, rect} )
            
         })        
         return promise;    
