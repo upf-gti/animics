@@ -68,11 +68,17 @@ class Gui {
     /** Create menu bar */
     createMenubar(area) {
 
-        this.menubar = area.addMenubar( m => {
-            m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});   
-        });
-
+        this.menubar = area.addMenubar();
         const menubar = this.menubar;     
+        
+        LX.addSignal( "@on_new_color_scheme", (el, value) => {
+            //TO DO delete the current line and uncomment the getButton once lexgui is updated
+            // this.menubar.getButton("Animics"); 
+            this.menubar.root.children[0].children[0].children[0].src = value == "light" ? "data/imgs/animics_logo_lightMode.png" : "data/imgs/animics_logo.png";
+        } )
+        
+        const colorScheme = document.documentElement.getAttribute( "data-theme" );
+        menubar.setButtonImage("Animics", colorScheme == "light" ? "data/imgs/animics_logo_lightMode.png" : "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});   
         
         menubar.add("Project/");
         menubar.add("Project/New animation", {icon: "fa fa-plus", callback: () => {
