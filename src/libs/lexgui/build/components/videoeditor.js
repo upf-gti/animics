@@ -389,24 +389,16 @@ class VideoEditor {
         this.controlsPanelLeft.refresh = () => {
             this.controlsPanelLeft.clear();
             this.controlsPanelLeft.sameLine();
-            this.controlsPanelLeft.addButton('', null, (v) => {
+            this.controlsPanelLeft.addButton('', "", (v) => {
                 this.playing = !this.playing;
                 if(this.playing) {
-
                     this.video.play();
-                    // if(!this.requestId) {
-                    //     this.requestId = requestAnimationFrame(this._update.bind(this))
-                    // }
                 }
                 else {
-                    // if(this.requestId) {
-                    //     cancelAnimationFrame(this.requestId);
-                    //     this.requestId = null;
-                    // }
                     this.video.pause();
                 }
                 this.controlsPanelLeft.refresh();
-            }, { width: '40px', icon: "fa-solid " + this.playing ? 'fa-pause' : 'fa-play' });
+            }, { width: '40px', icon: "fa-solid " + (this.playing ? 'fa-pause' : 'fa-play') });
 
             this.controlsPanelLeft.addLabel(this.startTimeString, {width: 50});
             this.controlsPanelLeft.endLine();
@@ -503,7 +495,6 @@ class VideoEditor {
             }
 
             if(this.isDragging) {
-
                 this.dragCropArea(event);
             }
         });
