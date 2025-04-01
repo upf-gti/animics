@@ -65,6 +65,16 @@ class Gui {
 
     }
 
+    setColorTheme(scheme = "light"){
+        LX.setTheme(scheme);
+
+        // Images are for dark mode. Applying a filter to adjust to light mode
+        const faceAreas = document.getElementById("faceAreasContainer");
+        if ( faceAreas ){
+            faceAreas.style.filter = scheme == "dark" ? "" : "invert(1) saturate(1) hue-rotate(180deg)";
+        }
+    }
+
     /** Create menu bar */
     createMenubar(area) {
 
@@ -102,8 +112,8 @@ class Gui {
         menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
 
         menubar.add("View/Theme");
-        menubar.add("View/Theme/Dark", { icon: "fa-solid fa-moon", callback: () => LX.setTheme("dark") } );
-        menubar.add("View/Theme/Light", { icon: "fa-solid fa-sun", callback: () => LX.setTheme("light") } );
+        menubar.add("View/Theme/Dark", { icon: "fa-solid fa-moon", callback: () => this.setColorTheme("dark") } );
+        menubar.add("View/Theme/Light", { icon: "fa-solid fa-sun", callback: () => this.setColorTheme("light") } );
         if(this.showVideo) {
             menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
                 this.editor.setVideoVisibility( v );
@@ -1287,7 +1297,8 @@ class KeyframesGui extends Gui {
     createFacePanel(root, itemSelected, options = {}) {
 
         let container = document.createElement("div");
-        
+        container.id = "faceAreasContainer";
+
         let img = document.createElement("img");
         img.src = "./data/imgs/masks/face areas2.png";
         img.setAttribute("usemap", "#areasmap");
