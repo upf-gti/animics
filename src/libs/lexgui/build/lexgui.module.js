@@ -1,5 +1,3 @@
-'use strict';
-
 // Lexgui.js @jxarco
 
 /**
@@ -8,21 +6,25 @@
 */
 
 var LX = {
-    version: "0.1.46",
+    version: "0.5.0",
     ready: false,
-    components: [], // specific pre-build components
-    signals: {} // events and triggers
+    components: [], // Specific pre-build components
+    signals: {}, // Events and triggers
+    extraCommandbarEntries: [], // User specific entries for command bar
+    activeDraggable: null // Watch for the current active draggable
 };
 
 LX.MOUSE_LEFT_CLICK     = 0;
 LX.MOUSE_MIDDLE_CLICK   = 1;
 LX.MOUSE_RIGHT_CLICK    = 2;
 
-LX.MOUSE_DOUBLE_CLICK = 2;
-LX.MOUSE_TRIPLE_CLICK = 3;
+LX.MOUSE_DOUBLE_CLICK   = 2;
+LX.MOUSE_TRIPLE_CLICK   = 3;
 
-LX.CURVE_MOVEOUT_CLAMP = 0;
+LX.CURVE_MOVEOUT_CLAMP  = 0;
 LX.CURVE_MOVEOUT_DELETE = 1;
+
+LX.DRAGGABLE_Z_INDEX    = 101;
 
 function clamp( num, min, max ) { return Math.min( Math.max( num, min ), max ); }
 function round( number, precision ) { return precision == 0 ? Math.floor( number ) : +(( number ).toFixed( precision ?? 2 ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' )); }
@@ -83,7 +85,7 @@ LX.doAsync = doAsync;
  */
 function getSupportedDOMName( text )
 {
-    return text.replace(/\s/g, '').replaceAll('@', '_').replaceAll('+', '_plus_').replaceAll('.', '');
+    return text.replace( /\s/g, '' ).replaceAll('@', '_').replaceAll('+', '_plus_').replaceAll( '.', '' );
 }
 
 LX.getSupportedDOMName = getSupportedDOMName;
@@ -161,7 +163,6 @@ function getThemeColor( colorName )
 {
     const r = getComputedStyle( document.querySelector( ':root' ) );
     const value = r.getPropertyValue( '--' + colorName );
-    const theme = document.documentElement.getAttribute( "data-theme" );
 
     if( value.includes( "light-dark" ) )
     {
@@ -222,7 +223,8 @@ LX.hexToRgb = hexToRgb;
 function rgbToHex( rgb )
 {
     let hex = "#";
-    for( let c of rgb ) {
+    for( let c of rgb )
+    {
         c = Math.floor( c * 255 );
         hex += c.toString( 16 );
     }
@@ -234,7 +236,7 @@ LX.rgbToHex = rgbToHex;
 /**
  * @method measureRealWidth
  * @description Measure the pixel width of a text
- * @param {Object} value Text to measure
+ * @param {Number} value Text to measure
  * @param {Number} paddingPlusMargin Padding offset
  */
 function measureRealWidth( value, paddingPlusMargin = 8 )
@@ -297,7 +299,7 @@ LX.buildTextPattern = buildTextPattern;
 
 /**
  * @method makeDraggable
- * @description Allow an element to be dragged
+ * @description Allows an element to be dragged
  * @param {Element} domEl
  * @param {Object} options
  * autoAdjust (Bool): Sets in a correct position at the beggining
@@ -322,6 +324,7 @@ function makeDraggable( domEl, options = { } )
         top = top ?? e.clientY - offsetY - parentRect.y;
         domEl.style.left = clamp( left, dragMargin + fixedOffset.x, fixedOffset.x + parentRect.width - domEl.offsetWidth - dragMargin ) + 'px';
         domEl.style.top = clamp( top, dragMargin + fixedOffset.y, fixedOffset.y + parentRect.height - domEl.offsetHeight - dragMargin ) + 'px';
+        domEl.style.translate = "none"; // Force remove translation
     };
 
     // Initial adjustment
@@ -366,26 +369,45 @@ function makeDraggable( domEl, options = { } )
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        if( !currentTarget ) return;
+
+        if( !currentTarget )
+        {
+            return;
+        }
+
         // Remove image when dragging
         var img = new Image();
         img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
         e.dataTransfer.setDragImage( img, 0, 0 );
         e.dataTransfer.effectAllowed = "move";
+
         const rect = e.target.getBoundingClientRect();
         const parentRect = currentTarget.parentElement.getBoundingClientRect();
         const isFixed = ( currentTarget.style.position == "fixed" );
         const fixedOffset = isFixed ? new LX.vec2( parentRect.x, parentRect.y ) : new LX.vec2();
         offsetX = e.clientX - rect.x - fixedOffset.x;
         offsetY = e.clientY - rect.y - fixedOffset.y;
+
         document.addEventListener( "mousemove", onMove );
+
+        currentTarget.eventCatched = true;
+
+        // Force active dialog to show on top
+        if( LX.activeDraggable )
+        {
+            LX.activeDraggable.style.zIndex = LX.DRAGGABLE_Z_INDEX;
+        }
+
+        LX.activeDraggable = domEl;
+        LX.activeDraggable.style.zIndex = LX.DRAGGABLE_Z_INDEX + 1;
+
         if( onDragStart )
         {
             onDragStart( currentTarget, e );
         }
     }, false );
 
-    document.addEventListener( 'mouseup', () => {
+    document.addEventListener( 'mouseup', (e) => {
         if( currentTarget )
         {
             currentTarget = null;
@@ -395,6 +417,49 @@ function makeDraggable( domEl, options = { } )
 }
 
 LX.makeDraggable = makeDraggable;
+
+/**
+ * @method makeCollapsible
+ * @description Allows an element to be collapsed/expanded
+ * @param {Element} domEl: Element to be treated as collapsible
+ * @param {Element} content: Content to display/hide on collapse/extend
+ * @param {Element} parent: Element where the content will be appended (default is domEl.parent)
+ * @param {Object} options
+ */
+function makeCollapsible( domEl, content, parent, options = { } )
+{
+    domEl.classList.add( "collapsible" );
+
+    const collapsed = ( options.collapsed ?? true );
+    const actionIcon = LX.makeIcon( "right" );
+    actionIcon.classList.add( "collapser" );
+    actionIcon.dataset[ "collapsed" ] = collapsed;
+    actionIcon.style.marginLeft = "auto";
+    actionIcon.style.marginRight = "0.2rem";
+
+    actionIcon.addEventListener( "click", function( e ) {
+        e.preventDefault();
+        e.stopPropagation();
+        if( this.dataset[ "collapsed" ] )
+        {
+            delete this.dataset[ "collapsed" ];
+            content.style.display = "block";
+        }
+        else
+        {
+            this.dataset[ "collapsed" ] = true;
+            content.style.display = "none";
+        }
+    } );
+
+    domEl.appendChild( actionIcon );
+
+    parent = parent ?? domEl.parentElement;
+
+    parent.appendChild( content );
+}
+
+LX.makeCollapsible = makeCollapsible;
 
 /**
  * @method makeCodeSnippet
@@ -498,6 +563,78 @@ function makeCodeSnippet( code, size, options = { } )
 
 LX.makeCodeSnippet = makeCodeSnippet;
 
+/**
+ * @method makeIcon
+ * @description Gets an SVG element using one of LX.ICONS
+ * @param {String} iconName
+ * @param {String} iconTitle
+ * @param {String} extraClass
+ */
+function makeIcon( iconName, iconTitle, extraClass = "" )
+{
+    let data = LX.ICONS[ iconName ];
+    console.assert( data, `No icon named _${ iconName }_` );
+
+    // Just another name for the same icon..
+    if( data.constructor == String )
+    {
+        data = LX.ICONS[ data ];
+    }
+
+    const svg = document.createElementNS( "http://www.w3.org/2000/svg", "svg" );
+    svg.setAttribute( "viewBox", `0 0 ${ data[ 0 ] } ${ data[ 1 ] }` );
+
+    if( extraClass )
+    {
+        svg.classList.add( extraClass );
+    }
+
+    if( data[ 5 ] )
+    {
+        const attr = data[ 5 ].split( '=' );
+        svg.setAttribute( attr[ 0 ], attr[ 1 ] );
+    }
+
+    const path = document.createElement( "path" );
+    path.setAttribute( "fill",  "var(--color)" );
+    path.setAttribute( "d",  data[ 4 ] );
+    svg.appendChild( path );
+
+    if( data[ 6 ] )
+    {
+        const attrs = data[ 6 ].split( ' ' );
+        attrs.forEach( attr => {
+            const t = attr.split( '=' );
+            path.setAttribute( t[ 0 ], t[ 1 ] );
+        } );
+    }
+
+    const faLicense = `<!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.-->`;
+    svg.innerHTML += faLicense;
+
+    const icon = document.createElement( "a" );
+    icon.title = iconTitle ?? "";
+    icon.className = "lexicon " + extraClass;
+    icon.appendChild( svg );
+
+    return icon;
+}
+
+LX.makeIcon = makeIcon;
+
+/**
+ * @method registerCommandbarEntry
+ * @description Adds an extra command bar entry
+ * @param {String} name
+ * @param {Function} callback
+ */
+function registerCommandbarEntry( name, callback )
+{
+    LX.extraCommandbarEntries.push( { name, callback } );
+}
+
+LX.registerCommandbarEntry = registerCommandbarEntry;
+
 // Math classes
 
 class vec2 {
@@ -526,24 +663,23 @@ class vec2 {
 
 LX.vec2 = vec2;
 
-function create_global_searchbar( root )
+function _createCommandbar( root )
 {
-    let globalSearch = document.createElement("div");
-    globalSearch.id = "global-search";
-    globalSearch.className = "hidden";
-    globalSearch.tabIndex = -1;
-    root.appendChild( globalSearch );
+    let commandbar = document.createElement( "dialog" );
+    commandbar.className = "commandbar";
+    commandbar.tabIndex = -1;
+    root.appendChild( commandbar );
 
     let allItems = [];
     let hoverElId = null;
 
-    globalSearch.addEventListener('keydown', function( e ) {
+    commandbar.addEventListener('keydown', function( e ) {
         e.stopPropagation();
         e.stopImmediatePropagation();
         hoverElId = hoverElId ?? -1;
         if( e.key == 'Escape' )
         {
-            this.classList.add("hidden");
+            this.close();
             _resetBar( true );
         }
         else if( e.key == 'Enter' )
@@ -552,7 +688,7 @@ function create_global_searchbar( root )
             if( el )
             {
                 const isCheckbox = (el.item.type && el.item.type === 'checkbox');
-                this.classList.toggle('hidden');
+                this.close();
                 if( isCheckbox )
                 {
                     el.item.checked = !el.item.checked;
@@ -567,7 +703,7 @@ function create_global_searchbar( root )
         else if ( e.key == 'ArrowDown' && hoverElId < (allItems.length - 1) )
         {
             hoverElId++;
-            globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+            commandbar.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
             allItems[ hoverElId ].classList.add('hovered');
 
             let dt = allItems[ hoverElId ].offsetHeight * (hoverElId + 1) - itemContainer.offsetHeight;
@@ -582,19 +718,19 @@ function create_global_searchbar( root )
         } else if ( e.key == 'ArrowUp' && hoverElId > 0 )
         {
             hoverElId--;
-            globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+            commandbar.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
             allItems[ hoverElId ].classList.add('hovered');
         }
     });
 
-    globalSearch.addEventListener('focusout', function( e ) {
+    commandbar.addEventListener('focusout', function( e ) {
         if( e.relatedTarget == e.currentTarget )
         {
             return;
         }
         e.stopPropagation();
         e.stopImmediatePropagation();
-        this.classList.add( "hidden" );
+        this.close();
         _resetBar( true );
     });
 
@@ -603,9 +739,7 @@ function create_global_searchbar( root )
         {
             e.stopImmediatePropagation();
             e.stopPropagation();
-            globalSearch.classList.toggle('hidden');
-            globalSearch.querySelector('input').focus();
-            _addElements( undefined );
+            LX.setCommandbarState( true );
         }
         else
         {
@@ -683,26 +817,26 @@ function create_global_searchbar( root )
         const isCheckbox = (i && i.type && i.type === 'checkbox');
         if( isCheckbox )
         {
-            searchItem.innerHTML = "<a class='fa fa-check'></a><span>" + p + t + "</span>"
+            searchItem.innerHTML = "<a class='fa fa-check'></a><span>" + ( p + t ) + "</span>"
         }
         else
         {
-            searchItem.innerHTML = p + t;
+            searchItem.innerHTML = ( p + t );
         }
         searchItem.entry_name = t;
         searchItem.callback = c;
         searchItem.item = i;
-        searchItem.addEventListener('click', function(e) {
-            this.callback.call(window, this.entry_name);
-            globalSearch.classList.toggle('hidden');
+        searchItem.addEventListener('click', function( e ) {
+            this.callback.call( window, this.entry_name );
+            LX.setCommandbarState( false );
             _resetBar( true );
         });
-        searchItem.addEventListener('mouseenter', function(e) {
-            globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+        searchItem.addEventListener('mouseenter', function( e ) {
+            commandbar.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
             this.classList.add('hovered');
             hoverElId = allItems.indexOf( this );
         });
-        searchItem.addEventListener('mouseleave', function(e) {
+        searchItem.addEventListener('mouseleave', function( e ) {
             this.classList.remove('hovered');
         });
         allItems.push( searchItem );
@@ -732,7 +866,7 @@ function create_global_searchbar( root )
             _propagateAdd( c, filter, path );
     };
 
-    const _addElements = filter => {
+    commandbar._addElements = filter => {
 
         _resetBar();
 
@@ -744,15 +878,25 @@ function create_global_searchbar( root )
             }
         }
 
+        for( let entry of LX.extraCommandbarEntries )
+        {
+            const name = entry.name;
+            if( !name.toLowerCase().includes( filter ) )
+            {
+                continue;
+            }
+            _addElement( name, entry.callback, "", {} );
+        }
+
         if( LX.has('CodeEditor') )
         {
             const instances = LX.CodeEditor.getInstances();
-            if(!instances.length) return;
+            if( !instances.length ) return;
 
             const languages = instances[ 0 ].languages;
 
-            for( let l of Object.keys( languages ) ) {
-
+            for( let l of Object.keys( languages ) )
+            {
                 const key = "Language: " + l;
                 const icon = instances[ 0 ]._getFileIcon( null, languages[ l ].ext );
 
@@ -760,9 +904,11 @@ function create_global_searchbar( root )
                         "<img src='" + ( "https://raw.githubusercontent.com/jxarco/lexgui.js/master/" + icon ) + "'>";
 
                 value += key + " <span class='lang-ext'>(" + languages[ l ].ext + ")</span>";
-                if( key.toLowerCase().includes( filter ) ) {
-                    add_element( value, () => {
-                        for( let i of instances ) {
+                if( key.toLowerCase().includes( filter ) )
+                {
+                    _addElement( value, () => {
+                        for( let i of instances )
+                        {
                             i._changeLanguage( l );
                         }
                     }, "", {} );
@@ -771,15 +917,15 @@ function create_global_searchbar( root )
         }
     }
 
-    input.addEventListener('input', function(e) {
-        _addElements( this.value.toLowerCase() );
+    input.addEventListener('input', function( e ) {
+        commandbar._addElements( this.value.toLowerCase() );
     });
 
-    globalSearch.appendChild( header );
-    globalSearch.appendChild( tabArea.root );
-    globalSearch.appendChild( itemContainer );
+    commandbar.appendChild( header );
+    commandbar.appendChild( tabArea.root );
+    commandbar.appendChild( itemContainer );
 
-    return globalSearch;
+    return commandbar;
 }
 
 /**
@@ -789,6 +935,7 @@ function create_global_searchbar( root )
  * id: Id of the main area
  * skipRoot: Skip adding LX root container
  * skipDefaultArea: Skip creation of main area
+ * strictViewport: Use only window area
  */
 
 function init( options = { } )
@@ -811,16 +958,29 @@ function init( options = { } )
     this.root = root;
     this.container = document.body;
 
-    // this.modal.toggleAttribute( 'hidden', true );
-    // this.modal.toggle = function( force ) { this.toggleAttribute( 'hidden', force ); };
-
     this.modal.classList.add( 'hiddenOpacity' );
     this.modal.toggle = function( force ) { this.classList.toggle( 'hiddenOpacity', force ); };
 
     if( options.container )
+    {
         this.container = document.getElementById( options.container );
+    }
 
-    this.globalSearch = create_global_searchbar( this.container );
+    this.usingStrictViewport = options.strictViewport ?? true;
+    document.documentElement.setAttribute( "data-strictVP", ( this.usingStrictViewport ) ? "true" : "false" );
+
+    if( !this.usingStrictViewport )
+    {
+        document.addEventListener( "scroll", e => {
+            // Get all active menuboxes
+            const mbs = document.body.querySelectorAll( ".lexmenubox" );
+            mbs.forEach( ( mb ) => {
+                mb._updatePosition();
+            } );
+        } );
+    }
+
+    this.commandbar = _createCommandbar( this.container );
 
     this.container.appendChild( modal );
 
@@ -831,6 +991,25 @@ function init( options = { } )
     else
     {
         this.root = document.body;
+    }
+
+    // Notifications
+    {
+        const notifSection = document.createElement( "section" );
+        notifSection.className = "notifications";
+        this.notifications = document.createElement( "ol" );
+        this.notifications.className = "";
+        this.notifications.iWidth = 0;
+        notifSection.appendChild( this.notifications );
+        this.container.appendChild( notifSection );
+
+        this.notifications.addEventListener( "mouseenter", () => {
+            this.notifications.classList.add( "list" );
+        } );
+
+        this.notifications.addEventListener( "mouseleave", () => {
+            this.notifications.classList.remove( "list" );
+        } );
     }
 
     // Disable drag icon
@@ -879,10 +1058,38 @@ function init( options = { } )
 LX.init = init;
 
 /**
+ * @method setCommandbarState
+ * @param {Boolean} value
+ * @param {Boolean} resetEntries
+ */
+
+function setCommandbarState( value, resetEntries = true )
+{
+    const cb = this.commandbar;
+
+    if( value )
+    {
+        cb.show();
+        cb.querySelector('input').focus();
+
+        if( resetEntries )
+        {
+            cb._addElements( undefined );
+        }
+    }
+    else
+    {
+        cb.close();
+    }
+}
+
+LX.setCommandbarState = setCommandbarState;
+
+/**
  * @method message
  * @param {String} text
  * @param {String} title (Optional)
- * @param {*} options
+ * @param {Object} options
  * id: Id of the message dialog
  * position: Dialog position in screen [screen centered]
  * draggable: Dialog can be dragged [false]
@@ -908,11 +1115,11 @@ LX.message = message;
  * @method popup
  * @param {String} text
  * @param {String} title (Optional)
- * @param {*} options
+ * @param {Object} options
  * id: Id of the message dialog
- * time: (Number) Delay time before close automatically (ms). Defalut: [3000]
- * position: (Array) [x,y] Dialog position in screen. Default: [screen centered]
- * size: (Array) [width, height]
+ * timeout (Number): Delay time before it closes automatically (ms). Default: [3000]
+ * position (Array): [x,y] Dialog position in screen. Default: [screen centered]
+ * size (Array): [width, height]
  */
 
 function popup( text, title, options = {} )
@@ -922,7 +1129,7 @@ function popup( text, title, options = {} )
         throw("No message to show");
     }
 
-    options.size = options.size ?? [ "auto", "auto" ];
+    options.size = options.size ?? [ "max-content", "auto" ];
     options.class = "lexpopup";
 
     const time = options.timeout || 3000;
@@ -930,13 +1137,9 @@ function popup( text, title, options = {} )
         p.addTextArea( null, text, null, { disabled: true, fitHeight: true } );
     }, options );
 
-    dialog.root.classList.add( 'fadein' );
-    setTimeout(() => {
-        dialog.root.classList.remove( 'fadein' );
-        dialog.root.classList.add( 'fadeout' );
-    }, time - 1000 );
-
-    setTimeout( dialog.close, time );
+    setTimeout( () => {
+        dialog.close();
+    }, Math.max( time, 150 ) );
 
     return dialog;
 }
@@ -947,7 +1150,7 @@ LX.popup = popup;
  * @method prompt
  * @param {String} text
  * @param {String} title (Optional)
- * @param {*} options
+ * @param {Object} options
  * id: Id of the prompt dialog
  * position: Dialog position in screen [screen centered]
  * draggable: Dialog can be dragged [false]
@@ -959,6 +1162,7 @@ LX.popup = popup;
 function prompt( text, title, callback, options = {} )
 {
     options.modal = true;
+    options.className = "prompt";
 
     let value = "";
 
@@ -973,7 +1177,9 @@ function prompt( text, title, callback, options = {} )
 
         p.sameLine( 2 );
 
-        p.addButton( null, options.accept || "OK", () => {
+        p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+
+        p.addButton( null, options.accept || "Continue", () => {
             if( options.required && value === '' )
             {
                 text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
@@ -986,8 +1192,6 @@ function prompt( text, title, callback, options = {} )
                 dialog.close();
             }
         }, { buttonClass: "primary" });
-
-        p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
 
     }, options );
 
@@ -1003,10 +1207,105 @@ function prompt( text, title, callback, options = {} )
 LX.prompt = prompt;
 
 /**
+ * @method toast
+ * @param {String} title
+ * @param {String} description (Optional)
+ * @param {Object} options
+ * action: Data of the custom action { name, callback }
+ * closable: Allow closing the toast
+ * timeout: Time in which the toast closed automatically, in ms. -1 means persistent. [3000]
+ */
+
+function toast( title, description, options = {} )
+{
+    if( !title )
+    {
+        throw( "The toast needs at least a title!" );
+    }
+
+    console.assert( this.notifications );
+
+    const toast = document.createElement( "li" );
+    toast.className = "lextoast";
+    toast.style.translate = "0 calc(100% + 30px)";
+    this.notifications.prepend( toast );
+
+    doAsync( () => {
+
+        if( this.notifications.offsetWidth > this.notifications.iWidth )
+        {
+            this.notifications.iWidth = Math.min( this.notifications.offsetWidth, 480 );
+            this.notifications.style.width = this.notifications.iWidth + "px";
+        }
+
+        toast.dataset[ "open" ] = true;
+    }, 10 );
+
+    const content = document.createElement( "div" );
+    content.className = "lextoastcontent";
+    toast.appendChild( content );
+
+    const titleContent = document.createElement( "div" );
+    titleContent.className = "title";
+    titleContent.innerHTML = title;
+    content.appendChild( titleContent );
+
+    if( description )
+    {
+        const desc = document.createElement( "div" );
+        desc.className = "desc";
+        desc.innerHTML = description;
+        content.appendChild( desc );
+    }
+
+    if( options.action )
+    {
+        const panel = new Panel();
+        panel.addButton(null, options.action.name ?? "Accept", options.action.callback.bind( this, toast ), { width: "auto", maxWidth: "150px", className: "right", buttonClass: "outline" });
+        toast.appendChild( panel.root.childNodes[ 0 ] );
+    }
+
+    const that = this;
+
+    toast.close = function() {
+        this.dataset[ "closed" ] = true;
+        doAsync( () => {
+            this.remove();
+            if( !that.notifications.childElementCount )
+            {
+                that.notifications.style.width = "unset";
+                that.notifications.iWidth = 0;
+            }
+        }, 500 );
+    };
+
+    if( options.closable ?? true )
+    {
+        const closeButton = document.createElement( "a" );
+        closeButton.className = "fa fa-xmark lexicon closer";
+        closeButton.addEventListener( "click", () => {
+            toast.close();
+        } );
+        toast.appendChild( closeButton );
+    }
+
+    const timeout = options.timeout ?? 3000;
+
+    if( timeout != -1 )
+    {
+        doAsync( () => {
+            toast.close();
+        }, timeout );
+    }
+}
+
+LX.toast = toast;
+
+/**
  * @method badge
  * @param {String} text
  * @param {String} className
- * @param {*} options
+ * @param {Object} options
  * style: Style attributes to override
  */
 
@@ -1021,13 +1320,32 @@ function badge( text, className, options = {} )
 
 LX.badge = badge;
 
+/**
+ * @method makeContainer
+ * @param {Array} size
+ * @param {String} className
+ * @param {Object} overrideStyle
+ */
+
+function makeContainer( size, className, overrideStyle = {} )
+{
+    const container = document.createElement( "div" );
+    container.className = "lexcontainer " + ( className ?? "" );
+    container.style.width = size && size[ 0 ] ? size[ 0 ] : "100%";
+    container.style.height = size && size[ 1 ] ? size[ 1 ] : "100%";
+    Object.assign( container.style, overrideStyle );
+    return container;
+}
+
+LX.makeContainer = makeContainer;
+
 /*
 *   Events and Signals
 */
 
 class IEvent {
 
-    constructor(name, value, domEvent) {
+    constructor( name, value, domEvent ) {
         this.name = name;
         this.value = value;
         this.domEvent = domEvent;
@@ -1097,20 +1415,21 @@ function emit( signalName, value, options = {} )
 
     for( let obj of data )
     {
-        if( obj.constructor === Widget )
+        if( obj instanceof Widget )
         {
             obj.set( value, options.skipCallback ?? true );
-
-            if( obj.options && obj.options.callback )
-            {
-                obj.options.callback( value, data );
-            }
+        }
+        else if( obj.constructor === Function )
+        {
+            const fn = obj;
+            fn( null, value );
         }
         else
         {
-            // This is a function callback!
-            const fn = obj;
-            fn( null, value );
+            // This is an element
+            const fn = obj[ signalName ];
+            console.assert( fn, `No callback registered with _${ signalName }_ signal` );
+            fn.bind( obj )( value );
         }
     }
 }
@@ -1119,7 +1438,7 @@ LX.emit = emit;
 
 function addSignal( name, obj, callback )
 {
-    obj[name] = callback;
+    obj[ name ] = callback;
 
     if( !LX.signals[ name ] )
     {
@@ -1140,11 +1459,267 @@ LX.addSignal = addSignal;
 *   DOM Elements
 */
 
+/**
+ * @class DropdownMenu
+ */
+
+class DropdownMenu {
+
+    constructor( trigger, items, options = {} ) {
+
+        console.assert( trigger, "DropdownMenu needs a DOM element as trigger!" );
+        this._trigger = trigger;
+
+        trigger.ddm = this;
+
+        this._items = items;
+
+        this._windowPadding = 4;
+        this.side = options.side ?? "bottom";
+        this.align = options.align ?? "center";
+        this.avoidCollisions = options.avoidCollisions ?? true;
+
+        this.root = document.createElement( "div" );
+        this.root.id = "root";
+        this.root.dataset["side"] = this.side;
+        this.root.tabIndex = "1";
+        this.root.className = "lexdropdownmenu";
+        LX.root.appendChild( this.root );
+
+        this._create( this._items );
+
+
+        doAsync( () => {
+            this._adjustPosition();
+
+            this.root.focus();
+
+            this._onClick = e => {
+                if( e.target && ( e.target.className.includes( "lexdropdown" ) || e.target == this._trigger ) )
+                {
+                    return;
+                }
+                this.destroy();
+            };
+
+            document.body.addEventListener( "click", this._onClick );
+        }, 10 );
+    }
+
+    destroy() {
+
+        delete this._trigger.ddm;
+
+        document.body.removeEventListener( "click", this._onClick );
+
+        LX.root.querySelectorAll( ".lexdropdownmenu" ).forEach( m => { m.remove(); } );
+    }
+
+    _create( items, parentDom ) {
+
+        if( !parentDom )
+        {
+            parentDom = this.root;
+        }
+        else
+        {
+            const parentRect = parentDom.getBoundingClientRect();
+
+            let newParent = document.createElement( "div" );
+            newParent.tabIndex = "1";
+            newParent.className = "lexdropdownmenu";
+            newParent.id = parentDom.id;
+            newParent.dataset["side"] = "right"; // submenus always come from the right
+            LX.root.appendChild( newParent );
+
+            newParent.currentParent = parentDom;
+            parentDom = newParent;
+
+            doAsync( () => {
+                const position = [ parentRect.x + parentRect.width, parentRect.y ];
+
+                if( this.avoidCollisions )
+                {
+                    position[ 0 ] = LX.clamp( position[ 0 ], 0, window.innerWidth - newParent.offsetWidth - this._windowPadding );
+                    position[ 1 ] = LX.clamp( position[ 1 ], 0, window.innerHeight - newParent.offsetHeight - this._windowPadding );
+                }
+
+                newParent.style.left = `${ position[ 0 ] }px`;
+                newParent.style.top = `${ position[ 1 ] }px`;
+            }, 10 );
+        }
+
+        for( let item of items )
+        {
+            if( !item )
+            {
+                this._addSeparator( parentDom );
+                continue;
+            }
+
+            const key = item.name ?? item;
+            const pKey = key.replace( /\s/g, '' ).replaceAll( '.', '' );
+
+            // Item already created
+            if( parentDom.querySelector( "#" + pKey ) )
+            {
+                continue;
+            }
+
+            const menuItem = document.createElement('div');
+            menuItem.className = "lexdropdownmenuitem" + ( item.name ? "" : " label" ) + ( item.disabled ?? false ? " disabled" : "" );
+            menuItem.id = pKey;
+            menuItem.innerHTML = `<span>${ key }</span>`;
+
+            if( item.icon )
+            {
+                const icon = LX.makeIcon( item.icon );
+                menuItem.prepend( icon );
+            }
+
+            menuItem.tabIndex = "1";
+            parentDom.appendChild( menuItem );
+
+            if( item.constructor === String || ( item.disabled ?? false ) )
+            {
+                continue;
+            }
+
+            if( item.submenu )
+            {
+                let submenuIcon = document.createElement('a');
+                submenuIcon.className = "fa-solid fa-angle-right fa-xs";
+                menuItem.appendChild( submenuIcon );
+            }
+
+            menuItem.addEventListener( "click", () => {
+                const f = item[ 'callback' ];
+                if( f )
+                {
+                    f.call( this, key, menuItem );
+                }
+
+                this.destroy();
+            } );
+
+            menuItem.addEventListener("mouseover", e => {
+
+                let path = menuItem.id;
+                let p = parentDom;
+
+                while( p )
+                {
+                    path += "/" + p.id;
+                    p = p.currentParent?.parentElement;
+                }
+
+                LX.root.querySelectorAll( ".lexdropdownmenu" ).forEach( m => {
+                    if( !path.includes( m.id ) )
+                    {
+                        m.currentParent.built = false;
+                        m.remove();
+                    }
+                } );
+
+                if( item.submenu )
+                {
+                    if( menuItem.built )
+                    {
+                        return;
+                    }
+                    menuItem.built = true;
+                    this._create( item.submenu, menuItem );
+                }
+
+                e.stopPropagation();
+            });
+        }
+    }
+
+    _adjustPosition() {
+
+        const position = [ document.scrollingElement.scrollLeft, document.scrollingElement.scrollTop ];
+
+        /*
+        - avoidCollisions
+        - side
+        - align
+        - alignOffset
+        - sideOffsetS
+        */
+
+        // Place menu using trigger position and user options
+        {
+            const rect = this._trigger.getBoundingClientRect();
+
+            let alignWidth = true;
+
+            switch( this.side )
+            {
+                case "left":
+                    position[ 0 ] += ( rect.x - this.root.offsetWidth );
+                    alignWidth = false;
+                    break;
+                case "right":
+                    position[ 0 ] += ( rect.x + rect.width );
+                    alignWidth = false;
+                    break;
+                case "top":
+                    position[ 1 ] += ( rect.y - this.root.offsetHeight );
+                    alignWidth = true;
+                    break;
+                case "bottom":
+                    position[ 1 ] += ( rect.y + rect.height );
+                    alignWidth = true;
+                    break;
+                default:
+                    break;
+            }
+
+            switch( this.align )
+            {
+                case "start":
+                    if( alignWidth ) { position[ 0 ] += rect.x; }
+                    else { position[ 1 ] += rect.y; }
+                    break;
+                case "center":
+                    if( alignWidth ) { position[ 0 ] += ( rect.x + rect.width * 0.5 ) - this.root.offsetWidth * 0.5; }
+                    else { position[ 1 ] += ( rect.y + rect.height * 0.5 ) - this.root.offsetHeight * 0.5; }
+                    break;
+                case "end":
+                    if( alignWidth ) { position[ 0 ] += rect.x - this.root.offsetWidth + rect.width; }
+                    else { position[ 1 ] += rect.y - this.root.offsetHeight + rect.height; }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if( this.avoidCollisions )
+        {
+            position[ 0 ] = LX.clamp( position[ 0 ], 0, window.innerWidth - this.root.offsetWidth - this._windowPadding );
+            position[ 1 ] = LX.clamp( position[ 1 ], 0, window.innerHeight - this.root.offsetHeight - this._windowPadding );
+        }
+
+        this.root.style.left = `${ position[ 0 ] }px`;
+        this.root.style.top = `${ position[ 1 ] }px`;
+    }
+
+    _addSeparator( parent ) {
+        const separator = document.createElement('div');
+        separator.className = "separator";
+        parent = parent ?? this.root;
+        parent.appendChild( separator );
+    }
+};
+
+LX.DropdownMenu = DropdownMenu;
+
 class Area {
 
     /**
      * @constructor Area
-     * @param {*} options
+     * @param {Object} options
      * id: Id of the element
      * className: Add class to the element
      * width: Width of the area element [fit space]
@@ -1263,17 +1838,17 @@ class Area {
                     this.splitBar.style.top = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 }
 
-                this.splitBar.addEventListener("mousedown", inner_mousedown);
+                this.splitBar.addEventListener("mousedown", innerMouseDown);
                 this.root.appendChild( this.splitBar );
 
                 var that = this;
                 var lastMousePosition = [ 0, 0 ];
 
-                function inner_mousedown( e )
+                function innerMouseDown( e )
                 {
                     var doc = that.root.ownerDocument;
-                    doc.addEventListener( 'mousemove', inner_mousemove );
-                    doc.addEventListener( 'mouseup', inner_mouseup );
+                    doc.addEventListener( 'mousemove', innerMouseMove );
+                    doc.addEventListener( 'mouseup', innerMouseUp );
                     lastMousePosition[ 0 ] = e.x;
                     lastMousePosition[ 1 ] = e.y;
                     e.stopPropagation();
@@ -1282,9 +1857,10 @@ class Area {
                     that.splitBar.classList.add( 'nocursor' );
                 }
 
-                function inner_mousemove( e )
+                function innerMouseMove( e )
                 {
-                    switch( that.type ) {
+                    switch( that.type )
+                    {
                         case "right":
                             var dt = ( lastMousePosition[ 0 ] - e.x );
                             var size = ( that.root.offsetWidth + dt );
@@ -1321,11 +1897,11 @@ class Area {
                     }
                 }
 
-                function inner_mouseup( e )
+                function innerMouseUp( e )
                 {
                     var doc = that.root.ownerDocument;
-                    doc.removeEventListener( 'mousemove', inner_mousemove );
-                    doc.removeEventListener( 'mouseup', inner_mouseup );
+                    doc.removeEventListener( 'mousemove', innerMouseMove );
+                    doc.removeEventListener( 'mouseup', innerMouseUp );
                     document.body.classList.remove( 'nocursor' );
                     that.splitBar.classList.remove( 'nocursor' );
                 }
@@ -1360,7 +1936,7 @@ class Area {
 
     /**
      * @method split
-     * @param {*} options
+     * @param {Object} options
      * type: Split mode (horizontal, vertical) ["horizontal"]
      * sizes: Size of each new area (Array) ["50%", "50%"]
      */
@@ -1479,7 +2055,8 @@ class Area {
 
                 // Listen resize event on first area
                 const resizeObserver = new ResizeObserver( entries => {
-                    for (const entry of entries) {
+                    for ( const entry of entries )
+                    {
                         const bb = entry.contentRect;
                         area2.root.style.height = "calc(100% - " + ( bb.height + 4) + "px )";
                     }
@@ -1503,8 +2080,8 @@ class Area {
                 }
 
                 area1.root.style.width = "100%";
-                area1.root.style.height = "calc( " + height1 + " - " + data + " )";
-                area2.root.style.height = "calc( " + height2 + " - " + data + " )";
+                area1.root.style.height = ( height1 == "auto" ? height1 : "calc( " + height1 + " - " + data + " )");
+                area2.root.style.height = ( height2 == "auto" ? height2 : "calc( " + height2 + " - " + data + " )");
             }
         }
 
@@ -1620,9 +2197,15 @@ class Area {
             this.root.style.height = height;
         }
 
-        this.size = [ this.root.clientWidth, this.root.clientHeight ];
+        if( this.onresize )
+        {
+            this.onresize( this.root.getBoundingClientRect() );
+        }
 
-        this.propagateEvent( "onresize" );
+        doAsync( () => {
+            this.size = [ this.root.clientWidth, this.root.clientHeight ];
+            this.propagateEvent( "onresize" );
+        }, 150 );
     }
 
     /**
@@ -1639,7 +2222,7 @@ class Area {
         let [area1, area2] = this.sections;
         this.splitExtended = true;
 
-        if(this.type == "vertical")
+        if( this.type == "vertical")
         {
             this.offset = area2.root.offsetHeight;
             area2.root.classList.add("fadeout-vertical");
@@ -1653,7 +2236,6 @@ class Area {
             this._moveSplit(-Infinity, true, 8);
         }
 
-        // Async resize in some ms...
         doAsync( () => this.propagateEvent('onresize'), 150 );
     }
 
@@ -1669,7 +2251,7 @@ class Area {
         this.splitExtended = false;
         let [area1, area2] = this.sections;
 
-        if(this.type == "vertical")
+        if( this.type == "vertical")
         {
             area2.root.classList.add("fadein-vertical");
             this._moveSplit(this.offset);
@@ -1680,7 +2262,6 @@ class Area {
             this._moveSplit(this.offset);
         }
 
-        // Async resize in some ms...
         doAsync( () => this.propagateEvent('onresize'), 150 );
     }
 
@@ -1714,18 +2295,22 @@ class Area {
 
     propagateEvent( eventName ) {
 
-        for(var i = 0; i < this.sections.length; i++)
+        for( var i = 0; i < this.sections.length; i++ )
         {
-            const area = this.sections[i];
-            if(area[ eventName ])
+            const area = this.sections[ i ];
+
+            if( area[ eventName ] )
+            {
                 area[ eventName ].call( this, area.root.getBoundingClientRect() );
+            }
+
             area.propagateEvent( eventName );
         }
     }
 
     /**
      * @method addPanel
-     * @param {*} options
+     * @param {Object} options
      * Options to create a Panel
      */
 
@@ -1739,51 +2324,72 @@ class Area {
     /**
      * @method addMenubar
      * @param {Function} callback Function to fill the menubar
-     * @param {*} options:
+     * @param {Object} options:
      * float: Justify content (left, center, right) [left]
+     * sticky: Fix menubar at the top [true]
      */
 
     addMenubar( callback, options = {} ) {
 
-        let menubar = new Menubar(options);
+        let menubar = new Menubar( options );
 
-        if(callback) callback( menubar );
+        if( callback )
+        {
+            callback( menubar );
+        }
 
         LX.menubars.push( menubar );
 
         const height = 48; // pixels
+        const [ bar, content ] = this.split({ type: 'vertical', sizes: [height, null], resize: false, menubar: true });
+        menubar.siblingArea = content;
 
-        const [bar, content] = this.split({type: 'vertical', sizes: [height, null], resize: false, menubar: true});
         bar.attach( menubar );
-        bar.is_menubar = true;
+        bar.isMenubar = true;
+
+        if( options.sticky ?? true )
+        {
+            bar.root.classList.add( "sticky" );
+        }
+
         return menubar;
     }
 
     /**
      * @method addSidebar
      * @param {Function} callback Function to fill the sidebar
+     * @param {Object} options: Sidebar options
+     * width: Width of the sidebar [16rem]
      */
 
     addSidebar( callback, options = {} ) {
 
         let sidebar = new SideBar( options );
 
-        if( callback ) callback( sidebar );
+        if( callback )
+        {
+            callback( sidebar );
+        }
+
+        // Generate DOM elements after adding all entries
+        sidebar.update();
 
         LX.menubars.push( sidebar );
 
-        const width = 64; // pixels
+        const width = options.width ?? "16rem";
+        const [ bar, content ] = this.split( { type: 'horizontal', sizes: [ width, null ], resize: false, sidebar: true } );
+        sidebar.siblingArea = content;
 
-        const [bar, content] = this.split( { type: 'horizontal', sizes: [ width, null ], resize: false, sidebar: true } );
         bar.attach( sidebar );
-        bar.is_sidebar = true;
+        bar.isSidebar = true;
+
         return sidebar;
     }
 
     /**
      * @method addOverlayButtons
      * @param {Array} buttons Buttons info
-     * @param {*} options:
+     * @param {Object} options:
      * float: Where to put the buttons (h: horizontal, v: vertical, t: top, m: middle, b: bottom, l: left, c: center, r: right) [htc]
      */
 
@@ -1859,11 +2465,11 @@ class Area {
 
             if( b.options )
             {
-                overlayPanel.addDropdown( null, b.options, b.name, callback, _options );
+                overlayPanel.addSelect( null, b.options, b.name, callback, _options );
             }
             else
             {
-                overlayPanel.addButton( null, b.name, function( value, event ) {
+                const button = overlayPanel.addButton( null, b.name, function( value, event ) {
                     if( b.selectable )
                     {
                         if( b.group )
@@ -1878,7 +2484,7 @@ class Area {
                         }
                     }
 
-                    callback( value, event );
+                    callback( value, event, button.root );
 
                 }, _options );
             }
@@ -1934,7 +2540,7 @@ class Area {
 
     /**
      * @method addTabs
-     * @param {*} options:
+     * @param {Object} options:
      */
 
     addTabs( options = {} ) {
@@ -2032,7 +2638,8 @@ class Area {
 
         this.size = [ rect.width, rect.height ];
 
-        for(var i = 0; i < this.sections.length; i++) {
+        for( var i = 0; i < this.sections.length; i++ )
+        {
             this.sections[i]._update();
         }
     }
@@ -2056,7 +2663,7 @@ class Tabs {
     static TAB_SIZE = 28;
     static TAB_ID   = 0;
 
-    constructor( area, options = {} )  {
+    constructor( area, options = {} ) {
 
         this.onclose = options.onclose;
 
@@ -2068,26 +2675,41 @@ class Tabs {
 
         let that = this;
 
-        container.addEventListener("dragenter", function(e) {
+        container.addEventListener("dragenter", function( e ) {
             e.preventDefault(); // Prevent default action (open as link for some elements)
             this.classList.add("dockingtab");
         });
 
-        container.addEventListener("dragleave", function(e) {
+        container.addEventListener("dragleave", function( e ) {
             e.preventDefault(); // Prevent default action (open as link for some elements)
+            if ( this.contains( e.relatedTarget ) ) return; // Still inside
             this.classList.remove("dockingtab");
         });
 
-        container.addEventListener("drop", function(e) {
+        container.addEventListener("drop", function( e ) {
             e.preventDefault(); // Prevent default action (open as link for some elements)
 
-            const tab_id = e.dataTransfer.getData("source");
-            const el = document.getElementById(tab_id);
+            const tabId = e.dataTransfer.getData( "source" );
+            const el = document.getElementById( tabId );
             if( !el ) return;
 
-            // Append tab and content
-            this.appendChild( el );
-            const content = document.getElementById(tab_id + "_content");
+            const target = e.target;
+            const rect = target.getBoundingClientRect();
+
+            if( e.offsetX < ( rect.width * 0.5 ) )
+            {
+                this.insertBefore( el, target );
+            }
+            else if( target.nextElementSibling )
+            {
+                this.insertBefore( el, target.nextElementSibling );
+            }
+            else
+            {
+                this.appendChild( el );
+            }
+
+            const content = document.getElementById( tabId + "_content" );
             that.area.attach( content );
             this.classList.remove("dockingtab");
 
@@ -2104,8 +2726,8 @@ class Tabs {
 
         area.root.classList.add( "lexareatabscontainer" );
 
-        area.split({type: 'vertical', sizes: "auto", resize: false, top: 6});
-        area.sections[0].attach( container );
+        area.split({ type: 'vertical', sizes: options.sizes ?? "auto", resize: false, top: 6 });
+        area.sections[ 0 ].attach( container );
 
         this.area = area.sections[1];
         this.area.root.className += " lexareatabscontent";
@@ -2138,24 +2760,28 @@ class Tabs {
         }
 
         // debug
-        if(folding)
+        if( folding )
         {
             this.folded = true;
             this.folding = folding;
 
-            if(folding == "up") area.root.insertChildAtIndex(area.sections[1].root, 0);
+            if( folding == "up" )
+            {
+                area.root.insertChildAtIndex(area.sections[1].root, 0);
+            }
 
             // Listen resize event on parent area
             const resizeObserver = new ResizeObserver((entries) => {
-                for (const entry of entries) {
+                for (const entry of entries)
+                {
                     const bb = entry.contentRect;
-                    const sibling = area.parentArea.sections[0].root;
-                    const add_offset = true; // hardcoded...
-                    sibling.style.height = "calc(100% - " + ((add_offset ? 42 : 0) + bb.height) + "px )";
+                    const sibling = area.parentArea.sections[ 0 ].root;
+                    const addOffset = true; // hardcoded...
+                    sibling.style.height = "calc(100% - " + ((addOffset ? 42 : 0) + bb.height) + "px )";
                 }
             });
 
-            resizeObserver.observe(this.area.root);
+            resizeObserver.observe( this.area.root );
             this.area.root.classList.add('folded');
         }
     }
@@ -2292,7 +2918,8 @@ class Tabs {
 
         setTimeout( () => {
 
-            if( options.onCreate ) {
+            if( options.onCreate )
+            {
                 options.onCreate.call(this, this.area.root.getBoundingClientRect());
             }
 
@@ -2354,278 +2981,395 @@ LX.Tabs = Tabs;
 
 class Menubar {
 
-    constructor( options = {} )  {
+    constructor( options = {} ) {
 
-        this.root = document.createElement('div');
+        this.root = document.createElement( "div" );
         this.root.className = "lexmenubar";
-        if(options.float)
-            this.root.style.justifyContent = options.float;
-        this.items = [];
 
-        this.icons = {};
-        this.shorts = {};
-        this.buttons = [];
+        if( options.float )
+        {
+            this.root.style.justifyContent = options.float;
+        }
+
+        this.items = [ ];
+        this.buttons = [ ];
+        this.icons = { };
+        this.shorts = { };
+    }
+
+    _resetMenubar( focus ) {
+
+        // Menu entries are in the menubar..
+        this.root.querySelectorAll(".lexmenuentry").forEach( _entry => {
+            _entry.classList.remove( 'selected' );
+            _entry.built = false;
+        } );
+
+        // Menuboxes are in the root area!
+        LX.root.querySelectorAll(".lexmenubox").forEach(e => e.remove());
+
+        // Next time we need to click again
+        this.focused = focus ?? false;
+    }
+
+    _createSubmenu( o, k, c, d ) {
+
+        let menuElement = document.createElement('div');
+        menuElement.className = "lexmenubox";
+        menuElement.tabIndex = "0";
+        c.currentMenu = menuElement;
+        menuElement.parentEntry = c;
+
+        const isSubMenu = c.classList.contains( "lexmenuboxentry" );
+        if( isSubMenu )
+        {
+            menuElement.dataset[ "submenu" ] = true;
+        }
+
+        menuElement._updatePosition = () => {
+
+            // Remove transitions for this change..
+            const transition = menuElement.style.transition;
+            menuElement.style.transition = "none";
+            flushCss( menuElement );
+
+            doAsync( () => {
+                let rect = c.getBoundingClientRect();
+                rect.x += document.scrollingElement.scrollLeft;
+                rect.y += document.scrollingElement.scrollTop;
+                menuElement.style.left = ( isSubMenu ? ( rect.x + rect.width ) : rect.x ) + "px";
+                menuElement.style.top = ( isSubMenu ? rect.y : ( ( rect.y + rect.height ) ) - 4 ) + "px";
+
+                menuElement.style.transition = transition;
+            } );
+        };
+
+        menuElement._updatePosition();
+
+        doAsync( () => {
+            menuElement.dataset[ "open" ] = true;
+        }, 10 );
+
+        LX.root.appendChild( menuElement );
+
+        for( var i = 0; i < o[ k ].length; ++i )
+        {
+            const subitem = o[ k ][ i ];
+            const subkey = Object.keys( subitem )[ 0 ];
+            const hasSubmenu = subitem[ subkey ].length;
+            const isCheckbox = subitem[ 'type' ] == 'checkbox';
+            let subentry = document.createElement('div');
+            subentry.tabIndex = "1";
+            subentry.className = "lexmenuboxentry";
+            subentry.className += (i == o[k].length - 1 ? " last" : "") + ( subitem.disabled ? " disabled" : "" );
+
+            if( subkey == '' )
+            {
+                subentry.className = " lexseparator";
+            }
+            else
+            {
+                subentry.id = subkey;
+                let subentrycont = document.createElement('div');
+                subentrycont.innerHTML = "";
+                subentrycont.classList = "lexmenuboxentrycontainer";
+                subentry.appendChild(subentrycont);
+                const icon = this.icons[ subkey ];
+                if( isCheckbox )
+                {
+                    subentrycont.innerHTML += "<input type='checkbox' >";
+                }
+                else if( icon )
+                {
+                    subentrycont.innerHTML += "<a class='" + icon + " fa-sm'></a>";
+                }
+                else
+                {
+                    subentrycont.innerHTML += "<a class='fa-solid fa-sm noicon'></a>";
+                    subentrycont.classList.add( "noicon" );
+
+                }
+                subentrycont.innerHTML += "<div class='lexentryname'>" + subkey + "</div>";
+            }
+
+            let checkboxInput = subentry.querySelector('input');
+            if( checkboxInput )
+            {
+                checkboxInput.checked = subitem.checked ?? false;
+                checkboxInput.addEventListener('change', e => {
+                    subitem.checked = checkboxInput.checked;
+                    const f = subitem[ 'callback' ];
+                    if( f )
+                    {
+                        f.call( this, subitem.checked, subkey, subentry );
+                        this._resetMenubar();
+                    }
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                })
+            }
+
+            menuElement.appendChild( subentry );
+
+            // Nothing more for separators
+            if( subkey == '' )
+            {
+                continue;
+            }
+
+            menuElement.addEventListener('keydown', e => {
+                e.preventDefault();
+                let short = this.shorts[ subkey ];
+                if(!short) return;
+                // check if it's a letter or other key
+                short = short.length == 1 ? short.toLowerCase() : short;
+                if( short == e.key )
+                {
+                    subentry.click()
+                }
+            });
+
+            // Add callback
+            subentry.addEventListener("click", e => {
+                if( checkboxInput )
+                {
+                    subitem.checked = !subitem.checked;
+                }
+                const f = subitem[ 'callback' ];
+                if( f )
+                {
+                    f.call( this, checkboxInput ? subitem.checked : subkey, checkboxInput ? subkey : subentry );
+                    this._resetMenubar();
+                }
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            });
+
+            subentry.addEventListener("blur", e => {
+
+                if( e.target && e.target.className.includes( "lexmenu" ) )
+                {
+                    return;
+                }
+                this._resetMenubar();
+            });
+
+            // Add icon if has submenu, else check for shortcut
+            if( !hasSubmenu )
+            {
+                if( this.shorts[ subkey ] )
+                {
+                    let shortEl = document.createElement('div');
+                    shortEl.className = "lexentryshort";
+                    shortEl.innerText = this.shorts[ subkey ];
+                    subentry.appendChild( shortEl );
+                }
+                continue;
+            }
+
+            let submenuIcon = document.createElement('a');
+            submenuIcon.className = "fa-solid fa-angle-right fa-xs";
+            subentry.appendChild( submenuIcon );
+
+            subentry.addEventListener("mouseover", e => {
+                if( subentry.built )
+                {
+                    return;
+                }
+                subentry.built = true;
+                this._createSubmenu( subitem, subkey, subentry, ++d );
+                e.stopPropagation();
+            });
+
+            subentry.addEventListener("mouseleave", e => {
+                if( subentry.currentMenu && ( subentry.currentMenu != e.toElement ) )
+                {
+                    d = -1; // Reset depth
+                    delete subentry.built;
+                    subentry.currentMenu.remove();
+                    delete subentry.currentMenu;
+                }
+            });
+        }
+
+        // Set final width
+        menuElement.style.width = menuElement.offsetWidth + "px";
     }
 
     /**
      * @method add
-     * @param {*} options:
+     * @param {Object} options:
      * callback: Function to call on each item
+     * icon: Entry icon
+     * short: Entry shortcut name
      */
 
     add( path, options = {} ) {
 
-        if(options.constructor == Function)
+        if( options.constructor == Function )
+        {
             options = { callback: options };
+        }
 
-        // process path
-        const tokens = path.split("/");
+        // Process path
+        const tokens = path.split( "/" );
 
-        // assign icons and shortcuts to last token in path
+        // Assign icons and shortcuts to last token in path
         const lastPath = tokens[tokens.length - 1];
         this.icons[ lastPath ] = options.icon;
         this.shorts[ lastPath ] = options.short;
 
         let idx = 0;
-        let that = this;
 
-        const insert = (token, list) => {
-            if(token == undefined) return;
+        const _insertEntry = ( token, list ) => {
+            if( token == undefined )
+            {
+                return;
+            }
 
             let found = null;
             list.forEach( o => {
-                const keys = Object.keys(o);
+                const keys = Object.keys( o );
                 const key = keys.find( t => t == token );
-                if(key) found = o[ key ];
+                if( key ) found = o[ key ];
             } );
 
-            if(found) {
-                insert( tokens[idx++], found );
+            if( found )
+            {
+                _insertEntry( tokens[ idx++ ], found );
             }
-            else {
+            else
+            {
                 let item = {};
                 item[ token ] = [];
-                const next_token = tokens[idx++];
+                const nextToken = tokens[ idx++ ];
                 // Check if last token -> add callback
-                if(!next_token) {
+                if( !nextToken )
+                {
                     item[ 'callback' ] = options.callback;
+                    item[ 'disabled' ] = options.disabled;
                     item[ 'type' ] = options.type;
                     item[ 'checked' ] = options.checked;
                 }
                 list.push( item );
-                insert( next_token, item[ token ] );
+                _insertEntry( nextToken, item[ token ] );
             }
         };
 
-        insert( tokens[idx++], this.items );
+        _insertEntry( tokens[idx++], this.items );
 
         // Create elements
 
         for( let item of this.items )
         {
-            let key = Object.keys(item)[0];
-            let pKey = key.replace(/\s/g, '').replaceAll('.', '');
+            let key = Object.keys( item )[ 0 ];
+            let pKey = key.replace( /\s/g, '' ).replaceAll( '.', '' );
 
             // Item already created
-            if( this.root.querySelector("#" + pKey) )
+            if( this.root.querySelector( "#" + pKey ) )
+            {
                 continue;
+            }
 
             let entry = document.createElement('div');
             entry.className = "lexmenuentry";
             entry.id = pKey;
             entry.innerHTML = "<span>" + key + "</span>";
-            if(options.position == "left") {
+            entry.tabIndex = "1";
+
+            if( options.position == "left" )
+            {
                 this.root.prepend( entry );
             }
-            else {
-                if(options.position == "right")
+            else
+            {
+                if( options.position == "right" )
+                {
                     entry.right = true;
-                if(this.root.lastChild && this.root.lastChild.right) {
+                }
+
+                if( this.root.lastChild && this.root.lastChild.right )
+                {
                     this.root.lastChild.before( entry );
                 }
-                else {
+                else
+                {
                     this.root.appendChild( entry );
                 }
             }
 
-            const create_submenu = function( o, k, c, d ) {
-
-                let contextmenu = document.createElement('div');
-                contextmenu.className = "lexcontextmenu";
-                contextmenu.tabIndex = "0";
-                const isSubMenu = c.classList.contains('lexcontextmenuentry');
-                var rect = c.getBoundingClientRect();
-                contextmenu.style.left = (isSubMenu ? rect.width : rect.left) + "px";
-                // Entries use css to set top relative to parent
-                contextmenu.style.top = (isSubMenu ? 0 : rect.bottom - 4) + "px";
-                c.appendChild( contextmenu );
-
-                contextmenu.focus();
-
-                rect = contextmenu.getBoundingClientRect();
-
-                for( var i = 0; i < o[k].length; ++i )
-                {
-                    const subitem = o[k][i];
-                    const subkey = Object.keys(subitem)[0];
-                    const hasSubmenu = subitem[ subkey ].length;
-                    const isCheckbox = subitem[ 'type' ] == 'checkbox';
-                    let subentry = document.createElement('div');
-                    subentry.className = "lexcontextmenuentry";
-                    subentry.className += (i == o[k].length - 1 ? " last" : "");
-                    if(subkey == '')
-                        subentry.className = " lexseparator";
-                    else {
-
-                        subentry.id = subkey;
-                        let subentrycont = document.createElement('div');
-                        subentrycont.innerHTML = "";
-                        subentrycont.classList = "lexcontextmenuentrycontainer";
-                        subentry.appendChild(subentrycont);
-                        const icon = that.icons[ subkey ];
-                        if(isCheckbox){
-                            subentrycont.innerHTML += "<input type='checkbox' >";
-                        }else if(icon) {
-                            subentrycont.innerHTML += "<a class='" + icon + " fa-sm'></a>";
-                        }else {
-                            subentrycont.innerHTML += "<a class='fa-solid fa-sm noicon'></a>";
-                            subentrycont.classList.add( "noicon" );
-
-                        }
-                        subentrycont.innerHTML += "<div class='lexentryname'>" + subkey + "</div>";
-                    }
-
-                    let checkbox_input = subentry.querySelector('input');
-                    if(checkbox_input) {
-                        checkbox_input.checked = subitem.checked ?? false;
-                        checkbox_input.addEventListener('change', (e) => {
-                            subitem.checked = checkbox_input.checked;
-                            const f = subitem[ 'callback' ];
-                            if(f) {
-                                f.call( this, subitem.checked, subkey, subentry );
-                                that.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
-                            }
-                            e.stopPropagation();
-                            e.stopImmediatePropagation();
-                        })
-                    }
-
-                    contextmenu.appendChild( subentry );
-
-                    // Nothing more for separators
-                    if(subkey == '') continue;
-
-                    contextmenu.addEventListener('keydown', function(e) {
-                        e.preventDefault();
-                        let short = that.shorts[ subkey ];
-                        if(!short) return;
-                        // check if it's a letter or other key
-                        short = short.length == 1 ? short.toLowerCase() : short;
-                        if(short == e.key) {
-                            subentry.click()
-                        }
-                    });
-
-                    // Add callback
-                    subentry.addEventListener("click", e => {
-                        if(checkbox_input) {
-                            subitem.checked = !subitem.checked;
-                        }
-                        const f = subitem[ 'callback' ];
-                        if(f) {
-                            f.call( this, checkbox_input ? subitem.checked : subkey, checkbox_input ? subkey : subentry );
-                            that.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
-                        }
-                        e.stopPropagation();
-                        e.stopImmediatePropagation();
-                    });
-
-                    // Add icon if has submenu, else check for shortcut
-                    if( !hasSubmenu)
-                    {
-                        if(that.shorts[ subkey ]) {
-                            let shortEl = document.createElement('div');
-                            shortEl.className = "lexentryshort";
-                            shortEl.innerText = that.shorts[ subkey ];
-                            subentry.appendChild( shortEl );
-                        }
-                        continue;
-                    }
-
-                    let submenuIcon = document.createElement('a');
-                    submenuIcon.className = "fa-solid fa-angle-right fa-xs";
-                    subentry.appendChild( submenuIcon );
-
-                    subentry.addEventListener("mouseover", e => {
-                        if(subentry.built)
-                        return;
-                        subentry.built = true;
-                        create_submenu( subitem, subkey, subentry, ++d );
-                        e.stopPropagation();
-                    });
-
-                    subentry.addEventListener("mouseleave", () => {
-                        d = -1; // Reset depth
-                        delete subentry.built;
-                        contextmenu.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
-                    });
-                }
-
-                // Set final width
-                contextmenu.style.width = contextmenu.offsetWidth + "px";
+            const _showEntry = () => {
+                this._resetMenubar(true);
+                entry.classList.add( "selected" );
+                entry.built = true;
+                this._createSubmenu( item, key, entry, -1 );
             };
 
             entry.addEventListener("click", () => {
-
                 const f = item[ 'callback' ];
-                if(f) {
+                if( f )
+                {
                     f.call( this, key, entry );
                     return;
                 }
 
-                // Manage selected
-                this.root.querySelectorAll(".lexmenuentry").forEach( e => e.classList.remove( 'selected' ) );
-                entry.classList.add( "selected" );
+                _showEntry();
 
-                this.root.querySelectorAll(".lexcontextmenu").forEach( e => e.remove() );
-                create_submenu( item, key, entry, -1 );
+                this.focused = true;
             });
 
-            entry.addEventListener("mouseleave", () => {
-                this.root.querySelectorAll(".lexmenuentry").forEach( e => e.classList.remove( 'selected' ) );
-                this.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
+            entry.addEventListener( "mouseover", (e) => {
+
+                if( this.focused && !entry.built )
+                {
+                    _showEntry();
+                }
+            });
+
+            entry.addEventListener("blur", e => {
+
+                if( e.relatedTarget && e.relatedTarget.className.includes( "lexmenubox" ) )
+                {
+                    return;
+                }
+
+                this._resetMenubar();
             });
         }
     }
 
     /**
      * @method getButton
-     * @param {String} title
+     * @param {String} name
      */
 
-    getButton( title ) {
-        return this.buttons[ title ];
+    getButton( name ) {
+        return this.buttons[ name ];
     }
 
     /**
-     * @method getSubitems: recursive method to find subentries of a menu entry
+     * @method getSubitems
      * @param {Object} item: parent item
      * @param {Array} tokens: split path strings
     */
-    getSubitem(item, tokens) {
+    getSubitem( item, tokens ) {
 
         let subitem = null;
-        let path = tokens[0];
-        for(let i = 0; i < item.length; i++) {
-            if(item[i][path]) {
+        let path = tokens[ 0 ];
 
-                if(tokens.length == 1) {
-                    subitem = item[i];
+        for( let i = 0; i < item.length; i++ )
+        {
+            if( item[ i ][ path ] )
+            {
+                if( tokens.length == 1 )
+                {
+                    subitem = item[ i ];
                     return subitem;
                 }
-                else {
-                    tokens.splice(0,1);
-                    return this.getSubitem(item[i][path], tokens);
+                else
+                {
+                    tokens.splice( 0, 1 );
+                    return this.getSubitem( item[ i ][ path ], tokens );
                 }
 
             }
@@ -2637,6 +3381,7 @@ class Menubar {
      * @param {String} path
     */
     getItem( path ) {
+
         // process path
         const tokens = path.split("/");
 
@@ -2645,92 +3390,124 @@ class Menubar {
 
     /**
      * @method setButtonIcon
-     * @param {String} title
+     * @param {String} name
      * @param {String} icon
+     * @param {Function} callback
+     * @param {Object} options
      */
 
-    setButtonIcon( title, icon, callback, options = {} ) {
+    setButtonIcon( name, icon, callback, options = {} ) {
 
-        const button = this.buttons[ title ];
-        if(button) {
+        if( !name )
+        {
+            throw( "Set Button Name!" );
+        }
 
+        let button = this.buttons[ name ];
+        if( button )
+        {
             button.querySelector('a').className = "fa-solid" + " " + icon + " lexicon";
+            return;
         }
-        else {
-            let button = document.createElement('div');
-            const disabled = options.disabled ?? false;
-            button.className = "lexmenubutton" + (disabled ? " disabled" : "");
-            button.title = title ?? "";
-            button.innerHTML = "<a class='" + icon + " lexicon' style='font-size:x-large;'></a>";
-            button.style.padding = "5px 10px";
-            button.style.maxHeight = "calc(100% - 10px)";
-            button.style.alignItems = "center";
 
-            if(options.float == "right")
-                button.right = true;
-            if(this.root.lastChild && this.root.lastChild.right) {
-                this.root.lastChild.before( button );
-            }
-            else if(options.float == "left") {
-                this.root.prepend(button);
-            }
-            else {
-                this.root.appendChild( button );
-            }
+        // Otherwise, create it
+        button = document.createElement('div');
+        const disabled = options.disabled ?? false;
+        button.className = "lexmenubutton main" + (disabled ? " disabled" : "");
+        button.title = name;
+        button.innerHTML = "<a class='" + icon + " lexicon'></a>";
 
-            const _b = button.querySelector('a');
-            _b.addEventListener("click", (e) => {
-                if(callback && !disabled)
-                    callback.call( this, _b, e );
-            });
+        if( options.float == "right" )
+        {
+            button.right = true;
         }
+
+        if( this.root.lastChild && this.root.lastChild.right )
+        {
+            this.root.lastChild.before( button );
+        }
+        else if( options.float == "left" )
+        {
+            this.root.prepend( button );
+        }
+        else
+        {
+            this.root.appendChild( button );
+        }
+
+        const _b = button.querySelector('a');
+        _b.addEventListener("click", (e) => {
+            if( callback && !disabled )
+            {
+                callback.call( this, _b, e );
+            }
+        });
+
+        this.buttons[ name ] = button;
     }
 
     /**
      * @method setButtonImage
-     * @param {String} title
+     * @param {String} name
      * @param {String} src
+     * @param {Function} callback
+     * @param {Object} options
      */
 
-    setButtonImage( title, src, callback, options = {} ) {
-        const button = this.buttons[ title ];
-        if(button) {
+    setButtonImage( name, src, callback, options = {} ) {
 
-            button.querySelector('a').className = "fa-solid" + " " + icon + " lexicon";
+        if( !name )
+        {
+            throw( "Set Button Name!" );
         }
-        else {
-            let button = document.createElement('div');
-            const disabled = options.disabled ?? false;
-            button.className = "lexmenubutton" + (disabled ? " disabled" : "");
-            button.title = title ?? "";
-            button.innerHTML = "<a><image src='" + src + "' class='lexicon' style='height:32px;'></a>";
-            button.style.padding = "5px";
-            button.style.alignItems = "center";
 
-            if(options.float == "right")
-                button.right = true;
-            if(this.root.lastChild && this.root.lastChild.right) {
-                this.root.lastChild.before( button );
-            }
-            else if(options.float == "left") {
-                this.root.prepend(button);
-            }
-            else {
-                this.root.appendChild( button );
-            }
-
-            const _b = button.querySelector('a');
-            _b.addEventListener("click", (e) => {
-                if(callback && !disabled)
-                    callback.call( this, _b, e );
-            });
+        let button = this.buttons[ name ];
+        if( button )
+        {
+            button.querySelector('img').src = src;
+            return;
         }
+
+        // Otherwise, create it
+        button = document.createElement('div');
+        const disabled = options.disabled ?? false;
+        button.className = "lexmenubutton" + (disabled ? " disabled" : "");
+        button.title = name;
+        button.innerHTML = "<a><image src='" + src + "' class='lexicon' style='height:32px;'></a>";
+
+        if( options.float == "right" )
+        {
+            button.right = true;
+        }
+
+        if( this.root.lastChild && this.root.lastChild.right )
+        {
+            this.root.lastChild.before( button );
+        }
+        else if( options.float == "left" )
+        {
+            this.root.prepend( button );
+        }
+        else
+        {
+            this.root.appendChild( button );
+        }
+
+        const _b = button.querySelector('a');
+        _b.addEventListener("click", (e) => {
+            if( callback && !disabled )
+            {
+                callback.call( this, _b, e );
+            }
+        });
+
+        this.buttons[ name ] = button;
     }
 
     /**
      * @method addButton
      * @param {Array} buttons
-     * @param {*} options
+     * @param {Object} options
      * float: center (Default), right
      */
 
@@ -2828,90 +3605,357 @@ LX.Menubar = Menubar;
 
 class SideBar {
 
-    constructor( options = {} )  {
+    /**
+     * @param {Object} options
+     * filter: Add search bar to filter entries [false]
+     * displaySelected: Indicate if an entry is displayed as selected
+     * skipHeader: Do not use sidebar header [false]
+     * headerImg: Image to be shown as avatar
+     * headerIcon: Icon to be shown as avatar (from LX.ICONS)
+     * headerTitle: Header title
+     * headerSubtitle: Header subtitle
+     * header: HTMLElement to add a custom header
+     * skipFooter: Do not use sidebar footer [false]
+     * footerImg: Image to be shown as avatar
+     * footerIcon: Icon to be shown as avatar (from LX.ICONS)
+     * footerTitle: Footer title
+     * footerSubtitle: Footer subtitle
+     * footer: HTMLElement to add a custom footer
+     * collapsable: Sidebar can toggle between collapsed/expanded [true]
+     * collapseToIcons: When Sidebar collapses, icons remains visible [true]
+     * onHeaderPressed: Function to call when header is pressed
+     * onFooterPressed: Function to call when footer is pressed
+     */
 
-        this.root = document.createElement( 'div' );
+    constructor( options = {} ) {
+
+        this.root = document.createElement( "div" );
         this.root.className = "lexsidebar";
 
-        this.footer = document.createElement( 'div' );
-        this.footer.className = "lexsidebarfooter";
-        this.root.appendChild( this.footer );
+        this._displaySelected = options.displaySelected ?? false;
+
+        Object.defineProperty( SideBar.prototype, "displaySelected", {
+            get: function() { return this._displaySelected; },
+            set: function( v ) {
+                this._displaySelected = v;
+                if( !this._displaySelected )
+                {
+                    this.root.querySelectorAll(".lexsidebarentry").forEach( e => e.classList.remove( 'selected' ) );
+                }
+            },
+            enumerable: true,
+            configurable: true
+        });
+
+        this.collapsable = options.collapsable ?? true;
+        this._collapseWidth = ( options.collapseToIcons ?? true ) ? "58px" : "0px";
+        this.collapsed = false;
+
+        this.filterString = "";
+
+        doAsync( () => {
+
+            this.root.parentElement.ogWidth = this.root.parentElement.style.width;
+            this.root.parentElement.style.transition = "width 0.25s ease-out";
+
+            this.resizeObserver = new ResizeObserver( entries => {
+                for ( const entry of entries )
+                {
+                    this.siblingArea.setSize( [ "calc(100% - " + ( entry.contentRect.width ) + "px )", null ] );
+                }
+            });
+
+        }, 10 );
+
+        // Header
+        if( !( options.skipHeader ?? false ) )
+        {
+            this.header = options.header ?? this._generateDefaultHeader( options );
+            console.assert( this.header.constructor === HTMLDivElement, "Use an HTMLDivElement to build your custom header" );
+            this.header.className = "lexsidebarheader";
+            this.root.appendChild( this.header );
+
+            if( this.collapsable )
+            {
+                const icon = LX.makeIcon( "sidebar", "Toggle Sidebar", "toggler" );
+                this.header.appendChild( icon );
+
+                icon.addEventListener( "click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.toggleCollapsed();
+                } );
+            }
+        }
+
+        // Entry filter
+        if( ( options.filter ?? false ) )
+        {
+            const panel = new Panel();
+            panel.addText(null, "", (value, event) => {
+                this.filterString = value;
+                this.update();
+            }, { placeholder: "Search...", icon: "fa-solid fa-magnifying-glass" });
+            this.filter = panel.root.childNodes[ 0 ];
+            this.root.appendChild( this.filter );
+        }
+
+        // Content
+        {
+            this.content = document.createElement( 'div' );
+            this.content.className = "lexsidebarcontent";
+            this.root.appendChild( this.content );
+        }
+
+        // Footer
+        if( !( options.skipFooter ?? false ) )
+        {
+            this.footer = options.footer ?? this._generateDefaultFooter( options );
+            console.assert( this.footer.constructor === HTMLDivElement, "Use an HTMLDivElement to build your custom footer" );
+            this.footer.className = "lexsidebarfooter";
+            this.root.appendChild( this.footer );
+        }
+
+        // Set width depending on header/footer
+        doAsync( () => {
+            // This account for header, footer and all inner paddings
+            const contentOffset = 32 + ( this.header?.offsetHeight ?? 0 ) +
+                ( this.filter?.offsetHeight ?? 0 ) +
+                ( this.footer?.offsetHeight ?? 0 );
+            this.content.style.height = `calc(100% - ${ contentOffset }px)`;
+        }, 10 );
 
         this.items = [ ];
+        this.icons = { };
+        this.groups = { };
+    }
+
+    _generateDefaultHeader( options ) {
+
+        const header = document.createElement( 'div' );
+
+        header.addEventListener( "click", e => {
+            if( this.collapsed )
+            {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleCollapsed();
+            }
+            else if( options.onHeaderPressed )
+            {
+                options.onHeaderPressed( e );
+            }
+        } );
+
+        const avatar = document.createElement( 'span' );
+        avatar.className = "lexavatar";
+        header.appendChild( avatar );
+
+        if( options.headerImage )
+        {
+            const avatarImg = document.createElement( 'img' );
+            avatarImg.src = options.headerImage;
+            avatar.appendChild( avatarImg );
+        }
+        else if( options.headerIcon )
+        {
+            const avatarIcon = LX.makeIcon( options.headerIcon );
+            avatar.appendChild( avatarIcon );
+        }
+
+        // Info
+        {
+            const info = document.createElement( 'div' );
+            info.className = "infodefault";
+            header.appendChild( info );
+
+            const infoText = document.createElement( 'span' );
+            infoText.innerHTML = options.headerTitle ?? "";
+            info.appendChild( infoText );
+
+            const infoSubtext = document.createElement( 'span' );
+            infoSubtext.innerHTML = options.headerSubtitle ?? "";
+            info.appendChild( infoSubtext );
+        }
+
+        return header;
+    }
+
+    _generateDefaultFooter( options ) {
+
+        const footer = document.createElement( 'div' );
+
+        footer.addEventListener( "click", e => {
+            if( options.onFooterPressed )
+            {
+                options.onFooterPressed( e, footer );
+            }
+        } );
+
+        const avatar = document.createElement( 'span' );
+        avatar.className = "lexavatar";
+        footer.appendChild( avatar );
+
+        if( options.footerImage )
+        {
+            const avatarImg = document.createElement( 'img' );
+            avatarImg.src = options.footerImage;
+            avatar.appendChild( avatarImg );
+        }
+        else if( options.footerIcon )
+        {
+            const avatarIcon = LX.makeIcon( options.footerIcon );
+            avatar.appendChild( avatarIcon );
+        }
+
+        // Info
+        {
+            const info = document.createElement( 'div' );
+            info.className = "infodefault";
+            footer.appendChild( info );
+
+            const infoText = document.createElement( 'span' );
+            infoText.innerHTML = options.footerTitle ?? "";
+            info.appendChild( infoText );
+
+            const infoSubtext = document.createElement( 'span' );
+            infoSubtext.innerHTML = options.footerSubtitle ?? "";
+            info.appendChild( infoSubtext );
+        }
+
+        const icon = LX.makeIcon( "menu-arrows" );
+        footer.appendChild( icon );
+
+        return footer;
+    }
+
+    /**
+     * @method toggleCollapsed
+     * @param {Boolean} force: Force collapsed state
+     */
+
+    toggleCollapsed( force ) {
+
+        if( !this.collapsable )
+        {
+            return;
+        }
+
+        this.collapsed = force ?? !this.collapsed;
+
+        if( this.collapsed )
+        {
+            this.root.classList.add( "collapsing" );
+            this.root.parentElement.style.width = this._collapseWidth;
+        }
+        else
+        {
+            this.root.classList.remove( "collapsing" );
+            this.root.classList.remove( "collapsed" );
+            this.root.parentElement.style.width = this.root.parentElement.ogWidth;
+        }
+
+        if( !this.resizeObserver )
+        {
+            throw( "Wait until ResizeObserver has been created!" );
+        }
+
+        this.resizeObserver.observe( this.root.parentElement );
+
+        doAsync( () => {
+
+            this.root.classList.toggle( "collapsed", this.collapsed );
+            this.resizeObserver.unobserve( this.root.parentElement );
+
+        }, 250 );
+    }
+
+    /**
+     * @method separator
+     */
+
+    separator() {
+
+        this.currentGroup = null;
+
+        this.add( "" );
+    }
+
+    /**
+     * @method group
+     * @param {String} groupName
+     * @param {Object} action: { icon, callback }
+     */
+
+    group( groupName, action ) {
+
+        this.currentGroup = groupName;
+
+        this.groups[ groupName ] = action;
     }
 
     /**
      * @method add
-     * @param {*} options:
+     * @param {String} path
+     * @param {Object} options:
      * callback: Function to call on each item
-     * bottom: Bool to set item at the bottom as helper button (not selectable)
      * className: Add class to the entry DOM element
+     * collapsable: Add entry as a collapsable section
+     * icon: Entry icon
      */
 
-    add( key, options = {} ) {
+    add( path, options = {} ) {
 
         if( options.constructor == Function )
+        {
             options = { callback: options };
-
-        let pKey = key.replace( /\s/g, '' ).replaceAll( '.', '' );
-
-        if( this.items.findIndex( (v, i) => v.key == pKey ) > -1 )
-        {
-            console.warn( `'${key}' already created in Sidebar` );
-            return;
         }
 
-        let entry = document.createElement( 'div' );
-        entry.className = "lexsidebarentry " + ( options.className ?? "" );
-        entry.id = pKey;
+        // Process path
+        const tokens = path.split( "/" );
 
-        if( options.bottom )
-        {
-            this.footer.appendChild( entry );
-        }
-        else
-        {
-            this.root.appendChild( entry );
-        }
+        // Assign icons and shortcuts to last token in path
+        const lastPath = tokens[tokens.length - 1];
+        this.icons[ lastPath ] = options.icon;
 
-        // Reappend footer in root
-        this.root.appendChild( this.footer );
+        let idx = 0;
 
-        let button = document.createElement( 'button' );
-        button.innerHTML = "<i class='"+ (options.icon ?? "") + "'></i>";
-        entry.appendChild( button );
+        const _insertEntry = ( token, list ) => {
 
-        let desc = document.createElement( 'span' );
-        desc.className = 'lexsidebarentrydesc';
-        desc.innerHTML = key;
-        entry.appendChild( desc );
-
-        button.addEventListener("mouseenter", () => {
-            setTimeout( () => {
-                desc.style.display = "unset";
-            }, 100 );
-        });
-
-        button.addEventListener("mouseleave", () => {
-            setTimeout( () => {
-                desc.style.display = "none";
-            }, 100 );
-        });
-
-        entry.addEventListener("click", () => {
-
-            const f = options.callback;
-            if( f ) f.call( this, key, entry );
-
-            // Manage selected
-            if( !options.bottom )
+            if( token == undefined )
             {
-                this.root.querySelectorAll(".lexsidebarentry").forEach( e => e.classList.remove( 'selected' ) );
-                entry.classList.add( "selected" );
+                return;
             }
-        });
 
-        this.items.push( { name: pKey, domEl: entry, callback: options.callback } );
+            let found = null;
+            list.forEach( o => {
+                const keys = Object.keys( o );
+                const key = keys.find( t => t == token );
+                if( key ) found = o[ key ];
+            } );
+
+            if( found )
+            {
+                _insertEntry( tokens[ idx++ ], found );
+            }
+            else
+            {
+                let item = {};
+                item[ token ] = [];
+                const nextToken = tokens[ idx++ ];
+                // Check if last token -> add callback
+                if( !nextToken )
+                {
+                    item[ 'callback' ] = options.callback;
+                    item[ 'group' ] = this.currentGroup;
+                    item[ 'options' ] = options;
+                }
+                list.push( item );
+                _insertEntry( nextToken, item[ token ] );
+            }
+        };
+
+        _insertEntry( tokens[idx++], this.items );
     }
 
     /**
@@ -2928,7 +3972,282 @@ class SideBar {
         if( !entry )
             return;
 
-        entry.domEl.click();
+        entry.dom.click();
+    }
+
+    update() {
+
+        // Reset first
+
+        this.content.innerHTML = "";
+
+        for( let item of this.items )
+        {
+            delete item.dom;
+        }
+
+        for( let item of this.items )
+        {
+            const options = item.options ?? { };
+
+            // Item already created
+            if( item.dom )
+            {
+                continue;
+            }
+
+            let key = Object.keys( item )[ 0 ];
+
+            if( this.filterString.length && !key.toLowerCase().includes( this.filterString.toLowerCase() ) )
+            {
+                continue;
+            }
+
+            let pKey = key.replace( /\s/g, '' ).replaceAll( '.', '' );
+            let currentGroup = null;
+
+            let entry = document.createElement( 'div' );
+            entry.className = "lexsidebarentry " + ( options.className ?? "" );
+            entry.id = item.name = pKey;
+
+            if( item.group )
+            {
+                const pGroupKey = item.group.replace( /\s/g, '' ).replaceAll( '.', '' );
+                currentGroup = this.content.querySelector( "#" + pGroupKey );
+
+                if( !currentGroup )
+                {
+                    currentGroup = document.createElement( 'div' );
+                    currentGroup.id = pGroupKey;
+                    currentGroup.className = "lexsidebargroup";
+                    this.content.appendChild( currentGroup );
+
+                    let groupEntry = document.createElement( 'div' );
+                    groupEntry.className = "lexsidebargrouptitle";
+                    currentGroup.appendChild( groupEntry );
+
+                    let groupLabel = document.createElement( 'div' );
+                    groupLabel.innerHTML = item.group;
+                    groupEntry.appendChild( groupLabel );
+
+                    if( this.groups[ item.group ] != null )
+                    {
+                        let groupAction = document.createElement( 'a' );
+                        groupAction.className = ( this.groups[ item.group ].icon ?? "" ) + " lexicon";
+                        groupEntry.appendChild( groupAction );
+                        groupAction.addEventListener( "click", (e) => {
+                            if( this.groups[ item.group ].callback )
+                            {
+                                this.groups[ item.group ].callback( item.group, e );
+                            }
+                        } );
+                    }
+
+                }
+                else if( !currentGroup.classList.contains( "lexsidebargroup" ) )
+                {
+                    throw( "Bad id: " + item.group );
+                }
+            }
+
+            if( pKey == "" )
+            {
+                let separatorDom = document.createElement( 'div' );
+                separatorDom.className = "lexsidebarseparator";
+                this.content.appendChild( separatorDom );
+                continue;
+            }
+
+            if( this.collapseContainer )
+            {
+                this.collapseContainer.appendChild( entry );
+
+                this.collapseQueue--;
+                if( !this.collapseQueue )
+                {
+                    delete this.collapseContainer;
+                }
+            }
+            else if( currentGroup )
+            {
+                currentGroup.appendChild( entry );
+            }
+            else
+            {
+                this.content.appendChild( entry );
+            }
+
+            let itemDom = document.createElement( 'div' );
+            entry.appendChild( itemDom );
+            item.dom = entry;
+
+            if( options.type == "checkbox" )
+            {
+                item.value = options.value ?? false;
+                const panel = new Panel();
+                item.checkbox = panel.addCheckbox(null, item.value, (value, event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const f = options.callback;
+                    item.value = value;
+                    if( f ) f.call( this, key, value, event );
+                }, { label: key, signal: ( "@checkbox_"  + key ) });
+                itemDom.appendChild( panel.root.childNodes[ 0 ] );
+            }
+            else
+            {
+                if( options.icon )
+                {
+                    let itemIcon = document.createElement( 'i' );
+                    itemIcon.className = options.icon;
+                    itemDom.appendChild( itemIcon );
+                }
+
+                let itemName = document.createElement( 'a' );
+                itemName.innerHTML = key;
+                itemDom.appendChild( itemName );
+            }
+
+            const isCollapsable = options.collapsable != undefined ? options.collapsable : ( options.collapsable || item[ key ].length );
+
+            entry.addEventListener("click", ( e ) => {
+                if( e.target && e.target.classList.contains( "lexcheckbox" ) )
+                {
+                    return;
+                }
+
+                if( isCollapsable )
+                {
+                    itemDom.querySelector( ".collapser" ).click();
+                }
+                else
+                {
+                    const f = options.callback;
+                    if( f ) f.call( this, key, item.value, e );
+
+                    if( item.checkbox )
+                    {
+                        item.value = !item.value;
+                        item.checkbox.set( item.value, true );
+                    }
+                }
+
+                // Manage selected
+                if( this.displaySelected )
+                {
+                    this.root.querySelectorAll(".lexsidebarentry").forEach( e => e.classList.remove( 'selected' ) );
+                    entry.classList.add( "selected" );
+                }
+            });
+
+            if( options.action )
+            {
+                const actionIcon = LX.makeIcon( options.action.icon ?? "more-horizontal", options.action.name );
+                itemDom.appendChild( actionIcon );
+
+                actionIcon.addEventListener( "click", (e) => {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    const f = options.action.callback;
+                    if( f ) f.call( this, key, e );
+                } );
+            }
+            else if( isCollapsable )
+            {
+                const collapsableContent = document.createElement( 'div' );
+                collapsableContent.className = "collapsablecontainer";
+                Object.assign( collapsableContent.style, { width: "100%", display: "none" } );
+                LX.makeCollapsible( itemDom, collapsableContent, currentGroup ?? this.content );
+                this.collapseQueue = options.collapsable;
+                this.collapseContainer = collapsableContent;
+            }
+
+            let desc = document.createElement( 'span' );
+            desc.className = 'lexsidebarentrydesc';
+            desc.innerHTML = key;
+            entry.appendChild( desc );
+
+            itemDom.addEventListener("mouseenter", () => {
+                setTimeout( () => {
+                    desc.style.display = "unset";
+                }, 150 );
+            });
+
+            itemDom.addEventListener("mouseleave", () => {
+                setTimeout( () => {
+                    desc.style.display = "none";
+                }, 150 );
+            });
+
+            // Subentries
+            if( !item[ key ].length )
+            {
+                continue;
+            }
+
+            let subentryContainer = document.createElement( 'div' );
+            subentryContainer.className = "lexsidebarsubentrycontainer";
+
+            if( isCollapsable )
+            {
+                this.collapseContainer.appendChild( subentryContainer )
+                delete this.collapseContainer;
+            }
+            else if( currentGroup )
+            {
+                subentryContainer.classList.add( "collapsablecontainer" );
+                currentGroup.appendChild( subentryContainer );
+            }
+            else
+            {
+                this.content.appendChild( subentryContainer );
+            }
+
+            for( let i = 0; i < item[ key ].length; ++i )
+            {
+                const subitem = item[ key ][ i ];
+                const suboptions = subitem.options ?? {};
+                const subkey = Object.keys( subitem )[ 0 ];
+
+                if( this.filterString.length && !subkey.toLowerCase().includes( this.filterString.toLowerCase() ) )
+                {
+                    continue;
+                }
+
+                let subentry = document.createElement( 'div' );
+                subentry.innerHTML = `<span>${ subkey }</span>`;
+
+                if( suboptions.action )
+                {
+                    const actionIcon = LX.makeIcon( suboptions.action.icon ?? "more-horizontal", suboptions.action.name );
+                    subentry.appendChild( actionIcon );
+
+                    actionIcon.addEventListener( "click", (e) => {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        const f = suboptions.action.callback;
+                        if( f ) f.call( this, subkey, e );
+                    } );
+                }
+
+                subentry.className = "lexsidebarentry";
+                subentry.id = subkey;
+                subentryContainer.appendChild( subentry );
+
+                subentry.addEventListener("click", (e) => {
+
+                    const f = suboptions.callback;
+                    if( f ) f.call( this, subkey, subentry, e );
+
+                    // Manage selected
+                    if( this.displaySelected )
+                    {
+                        this.root.querySelectorAll(".lexsidebarentry").forEach( e => e.classList.remove( 'selected' ) );
+                        entry.classList.add( "selected" );
+                    }
+                });
+            }
+        }
     }
 };
 
@@ -2944,32 +4263,39 @@ class Widget {
     static TEXT         = 1;
     static TEXTAREA     = 2;
     static BUTTON       = 3;
-    static DROPDOWN     = 4;
+    static SELECT       = 4;
     static CHECKBOX     = 5;
     static TOGGLE       = 6;
-    static COLOR        = 7;
-    static NUMBER       = 8;
-    static TITLE        = 9;
-    static VECTOR       = 10;
-    static TREE         = 11;
-    static PROGRESS     = 12;
-    static FILE         = 13;
-    static LAYERS       = 14;
-    static ARRAY        = 15;
-    static LIST         = 16;
-    static TAGS         = 17;
-    static CURVE        = 18;
-    static CARD         = 19;
-    static IMAGE        = 20;
-    static CONTENT      = 21;
-    static CUSTOM       = 22;
-    static SEPARATOR    = 23;
-    static KNOB         = 24;
-    static SIZE         = 25;
-    static PAD          = 26;
-    static FORM         = 27;
-    static DIAL         = 28;
-    static COUNTER      = 29;
+    static RADIO        = 7;
+    static BUTTONS      = 8;
+    static COLOR        = 9;
+    static RANGE        = 10;
+    static NUMBER       = 11;
+    static TITLE        = 12;
+    static VECTOR       = 13;
+    static TREE         = 14;
+    static PROGRESS     = 15;
+    static FILE         = 16;
+    static LAYERS       = 17;
+    static ARRAY        = 18;
+    static LIST         = 19;
+    static TAGS         = 20;
+    static CURVE        = 21;
+    static CARD         = 22;
+    static IMAGE        = 23;
+    static CONTENT      = 24;
+    static CUSTOM       = 25;
+    static SEPARATOR    = 26;
+    static KNOB         = 27;
+    static SIZE         = 28;
+    static PAD          = 29;
+    static FORM         = 30;
+    static DIAL         = 31;
+    static COUNTER      = 32;
+    static TABLE        = 33;
+    static TABS         = 34;
+    static LABEL        = 35;
+    static BLANK        = 36;
 
     static NO_CONTEXT_TYPES = [
         Widget.BUTTON,
@@ -2978,10 +4304,133 @@ class Widget {
         Widget.PROGRESS
     ];
 
-    constructor( name, type, options ) {
-        this.name = name;
+    constructor( type, name, value, options = {} ) {
+
         this.type = type;
+        this.name = name;
         this.options = options;
+        this._initialValue = value;
+
+        const root = document.createElement( 'div' );
+        root.className = "lexwidget";
+
+        if( options.id )
+        {
+            root.id = options.id;
+        }
+
+        if( options.title )
+        {
+            root.title = options.title;
+        }
+
+        if( options.className )
+        {
+            root.className += " " + options.className;
+        }
+
+        if( type != Widget.TITLE )
+        {
+            // root.style.width = "calc(100% - " + (this._currentBranch || type == Widget.FILE || type == Widget.TREE ? 10 : 20) + "px)";
+
+            if( options.width )
+            {
+                root.style.width = root.style.minWidth = options.width;
+            }
+            if( options.maxWidth )
+            {
+                root.style.maxWidth = options.maxWidth;
+            }
+            if( options.minWidth )
+            {
+                root.style.minWidth = options.minWidth;
+            }
+            if( options.height )
+            {
+                root.style.height = root.style.minHeight = options.height;
+            }
+        }
+
+        if( name != undefined )
+        {
+            if( !( options.hideName ?? false ) )
+            {
+                let domName = document.createElement( 'div' );
+                domName.className = "lexwidgetname";
+
+                if( options.justifyName )
+                {
+                    domName.classList.add( "float-" + options.justifyName );
+                }
+
+                domName.innerHTML = name;
+                domName.title = options.title ?? domName.innerHTML;
+                domName.style.width = options.nameWidth || LX.DEFAULT_NAME_WIDTH;
+
+                root.appendChild( domName );
+                root.domName = domName;
+
+                const that = this;
+
+                // Copy-paste info
+                domName.addEventListener('contextmenu', function( e ) {
+                    e.preventDefault();
+                    that.oncontextmenu( e );
+                });
+
+                if( !( options.skipReset ?? false )  && ( value != null ) )
+                {
+                    this._addResetProperty( domName, function( e ) {
+                        that.set( that._initialValue, false, e );
+                        this.style.display = "none"; // Og value, don't show it
+                    });
+                }
+            }
+        }
+        else
+        {
+            options.hideName = true;
+        }
+
+        if( options.signal )
+        {
+            LX.addSignal( options.signal, this );
+        }
+
+        this.root = root;
+        this.root.jsInstance = this;
+        this.options = options;
+    }
+
+    static _dispatchEvent( element, type, data, bubbles, cancelable ) {
+        let event = new CustomEvent( type, { 'detail': data, 'bubbles': bubbles, 'cancelable': cancelable } );
+        element.dispatchEvent( event );
+    }
+
+    _addResetProperty( container, callback ) {
+
+        var domEl = document.createElement('a');
+        domEl.style.display = "none";
+        domEl.style.marginRight = "6px";
+        domEl.className = "lexicon fa fa-rotate-left";
+        domEl.addEventListener( "click", callback );
+        container.appendChild( domEl );
+        return domEl;
+    }
+
+    _canPaste() {
+        return this.type === Widget.CUSTOM ? navigator.clipboard.customIdx !== undefined && this.customIdx == navigator.clipboard.customIdx :
+            navigator.clipboard.type === this.type;
+    }
+
+    _trigger( event, callback, scope = this ) {
+
+        if( !callback )
+        {
+            return;
+        }
+
+        callback.call( scope, event.value, event.domEvent, event.name );
     }
 
     value() {
@@ -2994,22 +4443,44 @@ class Widget {
         console.warn( "Can't get value of " + this.typeName() );
     }
 
-    set( value, skipCallback = false, signalName = "" ) {
+    set( value, skipCallback, event ) {
 
         if( this.onSetValue )
-            return this.onSetValue( value, skipCallback );
+        {
+            let resetButton = this.root.querySelector( ".lexwidgetname .lexicon" );
+            if( resetButton )
+            {
+                resetButton.style.display = ( value != this.value() ? "block" : "none" );
+
+                const equalInitial = value.constructor === Array ? (function arraysEqual(a, b) {
+                    if (a === b) return true;
+                    if (a == null || b == null) return false;
+                    if (a.length !== b.length) return false;
+                    for (var i = 0; i < a.length; ++i) {
+                        if (a[i] !== b[i]) return false;
+                    }
+                    return true;
+                })( value, this._initialValue ) : ( value == this._initialValue );
+
+                resetButton.style.display = ( !equalInitial ? "block" : "none" );
+            }
+
+            return this.onSetValue( value, skipCallback ?? false, event );
+        }
 
         console.warn("Can't set value of " + this.typeName());
     }
 
-    oncontextmenu(e) {
+    oncontextmenu( e ) {
 
-        if( Widget.NO_CONTEXT_TYPES.includes(this.type) )
+        if( Widget.NO_CONTEXT_TYPES.includes( this.type ) )
+        {
             return;
+        }
 
-        addContextMenu(this.typeName(), e, c => {
+        addContextMenu( this.typeName(), e, c => {
             c.add("Copy", () => { this.copy() });
-            c.add("Paste", { disabled: !this._can_paste(), callback: () => { this.paste() } } );
+            c.add("Paste", { disabled: !this._canPaste(), callback: () => { this.paste() } } );
         });
     }
 
@@ -3020,13 +4491,8 @@ class Widget {
         navigator.clipboard.writeText( navigator.clipboard.data );
     }
 
-    _can_paste() {
-        return this.type === Widget.CUSTOM ? navigator.clipboard.customIdx !== undefined && this.customIdx == navigator.clipboard.customIdx :
-            navigator.clipboard.type === this.type;
-    }
-
     paste() {
-        if( !this._can_paste() )
+        if( !this._canPaste() )
         {
             return;
         }
@@ -3036,14 +4502,17 @@ class Widget {
 
     typeName() {
 
-        switch( this.type ) {
+        switch( this.type )
+        {
             case Widget.TEXT: return "Text";
             case Widget.TEXTAREA: return "TextArea";
             case Widget.BUTTON: return "Button";
-            case Widget.DROPDOWN: return "Dropdown";
+            case Widget.SELECT: return "Select";
             case Widget.CHECKBOX: return "Checkbox";
             case Widget.TOGGLE: return "Toggle";
+            case Widget.RADIO: return "Radio";
             case Widget.COLOR: return "Color";
+            case Widget.RANGE: return "Range";
             case Widget.NUMBER: return "Number";
             case Widget.VECTOR: return "Vector";
             case Widget.TREE: return "Tree";
@@ -3060,6 +4529,10 @@ class Widget {
             case Widget.FORM: return "Form";
             case Widget.DIAL: return "Dial";
             case Widget.COUNTER: return "Counter";
+            case Widget.TABLE: return "Table";
+            case Widget.TABS: return "Tabs";
+            case Widget.LABEL: return "Label";
+            case Widget.BLANK: return "Blank";
             case Widget.CUSTOM: return this.customName;
         }
 
@@ -3073,60 +4546,68 @@ class Widget {
 
 LX.Widget = Widget;
 
-function ADD_CUSTOM_WIDGET( custom_widget_name, options = {} )
+function ADD_CUSTOM_WIDGET( customWidgetName, options = {} )
 {
     let custom_idx = simple_guidGenerator();
 
-    Panel.prototype[ 'add' + custom_widget_name ] = function( name, instance, callback ) {
+    Panel.prototype[ 'add' + customWidgetName ] = function( name, instance, callback ) {
 
-        let widget = this.create_widget(name, Widget.CUSTOM, options);
-        widget.customName = custom_widget_name;
+        let widget = new Widget( Widget.CUSTOM, name, null, options );
+        this._attachWidget( widget );
+
+        widget.customName = customWidgetName;
         widget.customIdx = custom_idx;
+
         widget.onGetValue = () => {
             return instance;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
+
+        widget.onSetValue = ( newValue, skipCallback, event ) => {
             instance = newValue;
             refresh_widget();
             element.querySelector( ".lexcustomitems" ).toggleAttribute( 'hidden', false );
-            if( !skipCallback ) this._trigger( new IEvent( name, instance, null ), callback );
+            if( !skipCallback )
+            {
+                widget._trigger( new IEvent( name, instance, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
+        const element = widget.root;
         element.style.flexWrap = "wrap";
 
-        let container, custom_widgets;
+        let container, customWidgetsDom;
         let default_instance = options.default ?? {};
 
         // Add instance button
 
         const refresh_widget = () => {
 
-            if(instance)
+            if( instance )
+            {
                 widget.instance = instance = Object.assign(deepCopy(default_instance), instance);
+            }
 
-            if(container) container.remove();
-            if(custom_widgets) custom_widgets.remove();
+            if( container ) container.remove();
+            if( customWidgetsDom ) customWidgetsDom.remove();
 
             container = document.createElement('div');
             container.className = "lexcustomcontainer";
             container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-            this.queue(container);
-
             let buttonName = "<a class='fa-solid " + (options.icon ?? "fa-cube")  + "' style='float:left'></a>";
-            buttonName += custom_widget_name + (!instance ? " [empty]" : "");
+            buttonName += customWidgetName + (!instance ? " [empty]" : "");
             // Add alwayis icon to keep spacing right
             buttonName += "<a class='fa-solid " + (instance ? "fa-bars-staggered" : " ") + " menu' style='float:right; width:5%;'></a>";
 
             let buttonEl = this.addButton(null, buttonName, (value, event) => {
-
-                if( instance ) {
+                if( instance )
+                {
                     element.querySelector(".lexcustomitems").toggleAttribute('hidden');
                 }
-                else {
+                else
+                {
                     addContextMenu(null, event, c => {
-                        c.add("New " + custom_widget_name, () => {
+                        c.add("New " + customWidgetName, () => {
                             instance = {};
                             refresh_widget();
                             element.querySelector(".lexcustomitems").toggleAttribute('hidden', false);
@@ -3136,10 +4617,11 @@ function ADD_CUSTOM_WIDGET( custom_widget_name, options = {} )
 
             }, { buttonClass: 'custom' });
 
-            this.clearQueue();
+            container.appendChild( buttonEl.root );
 
-            if(instance)
-                buttonEl.querySelector('a.menu').addEventListener('click', e => {
+            if( instance )
+            {
+                buttonEl.root.querySelector('a.menu').addEventListener('click', e => {
                     e.stopImmediatePropagation();
                     e.stopPropagation();
                     addContextMenu(null, e, c => {
@@ -3149,24 +4631,24 @@ function ADD_CUSTOM_WIDGET( custom_widget_name, options = {} )
                         });
                     });
                 });
+            }
 
             // Show elements
 
-            custom_widgets = document.createElement('div');
-            custom_widgets.className = "lexcustomitems";
-            custom_widgets.toggleAttribute('hidden', true);
+            customWidgetsDom = document.createElement('div');
+            customWidgetsDom.className = "lexcustomitems";
+            customWidgetsDom.toggleAttribute('hidden', true);
 
             element.appendChild( container );
-            element.appendChild( custom_widgets );
+            element.appendChild( customWidgetsDom );
 
             if( instance )
             {
-
-                this.queue( custom_widgets );
+                this.queue( customWidgetsDom );
 
                 const on_instance_changed = ( key, value, event ) => {
                     instance[ key ] = value;
-                    this._trigger( new IEvent( name, instance, event ), callback );
+                    widget._trigger( new IEvent( name, instance, event ), callback );
                 };
 
                 for( let key in default_instance )
@@ -3198,7 +4680,7 @@ function ADD_CUSTOM_WIDGET( custom_widget_name, options = {} )
                             }
                             else
                             {
-                                this._add_vector( value.length, key, value, on_instance_changed.bind( this, key ) );
+                                this._addVector( value.length, key, value, on_instance_changed.bind( this, key ) );
                             }
                             break;
                     }
@@ -3238,10 +4720,10 @@ class NodeTree {
     _create_item( parent, node, level = 0, selectedId ) {
 
         const that = this;
-        const node_filter_input = this.domEl.querySelector( "#lexnodetree_filter" );
+        const nodeFilterInput = this.domEl.querySelector( "#lexnodetree_filter" );
 
         node.children = node.children ?? [];
-        if( node_filter_input && !node.id.includes( node_filter_input.value ) || (selectedId != undefined) && selectedId != node.id )
+        if( nodeFilterInput && !node.id.includes( nodeFilterInput.value ) || (selectedId != undefined) && selectedId != node.id )
         {
             for( var i = 0; i < node.children.length; ++i )
             {
@@ -3311,16 +4793,20 @@ class NodeTree {
 
             // Add or remove
             const idx = this.selected.indexOf( node );
-            if( idx > -1 ) {
+            if( idx > -1 )
+            {
                 item.classList.remove( 'selected' );
                 this.selected.splice( idx, 1 );
-            }else {
+            }
+            else
+            {
                 item.classList.add( 'selected' );
                 this.selected.push( node );
             }
 
             // Only Show children...
-            if( isParent && node.id.length > 1 /* Strange case... */) {
+            if( isParent && node.id.length > 1 /* Strange case... */)
+            {
                 node.closed = false;
                 if( that.onevent )
                 {
@@ -3358,7 +4844,7 @@ class NodeTree {
 
             e.preventDefault();
 
-            if( that.onevent )
+            if( !that.onevent )
             {
                 return;
             }
@@ -3414,7 +4900,8 @@ class NodeTree {
                         return;
                     }
 
-                    if( that.onevent ) {
+                    if( that.onevent )
+                    {
                         const event = new TreeEvent( TreeEvent.NODE_DELETED, node, e );
                         that.onevent( event );
                     }
@@ -3441,7 +4928,8 @@ class NodeTree {
             if( e.key == "Delete" )
             {
                 // Send event now so we have the info in selected array..
-                if( that.onevent ) {
+                if( that.onevent )
+                {
                     const event = new TreeEvent( TreeEvent.NODE_DELETED, this.selected.length > 1 ? this.selected : node, e );
                     event.multiple = this.selected.length > 1;
                     that.onevent( event );
@@ -3472,22 +4960,24 @@ class NodeTree {
 
         // Node rename
 
-        let name_input = document.createElement('input');
-        name_input.toggleAttribute('hidden', !node.rename);
-        name_input.value = node.id;
-        item.appendChild(name_input);
+        const nameInput = document.createElement( "input" );
+        nameInput.toggleAttribute( "hidden", !node.rename );
+        nameInput.value = node.id;
+        item.appendChild( nameInput );
 
-        if(node.rename) {
+        if( node.rename )
+        {
             item.classList.add('selected');
-            name_input.focus();
+            nameInput.focus();
         }
 
-        name_input.addEventListener("keyup", function(e){
-            if(e.key == 'Enter') {
-
+        nameInput.addEventListener("keyup", function( e ) {
+            if( e.key == "Enter" )
+            {
                 this.value = this.value.replace(/\s/g, '_');
 
-                if(that.onevent) {
+                if( that.onevent )
+                {
                     const event = new TreeEvent(TreeEvent.NODE_RENAMED, node, this.value);
                     that.onevent( event );
                 }
@@ -3497,20 +4987,22 @@ class NodeTree {
                 that.frefresh( node.id );
                 list.querySelector("#" + node.id).classList.add('selected');
             }
-            if(e.key == 'Escape') {
+            else if(e.key == "Escape")
+            {
                 delete node.rename;
                 that.frefresh( node.id );
             }
         });
 
-        name_input.addEventListener("blur", function(e){
+        nameInput.addEventListener("blur", function( e ) {
             delete node.rename;
             that.refresh();
         });
 
-        if(this.options.draggable ?? true) {
+        if( this.options.draggable ?? true )
+        {
             // Drag nodes
-            if(parent) // Root doesn't move!
+            if( parent ) // Root doesn't move!
             {
                 item.addEventListener("dragstart", e => {
                     window.__tree_node_dragged = node;
@@ -3534,29 +5026,32 @@ class NodeTree {
                     return;
                 let target = node;
                 // Can't drop to same node
-                if(dragged.id == target.id) {
+                if( dragged.id == target.id )
+                {
                     console.warn("Cannot parent node to itself!");
                     return;
                 }
 
                 // Can't drop to child node
-                const isChild = function(new_parent, node) {
+                const isChild = function( newParent, node ) {
                     var result = false;
-                    for( var c of node.children ) {
-                        if( c.id == new_parent.id )
-                            return true;
-                        result |= isChild(new_parent, c);
+                    for( var c of node.children )
+                    {
+                        if( c.id == newParent.id ) return true;
+                        result |= isChild( newParent, c );
                     }
                     return result;
                 };
 
-                if(isChild(target, dragged)) {
+                if( isChild( target, dragged ))
+                {
                     console.warn("Cannot parent node to a current child!");
                     return;
                 }
 
                 // Trigger node dragger event
-                if(that.onevent) {
+                if( that.onevent )
+                {
                     const event = new TreeEvent(TreeEvent.NODE_DRAGGED, dragged, target);
                     that.onevent( event );
                 }
@@ -3572,15 +5067,17 @@ class NodeTree {
         let handled = false;
 
         // Show/hide children
-        if(isParent) {
-            item.querySelector('a.hierarchy').addEventListener("click", function(e) {
+        if( isParent )
+        {
+            item.querySelector('a.hierarchy').addEventListener("click", function( e ) {
 
                 handled = true;
                 e.stopImmediatePropagation();
                 e.stopPropagation();
 
                 node.closed = !node.closed;
-                if(that.onevent) {
+                if( that.onevent )
+                {
                     const event = new TreeEvent(TreeEvent.NODE_CARETCHANGED, node, node.closed);
                     that.onevent( event );
                 }
@@ -3590,54 +5087,65 @@ class NodeTree {
 
         // Add button icons
 
+        const inputContainer = document.createElement( "div" );
+        item.appendChild( inputContainer );
+
+        if( node.actions )
+        {
+            for( let i = 0; i < node.actions.length; ++i )
+            {
+                let a = node.actions[ i ];
+                let actionEl = document.createElement('a');
+                actionEl.className = "lexicon " + a.icon;
+                actionEl.title = a.name;
+                actionEl.addEventListener("click", function( e ) {
+                    a.callback( node, actionEl );
+                    e.stopPropagation();
+                });
+
+                inputContainer.appendChild( actionEl );
+            }
+        }
+
         if( !node.skipVisibility ?? false )
         {
-            let visibility = document.createElement('a');
-            visibility.className = "itemicon fa-solid fa-eye" + (!node.visible ? "-slash" : "");
+            let visibility = document.createElement( 'a' );
+            visibility.className = "lexicon fa-solid fa-eye" + ( !node.visible ? "-slash" : "" );
             visibility.title = "Toggle visible";
-            visibility.addEventListener("click", function(e) {
+            visibility.addEventListener("click", function( e ) {
                 e.stopPropagation();
                 node.visible = node.visible === undefined ? false : !node.visible;
-                this.className = "itemicon fa-solid fa-eye" + (!node.visible ? "-slash" : "");
+                this.className = "lexicon fa-solid fa-eye" + ( !node.visible ? "-slash" : "" );
                 // Trigger visibility event
-                if(that.onevent) {
-                    const event = new TreeEvent(TreeEvent.NODE_VISIBILITY, node, node.visible);
+                if( that.onevent )
+                {
+                    const event = new TreeEvent( TreeEvent.NODE_VISIBILITY, node, node.visible );
                     that.onevent( event );
                 }
             });
 
-            item.appendChild(visibility);
+            inputContainer.appendChild( visibility );
         }
 
-        if(node.actions)
+        if( selectedId != undefined && node.id == selectedId )
         {
-            for(var i = 0; i < node.actions.length; ++i) {
-                let a = node.actions[i];
-                var actionEl = document.createElement('a');
-                actionEl.className = "itemicon " + a.icon;
-                actionEl.title = a.name;
-                actionEl.addEventListener("click", function(e) {
-                    a.callback(node, actionEl);
-                    e.stopPropagation();
-                });
-                item.appendChild(actionEl);
-            }
-        }
-
-        if(selectedId != undefined && node.id == selectedId) {
-            this.selected = [node];
+            this.selected = [ node ];
             item.click();
         }
 
-        if(node.closed )
+        if( node.closed )
+        {
             return;
+        }
 
         for( var i = 0; i < node.children.length; ++i )
         {
-            let child = node.children[i];
+            let child = node.children[ i ];
 
-            if( this.options.onlyFolders && child.type != 'folder')
+            if( this.options.onlyFolders && child.type != 'folder' )
+            {
                 continue;
+            }
 
             this._create_item( node, child, level + 1 );
         }
@@ -3662,612 +5170,52 @@ class NodeTree {
 }
 
 /**
- * @class Panel
+ * @class Blank
+ * @description Blank Widget
  */
 
-class Panel {
+class Blank extends Widget {
 
-    /**
-     * @param {*} options
-     * id: Id of the element
-     * className: Add class to the element
-     * width: Width of the panel element [fit space]
-     * height: Height of the panel element [fit space]
-     * style: CSS Style object to be applied to the panel
-     */
+    constructor( width, height ) {
 
-    constructor( options = {} )  {
-        var root = document.createElement('div');
-        root.className = "lexpanel";
-        if(options.id)
-            root.id = options.id;
-        if(options.className)
-            root.className += " " + options.className;
+        super( Widget.BLANK );
 
-        root.style.width = options.width || "calc( 100% - 6px )";
-        root.style.height = options.height || "100%";
-        Object.assign(root.style, options.style ?? {});
-
-        this._inline_widgets_left = -1;
-        this._inline_queued_container = null;
-
-        this.root = root;
-
-        this.onevent = (e => {});
-
-        // branches
-        this.branch_open = false;
-        this.branches = [];
-        this.current_branch = null;
-        this.widgets = {};
-        this._queue = []; // Append widgets in other locations
+        this.root.style.width = width ?? "auto";
+        this.root.style.height = height ?? "8px";
     }
+}
 
-    get( name ) {
+LX.Blank = Blank;
 
-        return this.widgets[ name ];
-    }
+/**
+ * @class Title
+ * @description Title Widget
+ */
 
-    getValue( name ) {
+class Title extends Widget {
 
-        let widget = this.widgets[ name ];
+    constructor( name, options = {} ) {
 
-        if( !widget )
-        {
-            throw( "No widget called " + name );
-        }
+        console.assert( name, "Can't create Title Widget without text!" );
 
-        return widget.value();
-    }
+        // Note: Titles are not registered in Panel.widgets by now
+        super( Widget.TITLE, null, null, options );
 
-    setValue( name, value, skipCallback ) {
-
-        let widget = this.widgets[ name ];
-
-        if( !widget )
-        {
-            throw( "No widget called " + name );
-        }
-
-        return widget.set( value, skipCallback );
-    }
-
-    /**
-     * @method attach
-     * @param {Element} content child element to append to panel
-     */
-
-    attach( content ) {
-
-        if(!content)
-        throw("no content to attach");
-
-        content.parent = this;
-        let element = content.root ? content.root : content;
-        //this.root.style.maxHeight = "800px"; // limit size when attaching stuff from outside
-        this.root.appendChild( element );
-    }
-
-    /**
-     * @method clear
-     */
-
-    clear() {
-
-        this.branch_open = false;
-        this.branches = [];
-        this.current_branch = null;
-
-        for(let w in this.widgets) {
-            if(this.widgets[w].options && this.widgets[w].options.signal) {
-                const signal = this.widgets[w].options.signal;
-                for(let i = 0; i < LX.signals[signal].length; i++) {
-                    if(LX.signals[signal][i] == this.widgets[w]) {
-                        LX.signals[signal] = [...LX.signals[signal].slice(0, i), ...LX.signals[signal].slice(i+1)];
-                    }
-                }
-            }
-        }
-
-        if(this.signals) {
-            for(let w = 0; w < this.signals.length; w++) {
-                let widget = Object.values(this.signals[w])[0];
-                let signal = widget.options.signal;
-                for(let i = 0; i < LX.signals[signal].length; i++) {
-                    if(LX.signals[signal][i] == widget) {
-                        LX.signals[signal] = [...LX.signals[signal].slice(0, i), ...LX.signals[signal].slice(i+1)];
-                    }
-                }
-            }
-        }
-
-        this.widgets = {};
-        this.root.innerHTML = "";
-    }
-
-    /**
-     * @method sameLine
-     * @param {Number} number Of widgets that will be placed in the same line
-     * @description Next N widgets will be in the same line. If no number, it will inline all until calling nextLine()
-     */
-
-    sameLine( number ) {
-
-        this._inline_queued_container = this.queuedContainer;
-        this._inline_widgets_left = number || Infinity;
-    }
-
-    /**
-     * @method endLine
-     * @description Stop inlining widgets. Use it only if the number of widgets to be inlined is NOT specified.
-     */
-
-    endLine( justifyContent ) {
-
-        if( this._inline_widgets_left == -1)
-        {
-            console.warn("No pending widgets to be inlined!");
-            return;
-        }
-
-        this._inline_widgets_left = -1;
-
-        if(!this._inlineContainer)  {
-            this._inlineContainer = document.createElement('div');
-            this._inlineContainer.className = "lexinlinewidgets";
-            if(justifyContent)
-            {
-                this._inlineContainer.style.justifyContent = justifyContent;
-            }
-        }
-
-        // Push all elements single element or Array[element, container]
-        for( let item of this._inlineWidgets )
-        {
-            const is_pair = item.constructor == Array;
-
-            if(is_pair)
-            {
-                // eg. an array, inline items appended later to
-                if(this._inline_queued_container)
-                    this._inlineContainer.appendChild( item[0] );
-                // eg. a dropdown, item is appended to parent, not to inline cont.
-                else
-                    item[1].appendChild(item[0]);
-            }
-            else
-                this._inlineContainer.appendChild( item );
-        }
-
-        if(!this._inline_queued_container)
-        {
-            if(this.current_branch)
-                this.current_branch.content.appendChild( this._inlineContainer );
-            else
-                this.root.appendChild( this._inlineContainer );
-        }
-        else
-        {
-            this._inline_queued_container.appendChild( this._inlineContainer );
-        }
-
-        delete this._inlineWidgets;
-        delete this._inlineContainer;
-    }
-
-    /**
-     * @method branch
-     * @param {String} name Name of the branch/section
-     * @param {*} options
-     * id: Id of the branch
-     * className: Add class to the branch
-     * closed: Set branch collapsed/opened [false]
-     * icon: Set branch icon (Fontawesome class e.g. "fa-solid fa-skull")
-     * filter: Allow filter widgets in branch by name [false]
-     */
-
-    branch( name, options = {} ) {
-
-        if( this.branch_open )
-            this.merge();
-
-        // Create new branch
-        var branch = new Branch(name, options);
-        branch.panel = this;
-
-        // Declare new open
-        this.branch_open = true;
-        this.current_branch = branch;
-
-        // Append to panel
-        if(this.branches.length == 0)
-            branch.root.classList.add('first');
-
-        // This is the last!
-        this.root.querySelectorAll(".lexbranch.last").forEach( e => { e.classList.remove("last"); } );
-        branch.root.classList.add('last');
-
-        this.branches.push( branch );
-        this.root.appendChild( branch.root );
-
-        // Add widget filter
-        if(options.filter) {
-            this._addFilter( options.filter, {callback: this._searchWidgets.bind(this, branch.name)} );
-        }
-
-        return branch;
-    }
-
-    merge() {
-
-        this.branch_open = false;
-        this.current_branch = null;
-    }
-
-    _pick( arg, def ) {
-        return (typeof arg == 'undefined' ? def : arg);
-    }
-
-    static _dispatch_event( element, type, data, bubbles, cancelable ) {
-        let event = new CustomEvent( type, { 'detail': data, 'bubbles': bubbles, 'cancelable': cancelable } );
-        element.dispatchEvent( event );
-    }
-
-    static _add_reset_property( container, callback ) {
-        var domEl = document.createElement('a');
-        domEl.style.display = "none";
-        domEl.style.marginRight = "6px";
-        domEl.className = "lexicon fa fa-rotate-left";
-        domEl.addEventListener( "click", callback );
-        container.appendChild( domEl );
-        return domEl;
-    }
-
-    /*
-        Panel Widgets
-    */
-
-    create_widget( name, type, options = {} ) {
-
-        let widget = new Widget( name, type, options );
-
-        let element = document.createElement( 'div' );
-        element.className = "lexwidget";
-        element.id = options.id ?? "";
-        element.title = options.title ?? "";
-
-        if( options.className )
-        {
-            element.className += " " + options.className;
-        }
-
-        if( type != Widget.TITLE )
-        {
-            element.style.width = "calc(100% - " + (this.current_branch || type == Widget.FILE ? 10 : 20) + "px)";
-
-            if( options.width )
-            {
-                element.style.width = element.style.minWidth = options.width;
-            }
-            if( options.maxWidth )
-            {
-                element.style.maxWidth = options.maxWidth;
-            }
-            if( options.minWidth )
-            {
-                element.style.minWidth = options.minWidth;
-            }
-            if( options.height )
-            {
-                element.style.height = element.style.minHeight = options.height;
-            }
-        }
-
-        if( name != undefined )
-        {
-            if( !(options.hideName ?? false) )
-            {
-                let domName = document.createElement( 'div' );
-                domName.className = "lexwidgetname";
-                if( options.justifyName )
-                {
-                    domName.classList.add( "float-" + options.justifyName );
-                }
-                domName.innerHTML = name || "";
-                domName.title = options.title ?? domName.innerHTML;
-                domName.style.width = options.nameWidth || LX.DEFAULT_NAME_WIDTH;
-                element.appendChild(domName);
-                element.domName = domName;
-
-                // Copy-paste info
-                domName.addEventListener('contextmenu', function( e ) {
-                    e.preventDefault();
-                    widget.oncontextmenu( e );
-                });
-            }
-
-            this.widgets[ name ] = widget;
-        }
-
-        if( options.signal )
-        {
-            if( !name )
-            {
-                if( !this.signals )
-                {
-                    this.signals = [];
-                }
-
-                this.signals.push( { [ options.signal ]: widget } )
-            }
-
-            LX.addSignal( options.signal, widget );
-        }
-
-        widget.domEl = element;
-        element.jsInstance = widget;
-
-        const insert_widget = el => {
-            if(options.container)
-                options.container.appendChild(el);
-            else if(!this.queuedContainer) {
-
-                if(this.current_branch)
-                {
-                    if(!options.skipWidget)
-                        this.current_branch.widgets.push( widget );
-                    this.current_branch.content.appendChild( el );
-                }
-                else
-                {
-                    el.classList.add("nobranch");
-                    this.root.appendChild( el );
-                }
-            }
-            // Append content to queued tab container
-            else {
-                this.queuedContainer.appendChild( el );
-            }
-        };
-
-        const store_widget = el => {
-
-            if(!this.queuedContainer) {
-                this._inlineWidgets.push( el );
-            }
-            // Append content to queued tab container
-            else {
-                this._inlineWidgets.push( [el, this.queuedContainer] );
-            }
-        };
-
-        // Process inline widgets
-        if(this._inline_widgets_left > 0 && !options.skipInlineCount)
-        {
-            if(!this._inlineWidgets)  {
-                this._inlineWidgets = [];
-            }
-
-            // Store widget and its container
-            store_widget(element);
-
-            this._inline_widgets_left--;
-
-            // Last widget
-            if(!this._inline_widgets_left) {
-                this.endLine();
-            }
-        }else {
-            insert_widget(element);
-        }
-
-        return widget;
-    }
-
-    _addFilter( placeholder, options = {} ) {
-
-        options.placeholder = placeholder.constructor == String ? placeholder : "Filter properties..";
-        options.skipWidget = options.skipWidget ?? true;
-        options.skipInlineCount = true;
-
-        let widget = this.create_widget(null, Widget.TEXT, options);
-        let element = widget.domEl;
-        element.className += " lexfilter noname";
-
-        let input = document.createElement('input');
-        input.className = 'lexinput-filter';
-        input.setAttribute("placeholder", options.placeholder);
-        input.style.width =  "calc( 100% - 17px )";
-        input.value = options.filterValue || "";
-
-        let searchIcon = document.createElement('a');
-        searchIcon.className = "fa-solid fa-magnifying-glass";
-        element.appendChild(input);
-        element.appendChild(searchIcon);
-
-        input.addEventListener("input", (e) => {
-            if(options.callback)
-                options.callback(input.value, e);
-        });
-
-        return element;
-    }
-
-    _searchWidgets(branchName, value) {
-
-        for( let b of this.branches ) {
-
-            if(b.name !== branchName)
-                continue;
-
-            // remove all widgets
-            for( let w of b.widgets ) {
-                if(w.domEl.classList.contains('lexfilter'))
-                    continue;
-                w.domEl.remove();
-            }
-
-            // push to right container
-            this.queue( b.content );
-
-            const emptyFilter = !value.length;
-
-            // add widgets
-            for( let w of b.widgets ) {
-
-                if(!emptyFilter)
-                {
-                    if(!w.name) continue;
-                    const filterWord = value.toLowerCase();
-                    const name = w.name.toLowerCase();
-                    if(!name.includes(value)) continue;
-                }
-
-                // insert filtered widget
-                this.queuedContainer.appendChild( w.domEl );
-            }
-
-            // push again to current branch
-            this.clearQueue();
-
-            // no more branches to check!
-            return;
-        }
-    }
-
-    _search_options(options, value) {
-        // push to right container
-        const emptyFilter = !value.length;
-        let filteredOptions = [];
-        // add widgets
-        for( let i = 0; i < options.length; i++) {
-            let o = options[i];
-            if(!emptyFilter)
-            {
-                let toCompare = (typeof o == 'string') ? o : o.value;
-                ;
-                const filterWord = value.toLowerCase();
-                const name = toCompare.toLowerCase();
-                if(!name.includes(filterWord)) continue;
-            }
-            // insert filtered widget
-            filteredOptions.push(o);
-        }
-
-        this.refresh(filteredOptions);
-    }
-
-    _trigger( event, callback ) {
-
-        if( callback )
-            callback.call( this, event.value, event.domEvent, event.name );
-
-        if( this.onevent )
-            this.onevent.call( this, event );
-    }
-
-    /**
-     * @method getBranch
-     * @param {String} name if null, return current branch
-     */
-
-    getBranch( name ) {
-
-        if( name )
-        {
-            return this.branches.find( b => b.name == name );
-        }
-
-        return this.current_branch;
-    }
-
-    /**
-     * @method queue
-     * @param {HTMLElement} domEl container to append elements to
-     */
-
-    queue( domEl ) {
-
-        if( !domEl && this.current_branch)
-        {
-            domEl = this.current_branch.root;
-        }
-
-        if( this.queuedContainer )
-        {
-            this._queue.push( this.queuedContainer );
-        }
-
-        this.queuedContainer = domEl;
-    }
-
-    /**
-     * @method clearQueue
-     */
-
-    clearQueue() {
-
-        if(this._queue && this._queue.length)
-        {
-            this.queuedContainer = this._queue.pop();
-            return;
-        }
-
-        delete this.queuedContainer;
-    }
-
-    /**
-     * @method addBlank
-     * @param {Number} height
-     */
-
-    addBlank( height = 8, width ) {
-
-        let widget = this.create_widget(null, Widget.addBlank);
-        widget.domEl.className += " blank";
-        widget.domEl.style.height = height + "px";
-
-        if(width)
-            widget.domEl.style.width = width;
-
-        return widget;
-    }
-
-    /**
-     * @method addTitle
-     * @param {String} name Title name
-     * @param {*} options:
-     * link: Href in case title is an hyperlink
-     * target: Target name of the iframe (if any)
-     * icon: FA class of the icon (if any)
-     * iconColor: Color of title icon (if any)
-     * style: CSS to override
-     */
-
-    addTitle( name, options = {} ) {
-
-        if( !name )
-        {
-            throw( "Can't create Title without text!" );
-        }
-
-        let widget = this.create_widget( null, Widget.TITLE, options );
-        let element = widget.domEl;
-        element.className = "lextitle";
+        this.root.className = "lextitle";
 
         if( options.icon )
         {
             let icon = document.createElement( 'a' );
             icon.className = options.icon;
             icon.style.color = options.iconColor || "";
-            element.appendChild( icon );
+            this.root.appendChild( icon );
         }
 
-        let text = document.createElement( "span");
+        let text = document.createElement( "span" );
         text.innerText = name;
-        element.appendChild( text );
+        this.root.appendChild( text );
 
-        Object.assign( element.style, options.style ?? {} );
+        Object.assign( this.root.style, options.style ?? {} );
 
         if( options.link != undefined )
         {
@@ -4277,60 +5225,58 @@ class Panel {
             linkDom.target = options.target ?? "";
             linkDom.className = "lextitle link";
             Object.assign( linkDom.style, options.style ?? {} );
-            element.replaceWith( linkDom );
+            this.root.replaceWith( linkDom );
         }
-
-        return element;
     }
+}
 
-    /**
-     * @method addText
-     * @param {String} name Widget name
-     * @param {String} value Text value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * required: Make the input required
-     * placeholder: Add input placeholder
-     * pattern: Regular expression that value must match
-     * trigger: Choose onchange trigger (default, input) [default]
-     * inputWidth: Width of the text input
-     * skipReset: Don't add the reset value button when value changes
-     * float: Justify input text content
-     * justifyName: Justify name content
-     */
+LX.Title = Title;
 
-    addText( name, value, callback, options = {} ) {
+/**
+ * @class TextInput
+ * @description TextInput Widget
+ */
 
-        let widget = this.create_widget( name, Widget.TEXT, options );
+class TextInput extends Widget {
 
-        widget.onGetValue = () => {
-            return wValue.value;
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.TEXT, name, String( value ), options );
+
+        this.onGetValue = () => {
+            return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            this.disabled ? wValue.innerText = newValue : wValue.value = newValue;
-            Panel._dispatch_event( wValue, "focusout", skipCallback );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( !this.valid( newValue ) || ( this._lastValueTriggered == newValue ) )
+            {
+                return;
+            }
+
+            this._lastValueTriggered = value = newValue;
+
+            if( options.disabled  )
+            {
+                wValue.innerText = newValue;
+            }
+            else
+            {
+                wValue.value = newValue;
+            }
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
         };
 
-        widget.valid = () => {
-            if( wValue.pattern == "" ) { return true; }
+        this.valid = ( v ) => {
+            v = v ?? this.value();
+            if( !v.length || wValue.pattern == "" ) return true;
             const regexp = new RegExp( wValue.pattern );
-            return regexp.test( wValue.value );
+            return regexp.test( v );
         };
-
-        let element = widget.domEl;
-
-        // Add reset functionality
-        if( widget.name && !( options.skipReset ?? false ) ) {
-            Panel._add_reset_property( element.domName, function() {
-                wValue.value = wValue.iValue;
-                this.style.display = "none";
-                Panel._dispatch_event( wValue, "focusout" );
-            } );
-        }
-
-        // Add widget value
 
         let container = document.createElement( 'div' );
         container.className = "lextext" + ( options.warning ? " lexwarning" : "" );
@@ -4351,7 +5297,7 @@ class Panel {
             wValue.type = options.type || "";
             wValue.value = wValue.iValue = value || "";
             wValue.style.width = "100%";
-            wValue.style.textAlign = options.float ?? "";
+            wValue.style.textAlign = ( options.float ?? "" );
 
             wValue.setAttribute( "placeholder", options.placeholder ?? "" );
 
@@ -4365,39 +5311,25 @@ class Panel {
                 wValue.setAttribute( "pattern", options.pattern );
             }
 
-            var resolve = ( function( val, event ) {
+            const trigger = options.trigger ?? "default";
 
-                if( !widget.valid() )
-                {
-                    return;
-                }
-
-                const skipCallback = event.detail;
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = ( val != wValue.iValue ? "block" : "none" );
-                if( !skipCallback )
-                {
-                    this._trigger( new IEvent( name, val, event ), callback );
-                }
-
-            }).bind( this );
-
-            const trigger = options.trigger ?? 'default';
-
-            if( trigger == 'default' )
+            if( trigger == "default" )
             {
-                wValue.addEventListener( "keyup", function( e ){
-                    if(e.key == 'Enter')
-                        resolve( e.target.value, e );
+                wValue.addEventListener( "keyup", e => {
+                    if( e.key == "Enter" )
+                    {
+                        wValue.blur();
+                    }
                 });
-                wValue.addEventListener( "focusout", function( e ){
-                    resolve( e.target.value, e );
+
+                wValue.addEventListener( "focusout", e => {
+                    this.set( e.target.value, false, e );
                 });
             }
-            else if( trigger == 'input' )
+            else if( trigger == "input" )
             {
-                wValue.addEventListener("input", function( e ){
-                    resolve( e.target.value, e );
+                wValue.addEventListener("input", e => {
+                    this.set( e.target.value, false, e );
                 });
             }
 
@@ -4413,14 +5345,17 @@ class Panel {
                 container.appendChild( icon );
             }
 
-        } else
+        }
+        else
         {
             wValue = document.createElement( options.url ? 'a' : 'div' );
+
             if( options.url )
             {
                 wValue.href = options.url;
                 wValue.target = "_blank";
             }
+
             const icon = options.warning ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '';
             wValue.innerHTML = ( icon + value ) || "";
             wValue.style.width = "100%";
@@ -4430,111 +5365,97 @@ class Panel {
         Object.assign( wValue.style, options.style ?? {} );
 
         container.appendChild( wValue );
-        element.appendChild( container );
+        this.root.appendChild( container );
 
         // Remove branch padding and margins
-        if( !widget.name ) {
-            element.className += " noname";
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
+        {
+            this.root.className += " noname";
             container.style.width = "100%";
         }
-
-        return widget;
     }
+}
 
-    /**
-     * @method addTextArea
-     * @param {String} name Widget name
-     * @param {String} value Text Area value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * placeholder: Add input placeholder
-     * trigger: Choose onchange trigger (default, input) [default]
-     * inputWidth: Width of the text input
-     * float: Justify input text content
-     * justifyName: Justify name content
-     * fitHeight: Height adapts to text
-     */
+LX.Text = Text;
 
-    addTextArea( name, value, callback, options = {} ) {
+/**
+ * @class TextArea
+ * @description TextArea Widget
+ */
 
-        let widget = this.create_widget( name, Widget.TEXTAREA, options );
+class TextArea extends Widget {
 
-        widget.onGetValue = () => {
-            return wValue.value;
-        };
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            wValue.value = newValue;
-            Panel._dispatch_event( wValue, "focusout", skipCallback );
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.TEXTAREA, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
         };
 
-        let element = widget.domEl;
+        this.onSetValue = ( newValue, skipCallback, event ) => {
 
-        // Add reset functionality
-        if( widget.name && !( options.skipReset ?? false ) ) {
-            Panel._add_reset_property( element.domName, function() {
-                wValue.value = wValue.iValue;
-                this.style.display = "none";
-                Panel._dispatch_event( wValue, "focusout" );
-            });
-        }
+            wValue.value = value = newValue;
 
-        // Add widget value
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
+        };
 
-        let container = document.createElement( 'div' );
+        let container = document.createElement( "div" );
         container.className = "lextextarea";
         container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + " )";
         container.style.height = options.height;
         container.style.display = "flex";
 
-        let wValue = document.createElement( 'textarea' );
+        let wValue = document.createElement( "textarea" );
         wValue.value = wValue.iValue = value || "";
         wValue.style.width = "100%";
         wValue.style.textAlign = options.float ?? "";
         Object.assign( wValue.style, options.style ?? {} );
 
-        if( options.disabled ?? false ) wValue.setAttribute("disabled", true);
-        if( options.placeholder ) wValue.setAttribute("placeholder", options.placeholder);
+        if( options.disabled ?? false ) wValue.setAttribute( "disabled", true );
+        if( options.placeholder ) wValue.setAttribute( "placeholder", options.placeholder );
 
-        var resolve = (function( val, event ) {
-            const skipCallback = event.detail;
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( val != wValue.iValue ? "block" : "none" );
-            if( !skipCallback ) this._trigger( new IEvent( name, val, event ), callback );
-        }).bind(this);
+        const trigger = options.trigger ?? "default";
 
-        const trigger = options.trigger ?? 'default';
-
-        if(trigger == 'default')
+        if( trigger == "default" )
         {
-            wValue.addEventListener("keyup", function(e){
-                if(e.key == 'Enter')
-                    resolve(e.target.value, e);
+            wValue.addEventListener("keyup", function(e) {
+                if( e.key == "Enter" )
+                {
+                    wValue.blur();
+                }
             });
-            wValue.addEventListener("focusout", function(e){
-                resolve(e.target.value, e);
+
+            wValue.addEventListener("focusout", e => {
+                this.set( e.target.value, false, e );
             });
         }
-        else if(trigger == 'input')
+        else if( trigger == "input" )
         {
-            wValue.addEventListener("input", function(e){
-                resolve(e.target.value, e);
+            wValue.addEventListener("input", e => {
+                this.set( e.target.value, false, e );
             });
         }
 
-        if(options.icon)
+        if( options.icon )
         {
             let icon = document.createElement('a');
             icon.className = "inputicon " + options.icon;
-            container.appendChild(icon);
+            container.appendChild( icon );
         }
 
-        container.appendChild(wValue);
-        element.appendChild(container);
+        container.appendChild( wValue );
+        this.root.appendChild( container );
 
         // Remove branch padding and margins
-        if(!widget.name) {
-            element.className += " noname";
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
+        {
+            this.root.className += " noname";
             container.style.width = "100%";
         }
 
@@ -4545,49 +5466,32 @@ class Panel {
                 // Update height depending on the content
                 wValue.style.height = wValue.scrollHeight + "px";
             }
-        }, 10);
-
-        return widget;
+        }, 10 );
     }
+}
 
-    /**
-     * @method addLabel
-     * @param {String} value Information string
-     */
+LX.TextArea = TextArea;
 
-    addLabel( value, options = {} ) {
+/**
+ * @class Button
+ * @description Button Widget
+ */
 
-        options.disabled = true;
-        return this.addText( null, value, null, options );
-    }
+class Button extends Widget {
 
-    /**
-     * @method addButton
-     * @param {String} name Widget name
-     * @param {String} value Button name
-     * @param {Function} callback Callback function on click
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * icon: Icon class to show as button value
-     * img: Path to image to show as button value
-     * title: Text to show in native Element title
-     */
+    constructor( name, value, callback, options = {} ) {
 
-    addButton( name, value, callback, options = {} ) {
+        super( Widget.BUTTON, name, null, options );
 
-        let widget = this.create_widget( name, Widget.BUTTON, options );
-
-        widget.onGetValue = () => {
+        this.onGetValue = () => {
             return wValue.innerText;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             wValue.innerHTML =
-            (options.icon ? "<a class='" + options.icon + "'></a>" :
-            ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + (newValue || "") + "</span>" ));
+            ( options.icon ? "<a class='" + options.icon + "'></a>" :
+            ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + ( newValue || "" ) + "</span>" ) );
         };
-
-        let element = widget.domEl;
 
         var wValue = document.createElement( 'button' );
         wValue.title = options.title ?? "";
@@ -4599,22 +5503,22 @@ class Panel {
         }
 
         wValue.innerHTML =
-            (options.icon ? "<a class='" + options.icon + "'></a>" :
-            ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + (value || "") + "</span>" ));
+            ( options.icon ? "<a class='" + options.icon + "'></a>" :
+            ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + ( value || "" ) + "</span>" ) );
 
-        wValue.style.width = "calc( 100% - " + (options.nameWidth ?? LX.DEFAULT_NAME_WIDTH) + ")";
+        wValue.style.width = "calc( 100% - " + ( options.nameWidth ?? LX.DEFAULT_NAME_WIDTH ) + ")";
 
         if( options.disabled )
         {
             wValue.setAttribute( "disabled", true );
         }
 
-        wValue.addEventListener("click", e => {
+        wValue.addEventListener( "click", e => {
             if( options.selectable )
             {
                 if( options.parent )
                 {
-                    options.parent.querySelectorAll(".lexbutton.selected").forEach( e => { if(e == wValue) return; e.classList.remove("selected") } );
+                    options.parent.querySelectorAll(".lexbutton.selected").forEach( e => { if( e == wValue ) return; e.classList.remove( "selected" ) } );
                 }
 
                 wValue.classList.toggle('selected');
@@ -4623,103 +5527,185 @@ class Panel {
             this._trigger( new IEvent( name, value, e ), callback );
         });
 
-        element.appendChild( wValue );
+        this.root.appendChild( wValue );
 
-        // Remove branch padding and margins
-        if( !widget.name )
+        // Remove branch padding and
+        const useNameAsLabel = !( options.hideName ?? false ) && !( options.icon || options.img );
+        if( !useNameAsLabel )
         {
             wValue.className += " noname";
             wValue.style.width = "100%";
         }
-
-        return element;
     }
+}
 
-    /**
-     * @method addComboButtons
-     * @param {String} name Widget name
-     * @param {Array} values Each of the {value, callback} items
-     * @param {*} options:
-     * float: Justify content (left, center, right) [center]
-     * noSelection: Buttons can be clicked, but they are not selectable
-     */
+LX.Button = Button;
 
-    addComboButtons( name, values, options = {} ) {
+/**
+ * @class ComboButtons
+ * @description ComboButtons Widget
+ */
 
-        let widget = this.create_widget(name, Widget.BUTTON, options);
-        let element = widget.domEl;
+class ComboButtons extends Widget {
 
-        let that = this;
+    constructor( name, values, options = {} ) {
+
+        const shouldSelect = !( options.noSelection ?? false );
+        let shouldToggle = shouldSelect && ( options.toggle ?? false );
+
         let container = document.createElement('div');
         container.className = "lexcombobuttons ";
-        if( options.float ) container.className += options.float;
+
+        options.skipReset = true;
+
+        if( options.float )
+        {
+            container.className += options.float;
+        }
+
         container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-        let should_select = !(options.noSelection ?? false);
+        let currentValue = [];
+        let buttonsBox = document.createElement('div');
+        buttonsBox.className = "lexcombobuttonsbox ";
+
         for( let b of values )
         {
-            if( !b.value ) throw("Set 'value' for each button!");
+            if( !b.value )
+            {
+                throw( "Set 'value' for each button!" );
+            }
 
             let buttonEl = document.createElement('button');
             buttonEl.className = "lexbutton combo";
             buttonEl.title = b.icon ? b.value : "";
-            if(options.buttonClass)
-                buttonEl.classList.add(options.buttonClass);
+            buttonEl.id = b.id ?? "";
+            buttonEl.dataset["value"] = b.value;
 
-            if(options.selected == b.value)
+            if( options.buttonClass )
+            {
+                buttonEl.classList.add( options.buttonClass );
+            }
+
+            if( shouldSelect && ( b.selected || options.selected == b.value ) )
+            {
                 buttonEl.classList.add("selected");
+                currentValue = ( currentValue ).concat( [ b.value ] );
+            }
 
-            if(b.id)
-                buttonEl.id = b.id;
+            buttonEl.innerHTML = ( b.icon ? "<a class='" + b.icon +"'></a>" : "" ) + "<span>" + ( b.icon ? "" : b.value ) + "</span>";
 
-            buttonEl.innerHTML = (b.icon ? "<a class='" + b.icon +"'></a>" : "") + "<span>" + (b.icon ? "" : b.value) + "</span>";
+            if( b.disabled )
+            {
+                buttonEl.setAttribute( "disabled", true );
+            }
 
-            if(options.disabled)
-                buttonEl.setAttribute("disabled", true);
+            buttonEl.addEventListener("click", e => {
 
-            buttonEl.addEventListener("click", function(e) {
-                if(should_select) {
-                    container.querySelectorAll('button').forEach( s => s.classList.remove('selected'));
-                    this.classList.add('selected');
+                currentValue = [];
+
+                if( shouldSelect )
+                {
+                    if( shouldToggle )
+                    {
+                        buttonEl.classList.toggle( "selected" );
+                    }
+                    else
+                    {
+                        container.querySelectorAll( "button" ).forEach( s => s.classList.remove( "selected" ));
+                        buttonEl.classList.add( "selected" );
+                    }
                 }
-                that._trigger( new IEvent(name, b.value, e), b.callback );
+
+                container.querySelectorAll( "button" ).forEach( s => {
+
+                    if( s.classList.contains( "selected" ) )
+                    {
+                        currentValue.push( s.dataset[ "value" ] );
+                    }
+
+                } );
+
+                if( !shouldToggle && currentValue.length > 1 )
+                {
+                    console.error( `Enable _options.toggle_ to allow selecting multiple options in ComboButtons.` )
+                    return;
+                }
+
+                currentValue = currentValue[ 0 ];
+
+                this.set( b.value, false, buttonEl.classList.contains( "selected" ) );
             });
 
-            container.appendChild(buttonEl);
-
-            // Remove branch padding and margins
-            if(widget.name === undefined) {
-                buttonEl.className += " noname";
-                buttonEl.style.width =  "100%";
-            }
+            buttonsBox.appendChild( buttonEl );
         }
 
+        if( currentValue.length > 1 )
+        {
+            options.toggle = true;
+            shouldToggle = shouldSelect;
+            console.warn( `Multiple options selected in '${ name }' ComboButtons. Enabling _toggle_ mode.` );
+        }
+        else
+        {
+            currentValue = currentValue[ 0 ];
+        }
+
+        super( Widget.BUTTONS, name, null, options );
+
+        this.onGetValue = () => {
+            return currentValue;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( shouldSelect && ( event == undefined ) )
+            {
+                container.querySelectorAll( "button" ).forEach( s => s.classList.remove( "selected" ));
+
+                container.querySelectorAll( "button" ).forEach( s => {
+                    if( currentValue && currentValue.indexOf( s.dataset[ "value" ] ) > -1 )
+                    {
+                        s.classList.add( "selected" );
+                    }
+                } );
+            }
+
+            if( !skipCallback && newValue.constructor != Array )
+            {
+                const enabled = event;
+                const fn = values.filter( v => v.value == newValue )[ 0 ]?.callback;
+                this._trigger( new IEvent( name, shouldToggle ? [ newValue, enabled ] : newValue, null ), fn );
+            }
+        };
+
         // Remove branch padding and margins
-        if(widget.name !== undefined) {
-            element.className += " noname";
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
+        {
+            this.root.className += " noname";
             container.style.width = "100%";
         }
 
-        element.appendChild(container);
-
-        return widget;
+        container.appendChild( buttonsBox );
+        this.root.appendChild( container );
     }
+}
 
-    /**
-     * @method addCard
-     * @param {String} name Card Name
-     * @param {*} options:
-     * title: title if any
-     * text: card text if any
-     * src: url of the image if any
-     * callback (Function): function to call on click
-     */
+LX.ComboButtons = ComboButtons;
 
-    addCard( name, options = {} ) {
+/**
+ * @class Card
+ * @description Card Widget
+ */
+
+class Card extends Widget {
+
+    constructor( name, options = {} ) {
 
         options.hideName = true;
-        let widget = this.create_widget(name, Widget.CARD, options);
-        let element = widget.domEl;
+
+        super( Widget.CARD, name, null, options );
 
         let container = document.createElement('div');
         container.className = "lexcard";
@@ -4729,55 +5715,57 @@ class Panel {
         {
             let img = document.createElement('img');
             img.src = options.img;
-            container.appendChild(img);
+            container.appendChild( img );
 
-            if(options.link != undefined)
+            if( options.link != undefined )
             {
                 img.style.cursor = "pointer";
                 img.addEventListener('click', function() {
-                    const _a = container.querySelector('a');
-                    if(_a) _a.click();
+                    const hLink = container.querySelector('a');
+                    if( hLink )
+                    {
+                        hLink.click();
+                    }
                 });
             }
         }
 
-        let name_el = document.createElement('span');
-        name_el.innerText = name;
+        let cardNameDom = document.createElement('span');
+        cardNameDom.innerText = name;
 
-        if(options.link != undefined)
+        if( options.link != undefined )
         {
-            let link_el = document.createElement('a');
-            link_el.innerText = name;
-            link_el.href = options.link;
-            link_el.target = options.target ?? "";
-            name_el.innerText = "";
-            name_el.appendChild(link_el);
+            let cardLinkDom = document.createElement( 'a' );
+            cardLinkDom.innerText = name;
+            cardLinkDom.href = options.link;
+            cardLinkDom.target = options.target ?? "";
+            cardNameDom.innerText = "";
+            cardNameDom.appendChild( cardLinkDom );
         }
 
-        container.appendChild(name_el);
-
-        if( options.callback ) {
+        if( options.callback )
+        {
             container.style.cursor = "pointer";
-            container.addEventListener("click", (e) => {
-                this._trigger( new IEvent(name, null, e), options.callback );
+            container.addEventListener("click", ( e ) => {
+                this._trigger( new IEvent( name, null, e ), options.callback );
             });
         }
 
-        element.appendChild(container);
-
-        return widget;
+        container.appendChild( cardNameDom );
+        this.root.appendChild( container );
     }
+}
 
-    /**
-     * @method addForm
-     * @param {String} name Widget name
-     * @param {Object} data Form data
-     * @param {Function} callback Callback function on submit form
-     * @param {*} options:
-     * actionName: Text to be shown in the button
-     */
+LX.Card = Card;
 
-    addForm( name, data, callback, options = {} ) {
+/**
+ * @class Form
+ * @description Form Widget
+ */
+
+class Form extends Widget {
+
+    constructor( name, data, callback, options = {} ) {
 
         if( data.constructor != Object )
         {
@@ -4788,13 +5776,13 @@ class Panel {
         // Always hide name for this one
         options.hideName = true;
 
-        let widget = this.create_widget( name, Widget.FORM, options );
+        super( Widget.FORM, name, null, options );
 
-        widget.onGetValue = () => {
+        this.onGetValue = () => {
             return container.formData;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             container.formData = newValue;
             const entries = container.querySelectorAll( ".lexwidget" );
             for( let i = 0; i < entries.length; ++i )
@@ -4807,19 +5795,12 @@ class Panel {
                 let entryName = entries[ i ].querySelector( ".lexwidgetname" ).innerText;
                 let entryInput = entries[ i ].querySelector( ".lextext input" );
                 entryInput.value = newValue[ entryName ] ?? "";
-                Panel._dispatch_event( entryInput, "focusout", skipCallback );
+                Widget._dispatchEvent( entryInput, "focusout", skipCallback );
             }
         };
 
-        // Add widget value
-
-        let element = widget.domEl;
-
         let container = document.createElement( 'div' );
         container.className = "lexformdata";
-
-        this.queue( container );
-
         container.formData = {};
 
         for( let entry in data )
@@ -4834,18 +5815,19 @@ class Panel {
             entryData.placeholder = entryData.placeholder ?? entry;
             entryData.width = "calc(100% - 10px)";
 
-            this.addLabel( entry, { textClass: "formlabel" } );
+            // this.addLabel( entry, { textClass: "formlabel" } );
 
-            entryData.textWidget = this.addText( null, entryData.constructor == Object ? entryData.value : entryData, ( value ) => {
+            entryData.textWidget = new TextInput( null, entryData.constructor == Object ? entryData.value : entryData, ( value ) => {
                 container.formData[ entry ] = value;
             }, entryData );
+            container.appendChild( entryData.textWidget.root );
 
             container.formData[ entry ] = entryData.constructor == Object ? entryData.value : entryData;
         }
 
-        this.addBlank( );
+        container.appendChild( new Blank().root );
 
-        this.addButton( null, options.actionName ?? "Submit", ( value, event ) => {
+        const submitButton = new Button( null, options.actionName ?? "Submit", ( value, event ) => {
 
             for( let entry in data )
             {
@@ -4863,211 +5845,201 @@ class Panel {
             }
         }, { buttonClass: "primary", width: "calc(100% - 10px)" } );
 
-        this.clearQueue();
+        container.appendChild( submitButton.root );
 
-        element.appendChild( container );
+        this.root.appendChild( container );
 
-        if( !widget.name || options.hideName ) {
-            element.className += " noname";
-            container.style.width = "100%";
-        }
-
-        return widget;
-    }
-
-    /**
-     * @method addContent
-     * @param {HTMLElement/String} element
-     */
-
-    addContent( element, options = {} ) {
-
-        if( !element )
-        {
-            return;
-        }
-
-        if( element.constructor == String )
-        {
-            const tmp = document.createElement( "div" );
-            tmp.innerHTML = element;
-            if( tmp.childElementCount > 1 )
-            {
-                element = tmp;
-            }
-            else
-            {
-                element = tmp.firstElementChild;
-            }
-        }
-
-        let widget = this.create_widget( null, Widget.CONTENT, options );
-        widget.domEl.appendChild( element );
-        return widget;
-    }
-
-    /**
-     * @method addImage
-     * @param {String} url Image Url
-     * @param {*} options
-     */
-
-    async addImage( url, options = {} ) {
-
-        if( !url )
-        {
-            return;
-        }
-
-        options.hideName = true;
-        let widget = this.create_widget( null, Widget.IMAGE, options );
-        let element = widget.domEl;
-
-        let container = document.createElement( 'div' );
-        container.className = "leximage";
+        // Form does not never use label
+        this.root.className += " noname";
         container.style.width = "100%";
-
-        let img = document.createElement( 'img' );
-        img.src = url;
-
-        for( let s in options.style )
-        {
-            img.style[ s ] = options.style[ s ];
-        }
-
-        await img.decode();
-        container.appendChild( img );
-        element.appendChild( container );
-
-        return widget;
     }
+}
 
-    /**
-     * @method addDropdown
-     * @param {String} name Widget name
-     * @param {Array} values Posible options of the dropdown widget -> String (for default dropdown) or Object = {value, url} (for images, gifs..)
-     * @param {String} value Select by default option
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * filter: Add a search bar to the widget [false]
-     * disabled: Make the widget disabled [false]
-     * skipReset: Don't add the reset value button when value changes
-     */
+LX.Form = Form;
 
-    addDropdown( name, values, value, callback, options = {} ) {
+/**
+ * @class Select
+ * @description Select Widget
+ */
 
-        let widget = this.create_widget( name, Widget.DROPDOWN, options );
+class Select extends Widget {
 
-        widget.onGetValue = () => {
-            return element.querySelector( "li.selected" ).getAttribute( 'value' );
+    constructor( name, values, value, callback, options = {} ) {
+
+        super( Widget.SELECT, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( newValue != wValue.iValue ? "block" : "none" );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             value = newValue;
-            list.querySelectorAll( 'li' ).forEach( e => { if( e.getAttribute('value') == value ) e.click() } );
-            if( !skipCallback ) this._trigger( new IEvent( name, value, null ), callback );
+
+            let item = null;
+            const options = listOptions.childNodes;
+            options.forEach( e => {
+                e.classList.remove( "selected" );
+                if( e.getAttribute( "value" ) == newValue )
+                {
+                    item = e;
+                }
+            } );
+
+            console.assert( item, `Item ${ newValue } does not exist in the Select.` );
+            item.classList.add( "selected" );
+            selectedOption.refresh( value );
+
+            // Reset filter
+            if( filter )
+            {
+                filter.querySelector( "input" ).value = "";
+                const filteredOptions = this._filterOptions( values, "" );
+                list.refresh( filteredOptions );
+            }
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, value, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
-        let that = this;
-
-        // Add reset functionality
-        if(widget.name && !( options.skipReset ?? false ))
-        {
-            Panel._add_reset_property( element.domName, function() {
-                value = wValue.iValue;
-                list.querySelectorAll( 'li' ).forEach( e => { if( e.getAttribute('value') == value ) e.click() } );
-                this.style.display = "none";
-            });
-        }
-
-        let container = document.createElement( 'div' );
-        container.className = "lexdropdown";
+        let container = document.createElement( "div" );
+        container.className = "lexselect";
         container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-        // Add widget value
         let wValue = document.createElement( 'div' );
-        wValue.className = "lexdropdown lexoption";
+        wValue.className = "lexselect lexoption";
         wValue.name = name;
         wValue.iValue = value;
 
-        // Add dropdown widget button
+        // Add select widget button
         let buttonName = value;
         buttonName += "<a class='fa-solid fa-angle-down' style='float:right; margin-right: 3px;'></a>";
 
-        this.queue(container);
+        const _placeOptions = ( parent ) => {
 
-        const _getMaxListWidth = () => {
+            const selectRoot = selectedOption.root;
+            const overflowContainer = parent.getParentArea();
+            const rect = selectRoot.getBoundingClientRect();
+            const nestedDialog = parent.parentElement.closest( "dialog" );
 
-            let maxWidth = 0;
-            for( let i of values )
+            // Manage vertical aspect
             {
-                const iString = String( i );
-                maxWidth = Math.max( iString.length, maxWidth );
+                const listHeight = parent.offsetHeight;
+                let topPosition = rect.y;
+
+                let maxY = window.innerHeight;
+
+                if( overflowContainer )
+                {
+                    const parentRect = overflowContainer.getBoundingClientRect();
+                    maxY = parentRect.y + parentRect.height;
+                }
+
+                if( nestedDialog )
+                {
+                    const rect = nestedDialog.getBoundingClientRect();
+                    topPosition -= rect.y;
+                }
+
+                parent.style.top = ( topPosition + selectRoot.offsetHeight ) + 'px';
+
+                const showAbove = ( topPosition + listHeight ) > maxY;
+                if( showAbove )
+                {
+                    parent.style.top = ( topPosition - listHeight ) + 'px';
+                    parent.classList.add( "place-above" );
+                }
             }
-            return Math.max( maxWidth * 10, 80 );
+
+            // Manage horizontal aspect
+            {
+                const listWidth = parent.offsetWidth;
+                let leftPosition = rect.x;
+
+                parent.style.minWidth = ( rect.width ) + 'px';
+
+                if( nestedDialog )
+                {
+                    const rect = nestedDialog.getBoundingClientRect();
+                    leftPosition -= rect.x;
+                }
+
+                parent.style.left = ( leftPosition ) + 'px';
+
+                let maxX = window.innerWidth;
+
+                if( overflowContainer )
+                {
+                    const parentRect = overflowContainer.getBoundingClientRect();
+                    maxX = parentRect.x + parentRect.width;
+                }
+
+                const showLeft = ( leftPosition + listWidth ) > maxX;
+                if( showLeft )
+                {
+                    parent.style.left = ( leftPosition - ( listWidth - rect.width ) ) + 'px';
+                }
+            }
         };
 
-        let selectedOption = this.addButton( null, buttonName, ( value, event ) => {
+        let selectedOption = new Button( null, buttonName, ( value, event ) => {
             if( list.unfocus_event )
             {
                 delete list.unfocus_event;
                 return;
             }
 
-            list.toggleAttribute( "hidden" );
-            list.classList.remove( "place-above" );
+            listDialog.classList.remove( "place-above" );
+            const opened = listDialog.hasAttribute( "open" );
 
-            const listHeight = 26 * values.length;
-            const rect = selectedOption.getBoundingClientRect();
-            const topPosition = rect.y;
-
-            let maxY = window.innerHeight;
-            let overflowContainer = list.getParentArea();
-
-            if( overflowContainer )
+            if( !opened )
             {
-                const parentRect = overflowContainer.getBoundingClientRect();
-                maxY = parentRect.y + parentRect.height;
+                listDialog.show();
+                _placeOptions( listDialog );
+            }
+            else
+            {
+                listDialog.close();
             }
 
-            list.style.top = ( topPosition + selectedOption.offsetHeight ) + 'px';
-
-            const showAbove = ( topPosition + listHeight ) > maxY;
-            if( showAbove )
+            if( filter )
             {
-                list.style.top = ( topPosition - listHeight ) + 'px';
-                list.classList.add( "place-above" );
+                filter.querySelector( "input" ).focus();
             }
 
-            list.style.width = (event.currentTarget.clientWidth) + 'px';
-            list.style.minWidth = (_getMaxListWidth()) + 'px';
-            list.focus();
-        }, { buttonClass: "array", skipInlineCount: true });
+        }, { buttonClass: "array", skipInlineCount: true, disabled: options.disabled } );
 
-        this.clearQueue();
+        container.appendChild( selectedOption.root );
 
-        selectedOption.style.width = "100%";
+        selectedOption.root.style.width = "100%";
 
         selectedOption.refresh = (v) => {
-            if(selectedOption.querySelector("span").innerText == "")
-                selectedOption.querySelector("span").innerText = v;
+            const buttonSpan = selectedOption.root.querySelector("span");
+            if( buttonSpan.innerText == "" )
+            {
+                buttonSpan.innerText = v;
+            }
             else
-                selectedOption.querySelector("span").innerHTML = selectedOption.querySelector("span").innerHTML.replaceAll(selectedOption.querySelector("span").innerText, v);
+            {
+                buttonSpan.innerHTML = buttonSpan.innerHTML.replaceAll( buttonSpan.innerText, v );
+            }
         }
 
-        // Add dropdown options container
+        // Add select options container
+
+        const listDialog = document.createElement( 'dialog' );
+        listDialog.className = "lexselectoptions";
+
         let list = document.createElement( 'ul' );
         list.tabIndex = -1;
         list.className = "lexoptions";
-        list.hidden = true;
+        listDialog.appendChild( list )
 
         list.addEventListener( 'focusout', function( e ) {
             e.stopPropagation();
             e.stopImmediatePropagation();
-            if( e.relatedTarget === selectedOption.querySelector( 'button' ) )
+            if( e.relatedTarget === selectedOption.root.querySelector( 'button' ) )
             {
                 this.unfocus_event = true;
                 setTimeout( () => delete this.unfocus_event, 200 );
@@ -5080,97 +6052,126 @@ class Panel {
             {
                 return;
             }
-            this.toggleAttribute( 'hidden', true );
+            listDialog.close();
         });
 
         // Add filter options
         let filter = null;
-        if(options.filter ?? false)
+        if( options.filter ?? false )
         {
-            filter = this._addFilter("Search option", {container: list, callback: this._search_options.bind(list, values)});
-        }
+            const filterOptions = LX.deepCopy( options );
+            filterOptions.placeholder = filterOptions.placeholder ?? "Search...";
+            filterOptions.skipWidget = filterOptions.skipWidget ?? true;
+            filterOptions.trigger = "input";
+            filterOptions.icon = "fa-solid fa-magnifying-glass";
+            filterOptions.className = "lexfilter noname";
 
-        // Create option list to empty it easily..
-        const listOptions = document.createElement('span');
-        list.appendChild( listOptions );
+            let filter = new TextInput(null, options.filterValue ?? "", ( v ) => {
+                const filteredOptions = this._filterOptions( values, v );
+                list.refresh( filteredOptions );
+            }, filterOptions );
+            filter.root.querySelector( ".lextext" ).classList.remove( "lextext" );
 
-        if( filter )
-        {
-            list.prepend( filter );
-            listOptions.style.height = "calc(100% - 25px)";
+            const input = filter.root.querySelector( "input" );
 
-            filter.addEventListener('focusout', function( e ) {
+            input.addEventListener('focusout', function( e ) {
                 if (e.relatedTarget && e.relatedTarget.tagName == "UL" && e.relatedTarget.classList.contains("lexoptions"))
                 {
                     return;
                 }
-                list.toggleAttribute( 'hidden', true );
+                listDialog.close();
             });
+
+            list.appendChild( filter.root );
         }
 
-        // Add dropdown options list
-        list.refresh = options => {
+        // Create option list to empty it easily..
+        const listOptions = document.createElement('span');
+        listOptions.className = "lexselectinnerlist";
+        list.appendChild( listOptions );
+
+        // Add select options list
+        list.refresh = ( options ) => {
 
             // Empty list
             listOptions.innerHTML = "";
 
-            for(let i = 0; i < options.length; i++)
+            if( !options.length )
             {
-                let iValue = options[i];
-                let li = document.createElement('li');
-                let option = document.createElement('div');
+                let iValue = options.emptyMsg ?? "No options found.";
+
+                let option = document.createElement( "div" );
                 option.className = "option";
-                li.appendChild(option);
-                li.addEventListener("click", (e) => {
-                    element.querySelector(".lexoptions").toggleAttribute('hidden', true);
-                    const currentSelected = element.querySelector(".lexoptions .selected");
-                    if(currentSelected) currentSelected.classList.remove("selected");
-                    value = e.currentTarget.getAttribute("value");
-                    e.currentTarget.toggleAttribute('hidden', false);
-                    e.currentTarget.classList.add("selected");
-                    selectedOption.refresh(value);
+                option.innerHTML = iValue;
 
-                    let btn = element.querySelector(".lexwidgetname .lexicon");
-                    if(btn) btn.style.display = (value != wValue.iValue ? "block" : "none");
-                    that._trigger( new IEvent(name, value, null), callback );
+                let li = document.createElement( "li" );
+                li.className = "lexselectitem empty";
+                li.appendChild( option );
 
-                    // Reset filter
-                    if(filter)
-                    {
-                        filter.querySelector('input').value = "";
-                        this._search_options.bind(list, values, "")();
-                    }
-                });
+                listOptions.appendChild( li );
+                return;
+            }
+
+            for( let i = 0; i < options.length; i++ )
+            {
+                let iValue = options[ i ];
+                let li = document.createElement( "li" );
+                let option = document.createElement( "div" );
+                option.className = "option";
+                li.appendChild( option );
+
+                const onSelect = e => {
+                    this.set( e.currentTarget.getAttribute( "value" ), false, e );
+                    listDialog.close();
+                };
+
+                li.addEventListener( "click", onSelect );
 
                 // Add string option
-                if( iValue.constructor != Object ) {
-                    option.style.flexDirection = 'unset';
-                    option.innerHTML = "</a><span>" + iValue + "</span><a class='fa-solid fa-check'>";
-                    option.value = iValue;
-                    li.setAttribute("value", iValue);
-                    li.className = "lexdropdownitem";
-                    if( i == (options.length - 1) ) li.className += " last";
-                    if(iValue == value) {
-                        li.classList.add("selected");
-                        wValue.innerHTML = iValue;
+                if( iValue.constructor != Object )
+                {
+                    const asLabel = ( iValue[ 0 ] === '@' );
+
+                    if( !asLabel )
+                    {
+                        option.innerHTML = "</a><span>" + iValue + "</span><a class='fa-solid fa-check'>";
+                        option.value = iValue;
+                        li.setAttribute( "value", iValue );
+
+                        if( iValue == value )
+                        {
+                            li.classList.add( "selected" );
+                            wValue.innerHTML = iValue;
+                        }
                     }
+                    else
+                    {
+                        option.innerHTML = "<span>" + iValue.substr( 1 ) + "</span>";
+                        li.removeEventListener( "click", onSelect );
+                    }
+
+                    li.classList.add( asLabel ? "lexselectlabel" : "lexselectitem" );
                 }
-                else {
+                else
+                {
                     // Add image option
-                    let img = document.createElement("img");
+                    let img = document.createElement( "img" );
                     img.src = iValue.src;
-                    li.setAttribute("value", iValue.value);
+                    li.setAttribute( "value", iValue.value );
                     li.className = "lexlistitem";
                     option.innerText = iValue.value;
                     option.className += " media";
-                    option.prepend(img);
+                    option.prepend( img );
 
-                    option.setAttribute("value", iValue.value);
-                    option.setAttribute("data-index", i);
-                    option.setAttribute("data-src", iValue.src);
-                    option.setAttribute("title", iValue.value);
-                    if(value == iValue.value)
-                        li.classList.add("selected");
+                    option.setAttribute( "value", iValue.value );
+                    option.setAttribute( "data-index", i );
+                    option.setAttribute( "data-src", iValue.src );
+                    option.setAttribute( "title", iValue.value );
+
+                    if( value == iValue.value )
+                    {
+                        li.classList.add( "selected" );
+                    }
                 }
 
                 listOptions.appendChild( li );
@@ -5179,168 +6180,141 @@ class Panel {
 
         list.refresh( values );
 
-        container.appendChild( list );
-        element.appendChild( container );
+        container.appendChild( listDialog );
+        this.root.appendChild( container );
 
         // Remove branch padding and margins
-        if( !widget.name )
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
         {
-            element.className += " noname";
+            this.root.className += " noname";
             container.style.width = "100%";
         }
-
-        return widget;
     }
 
-    /**
-     * @method addCurve
-     * @param {String} name Widget name
-     * @param {Array of Array} values Array of 2N Arrays of each value of the curve
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * skipReset: Don't add the reset value button when value changes
-     * bgColor: Widget background color
-     * pointsColor: Curve points color
-     * lineColor: Curve line color
-     * noOverlap: Points do not overlap, replacing themselves if necessary
-     * allowAddValues: Support adding values on click
-     * smooth: Curve smoothness
-     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
-    */
+    _filterOptions( options, value ) {
 
-    addCurve( name, values, callback, options = {} ) {
+        // Push to right container
+        const emptyFilter = !value.length;
+        let filteredOptions = [];
 
-        if(!name) {
-            throw("Set Widget Name!");
+        // Add widgets
+        for( let i = 0; i < options.length; i++ )
+        {
+            let o = options[ i ];
+            if( !emptyFilter )
+            {
+                let toCompare = ( typeof o == 'string' ) ? o : o.value;
+                const filterWord = value.toLowerCase();
+                const name = toCompare.toLowerCase();
+                if( !name.includes( filterWord ) ) continue;
+            }
+
+            filteredOptions.push( o );
         }
 
-        let that = this;
-        let widget = this.create_widget(name, Widget.CURVE, options);
+        return filteredOptions;
+    }
+}
 
-        widget.onGetValue = () => {
-            return JSON.parse(JSON.stringify(curveInstance.element.value));
-        };
+LX.Select = Select;
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( newValue != curveInstance.element.value ? "block" : "none" );
-            curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
-            curveInstance.redraw();
-            if( !skipCallback ) that._trigger( new IEvent( name, curveInstance.element.value, null ), callback );
-        };
+/**
+ * @class Curve
+ * @description Curve Widget
+ */
 
-        let element = widget.domEl;
+class Curve extends Widget {
+
+    constructor( name, values, callback, options = {} ) {
+
         let defaultValues = JSON.parse( JSON.stringify( values ) );
 
-        // Add reset functionality
-        if( !(options.skipReset ?? false) )
-        {
-            Panel._add_reset_property(element.domName, function(e) {
-                this.style.display = "none";
-                curveInstance.element.value = JSON.parse( JSON.stringify( defaultValues ) );
-                curveInstance.redraw();
-                that._trigger( new IEvent( name, curveInstance.element.value, e ), callback );
-            });
-        }
+        super( Widget.CURVE, name, defaultValues, options );
 
-        // Add widget value
+        this.onGetValue = () => {
+            return JSON.parse(JSON.stringify( curveInstance.element.value ));
+        };
 
-        var container = document.createElement( 'div' );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
+            curveInstance.redraw();
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, curveInstance.element.value, event ), callback );
+            }
+        };
+
+        var container = document.createElement( "div" );
         container.className = "lexcurve";
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        container.style.width = this.name ? "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")" : "100%";
 
         options.callback = (v, e) => {
-            let btn = element.querySelector(".lexwidgetname .lexicon");
-            if(btn) btn.style.display = (v != defaultValues ? "block" : "none");
-            that._trigger( new IEvent(name, v, e), callback );
+            this._trigger( new IEvent( name, v, e ), callback );
         };
 
         options.name = name;
 
-        let curveInstance = new Curve( this, values, options );
+        let curveInstance = new CanvasCurve( values, options );
         container.appendChild( curveInstance.element );
-        element.appendChild( container );
+        this.root.appendChild( container );
 
         // Resize
-        widget.onresize = curveInstance.redraw.bind( curveInstance );
-        widget.curveInstance = curveInstance;
+        this.onresize = curveInstance.redraw.bind( curveInstance );
+        this.curveInstance = curveInstance;
 
         doAsync(() => {
             curveInstance.canvas.width = container.offsetWidth;
             curveInstance.redraw();
         });
-
-        return widget;
     }
+}
 
-    /**
-     * @method addDial
-     * @param {String} name Widget name
-     * @param {Array of Array} values Array of 2N Arrays of each value of the dial
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * skipReset: Don't add the reset value button when value changes
-     * bgColor: Widget background color
-     * pointsColor: Curve points color
-     * lineColor: Curve line color
-     * noOverlap: Points do not overlap, replacing themselves if necessary
-     * allowAddValues: Support adding values on click
-     * smooth: Curve smoothness
-     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
-    */
+LX.Curve = Curve;
 
-    addDial( name, values, callback, options = {} ) {
+/**
+ * @class Dial
+ * @description Dial Widget
+ */
 
-        let that = this;
-        let widget = this.create_widget(name, Widget.DIAL, options);
+class Dial extends Widget {
 
-        widget.onGetValue = () => {
-            return JSON.parse(JSON.stringify(curveInstance.element.value));
-        };
+    constructor( name, values, callback, options = {} ) {
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( newValue != curveInstance.element.value ? "block" : "none" );
-            curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
-            curveInstance.redraw();
-            if( !skipCallback ) that._trigger( new IEvent( name, curveInstance.element.value, null ), callback );
-        };
-
-        let element = widget.domEl;
         let defaultValues = JSON.parse( JSON.stringify( values ) );
 
-        // Add reset functionality
-        if( widget.name && !(options.skipReset ?? false) )
-        {
-            Panel._add_reset_property(element.domName, function(e) {
-                this.style.display = "none";
-                curveInstance.element.value = JSON.parse( JSON.stringify( defaultValues ) );
-                curveInstance.redraw();
-                that._trigger( new IEvent( name, curveInstance.element.value, e ), callback );
-            });
-        }
+        super( Widget.DIAL, name, defaultValues, options );
 
-        // Add widget value
+        this.onGetValue = () => {
+            return JSON.parse( JSON.stringify( curveInstance.element.value ) );
+        };
 
-        var container = document.createElement( 'div' );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
+            curveInstance.redraw();
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, curveInstance.element.value, event ), callback );
+            }
+        };
+
+        var container = document.createElement( "div" );
         container.className = "lexcurve";
-        container.style.width = widget.name ? "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")" : '100%';
+        container.style.width = this.name ? "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")" : "100%";
 
-        options.callback = (v, e) => {
-            let btn = element.querySelector(".lexwidgetname .lexicon");
-            if(btn) btn.style.display = (v != defaultValues ? "block" : "none");
-            that._trigger( new IEvent(name, v, e), callback );
+        options.callback = ( v, e ) => {
+            this._trigger( new IEvent( name, v, e ), callback );
         };
 
         options.name = name;
 
-        let curveInstance = new Dial( this, values, options );
+        let curveInstance = new CanvasDial( this, values, options );
         container.appendChild( curveInstance.element );
-        element.appendChild( container );
+        this.root.appendChild( container );
 
         // Resize
-        widget.onresize = curveInstance.redraw.bind( curveInstance );
-        widget.curveInstance = curveInstance;
+        this.onresize = curveInstance.redraw.bind( curveInstance );
+        this.curveInstance = curveInstance;
 
         doAsync(() => {
             curveInstance.element.style.height = curveInstance.element.offsetWidth + "px";
@@ -5349,54 +6323,38 @@ class Panel {
             curveInstance.canvas.height = curveInstance.canvas.width;
             curveInstance.redraw();
         });
-
-        return widget;
     }
+}
 
-    /**
-     * @method addLayers
-     * @param {String} name Widget name
-     * @param {Number} value Flag value by default option
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     */
+LX.Curve = Curve;
 
-    addLayers( name, value, callback, options = {} ) {
+/**
+ * @class Layers
+ * @description Layers Widget
+ */
 
-        if(!name) {
-            throw("Set Widget Name!");
-        }
+class Layers extends Widget {
 
-        let that = this;
-        let widget = this.create_widget(name, Widget.LAYERS, options);
-        widget.onGetValue = () => {
-            return element.value;
-        };
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector(".lexwidgetname .lexicon");
-            if(btn) btn.style.display = (newValue != defaultValue ? "block" : "none");
-            value = element.value = newValue;
-            setLayers();
-            if( !skipCallback ) that._trigger( new IEvent(name, value), callback );
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.LAYERS, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
         };
 
-        let element = widget.domEl;
-
-        // Add reset functionality
-        Panel._add_reset_property(element.domName, function(e) {
-            this.style.display = "none";
-            value = element.value = defaultValue;
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            value = newValue;
             setLayers();
-            that._trigger( new IEvent(name, value, e), callback );
-        });
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent(name, value, event), callback );
+            }
+        };
 
-        // Add widget value
-
-        var container = document.createElement('div');
+        var container = document.createElement( "div" );
         container.className = "lexlayers";
         container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
-
-        let defaultValue = element.value = value;
 
         const setLayers = () =>  {
 
@@ -5404,82 +6362,76 @@ class Panel {
 
             let binary = value.toString( 2 );
             let nbits = binary.length;
+
             // fill zeros
-            for(var i = 0; i < (16 - nbits); ++i) {
+            for( let i = 0; i < ( 16 - nbits ); ++i )
+            {
                 binary = '0' + binary;
             }
 
             for( let bit = 0; bit < 16; ++bit )
             {
-                let layer = document.createElement('div');
+                let layer = document.createElement( "div" );
                 layer.className = "lexlayer";
+
                 if( value != undefined )
                 {
                     const valueBit = binary[ 16 - bit - 1 ];
-                    if(valueBit != undefined && valueBit == '1')
-                        layer.classList.add('selected');
+                    if( valueBit != undefined && valueBit == '1' )
+                    {
+                        layer.classList.add( "selected" );
+                    }
                 }
+
                 layer.innerText = bit + 1;
                 layer.title = "Bit " + bit + ", value " + (1 << bit);
                 container.appendChild( layer );
 
-                layer.addEventListener("click", e => {
-
+                layer.addEventListener( "click", e => {
                     e.stopPropagation();
                     e.stopImmediatePropagation();
-                    e.target.classList.toggle('selected');
-                    value ^= ( 1 << bit );
-                    element.value = value;
-
-                    let btn = element.querySelector(".lexwidgetname .lexicon");
-                    if(btn) btn.style.display = (value != defaultValue ? "block" : "none");
-
-                    this._trigger( new IEvent(name, value, e), callback );
-                });
+                    e.target.classList.toggle( "selected" );
+                    const newValue = value ^ ( 1 << bit );
+                    this.set( newValue, false, e );
+                } );
             }
-
         };
 
         setLayers();
 
-        element.appendChild(container);
-
-        return widget;
+        this.root.appendChild( container );
     }
+}
 
-    /**
-     * @method addArray
-     * @param {String} name Widget name
-     * @param {Array} values By default values in the array
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * innerValues (Array): Use dropdown mode and use values as options
-     */
+LX.Layers = Layers;
 
-    addArray( name, values = [], callback, options = {} ) {
+/**
+ * @class ItemArray
+ * @description ItemArray Widget
+ */
 
-        if(!name) {
-            throw("Set Widget Name!");
-        }
+class ItemArray extends Widget {
 
-        let widget = this.create_widget(name, Widget.ARRAY, options);
-        widget.onGetValue = () => {
-            let array_inputs = element.querySelectorAll("input");
-            let values = [];
-            for( var v of array_inputs )
-            values.push( v.value );
+    constructor( name, values = [], callback, options = {} ) {
+
+        super( Widget.ARRAY, name, null, options );
+
+        this.onGetValue = () => {
             return values;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             values = newValue;
-            updateItems();
-            if( !skipCallback ) this._trigger( new IEvent(name, values, null), callback );
+            this._updateItems();
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, values, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
-        element.style.flexWrap = "wrap";
+        this.root.style.flexWrap = "wrap";
 
-        // Add dropdown array button
+        // Add open array button
 
         const itemNameWidth = "4%";
 
@@ -5487,118 +6439,144 @@ class Panel {
         container.className = "lexarray";
         container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-        this.queue( container );
-
-        const angle_down = `<a class='fa-solid fa-angle-down' style='float:right; margin-right: 3px;'></a>`;
+        const angleDown = `<a class='fa-solid fa-angle-down' style='float:right; margin-right: 3px;'></a>`;
 
         let buttonName = "Array (size " + values.length + ")";
-        buttonName += angle_down;
-        this.addButton(null, buttonName, () => {
-            element.querySelector(".lexarrayitems").toggleAttribute('hidden');
+        buttonName += angleDown;
+
+        const toggleButton = new Button(null, buttonName, () => {
+            this.root.querySelector(".lexarrayitems").toggleAttribute('hidden');
         }, { buttonClass: 'array' });
 
-        this.clearQueue();
+        container.appendChild( toggleButton.root );
 
         // Show elements
 
-        let array_items = document.createElement('div');
-        array_items.className = "lexarrayitems";
-        array_items.toggleAttribute('hidden',  true);
+        let arrayItems = document.createElement( "div" );
+        arrayItems.className = "lexarrayitems";
+        arrayItems.toggleAttribute( "hidden",  true );
 
-        element.appendChild(container);
-        element.appendChild(array_items);
+        this.root.appendChild( container );
+        this.root.appendChild( arrayItems );
 
-        const updateItems = () => {
+        this._updateItems = () => {
 
             // Update num items
-            let buttonEl = element.querySelector(".lexbutton.array span");
+            let buttonEl = this.root.querySelector(".lexbutton.array span");
             buttonEl.innerHTML = "Array (size " + values.length + ")";
-            buttonEl.innerHTML += angle_down;
+            buttonEl.innerHTML += angleDown;
 
             // Update inputs
-            array_items.innerHTML = "";
-
-            this.queue( array_items );
+            arrayItems.innerHTML = "";
 
             for( let i = 0; i < values.length; ++i )
             {
-                const value = values[i];
-                let baseclass = options.innerValues ? 'dropdown' : value.constructor;
+                const value = values[ i ];
+                let baseclass = options.innerValues ? 'select' : value.constructor;
 
-                this.sameLine(2);
+                // TODO
+                // this.sameLine( 2 );
 
-                switch(baseclass)
+                let widget = null;
+
+                switch( baseclass  )
                 {
                     case String:
-                        this.addText(i + "", value, function(value, event) {
-                            values[i] = value;
+                        widget = new TextInput(i + "", value, function(value, event) {
+                            values[ i ] = value;
                             callback( values );
                         }, { nameWidth: itemNameWidth, inputWidth: "95%", skipReset: true });
                         break;
                     case Number:
-                        this.addNumber(i + "", value, function(value, event) {
-                            values[i] = value;
+                        widget = new NumberInput(i + "", value, function(value, event) {
+                            values[ i ] = value;
                             callback( values );
                         }, { nameWidth: itemNameWidth, inputWidth: "95%", skipReset: true });
                         break;
-                    case 'dropdown':
-                        this.addDropdown(i + "", options.innerValues, value, function(value, event) {
-                            values[i] = value;
+                    case 'select':
+                        widget = new Select(i + "", options.innerValues, value, function(value, event) {
+                            values[ i ] = value;
                             callback( values );
                         }, { nameWidth: itemNameWidth, inputWidth: "95%", skipReset: true });
                         break;
                 }
 
-                this.addButton( null, "<a class='lexicon fa-solid fa-trash'></a>", (v, event) => {
-                    values.splice(values.indexOf( value ), 1);
-                    updateItems();
+                console.assert( widget, `Value of type ${ baseclass } cannot be modified in ItemArray` );
+
+                arrayItems.appendChild( widget.root );
+
+                widget = new Button( null, "<a class='lexicon fa-solid fa-trash'></a>", ( v, event) => {
+                    values.splice( values.indexOf( value ), 1 );
+                    this._updateItems();
                     this._trigger( new IEvent(name, values, event), callback );
                 }, { title: "Remove item", className: 'micro'} );
+
+                arrayItems.appendChild( widget.root );
             }
 
             buttonName = "Add item";
             buttonName += "<a class='fa-solid fa-plus' style='float:right; margin-right: 3px; margin-top: 2px;'></a>";
-            this.addButton(null, buttonName, (v, event) => {
+
+            const addButton = new Button(null, buttonName, (v, event) => {
                 values.push( options.innerValues ? options.innerValues[ 0 ] : "" );
-                updateItems();
+                this._updateItems();
                 this._trigger( new IEvent(name, values, event), callback );
             }, { buttonClass: 'array' });
 
-            // Stop pushing to array_items
-            this.clearQueue();
+            arrayItems.appendChild( addButton.root );
         };
 
-        updateItems();
-
-        return widget;
+        this._updateItems();
     }
+}
 
-    /**
-     * @method addList
-     * @param {String} name Widget name
-     * @param {Array} values List values
-     * @param {String} value Selected list value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     */
+LX.ItemArray = ItemArray;
 
-    addList( name, values, value, callback, options = {} ) {
+/**
+ * @class List
+ * @description List Widget
+ */
 
-        let widget = this.create_widget( name, Widget.LIST, options );
+class List extends Widget {
 
-        widget.onGetValue = () => {
+    constructor( name, values, value, callback, options = {} ) {
+
+        super( Widget.LIST, name, value, options );
+
+        this.onGetValue = () => {
             return value;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             listContainer.querySelectorAll( '.lexlistitem' ).forEach( e => e.classList.remove( 'selected' ) );
-            const idx = values.indexOf( newValue );
-            if( idx == -1 ) return;
+
+            let idx = null;
+            for( let i = 0; i < values.length; ++i )
+            {
+                const v = values[ i ];
+                if( v == newValue || ( ( v.constructor == Array ) && ( v[ 0 ] == newValue ) ) )
+                {
+                    idx = i;
+                    break;
+                }
+            }
+
+            if( !idx )
+            {
+                console.error( `Cannot find item ${ newValue } in List.` );
+                return;
+            }
+
             listContainer.children[ idx ].classList.toggle( 'selected' );
             value = newValue;
-            if( !skipCallback ) this._trigger( new IEvent( name, newValue ), callback );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
         };
 
-        widget.updateValues = ( newValues ) => {
+        this._updateValues = ( newValues ) => {
 
             values = newValues;
             listContainer.innerHTML = "";
@@ -5629,65 +6607,54 @@ class Panel {
             }
         };
 
-        let element = widget.domEl;
-
         // Show list
 
         let listContainer = document.createElement( 'div' );
         listContainer.className = "lexlist";
         listContainer.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-        widget.updateValues( values );
+        this._updateValues( values );
 
         // Remove branch padding and margins
-        if( !widget.name ) {
-            element.className += " noname";
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
+        {
+            this.root.className += " noname";
             listContainer.style.width = "100%";
         }
 
-        element.appendChild( listContainer );
-
-        return widget;
+        this.root.appendChild( listContainer );
     }
+}
 
-    /**
-     * @method addTags
-     * @param {String} name Widget name
-     * @param {String} value Comma separated tags
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     */
+LX.List = List;
 
-    addTags( name, value, callback, options = {} ) {
+/**
+ * @class Tags
+ * @description Tags Widget
+ */
+
+class Tags extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
 
         value = value.replace( /\s/g, '' ).split( ',' );
-        let defaultValue = [].concat( value );
-        let widget = this.create_widget( name, Widget.TAGS, options );
 
-        widget.onGetValue = () => {
+        let defaultValue = [].concat( value );
+        super( Widget.TAGS, name, defaultValue, options );
+
+        this.onGetValue = () => {
             return [].concat( value );
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             value = [].concat( newValue );
-            create_tags();
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( newValue != defaultValue ? "block" : "none" );
-            if( !skipCallback ) that._trigger( new IEvent( name, value ), callback );
+            _generateTags();
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, value, event ), callback );
+            }
         };
-
-        let element = widget.domEl;
-        let that = this;
-
-        // Add reset functionality
-        if(widget.name)
-        {
-            Panel._add_reset_property(element.domName, function(e) {
-                this.style.display = "none";
-                value = [].concat(defaultValue);
-                create_tags();
-                that._trigger( new IEvent(name, value, e), callback );
-            });
-        }
 
         // Show tags
 
@@ -5695,7 +6662,7 @@ class Panel {
         tagsContainer.className = "lextags";
         tagsContainer.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-        const create_tags = () => {
+        const _generateTags = () => {
 
             tagsContainer.innerHTML = "";
 
@@ -5713,9 +6680,7 @@ class Panel {
                 removeButton.addEventListener( 'click', e => {
                     tag.remove();
                     value.splice( value.indexOf( tagName ), 1 );
-                    let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                    if( btn ) btn.style.display = ( value != defaultValue ? "block" : "none" );
-                    that._trigger( new IEvent( name, value, e ), callback );
+                    this.set( value, false, e );
                 } );
 
                 tagsContainer.appendChild( tag );
@@ -5726,175 +6691,148 @@ class Panel {
             tagInput.placeholder = "Add tag...";
             tagsContainer.appendChild( tagInput );
 
-            tagInput.onkeydown = function( e ) {
-                const val = this.value.replace(/\s/g, '');
+            tagInput.onkeydown = e => {
+                const val = tagInput.value.replace( /\s/g, '' );
                 if( e.key == ' ' || e.key == 'Enter' )
                 {
                     e.preventDefault();
                     if( !val.length || value.indexOf( val ) > -1 )
                         return;
                     value.push( val );
-                    create_tags();
-                    let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                    if(btn) btn.style.display = "block";
-                    that._trigger( new IEvent( name, value, e ), callback );
+                    this.set( value, false, e );
                 }
             };
 
             tagInput.focus();
         }
 
-        create_tags();
+        _generateTags();
 
         // Remove branch padding and margins
-        if( !widget.name )
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
         {
-            element.className += " noname";
+            this.root.className += " noname";
             tagsContainer.style.width = "100%";
         }
 
-        element.appendChild( tagsContainer );
-
-        return widget;
+        this.root.appendChild( tagsContainer );
     }
+}
 
-    /**
-     * @method addCheckbox
-     * @param {String} name Widget name
-     * @param {Boolean} value Value of the checkbox
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * suboptions: Callback to add widgets in case of TRUE value
-     * className: Customize colors
-     */
+LX.Tags = Tags;
 
-    addCheckbox( name, value, callback, options = {} ) {
+/**
+ * @class Checkbox
+ * @description Checkbox Widget
+ */
 
-        if( !name )
+class Checkbox extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        if( !name && !options.label )
         {
-            throw( "Set Widget Name!" );
+            throw( "Set Widget Name or at least a label!" );
         }
 
-        let widget = this.create_widget( name, Widget.CHECKBOX, options );
+        super( Widget.CHECKBOX, name, value, options );
 
-        widget.onGetValue = () => {
-            return checkbox.checked;
+        this.onGetValue = () => {
+            return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            if( checkbox.checked !== newValue )
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( newValue == value )
             {
-                checkbox.checked = newValue;
-                Panel._dispatch_event( checkbox, "change", skipCallback );
+                return;
+            }
+
+            checkbox.checked = value = newValue;
+
+            // Update suboptions menu
+            this.root.querySelector( ".lexcheckboxsubmenu" )?.toggleAttribute( 'hidden', !newValue );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
             }
         };
 
-        let element = widget.domEl;
-
-        // Add reset functionality
-        Panel._add_reset_property( element.domName, function() {
-            checkbox.checked = !checkbox.checked;
-            Panel._dispatch_event( checkbox, "change" );
-        });
-
-        // Add widget value
-
-        var container = document.createElement('div');
+        var container = document.createElement( "div" );
         container.className = "lexcheckboxcont";
 
-        let checkbox = document.createElement('input');
+        let checkbox = document.createElement( "input" );
         checkbox.type = "checkbox";
         checkbox.className = "lexcheckbox " + ( options.className ?? "" );
         checkbox.checked = value;
-        checkbox.iValue = value;
         checkbox.disabled = options.disabled ?? false;
 
-        let valueName = document.createElement( 'span' );
+        let valueName = document.createElement( "span" );
         valueName.className = "checkboxtext";
-        valueName.innerHTML = "On";
+        valueName.innerHTML = options.label ?? "On";
 
         container.appendChild( checkbox );
         container.appendChild( valueName );
 
         checkbox.addEventListener( "change" , e => {
-
-            const skipCallback = ( e.detail?.constructor == Number ? null : e.detail );
-
-            // Reset button (default value)
-            if( !skipCallback )
-            {
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = checkbox.checked != checkbox.iValue ? "block": "none";
-            }
-
-            // Open suboptions
-            let submenu = element.querySelector( ".lexcheckboxsubmenu" );
-            if( submenu ) submenu.toggleAttribute( 'hidden', !checkbox.checked );
-
-            if( !skipCallback ) this._trigger( new IEvent( name, checkbox.checked, e ), callback );
+            this.set( checkbox.checked, false, e );
         });
 
-        element.appendChild( container );
+        this.root.appendChild( container );
 
         if( options.suboptions )
         {
-            element.style.flexWrap = "wrap";
-            let suboptions = document.createElement('div');
+            this.root.style.flexWrap = "wrap";
+            let suboptions = document.createElement( "div" );
             suboptions.className = "lexcheckboxsubmenu";
-            suboptions.toggleAttribute( 'hidden', !checkbox.checked );
+            suboptions.toggleAttribute( "hidden", !checkbox.checked );
 
-            this.queue( suboptions );
-            options.suboptions.call(this, this);
-            this.clearQueue();
+            const suboptionsPanel = new Panel();
+            suboptionsPanel.queue( suboptions );
+            options.suboptions.call(this, suboptionsPanel);
+            suboptionsPanel.clearQueue();
 
-            element.appendChild( suboptions );
+            this.root.appendChild( suboptions );
         }
-
-        return widget;
     }
+}
 
-    /**
-     * @method addToggle
-     * @param {String} name Widget name
-     * @param {Boolean} value Value of the checkbox
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * suboptions: Callback to add widgets in case of TRUE value
-     * className: Customize colors
-     */
+LX.Checkbox = Checkbox;
 
-    addToggle( name, value, callback, options = {} ) {
+/**
+ * @class Toggle
+ * @description Toggle Widget
+ */
 
-        if( !name )
-        {
-            throw( "Set Widget Name!" );
-        }
+class Toggle extends Widget {
 
-        let widget = this.create_widget( name, Widget.TOGGLE, options );
+    constructor( name, value, callback, options = {} ) {
 
-        widget.onGetValue = () => {
+        super( Widget.TOGGLE, name, value, options );
+
+        this.onGetValue = () => {
             return toggle.checked;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            if( toggle.checked !== newValue )
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( newValue == value )
             {
-                toggle.checked = newValue;
-                Panel._dispatch_event( toggle, "change", skipCallback );
+                return;
+            }
+
+            toggle.checked = value = newValue;
+
+            // Update suboptions menu
+            this.root.querySelector( ".lextogglesubmenu" )?.toggleAttribute( 'hidden', !newValue );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
             }
         };
-
-        let element = widget.domEl;
-
-        // Add reset functionality
-        Panel._add_reset_property( element.domName, function() {
-            toggle.checked = !toggle.checked;
-            Panel._dispatch_event( toggle, "change" );
-        });
-
-        // Add widget value
 
         var container = document.createElement('div');
         container.className = "lextogglecont";
@@ -5914,79 +6852,147 @@ class Panel {
         container.appendChild( valueName );
 
         toggle.addEventListener( "change" , e => {
-
-            const skipCallback = ( e.detail?.constructor == Number ? null : e.detail );
-
-            // Reset button (default value)
-            if( !skipCallback )
-            {
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = toggle.checked != toggle.iValue ? "block": "none";
-            }
-
-            // Open suboptions
-            let submenu = element.querySelector( ".lextogglesubmenu" );
-            if( submenu ) submenu.toggleAttribute( 'hidden', !toggle.checked );
-
-            if( !skipCallback ) this._trigger( new IEvent( name, toggle.checked, e ), callback );
+            this.set( toggle.checked, false, e );
         });
 
-        element.appendChild( container );
+        this.root.appendChild( container );
 
         if( options.suboptions )
         {
-            element.style.flexWrap = "wrap";
+            this.root.style.flexWrap = "wrap";
             let suboptions = document.createElement('div');
             suboptions.className = "lextogglesubmenu";
             suboptions.toggleAttribute( 'hidden', !toggle.checked );
 
-            this.queue( suboptions );
-            options.suboptions.call(this, this);
-            this.clearQueue();
+            const suboptionsPanel = new Panel();
+            suboptionsPanel.queue( suboptions );
+            options.suboptions.call(this, suboptionsPanel);
+            suboptionsPanel.clearQueue();
 
-            element.appendChild( suboptions );
+            this.root.appendChild( suboptions );
         }
-
-        return widget;
     }
+}
 
-    /**
-     * @method addColor
-     * @param {String} name Widget name
-     * @param {String} value Default color (hex)
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * useRGB: The callback returns color as Array (r, g, b) and not hex [false]
-     */
+LX.Toggle = Toggle;
 
-    addColor( name, value, callback, options = {} ) {
+/**
+ * @class RadioGroup
+ * @description RadioGroup Widget
+ */
 
-        if( !name ) {
-            throw( "Set Widget Name!" );
+class RadioGroup extends Widget {
+
+    constructor( name, label, values, callback, options = {} ) {
+
+        super( Widget.RADIO, name, null, options );
+
+        let currentIndex = null;
+
+        this.onGetValue = () => {
+            const items = container.querySelectorAll( 'button' );
+            return currentIndex ? [ currentIndex, items[ currentIndex ] ] : undefined;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            newValue = newValue[ 0 ] ?? newValue; // Allow getting index of { index, value } tupple
+
+            console.assert( newValue.constructor == Number, "RadioGroup _value_ must be an Array index!" );
+
+            const items = container.querySelectorAll( 'button' );
+            items.forEach( b => { b.checked = false; b.classList.remove( "checked" ) } );
+
+            const optionItem = items[ newValue ];
+            optionItem.checked = !optionItem.checked;
+            optionItem.classList.toggle( "checked" );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( null, [ newValue, values[ newValue ] ], event ), callback );
+            }
+        };
+
+        var container = document.createElement( 'div' );
+        container.className = "lexradiogroup " + ( options.className ?? "" );
+
+        let labelSpan = document.createElement( 'span' );
+        labelSpan.innerHTML = label;
+        container.appendChild( labelSpan );
+
+        for( let i = 0; i < values.length; ++i )
+        {
+            const optionItem = document.createElement( 'div' );
+            optionItem.className = "lexradiogroupitem";
+            container.appendChild( optionItem );
+
+            const optionButton = document.createElement( 'button' );
+            optionButton.className = "lexbutton";
+            optionButton.disabled = options.disabled ?? false;
+            optionItem.appendChild( optionButton );
+
+            optionButton.addEventListener( "click", ( e ) => {
+                this.set( i, false, e );
+            } );
+
+            const checkedSpan = document.createElement( 'span' );
+            optionButton.appendChild( checkedSpan );
+
+            const optionLabel = document.createElement( 'span' );
+            optionLabel.innerHTML = values[ i ];
+            optionItem.appendChild( optionLabel );
         }
 
-        let widget = this.create_widget( name, Widget.COLOR, options );
+        if( options.selected )
+        {
+            console.assert( options.selected.constructor == Number, "RadioGroup _selected_ must be an Array index!" );
+            currentIndex = options.selected;
+            this.set( currentIndex, true );
+        }
 
-        widget.onGetValue = () => {
-            return color.value;
+        this.root.appendChild( container );
+    }
+}
+
+LX.RadioGroup = RadioGroup;
+
+/**
+ * @class ColorInput
+ * @description ColorInput Widget
+ */
+
+class ColorInput extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        value = ( value.constructor === Array ) ? rgbToHex( value ) : value;
+
+        super( Widget.COLOR, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            color.value = newValue;
-            Panel._dispatch_event( color, "input", skipCallback );
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( color.useRGB )
+            {
+                newValue = hexToRgb( newValue );
+            }
+
+            // Means it was called from the color input listener, not the text
+            if( event )
+            {
+                textWidget.set( newValue, true, event );
+            }
+
+            color.value = value = newValue;
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
         };
-
-        let element = widget.domEl;
-        let change_from_input = false;
-
-        // Add reset functionality
-        Panel._add_reset_property( element.domName, function() {
-            this.style.display = "none";
-            color.value = color.iValue;
-            Panel._dispatch_event( color, "input" );
-        });
-
-        // Add widget value
 
         var container = document.createElement( 'span' );
         container.className = "lexcolor";
@@ -5998,94 +7004,172 @@ class Panel {
         color.className = "colorinput";
         color.id = "color" + simple_guidGenerator();
         color.useRGB = options.useRGB ?? false;
-        color.value = color.iValue = value.constructor === Array ? rgbToHex( value ) : value;
+        color.value = color.iValue = value;
 
-        if( options.disabled ) {
+        if( options.disabled )
+        {
             color.disabled = true;
         }
 
         color.addEventListener( "input", e => {
-            let val = e.target.value;
-
-            const skipCallback = e.detail;
-
-            // Change value (always hex)
-            if( !change_from_input )
-                text_widget.set( val );
-
-            // Reset button (default value)
-            if( !skipCallback )
-            {
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = val != color.iValue ? "block": "none";
-            }
-
-            if( color.useRGB )
-                val = hexToRgb( val );
-
-            if( !skipCallback ) this._trigger( new IEvent( name, val, e ), callback );
+            this.set( e.target.value, false, e );
         }, false );
 
         container.appendChild( color );
 
-        this.queue( container );
-
-        const text_widget = this.addText( null, color.value, v => {
-            change_from_input = true;
-            widget.set( v );
-            change_from_input = false;
+        const textWidget = new TextInput( null, color.value, v => {
+            this.set( v );
         }, { width: "calc( 100% - 32px )"});
 
-        text_widget.domEl.style.marginLeft = "4px";
+        textWidget.root.style.marginLeft = "4px";
 
-        this.clearQueue();
+        container.appendChild( textWidget.root );
 
-        element.appendChild( container );
-
-        return widget;
+        this.root.appendChild( container );
     }
+}
 
-    /**
-     * @method addNumber
-     * @param {String} name Widget name
-     * @param {Number} value Default number value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * step: Step of the input
-     * precision: The number of digits to appear after the decimal point
-     * min, max: Min and Max values for the input
-     * skipSlider: If there are min and max values, skip the slider
-     * units: Unit as string added to the end of the value
-     * onPress: Callback function on mouse down
-     * onRelease: Callback function on mouse up
-     */
+LX.ColorInput = ColorInput;
 
-    addNumber( name, value, callback, options = {} ) {
+/**
+ * @class RangeInput
+ * @description RangeInput Widget
+ */
 
-        let widget = this.create_widget( name, Widget.NUMBER, options );
+class RangeInput extends Widget {
 
-        widget.onGetValue = () => {
-            return +vecinput.value;
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.RANGE, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            vecinput.value = round( newValue, options.precision );
-            Panel._dispatch_event( vecinput, "change", skipCallback );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( isNaN( newValue ) )
+            {
+                return;
+            }
+
+            slider.value = value = clamp( +newValue, +slider.min, +slider.max );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, options.left ? ( ( +slider.max ) - value + ( +slider.min ) ) : value, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
+        var container = document.createElement( 'div' );
+        container.className = "lexrange";
+        container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-        // add reset functionality
-        if( widget.name ) {
-            Panel._add_reset_property( element.domName, function() {
-                this.style.display = "none";
-                vecinput.value = vecinput.iValue;
-                Panel._dispatch_event( vecinput, "change" );
-            });
+        let slider = document.createElement( 'input' );
+        slider.className = "lexrangeslider " + ( options.className ?? "" );
+        slider.value = slider.iValue = value;
+        slider.min = options.min ?? 0;
+        slider.max = options.max ?? 100;
+        slider.step = options.step ?? 1;
+        slider.type = "range";
+        slider.disabled = options.disabled ?? false;
+
+        if( options.left ?? false )
+        {
+            slider.classList.add( "left" );
         }
 
-        // add widget value
+        if( !( options.fill ?? true ) )
+        {
+            slider.classList.add( "no-fill" );
+        }
+
+        slider.addEventListener( "input", e => {
+            this.set( e.target.valueAsNumber, false, e );
+        }, { passive: false });
+
+        slider.addEventListener( "mousedown", function( e ) {
+            if( options.onPress )
+            {
+                options.onPress.bind( slider )( e, slider );
+            }
+        }, false );
+
+        slider.addEventListener( "mouseup", function( e ) {
+            if( options.onRelease )
+            {
+                options.onRelease.bind( slider )( e, slider );
+            }
+        }, false );
+
+        // Method to change min, max, step parameters
+        this.setLimits = ( newMin, newMax, newStep ) => {
+            slider.min = newMin ?? slider.min;
+            slider.max = newMax ?? slider.max;
+            slider.step = newStep ?? slider.step;
+            Widget._dispatchEvent( slider, "input", true );
+        };
+
+        if( value.constructor == Number )
+        {
+            value = clamp( value, +slider.min, +slider.max );
+        }
+
+        container.appendChild( slider );
+        this.root.appendChild( container );
+
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
+        {
+            this.root.className += " noname";
+            container.style.width = "100%";
+        }
+    }
+}
+
+LX.RangeInput = RangeInput;
+
+/**
+ * @class NumberInput
+ * @description NumberInput Widget
+ */
+
+class NumberInput extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.NUMBER, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( isNaN( newValue ) )
+            {
+                return;
+            }
+
+            value = clamp( +newValue, +vecinput.min, +vecinput.max );
+            vecinput.value = value = round( value, options.precision );
+
+            // Update slider!
+            if( box.querySelector( ".lexinputslider" ) )
+            {
+                box.querySelector( ".lexinputslider" ).value = value;
+            }
+
+            if( options.units )
+            {
+                vecinput.unitSpan.style.left = measureRealWidth( value ) + "px";
+            }
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, value, event ), callback );
+            }
+        };
 
         var container = document.createElement( 'div' );
         container.className = "lexnumber";
@@ -6141,10 +7225,8 @@ class Panel {
             slider.type = "range";
             slider.value = value;
 
-            slider.addEventListener( "input", function( e ) {
-                let new_value = +this.valueAsNumber;
-                vecinput.value = round( new_value, options.precision );
-                Panel._dispatch_event( vecinput, "change" );
+            slider.addEventListener( "input", ( e ) => {
+                this.set( slider.valueAsNumber, false, e );
             }, false );
 
             slider.addEventListener( "mousedown", function( e ) {
@@ -6164,89 +7246,55 @@ class Panel {
             box.appendChild( slider );
 
             // Method to change min, max, step parameters
-            widget.setLimits = ( newMin, newMax, newStep ) => {
+            this.setLimits = ( newMin, newMax, newStep ) => {
                 vecinput.min = slider.min = newMin ?? vecinput.min;
                 vecinput.max = slider.max = newMax ?? vecinput.max;
                 vecinput.step = newStep ?? vecinput.step;
                 slider.step = newStep ?? slider.step;
-                Panel._dispatch_event( vecinput, "change", true );
+                this.set( value, true );
             };
         }
 
         vecinput.addEventListener( "input", function( e ) {
-            let new_value = +this.valueAsNumber;
-            vecinput.value = round( new_value, options.precision );
+            value = +this.valueAsNumber;
+            value = round( value, options.precision );
             if( options.units )
             {
                 vecinput.unitSpan.style.left = measureRealWidth( vecinput.value ) + "px";
             }
         }, false );
 
-        vecinput.addEventListener( "wheel", function( e ) {
+        vecinput.addEventListener( "wheel", e => {
             e.preventDefault();
-            if( this !== document.activeElement )
+            if( vecinput !== document.activeElement )
             {
                 return;
             }
             let mult = options.step ?? 1;
             if( e.shiftKey ) mult *= 10;
             else if( e.altKey ) mult *= 0.1;
-            let new_value = ( +this.valueAsNumber - mult * ( e.deltaY > 0 ? 1 : -1 ) );
-            this.value = round( new_value, options.precision );
-            Panel._dispatch_event(vecinput, "change");
+            value = ( +vecinput.valueAsNumber - mult * ( e.deltaY > 0 ? 1 : -1 ) );
+            this.set( value, false, e );
         }, { passive: false });
 
         vecinput.addEventListener( "change", e => {
-
-            if( isNaN( e.target.valueAsNumber ) )
-            {
-                return;
-            }
-
-            const skipCallback = e.detail;
-
-            let val = e.target.value = clamp( +e.target.valueAsNumber, +vecinput.min, +vecinput.max );
-            val = options.precision ? round( val, options.precision ) : val;
-
-            // Update slider!
-            if( box.querySelector( ".lexinputslider" ) )
-            {
-                box.querySelector( ".lexinputslider" ).value = val;
-            }
-
-            vecinput.value = val;
-
-            if( options.units )
-            {
-                vecinput.unitSpan.style.left = measureRealWidth( vecinput.value ) + "px";
-            }
-
-            // Reset button (default value)
-            if( !skipCallback )
-            {
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = val != vecinput.iValue ? "block": "none";
-            }
-
-            if( !skipCallback ) this._trigger( new IEvent( name, val, e ), callback );
+            this.set( vecinput.valueAsNumber, false, e );
         }, { passive: false });
 
         // Add drag input
 
-        vecinput.addEventListener( "mousedown", inner_mousedown );
-
         var that = this;
 
-        function inner_mousedown( e )
-        {
+        let innerMouseDown = e => {
+
             if( document.activeElement == vecinput )
             {
                 return;
             }
 
             var doc = that.root.ownerDocument;
-            doc.addEventListener( 'mousemove', inner_mousemove );
-            doc.addEventListener( 'mouseup', inner_mouseup );
+            doc.addEventListener( 'mousemove', innerMouseMove );
+            doc.addEventListener( 'mouseup', innerMouseUp );
             document.body.classList.add( 'noevents' );
             dragIcon.classList.remove( 'hidden' );
             e.stopImmediatePropagation();
@@ -6263,8 +7311,8 @@ class Panel {
             }
         }
 
-        function inner_mousemove( e )
-        {
+        let innerMouseMove = e => {
+
             let dt = -e.movementY;
 
             if ( dt != 0 )
@@ -6272,20 +7320,20 @@ class Panel {
                 let mult = options.step ?? 1;
                 if( e.shiftKey ) mult *= 10;
                 else if( e.altKey ) mult *= 0.1;
-                let new_value = ( +vecinput.valueAsNumber + mult * dt );
-                vecinput.value = ( +new_value ).toFixed( 4 ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' );
-                Panel._dispatch_event( vecinput, "change" );
+                value = ( +vecinput.valueAsNumber + mult * dt );
+                this.set( value, false, e );
+                // vecinput.value = ( +new_value ).toFixed( 4 ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' );
             }
 
             e.stopPropagation();
             e.preventDefault();
         }
 
-        function inner_mouseup( e )
-        {
+        let innerMouseUp = e => {
+
             var doc = that.root.ownerDocument;
-            doc.removeEventListener( 'mousemove', inner_mousemove );
-            doc.removeEventListener( 'mouseup', inner_mouseup );
+            doc.removeEventListener( 'mousemove', innerMouseMove );
+            doc.removeEventListener( 'mouseup', innerMouseUp );
             document.body.classList.remove( 'noevents' );
             dragIcon.classList.add( 'hidden' );
 
@@ -6300,35 +7348,39 @@ class Panel {
             }
         }
 
+        vecinput.addEventListener( "mousedown", innerMouseDown );
+
         container.appendChild( box );
-        element.appendChild( container );
+        this.root.appendChild( container );
 
         // Remove branch padding and margins
-        if( !widget.name )
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
         {
-            element.className += " noname";
+            this.root.className += " noname";
             container.style.width = "100%";
         }
-
-        return widget;
     }
+}
 
-    static VECTOR_COMPONENTS = { 0: 'x', 1: 'y', 2: 'z', 3: 'w' };
+LX.NumberInput = NumberInput;
 
-    _add_vector( num_components, name, value, callback, options = {} ) {
+/**
+ * @class Vector
+ * @description Vector Widget
+ */
 
-        num_components = clamp( num_components, 2, 4 );
-        value = value ?? new Array( num_components ).fill( 0 );
+class Vector extends Widget {
 
-        if( !name )
-        {
-            throw( "Set Widget Name!" );
-        }
+    constructor( numComponents, name, value, callback, options = {} ) {
 
-        let widget = this.create_widget( name, Widget.VECTOR, options );
+        numComponents = clamp( numComponents, 2, 4 );
+        value = value ?? new Array( numComponents ).fill( 0 );
 
-        widget.onGetValue = () => {
-            let inputs = element.querySelectorAll( "input" );
+        super( Widget.VECTOR, name, [].concat( value ), options );
+
+        this.onGetValue = () => {
+            let inputs = this.root.querySelectorAll( "input" );
             let value = [];
             for( var v of inputs )
             {
@@ -6337,52 +7389,51 @@ class Panel {
             return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            const inputs = element.querySelectorAll( ".vecinput" );
-            if( inputs.length == newValue.length )
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( vectorInputs.length != newValue.length )
             {
                 console.error( "Input length does not match vector length." );
                 return;
             }
 
-            for( let i = 0; i < inputs.length; ++i ) {
+            for( let i = 0; i < vectorInputs.length; ++i )
+            {
                 let value = newValue[ i ];
-                inputs[ i ].value = round( value, options.precision ) ?? 0;
-                Panel._dispatch_event( inputs[ i ], "change", skipCallback );
+                value = clamp( value, +vectorInputs[ i ].min, +vectorInputs[ i ].max );
+                value = round( value, options.precision ) ?? 0;
+                vectorInputs[ i ].value = newValue[ i ] = value;
+            }
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
             }
         };
 
-        let element = widget.domEl;
-
-        // Add reset functionality
-        Panel._add_reset_property( element.domName, function() {
-            this.style.display = "none";
-            for( let v of element.querySelectorAll( ".vecinput" ) ) {
-                v.value = v.iValue;
-                Panel._dispatch_event( v, "change" );
-            }
-        });
-
-        // Add widget value
+        const vectorInputs = [];
 
         var container = document.createElement( 'div' );
         container.className = "lexvector";
         container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-        for( let i = 0; i < num_components; ++i ) {
+        const that = this;
 
+        for( let i = 0; i < numComponents; ++i )
+        {
             let box = document.createElement( 'div' );
             box.className = "vecbox";
             box.innerHTML = "<span class='" + Panel.VECTOR_COMPONENTS[ i ] + "'></span>";
 
             let vecinput = document.createElement( 'input' );
-            vecinput.className = "vecinput v" + num_components;
+            vecinput.className = "vecinput v" + numComponents;
             vecinput.min = options.min ?? -1e24;
             vecinput.max = options.max ?? 1e24;
             vecinput.step = options.step ?? "any";
             vecinput.type = "number";
-            vecinput.id = "vec" + num_components + "_" + simple_guidGenerator();
+            vecinput.id = "vec" + numComponents + "_" + simple_guidGenerator();
             vecinput.idx = i;
+            vectorInputs[ i ] = vecinput;
 
             if( value[ i ].constructor == Number )
             {
@@ -6412,16 +7463,16 @@ class Panel {
 
                 if( locker.locked )
                 {
-                    for( let v of element.querySelectorAll(".vecinput") )
+                    for( let v of that.querySelectorAll(".vecinput") )
                     {
                         v.value = round( +v.valueAsNumber - mult * ( e.deltaY > 0 ? 1 : -1 ), options.precision );
-                        Panel._dispatch_event( v, "change" );
+                        Widget._dispatchEvent( v, "change" );
                     }
                 }
                 else
                 {
                     this.value = round( +this.valueAsNumber - mult * ( e.deltaY > 0 ? 1 : -1 ), options.precision );
-                    Panel._dispatch_event( vecinput, "change" );
+                    Widget._dispatchEvent( vecinput, "change" );
                 }
             }, { passive: false } );
 
@@ -6432,21 +7483,13 @@ class Panel {
                     return;
                 }
 
-                const skipCallback = e.detail;
-
-                let val = e.target.value = clamp( e.target.value, +vecinput.min, +vecinput.max );
+                let val = clamp( e.target.value, +vecinput.min, +vecinput.max );
                 val = round( val, options.precision );
-
-                // Reset button (default value)
-                if( !skipCallback )
-                {
-                    let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                    if( btn ) btn.style.display = val != vecinput.iValue ? "block" : "none";
-                }
 
                 if( locker.locked )
                 {
-                    for( let v of element.querySelectorAll( ".vecinput" ) ) {
+                    for( let v of vectorInputs )
+                    {
                         v.value = val;
                         value[ v.idx ] = val;
                     }
@@ -6457,16 +7500,12 @@ class Panel {
                     value[ e.target.idx ] = val;
                 }
 
-                if( !skipCallback ) this._trigger( new IEvent( name, value, e ), callback );
+                this.set( value, false, e );
             }, false );
 
             // Add drag input
 
-            vecinput.addEventListener( "mousedown", inner_mousedown );
-
-            var that = this;
-
-            function inner_mousedown( e )
+            function innerMouseDown( e )
             {
                 if( document.activeElement == vecinput )
                 {
@@ -6474,8 +7513,8 @@ class Panel {
                 }
 
                 var doc = that.root.ownerDocument;
-                doc.addEventListener( 'mousemove', inner_mousemove );
-                doc.addEventListener( 'mouseup', inner_mouseup );
+                doc.addEventListener( 'mousemove', innerMouseMove );
+                doc.addEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.add( 'noevents' );
                 dragIcon.classList.remove( 'hidden' );
                 e.stopImmediatePropagation();
@@ -6492,7 +7531,7 @@ class Panel {
                 }
             }
 
-            function inner_mousemove( e )
+            function innerMouseMove( e )
             {
                 let dt = -e.movementY;
 
@@ -6504,15 +7543,16 @@ class Panel {
 
                     if( locker.locked )
                     {
-                        for( let v of element.querySelectorAll( ".vecinput" ) ) {
+                        for( let v of this.root.querySelectorAll( ".vecinput" ) )
+                        {
                             v.value = round( +v.valueAsNumber + mult * dt, options.precision );
-                            Panel._dispatch_event( v, "change" );
+                            Widget._dispatchEvent( v, "change" );
                         }
                     }
                     else
                     {
                         vecinput.value = round( +vecinput.valueAsNumber + mult * dt, options.precision );
-                        Panel._dispatch_event( vecinput, "change" );
+                        Widget._dispatchEvent( vecinput, "change" );
                     }
                 }
 
@@ -6520,11 +7560,11 @@ class Panel {
                 e.preventDefault();
             }
 
-            function inner_mouseup( e )
+            function innerMouseUp( e )
             {
                 var doc = that.root.ownerDocument;
-                doc.removeEventListener( 'mousemove', inner_mousemove );
-                doc.removeEventListener( 'mouseup', inner_mouseup );
+                doc.removeEventListener( 'mousemove', innerMouseMove );
+                doc.removeEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.remove( 'noevents' );
                 dragIcon.classList.add('hidden');
 
@@ -6539,6 +7579,8 @@ class Panel {
                 }
             }
 
+            vecinput.addEventListener( "mousedown", innerMouseDown );
+
             box.appendChild( vecinput );
             container.appendChild( box );
         }
@@ -6546,18 +7588,15 @@ class Panel {
         // Method to change min, max, step parameters
         if( options.min !== undefined || options.max !== undefined )
         {
-            widget.setLimits = ( newMin, newMax, newStep ) => {
-                const inputs = element.querySelectorAll(".vecinput");
-                for( let v of inputs )
+            this.setLimits = ( newMin, newMax, newStep ) => {
+                for( let v of vectorInputs )
                 {
                     v.min = newMin ?? v.min;
                     v.max = newMax ?? v.max;
                     v.step = newStep ?? v.step;
-                    Panel._dispatch_event( v, "change", true );
                 }
 
-                // To call onChange callback
-                this._trigger( new IEvent( name, value ), callback );
+                this.set( value, true );
             };
         }
 
@@ -6579,88 +7618,55 @@ class Panel {
             }
         }, false );
 
-        element.appendChild( container );
-
-        return widget;
+        this.root.appendChild( container );
     }
+}
 
-    /**
-     * @method addVector N (2, 3, 4)
-     * @param {String} name Widget name
-     * @param {Array} value Array of N components
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * step: Step of the inputs
-     * min, max: Min and Max values for the inputs
-     * onPress: Callback function on mouse down
-     * onRelease: Callback function on mouse is released
-     */
+LX.Vector = Vector;
 
-    addVector2( name, value, callback, options ) {
+/**
+ * @class SizeInput
+ * @description SizeInput Widget
+ */
 
-        return this._add_vector( 2, name, value, callback, options );
-    }
+class SizeInput extends Widget {
 
-    addVector3( name, value, callback, options ) {
+    constructor( name, value, callback, options = {} ) {
 
-        return this._add_vector( 3, name, value, callback, options );
-    }
+        super( Widget.SIZE, name, value, options );
 
-    addVector4( name, value, callback, options ) {
-
-        return this._add_vector( 4, name, value, callback, options );
-    }
-
-    /**
-     * @method addSize
-     * @param {String} name Widget name
-     * @param {Number} value Default number value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * units: Unit as string added to the end of the value
-     */
-
-    addSize( name, value, callback, options = {} ) {
-
-        let widget = this.create_widget( name, Widget.SIZE, options );
-
-        widget.onGetValue = () => {
+        this.onGetValue = () => {
             const value = [];
-            for( let i = 0; i < element.dimensions.length; ++i )
+            for( let i = 0; i < this.root.dimensions.length; ++i )
             {
-                value.push( element.dimensions[ i ].onGetValue() );
+                value.push( this.root.dimensions[ i ].value() );
             }
             return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            for( let i = 0; i < element.dimensions.length; ++i )
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            for( let i = 0; i < this.root.dimensions.length; ++i )
             {
-                element.dimensions[ i ].onSetValue( newValue[ i ], skipCallback );
+                this.root.dimensions[ i ].set( newValue[ i ], skipCallback );
             }
         };
 
-        let element = widget.domEl;
-
-        this.queue( element );
-
-        element.aspectRatio = ( value.length == 2 ? value[ 0 ] / value[ 1 ] : null );
-        element.dimensions = [];
+        this.root.aspectRatio = ( value.length == 2 ? value[ 0 ] / value[ 1 ] : null );
+        this.root.dimensions = [];
 
         for( let i = 0; i < value.length; ++i )
         {
-            element.dimensions[ i ] = this.addNumber( null, value[ i ], ( v ) => {
+            const p = new Panel();
+            this.root.dimensions[ i ] = p.addNumber( null, value[ i ], ( v ) => {
 
-                const value = widget.onGetValue();
+                const value = this.value();
 
-                if( element.locked )
+                if( this.root.locked )
                 {
-                    const ar = ( i == 0 ? 1.0 / element.aspectRatio : element.aspectRatio );
+                    const ar = ( i == 0 ? 1.0 / this.root.aspectRatio : this.root.aspectRatio );
                     const index = ( 1 + i ) % 2;
                     value[ index ] = v * ar;
-                    element.dimensions[ index ].onSetValue( value[ index ], true );
+                    this.root.dimensions[ index ].set( value[ index ], true );
                 }
 
                 if( callback )
@@ -6670,87 +7676,78 @@ class Panel {
 
             }, { min: 0, disabled: options.disabled, precision: options.precision } );
 
+            this.root.appendChild( this.root.dimensions[ i ].root );
+
             if( ( i + 1 ) != value.length )
             {
                 let cross = document.createElement( 'a' );
                 cross.className = "lexsizecross fa-solid fa-xmark";
-                element.appendChild( cross );
+                this.root.appendChild( cross );
             }
         }
-
-        this.clearQueue();
 
         if( options.units )
         {
             let unitSpan = document.createElement( 'span' );
             unitSpan.className = "lexunit";
             unitSpan.innerText = options.units;
-            element.appendChild( unitSpan );
+            this.root.appendChild( unitSpan );
         }
 
         // Lock aspect ratio
-        if( element.aspectRatio )
+        if( this.root.aspectRatio )
         {
             let locker = document.createElement( 'a' );
             locker.title = "Lock Aspect Ratio";
             locker.className = "fa-solid fa-lock-open lexicon lock";
-            element.appendChild( locker );
-            locker.addEventListener( "click", function( e ) {
-                element.locked = !element.locked;
-                if( element.locked )
+            this.root.appendChild( locker );
+            locker.addEventListener( "click", e => {
+                this.root.locked = !this.root.locked;
+                if( this.root.locked )
                 {
-                    this.classList.add( "fa-lock" );
-                    this.classList.remove( "fa-lock-open" );
+                    locker.classList.add( "fa-lock" );
+                    locker.classList.remove( "fa-lock-open" );
 
                     // Recompute ratio
-                    const value = widget.onGetValue();
-                    element.aspectRatio = value[ 0 ] / value[ 1 ];
+                    const value = this.value();
+                    this.root.aspectRatio = value[ 0 ] / value[ 1 ];
                 }
                 else
                 {
-                    this.classList.add( "fa-lock-open" );
-                    this.classList.remove( "fa-lock" );
+                    locker.classList.add( "fa-lock-open" );
+                    locker.classList.remove( "fa-lock" );
                 }
             }, false );
         }
 
         // Remove branch padding and margins
-        if( !widget.name )
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
         {
-            element.className += " noname";
+            this.root.className += " noname";
             container.style.width = "100%";
         }
-
-        return widget;
     }
+}
 
-    /**
-     * @method addPad
-     * @param {String} name Widget name
-     * @param {Array} value Pad value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * min, max: Min and Max values
-     * padSize: Size of the pad (css)
-     * onPress: Callback function on mouse down
-     * onRelease: Callback function on mouse up
-     */
+LX.SizeInput = SizeInput;
 
-    addPad( name, value, callback, options = {} ) {
+/**
+ * @class Pad
+ * @description Pad Widget
+ */
 
-        if( !name )
-        {
-            throw( "Set Widget Name!" );
-        }
+class Pad extends Widget {
 
-        let widget = this.create_widget( name, Widget.PAD, options );
+    constructor( name, value, callback, options = {} ) {
 
-        widget.onGetValue = () => {
+        super( Widget.PAD, name, null, options );
+
+        this.onGetValue = () => {
             return thumb.value.xy;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             thumb.value.set( newValue[ 0 ], newValue[ 1 ] );
             _updateValue( thumb.value );
             if( !skipCallback )
@@ -6758,8 +7755,6 @@ class Panel {
                 this._trigger( new IEvent( name, thumb.value.xy ), callback );
             }
         };
-
-        let element = widget.domEl;
 
         var container = document.createElement( 'div' );
         container.className = "lexpad";
@@ -6789,7 +7784,7 @@ class Panel {
 
         pad.appendChild( thumb );
         container.appendChild( pad );
-        element.appendChild( container );
+        this.root.appendChild( container );
 
         pad.addEventListener( "mousedown", innerMouseDown );
 
@@ -6846,44 +7841,34 @@ class Panel {
                 options.onRelease.bind( thumb )( e, thumb );
             }
         }
-
-        return widget;
     }
+}
 
-    /**
-     * @method addProgress
-     * @param {String} name Widget name
-     * @param {Number} value Progress value
-     * @param {*} options:
-     * min, max: Min and Max values
-     * low, optimum, high: Low and High boundary values, Optimum point in the range
-     * showValue: Show current value
-     * editable: Allow edit value
-     * callback: Function called on change value
-     */
+LX.Pad = Pad;
 
-    addProgress( name, value, options = {} ) {
+/**
+ * @class Progress
+ * @description Progress Widget
+ */
 
-        if( !name )
-        {
-            throw("Set Widget Name!");
-        }
+class Progress extends Widget {
 
-        let widget = this.create_widget( name, Widget.PROGRESS, options );
+    constructor( name, value, options = {} ) {
 
-        widget.onGetValue = () => {
+        super( Widget.PROGRESS, name, value, options );
+
+        this.onGetValue = () => {
             return progress.value;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            element.querySelector("meter").value = newValue;
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            this.root.querySelector("meter").value = newValue;
             _updateColor();
-            if( element.querySelector("span") )
+            if( this.root.querySelector("span") )
             {
-                element.querySelector("span").innerText = newValue;
+                this.root.querySelector("span").innerText = newValue;
             }
         };
-
-        let element = widget.domEl;
 
         var container = document.createElement('div');
         container.className = "lexprogress";
@@ -6919,7 +7904,7 @@ class Panel {
         };
 
         container.appendChild( progress );
-        element.appendChild( container );
+        this.root.appendChild( container );
 
         if( options.showValue )
         {
@@ -6938,15 +7923,12 @@ class Panel {
         if( options.editable )
         {
             progress.classList.add( "editable" );
-            progress.addEventListener( "mousedown", inner_mousedown );
 
-            const that = this;
+            let innerMouseDown = e => {
 
-            function inner_mousedown( e )
-            {
-                var doc = that.root.ownerDocument;
-                doc.addEventListener( 'mousemove', inner_mousemove );
-                doc.addEventListener( 'mouseup', inner_mouseup );
+                var doc = this.root.ownerDocument;
+                doc.addEventListener( 'mousemove', innerMouseMove );
+                doc.addEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.add( 'noevents' );
                 progress.classList.add( "grabbing" );
                 e.stopImmediatePropagation();
@@ -6954,18 +7936,18 @@ class Panel {
 
                 const rect = progress.getBoundingClientRect();
                 const newValue = round( remapRange( e.offsetX, 0, rect.width, progress.min, progress.max ) );
-                that.setValue( name, newValue );
+                this.set( newValue, false, e );
             }
 
-            function inner_mousemove( e )
-            {
+            let innerMouseMove = e => {
+
                 let dt = e.movementX;
 
                 if ( dt != 0 )
                 {
                     const rect = progress.getBoundingClientRect();
                     const newValue = round( remapRange( e.offsetX - rect.x, 0, rect.width, progress.min, progress.max ) );
-                    that.setValue( name, newValue );
+                    this.set( newValue, false, e );
 
                     if( options.callback )
                     {
@@ -6977,41 +7959,34 @@ class Panel {
                 e.preventDefault();
             }
 
-            function inner_mouseup( e )
-            {
-                var doc = that.root.ownerDocument;
-                doc.removeEventListener( 'mousemove', inner_mousemove );
-                doc.removeEventListener( 'mouseup', inner_mouseup );
+            let innerMouseUp = e => {
+
+                var doc = this.root.ownerDocument;
+                doc.removeEventListener( 'mousemove', innerMouseMove );
+                doc.removeEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.remove( 'noevents' );
                 progress.classList.remove( "grabbing" );
             }
+
+            progress.addEventListener( "mousedown", innerMouseDown );
         }
 
         _updateColor();
-
-        return widget;
     }
+}
 
-    /**
-     * @method addFile
-     * @param {String} name Widget name
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * local: Ask for local file
-     * disabled: Make the widget disabled [false]
-     * read: Return the file itself (False) or the contents (True)
-     * type: type to read as [text (Default), buffer, bin, url]
-     */
+LX.Progress = Progress;
 
-    addFile( name, callback, options = { } ) {
+/**
+ * @class FileInput
+ * @description FileInput Widget
+ */
 
-        if( !name )
-        {
-            throw( "Set Widget Name!" );
-        }
+class FileInput extends Widget {
 
-        let widget = this.create_widget( name, Widget.FILE, options );
-        let element = widget.domEl;
+    constructor( name, callback, options = { } ) {
+
+        super( Widget.FILE, name, null, options );
 
         let local = options.local ?? true;
         let type = options.type ?? 'text';
@@ -7052,19 +8027,16 @@ class Panel {
         });
 
         input.addEventListener( 'cancel', function( e ) {
-
             callback( null );
         });
 
-        element.appendChild( input );
-
-        this.queue( element );
+        this.root.appendChild( input );
 
         if( local )
         {
             let settingsDialog = null;
 
-            this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-gear'></a>", () => {
+            const settingButton = new Button(null, "<a style='margin-top: 0px;' class='fa-solid fa-gear'></a>", () => {
 
                 if( settingsDialog )
                 {
@@ -7072,55 +8044,60 @@ class Panel {
                 }
 
                 settingsDialog = new Dialog( "Load Settings", p => {
-                    p.addDropdown( "Type", [ 'text', 'buffer', 'bin', 'url' ], type, v => { type = v } );
+                    p.addSelect( "Type", [ 'text', 'buffer', 'bin', 'url' ], type, v => { type = v } );
                     p.addButton( null, "Reload", v => { input.dispatchEvent( new Event( 'change' ) ) } );
                 }, { onclose: ( root ) => { root.remove(); settingsDialog = null; } } );
 
             }, { className: "micro", skipInlineCount: true, title: "Settings" });
+
+            this.root.appendChild( settingButton.root );
         }
-
-        this.clearQueue();
-
-        return widget;
     }
+}
 
-    /**
-     * @method addTree
-     * @param {String} name Widget name
-     * @param {Object} data Data of the tree
-     * @param {*} options:
-     * icons: Array of objects with icon button information {name, icon, callback}
-     * filter: Add nodes filter [true]
-     * rename: Boolean to allow rename [true]
-     * onevent(tree_event): Called when node is selected, dbl clicked, contextmenu opened, changed visibility, parent or name
-     */
+LX.FileInput = FileInput;
 
-    addTree( name, data, options = {} ) {
+/**
+ * @class Tree
+ * @description Tree Widget
+ */
+
+class Tree extends Widget {
+
+    constructor( name, data, options = {} ) {
+
+        options.hideName = true;
+
+        super( Widget.TREE, name, null, options );
 
         let container = document.createElement('div');
         container.className = "lextree";
+        this.root.appendChild( container );
 
-        if(name) {
+        if( name )
+        {
             let title = document.createElement('span');
             title.innerHTML = name;
-            container.appendChild(title);
+            container.appendChild( title );
         }
 
         let toolsDiv = document.createElement('div');
         toolsDiv.className = "lextreetools";
-        if(!name)
+        if( !name )
+        {
             toolsDiv.className += " notitle";
+        }
 
         // Tree icons
-        if(options.icons) {
-
+        if( options.icons )
+        {
             for( let data of options.icons )
             {
                 let iconEl = document.createElement('a');
                 iconEl.title = data.name;
                 iconEl.className = "lexicon " + data.icon;
                 iconEl.addEventListener("click", data.callback);
-                toolsDiv.appendChild(iconEl);
+                toolsDiv.appendChild( iconEl );
             }
         }
 
@@ -7128,79 +8105,55 @@ class Panel {
 
         options.filter = options.filter ?? true;
 
-        let node_filter_input = null;
-        if(options.filter)
+        let nodeFilterInput = null;
+        if( options.filter )
         {
-            node_filter_input = document.createElement('input');
-            node_filter_input.id = "lexnodetree_filter";
-            node_filter_input.setAttribute("placeholder", "Filter..");
-            node_filter_input.style.width =  "calc( 100% - 17px )";
-            node_filter_input.addEventListener('input', function(){
-                nodeTree.refresh();
+            nodeFilterInput = document.createElement('input');
+            nodeFilterInput.id = "lexnodetree_filter";
+            nodeFilterInput.setAttribute("placeholder", "Filter..");
+            nodeFilterInput.style.width =  "calc( 100% - 17px )";
+            nodeFilterInput.addEventListener('input', () => {
+                this.innerTree.refresh();
             });
 
             let searchIcon = document.createElement('a');
             searchIcon.className = "lexicon fa-solid fa-magnifying-glass";
-            toolsDiv.appendChild(node_filter_input);
-            toolsDiv.appendChild(searchIcon);
+            toolsDiv.appendChild( nodeFilterInput );
+            toolsDiv.appendChild( searchIcon );
         }
 
-        if(options.icons || options.filter)
-            container.appendChild(toolsDiv);
+        if( options.icons || options.filter )
+        {
+            container.appendChild( toolsDiv );
+        }
 
         // Tree
 
         let list = document.createElement('ul');
-        list.addEventListener("contextmenu", function(e) {
+        list.addEventListener("contextmenu", function( e ) {
             e.preventDefault();
         });
 
-        container.appendChild(list);
-        this.root.appendChild(container);
+        container.appendChild( list );
 
-        const nodeTree = new NodeTree( container, data, options );
-        return nodeTree;
+        this.innerTree = new NodeTree( container, data, options );
     }
+}
 
-    /**
-     * @method addSeparator
-     */
+LX.Tree = Tree;
 
-    addSeparator() {
+/**
+ * @class TabSections
+ * @description TabSections Widget
+ */
 
-        var element = document.createElement('div');
-        element.className = "lexseparator";
-        let widget = new Widget( null, Widget.SEPARATOR );
-        widget.domEl = element;
+class TabSections extends Widget {
 
-        if(this.current_branch) {
-            this.current_branch.content.appendChild( element );
-            this.current_branch.widgets.push( widget );
-        } else
-            this.root.appendChild(element);
-    }
+    constructor( name, tabs, options = {} ) {
 
-    /**
-     * @method addTabs
-     * @param {Array} tabs Contains objects with {
-     *      name: Name of the tab (if icon, use as title)
-     *      icon: Icon to be used as the tab icon (optional)
-     *      onCreate: Func to be called at tab creation
-     *      onSelect: Func to be called on select tab (optional)
-     * }
-     * @param {*} options
-     * vertical: Use vertical or horizontal tabs (vertical by default)
-     * showNames: Show tab name only in horizontal tabs
-     */
+        options.hideName = true;
 
-    addTabs( tabs, options = {} ) {
-
-        let root = this.current_branch ? this.current_branch.content : this.root;
-
-        if( !this.current_branch )
-        {
-            console.warn("No current branch!");
-        }
+        super( Widget.TABS, name, null, options );
 
         if( tabs.constructor != Array )
         {
@@ -7217,42 +8170,41 @@ class Panel {
             container.className += " horizontal";
         }
 
-        let tabContainer = document.createElement( 'div' );
-        tabContainer.className = 'tabs';
+        let tabContainer = document.createElement( "div" );
+        tabContainer.className = "tabs";
         container.appendChild( tabContainer );
-        root.appendChild( container );
+        this.root.appendChild( container );
 
         for( let i = 0; i < tabs.length; ++i )
         {
             const tab = tabs[ i ];
             console.assert( tab.name );
             const isSelected = ( i == 0 );
-            let tabEl = document.createElement( 'div' );
+            let tabEl = document.createElement( "div" );
             tabEl.className = "lextab " + (i == tabs.length - 1 ? "last" : "") + ( isSelected ? "selected" : "" );
             tabEl.innerHTML = ( showNames ? tab.name : "" ) + "<a class='" + ( tab.icon || "fa fa-hashtag" ) + " " + (showNames ? "withname" : "") + "'></a>";
             tabEl.title = tab.name;
 
-            let infoContainer = document.createElement( 'div' );
+            let infoContainer = document.createElement( "div" );
             infoContainer.id = tab.name.replace( /\s/g, '' );
             infoContainer.className = "widgets";
 
-            if(!isSelected)
+            if( !isSelected )
             {
-                infoContainer.toggleAttribute('hidden', true);
+                infoContainer.toggleAttribute( "hidden", true );
             }
 
             container.appendChild( infoContainer );
 
-            tabEl.addEventListener( 'click', e => {
-
+            tabEl.addEventListener( "click", e => {
                 // Change selected tab
-                tabContainer.querySelectorAll( '.lextab' ).forEach( e => { e.classList.remove( 'selected' ); } );
-                e.target.classList.add( 'selected' );
+                tabContainer.querySelectorAll( ".lextab" ).forEach( e => { e.classList.remove( "selected" ); } );
+                tabEl.classList.add( "selected" );
                 // Hide all tabs content
-                container.querySelectorAll(".widgets").forEach( e => { e.toggleAttribute( 'hidden', true ); } );
+                container.querySelectorAll(".widgets").forEach( e => { e.toggleAttribute( "hidden", true ); } );
                 // Show tab content
                 const el = container.querySelector( '#' + infoContainer.id );
-                el.toggleAttribute( 'hidden' );
+                el.toggleAttribute( "hidden" );
 
                 if( tab.onSelect )
                 {
@@ -7264,69 +8216,58 @@ class Panel {
 
             if( tab.onCreate )
             {
-                // push to tab space
-                this.queue( infoContainer );
-                tab.onCreate( this, infoContainer );
-                this.clearQueue();
+                // Push to tab space
+                const creationPanel = new Panel();
+                creationPanel.queue( infoContainer );
+                tab.onCreate.call(this, creationPanel);
+                creationPanel.clearQueue();
             }
         }
-
-        this.addSeparator();
     }
+}
 
-    /**
-     * @method addCounter
-     * @param {String} name Widget name
-     * @param {Number} value Counter value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * min, max: Min and Max values
-     * step: Step for adding/substracting
-     * label: Text to show below the counter
-     */
+LX.TabSections = TabSections;
 
-    addCounter( name, value, callback, options = { } ) {
+/**
+ * @class Counter
+ * @description Counter Widget
+ */
 
-        let widget = this.create_widget( name, Widget.COUNTER, options );
+class Counter extends Widget {
 
-        widget.onGetValue = () => {
+    constructor( name, value, callback, options = { } ) {
+
+        super( Widget.COUNTER, name, value, options );
+
+        this.onGetValue = () => {
             return counterText.count;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            _onChange( newValue, skipCallback );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            newValue = clamp( newValue, min, max );
+            counterText.count = newValue;
+            counterText.innerHTML = newValue;
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
         };
-
-        let element = widget.domEl;
 
         const min = options.min ?? 0;
         const max = options.max ?? 100;
         const step = options.step ?? 1;
 
-        const _onChange = ( value, skipCallback, event ) => {
-            value = clamp( value, min, max );
-            counterText.count = value;
-            counterText.innerHTML = value;
-            if( !skipCallback )
-            {
-                this._trigger( new IEvent( name, value, event ), callback );
-            }
-        }
-
         const container = document.createElement( 'div' );
         container.className = "lexcounter";
-        element.appendChild( container );
+        this.root.appendChild( container );
 
-        this.queue( container );
-
-        this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-minus'></a>", (value, e) => {
+        const substrButton = new Button(null, "<a style='margin-top: 0px;' class='fa-solid fa-minus'></a>", ( value, e ) => {
             let mult = step ?? 1;
             if( e.shiftKey ) mult *= 10;
-            _onChange( counterText.count - mult, false, e );
+            this.set( counterText.count - mult, false, e );
         }, { className: "micro", skipInlineCount: true, title: "Minus" });
 
-        this.clearQueue();
+        container.appendChild( substrButton.root );
 
         const containerBox = document.createElement( 'div' );
         containerBox.className = "lexcounterbox";
@@ -7346,17 +8287,1452 @@ class Panel {
             containerBox.appendChild( counterLabel );
         }
 
-        this.queue( container );
-
-        this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-plus'></a>", (value, e) => {
+        const addButton = new Button(null, "<a style='margin-top: 0px;' class='fa-solid fa-plus'></a>", ( value, e ) => {
             let mult = step ?? 1;
             if( e.shiftKey ) mult *= 10;
-            _onChange( counterText.count + mult, false, e );
+            this.set( counterText.count + mult, false, e );
         }, { className: "micro", skipInlineCount: true, title: "Plus" });
 
-        this.clearQueue();
+        container.appendChild( addButton.root );
+    }
+}
+
+LX.Counter = Counter;
+
+/**
+ * @class Table
+ * @description Table Widget
+ */
+
+class Table extends Widget {
+
+    constructor( name, data, options = { } ) {
+
+        if( !data )
+        {
+            throw( "Data is needed to create a table!" );
+        }
+
+        super( Widget.TABLE, name, null, options );
+
+        const container = document.createElement('div');
+        container.className = "lextable";
+        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+
+        const table = document.createElement( 'table' );
+        container.appendChild( table );
+
+        data.head = data.head ?? [];
+        data.body = data.body ?? [];
+        data.orderMap = { };
+        data.checkMap = { };
+
+        function compareFn( idx, order, a, b) {
+            if (a[idx] < b[idx]) return -order;
+            else if (a[idx] > b[idx]) return order;
+            return 0;
+        }
+
+        this.refreshTable = () => {
+
+            table.innerHTML = "";
+
+            // Head
+            {
+                const head = document.createElement( 'thead' );
+                head.className = "lextablehead";
+                table.appendChild( head );
+
+                const hrow = document.createElement( 'tr' );
+
+                if( options.sortable )
+                {
+                    const th = document.createElement( 'th' );
+                    th.style.width = "0px";
+                    hrow.appendChild( th );
+                }
+
+                if( options.selectable )
+                {
+                    const th = document.createElement( 'th' );
+                    th.style.width = "0px";
+                    const input = document.createElement( 'input' );
+                    input.type = "checkbox";
+                    input.className = "lexcheckbox";
+                    input.checked = data.checkMap[ ":root" ] ?? false;
+                    th.appendChild( input );
+
+                    input.addEventListener( 'change', function() {
+
+                        data.checkMap[ ":root" ] = this.checked;
+
+                        const body = table.querySelector( "tbody" );
+                        for( const el of body.childNodes )
+                        {
+                            data.checkMap[ el.getAttribute( "rowId" ) ] = this.checked;
+                            el.querySelector( "input" ).checked = this.checked;
+                        }
+                    });
+
+                    hrow.appendChild( th );
+                }
+
+                for( const headData of data.head )
+                {
+                    const th = document.createElement( 'th' );
+                    th.innerHTML = `${ headData } <a class="fa-solid fa-sort"></a>`;
+
+                    th.querySelector( 'a' ).addEventListener( 'click', () => {
+
+                        if( !data.orderMap[ headData ] )
+                        {
+                            data.orderMap[ headData ] = 1;
+                        }
+
+                        const idx = data.head.indexOf(headData);
+                        data.body = data.body.sort( compareFn.bind( this, idx,data.orderMap[ headData ] ) );
+                        data.orderMap[ headData ] = -data.orderMap[ headData ];
+
+                        this.refreshTable();
+
+                    });
+
+                    hrow.appendChild( th );
+                }
+
+                // Add empty header column
+                if( options.rowActions )
+                {
+                    const th = document.createElement( 'th' );
+                    th.className = "sm";
+                    hrow.appendChild( th );
+                }
+
+                head.appendChild( hrow );
+            }
+
+            // Body
+            {
+                const body = document.createElement( 'tbody' );
+                body.className = "lextablebody";
+                table.appendChild( body );
+
+                let rIdx = null;
+                let eventCatched = false;
+                let movePending = null;
+
+                document.addEventListener( 'mouseup', (e) => {
+                    if( !rIdx ) return;
+                    document.removeEventListener( "mousemove", onMove );
+                    const fromRow = table.rows[ rIdx ];
+                    fromRow.dY = 0;
+                    fromRow.classList.remove( "dragging" );
+                    Array.from( table.rows ).forEach( v => {
+                        v.style.transform = ``;
+                        v.style.transition = `none`;
+                    } );
+                    flushCss( fromRow );
+                    rIdx = null;
+
+                    if( movePending )
+                    {
+                        const parent = movePending[ 0 ].parentNode;
+                        parent.insertChildAtIndex(  movePending[ 0 ],  movePending[ 1 ] );
+                        movePending = null;
+                    }
+
+                    doAsync( () => {
+                        Array.from( table.rows ).forEach( v => {
+                            v.style.transition = `transform 0.2s ease-in`;
+                        } );
+                    } )
+                } );
+
+                let onMove = ( e ) => {
+                    if( !rIdx ) return;
+                    const fromRow = table.rows[ rIdx ];
+                    fromRow.dY = fromRow.dY ?? 0;
+                    fromRow.dY += e.movementY;
+                    fromRow.style.transform = `translateY(${fromRow.dY}px)`;
+                };
+
+
+                for( let r = 0; r < data.body.length; ++r )
+                {
+                    const bodyData = data.body[ r ];
+                    const row = document.createElement( 'tr' );
+                    const rowId = LX.getSupportedDOMName( bodyData.join( '-' ) );
+                    row.setAttribute( "rowId", rowId.substr(0, 16) );
+
+                    if( options.sortable )
+                    {
+                        const td = document.createElement( 'td' );
+                        td.style.width = "0px";
+                        const icon = LX.makeIcon( "grip-vertical" );
+                        td.appendChild( icon );
+
+                        icon.draggable = true;
+
+                        icon.addEventListener("dragstart", (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.stopImmediatePropagation();
+
+                            rIdx = row.rowIndex;
+                            row.classList.add( "dragging" );
+
+                            document.addEventListener( "mousemove", onMove );
+                        }, false );
+
+                        row.addEventListener("mouseenter", function(e) {
+                            e.preventDefault();
+
+                            if( rIdx && ( this.rowIndex != rIdx ) && ( eventCatched != this.rowIndex ) )
+                            {
+                                eventCatched = this.rowIndex;
+                                const fromRow = table.rows[ rIdx ];
+                                const undo = ( this.style.transform != `` );
+                                if (this.rowIndex > rIdx) {
+                                    movePending = [ fromRow, undo ? (this.rowIndex-1) : this.rowIndex ];
+                                    this.style.transform = undo ? `` : `translateY(-${this.offsetHeight}px)`;
+                                } else {
+                                    movePending = [ fromRow, undo ? (this.rowIndex) : (this.rowIndex-1) ];
+                                    this.style.transform = undo ? `` : `translateY(${this.offsetHeight}px)`;
+                                }
+                                doAsync( () => {
+                                    eventCatched = false;
+                                } )
+                            }
+                        });
+
+                        row.appendChild( td );
+                    }
+
+                    if( options.selectable )
+                    {
+                        const td = document.createElement( 'td' );
+                        const input = document.createElement( 'input' );
+                        input.type = "checkbox";
+                        input.className = "lexcheckbox";
+                        input.checked = data.checkMap[ rowId ];
+                        td.appendChild( input );
+
+                        input.addEventListener( 'change', function() {
+                            data.checkMap[ rowId ] = this.checked;
+
+                            if( !this.checked )
+                            {
+                                const input = table.querySelector( "thead input[type='checkbox']" );
+                                input.checked = data.checkMap[ ":root" ] = false;
+                            }
+                        });
+
+                        row.appendChild( td );
+                    }
+
+                    for( const rowData of bodyData )
+                    {
+                        const td = document.createElement( 'td' );
+                        td.innerHTML = `${ rowData }`;
+                        row.appendChild( td );
+                    }
+
+                    if( options.rowActions )
+                    {
+                        const td = document.createElement( 'td' );
+                        td.style.width = "0px";
+
+                        const buttons = document.createElement( 'div' );
+                        buttons.className = "lextablebuttons";
+                        td.appendChild( buttons );
+
+                        for( const action of options.rowActions )
+                        {
+                            let button = null;
+
+                            if( action == "delete" )
+                            {
+                                button = LX.makeIcon( "trash-can", "Delete Row" );
+                                button.addEventListener( 'click', function() {
+                                    // Don't need to refresh table..
+                                    data.body.splice( r, 1 );
+                                    row.remove();
+                                });
+                            }
+                            else if( action == "menu" )
+                            {
+                                button = LX.makeIcon( "more-horizontal", "Menu" );
+                                button.addEventListener( 'click', function( event ) {
+                                    addContextMenu( null, event, c => {
+                                        if( options.onMenuAction )
+                                        {
+                                            options.onMenuAction( c );
+                                            return;
+                                        }
+                                        console.warn( "Using <Menu action> without action callbacks." );
+                                    } );
+                                });
+                            }
+                            else // custom actions
+                            {
+                                console.assert( action.constructor == Object );
+                                button = LX.makeIcon( action.icon, action.title );
+
+                                if( action.callback )
+                                {
+                                    button.addEventListener( 'click', e => {
+                                        const mustRefresh = action.callback( bodyData, table, e );
+                                        if( mustRefresh )
+                                        {
+                                            this.refreshTable();
+                                        }
+                                    });
+                                }
+                            }
+
+                            console.assert( button );
+                            buttons.appendChild( button );
+                        }
+
+                        row.appendChild( td );
+                    }
+
+                    body.appendChild( row );
+                }
+            }
+        }
+
+        this.refreshTable();
+
+        const useNameAsLabel = !( options.hideName ?? false );
+        if( !useNameAsLabel )
+        {
+            this.root.className += " noname";
+            container.style.width = "100%";
+        }
+
+        this.root.appendChild( container );
+    }
+}
+
+LX.Table = Table;
+
+/**
+ * @class Panel
+ */
+
+class Panel {
+
+    /**
+     * @param {Object} options
+     * id: Id of the element
+     * className: Add class to the element
+     * width: Width of the panel element [fit space]
+     * height: Height of the panel element [fit space]
+     * style: CSS Style object to be applied to the panel
+     */
+
+    constructor( options = {} ) {
+
+        var root = document.createElement('div');
+        root.className = "lexpanel";
+
+        if( options.id )
+        {
+            root.id = options.id;
+        }
+
+        if( options.className )
+        {
+            root.className += " " + options.className;
+        }
+
+        root.style.width = options.width || "calc( 100% - 6px )";
+        root.style.height = options.height || "100%";
+        Object.assign( root.style, options.style ?? {} );
+
+        this.root = root;
+        this.branches = [];
+        this.widgets = {};
+
+        this._branchOpen = false;
+        this._currentBranch = null;
+        this._queue = []; // Append widgets in other locations
+        this._inlineWidgetsLeft = -1;
+        this._inline_queued_container = null;
+    }
+
+    get( name ) {
+
+        return this.widgets[ name ];
+    }
+
+    getValue( name ) {
+
+        let widget = this.widgets[ name ];
+
+        if( !widget )
+        {
+            throw( "No widget called " + name );
+        }
+
+        return widget.value();
+    }
+
+    setValue( name, value, skipCallback ) {
+
+        let widget = this.widgets[ name ];
+
+        if( !widget )
+        {
+            throw( "No widget called " + name );
+        }
+
+        return widget.set( value, skipCallback );
+    }
+
+    /**
+     * @method attach
+     * @param {Element} content child element to append to panel
+     */
+
+    attach( content ) {
+
+        console.assert( content, "No content to attach!" );
+        content.parent = this;
+        this.root.appendChild( content.root ? content.root : content );
+    }
+
+    /**
+     * @method clear
+     */
+
+    clear() {
+
+        this._branchOpen = false;
+        this.branches = [];
+        this._currentBranch = null;
+
+        for( let w in this.widgets )
+        {
+            if( this.widgets[ w ].options && this.widgets[ w ].options.signal )
+            {
+                const signal = this.widgets[ w ].options.signal;
+                for( let i = 0; i < LX.signals[signal].length; i++ )
+                {
+                    if( LX.signals[signal][i] == this.widgets[ w ] )
+                    {
+                        LX.signals[signal] = [...LX.signals[signal].slice(0, i), ...LX.signals[signal].slice(i+1)];
+                    }
+                }
+            }
+        }
+
+        if( this.signals )
+        {
+            for( let w = 0; w < this.signals.length; w++ )
+            {
+                let widget = Object.values(this.signals[ w ])[0];
+                let signal = widget.options.signal;
+                for( let i = 0; i < LX.signals[signal].length; i++ )
+                {
+                    if( LX.signals[signal][i] == widget )
+                    {
+                        LX.signals[signal] = [...LX.signals[signal].slice(0, i), ...LX.signals[signal].slice(i+1)];
+                    }
+                }
+            }
+        }
+
+        this.widgets = {};
+        this.root.innerHTML = "";
+    }
+
+    /**
+     * @method sameLine
+     * @param {Number} number Of widgets that will be placed in the same line
+     * @description Next N widgets will be in the same line. If no number, it will inline all until calling nextLine()
+     */
+
+    sameLine( number ) {
+
+        this._inline_queued_container = this.queuedContainer;
+        this._inlineWidgetsLeft = ( number || Infinity );
+    }
+
+    /**
+     * @method endLine
+     * @description Stop inlining widgets. Use it only if the number of widgets to be inlined is NOT specified.
+     */
+
+    endLine( justifyContent ) {
+
+        if( this._inlineWidgetsLeft == -1 )
+        {
+            console.warn("No pending widgets to be inlined!");
+            return;
+        }
+
+        this._inlineWidgetsLeft = -1;
+
+        if( !this._inlineContainer )
+        {
+            this._inlineContainer = document.createElement('div');
+            this._inlineContainer.className = "lexinlinewidgets";
+
+            if( justifyContent )
+            {
+                this._inlineContainer.style.justifyContent = justifyContent;
+            }
+        }
+
+        // Push all elements single element or Array[element, container]
+        for( let item of this._inlineWidgets )
+        {
+            const isPair = ( item.constructor == Array );
+
+            if( isPair )
+            {
+                // eg. an array, inline items appended later to
+                if( this._inline_queued_container )
+                {
+                    this._inlineContainer.appendChild( item[ 0 ] );
+                }
+                // eg. a select, item is appended to parent, not to inline cont.
+                else
+                {
+                    item[ 1 ].appendChild( item[ 0 ] );
+                }
+            }
+            else
+            {
+                this._inlineContainer.appendChild( item );
+            }
+        }
+
+        if( !this._inline_queued_container )
+        {
+            if( this._currentBranch )
+            {
+                this._currentBranch.content.appendChild( this._inlineContainer );
+            }
+            else
+            {
+                this.root.appendChild( this._inlineContainer );
+            }
+        }
+        else
+        {
+            this._inline_queued_container.appendChild( this._inlineContainer );
+        }
+
+        delete this._inlineWidgets;
+        delete this._inlineContainer;
+    }
+
+    /**
+     * @method branch
+     * @param {String} name Name of the branch/section
+     * @param {Object} options
+     * id: Id of the branch
+     * className: Add class to the branch
+     * closed: Set branch collapsed/opened [false]
+     * icon: Set branch icon (Fontawesome class e.g. "fa-solid fa-skull")
+     * filter: Allow filter widgets in branch by name [false]
+     */
+
+    branch( name, options = {} ) {
+
+        if( this._branchOpen )
+        {
+            this.merge();
+        }
+
+        // Create new branch
+        var branch = new Branch( name, options );
+        branch.panel = this;
+
+        // Declare new open
+        this._branchOpen = true;
+        this._currentBranch = branch;
+
+        // Append to panel
+        if( this.branches.length == 0 )
+        {
+            branch.root.classList.add('first');
+        }
+
+        // This is the last!
+        this.root.querySelectorAll(".lexbranch.last").forEach( e => { e.classList.remove("last"); } );
+        branch.root.classList.add('last');
+
+        this.branches.push( branch );
+        this.root.appendChild( branch.root );
+
+        // Add widget filter
+        if( options.filter )
+        {
+            this._addFilter( options.filter, { callback: this._searchWidgets.bind( this, branch.name ) } );
+        }
+
+        return branch;
+    }
+
+    merge() {
+        this._branchOpen = false;
+        this._currentBranch = null;
+    }
+
+    _pick( arg, def ) {
+        return (typeof arg == 'undefined' ? def : arg);
+    }
+
+    /*
+        Panel Widgets
+    */
+
+    _attachWidget( widget, options = {} ) {
+
+        if( widget.name != undefined )
+        {
+            this.widgets[ widget.name ] = widget;
+        }
+
+        if( widget.options.signal && !widget.name )
+        {
+            if( !this.signals )
+            {
+                this.signals = [];
+            }
+
+            this.signals.push( { [ widget.options.signal ]: widget } )
+        }
+
+        const _insertWidget = el => {
+            if( options.container )
+            {
+                options.container.appendChild( el );
+            }
+            else if( !this.queuedContainer )
+            {
+                if( this._currentBranch )
+                {
+                    if( !options.skipWidget )
+                    {
+                        this._currentBranch.widgets.push( widget );
+                    }
+                    this._currentBranch.content.appendChild( el );
+                }
+                else
+                {
+                    el.classList.add("nobranch");
+                    this.root.appendChild( el );
+                }
+            }
+            // Append content to queued tab container
+            else
+            {
+                this.queuedContainer.appendChild( el );
+            }
+        };
+
+        const _storeWidget = el => {
+
+            if( !this.queuedContainer )
+            {
+                this._inlineWidgets.push( el );
+            }
+            // Append content to queued tab container
+            else
+            {
+                this._inlineWidgets.push( [ el, this.queuedContainer ] );
+            }
+        };
+
+        // Process inline widgets
+        if( this._inlineWidgetsLeft > 0 && !options.skipInlineCount )
+        {
+            if( !this._inlineWidgets )
+            {
+                this._inlineWidgets = [];
+            }
+
+            // Store widget and its container
+            _storeWidget( widget.root );
+
+            this._inlineWidgetsLeft--;
+
+            // Last widget
+            if( !this._inlineWidgetsLeft )
+            {
+                this.endLine();
+            }
+        }
+        else
+        {
+            _insertWidget( widget.root );
+        }
 
         return widget;
+    }
+
+    _addFilter( placeholder, options = {} ) {
+
+        options.placeholder = placeholder.constructor == String ? placeholder : "Filter properties..";
+        options.skipWidget = options.skipWidget ?? true;
+        options.skipInlineCount = true;
+
+        let widget = new TextInput( null, null, null, options )
+        const element = widget.root;
+        element.className += " lexfilter noname";
+
+        let input = document.createElement('input');
+        input.className = 'lexinput-filter';
+        input.setAttribute( "placeholder", options.placeholder );
+        input.style.width =  "calc( 100% - 17px )";
+        input.value = options.filterValue || "";
+
+        let searchIcon = document.createElement('a');
+        searchIcon.className = "fa-solid fa-magnifying-glass";
+        element.appendChild( searchIcon );
+        element.appendChild( input );
+
+        input.addEventListener("input", (e) => {
+            if( options.callback )
+            {
+                options.callback( input.value, e );
+            }
+        });
+
+        return element;
+    }
+
+    _searchWidgets( branchName, value ) {
+
+        for( let b of this.branches )
+        {
+            if( b.name !== branchName )
+            {
+                continue;
+            }
+
+            // remove all widgets
+            for( let w of b.widgets )
+            {
+                if( w.domEl.classList.contains('lexfilter') )
+                {
+                    continue;
+                }
+                w.domEl.remove();
+            }
+
+            // push to right container
+            this.queue( b.content );
+
+            const emptyFilter = !value.length;
+
+            // add widgets
+            for( let w of b.widgets )
+            {
+                if( !emptyFilter )
+                {
+                    if(!w.name) continue;
+                    const filterWord = value.toLowerCase();
+                    const name = w.name.toLowerCase();
+                    if(!name.includes(value)) continue;
+                }
+
+                // insert filtered widget
+                this.queuedContainer.appendChild( w.domEl );
+            }
+
+            // push again to current branch
+            this.clearQueue();
+
+            // no more branches to check!
+            return;
+        }
+    }
+
+    /**
+     * @method getBranch
+     * @param {String} name if null, return current branch
+     */
+
+    getBranch( name ) {
+
+        if( name )
+        {
+            return this.branches.find( b => b.name == name );
+        }
+
+        return this._currentBranch;
+    }
+
+    /**
+     * @method queue
+     * @param {HTMLElement} domEl container to append elements to
+     */
+
+    queue( domEl ) {
+
+        if( !domEl && this._currentBranch)
+        {
+            domEl = this._currentBranch.root;
+        }
+
+        if( this.queuedContainer )
+        {
+            this._queue.push( this.queuedContainer );
+        }
+
+        this.queuedContainer = domEl;
+    }
+
+    /**
+     * @method clearQueue
+     */
+
+    clearQueue() {
+
+        if( this._queue && this._queue.length)
+        {
+            this.queuedContainer = this._queue.pop();
+            return;
+        }
+
+        delete this.queuedContainer;
+    }
+
+    /**
+     * @method addSeparator
+     */
+
+    addSeparator() {
+
+        var element = document.createElement('div');
+        element.className = "lexseparator";
+
+        let widget = new Widget( Widget.SEPARATOR );
+        widget.root = element;
+
+        if( this._currentBranch )
+        {
+            this._currentBranch.content.appendChild( element );
+            this._currentBranch.widgets.push( widget );
+        }
+        else
+        {
+            this.root.appendChild( element );
+        }
+    }
+
+    /**
+     * @method addBlank
+     * @param {Number} width
+     * @param {Number} height
+     */
+
+    addBlank( width, height ) {
+        const widget = new Blank( width, height );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTitle
+     * @param {String} name Title name
+     * @param {Object} options:
+     * link: Href in case title is an hyperlink
+     * target: Target name of the iframe (if any)
+     * icon: FA class of the icon (if any)
+     * iconColor: Color of title icon (if any)
+     * style: CSS to override
+     */
+
+    addTitle( name, options = {} ) {
+        const widget = new Title( name, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addText
+     * @param {String} name Widget name
+     * @param {String} value Text value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * required: Make the input required
+     * placeholder: Add input placeholder
+     * pattern: Regular expression that value must match
+     * trigger: Choose onchange trigger (default, input) [default]
+     * inputWidth: Width of the text input
+     * skipReset: Don't add the reset value button when value changes
+     * float: Justify input text content
+     * justifyName: Justify name content
+     */
+
+    addText( name, value, callback, options = {} ) {
+        const widget = new TextInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTextArea
+     * @param {String} name Widget name
+     * @param {String} value Text Area value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * placeholder: Add input placeholder
+     * trigger: Choose onchange trigger (default, input) [default]
+     * inputWidth: Width of the text input
+     * float: Justify input text content
+     * justifyName: Justify name content
+     * fitHeight: Height adapts to text
+     */
+
+    addTextArea( name, value, callback, options = {} ) {
+        const widget = new TextArea( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addLabel
+     * @param {String} value Information string
+     * @param {Object} options Text options
+     */
+
+    addLabel( value, options = {} ) {
+        options.disabled = true;
+        const widget = this.addText( null, value, null, options );
+        widget.type = Widget.LABEL;
+        return widget;
+    }
+
+    /**
+     * @method addButton
+     * @param {String} name Widget name
+     * @param {String} value Button name
+     * @param {Function} callback Callback function on click
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * icon: Icon class to show as button value
+     * img: Path to image to show as button value
+     * title: Text to show in native Element title
+     */
+
+    addButton( name, value, callback, options = {} ) {
+        const widget = new Button( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addComboButtons
+     * @param {String} name Widget name
+     * @param {Array} values Each of the {value, callback, selected, disabled} items
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * float: Justify content (left, center, right) [center]
+     * @legacy selected: Selected item by default by value
+     * noSelection: Buttons can be clicked, but they are not selectable
+     * toggle: Buttons can be toggled insted of selecting only one
+     */
+
+    addComboButtons( name, values, options = {} ) {
+        const widget = new ComboButtons( name, values, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addCard
+     * @param {String} name Card Name
+     * @param {Object} options:
+     * text: Card text
+     * link: Card link
+     * title: Card dom title
+     * src: url of the image
+     * callback (Function): function to call on click
+     */
+
+    addCard( name, options = {} ) {
+        const widget = new Card( name, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addForm
+     * @param {String} name Widget name
+     * @param {Object} data Form data
+     * @param {Function} callback Callback function on submit form
+     * @param {Object} options:
+     * actionName: Text to be shown in the button
+     */
+
+    addForm( name, data, callback, options = {} ) {
+        const widget = new Form( name, data, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addContent
+     * @param {String} name Widget name
+     * @param {HTMLElement/String} element
+     * @param {Object} options
+     */
+
+    addContent( name, element, options = {} ) {
+
+        console.assert( element, "Empty content!" );
+
+        if( element.constructor == String )
+        {
+            const tmp = document.createElement( "div" );
+            tmp.innerHTML = element;
+
+            if( tmp.childElementCount > 1 )
+            {
+                element = tmp;
+            }
+            else
+            {
+                element = tmp.firstElementChild;
+            }
+        }
+
+        options.hideName = true;
+
+        let widget = new Widget( Widget.CONTENT, name, null, options );
+        widget.root.appendChild( element );
+
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addImage
+     * @param {String} name Widget name
+     * @param {String} url Image Url
+     * @param {Object} options
+     * hideName: Don't use name as label [false]
+     */
+
+    async addImage( name, url, options = {} ) {
+
+        console.assert( url, "Empty src/url for Image!" );
+
+        let container = document.createElement( 'div' );
+        container.className = "leximage";
+        container.style.width = "100%";
+
+        let img = document.createElement( 'img' );
+        img.src = url;
+        Object.assign( img.style, options.style ?? {} );
+        container.appendChild( img );
+
+        let widget = new Widget( Widget.IMAGE, name, null, options );
+        widget.root.appendChild( container );
+
+        // await img.decode();
+        img.decode();
+
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addSelect
+     * @param {String} name Widget name
+     * @param {Array} values Posible options of the select widget -> String (for default select) or Object = {value, url} (for images, gifs..)
+     * @param {String} value Select by default option
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * filter: Add a search bar to the widget [false]
+     * disabled: Make the widget disabled [false]
+     * skipReset: Don't add the reset value button when value changes
+     * placeholder: Placeholder for the filter input
+     * emptyMsg: Custom message to show when no filtered results
+     */
+
+    addSelect( name, values, value, callback, options = {} ) {
+        const widget = new Select( name, values, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addCurve
+     * @param {String} name Widget name
+     * @param {Array of Array} values Array of 2N Arrays of each value of the curve
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * skipReset: Don't add the reset value button when value changes
+     * bgColor: Widget background color
+     * pointsColor: Curve points color
+     * lineColor: Curve line color
+     * noOverlap: Points do not overlap, replacing themselves if necessary
+     * allowAddValues: Support adding values on click
+     * smooth: Curve smoothness
+     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
+    */
+
+    addCurve( name, values, callback, options = {} ) {
+        const widget = new Curve( name, values, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addDial
+     * @param {String} name Widget name
+     * @param {Array of Array} values Array of 2N Arrays of each value of the dial
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * skipReset: Don't add the reset value button when value changes
+     * bgColor: Widget background color
+     * pointsColor: Curve points color
+     * lineColor: Curve line color
+     * noOverlap: Points do not overlap, replacing themselves if necessary
+     * allowAddValues: Support adding values on click
+     * smooth: Curve smoothness
+     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
+    */
+
+    addDial( name, values, callback, options = {} ) {
+        const widget = new Dial( name, values, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addLayers
+     * @param {String} name Widget name
+     * @param {Number} value Flag value by default option
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     */
+
+    addLayers( name, value, callback, options = {} ) {
+        const widget = new Layers( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addArray
+     * @param {String} name Widget name
+     * @param {Array} values By default values in the array
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * innerValues (Array): Use select mode and use values as options
+     */
+
+    addArray( name, values = [], callback, options = {} ) {
+        const widget = new ItemArray( name, values, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addList
+     * @param {String} name Widget name
+     * @param {Array} values List values
+     * @param {String} value Selected list value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     */
+
+    addList( name, values, value, callback, options = {} ) {
+        const widget = new List( name, values, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTags
+     * @param {String} name Widget name
+     * @param {String} value Comma separated tags
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     */
+
+    addTags( name, value, callback, options = {} ) {
+        const widget = new Tags( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addCheckbox
+     * @param {String} name Widget name
+     * @param {Boolean} value Value of the checkbox
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * label: Checkbox label
+     * suboptions: Callback to add widgets in case of TRUE value
+     * className: Extra classes to customize style
+     */
+
+    addCheckbox( name, value, callback, options = {} ) {
+        const widget = new Checkbox( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addToggle
+     * @param {String} name Widget name
+     * @param {Boolean} value Value of the checkbox
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * suboptions: Callback to add widgets in case of TRUE value
+     * className: Customize colors
+     */
+
+    addToggle( name, value, callback, options = {} ) {
+        const widget = new Toggle( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addRadioGroup
+     * @param {String} name Widget name
+     * @param {String} label Radio label
+     * @param {Array} values Radio options
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * className: Customize colors
+     * selected: Index of the default selected option
+     */
+
+    addRadioGroup( name, label, values, callback, options = {} ) {
+        const widget = new RadioGroup( name, label, values, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addColor
+     * @param {String} name Widget name
+     * @param {String} value Default color (hex)
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * useRGB: The callback returns color as Array (r, g, b) and not hex [false]
+     */
+
+    addColor( name, value, callback, options = {} ) {
+        const widget = new ColorInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addRange
+     * @param {String} name Widget name
+     * @param {Number} value Default number value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * className: Extra classes to customize style
+     * disabled: Make the widget disabled [false]
+     * left: The slider goes to the left instead of the right
+     * fill: Fill slider progress [true]
+     * step: Step of the input
+     * min, max: Min and Max values for the input
+     */
+
+    addRange( name, value, callback, options = {} ) {
+        const widget = new RangeInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addNumber
+     * @param {String} name Widget name
+     * @param {Number} value Default number value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * step: Step of the input
+     * precision: The number of digits to appear after the decimal point
+     * min, max: Min and Max values for the input
+     * skipSlider: If there are min and max values, skip the slider
+     * units: Unit as string added to the end of the value
+     * onPress: Callback function on mouse down
+     * onRelease: Callback function on mouse up
+     */
+
+    addNumber( name, value, callback, options = {} ) {
+        const widget = new NumberInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    static VECTOR_COMPONENTS = { 0: 'x', 1: 'y', 2: 'z', 3: 'w' };
+
+    _addVector( numComponents, name, value, callback, options = {} ) {
+        const widget = new Vector( numComponents, name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addVector N (2, 3, 4)
+     * @param {String} name Widget name
+     * @param {Array} value Array of N components
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * step: Step of the inputs
+     * min, max: Min and Max values for the inputs
+     * onPress: Callback function on mouse down
+     * onRelease: Callback function on mouse is released
+     */
+
+    addVector2( name, value, callback, options ) {
+        return this._addVector( 2, name, value, callback, options );
+    }
+
+    addVector3( name, value, callback, options ) {
+        return this._addVector( 3, name, value, callback, options );
+    }
+
+    addVector4( name, value, callback, options ) {
+        return this._addVector( 4, name, value, callback, options );
+    }
+
+    /**
+     * @method addSize
+     * @param {String} name Widget name
+     * @param {Number} value Default number value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * units: Unit as string added to the end of the value
+     */
+
+    addSize( name, value, callback, options = {} ) {
+        const widget = new SizeInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addPad
+     * @param {String} name Widget name
+     * @param {Array} value Pad value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * min, max: Min and Max values
+     * padSize: Size of the pad (css)
+     * onPress: Callback function on mouse down
+     * onRelease: Callback function on mouse up
+     */
+
+    addPad( name, value, callback, options = {} ) {
+        const widget = new Pad( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addProgress
+     * @param {String} name Widget name
+     * @param {Number} value Progress value
+     * @param {Object} options:
+     * min, max: Min and Max values
+     * low, optimum, high: Low and High boundary values, Optimum point in the range
+     * showValue: Show current value
+     * editable: Allow edit value
+     * callback: Function called on change value
+     */
+
+    addProgress( name, value, options = {} ) {
+        const widget = new Progress( name, value, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addFile
+     * @param {String} name Widget name
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * local: Ask for local file
+     * disabled: Make the widget disabled [false]
+     * read: Return the file itself (False) or the contents (True)
+     * type: type to read as [text (Default), buffer, bin, url]
+     */
+
+    addFile( name, callback, options = { } ) {
+        const widget = new FileInput( name, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTree
+     * @param {String} name Widget name
+     * @param {Object} data Data of the tree
+     * @param {Object} options:
+     * icons: Array of objects with icon button information {name, icon, callback}
+     * filter: Add nodes filter [true]
+     * rename: Boolean to allow rename [true]
+     * onevent(tree_event): Called when node is selected, dbl clicked, contextmenu opened, changed visibility, parent or name
+     */
+
+    addTree( name, data, options = {} ) {
+        const widget = new Tree( name, data, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTabSections
+     * @param {String} name Widget name
+     * @param {Array} tabs Contains objects with {
+     *      name: Name of the tab (if icon, use as title)
+     *      icon: Icon to be used as the tab icon (optional)
+     *      onCreate: Func to be called at tab creation
+     *      onSelect: Func to be called on select tab (optional)
+     * }
+     * @param {Object} options
+     * vertical: Use vertical or horizontal tabs (vertical by default)
+     * showNames: Show tab name only in horizontal tabs
+     */
+
+    addTabSections( name, tabs, options = {} ) {
+        const widget = new TabSections( name, tabs, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addCounter
+     * @param {String} name Widget name
+     * @param {Number} value Counter value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * min, max: Min and Max values
+     * step: Step for adding/substracting
+     * label: Text to show below the counter
+     */
+
+    addCounter( name, value, callback, options = { } ) {
+        const widget = new Counter( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTable
+     * @param {String} name Widget name
+     * @param {Number} data Table data
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * head: Table headers (each of the headers per column)
+     * body: Table body (data per row for each column)
+     * rowActions: Allow to add actions per row
+     * onMenuAction: Function callback to fill the "menu" context
+     * selectable: Each row can be selected
+     * sortable: Rows can be sorted by the user manually
+     */
+
+    addTable( name, data, options = { } ) {
+        const widget = new Table( name, data, options );
+        return this._attachWidget( widget );
     }
 }
 
@@ -7395,17 +9771,19 @@ class Branch {
         var title = document.createElement( 'div' );
         title.className = "lexbranchtitle";
 
-        title.innerHTML = "<a class='fa-solid fa-angle-up switch-branch-button'></a>";
         if( options.icon )
         {
-            title.innerHTML += "<a class='branchicon " + options.icon + "' style='margin-right: 8px; margin-bottom: -2px;'>";
+            title.innerHTML = "<a class='branchicon " + options.icon + "'>";
         }
-        title.innerHTML += name || "Branch";
+
+        title.innerHTML += ( name || "Branch" );
+
+        title.innerHTML += "<a class='fa-solid fa-angle-right switch-branch-button'></a>";
 
         root.appendChild( title );
 
         var branchContent = document.createElement( 'div' );
-        branchContent.id = name.replace(/\s/g, '');
+        branchContent.id = name.replace( /\s/g, '' );
         branchContent.className = "lexbranchcontent";
         root.appendChild(branchContent);
         this.content = branchContent;
@@ -7414,23 +9792,23 @@ class Branch {
 
         if( options.closed )
         {
-            title.className += " closed";
-            root.className += " closed";
-            this.grabber.setAttribute('hidden', true);
+            title.classList.add( "closed" );
+            root.classList.add( "closed" );
+            this.grabber.setAttribute( "hidden", true );
             doAsync( () => {
-                this.content.setAttribute( 'hidden', true );
+                this.content.setAttribute( "hidden", true );
             }, 15 );
         }
 
         this.onclick = function( e ) {
             e.stopPropagation();
-            this.classList.toggle( 'closed' );
-            this.parentElement.classList.toggle( 'closed' );
+            this.classList.toggle( "closed" );
+            this.parentElement.classList.toggle( "closed" );
 
-            that.content.toggleAttribute( 'hidden' );
-            that.grabber.toggleAttribute( 'hidden' );
+            that.content.toggleAttribute( "hidden" );
+            that.grabber.toggleAttribute( "hidden" );
 
-            LX.emit( "@on_branch_closed", this.classList.contains("closed"), { target: that.panel } );
+            LX.emit( "@on_branch_closed", this.classList.contains( "closed" ) );
         };
 
         this.oncontextmenu = function( e ) {
@@ -7449,7 +9827,7 @@ class Branch {
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-180">', {id: 'dock_options1'});
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-90">', {id: 'dock_options2'});
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-270">', {id: 'dock_options3'});
-                p.add( 'Floating', that._on_make_floating.bind( that ) );
+                p.add( 'Floating', that._onMakeFloating.bind( that ) );
             }, { icon: "fa-regular fa-window-restore" });
         };
 
@@ -7457,11 +9835,12 @@ class Branch {
         title.addEventListener( 'contextmenu', this.oncontextmenu );
     }
 
-    _on_make_floating() {
+    _onMakeFloating() {
 
         const dialog = new Dialog(this.name, p => {
             // add widgets
-            for( let w of this.widgets ) {
+            for( let w of this.widgets )
+            {
                 p.root.appendChild( w.domEl );
             }
         });
@@ -7554,10 +9933,10 @@ class Branch {
         var size = this.grabber.style.marginLeft;
 
         // Update sizes of widgets inside
-        for(var i = 0; i < this.widgets.length; i++) {
-
+        for( var i = 0; i < this.widgets.length; i++ )
+        {
             let widget = this.widgets[ i ];
-            let element = widget.domEl;
+            const element = widget.root;
 
             if( element.children.length < 2 )
             {
@@ -7573,9 +9952,6 @@ class Branch {
             {
                 case Widget.FILE:
                     padding = "10%";
-                    break;
-                case Widget.TEXT:
-                    padding = "8px";
                     break;
             };
 
@@ -7599,7 +9975,7 @@ LX.Branch = Branch;
 
 class Footer {
     /**
-     * @param {*} options:
+     * @param {Object} options:
      * columns: Array with data per column { title, items: [ { title, link } ]  }
      * credits: html string
      * socials: Array with data per item { title, link, iconHtml }
@@ -7714,15 +10090,14 @@ class Dialog {
             draggable = options.draggable ?? true,
             modal = options.modal ?? false;
 
-        if( modal )
-        {
-            LX.modal.toggle( false );
-        }
-
-        var root = document.createElement('div');
-        root.className = "lexdialog " + (options.class ?? "");
+        var root = document.createElement('dialog');
+        root.className = "lexdialog " + (options.className ?? "");
         root.id = options.id ?? "dialog" + Dialog._last_id++;
         LX.root.appendChild( root );
+
+        doAsync( () => {
+            modal ? root.showModal() : root.show();
+        }, 10 );
 
         let that = this;
 
@@ -7734,7 +10109,7 @@ class Dialog {
             titleDiv.innerHTML = title;
             titleDiv.setAttribute('draggable', false);
 
-            titleDiv.oncontextmenu = function(e) {
+            titleDiv.oncontextmenu = function( e ) {
                 e.preventDefault();
                 e.stopPropagation();
 
@@ -7805,17 +10180,16 @@ class Dialog {
 
                 if( !options.onclose )
                 {
-                    that.panel.clear();
-                    root.remove();
+                    root.close();
+
+                    doAsync( () => {
+                        that.panel.clear();
+                        root.remove();
+                    }, 150 );
                 }
                 else
                 {
                     options.onclose( this.root );
-                }
-
-                if( modal )
-                {
-                    LX.modal.toggle( true );
                 }
             };
 
@@ -7875,15 +10249,15 @@ class Dialog {
 
         root.style.width = size[ 0 ] ? (size[ 0 ]) : "25%";
         root.style.height = size[ 1 ] ? (size[ 1 ]) : "auto";
+        root.style.translate = options.position ? "unset" : "-50% -50%";
 
         if( options.size )
         {
             this.size = size;
         }
 
-        let rect = root.getBoundingClientRect();
-        root.style.left = position[ 0 ] ? (position[ 0 ]) : "calc( 50% - " + ( rect.width * 0.5 ) + "px )";
-        root.style.top = position[ 1 ] ? (position[ 1 ]) : "calc( 50% - " + ( rect.height * 0.5 ) + "px )";
+        root.style.left = position[ 0 ] ?? "50%";
+        root.style.top = position[ 1 ] ?? "50%";
 
         panel.root.style.width = "calc( 100% - 30px )";
         panel.root.style.height = title ? "calc( 100% - " + ( titleDiv.offsetHeight + 30 ) + "px )" : "calc( 100% - 51px )";
@@ -7900,7 +10274,7 @@ class Dialog {
         this._oncreate.call(this, this.panel);
     }
 
-    setPosition(x, y) {
+    setPosition( x, y ) {
 
         this.root.style.left = x + "px";
         this.root.style.top = y + "px";
@@ -7931,21 +10305,32 @@ class PocketDialog extends Dialog {
         options.draggable = options.draggable ?? false;
         options.closable = options.closable ?? false;
 
+        const dragMargin = 3;
+
         super( title, callback, options );
 
         let that = this;
         // Update margins on branch title closes/opens
         LX.addSignal("@on_branch_closed", this.panel, closed => {
             if( this.dock_pos == PocketDialog.BOTTOM )
-                this.root.style.top = "calc(100% - " + (this.root.offsetHeight + 6) + "px)";
+            {
+                this.root.style.top = "calc(100% - " + (this.root.offsetHeight + dragMargin) + "px)";
+            }
         });
 
         // Custom
         this.root.classList.add( "pocket" );
-        if( !options.position ) {
-            this.root.style.left = "calc(100% - " + (this.root.offsetWidth + 6) + "px)";
-            this.root.style.top = "0px";
+
+        this.root.style.translate = "none";
+        this.root.style.top = "0";
+        this.root.style.left = "unset";
+
+        if( !options.position )
+        {
+            this.root.style.right = dragMargin + "px";
+            this.root.style.top = dragMargin + "px";
         }
+
         this.panel.root.style.width = "calc( 100% - 12px )";
         this.panel.root.style.height = "calc( 100% - 40px )";
         this.dock_pos = PocketDialog.TOP;
@@ -7953,6 +10338,11 @@ class PocketDialog extends Dialog {
         this.minimized = false;
         this.title.tabIndex = -1;
         this.title.addEventListener("click", e => {
+            if( this.title.eventCatched )
+            {
+                this.title.eventCatched = false;
+                return;
+            }
 
             // Sized dialogs have to keep their size
             if( this.size )
@@ -7966,7 +10356,7 @@ class PocketDialog extends Dialog {
 
             if( this.dock_pos == PocketDialog.BOTTOM )
                 that.root.style.top = this.root.classList.contains("minimized") ?
-                "calc(100% - " + (that.title.offsetHeight + 6) + "px)" : "calc(100% - " + (that.root.offsetHeight + 6) + "px)";
+                "calc(100% - " + (that.title.offsetHeight + 6) + "px)" : "calc(100% - " + (that.root.offsetHeight + dragMargin) + "px)";
         });
 
         if( !options.draggable )
@@ -7981,26 +10371,42 @@ class PocketDialog extends Dialog {
                     switch( t )
                     {
                     case 'b':
-                        this.root.style.top = "calc(100% - " + (this.root.offsetHeight + 6) + "px)";
+                        this.root.style.top = "calc(100% - " + (this.root.offsetHeight + dragMargin) + "px)";
                         break;
                     case 'l':
-                        this.root.style.left = options.position ? options.position[ 1 ] : "0px";
+                        this.root.style.right = "unset";
+                        this.root.style.left = options.position ? options.position[ 1 ] : ( dragMargin + "px" );
                         break;
                     }
                 }
             }
 
             this.root.classList.add('dockable');
-            this.title.addEventListener("keydown", function(e) {
-                if( e.ctrlKey && e.key == 'ArrowLeft' ) {
+
+            this.title.addEventListener("keydown", function( e ) {
+                if( !e.ctrlKey )
+                {
+                    return;
+                }
+
+                that.root.style.right = "unset";
+
+                if( e.key == 'ArrowLeft' )
+                {
                     that.root.style.left = '0px';
-                } else if( e.ctrlKey && e.key == 'ArrowRight' ) {
-                    that.root.style.left = "calc(100% - " + (that.root.offsetWidth + 6) + "px)";
-                }else if( e.ctrlKey && e.key == 'ArrowUp' ) {
+                }
+                else if( e.key == 'ArrowRight' )
+                {
+                    that.root.style.left = "calc(100% - " + (that.root.offsetWidth + dragMargin) + "px)";
+                }
+                else if( e.key == 'ArrowUp' )
+                {
                     that.root.style.top = "0px";
                     that.dock_pos = PocketDialog.TOP;
-                }else if( e.ctrlKey && e.key == 'ArrowDown' ) {
-                    that.root.style.top = "calc(100% - " + (that.root.offsetHeight + 6) + "px)";
+                }
+                else if( e.key == 'ArrowDown' )
+                {
+                    that.root.style.top = "calc(100% - " + (that.root.offsetHeight + dragMargin) + "px)";
                     that.dock_pos = PocketDialog.BOTTOM;
                 }
             });
@@ -8019,12 +10425,12 @@ class ContextMenu {
     constructor( event, title, options = {} ) {
 
         // remove all context menus
-        document.body.querySelectorAll(".lexcontextmenubox").forEach(e => e.remove());
+        document.body.querySelectorAll( ".lexcontextmenu" ).forEach( e => e.remove() );
 
-        this.root = document.createElement('div');
-        this.root.className = "lexcontextmenubox";
-        this.root.style.left = (event.x - 48 + document.scrollingElement.scrollLeft) + "px";
-        this.root.style.top = (event.y - 8 + document.scrollingElement.scrollTop) + "px";
+        this.root = document.createElement( "div" );
+        this.root.className = "lexcontextmenu";
+        this.root.style.left = ( event.x - 48 + document.scrollingElement.scrollLeft ) + "px";
+        this.root.style.top = ( event.y - 8 + document.scrollingElement.scrollTop ) + "px";
 
         this.root.addEventListener("mouseleave", function() {
             this.remove();
@@ -8037,13 +10443,13 @@ class ContextMenu {
         {
             const item = {};
             item[ title ] = [];
-            item[ 'className' ] = "cmtitle";
-            item[ 'icon' ] = options.icon;
+            item[ "className" ] = "cmtitle";
+            item[ "icon" ] = options.icon;
             this.items.push( item );
         }
     }
 
-    _adjust_position( div, margin, useAbsolute = false ) {
+    _adjustPosition( div, margin, useAbsolute = false ) {
 
         let rect = div.getBoundingClientRect();
 
@@ -8084,19 +10490,19 @@ class ContextMenu {
         }
     }
 
-    _create_submenu( o, k, c, d ) {
+    _createSubmenu( o, k, c, d ) {
 
-        this.root.querySelectorAll(".lexcontextmenubox").forEach( cm => cm.remove() );
+        this.root.querySelectorAll( ".lexcontextmenu" ).forEach( cm => cm.remove() );
 
         let contextmenu = document.createElement('div');
-        contextmenu.className = "lexcontextmenubox";
+        contextmenu.className = "lexcontextmenu";
         c.appendChild( contextmenu );
 
         for( var i = 0; i < o[k].length; ++i )
         {
-            const subitem = o[k][i];
-            const subkey = Object.keys(subitem)[0];
-            this._create_entry(subitem, subkey, contextmenu, d);
+            const subitem = o[ k ][ i ];
+            const subkey = Object.keys( subitem )[ 0 ];
+            this._createEntry(subitem, subkey, contextmenu, d);
         }
 
         var rect = c.getBoundingClientRect();
@@ -8104,29 +10510,32 @@ class ContextMenu {
         contextmenu.style.marginTop =  3.5 - c.offsetHeight + "px";
 
         // Set final width
-        this._adjust_position( contextmenu, 6, true );
+        this._adjustPosition( contextmenu, 6, true );
     }
 
-    _create_entry( o, k, c, d ) {
+    _createEntry( o, k, c, d ) {
 
         const hasSubmenu = o[ k ].length;
         let entry = document.createElement('div');
-        entry.className = "lexcontextmenuentry" + (o[ 'className' ] ? " " + o[ 'className' ] : "" );
+        entry.className = "lexmenuboxentry" + (o[ 'className' ] ? " " + o[ 'className' ] : "" );
         entry.id = o.id ?? ("eId" + getSupportedDOMName( k ));
         entry.innerHTML = "";
         const icon = o[ 'icon' ];
-        if(icon) {
+        if( icon )
+        {
             entry.innerHTML += "<a class='" + icon + " fa-sm'></a>";
         }
         const disabled = o['disabled'];
         entry.innerHTML += "<div class='lexentryname" + (disabled ? " disabled" : "") + "'>" + k + "</div>";
         c.appendChild( entry );
 
-        if( this.colors[ k ] ) {
+        if( this.colors[ k ] )
+        {
             entry.style.borderColor = this.colors[ k ];
         }
 
-        if( k == "" ) {
+        if( k == "" )
+        {
             entry.className += " cmseparator";
             return;
         }
@@ -8139,7 +10548,8 @@ class ContextMenu {
             if(disabled) return;
 
             const f = o[ 'callback' ];
-            if(f) {
+            if( f )
+            {
                 f.call( this, k, entry );
                 this.root.remove();
             }
@@ -8148,7 +10558,7 @@ class ContextMenu {
             return;
 
             if( LX.OPEN_CONTEXTMENU_ENTRY == 'click' )
-                this._create_submenu( o, k, entry, ++d );
+                this._createSubmenu( o, k, entry, ++d );
         });
 
         if( !hasSubmenu )
@@ -8164,20 +10574,19 @@ class ContextMenu {
                 if(entry.built)
                     return;
                 entry.built = true;
-                this._create_submenu( o, k, entry, ++d );
+                this._createSubmenu( o, k, entry, ++d );
                 e.stopPropagation();
             });
         }
 
         entry.addEventListener("mouseleave", () => {
             d = -1; // Reset depth
-            // delete entry.built;
-            c.querySelectorAll(".lexcontextmenubox").forEach(e => e.remove());
+            c.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
         });
     }
 
     onCreate() {
-        doAsync( () => this._adjust_position( this.root, 6 ) );
+        doAsync( () => this._adjustPosition( this.root, 6 ) );
     }
 
     add( path, options = {} ) {
@@ -8205,22 +10614,25 @@ class ContextMenu {
                 if(key) found = o[ key ];
             } );
 
-            if(found) {
-                insert( tokens[idx++], found );
+            if( found )
+            {
+                insert( tokens[ idx++ ], found );
             }
-            else {
+            else
+            {
                 let item = {};
                 item[ token ] = [];
-                const next_token = tokens[idx++];
+                const nextToken = tokens[ idx++ ];
                 // Check if last token -> add callback
-                if(!next_token) {
+                if( !nextToken )
+                {
                     item[ 'id' ] = options.id;
                     item[ 'callback' ] = options.callback;
                     item[ 'disabled' ] = options.disabled ?? false;
                 }
 
                 list.push( item );
-                insert( next_token, item[ token ] );
+                insert( nextToken, item[ token ] );
             }
         };
 
@@ -8230,13 +10642,15 @@ class ContextMenu {
 
         const setParent = _item => {
 
-            let key = Object.keys(_item)[0];
+            let key = Object.keys( _item )[ 0 ];
             let children = _item[ key ];
 
-            if(!children.length)
+            if( !children.length )
+            {
                 return;
+            }
 
-            if(children.find( c => Object.keys(c)[0] == key ) == null)
+            if( children.find( c => Object.keys(c)[0] == key ) == null )
             {
                 const parent = {};
                 parent[ key ] = [];
@@ -8244,27 +10658,34 @@ class ContextMenu {
                 _item[ key ].unshift( parent );
             }
 
-            for( var child of _item[ key ] ) {
-                let k = Object.keys(child)[0];
-                for( var i = 0; i < child[k].length; ++i )
-                    setParent(child);
+            for( var child of _item[ key ] )
+            {
+                let k = Object.keys( child )[ 0 ];
+                for( var i = 0; i < child[ k ].length; ++i )
+                {
+                    setParent( child );
+                }
             }
         };
 
         for( let item of this.items )
-            setParent(item);
+        {
+            setParent( item );
+        }
 
         // Create elements
 
         for( let item of this.items )
         {
-            let key = Object.keys(item)[0];
+            let key = Object.keys( item )[ 0 ];
             let pKey = "eId" + getSupportedDOMName( key );
 
             // Item already created
-            const id = "#" + (item.id ?? pKey);
-            if( !this.root.querySelector(id) )
-                this._create_entry(item, key, this.root, -1);
+            const id = "#" + ( item.id ?? pKey );
+            if( !this.root.querySelector( id ) )
+            {
+                this._createEntry( item, key, this.root, -1 );
+            }
         }
     }
 
@@ -8297,14 +10718,12 @@ function addContextMenu( title, event, callback, options )
 LX.addContextMenu = addContextMenu;
 
 /**
- * @class Curve
+ * @class CanvasCurve
  */
 
-// forked from litegui.js @jagenjo
+class CanvasCurve {
 
-class Curve {
-
-    constructor( panel, value, options = {} ) {
+    constructor( value, options = {} ) {
 
         let element = document.createElement( "div" );
         element.className = "curve " + ( options.className ? options.className : "" );
@@ -8375,7 +10794,7 @@ class Curve {
 
             var r = [];
             var dx = (element.xrange[1] - element.xrange[ 0 ]) / samples;
-            for(var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
+            for( var i = element.xrange[0]; i <= element.xrange[1]; i += dx )
             {
                 r.push( element.getValueAt(i) );
             }
@@ -8384,7 +10803,8 @@ class Curve {
 
         element.addValue = function(v) {
 
-            for(var i = 0; i < element.value; i++) {
+            for( var i = 0; i < element.value; i++ )
+            {
                 var value = element.value[i];
                 if(value[0] < v[0]) continue;
                 element.value.splice(i,0,v);
@@ -8410,7 +10830,7 @@ class Curve {
 
         var selected = -1;
 
-        element.redraw = function( o = {} )  {
+        element.redraw = function( o = {} ) {
 
             if( o.value ) element.value = o.value;
             if( o.xrange ) element.xrange = o.xrange;
@@ -8439,13 +10859,16 @@ class Curve {
             ctx.moveTo( pos[ 0 ], pos[ 1 ] );
             let values = [pos[ 0 ], pos[ 1 ]];
 
-            for(var i in element.value) {
-                var value = element.value[i];
-                pos = convert(value);
-                values.push(pos[ 0 ]);
-                values.push(pos[ 1 ]);
-                if(!element.smooth)
+            for( var i in element.value )
+            {
+                var value = element.value[ i ];
+                pos = convert( value );
+                values.push( pos[ 0 ] );
+                values.push( pos[ 1 ] );
+                if( !element.smooth )
+                {
                     ctx.lineTo( pos[ 0 ], pos[ 1 ] );
+                }
             }
 
             pos = convert([ element.xrange[ 1 ], element.defaulty ]);
@@ -8462,7 +10885,8 @@ class Curve {
             }
 
             // Draw points
-            for( var i = 0; i < element.value.length; i += 1 ) {
+            for( var i = 0; i < element.value.length; i += 1 )
+            {
                 var value = element.value[ i ];
                 pos = convert( value );
                 if( selected == i )
@@ -8474,10 +10898,11 @@ class Curve {
                 ctx.fill();
             }
 
-            if(element.show_samples) {
+            if( element.show_samples )
+            {
                 var samples = element.resample(element.show_samples);
                 ctx.fillStyle = "#888";
-                for(var i = 0; i < samples.length; i += 1)
+                for( var i = 0; i < samples.length; i += 1)
                 {
                     var value = [ i * ((element.xrange[ 1 ] - element.xrange[ 0 ]) / element.show_samples) + element.xrange[ 0 ], samples[ i ] ];
                     pos = convert(value);
@@ -8500,7 +10925,8 @@ class Curve {
 
             selected = computeSelected( mousex, canvas.height - mousey );
 
-            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values ) {
+            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values )
+            {
                 var v = unconvert([ mousex, canvas.height - mousey ]);
                 element.value.push( v );
                 sortValues();
@@ -8548,7 +10974,8 @@ class Curve {
             var dy = element.draggable_y ? last_mouse[ 1 ] - mousey : 0;
             var delta = unconvert([ -dx, dy ]);
 
-            if( selected != -1 ) {
+            if( selected != -1 )
+            {
                 var minx = element.xrange[ 0 ];
                 var maxx = element.xrange[ 1 ];
 
@@ -8635,13 +11062,13 @@ class Curve {
     }
 }
 
-LX.Curve = Curve;
+LX.CanvasCurve = CanvasCurve;
 
 /**
- * @class Dial
+ * @class CanvasDial
  */
 
-class Dial {
+class CanvasDial {
 
     constructor( panel, value, options = {} ) {
 
@@ -8705,7 +11132,7 @@ class Dial {
 
             var r = [];
             var dx = (element.xrange[1] - element.xrange[ 0 ]) / samples;
-            for(var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
+            for( var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
             {
                 r.push( element.getValueAt(i) );
             }
@@ -8714,15 +11141,16 @@ class Dial {
 
         element.addValue = function(v) {
 
-            for(var i = 0; i < element.value; i++) {
-                var value = element.value[i];
-                if(value[0] < v[0]) continue;
-                element.value.splice(i,0,v);
+            for( var i = 0; i < element.value; i++ )
+            {
+                var value = element.value[ i ];
+                if(value[ 0 ] < v[ 0 ]) continue;
+                element.value.splice( i, 0, v );
                 redraw();
                 return;
             }
 
-            element.value.push(v);
+            element.value.push( v );
             redraw();
         }
 
@@ -8742,7 +11170,7 @@ class Dial {
 
         var selected = -1;
 
-        element.redraw = function( o = {} )  {
+        element.redraw = function( o = {} ) {
 
             if( o.value ) element.value = o.value;
             if( o.xrange ) element.xrange = o.xrange;
@@ -8771,17 +11199,17 @@ class Dial {
             ctx.moveTo( pos[ 0 ], pos[ 1 ] );
             let values = [pos[ 0 ], pos[ 1 ]];
 
-            for(var i in element.value) {
-                var value = element.value[i];
-                pos = convert(value);
-                values.push(pos[ 0 ]);
-                values.push(pos[ 1 ]);
-
+            for( var i in element.value)
+            {
+                var value = element.value[ i ];
+                pos = convert( value );
+                values.push( pos[ 0 ] );
+                values.push( pos[ 1 ] );
             }
 
             pos = convert([ element.xrange[ 1 ], element.defaulty ]);
-            values.push(pos[ 0 ]);
-            values.push(pos[ 1 ]);
+            values.push( pos[ 0 ] );
+            values.push( pos[ 1 ] );
 
             // Draw points
             const center =  [0,0];
@@ -8791,7 +11219,8 @@ class Dial {
             ctx.arc( pos[ 0 ], pos[ 1 ], 3, 0, Math.PI * 2);
             ctx.fill();
 
-            for( var i = 0; i < element.value.length; i += 1 ) {
+            for( var i = 0; i < element.value.length; i += 1 )
+            {
                 var value = element.value[ i ];
                 pos = convert( value );
                 if( selected == i )
@@ -8803,10 +11232,11 @@ class Dial {
                 ctx.fill();
             }
 
-            if(element.show_samples) {
+            if( element.show_samples )
+            {
                 var samples = element.resample(element.show_samples);
                 ctx.fillStyle = "#888";
-                for(var i = 0; i < samples.length; i += 1)
+                for( var i = 0; i < samples.length; i += 1)
                 {
                     var value = [ i * ((element.xrange[ 1 ] - element.xrange[ 0 ]) / element.show_samples) + element.xrange[ 0 ], samples[ i ] ];
                     pos = convert(value);
@@ -8829,7 +11259,8 @@ class Dial {
 
             selected = computeSelected( mousex, canvas.height - mousey );
 
-            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values ) {
+            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values )
+            {
                 var v = unconvert([ mousex, canvas.height - mousey ]);
                 element.value.push( v );
                 sortValues();
@@ -8877,7 +11308,8 @@ class Dial {
             var dy = element.draggable_y ? last_mouse[ 1 ] - mousey : 0;
             var delta = unconvert([ -dx, dy ]);
 
-            if( selected != -1 ) {
+            if( selected != -1 )
+            {
                 var minx = element.xrange[ 0 ];
                 var maxx = element.xrange[ 1 ];
 
@@ -8985,7 +11417,8 @@ class AssetViewEvent {
     }
 
     string() {
-        switch(this.type) {
+        switch(this.type)
+        {
             case AssetViewEvent.NONE: return "assetview_event_none";
             case AssetViewEvent.ASSET_SELECTED: return "assetview_event_selected";
             case AssetViewEvent.ASSET_DELETED: return "assetview_event_deleted";
@@ -9195,7 +11628,7 @@ class AssetView {
             children: this.data
         }
 
-        this.tree = this.leftPanel.addTree( "Content Browser", tree_data, {
+        const tree = this.leftPanel.addTree( "Content Browser", tree_data, {
             // icons: tree_icons,
             filter: false,
             onlyFolders: this.onlyFolders,
@@ -9228,6 +11661,8 @@ class AssetView {
                 }
             },
         });
+
+        this.tree = tree.innerTree;
     }
 
     /**
@@ -9299,7 +11734,7 @@ class AssetView {
         }
 
         this.rightPanel.sameLine();
-        this.rightPanel.addDropdown( "Filter", this.allowedTypes, this.allowedTypes[ 0 ], v => this._refreshContent.call(this, null, v), { width: "20%", minWidth: "128px" } );
+        this.rightPanel.addSelect( "Filter", this.allowedTypes, this.allowedTypes[ 0 ], v => this._refreshContent.call(this, null, v), { width: "30%", minWidth: "128px" } );
         this.rightPanel.addText( null, this.searchValue ?? "", v => this._refreshContent.call(this, v, null), { placeholder: "Search assets.." } );
         this.rightPanel.addButton( null, "<a class='fa fa-arrow-up-short-wide'></a>", on_sort.bind(this), { className: "micro", title: "Sort" } );
         this.rightPanel.addButton( null, "<a class='fa-solid fa-grip'></a>", on_change_view.bind(this), { className: "micro", title: "View" } );
@@ -9339,8 +11774,8 @@ class AssetView {
                     icon: "fa-solid fa-arrows-rotate",
                     callback: domEl => { this._refreshContent(); }
                 }
-            ], { width: "auto", noSelection: true } );
-            this.rightPanel.addText(null, this.path.join('/'), null, { disabled: true, signal: "@on_folder_change", style: { fontWeight: "bolder", fontSize: "16px", color: "#aaa" } });
+            ], { width: "20%", minWidth: "164px", noSelection: true } );
+            this.rightPanel.addText(null, this.path.join('/'), null, { width: "70%", maxWidth: "calc(70% - 64px)", minWidth: "164px", disabled: true, signal: "@on_folder_change", style: { fontWeight: "bolder", fontSize: "16px", color: "#aaa" } });
             this.rightPanel.addText(null, "Page " + this.contentPage + " / " + ((((this.currentData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1), null, {disabled: true, signal: "@on_page_change", width: "fit-content"})
             this.rightPanel.endLine();
         }
@@ -9466,8 +11901,8 @@ class AssetView {
             title.innerText = item.id;
             itemEl.appendChild( title );
 
-            if( !that.skipPreview ) {
-
+            if( !that.skipPreview )
+            {
                 let preview = null;
                 const hasImage = item.src && (['png', 'jpg'].indexOf( getExtension( item.src ) ) > -1 || item.src.includes("data:image/") ); // Support b64 image as src
 
@@ -9494,7 +11929,8 @@ class AssetView {
                     var newEmSize = charsPerLine / newLength;
                     var textBaseSize = 64;
 
-                    if(newEmSize < 1) {
+                    if( newEmSize < 1 )
+                    {
                         var newFontSize = newEmSize * textBaseSize;
                         textEl.style.fontSize = newFontSize + "px";
                         preview.style.paddingTop = "calc(50% - " + (textEl.offsetHeight * 0.5 + 10) + "px)"
@@ -9510,7 +11946,7 @@ class AssetView {
                 itemEl.appendChild(info);
             }
 
-            itemEl.addEventListener('click', function(e) {
+            itemEl.addEventListener('click', function( e ) {
                 e.stopImmediatePropagation();
                 e.stopPropagation();
 
@@ -9547,7 +11983,7 @@ class AssetView {
 
             if( that.contextMenu )
             {
-                itemEl.addEventListener('contextmenu', function(e) {
+                itemEl.addEventListener('contextmenu', function( e ) {
                     e.preventDefault();
 
                     const multiple = that.content.querySelectorAll('.selected').length;
@@ -9572,7 +12008,7 @@ class AssetView {
                 });
             }
 
-            itemEl.addEventListener("dragstart", function(e) {
+            itemEl.addEventListener("dragstart", function( e ) {
                 e.preventDefault();
             }, false );
 
@@ -9723,7 +12159,8 @@ class AssetView {
 
                 this.currentData.push( item );
 
-                if(i == (num_files - 1)) {
+                if( i == (num_files - 1) )
+                {
                     this._refreshContent();
                     if( !this.skipBrowser )
                         this.tree.refresh();
@@ -9775,7 +12212,7 @@ class AssetView {
         this.currentData.splice( idx, 1 );
         this._refreshContent( this.searchValue, this.filter );
 
-        if(this.onevent)
+        if( this.onevent)
         {
             const event = new AssetViewEvent( AssetViewEvent.ASSET_DELETED, item );
             this.onevent( event );
@@ -9851,7 +12288,7 @@ Object.assign(LX, {
         xhr.onload = function(load)
         {
             var response = this.response;
-            if(this.status != 200)
+            if( this.status != 200)
             {
                 var err = "Error " + this.status;
                 if(request.error)
@@ -9899,7 +12336,7 @@ Object.assign(LX, {
         var data = new FormData();
         if( request.data )
         {
-            for(var i in request.data)
+            for( var i in request.data)
                 data.append(i,request.data[i]);
         }
 
@@ -9960,7 +12397,7 @@ Object.assign(LX, {
         var size = total;
         var loaded_scripts = [];
 
-        for(var i in url)
+        for( var i in url)
         {
             var script = document.createElement('script');
             script.num = i;
@@ -9968,7 +12405,7 @@ Object.assign(LX, {
             script.src = url[i] + ( version ? "?version=" + version : "" );
             script.original_src = url[i];
             script.async = false;
-            script.onload = function(e) {
+            script.onload = function( e ) {
                 total--;
                 loaded_scripts.push(this);
                 if(total)
@@ -10085,6 +12522,69 @@ Element.prototype.getParentArea = function() {
     }
 }
 
+LX.ICONS = {
+    "align-center": [448, 512, [], "", "M352 64c0-17.7-14.3-32-32-32L128 32c-17.7 0-32 14.3-32 32s14.3 32 32 32l192 0c17.7 0 32-14.3 32-32zm96 128c0-17.7-14.3-32-32-32L32 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l384 0c17.7 0 32-14.3 32-32zM0 448c0 17.7 14.3 32 32 32l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L32 416c-17.7 0-32 14.3-32 32zM352 320c0-17.7-14.3-32-32-32l-192 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l192 0c17.7 0 32-14.3 32-32z"],
+    "align-justify": [448, 512, [], "", "M448 64c0-17.7-14.3-32-32-32L32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32zm0 256c0-17.7-14.3-32-32-32L32 288c-17.7 0-32 14.3-32 32s14.3 32 32 32l384 0c17.7 0 32-14.3 32-32zM0 192c0 17.7 14.3 32 32 32l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L32 160c-17.7 0-32 14.3-32 32zM448 448c0-17.7-14.3-32-32-32L32 416c-17.7 0-32 14.3-32 32s14.3 32 32 32l384 0c17.7 0 32-14.3 32-32z"],
+    "align-left": [448, 512, [], "", "M288 64c0 17.7-14.3 32-32 32L32 96C14.3 96 0 81.7 0 64S14.3 32 32 32l224 0c17.7 0 32 14.3 32 32zm0 256c0 17.7-14.3 32-32 32L32 352c-17.7 0-32-14.3-32-32s14.3-32 32-32l224 0c17.7 0 32 14.3 32 32zM0 192c0-17.7 14.3-32 32-32l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 224c-17.7 0-32-14.3-32-32zM448 448c0 17.7-14.3 32-32 32L32 480c-17.7 0-32-14.3-32-32s14.3-32 32-32l384 0c17.7 0 32 14.3 32 32z"],
+    "align-right": [448, 512, [], "", "M448 64c0 17.7-14.3 32-32 32L192 96c-17.7 0-32-14.3-32-32s14.3-32 32-32l224 0c17.7 0 32 14.3 32 32zm0 256c0 17.7-14.3 32-32 32l-224 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l224 0c17.7 0 32 14.3 32 32zM0 192c0-17.7 14.3-32 32-32l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 224c-17.7 0-32-14.3-32-32zM448 448c0 17.7-14.3 32-32 32L32 480c-17.7 0-32-14.3-32-32s14.3-32 32-32l384 0c17.7 0 32 14.3 32 32z"],
+    "bell": [448, 512, [], "", "M224 0c-17.7 0-32 14.3-32 32l0 19.2C119 66 64 130.6 64 208l0 25.4c0 45.4-15.5 89.5-43.8 124.9L5.3 377c-5.8 7.2-6.9 17.1-2.9 25.4S14.8 416 24 416l400 0c9.2 0 17.6-5.3 21.6-13.6s2.9-18.2-2.9-25.4l-14.9-18.6C399.5 322.9 384 278.8 384 233.4l0-25.4c0-77.4-55-142-128-156.8L256 32c0-17.7-14.3-32-32-32zm0 96c61.9 0 112 50.1 112 112l0 25.4c0 47.9 13.9 94.6 39.7 134.6L72.3 368C98.1 328 112 281.3 112 233.4l0-25.4c0-61.9 50.1-112 112-112zm64 352l-64 0-64 0c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7s18.7-28.3 18.7-45.3z"],
+    "display": [576, 512, [], "", "M64 0C28.7 0 0 28.7 0 64L0 352c0 35.3 28.7 64 64 64l176 0-10.7 32L160 448c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-69.3 0L336 416l176 0c35.3 0 64-28.7 64-64l0-288c0-35.3-28.7-64-64-64L64 0zM512 64l0 288L64 352 64 64l448 0z"],
+    "mobile-screen": [384, 512, [], "", "M16 64C16 28.7 44.7 0 80 0L304 0c35.3 0 64 28.7 64 64l0 384c0 35.3-28.7 64-64 64L80 512c-35.3 0-64-28.7-64-64L16 64zM144 448c0 8.8 7.2 16 16 16l64 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-64 0c-8.8 0-16 7.2-16 16zM304 64L80 64l0 320 224 0 0-320z"],
+    "print": [512, 512, [], "", "M128 0C92.7 0 64 28.7 64 64l0 96 64 0 0-96 226.7 0L384 93.3l0 66.7 64 0 0-66.7c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0L128 0zM384 352l0 32 0 64-256 0 0-64 0-16 0-16 256 0zm64 32l32 0c17.7 0 32-14.3 32-32l0-96c0-35.3-28.7-64-64-64L64 192c-35.3 0-64 28.7-64 64l0 96c0 17.7 14.3 32 32 32l32 0 0 64c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-64zM432 248a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"],
+    "bookmark": [384, 512, [], "", "M0 48C0 21.5 21.5 0 48 0l0 48 0 393.4 130.1-92.9c8.3-6 19.6-6 27.9 0L336 441.4 336 48 48 48 48 0 336 0c26.5 0 48 21.5 48 48l0 440c0 9-5 17.2-13 21.3s-17.6 3.4-24.9-1.8L192 397.5 37.9 507.5c-7.3 5.2-16.9 5.9-24.9 1.8S0 497 0 488L0 48z"],
+    "calendar": [448, 512, [], "", "M304 128a80 80 0 1 0 -160 0 80 80 0 1 0 160 0zM96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM49.3 464l349.5 0c-8.9-63.3-63.3-112-129-112l-91.4 0c-65.7 0-120.1 48.7-129 112zM0 482.3C0 383.8 79.8 304 178.3 304l91.4 0C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7L29.7 512C13.3 512 0 498.7 0 482.3z"],
+    "chart": [448, 512, [], "", "M160 80c0-26.5 21.5-48 48-48l32 0c26.5 0 48 21.5 48 48l0 352c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48l0-352zM0 272c0-26.5 21.5-48 48-48l32 0c26.5 0 48 21.5 48 48l0 160c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48L0 272zM368 96l32 0c26.5 0 48 21.5 48 48l0 288c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48l0-288c0-26.5 21.5-48 48-48z"],
+    "check": [448, 512, [], "", "M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"],
+    "clone": [512, 512, [], "", "M64 464l224 0c8.8 0 16-7.2 16-16l0-64 48 0 0 64c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 224c0-35.3 28.7-64 64-64l64 0 0 48-64 0c-8.8 0-16 7.2-16 16l0 224c0 8.8 7.2 16 16 16zM224 304l224 0c8.8 0 16-7.2 16-16l0-224c0-8.8-7.2-16-16-16L224 48c-8.8 0-16 7.2-16 16l0 224c0 8.8 7.2 16 16 16zm-64-16l0-224c0-35.3 28.7-64 64-64L448 0c35.3 0 64 28.7 64 64l0 224c0 35.3-28.7 64-64 64l-224 0c-35.3 0-64-28.7-64-64z"],
+    "copy": [448, 512, [], "", "M384 336l-192 0c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l140.1 0L400 115.9 400 320c0 8.8-7.2 16-16 16zM192 384l192 0c35.3 0 64-28.7 64-64l0-204.1c0-12.7-5.1-24.9-14.1-33.9L366.1 14.1c-9-9-21.2-14.1-33.9-14.1L192 0c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64zM64 128c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l192 0c35.3 0 64-28.7 64-64l0-32-48 0 0 32c0 8.8-7.2 16-16 16L64 464c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l32 0 0-48-32 0z"],
+    "paste": [512, 512, [], "", "M104.6 48L64 48C28.7 48 0 76.7 0 112L0 384c0 35.3 28.7 64 64 64l96 0 0-48-96 0c-8.8 0-16-7.2-16-16l0-272c0-8.8 7.2-16 16-16l16 0c0 17.7 14.3 32 32 32l72.4 0C202 108.4 227.6 96 256 96l62 0c-7.1-27.6-32.2-48-62-48l-40.6 0C211.6 20.9 188.2 0 160 0s-51.6 20.9-55.4 48zM144 56a16 16 0 1 1 32 0 16 16 0 1 1 -32 0zM448 464l-192 0c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l140.1 0L464 243.9 464 448c0 8.8-7.2 16-16 16zM256 512l192 0c35.3 0 64-28.7 64-64l0-204.1c0-12.7-5.1-24.9-14.1-33.9l-67.9-67.9c-9-9-21.2-14.1-33.9-14.1L256 128c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64z"],
+    "edit": [512, 512, [], "", "M441 58.9L453.1 71c9.4 9.4 9.4 24.6 0 33.9L424 134.1 377.9 88 407 58.9c9.4-9.4 24.6-9.4 33.9 0zM209.8 256.2L344 121.9 390.1 168 255.8 302.2c-2.9 2.9-6.5 5-10.4 6.1l-58.5 16.7 16.7-58.5c1.1-3.9 3.2-7.5 6.1-10.4zM373.1 25L175.8 222.2c-8.7 8.7-15 19.4-18.3 31.1l-28.6 100c-2.4 8.4-.1 17.4 6.1 23.6s15.2 8.5 23.6 6.1l100-28.6c11.8-3.4 22.5-9.7 31.1-18.3L487 138.9c28.1-28.1 28.1-73.7 0-101.8L474.9 25C446.8-3.1 401.2-3.1 373.1 25zM88 64C39.4 64 0 103.4 0 152L0 424c0 48.6 39.4 88 88 88l272 0c48.6 0 88-39.4 88-88l0-112c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 112c0 22.1-17.9 40-40 40L88 464c-22.1 0-40-17.9-40-40l0-272c0-22.1 17.9-40 40-40l112 0c13.3 0 24-10.7 24-24s-10.7-24-24-24L88 64z"],
+    "envelope": [512, 512, [], "", "M64 112c-8.8 0-16 7.2-16 16l0 22.1L220.5 291.7c20.7 17 50.4 17 71.1 0L464 150.1l0-22.1c0-8.8-7.2-16-16-16L64 112zM48 212.2L48 384c0 8.8 7.2 16 16 16l384 0c8.8 0 16-7.2 16-16l0-171.8L322 328.8c-38.4 31.5-93.7 31.5-132 0L48 212.2zM0 128C0 92.7 28.7 64 64 64l384 0c35.3 0 64 28.7 64 64l0 256c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 128z"],
+    "envelope-open": [512, 512, [], "", "M255.4 48.2c.2-.1 .4-.2 .6-.2s.4 .1 .6 .2L460.6 194c2.1 1.5 3.4 3.9 3.4 6.5l0 13.6L291.5 355.7c-20.7 17-50.4 17-71.1 0L48 214.1l0-13.6c0-2.6 1.2-5 3.4-6.5L255.4 48.2zM48 276.2L190 392.8c38.4 31.5 93.7 31.5 132 0L464 276.2 464 456c0 4.4-3.6 8-8 8L56 464c-4.4 0-8-3.6-8-8l0-179.8zM256 0c-10.2 0-20.2 3.2-28.5 9.1L23.5 154.9C8.7 165.4 0 182.4 0 200.5L0 456c0 30.9 25.1 56 56 56l400 0c30.9 0 56-25.1 56-56l0-255.5c0-18.1-8.7-35.1-23.4-45.6L284.5 9.1C276.2 3.2 266.2 0 256 0z"],
+    "map": [576, 512, [], "", "M565.6 36.2C572.1 40.7 576 48.1 576 56l0 336c0 10-6.2 18.9-15.5 22.4l-168 64c-5.2 2-10.9 2.1-16.1 .3L192.5 417.5l-160 61c-7.4 2.8-15.7 1.8-22.2-2.7S0 463.9 0 456L0 120c0-10 6.1-18.9 15.5-22.4l168-64c5.2-2 10.9-2.1 16.1-.3L383.5 94.5l160-61c7.4-2.8 15.7-1.8 22.2 2.7zM48 136.5l0 284.6 120-45.7 0-284.6L48 136.5zM360 422.7l0-285.4-144-48 0 285.4 144 48zm48-1.5l120-45.7 0-284.6L408 136.5l0 284.6z"],
+    "file": [384, 512, [], "", "M320 464c8.8 0 16-7.2 16-16l0-288-80 0c-17.7 0-32-14.3-32-32l0-80L64 48c-8.8 0-16 7.2-16 16l0 384c0 8.8 7.2 16 16 16l256 0zM0 64C0 28.7 28.7 0 64 0L229.5 0c17 0 33.3 6.7 45.3 18.7l90.5 90.5c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64z"],
+    "file-code": [384, 512, [], "", "M64 464c-8.8 0-16-7.2-16-16L48 64c0-8.8 7.2-16 16-16l160 0 0 80c0 17.7 14.3 32 32 32l80 0 0 288c0 8.8-7.2 16-16 16L64 464zM64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-293.5c0-17-6.7-33.3-18.7-45.3L274.7 18.7C262.7 6.7 246.5 0 229.5 0L64 0zm97 289c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0L79 303c-9.4 9.4-9.4 24.6 0 33.9l48 48c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-31-31 31-31zM257 255c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l31 31-31 31c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l48-48c9.4-9.4 9.4-24.6 0-33.9l-48-48z"],
+    "file-zip": [384, 512, [], "", "M64 464c-8.8 0-16-7.2-16-16L48 64c0-8.8 7.2-16 16-16l48 0c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16l48 0 0 80c0 17.7 14.3 32 32 32l80 0 0 288c0 8.8-7.2 16-16 16L64 464zM64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-293.5c0-17-6.7-33.3-18.7-45.3L274.7 18.7C262.7 6.7 246.5 0 229.5 0L64 0zm48 112c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0c-8.8 0-16 7.2-16 16zm0 64c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0c-8.8 0-16 7.2-16 16zm-6.3 71.8L82.1 335.9c-1.4 5.4-2.1 10.9-2.1 16.4c0 35.2 28.8 63.7 64 63.7s64-28.5 64-63.7c0-5.5-.7-11.1-2.1-16.4l-23.5-88.2c-3.7-14-16.4-23.8-30.9-23.8l-14.8 0c-14.5 0-27.2 9.7-30.9 23.8zM128 336l32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0c-8.8 0-16-7.2-16-16s7.2-16 16-16z"],
+    "floppy-disk": [448, 512, ["save"], "", "M48 96l0 320c0 8.8 7.2 16 16 16l320 0c8.8 0 16-7.2 16-16l0-245.5c0-4.2-1.7-8.3-4.7-11.3l33.9-33.9c12 12 18.7 28.3 18.7 45.3L448 416c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l245.5 0c17 0 33.3 6.7 45.3 18.7l74.5 74.5-33.9 33.9L320.8 84.7c-.3-.3-.5-.5-.8-.8L320 184c0 13.3-10.7 24-24 24l-192 0c-13.3 0-24-10.7-24-24L80 80 64 80c-8.8 0-16 7.2-16 16zm80-16l0 80 144 0 0-80L128 80zm32 240a64 64 0 1 1 128 0 64 64 0 1 1 -128 0z"],
+    "save": "floppy-disk",
+    "fingerprint": [512, 512, [], "", "M48 256C48 141.1 141.1 48 256 48c63.1 0 119.6 28.1 157.8 72.5c8.6 10.1 23.8 11.2 33.8 2.6s11.2-23.8 2.6-33.8C403.3 34.6 333.7 0 256 0C114.6 0 0 114.6 0 256l0 40c0 13.3 10.7 24 24 24s24-10.7 24-24l0-40zm458.5-52.9c-2.7-13-15.5-21.3-28.4-18.5s-21.3 15.5-18.5 28.4c2.9 13.9 4.5 28.3 4.5 43.1l0 40c0 13.3 10.7 24 24 24s24-10.7 24-24l0-40c0-18.1-1.9-35.8-5.5-52.9zM256 80c-19 0-37.4 3-54.5 8.6c-15.2 5-18.7 23.7-8.3 35.9c7.1 8.3 18.8 10.8 29.4 7.9c10.6-2.9 21.8-4.4 33.4-4.4c70.7 0 128 57.3 128 128l0 24.9c0 25.2-1.5 50.3-4.4 75.3c-1.7 14.6 9.4 27.8 24.2 27.8c11.8 0 21.9-8.6 23.3-20.3c3.3-27.4 5-55 5-82.7l0-24.9c0-97.2-78.8-176-176-176zM150.7 148.7c-9.1-10.6-25.3-11.4-33.9-.4C93.7 178 80 215.4 80 256l0 24.9c0 24.2-2.6 48.4-7.8 71.9C68.8 368.4 80.1 384 96.1 384c10.5 0 19.9-7 22.2-17.3c6.4-28.1 9.7-56.8 9.7-85.8l0-24.9c0-27.2 8.5-52.4 22.9-73.1c7.2-10.4 8-24.6-.2-34.2zM256 160c-53 0-96 43-96 96l0 24.9c0 35.9-4.6 71.5-13.8 106.1c-3.8 14.3 6.7 29 21.5 29c9.5 0 17.9-6.2 20.4-15.4c10.5-39 15.9-79.2 15.9-119.7l0-24.9c0-28.7 23.3-52 52-52s52 23.3 52 52l0 24.9c0 36.3-3.5 72.4-10.4 107.9c-2.7 13.9 7.7 27.2 21.8 27.2c10.2 0 19-7 21-17c7.7-38.8 11.6-78.3 11.6-118.1l0-24.9c0-53-43-96-96-96zm24 96c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 24.9c0 59.9-11 119.3-32.5 175.2l-5.9 15.3c-4.8 12.4 1.4 26.3 13.8 31s26.3-1.4 31-13.8l5.9-15.3C267.9 411.9 280 346.7 280 280.9l0-24.9z"],
+    "eye": [576, 512, [], "", "M288 80c-65.2 0-118.8 29.6-159.9 67.7C89.6 183.5 63 226 49.4 256c13.6 30 40.2 72.5 78.6 108.3C169.2 402.4 222.8 432 288 432s118.8-29.6 159.9-67.7C486.4 328.5 513 286 526.6 256c-13.6-30-40.2-72.5-78.6-108.3C406.8 109.6 353.2 80 288 80zM95.4 112.6C142.5 68.8 207.2 32 288 32s145.5 36.8 192.6 80.6c46.8 43.5 78.1 95.4 93 131.1c3.3 7.9 3.3 16.7 0 24.6c-14.9 35.7-46.2 87.7-93 131.1C433.5 443.2 368.8 480 288 480s-145.5-36.8-192.6-80.6C48.6 356 17.3 304 2.5 268.3c-3.3-7.9-3.3-16.7 0-24.6C17.3 208 48.6 156 95.4 112.6zM288 336c44.2 0 80-35.8 80-80s-35.8-80-80-80c-.7 0-1.3 0-2 0c1.3 5.1 2 10.5 2 16c0 35.3-28.7 64-64 64c-5.5 0-10.9-.7-16-2c0 .7 0 1.3 0 2c0 44.2 35.8 80 80 80zm0-208a128 128 0 1 1 0 256 128 128 0 1 1 0-256z"],
+    "eye-slash": [640, 512, [], "", "M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zm151 118.3C226 97.7 269.5 80 320 80c65.2 0 118.8 29.6 159.9 67.7C518.4 183.5 545 226 558.6 256c-12.6 28-36.6 66.8-70.9 100.9l-53.8-42.2c9.1-17.6 14.2-37.5 14.2-58.7c0-70.7-57.3-128-128-128c-32.2 0-61.7 11.9-84.2 31.5l-46.1-36.1zM394.9 284.2l-81.5-63.9c4.2-8.5 6.6-18.2 6.6-28.3c0-5.5-.7-10.9-2-16c.7 0 1.3 0 2 0c44.2 0 80 35.8 80 80c0 9.9-1.8 19.4-5.1 28.2zm9.4 130.3C378.8 425.4 350.7 432 320 432c-65.2 0-118.8-29.6-159.9-67.7C121.6 328.5 95 286 81.4 256c8.3-18.4 21.5-41.5 39.4-64.8L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5l-41.9-33zM192 256c0 70.7 57.3 128 128 128c13.3 0 26.1-2 38.2-5.8L302 334c-23.5-5.4-43.1-21.2-53.7-42.3l-56.1-44.2c-.2 2.8-.3 5.6-.3 8.5z"],
+    "folder": [512, 512, [], "", "M0 96C0 60.7 28.7 32 64 32l132.1 0c19.1 0 37.4 7.6 50.9 21.1L289.9 96 448 96c35.3 0 64 28.7 64 64l0 256c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM64 80c-8.8 0-16 7.2-16 16l0 320c0 8.8 7.2 16 16 16l384 0c8.8 0 16-7.2 16-16l0-256c0-8.8-7.2-16-16-16l-161.4 0c-10.6 0-20.8-4.2-28.3-11.7L213.1 87c-4.5-4.5-10.6-7-17-7L64 80z"],
+    "folder-closed": [512, 512, [], "e185", "M251.7 127.6s0 0 0 0c10.5 10.5 24.7 16.4 39.6 16.4L448 144c8.8 0 16 7.2 16 16l0 32L48 192l0-96c0-8.8 7.2-16 16-16l133.5 0c4.2 0 8.3 1.7 11.3 4.7l33.9-33.9L208.8 84.7l42.9 42.9zM48 240l416 0 0 176c0 8.8-7.2 16-16 16L64 432c-8.8 0-16-7.2-16-16l0-176zM285.7 93.7L242.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L291.3 96c-2.1 0-4.2-.8-5.7-2.3z"],
+    "folder-open": [576, 512, [], "", "M384 480l48 0c11.4 0 21.9-6 27.6-15.9l112-192c5.8-9.9 5.8-22.1 .1-32.1S555.5 224 544 224l-400 0c-11.4 0-21.9 6-27.6 15.9L48 357.1 48 96c0-8.8 7.2-16 16-16l117.5 0c4.2 0 8.3 1.7 11.3 4.7l26.5 26.5c21 21 49.5 32.8 79.2 32.8L416 144c8.8 0 16 7.2 16 16l0 32 48 0 0-32c0-35.3-28.7-64-64-64L298.5 96c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l23.7 0L384 480z"],
+    "github": [496, 512, [], "", "M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"],
+    "grip-vertical": [320, 512, [], "", "M40 352l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40zm192 0l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40zM40 320c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0zM232 192l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40zM40 160c-22.1 0-40-17.9-40-40L0 72C0 49.9 17.9 32 40 32l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0zM232 32l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40z"],
+    "image": [512, 512, [], "", "M448 80c8.8 0 16 7.2 16 16l0 319.8-5-6.5-136-176c-4.5-5.9-11.6-9.3-19-9.3s-14.4 3.4-19 9.3L202 340.7l-30.5-42.7C167 291.7 159.8 288 152 288s-15 3.7-19.5 10.1l-80 112L48 416.3l0-.3L48 96c0-8.8 7.2-16 16-16l384 0zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zm80 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"],
+    "images": [576, 512, [], "", "M160 80l352 0c8.8 0 16 7.2 16 16l0 224c0 8.8-7.2 16-16 16l-21.2 0L388.1 178.9c-4.4-6.8-12-10.9-20.1-10.9s-15.7 4.1-20.1 10.9l-52.2 79.8-12.4-16.9c-4.5-6.2-11.7-9.8-19.4-9.8s-14.8 3.6-19.4 9.8L175.6 336 160 336c-8.8 0-16-7.2-16-16l0-224c0-8.8 7.2-16 16-16zM96 96l0 224c0 35.3 28.7 64 64 64l352 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L160 32c-35.3 0-64 28.7-64 64zM48 120c0-13.3-10.7-24-24-24S0 106.7 0 120L0 344c0 75.1 60.9 136 136 136l320 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-320 0c-48.6 0-88-39.4-88-88l0-224zm208 24a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"],
+    "left": [320, 512, [], "", "M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"],
+    "right": [320, 512, [], "", "M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"],
+    "up": [448, 512, [], "", "M201.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L224 205.3 86.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z"],
+    "down": [448, 512, [], "", "M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"],
+    "log-in": [512, 512, [], "", "M352 96l64 0c17.7 0 32 14.3 32 32l0 256c0 17.7-14.3 32-32 32l-64 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l64 0c53 0 96-43 96-96l0-256c0-53-43-96-96-96l-64 0c-17.7 0-32 14.3-32 32s14.3 32 32 32zm-9.4 182.6c12.5-12.5 12.5-32.8 0-45.3l-128-128c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L242.7 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l210.7 0-73.4 73.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l128-128z"],
+    "log-out": [512, 512, [], "", "M502.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-128-128c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L402.7 224 192 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l210.7 0-73.4 73.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l128-128zM160 96c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 32C43 32 0 75 0 128L0 384c0 53 43 96 96 96l64 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-64 0c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l64 0z"],
+    "menu-arrows": [512, 512, [], "", "M352 144l96 112-96 112M160 144L64 256l96 112", "transform=rotate(90)", "fill=none stroke=currentColor stroke-width=60 stroke-linejoin=round stroke-linecap=round"],
+    "more": [128, 512, [], "", "M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z"],
+    "minus": [448, 512, [], "", "M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l352 0c17.7 0 32 14.3 32 32z"],
+    "more-horizontal": [448, 512, [], "", "M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z"],
+    "plus": [448, 512, [], "", "M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z"],
+    "search": [512, 512, [], "", "M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"],
+    "sidebar": [512, 512, [], "", "M64 64h384a32 32 0 0 1 32 32v320a32 32 0 0 1-32 32H64a32 32 0 0 1-32-32V96a32 32 0 0 1 32-32zm128 0v384", null, "fill=none stroke=currentColor stroke-width=50 stroke-linejoin=round stroke-linecap=round"],
+    "shuffle": [512, 512, [], "", "M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9s-19.8-16.6-19.8-29.6l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8L284 229.3 244 176l31.2-41.6C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM164 282.7L204 336l-31.2 41.6C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L164 282.7zm274.6 188c-9.2 9.2-22.9 11.9-34.9 6.9s-19.8-16.6-19.8-29.6l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z"],
+    "credit-card": [576, 512, [], "", "M512 80c8.8 0 16 7.2 16 16l0 32L48 128l0-32c0-8.8 7.2-16 16-16l448 0zm16 144l0 192c0 8.8-7.2 16-16 16L64 432c-8.8 0-16-7.2-16-16l0-192 480 0zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l448 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zm56 304c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0zm128 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l112 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-112 0z"],
+    "trash-can": [448, 512, [], "", "M170.5 51.6L151.5 80l145 0-19-28.4c-1.5-2.2-4-3.6-6.7-3.6l-93.7 0c-2.7 0-5.2 1.3-6.7 3.6zm147-26.6L354.2 80 368 80l48 0 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-8 0 0 304c0 44.2-35.8 80-80 80l-224 0c-44.2 0-80-35.8-80-80l0-304-8 0c-13.3 0-24-10.7-24-24S10.7 80 24 80l8 0 48 0 13.8 0 36.7-55.1C140.9 9.4 158.4 0 177.1 0l93.7 0c18.7 0 36.2 9.4 46.6 24.9zM80 128l0 304c0 17.7 14.3 32 32 32l224 0c17.7 0 32-14.3 32-32l0-304L80 128zm80 64l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16z"],
+    "user": [448, 512, [], "", "M304 128a80 80 0 1 0 -160 0 80 80 0 1 0 160 0zM96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM49.3 464l349.5 0c-8.9-63.3-63.3-112-129-112l-91.4 0c-65.7 0-120.1 48.7-129 112zM0 482.3C0 383.8 79.8 304 178.3 304l91.4 0C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7L29.7 512C13.3 512 0 498.7 0 482.3z"],
+    "closed-captioning": [576, 512, ["cc"], "", "M512 80c8.8 0 16 7.2 16 16l0 320c0 8.8-7.2 16-16 16L64 432c-8.8 0-16-7.2-16-16L48 96c0-8.8 7.2-16 16-16l448 0zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l448 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM200 208c14.2 0 27 6.1 35.8 16c8.8 9.9 24 10.7 33.9 1.9s10.7-24 1.9-33.9c-17.5-19.6-43.1-32-71.5-32c-53 0-96 43-96 96s43 96 96 96c28.4 0 54-12.4 71.5-32c8.8-9.9 8-25-1.9-33.9s-25-8-33.9 1.9c-8.8 9.9-21.6 16-35.8 16c-26.5 0-48-21.5-48-48s21.5-48 48-48zm144 48c0-26.5 21.5-48 48-48c14.2 0 27 6.1 35.8 16c8.8 9.9 24 10.7 33.9 1.9s10.7-24 1.9-33.9c-17.5-19.6-43.1-32-71.5-32c-53 0-96 43-96 96s43 96 96 96c28.4 0 54-12.4 71.5-32c8.8-9.9 8-25-1.9-33.9s-25-8-33.9 1.9c-8.8 9.9-21.6 16-35.8 16c-26.5 0-48-21.5-48-48z"],
+    "cc": "closed-captioning",
+    "heart": [512, 512, [], "", "M225.8 468.2l-2.5-2.3L48.1 303.2C17.4 274.7 0 234.7 0 192.8l0-3.3c0-70.4 50-130.8 119.2-144C158.6 37.9 198.9 47 231 69.6c9 6.4 17.4 13.8 25 22.3c4.2-4.8 8.7-9.2 13.5-13.3c3.7-3.2 7.5-6.2 11.5-9c0 0 0 0 0 0C313.1 47 353.4 37.9 392.8 45.4C462 58.6 512 119.1 512 189.5l0 3.3c0 41.9-17.4 81.9-48.1 110.4L288.7 465.9l-2.5 2.3c-8.2 7.6-19 11.9-30.2 11.9s-22-4.2-30.2-11.9zM239.1 145c-.4-.3-.7-.7-1-1.1l-17.8-20-.1-.1s0 0 0 0c-23.1-25.9-58-37.7-92-31.2C81.6 101.5 48 142.1 48 189.5l0 3.3c0 28.5 11.9 55.8 32.8 75.2L256 430.7 431.2 268c20.9-19.4 32.8-46.7 32.8-75.2l0-3.3c0-47.3-33.6-88-80.1-96.9c-34-6.5-69 5.4-92 31.2c0 0 0 0-.1 .1s0 0-.1 .1l-17.8 20c-.3 .4-.7 .7-1 1.1c-4.5 4.5-10.6 7-16.9 7s-12.4-2.5-16.9-7z"],
+    "x-mark": [384, 512, [], "", "M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"],
+    "star": [576, 512, [], "", "M287.9 0c9.2 0 17.6 5.2 21.6 13.5l68.6 141.3 153.2 22.6c9 1.3 16.5 7.6 19.3 16.3s.5 18.1-5.9 24.5L433.6 328.4l26.2 155.6c1.5 9-2.2 18.1-9.7 23.5s-17.3 6-25.3 1.7l-137-73.2L151 509.1c-8.1 4.3-17.9 3.7-25.3-1.7s-11.2-14.5-9.7-23.5l26.2-155.6L31.1 218.2c-6.5-6.4-8.7-15.9-5.9-24.5s10.3-14.9 19.3-16.3l153.2-22.6L266.3 13.5C270.4 5.2 278.7 0 287.9 0zm0 79L235.4 187.2c-3.5 7.1-10.2 12.1-18.1 13.3L99 217.9 184.9 303c5.5 5.5 8.1 13.3 6.8 21L171.4 443.7l105.2-56.2c7.1-3.8 15.6-3.8 22.6 0l105.2 56.2L384.2 324.1c-1.3-7.7 1.2-15.5 6.8-21l85.9-85.1L358.6 200.5c-7.8-1.2-14.6-6.1-18.1-13.3L287.9 79z"],
+    "square-js": [448, 512, [], "", "M448 96c0-35.3-28.7-64-64-64H64C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V96zM180.9 444.9c-33.7 0-53.2-17.4-63.2-38.5L152 385.7c6.6 11.7 12.6 21.6 27.1 21.6c13.8 0 22.6-5.4 22.6-26.5V237.7h42.1V381.4c0 43.6-25.6 63.5-62.9 63.5zm85.8-43L301 382.1c9 14.7 20.8 25.6 41.5 25.6c17.4 0 28.6-8.7 28.6-20.8c0-14.4-11.4-19.5-30.7-28l-10.5-4.5c-30.4-12.9-50.5-29.2-50.5-63.5c0-31.6 24.1-55.6 61.6-55.6c26.8 0 46 9.3 59.8 33.7L368 290c-7.2-12.9-15-18-27.1-18c-12.3 0-20.1 7.8-20.1 18c0 12.6 7.8 17.7 25.9 25.6l10.5 4.5c35.8 15.3 55.9 31 55.9 66.2c0 37.8-29.8 58.6-69.7 58.6c-39.1 0-64.4-18.6-76.7-43z"],
+    "python": [448, 512, [], "", "M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6zM286.2 404c11.1 0 20.1 9.1 20.1 20.3 0 11.3-9 20.4-20.1 20.4-11 0-20.1-9.2-20.1-20.4.1-11.3 9.1-20.3 20.1-20.3zM167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4zm-6.7-142.6c-11.1 0-20.1-9.1-20.1-20.3.1-11.3 9-20.4 20.1-20.4 11 0 20.1 9.2 20.1 20.4s-9 20.3-20.1 20.3z"],
+    "microsoft": [448, 512, [], "", "M0 32h214.6v214.6H0V32zm233.4 0H448v214.6H233.4V32zM0 265.4h214.6V480H0V265.4zm233.4 0H448V480H233.4V265.4z"],
+    "apple": [384, 512, [], "f179", "M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"],
+}
+
 LX.UTILS = {
     getTime() { return new Date().getTime() },
     compareThreshold( v, p, n, t ) { return Math.abs(v - p) >= t || Math.abs(v - n) >= t },
@@ -10124,17 +12624,19 @@ LX.UTILS = {
     drawSpline( ctx, pts, t ) {
 
         ctx.save();
-        var cp=[];   // array of control points, as x0,y0,x1,y1,...
-        var n=pts.length;
+        var cp = [];   // array of control points, as x0,y0,x1,y1,...
+        var n = pts.length;
 
         // Draw an open curve, not connected at the ends
-        for(var i=0;i<n-4;i+=2) {
-            cp=cp.concat(LX.UTILS.getControlPoints(pts[i],pts[i+1],pts[i+2],pts[i+3],pts[i+4],pts[i+5],t));
+        for( var i = 0; i < (n - 4); i += 2 )
+        {
+            cp = cp.concat(LX.UTILS.getControlPoints(pts[i],pts[i+1],pts[i+2],pts[i+3],pts[i+4],pts[i+5],t));
         }
 
-        for(var i=2;i<pts.length-5;i+=2) {
+        for( var i = 2; i < ( pts.length - 5 ); i += 2 )
+        {
             ctx.beginPath();
-            ctx.moveTo(pts[i],pts[i+1]);
+            ctx.moveTo(pts[i], pts[i+1]);
             ctx.bezierCurveTo(cp[2*i-2],cp[2*i-1],cp[2*i],cp[2*i+1],pts[i+2],pts[i+3]);
             ctx.stroke();
             ctx.closePath();
@@ -10142,14 +12644,14 @@ LX.UTILS = {
 
         //  For open curves the first and last arcs are simple quadratics.
         ctx.beginPath();
-        ctx.moveTo(pts[0],pts[1]);
-        ctx.quadraticCurveTo(cp[0],cp[1],pts[2],pts[3]);
+        ctx.moveTo( pts[ 0 ], pts[ 1 ] );
+        ctx.quadraticCurveTo( cp[ 0 ], cp[ 1 ], pts[ 2 ], pts[ 3 ]);
         ctx.stroke();
         ctx.closePath();
 
         ctx.beginPath();
-        ctx.moveTo(pts[n-2],pts[n-1]);
-        ctx.quadraticCurveTo(cp[2*n-10],cp[2*n-9],pts[n-4],pts[n-3]);
+        ctx.moveTo( pts[ n-2 ], pts[ n-1 ] );
+        ctx.quadraticCurveTo( cp[ 2*n-10 ], cp[ 2*n-9 ], pts[ n-4 ], pts[ n-3 ]);
         ctx.stroke();
         ctx.closePath();
 

@@ -2263,8 +2263,8 @@ class KeyframeEditor extends Editor {
         this.gizmo.mustUpdate = true;
         this.gui.updateSkeletonPanel();
         
-        if ( this.gui.tree ){ 
-            this.gui.tree.select(this.selectedBone)
+        if ( this.gui.treeWidget ){ 
+            this.gui.treeWidget.innerTree.select(this.selectedBone);
         }
     }
 

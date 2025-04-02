@@ -258,7 +258,8 @@ class Timeline {
         let panel = this.leftPanel;
         panel.sameLine( 2 );
 
-        let title = panel.addTitle( "Tracks" );
+        let titleWidget = panel.addTitle( "Tracks" );
+        let title = titleWidget.root;
         
         if( !this.disableNewTracks ) 
         {
@@ -328,7 +329,7 @@ class Timeline {
 
                 items.children.push( t );
 
-                let el = p.addTree(null, t, {filter: false, rename: false, draggable: false, onevent: (e) => {
+                p.addTree(null, t, {filter: false, rename: false, draggable: false, onevent: (e) => {
                     switch(e.type) {
                         case LX.TreeEvent.NODE_SELECTED:
                             if (e.node.parent){
@@ -1217,7 +1218,7 @@ class Timeline {
     /**
     * @method selectTrack
     * @param {int} trackIdx
-    * // NOTE: to select a track from outside of the timeline, a this.leftPanelTrackTree.select(item) needs to be called.
+    * // NOTE: to select a track from outside of the timeline, a this.leftPanelTrackTreeWidget.innerTree.select(item) needs to be called.
     */
     selectTrack( trackIdx ) {
 
@@ -2766,7 +2767,9 @@ class ClipsTimeline extends Timeline {
         let panel = this.leftPanel;
         
         panel.sameLine(2);
-        let title = panel.addTitle("Tracks");
+
+        let titleWidget = panel.addTitle("Tracks");
+        let title = titleWidget.root;
         if(!this.disableNewTracks) 
         {
             panel.addButton('', '<i class = "fa-solid fa-plus"></i>', (value, event) => {
@@ -2794,7 +2797,7 @@ class ClipsTimeline extends Timeline {
             }
 
         }
-        this.leftPanelTrackTree = p.addTree(null, treeTracks, {filter: false, rename: false, draggable: false, onevent: (e) => {
+        this.leftPanelTrackTreeWidget = p.addTree(null, treeTracks, {filter: false, rename: false, draggable: false, onevent: (e) => {
             switch(e.type) {
                 case LX.TreeEvent.NODE_SELECTED:
                     this.selectTrack( parseInt( e.node.id.split("Track_")[1] ) );

@@ -551,7 +551,7 @@ FaceLexemeClip.prototype.showInfo = function(panel, callback)
 		values.push({ value: FaceLexemeClip.lexemes[id], src: "./data/imgs/thumbnails/face lexemes/" + FaceLexemeClip.lexemes[id].toLowerCase() + ".png" })
 	}
 
-	panel.addDropdown("Lexeme", values, this.properties.lexeme, (v, e, name) => {
+	panel.addSelect("Lexeme", values, this.properties.lexeme, (v, e, name) => {
 		this.id = v;
 
 		this.properties.lexeme = v;
@@ -1264,7 +1264,7 @@ GazeClip.prototype.showInfo = function(panel, callback)
 {
 
 	// Influence property
-	panel.addDropdown("Influence", GazeClip.influences, this.properties.influence, (v, e, name) => {
+	panel.addSelect("Influence", GazeClip.influences, this.properties.influence, (v, e, name) => {
 		
 		this.properties.influence = v
 		if(this.id == "Eyes Gaze" || this.id == "Head Gaze" || this.id == "Neck Gaze") {
@@ -1276,7 +1276,7 @@ GazeClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true, title: "Parts of the body to move to affect the gaze direction"});
 
 	// Target property
-	panel.addDropdown("Target", GazeClip.targets, this.properties.target, (v, e, name) => {
+	panel.addSelect("Target", GazeClip.targets, this.properties.target, (v, e, name) => {
 		
 		this.properties.target = v;
 		if(callback)
@@ -1295,7 +1295,7 @@ GazeClip.prototype.showInfo = function(panel, callback)
 			callback();
 	});
 	// Offset Driection property
-	panel.addDropdown("Offset direction", ["", ...GazeClip.directions], this.properties.offsetDirection, (v, e, name) => {
+	panel.addSelect("Offset direction", ["", ...GazeClip.directions], this.properties.offsetDirection, (v, e, name) => {
 		
 		this.properties.offsetDirection = v;
 		if(callback)
@@ -1433,7 +1433,7 @@ HeadClip.prototype.showInfo = function(panel, callback)
 {
 
 	// Lexeme property
-	panel.addDropdown('Lexeme', HeadClip.lexemes, this.properties.lexeme, (v, e, name) => {
+	panel.addSelect('Lexeme', HeadClip.lexemes, this.properties.lexeme, (v, e, name) => {
 		
 		this.properties.lexeme = v;
 		
@@ -1571,7 +1571,7 @@ ElbowRaiseClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Raises the elbow (added to the elbow raise automatically computed while moving the arm)", null, {disabled: true});
 
 	// Hand property
-	panel.addDropdown("Side",  ShoulderClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Side",  ShoulderClip.hands, this.properties.hand, (v, e, name) => {
 		
 		this.properties.hand = v.toLowerCase();
 		if(callback)
@@ -1708,7 +1708,7 @@ ShoulderClip.prototype.showInfo = function(panel, callback)
 {
 	panel.addText(null, "Moves the shoulder forward or up", null, {disabled: true});
 	// Movement type
-	panel.addDropdown("Movement", ShoulderClip.movements, this.movementType, (v, e, name) => {
+	panel.addSelect("Movement", ShoulderClip.movements, this.movementType, (v, e, name) => {
 		delete this.properties.shoulderRaise;
 		delete this.properties.shoulderHunch;
 
@@ -1723,7 +1723,7 @@ ShoulderClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 
 	// Hand property
-	panel.addDropdown("Side",  ShoulderClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Side",  ShoulderClip.hands, this.properties.hand, (v, e, name) => {
 		
 		this.properties.hand = v.toLowerCase();
 		if(callback)
@@ -1849,7 +1849,7 @@ BodyMovementClip.prototype.showInfo = function(panel, callback)
 {
 	panel.addText(null, "Moves the body (trunk)", null, {disabled: true});
 	// Movement
-	panel.addDropdown("Movement", BodyMovementClip.movements, this.properties.bodyMovement, (v, e, name) => {
+	panel.addSelect("Movement", BodyMovementClip.movements, this.properties.bodyMovement, (v, e, name) => {
 		
 		this.properties.bodyMovement = v;
 		if(callback)
@@ -2063,7 +2063,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 {
 	panel.addText(null, "Moves the arm (wrist) to a location of the body.", null, {disabled: true});
 	// Location body arm property
-	panel.addDropdown("Arm location", ArmLocationClip.locations, this.properties.locationBodyArm, (v, e, name) => {
+	panel.addSelect("Arm location", ArmLocationClip.locations, this.properties.locationBodyArm, (v, e, name) => {
 		
 		this.properties.locationBodyArm = v;
 		if(callback)
@@ -2072,7 +2072,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 
 	// Hand property
-	panel.addDropdown("Arm", ArmLocationClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Arm", ArmLocationClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)
@@ -2090,7 +2090,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 			callback();
 	});
 	// Location side
-	panel.addDropdown("Side", ["", ...Object.keys(ArmLocationClip.sides)], this.properties.side, (v, e, name) => {
+	panel.addSelect("Side", ["", ...Object.keys(ArmLocationClip.sides)], this.properties.side, (v, e, name) => {
 		
 		this.properties.side = v;
 		if(callback)
@@ -2099,7 +2099,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true, title: "Side offset ott the chosen point"});
 
 	// Second location body arm property
-	panel.addDropdown("Second location", ["", ...ArmLocationClip.locations], this.properties.secondLocationBodyArm, (v, e, name) => {
+	panel.addSelect("Second location", ["", ...ArmLocationClip.locations], this.properties.secondLocationBodyArm, (v, e, name) => {
 		
 		this.properties.secondLocationBodyArm = v;
 		if(callback)
@@ -2109,7 +2109,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 
 	if(this.properties.secondLocationBodyArm) {
 		// Second loaction side
-		panel.addDropdown("Second side", ["", ...Object.keys(ArmLocationClip.sides)], this.properties.secondSide, (v, e, name) => {
+		panel.addSelect("Second side", ["", ...Object.keys(ArmLocationClip.sides)], this.properties.secondSide, (v, e, name) => {
 				
 			this.properties.secondSide = v;
 			if(callback)
@@ -2127,7 +2127,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 	}, {precision: 2, min: 0, max: 1, step: 0.01, title: "How far from the body to locate the hand. 0 = close, 1 = arm extended"});
 
 	// Displacement property
-	panel.addDropdown("Displace", ["", ...ArmLocationClip.directions], this.properties.displace, (v, e, name) => {
+	panel.addSelect("Displace", ["", ...ArmLocationClip.directions], this.properties.displace, (v, e, name) => {
 	
 		this.properties.displace = v;
 		if(callback)
@@ -2152,7 +2152,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Part of the hand that will try to reach the body location", null, {disabled: true});
 
 	// Part of the hand
-	panel.addDropdown("Location", ArmLocationClip.hand_locations, this.properties.srcLocation, (v, e, name) => {
+	panel.addSelect("Location", ArmLocationClip.hand_locations, this.properties.srcLocation, (v, e, name) => {
 				
 		this.properties.srcLocation = v;
 		if(this.properties.srcLocation == "Tip")
@@ -2168,7 +2168,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 
 	if(this.properties.srcLocation && this.properties.srcLocation != "Tip") {
-		panel.addDropdown("Side", ArmLocationClip.hand_sides, this.properties.srcSide, (v, e, name) => {
+		panel.addSelect("Side", ArmLocationClip.hand_sides, this.properties.srcSide, (v, e, name) => {
 				
 			this.properties.srcSide = v;
 		
@@ -2180,7 +2180,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 	}
 	if(this.properties.srcLocation == "Tip" || this.properties.srcLocation == "Pad" || this.properties.srcLocation == "Mid" || this.properties.srcLocation == "Base") {
 
-		panel.addDropdown("Finger", ["",...ArmLocationClip.fingers], this.properties.srcFinger, (v, e, name) => {
+		panel.addSelect("Finger", ["",...ArmLocationClip.fingers], this.properties.srcFinger, (v, e, name) => {
 				
 			this.properties.srcFinger = v;
 			if(callback)
@@ -2364,7 +2364,7 @@ PalmOrientationClip.prototype.showInfo = function(panel, callback)
 
 	panel.addText(null, "Roll of the wrist joint", null, {disabled: true});
 	// Direction property
-	panel.addDropdown("Direction", PalmOrientationClip.directions, this.properties.palmor, (v, e, name) => {
+	panel.addSelect("Direction", PalmOrientationClip.directions, this.properties.palmor, (v, e, name) => {
 		
 		this.properties.palmor = v;
 		if(callback)
@@ -2373,7 +2373,7 @@ PalmOrientationClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true, title: "Direction relative to arm (not to world coordinates)"});
 
 	// Hand property
-	panel.addDropdown("Hand", PalmOrientationClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Hand", PalmOrientationClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)
@@ -2392,7 +2392,7 @@ PalmOrientationClip.prototype.showInfo = function(panel, callback)
 	});
 	
 	// Second direction side
-	panel.addDropdown("Second direction", ["", ...PalmOrientationClip.directions], this.properties.secondPalmor, (v, e, name) => {
+	panel.addSelect("Second direction", ["", ...PalmOrientationClip.directions], this.properties.secondPalmor, (v, e, name) => {
 		
 		this.properties.secondPalmor = v;
 		if(callback)
@@ -2594,7 +2594,7 @@ HandOrientationClip.prototype.showInfo = function(panel, callback)
 {
 	panel.addText(null,"Yaw and pitch rotation of the wrist joint", null, {disabled: true});
 	// Direction property
-	panel.addDropdown("Direction", HandOrientationClip.directions, this.properties.extfidir, (v, e, name) => {
+	panel.addSelect("Direction", HandOrientationClip.directions, this.properties.extfidir, (v, e, name) => {
 		
 		this.properties.extfidir = v;
 		if(callback)
@@ -2603,7 +2603,7 @@ HandOrientationClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true, title: "Direction relative to arm (not to world coordinates)"});
 
 	// Hand property
-	panel.addDropdown("Hand", HandOrientationClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Hand", HandOrientationClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)
@@ -2622,7 +2622,7 @@ HandOrientationClip.prototype.showInfo = function(panel, callback)
 	});
 	
 	// Second direction side
-	panel.addDropdown("Second direction", ["", ...HandOrientationClip.directions], this.properties.secondExtfidir, (v, e, name) => {
+	panel.addSelect("Second direction", ["", ...HandOrientationClip.directions], this.properties.secondExtfidir, (v, e, name) => {
 		
 		this.properties.secondExtfidir = v;
 		if(callback)
@@ -2802,7 +2802,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null,"Sets the posture of the fingers of a hand. Fingers are numbered from thumb to pinky", null, {disabled: true});
 	
 	// Handshape property
-	panel.addDropdown("Hand shape", HandshapeClip.handshapes, this.properties.handshape, (v, e, name) => {
+	panel.addSelect("Hand shape", HandshapeClip.handshapes, this.properties.handshape, (v, e, name) => {
 		
 		this.properties.handshape = v;
 		if(callback)
@@ -2811,7 +2811,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 
 	// Hand property
-	panel.addDropdown("Hand", HandshapeClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Hand", HandshapeClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)
@@ -2830,7 +2830,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	});
 
 	// Thumbshape property
-	panel.addDropdown("Thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.thumbshape, (v, e, name) => {
+	panel.addSelect("Thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.thumbshape, (v, e, name) => {
 	
 		this.properties.thumbshape = v;
 		if(callback)
@@ -2865,7 +2865,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	}
 
 	// Bend property
-	panel.addDropdown("Main bend", ["", ...HandshapeClip.bendstates], this.properties.mainBend, (v, e, name) => {
+	panel.addSelect("Main bend", ["", ...HandshapeClip.bendstates], this.properties.mainBend, (v, e, name) => {
 
 		this.properties.mainBend = v;
 		if(callback)
@@ -2877,7 +2877,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Optional second hand shape", null, {disabled: true});
 
 	// Second handshape property
-	panel.addDropdown("Second hand shape", ["", ...HandshapeClip.handshapes], this.properties.secondHandshape, (v, e, name) => {
+	panel.addSelect("Second hand shape", ["", ...HandshapeClip.handshapes], this.properties.secondHandshape, (v, e, name) => {
 			
 		this.properties.secondHandshape = v;
 		if(callback)
@@ -2887,7 +2887,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 
 
 	// Second thumbshape property
-	panel.addDropdown("Second thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.secondThumbshape, (v, e, name) => {
+	panel.addSelect("Second thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.secondThumbshape, (v, e, name) => {
 	
 		this.properties.secondThumbshape = v;
 		if(callback)
@@ -2905,7 +2905,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	}, {precision: 2, min: 0, max: 1, step: 0.01});
 
 	// Second bend property
-	panel.addDropdown("Second main bend", ["", ...HandshapeClip.bendstates], this.properties.secondMainBend, (v, e, name) => {
+	panel.addSelect("Second main bend", ["", ...HandshapeClip.bendstates], this.properties.secondMainBend, (v, e, name) => {
 
 		this.properties.secondMainBend = v;
 		if(callback)
@@ -3153,7 +3153,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Moves the hand position with respect to each other.", null, {disabled: true});
 	
 	// Hand property
-	panel.addDropdown("Hand", HandConstellationClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Hand", HandConstellationClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)
@@ -3165,7 +3165,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 	// Hand constellation properties
 	panel.addText(null, "Location of the hand in the specified hand (or dominant hand)", null, {disabled: true})
 	// Part of the hand
-	panel.addDropdown("Location", HandConstellationClip.hand_locations, this.properties.srcLocation, (v, e, name) => {
+	panel.addSelect("Location", HandConstellationClip.hand_locations, this.properties.srcLocation, (v, e, name) => {
 				
 		this.properties.srcLocation = v;
 		if(this.properties.srcLocation == "Tip")
@@ -3181,7 +3181,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 
 	if(this.properties.srcLocation && this.properties.srcLocation != "Tip") {
-		panel.addDropdown("Side", HandConstellationClip.hand_sides, this.properties.srcSide, (v, e, name) => {
+		panel.addSelect("Side", HandConstellationClip.hand_sides, this.properties.srcSide, (v, e, name) => {
 				
 			this.properties.srcSide = v;
 			if(callback)
@@ -3192,7 +3192,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 	}
 	if(this.properties.srcLocation == "Tip" || this.properties.srcLocation == "Pad" || this.properties.srcLocation == "Mid" || this.properties.srcLocation == "Base") {
 
-		panel.addDropdown("Finger", HandConstellationClip.fingers, this.properties.srcFinger, (v, e, name) => {
+		panel.addSelect("Finger", HandConstellationClip.fingers, this.properties.srcFinger, (v, e, name) => {
 				
 			this.properties.srcFinger = v;
 			if(callback)
@@ -3203,7 +3203,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Location of the hand in the unspecified hand (or non dominant hand)", null, {disabled: true});
 
 	// Part of the hand
-	panel.addDropdown("Location", [...HandConstellationClip.hand_locations, ...HandConstellationClip.arm_locations], this.properties.dstLocation, (v, e, name) => {
+	panel.addSelect("Location", [...HandConstellationClip.hand_locations, ...HandConstellationClip.arm_locations], this.properties.dstLocation, (v, e, name) => {
 				
 		this.properties.dstLocation = v;
 		if(this.properties.dstLocation == "Tip")
@@ -3224,7 +3224,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 			let i = sides.indexOf("Palmar");
 			sides[i] = "Front";
 		}
-		panel.addDropdown("Side", sides, this.properties.dstSide, (v, e, name) => {
+		panel.addSelect("Side", sides, this.properties.dstSide, (v, e, name) => {
 				
 			this.properties.dstSide = v;
 			if(callback)
@@ -3235,7 +3235,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 	}
 	if(this.properties.dstLocation == "Tip" || this.properties.dstLocation == "Pad" || this.properties.dstLocation == "Mid" || this.properties.dstLocation == "Base") {
 
-		panel.addDropdown("Finger", HandConstellationClip.fingers, this.properties.dstFinger, (v, e, name) => {
+		panel.addSelect("Finger", HandConstellationClip.fingers, this.properties.dstFinger, (v, e, name) => {
 				
 			this.properties.dstFinger = v;
 			if(callback)
@@ -3257,7 +3257,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 	}, {precision: 2, min: 0, max: 1, step: 0.01});
 
 	// Displacement property
-	panel.addDropdown("Distance direction", ArmLocationClip.directions, this.properties.distanceDirection, (v, e, name) => {
+	panel.addSelect("Distance direction", ArmLocationClip.directions, this.properties.distanceDirection, (v, e, name) => {
 	
 		this.properties.distanceDirection = v;
 		if(callback)
@@ -3514,7 +3514,7 @@ DirectedMotionClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Moves the arm (wrist) in a linear direction.", null, {disabled: true});
 	
 	// Hand property
-	panel.addDropdown("Hand", DirectedMotionClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Hand", DirectedMotionClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)
@@ -3523,7 +3523,7 @@ DirectedMotionClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 
 	// Movement direction property
-	panel.addDropdown("Direction", DirectedMotionClip.directions, this.properties.direction, (v, e, name) => {
+	panel.addSelect("Direction", DirectedMotionClip.directions, this.properties.direction, (v, e, name) => {
 				
 		this.properties.direction = v;
 		if(callback)
@@ -3536,7 +3536,7 @@ DirectedMotionClip.prototype.showInfo = function(panel, callback)
 	panel.addTitle( "Optionals");
 	
 	// Displacement property
-	panel.addDropdown("Second direction", ["", ...DirectedMotionClip.directions], this.properties.secondDirection, (v, e, name) => {
+	panel.addSelect("Second direction", ["", ...DirectedMotionClip.directions], this.properties.secondDirection, (v, e, name) => {
 	
 		this.properties.secondDirection = v;
 		if(callback)
@@ -3552,7 +3552,7 @@ DirectedMotionClip.prototype.showInfo = function(panel, callback)
 			callback();
 	}, {precision: 3, min: 0, step: 0.01, title: "Meters of the displacement"});
 
-	panel.addDropdown("Curve direction", ["", ...DirectedMotionClip.directions], this.properties.curve, (v, e, name) => {
+	panel.addSelect("Curve direction", ["", ...DirectedMotionClip.directions], this.properties.curve, (v, e, name) => {
 	
 		this.properties.curve = v;
 		if(callback)
@@ -3560,7 +3560,7 @@ DirectedMotionClip.prototype.showInfo = function(panel, callback)
 		
 	}, {filter: true});
 
-	panel.addDropdown("Second curve direction", ["", ...DirectedMotionClip.directions], this.properties.secondCurve, (v, e, name) => {
+	panel.addSelect("Second curve direction", ["", ...DirectedMotionClip.directions], this.properties.secondCurve, (v, e, name) => {
 	
 		this.properties.secondCurve = v;
 		if(callback)
@@ -3587,7 +3587,7 @@ DirectedMotionClip.prototype.showInfo = function(panel, callback)
 	});
 
 	if(this.zigzag) {
-		panel.addDropdown("Zig zag direction", ["", ...DirectedMotionClip.directions], this.properties.zigzag, (v, e, name) => {
+		panel.addSelect("Zig zag direction", ["", ...DirectedMotionClip.directions], this.properties.zigzag, (v, e, name) => {
 				
 			this.properties.zigzag = v;
 			if(callback)
@@ -3855,7 +3855,7 @@ CircularMotionClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Moves the arm (wrist) in a circular motion.", null, {disabled: true});
 	
 	// Hand property
-	panel.addDropdown("Hand", CircularMotionClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Hand", CircularMotionClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)
@@ -3864,7 +3864,7 @@ CircularMotionClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 
 	// Movement direction property
-	panel.addDropdown("Direction", CircularMotionClip.directions, this.properties.direction, (v, e, name) => {
+	panel.addSelect("Direction", CircularMotionClip.directions, this.properties.direction, (v, e, name) => {
 				
 		this.properties.direction = v;
 		if(callback)
@@ -3877,7 +3877,7 @@ CircularMotionClip.prototype.showInfo = function(panel, callback)
 	panel.addTitle( "Optionals");
 	
 	// Displacement property
-	panel.addDropdown("Second direction", ["", ...CircularMotionClip.second_directions], this.properties.secondDirection, (v, e, name) => {
+	panel.addSelect("Second direction", ["", ...CircularMotionClip.second_directions], this.properties.secondDirection, (v, e, name) => {
 	
 		this.properties.secondDirection = v;
 		if(callback)
@@ -3909,7 +3909,7 @@ CircularMotionClip.prototype.showInfo = function(panel, callback)
 
 	panel.addText(null, "Define an ellipse motion", null, {disabled: true});
 
-	panel.addDropdown("Ellipse axis direction", [" ", ...CircularMotionClip.second_directions], this.properties.ellipseAxisDirection, (v, e, name) => {
+	panel.addSelect("Ellipse axis direction", [" ", ...CircularMotionClip.second_directions], this.properties.ellipseAxisDirection, (v, e, name) => {
 				
 		this.properties.ellipseAxisDirection = v;
 		if(callback)
@@ -3936,7 +3936,7 @@ CircularMotionClip.prototype.showInfo = function(panel, callback)
 	});
 
 	if(this.zigzag) {
-		panel.addDropdown("Zig zag direction", ["", ...CircularMotionClip.directions], this.properties.zigzag, (v, e, name) => {
+		panel.addSelect("Zig zag direction", ["", ...CircularMotionClip.directions], this.properties.zigzag, (v, e, name) => {
 				
 			this.properties.zigzag = v;
 			if(callback)
@@ -4089,7 +4089,7 @@ WristMotionClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Repetitive swinging, nodding and twisting of wrist (wiggle for the wrist).", null, {disabled: true});
 	
 	// Hand property
-	panel.addDropdown("Hand", WristMotionClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Hand", WristMotionClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)
@@ -4098,7 +4098,7 @@ WristMotionClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 
 	// Mode property
-	panel.addDropdown("Motion", WristMotionClip.modes, this.properties.mode, (v, e, name) => {
+	panel.addSelect("Motion", WristMotionClip.modes, this.properties.mode, (v, e, name) => {
 				
 		this.properties.mode = v;
 		if(callback)
@@ -4270,7 +4270,7 @@ FingerplayMotionClip.prototype.showInfo = function(panel, callback)
 	panel.addText(null, "Wiggle fingers of the hand.", null, {disabled: true});
 	
 	// Hand property
-	panel.addDropdown("Hand", FingerplayMotionClip.hands, this.properties.hand, (v, e, name) => {
+	panel.addSelect("Hand", FingerplayMotionClip.hands, this.properties.hand, (v, e, name) => {
 				
 		this.properties.hand = v;
 		if(callback)

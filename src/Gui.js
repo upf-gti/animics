@@ -321,7 +321,7 @@ class Gui {
             for( let animationName in animations ) { // animationName is of the source anim (not the bind)
                 let animation = animations[animationName]; 
                 p.sameLine();
-                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px"});
+                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px", hideName: false, label: ""});
                 p.addText(null, animation.saveName, (v) => {
                     animation.saveName = v; 
                     if ( this.editor.currentAnimation == animationName ){
@@ -536,7 +536,7 @@ class Gui {
 
     /** -------------------- ON EVENTS -------------------- */
     onSelectItem(item) { // on bone select through canvas gizmo
-        this.tree.select(item);
+        this.treeWidget.innerTree.select(item);
     }
 
     resize(width, height) {
@@ -661,7 +661,7 @@ class KeyframesGui extends Gui {
 
     onCreateMenuBar( menubar ) {    
         
-        menubar.add("Project/Generate animations", {icon:"fa-solid fa-hands-asl-interpreting"});
+        menubar.add("Project/Generate animations", {icon: "fa-solid fa-hands-asl-interpreting"});
         menubar.add("Project/Generate animations/From webcam", {icon: "fa fa-camera", callback: () => this.editor.captureVideo()});
         menubar.add("Project/Generate animations/From videos", {icon: "fa fa-photo-film", callback: () => this.importFiles(), short: "CTRL+O"});
        
@@ -921,7 +921,7 @@ class KeyframesGui extends Gui {
         /* Keyframes Timeline */
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
             onBeforeCreateTopBar: (panel) => {
-                panel.addDropdown("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
                 }, {signal: "@on_animation_loaded", id:"animation-selector"})
@@ -1101,7 +1101,7 @@ class KeyframesGui extends Gui {
         /* Curves Timeline */
         this.curvesTimeline = new LX.CurvesTimeline("Action Units", {
             onBeforeCreateTopBar: (panel) => {
-                panel.addDropdown("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
                 }, {signal: "@on_animation_loaded"})
@@ -1544,7 +1544,7 @@ class KeyframesGui extends Gui {
         
         const mytree = this.updateNodeTree();
     
-        let litetree = skeletonPanel.addTree("Skeleton bones", mytree, { 
+        this.treeWidget = skeletonPanel.addTree("Skeleton bones", mytree, { 
             // icons: tree_icons, 
             filter: true,
             onevent: (event) => { 
@@ -1589,9 +1589,6 @@ class KeyframesGui extends Gui {
                 }
             },
         });
-   
-        this.tree = litetree;
-        // this.tree.select(itemSelected);
     }
 
     updateNodeTree() {
@@ -4012,11 +4009,11 @@ class PropagationWindow {
 
         this.curveWidget = new LX.Curve( null, this.gradient, {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor, callback: (v,e) => {
             if ( v.length <= 0){
-                this.curveWidget.element.value = this.gradient = [[0.5,1]];
+                this.curveWidget.root.value = this.gradient = [[0.5,1]];
             }
             this.curveWidget.redraw();
         }} );
-        const curveElement = this.curveWidget.element; 
+        const curveElement = this.curveWidget.root; 
         curveElement.style.width = "fit-content";
         curveElement.style.height = "fit-content";
         curveElement.style.position = "fixed";
@@ -4059,9 +4056,9 @@ class PropagationWindow {
     setTimeline( timeline ){
         this.timeline = timeline;
         
-        this.curveWidget.element.remove(); // remove from dom, wherever this is
+        this.curveWidget.root.remove(); // remove from dom, wherever this is
         if(this.showCurve){
-            this.timeline.canvasArea.root.appendChild( this.curveWidget.element );
+            this.timeline.canvasArea.root.appendChild( this.curveWidget.root );
             this.updateCurve( true );
         }
     }
@@ -4095,12 +4092,12 @@ class PropagationWindow {
             let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
             this.gradientColorLimits = color + ",0%)"; 
             this.gradientColor = color;
-            this.curveWidget.element.pointscolor = value;
+            this.curveWidget.root.pointscolor = value;
             this.curveWidget.redraw();
         });
         dialog.addNumber("Opacity", this.opacity, (v) => {
             this.opacity = v;
-            this.curveWidget.element.style.opacity = v;
+            this.curveWidget.root.style.opacity = v;
         }, {min: 0, max:1, step:0.001});
         dialog.endLine();
     }
@@ -4196,12 +4193,12 @@ class PropagationWindow {
     setCurveVisibility( visibility ){
         if (!visibility){
             this.showCurve = false;
-            this.curveWidget.element.remove(); // detach from timeline (if any)
+            this.curveWidget.root.remove(); // detach from timeline (if any)
         }else{
             const oldVisibility = this.showCurve;
             this.showCurve = true;
             if ( !oldVisibility ){ // only do update on visibility change
-                this.timeline.canvasArea.root.appendChild( this.curveWidget.element );
+                this.timeline.canvasArea.root.appendChild( this.curveWidget.root );
                 this.updateCurve(true);
             }
         }
@@ -4217,8 +4214,8 @@ class PropagationWindow {
 
 		let areaRect = timeline.canvas.getBoundingClientRect();
 
-        this.curveWidget.element.style.left = areaRect.x + windowRect.rectPosX + "px";
-        this.curveWidget.element.style.top = areaRect.y + windowRect.rectPosY + windowRect.rectHeight -2 + "px";
+        this.curveWidget.root.style.left = areaRect.x + windowRect.rectPosX + "px";
+        this.curveWidget.root.style.top = areaRect.y + windowRect.rectPosY + windowRect.rectHeight -2 + "px";
 
         if(updateSize) {
             this.curveWidget.canvas.width = windowRect.rectWidth;
