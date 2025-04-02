@@ -1296,22 +1296,22 @@ class KeyframesGui extends Gui {
 
     createFacePanel(root, itemSelected, options = {}) {
 
-        let container = document.createElement("div");
+        const container = document.createElement("div");
         container.id = "faceAreasContainer";
 
-        let img = document.createElement("img");
+        const img = document.createElement("img");
         img.src = "./data/imgs/masks/face areas2.png";
         img.setAttribute("usemap", "#areasmap");
         img.style.position = "relative";
         container.appendChild(img);
         
         
-        let map = document.createElement("map");
+        const map = document.createElement("map");
         map.name = "areasmap";
 
-        let div = document.createElement("div");
+        const div = document.createElement("div");
         div.style.position = "fixed";
-        let mapHovers = document.createElement("div");
+        const mapHovers = document.createElement("div");
         for(let area in this.faceAreas) {
             let maparea = document.createElement("area");
             maparea.shape = "poly";
