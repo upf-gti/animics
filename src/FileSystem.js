@@ -24,7 +24,7 @@ class RemoteFileSystem {
                     callback( this.session );
                 // }
                 
-            }); 
+            }, (error) => callback(error)); 
         });        
     }
     
@@ -84,12 +84,19 @@ class RemoteFileSystem {
             }
 		}
 
-		const inner_error = (err) => {
+		const inner_error = (err, resolve) => {
+            if( resolve ) {
+                resolve(null);
+            }
+
+			if( callback ) {
+				callback(null, err);
+            }
 			throw err;
 		}
 
         const promise = new Promise(resolve => {
-            LFS.login(username, password, (s,r) => inner_success(s,r,resolve), inner_error)
+            LFS.login(username, password, (s,r) => inner_success(s,r,resolve), (err) => inner_error(err, resolve))
         });
 
         return promise;

@@ -25,7 +25,7 @@ var LiteFileServer = {
     },
 
     //create a session
-    login: function( username, password, on_complete)
+    login: function( username, password, on_complete, on_error)
     {
         //create session
         var session = new LiteFileServer.Session();
@@ -47,7 +47,7 @@ var LiteFileServer = {
                 LFS.onNewSession(session);
             if(on_complete)
                 on_complete(session, resp);
-        });
+        }, on_error);
     },
 
     //get server info status and config
@@ -68,7 +68,7 @@ var LiteFileServer = {
         });
     },
 
-    checkExistingSession: function( on_complete )
+    checkExistingSession: function( on_complete, on_error )
     {
         var old_token = localStorage.getItem( LiteFileServer.TOKEN_NAME );
         if(!old_token)
@@ -77,7 +77,6 @@ var LiteFileServer = {
                 on_complete(null);
             return;
         }
-
         return this.request( this.server_url,{action: "user/checkToken", token: old_token}, function(resp){
             if(!resp.user)
                 localStorage.removeItem( LiteFileServer.TOKEN_NAME );
@@ -98,7 +97,7 @@ var LiteFileServer = {
             }
             else
                 on_complete(null);
-        });
+        }, on_error);
     },
 
     forgotPassword: function( email, on_complete, redirect_url )

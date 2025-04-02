@@ -158,7 +158,9 @@ class Gui {
         const loginName = (!user || user.username == "guest") ? "Login" : user.username;
         menubar.add( loginName, {
             callback: () => {
-                const username =this.editor.remoteFileSystem.session.user.username;
+                const session = this.editor.remoteFileSystem.session;
+                
+                const username = session ? session.user.username : "guest";
                 if( this.prompt && this.prompt.root.checkVisibility() ) {
                     return;
                 }
@@ -222,8 +224,8 @@ class Gui {
                             this.prompt.close();
                             this.prompt = null;
                         }
-                        else {
-                            refresh(p, response.msg);
+                        else {                           
+                            refresh(p, response.msg || "Can't connect to the server. Try again!");
                         }
                     });
                 }, { buttonClass: "accept" });
@@ -231,7 +233,7 @@ class Gui {
                 p.addButton(null, "Sign up", (v) => {
                     this.prompt.close();
                     this.prompt = null;
-                    this.showCreateAccountDialog(session);
+                    this.showCreateAccountDialog({username, password});
                 })
             }
             refresh(p);
@@ -3552,7 +3554,9 @@ class ScriptGui extends Gui {
 
     createServerClipsDialog() {
         
-        const user = this.editor.remoteFileSystem.session.user;
+        const session = this.editor.remoteFileSystem.session;
+       
+        const user = session ? session.user : "guest";
         const repository = this.editor.remoteFileSystem.repository;
 
         if( this.prompt && this.prompt.root.checkVisibility() ) {

@@ -29,6 +29,9 @@ class Animics {
                     this.editor.gui.changeLoginButton( session.user.username );
                 }   
                 resolve();
+            }, (error) => {
+                console.error("Server error. Can't connect to the FileSystem")
+                resolve()
             });   
         })
     }
@@ -60,7 +63,7 @@ class Animics {
             this.videoProcessor = new VideoProcessor(this);
         }
         const session = this.remoteFileSystem.session;
-        this.editor.init(settings, session.user.username == "guest");
+        this.editor.init(settings, !session || session.user.username == "guest");
         
         window.addEventListener("resize", this.onResize.bind(this));
         return true;
