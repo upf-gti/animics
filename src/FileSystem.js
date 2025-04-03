@@ -231,9 +231,12 @@ class RemoteFileSystem {
     }
 
     async loadUnits() {
-        const session = this.session;
         // this.repository = {signs:[], presets: [], clips: []};
         this.repository = [];
+        const session = this.session;
+        if( !session ) {
+            return;
+        }
         return new Promise( resolve => {
             session.getUnits( (units) => {
                 for( let i = 0; i < units.length; i++ ) {
@@ -310,6 +313,11 @@ class RemoteFileSystem {
     async loadAllUnitsFolders( callback, allowFolders = [] ) {
         await this.loadUnits();
         const session = this.session;
+        if( !session ) {
+            callback();
+            return;
+        }
+
         let count = 0;
 
         for( let i = 0; i < this.repository.length; i++ ) {

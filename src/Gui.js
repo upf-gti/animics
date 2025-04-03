@@ -294,8 +294,7 @@ class Gui {
                                 el.innerText = session.user;
                                 // this.showLoginModal( { user: user, password: pass});
                             }, (request)  => {
-                                refresh(p, "Server status: " + request.msg);
-                                console.error(request.msg);
+                                refresh(p, "Server status: " + (request.msg ||  "Can't connect to the server. Try again!"));
                             }
                         );
                     }
@@ -1863,7 +1862,9 @@ class KeyframesGui extends Gui {
                 }
             }
 
-            const user = this.editor.remoteFileSystem.session.user;
+            const session = this.editor.remoteFileSystem.session;
+            const user = session ? session.user : "";
+            
             if(!user || user.username == "guest") {
                 this.prompt = new LX.Dialog("Alert", d => {
                     d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
@@ -1887,7 +1888,7 @@ class KeyframesGui extends Gui {
     createServerClipsDialog() {
         
         const session = this.editor.remoteFileSystem.session;
-        const user = session.user;
+        const username = session ? session.user.username : "guest";
         let repository = this.editor.remoteFileSystem.repository;
 
         if( this.prompt && this.prompt.root.checkVisibility() ) {
@@ -1963,7 +1964,7 @@ class KeyframesGui extends Gui {
                 },                
             ];
 
-            if( user.username != "guest" ) {
+            if( username != "guest" ) {
                 previewActions.push(
                 {
                     type: "bvh",
@@ -2011,7 +2012,7 @@ class KeyframesGui extends Gui {
                 });             
                 previewActions.push({
                     type: "bvh",
-                    path: "@/"+ user.username + "/clips",
+                    path: "@/"+ username + "/clips",
                     name: 'Delete', 
                     callback: ( item )=> {
                         this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
@@ -2030,7 +2031,7 @@ class KeyframesGui extends Gui {
                 });
                 previewActions.push({
                     type: "bvhe",
-                    path: "@/"+ user.username + "/clips",
+                    path: "@/"+ username + "/clips",
                     name: 'Delete', 
                     callback: ( item )=> {
                         this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
@@ -3056,8 +3057,8 @@ class ScriptGui extends Gui {
                     })
                 }
             }
-
-            const user = this.editor.remoteFileSystem.session.user;
+            const session = this.editor.remoteFileSystem.session;
+            const user = session ? session.user : ""
             if( !user || user.username == "guest" ) {
                 this.prompt = new LX.Dialog("Alert", d => {
                     d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
@@ -3556,7 +3557,7 @@ class ScriptGui extends Gui {
         
         const session = this.editor.remoteFileSystem.session;
        
-        const user = session ? session.user : "guest";
+        const username = session ? session.user.username : "guest";
         const repository = this.editor.remoteFileSystem.repository;
 
         if( this.prompt && this.prompt.root.checkVisibility() ) {
@@ -3636,7 +3637,7 @@ class ScriptGui extends Gui {
                 }
             ];
 
-            if( user.username != "guest" ) {
+            if( username != "guest" ) {
                 const folders = ["signs", "presets", "clips"];
                 for( let i = 0; i < folders.length; i++ ) {
                     const folder = folders[i];
@@ -3695,7 +3696,7 @@ class ScriptGui extends Gui {
                     });    
                     previewActions.push({
                         type: "sigml",
-                        path: "@/"+ user.username + "/" + folder,
+                        path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
                         callback: (item)=> {
                             this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
@@ -3714,7 +3715,7 @@ class ScriptGui extends Gui {
                     });
                     previewActions.push({
                         type: "bml",
-                        path: "@/"+ user.username + "/" + folder,
+                        path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
                         callback: (item)=> {
                             this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {

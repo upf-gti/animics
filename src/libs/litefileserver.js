@@ -172,7 +172,7 @@ var LiteFileServer = {
             console.log(resp);
             if(on_complete)
                 on_complete( resp.status == 1, resp );
-        });
+        }, on_error);
     },
 
     generatePreview: function( file, on_complete )
