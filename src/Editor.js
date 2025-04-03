@@ -548,14 +548,16 @@ class Editor {
 
         this.editorArea.root.addEventListener( 'keydown', (e) => {
             switch ( e.key ) {
-                case " ": // Spacebar - Play/Stop animation       
-                    if(e.target.constructor.name != 'HTMLInputElement') {
-                        e.preventDefault();
-                        e.stopImmediatePropagation();
-
-                        const playElement = this.editorArea.root.querySelector("[title = Play]");
-                        if ( playElement ){ 
-                            playElement.children[0].click();
+                case " ": // Spacebar - Play/Stop animation 
+                    if( !e.ctrlKey ){
+                        if(e.target.constructor.name != 'HTMLInputElement') {
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+    
+                            const playElement = this.editorArea.root.querySelector("[title = Play]");
+                            if ( playElement ){ 
+                                playElement.children[0].click();
+                            }
                         }
                     }
                 break;

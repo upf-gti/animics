@@ -1294,10 +1294,11 @@ class KeyframesGui extends Gui {
         widgets.onRefresh(options);
     }
 
-    createFacePanel(root, itemSelected, options = {}) {
+    createFacePanel(area, itemSelected, options = {}) {
 
         const container = document.createElement("div");
         container.id = "faceAreasContainer";
+        container.style.marginTop = "1rem";
 
         const img = document.createElement("img");
         img.src = "./data/imgs/masks/face areas2.png";
@@ -1358,7 +1359,7 @@ class KeyframesGui extends Gui {
         div.appendChild(mapHovers);
         mapHovers.style.position = "relative";
         container.appendChild(div);
-        root.root.appendChild(container);
+        area.root.appendChild(container);
         container.appendChild(map);
         
         container.style.height = "100%";
@@ -1369,7 +1370,9 @@ class KeyframesGui extends Gui {
             e.preventDefault();
             e.stopPropagation();
             this.selectActionUnitArea(e.target.name);
-           
+            this.showTimeline();
+            this.propagationWindow.updateCurve(true); // resize
+
             img.src = "./data/imgs/masks/face areas2 " + e.target.name + ".png";
             document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +img.src +"')";
 
@@ -1406,7 +1409,7 @@ class KeyframesGui extends Gui {
            
             this.resize =  () => {
                 var n, m, clen,
-                    x = root.root.clientHeight / previousHeight;
+                    x = area.root.clientHeight / previousHeight;
                 for (n = 0; n < len; n++) {
                     clen = coords[n].length;
                     for (m = 0; m < clen; m++) {
@@ -1415,14 +1418,14 @@ class KeyframesGui extends Gui {
                     areas[n].coords = coords[n].join(',');
                 }
                 previousWidth = previousWidth*x;
-                previousHeight = root.root.clientHeight;
+                previousHeight = area.root.clientHeight;
                 this.highlighter.element.parentElement.querySelector("canvas").width = previousWidth;
                 this.highlighter.element.parentElement.querySelector("canvas").height = previousHeight;
                 this.highlighter.element.parentElement.style.width = previousWidth + "px";
                 this.highlighter.element.parentElement.style.height = previousHeight + "px";
                 return true;
             };
-            root.onresize = this.resize;
+            area.onresize = this.resize;
         }
 
     }
@@ -1458,6 +1461,9 @@ class KeyframesGui extends Gui {
             let panel = new LX.Panel({id: "au-"+ area});
             
             panel.clear();
+            panel.addTitle(area, { style: {background: "none", fontSize:"large", margin: "auto"}});
+            panel.addBlank();
+
             for(let name in areas[area]) {
                 for(let i = 0; i < animation.tracks.length; i++) {
                     const track = animation.tracks[i];
@@ -1477,13 +1483,15 @@ class KeyframesGui extends Gui {
             }
                         
             tabs.add(area, panel, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
-                this.showTimeline();
-                this.editor.setSelectedActionUnit(v);
-                document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
-                this.propagationWindow.updateCurve(true); // resize
-            }
+                    this.showTimeline();
+                    this.editor.setSelectedActionUnit(v);
+                    document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
+                    this.propagationWindow.updateCurve(true); // resize
+                }
             });
         }
+
+        tabs.root.classList.add("hidden"); // hide tab titles only
         this.facePanel = tabs;
 
     }
