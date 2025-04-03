@@ -249,6 +249,7 @@ class VideoProcessor {
             this.canvasVideo.classList.add("hidden");
         }
     }
+
     createTrimArea( options ) {
         // TRIM VIDEO - be sure that only the sign is recorded
         const recordedVideo = this.mediapipeOnlineVideo = this.recordedVideo;
@@ -282,7 +283,6 @@ class VideoProcessor {
             this.currentResolve(animation);
             this.currentResolve = null;
         }, {width: "auto", className: "captureButton colored"});//, {width: "100px"});
-
     }
 
     createCaptureAreea() {
@@ -604,41 +604,24 @@ class VideoProcessor {
                     }
                 }
 
-                return new Promise( resolve => {
-                    this.currentResolve = resolve;
-                    this.mediaRecorder.onstop = (e) => {
-                    
-                        if( !this.recording ) {
-                            return;
-                        }
-
-                        this.recording = false;
-                        recordedVideo.controls = false;
-                        recordedVideo.loop = true;
-                        
-                        const blob = new Blob(this.recordedChunks, { type: "video/webm" });
-                        const videoURL = URL.createObjectURL(blob);
-                        recordedVideo.src = videoURL;
-                        recordedVideo.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".webm";
-    
-                        canvasVideo.classList.remove("active");  
-                                    
-                        // destroys inputVideo camera stream, if any
-                        inputVideo.pause();
-                        if( inputVideo.srcObject ) {
-                            inputVideo.srcObject.getTracks().forEach(a => a.stop());
-                        }
-                        inputVideo.srcObject = null;
-                                            
-                        // Trim stage
-                        this.createTrimArea( );
-    
-                        console.log("Stopped recording");
-                    }
-                    
-                    inputVideo.play();
-                })
-                
+                const animation = await this.onWebcamCaptured();
+                              
+                // If user cancelled process
+                if( !animation ) {
+                    return null;
+                }
+                const canvasRect = canvasVideo.getBoundingClientRect();
+                const cropRect = this.videoEditor.getCroppedArea();
+                const left = (cropRect.x - canvasRect.x)/ canvasRect.width;
+                const top = (cropRect.y - canvasRect.y)/ canvasRect.height;
+                const right = (canvasRect.right - cropRect.right) / canvasRect.width;
+                const bottom = (canvasRect.bottom - cropRect.bottom) / canvasRect.height;
+                const width = cropRect.width / canvasRect.width;
+                const height = cropRect.height / canvasRect.height;
+            
+                animation.rect = {left, right, top, bottom, width, height};
+                UTILS.hideLoading();
+                return animation;              
             } 
             catch( error ) {
                 on_error();
@@ -648,6 +631,60 @@ class VideoProcessor {
             on_error();
         }
     }
+    /**
+    * @description Processes a webcam video with/out trim stage
+    * @param {boolean} [trimStage=true] If true, it redirects to trim stage after loading the video. Otherwise, directly generates the animation data
+    */
+    onWebcamCaptured( trimStage = true ) {
+        const inputVideo = this.inputVideo; // this video will hold the camera stream
+        const canvasVideo = this.canvasVideo; // this canvas will output image, landmarks (and edges)
+        const recordedVideo = this.recordedVideo;
+
+        return new Promise( resolve => {
+            this.currentResolve = resolve;
+            this.mediaRecorder.onstop = async (e) => {
+            
+                if( !this.recording ) {
+                    return;
+                }
+
+                this.recording = false;
+                recordedVideo.controls = false;
+                recordedVideo.loop = true;
+                
+                const blob = new Blob(this.recordedChunks, { type: "video/webm" });
+                const videoURL = URL.createObjectURL(blob);
+                recordedVideo.src = videoURL;
+                recordedVideo.name = "camVideo_" + Math.floor( performance.now()*1000 ).toString() + ".webm";
+
+                canvasVideo.classList.remove("active");  
+                            
+                // destroys inputVideo camera stream, if any
+                inputVideo.pause();
+                if( inputVideo.srcObject ) {
+                    inputVideo.srcObject.getTracks().forEach(a => a.stop());
+                }
+                inputVideo.srcObject = null;
+                                    
+                UTILS.hideLoading();
+                
+                if(trimStage) {
+                    // directly to trim stage
+                    this.currentResolve = resolve;
+                    this.createTrimArea( );
+                }
+                else {
+                    const animation = await this.generateRawAnimation(video);
+                    this.currentResolve(animation);
+                    this.currentResolve = null;
+                }
+
+                console.log("Stopped recording");
+            }
+            
+            inputVideo.play();
+        })
+      }
 }
 
 export { VideoProcessor }
