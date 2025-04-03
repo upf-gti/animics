@@ -631,8 +631,11 @@ class Editor {
 
         requestAnimationFrame(this.animate.bind(this));
 
-        this.render();
-        this.update(this.clock.getDelta());
+        const dt = this.clock.getDelta();
+        if (this.enabled){
+            this.render();
+            this.update(dt);
+        }
 
     }
 
