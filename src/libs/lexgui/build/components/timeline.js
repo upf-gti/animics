@@ -612,7 +612,6 @@ class Timeline {
         this.startTime = this.session.start_time; //seconds
         if(this.startTime < 0)
             this.startTime = 0;
-        // this.endTime = Math.ceil( this.startTime + (w - this.session.left_margin) * this.pixelsToSeconds );
         this.endTime = this.session.start_time + (w - this.session.left_margin) * this.pixelsToSeconds;
         if(this.endTime > this.duration)
             this.endTime = this.duration;
@@ -634,12 +633,8 @@ class Timeline {
         }
 
         if(this.animationClip) {
-            
-
             ctx.translate( 0, treeOffset );
-
             this.drawContent( ctx, this.timeStart, this.timeEnd, this );
-
             ctx.translate( 0, -treeOffset );
         }
 
@@ -654,6 +649,7 @@ class Timeline {
             let scrollLoc = this.currentScroll * ( h - this.topMargin - scrollBarHeight ) + this.topMargin;
             ctx.roundRect( w - 10, scrollLoc, 10, scrollBarHeight, 5, true );
         }
+
         this.drawTimeInfo(w);
 
         // Current time marker vertical line
@@ -1099,38 +1095,33 @@ class Timeline {
 
     drawTrackWithBoxes( ctx, y, trackHeight, title, track ) {
 
-        const  offset = (trackHeight - trackHeight * 0.6) * 0.5;
-        this.tracksDrawn.push([track, y + this.topMargin, trackHeight]);
-        
-        trackHeight *= 0.6;
-        this.canvas = this.canvas || ctx.canvas;
-        
-        let selectedClipArea = null;
+        const treeOffset = this.leftPanelTrackTreeWidget.innerTree.domEl.offsetTop - this.canvas.offsetTop;
+        this.tracksDrawn.push([track, y + treeOffset, trackHeight]);
 
-        if(track.enabled === false) {
-            ctx.globalAlpha = 0.4 * this.opacity;
-        }
-        else {
-            ctx.globalAlpha = 0.2 * this.opacity;
-        }
-
-        ctx.font = Math.floor( trackHeight * 0.8) + "px" + Timeline.FONT;
-        ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = Timeline.TRACK_SELECTED_LIGHT;
-        
         // Fill track background if it's selected
+        ctx.globalAlpha = 0.2 * this.opacity;
+        ctx.fillStyle = Timeline.TRACK_SELECTED_LIGHT;
         if(track.isSelected) {
-            ctx.fillRect(0, y + offset - 2, ctx.canvas.width, trackHeight + 4 );    
+            ctx.fillRect(0, y, ctx.canvas.width, trackHeight );    
         }
 
-        let clips = track.clips;
-        let trackAlpha = this.opacity;
-
+        const clips = track.clips;
         if(!clips) {
             return;
         }
 
+        const  offset = (trackHeight - trackHeight * 0.6) * 0.5;
+        
+        trackHeight *= 0.6;
+        
+        let selectedClipArea = null;
+
+        ctx.font = Math.floor( trackHeight * 0.8) + "px" + Timeline.FONT;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        const trackAlpha = this.opacity;
+
+ 
         for(var j = 0; j < clips.length; ++j)
         {
             selectedClipArea = null;
@@ -1653,6 +1644,7 @@ class KeyFramesTimeline extends Timeline {
         const trackHeight = this.trackHeight;
         const tracksPerItem = this.animationClip.tracksPerItem;
         const scrollY = - this.currentScrollInPixels;
+        const treeOffset = this.leftPanelTrackTreeWidget.innerTree.domEl.offsetTop - this.canvas.offsetTop;
 
         let offset = scrollY;
         ctx.translate(0, offset);
@@ -1671,7 +1663,7 @@ class KeyFramesTimeline extends Timeline {
                 }
 
                 this.drawTrackWithKeyframes(ctx, trackHeight, track);
-                this.tracksDrawn.push([track, offset, trackHeight]);
+                this.tracksDrawn.push([track, offset + treeOffset, trackHeight]);
                 
                 offset += trackHeight;
                 ctx.translate(0, trackHeight);
@@ -1703,7 +1695,7 @@ class KeyFramesTimeline extends Timeline {
         ctx.fillStyle = Timeline.COLOR;
         ctx.globalAlpha = this.opacity;
 
-        let keyframes = track.times;
+        const keyframes = track.times;
 
         if(!keyframes) {
             return;
@@ -4258,6 +4250,7 @@ class CurvesTimeline extends Timeline {
         const trackHeight = this.trackHeight;
         const tracksPerItem = this.animationClip.tracksPerItem;
         const scrollY = - this.currentScrollInPixels;
+        const treeOffset = this.leftPanelTrackTreeWidget.innerTree.domEl.offsetTop - this.canvas.offsetTop;
 
         let offset = scrollY;
         ctx.translate(0, offset);
@@ -4276,7 +4269,7 @@ class CurvesTimeline extends Timeline {
                 }
                
                 this.drawTrackWithCurves(ctx, trackHeight, track);
-                this.tracksDrawn.push([track, offset, trackHeight]);
+                this.tracksDrawn.push([track, offset + treeOffset, trackHeight]);
                 
                 offset += trackHeight;
                 ctx.translate(0, trackHeight);
@@ -4298,7 +4291,11 @@ class CurvesTimeline extends Timeline {
             }
                 
             ctx.globalAlpha = this.opacity;
-                
+
+            const defaultPointSize = 5;
+            const hoverPointSize = 7;
+            const valueRange = this.range; //[min, max]
+            const displayRange = trackHeight - defaultPointSize * 2;
             //draw lines
             ctx.strokeStyle = "white";
             ctx.beginPath();
@@ -4307,7 +4304,7 @@ class CurvesTimeline extends Timeline {
                 let time = keyframes[j];
                 let keyframePosX = this.timeToX( time );
                 let value = values[j];                
-                value = ((value - this.range[0]) / (this.range[1] - this.range[0])) * (-trackHeight) + trackHeight;
+                value = ((value - valueRange[0]) / (valueRange[1] - valueRange[0])) * (-displayRange) + (trackHeight - defaultPointSize); // normalize and offset
 
                 if( time < this.startTime ){
                     ctx.moveTo( keyframePosX, value ); 
@@ -4331,7 +4328,7 @@ class CurvesTimeline extends Timeline {
                 if( time < this.startTime || time > this.endTime )
                     continue;
 
-                let size = 5;
+                let size = defaultPointSize;
                 let keyframePosX = this.timeToX( time );
                     
                 if(!this.active || !track.active)
@@ -4339,7 +4336,7 @@ class CurvesTimeline extends Timeline {
                 else if(track.locked)
                     ctx.fillStyle = Timeline.COLOR_LOCK;
                 else if(track.hovered[j]) {
-                    size = 7;
+                    size = hoverPointSize;
                     ctx.fillStyle = Timeline.COLOR_HOVERED;
                 }
                 else if(track.selected[j])
@@ -4350,7 +4347,7 @@ class CurvesTimeline extends Timeline {
                     ctx.fillStyle = Timeline.COLOR
                 
                 let value = values[j];
-                value = ((value - this.range[0]) / (this.range[1] - this.range[0])) * ( -trackHeight) + trackHeight;
+                value = ((value - this.range[0]) / (this.range[1] - this.range[0])) *(-displayRange) + (trackHeight - defaultPointSize); // normalize and offset
 
                 ctx.beginPath();
                 ctx.arc( keyframePosX, value, size, 0, Math.PI * 2);
