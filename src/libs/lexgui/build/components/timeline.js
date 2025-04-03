@@ -371,7 +371,12 @@ class Timeline {
         panel.attach( p.root )
         p.root.style.overflowY = "scroll";
         p.root.addEventListener("scroll", e => {
-            this.currentScroll = e.currentTarget.scrollTop/(e.currentTarget.scrollHeight - e.currentTarget.clientHeight);
+            if (e.currentTarget.scrollHeight > e.currentTarget.clientHeight){
+                this.currentScroll = e.currentTarget.scrollTop / (e.currentTarget.scrollHeight - e.currentTarget.clientHeight);
+            }
+            else{
+                this.currentScroll = 0;
+            }
         });
         // for(let i = 0; i < this.animationClip.tracks.length; i++) {
         //     let track = this.animationClip.tracks[i];
@@ -2818,7 +2823,12 @@ class ClipsTimeline extends Timeline {
         panel.attach(p.root)
         p.root.style.overflowY = "scroll";
         p.root.addEventListener("scroll", (e) => {
-            this.currentScroll = e.currentTarget.scrollTop / (e.currentTarget.scrollHeight - e.currentTarget.clientHeight);
+            if (e.currentTarget.scrollHeight > e.currentTarget.clientHeight){
+                this.currentScroll = e.currentTarget.scrollTop / (e.currentTarget.scrollHeight - e.currentTarget.clientHeight);
+            }
+            else{
+                this.currentScroll = 0;
+            }
         })
        
         this.leftPanel.root.children[1].scrollTop = scrollTop;
