@@ -620,6 +620,36 @@ class Gui {
         }, options);
     }
 
+    // inserts an area that covers the panel with a loading message. Can be hidden/shown hidden. The new area's parent will have position:relative
+    createLoadingArea(panel, options) {
+        options = options ?? {size: ["100%", "100%"]};
+
+        const div = document.createElement("div");
+        div.classList.add("load");
+
+        const icon = document.createElement("div");
+        icon.classList = "loading-icon big";
+        div.appendChild(icon);
+        
+        const text = document.createElement("div");
+        text.innerText = "Loading content...";
+        text.style.margin = "-5px 14px";
+        div.appendChild(text);
+        const area = new LX.Area(options);
+        area.attach(div);
+
+        area.root.style.minWidth = "100%";
+        area.root.style.minHeight = "100%";
+        area.root.style.top = 0;
+        area.root.style.left = 0;
+        area.root.style.position = "absolute";
+        area.root.style.zIndex = 100;
+
+        panel.attach(area);
+        area.root.parentElement.style.position = "relative";
+        return area;
+    }
+
     highlightSelector( ) {
         const el = document.getElementById("animation-selector");
         if( el ) {
@@ -1925,9 +1955,9 @@ class KeyframesGui extends Gui {
                 this.keyFramesTimeline.onUnselectKeyFrames();
                 asset.animation.name = asset.id;
 
-                const modal = this.createLoadingModal();
+                dialog.panel.loadingArea.show();
                 this.editor.loadAnimation( asset.id, asset.animation );
-                modal.destroy();
+                dialog.panel.loadingArea.hide();
     
                 assetViewer.clear();
                 dialog.close();
@@ -2055,18 +2085,18 @@ class KeyframesGui extends Gui {
             const assetViewer = new LX.AssetView({  allowedTypes: ["bvh", "bvhe", "glb", "gltf"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
             
-            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+            const loadingArea = p.loadingArea = this.createLoadingArea(p);
 
             if( !repository.length ) {
                 await this.editor.remoteFileSystem.loadAllUnitsFolders(() => {
                     let repository = this.editor.remoteFileSystem.repository;
                     this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
-                    modal.destroy();
+                    loadingArea.hide();
                 }, ["clips"]);
             }            
             else {
                 this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
-                modal.destroy();
+                loadingArea.hide();
             }
        
         }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
@@ -2160,7 +2190,7 @@ class KeyframesGui extends Gui {
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
                     if( e.item.unit && !e.item.children.length ) {
-                        const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+                        assetViewer.parent.loadingArea.show();
 
                         this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
                             const files_data = [];
@@ -2185,7 +2215,7 @@ class KeyframesGui extends Gui {
 
                             assetViewer._refreshContent();
 
-                            modal.destroy();
+                            assetViewer.parent.loadingArea.hide();
                         });
                     }                
                     break;
@@ -3585,10 +3615,10 @@ class ScriptGui extends Gui {
                 }
                 this.clipsTimeline.unSelectAllClips();
                 asset.animation.name = asset.id;
-                const modal = this.createLoadingModal();
-                
+
+                dialog.panel.loadingArea.show();
                 this.loadBMLClip(asset.animation)
-                modal.close();
+                dialog.panel.loadingArea.hide();
     
                 assetViewer.clear();
                 dialog.close();
@@ -3737,19 +3767,19 @@ class ScriptGui extends Gui {
             
             const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
+            
+            const loadingArea = p.loadingArea = this.createLoadingArea(p);
 
-            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-         
             if( !repository.length ) {
                 await this.editor.remoteFileSystem.loadAllUnitsFolders( () => {
                     let repository = this.editor.remoteFileSystem.repository;
                     this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
-                    modal.destroy();
+                    loadingArea.hide();
                 }, ["signs", "presets"]);
             }
             else {            
                 this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
-                modal.destroy();
+                loadingArea.hide();
             }
 
             
@@ -3859,8 +3889,8 @@ class ScriptGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    if( e.item.unit && !e.item.children.length ) {                        
-                        const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+                    if( e.item.unit && !e.item.children.length ) { 
+                        assetViewer.parent.loadingArea.show();
 
                         this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
                             const files_data = [];
@@ -3886,7 +3916,7 @@ class ScriptGui extends Gui {
                             }
                             assetViewer._refreshContent();
 
-                            modal.destroy();
+                            assetViewer.parent.loadingArea.hide();
                         })
                     }
                     break;
