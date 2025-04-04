@@ -24,7 +24,7 @@ class RemoteFileSystem {
                     callback( this.session );
                 // }
                 
-            }); 
+            }, (error) => callback(error)); 
         });        
     }
     
@@ -84,12 +84,19 @@ class RemoteFileSystem {
             }
 		}
 
-		const inner_error = (err) => {
+		const inner_error = (err, resolve) => {
+            if( resolve ) {
+                resolve(null);
+            }
+
+			if( callback ) {
+				callback(null, err);
+            }
 			throw err;
 		}
 
         const promise = new Promise(resolve => {
-            LFS.login(username, password, (s,r) => inner_success(s,r,resolve), inner_error)
+            LFS.login(username, password, (s,r) => inner_success(s,r,resolve), (err) => inner_error(err, resolve))
         });
 
         return promise;
@@ -224,9 +231,12 @@ class RemoteFileSystem {
     }
 
     async loadUnits() {
-        const session = this.session;
         // this.repository = {signs:[], presets: [], clips: []};
         this.repository = [];
+        const session = this.session;
+        if( !session ) {
+            return;
+        }
         return new Promise( resolve => {
             session.getUnits( (units) => {
                 for( let i = 0; i < units.length; i++ ) {
@@ -303,6 +313,11 @@ class RemoteFileSystem {
     async loadAllUnitsFolders( callback, allowFolders = [] ) {
         await this.loadUnits();
         const session = this.session;
+        if( !session ) {
+            callback();
+            return;
+        }
+
         let count = 0;
 
         for( let i = 0; i < this.repository.length; i++ ) {
