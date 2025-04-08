@@ -152,6 +152,16 @@ class Gui {
                     };
 
                 }
+            },
+            {
+                name: 'Animation loop',
+                property: 'animLoop',
+                selectable: true,
+                selected: this.editor.animLoop,
+                icon: 'fa-solid fa-rotate',
+                callback: (event) =>  {
+                    this.updatePlayModeGui( !this.editor.animLoop );
+                }
             }
         ]);
         const user = this.editor.remoteFileSystem.session ? this.editor.remoteFileSystem.session.user : "" ;
@@ -467,24 +477,18 @@ class Gui {
                             editor.gizmo.stop();
                         }
                         this.hideTimeline();
-                        this.sidePanel.parentArea.extend();  
+                        this.sidePanel.parentArea.extend();
                         this.hideVideoOverlay();
-
+                        
+                        
                     } else {
                         this.showTimeline();
                         this.sidePanel.parentArea.reduce();  
-                        this.showVideoOverlay();
+                        const currentAnim = this.editor.getCurrentAnimation();
+                        if ( currentAnim && currentAnim.type == "video" ){
+                            this.showVideoOverlay();
+                        }
                     }                  
-                }
-            },
-            {
-                name: 'Animation loop',
-                property: 'animLoop',
-                selectable: true,
-                selected: true,
-                icon: 'fa-solid fa-person-walking-arrow-loop-left',
-                callback: (v) =>  {
-                    editor.setAnimationLoop(!editor.animLoop);                    
                 }
             }
         ]
@@ -946,6 +950,32 @@ class KeyframesGui extends Gui {
         }
     }
 
+    updatePlayModeGui( loop ){
+        this.editor.setAnimationLoop(loop);
+        if( loop ){
+            if( this.keyFramesTimeline ){
+                this.keyFramesTimeline.header.get("toggleLoopBtn").root.children[0].classList.add("selected");
+            }
+            if( this.curvesTimeline ){
+                this.curvesTimeline.header.get("toggleLoopBtn").root.children[0].classList.add("selected");
+            }
+            if( this.clipsTimeline ){
+                this.clipsTimeline.header.get("toggleLoopBtn").root.children[0].classList.add("selected");
+            }   
+        }
+        else{
+            if( this.keyFramesTimeline ){
+                this.keyFramesTimeline.header.get("toggleLoopBtn").root.children[0].classList.remove("selected");
+            }
+            if( this.curvesTimeline ){
+                this.curvesTimeline.header.get("toggleLoopBtn").root.children[0].classList.remove("selected");
+            }
+            if( this.clipsTimeline ){
+                this.clipsTimeline.header.get("toggleLoopBtn").root.children[0].classList.remove("selected");
+            }
+        }
+    }
+
     /** Create timelines */
     createTimelines( ) {                    
 
@@ -965,7 +995,7 @@ class KeyframesGui extends Gui {
                 }, {icon: 'fa-solid fa-trash', width: "40px"});                
             },
             onChangePlayMode: (loop) => {
-                this.editor.setAnimationLoop(loop);
+                this.updatePlayModeGui( loop );
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
@@ -1138,7 +1168,7 @@ class KeyframesGui extends Gui {
                 }, {signal: "@on_animation_loaded"})
             },
             onChangePlayMode: (loop) => {
-                this.editor.setAnimationLoop(loop);
+                this.updatePlayModeGui( loop );
             }, 
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
@@ -1346,6 +1376,7 @@ class KeyframesGui extends Gui {
         const mapHovers = document.createElement("div");
         for(let area in this.faceAreas) {
             let maparea = document.createElement("area");
+            maparea.title = this.faceAreas[area];
             maparea.shape = "poly";
             maparea.name = this.faceAreas[area];
             switch(this.faceAreas[area]) {
@@ -1462,7 +1493,6 @@ class KeyframesGui extends Gui {
     }
 
     createActionUnitsPanel(root) {
-        
         let tabs = root.addTabs({fit:true});
         let areas = {};
         
@@ -1531,7 +1561,7 @@ class KeyframesGui extends Gui {
         if(!this.facePanel ) {
             return;
         }
-        this.facePanel.root.querySelector("[data-name='"+area+"']").click();
+        this.facePanel.select(area);
     }
 
     /**
@@ -2319,7 +2349,7 @@ class ScriptGui extends Gui {
                 
             },
             onChangePlayMode: (loop) => {
-                this.editor.setAnimationLoop(loop);
+                this.updatePlayModeGui( loop );
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
