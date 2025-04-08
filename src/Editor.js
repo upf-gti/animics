@@ -554,7 +554,7 @@ class Editor {
                             e.preventDefault();
                             e.stopImmediatePropagation();
     
-                            const playElement = this.editorArea.root.querySelector("[title = Play]");
+                            const playElement = this.gui.menubar.getButton("Play");
                             if ( playElement ){ 
                                 playElement.children[0].click();
                             }

@@ -159,7 +159,7 @@ class Gui {
                 selected: this.editor.animLoop,
                 icon: 'fa-solid fa-rotate',
                 callback: (event) =>  {
-                    this.updatePlayModeGui( !this.editor.animLoop );
+                    this.updateLoopModeGui( !this.editor.animLoop );
                 }
             }
         ]);
@@ -390,6 +390,20 @@ class Gui {
         // Focus text prompt
         if( options.input !== false ) {
             dialog.root.querySelector('input').focus();
+        }
+    }
+
+    updateLoopModeGui( loop ){
+        this.editor.setAnimationLoop(loop);
+    
+        if( this.keyFramesTimeline ){
+            this.keyFramesTimeline.setLoopMode(loop, true);
+        }
+        if( this.curvesTimeline ){
+            this.curvesTimeline.setLoopMode(loop, true);
+        }
+        if( this.clipsTimeline ){
+            this.clipsTimeline.setLoopMode(loop, true);
         }
     }
 
@@ -947,32 +961,6 @@ class KeyframesGui extends Gui {
         }
     }
 
-    updatePlayModeGui( loop ){
-        this.editor.setAnimationLoop(loop);
-        if( loop ){
-            if( this.keyFramesTimeline ){
-                this.keyFramesTimeline.header.get("toggleLoopBtn").root.children[0].classList.add("selected");
-            }
-            if( this.curvesTimeline ){
-                this.curvesTimeline.header.get("toggleLoopBtn").root.children[0].classList.add("selected");
-            }
-            if( this.clipsTimeline ){
-                this.clipsTimeline.header.get("toggleLoopBtn").root.children[0].classList.add("selected");
-            }   
-        }
-        else{
-            if( this.keyFramesTimeline ){
-                this.keyFramesTimeline.header.get("toggleLoopBtn").root.children[0].classList.remove("selected");
-            }
-            if( this.curvesTimeline ){
-                this.curvesTimeline.header.get("toggleLoopBtn").root.children[0].classList.remove("selected");
-            }
-            if( this.clipsTimeline ){
-                this.clipsTimeline.header.get("toggleLoopBtn").root.children[0].classList.remove("selected");
-            }
-        }
-    }
-
     /** Create timelines */
     createTimelines( ) {                    
 
@@ -991,8 +979,8 @@ class KeyframesGui extends Gui {
                     this.updateAnimationPanel();
                 }, {icon: 'fa-solid fa-trash', width: "40px"});                
             },
-            onChangePlayMode: (loop) => {
-                this.updatePlayModeGui( loop );
+            onChangeLoopMode: (loop) => {
+                this.updateLoopModeGui( loop );
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
@@ -1163,8 +1151,8 @@ class KeyframesGui extends Gui {
                     this.updateAnimationPanel();
                 }, {signal: "@on_animation_loaded"})
             },
-            onChangePlayMode: (loop) => {
-                this.updatePlayModeGui( loop );
+            onChangeLoopMode: (loop) => {
+                this.updateLoopModeGui( loop );
             }, 
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
@@ -2340,8 +2328,8 @@ class ScriptGui extends Gui {
                 }, {icon: 'fa-solid fa-trash', width: "40px"});
                 
             },
-            onChangePlayMode: (loop) => {
-                this.updatePlayModeGui( loop );
+            onChangeLoopMode: (loop) => {
+                this.updateLoopModeGui( loop );
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
