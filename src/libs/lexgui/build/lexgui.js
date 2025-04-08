@@ -2933,8 +2933,7 @@ class Tabs {
             if( scope.thumb )
             {
                 scope.thumb.style.transform = "translate( " + ( tabEl.childIndex * tabEl.offsetWidth ) + "px )";
-                scope.thumb.style.width = ( tabEl.offsetWidth - 5 ) + "px";
-                scope.thumb.style.height = ( tabEl.offsetHeight - 6 ) + "px";
+                scope.thumb.style.width = ( tabEl.offsetWidth ) + "px";
                 scope.thumb.item = tabEl;
             }
         });
