@@ -154,8 +154,7 @@ class Gui {
                 }
             },
             {
-                name: 'Animation loop',
-                property: 'animLoop',
+                title: 'Animation loop',
                 selectable: true,
                 selected: this.editor.animLoop,
                 icon: 'fa-solid fa-rotate',
@@ -406,8 +405,7 @@ class Gui {
                 {
                     name: 'Skin',
                     property: 'showSkin',
-                    icon: 'bi bi-person-x-fill',
-                    nIcon: 'bi bi-person-check-fill',
+                    icon: 'fa-solid fa-user-xmark',
                     selectable: true,
                     callback: (v) =>  {
                         editor.showSkin = !editor.showSkin;
@@ -420,7 +418,6 @@ class Gui {
                     name: 'Skeleton',
                     property: 'showSkeleton',
                     icon: 'fa-solid fa-bone',
-                    nIcon: 'fa-solid fa-bone',
                     selectable: true,
                     selected: true,
                     callback: (v) =>  {
@@ -981,14 +978,14 @@ class KeyframesGui extends Gui {
 
         /* Keyframes Timeline */
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
-            onBeforeCreateTopBar: (panel) => {
+            onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
                 }, {signal: "@on_animation_loaded", id:"animation-selector"})
                 
             },
-            onAfterCreateTopBar: (panel) => {
+            onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
@@ -1019,18 +1016,17 @@ class KeyframesGui extends Gui {
         this.propagationWindow = new PropagationWindow( this.keyFramesTimeline );
 
         this.keyFramesTimeline.leftPanel.parent.root.style.zIndex = 1;
-        // this.keyFramesTimeline.onMouse = this.propagationWindowOnMouse.bind(this);
-        // this.keyFramesTimeline.onDblClick = this.propagationWindowOnDblClick.bind(this);
-        // this.keyFramesTimeline.onBeforeDrawContent = this.drawPropagationWindow.bind(this, this.keyFramesTimeline);
         this.keyFramesTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.keyFramesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.keyFramesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
 
-        this.keyFramesTimeline.onChangeState = (state) => {
+        this.keyFramesTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                let playElement = document.querySelector("[title = Play]");
-                if ( playElement ){ playElement.children[0].click() }
+                this.menubar.getButton("Play").children[0].click();
             }
+        }
+        this.keyFramesTimeline.onStateStop = () => {
+            this.menubar.getButton("Stop").children[0].click();
         }
         this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.keyFramesTimeline.onSetTime = (t) => {
@@ -1161,7 +1157,7 @@ class KeyframesGui extends Gui {
 
         /* Curves Timeline */
         this.curvesTimeline = new LX.CurvesTimeline("Action Units", {
-            onBeforeCreateTopBar: (panel) => {
+            onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
@@ -1191,9 +1187,6 @@ class KeyframesGui extends Gui {
         });
 
         this.curvesTimeline.leftPanel.parent.root.style.zIndex = 1;
-        // this.curvesTimeline.onMouse = this.propagationWindowOnMouse.bind(this);
-        // this.curvesTimeline.onDblClick = this.propagationWindowOnDblClick.bind(this);
-        // this.curvesTimeline.onBeforeDrawContent = this.drawPropagationWindow.bind(this, this.curvesTimeline);
         this.curvesTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.curvesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.curvesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
@@ -1237,11 +1230,14 @@ class KeyframesGui extends Gui {
             }
             return true; // Handled
         };
-        this.curvesTimeline.onChangeState = (state) => {
+        
+        this.curvesTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                let playElement = document.querySelector("[title = Play]");
-                if ( playElement ){ playElement.children[0].click() }
+                this.menubar.getButton("Play").children[0].click();
             }
+        }
+        this.curvesTimeline.onStateStop = () => {
+            this.menubar.getButton("Stop").children[0].click();
         }
         this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
@@ -1703,11 +1699,7 @@ class KeyframesGui extends Gui {
         options.itemSelected = options.itemSelected ?? this.editor.selectedBone;
         this.updateSkeletonPanel();
 
-        // // update scroll position
-        // var element = root.content.querySelectorAll(".inspector")[0];
-        // var maxScroll = element.scrollHeight;
-        // element.scrollTop = options.maxScroll ? maxScroll : (options.scroll ? options.scroll : 0);
-    }
+        }
 
     updateSkeletonPanel() {
 
@@ -1737,7 +1729,7 @@ class KeyframesGui extends Gui {
                 const toolsValues = [ {value:"Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }, {value:"Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }] ;
                 const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
                 
-                widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ), settings_title: "<i class='bi bi-gear-fill section-settings'></i>" });
+                widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ) });
                 
                 widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool(), nameWidth: "50%", width: "100%"});
                 
@@ -2341,7 +2333,7 @@ class ScriptGui extends Gui {
                                
         this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
            // trackHeight: 30,
-            onAfterCreateTopBar: (panel) => {
+            onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
@@ -2366,13 +2358,15 @@ class ScriptGui extends Gui {
             if (!currentBinded){ return; }
             currentBinded.mixerAnimation.duration = t;
         };
-        this.clipsTimeline.onChangeState = (state) => {
+       
+        this.clipsTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                let playElement = document.querySelector("[title = Play]");
-                if ( playElement ){ playElement.children[0].click() }
+                this.menubar.getButton("Play").children[0].click();
             }
-        };
-
+        }
+        this.clipsTimeline.onStateStop = () => {
+            this.menubar.getButton("Stop").children[0].click();
+        }
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
