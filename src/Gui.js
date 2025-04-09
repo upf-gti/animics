@@ -3810,12 +3810,14 @@ class PropagationWindow {
         const lpos = timeline.timeToX( this.time - this.leftSide );
         const rpos = timeline.timeToX( this.time + this.rightSide );
 
-        this.curveWidget = new LX.Curve( null, this.gradient, {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor, callback: (v,e) => {
-            if ( v.length <= 0){
-                this.curveWidget.root.value = this.gradient = [[0.5,1]];
-            }
-            this.curveWidget.redraw();
-        }} );
+        this.curveWidget = new LX.Curve( null, this.gradient, (v,e) => {
+                if ( v.length <= 0){
+                    this.curveWidget.curveInstance.element.value = this.gradient = [[0.5,1]];
+                }
+                this.curveWidget.curveInstance.redraw();
+            },
+            {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor } 
+        );
         const curveElement = this.curveWidget.root; 
         curveElement.style.width = "fit-content";
         curveElement.style.height = "fit-content";
@@ -3895,8 +3897,8 @@ class PropagationWindow {
             let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
             this.gradientColorLimits = color + ",0%)"; 
             this.gradientColor = color;
-            this.curveWidget.root.pointscolor = value;
-            this.curveWidget.redraw();
+            this.curveWidget.curveInstance.element.pointscolor = value;
+            this.curveWidget.curveInstance.redraw();
         });
         dialog.addNumber("Opacity", this.opacity, (v) => {
             this.opacity = v;
@@ -4021,7 +4023,8 @@ class PropagationWindow {
         this.curveWidget.root.style.top = areaRect.y + windowRect.rectPosY + windowRect.rectHeight -2 + "px";
 
         if(updateSize) {
-            this.curveWidget.canvas.width = windowRect.rectWidth;
+            const canvas = this.curveWidget.curveInstance.canvas;
+            canvas.width = windowRect.rectWidth;
 
             const radii = timeline.trackHeight * 0.4;
 			let leftRadius = windowRect.leftSize > radii ? radii : windowRect.leftSize;
@@ -4030,10 +4033,10 @@ class PropagationWindow {
 	        let rightRadius = windowRect.rightSize > radii ? radii : windowRect.rightSize;
 	        rightRadius = windowRect.rectHeight > rightRadius ? rightRadius : (windowRect.rectHeight*0.5);
 
-			this.curveWidget.canvas.style.borderBottomLeftRadius = leftRadius + "px";
-			this.curveWidget.canvas.style.borderBottomRightRadius = rightRadius + "px";
+			canvas.style.borderBottomLeftRadius = leftRadius + "px";
+			canvas.style.borderBottomRightRadius = rightRadius + "px";
 
-            this.curveWidget.redraw();
+            this.curveWidget.curveInstance.redraw();
         }
     }
 
@@ -4044,7 +4047,7 @@ class PropagationWindow {
 
         let rectWidth = leftSize + rightSize;
 		let rectHeight = Math.min(
-            timeline.canvas.height - timeline.topMargin - 2 - (this.showCurve ? this.curveWidget.canvas.clientHeight : 0), 
+            timeline.canvas.height - timeline.topMargin - 2 - (this.showCurve ? this.curveWidget.curveInstance.canvas.clientHeight : 0), 
             timeline.leftPanel.root.children[1].children[0].clientHeight - timeline.leftPanel.root.children[1].scrollTop + timeline.trackHeight*0.5
         );
         rectHeight = Math.max( rectHeight, 0 );
@@ -4106,7 +4109,7 @@ class PropagationWindow {
         
         ctx.lineWidth = 1;
         if(this.showCurve) {
-            rectHeight = rectHeight + this.curveWidget.canvas.clientHeight - 2;
+            rectHeight = rectHeight + this.curveWidget.curveInstance.canvas.clientHeight - 2;
             ctx.beginPath();
             ctx.lineTo(rectPosX, rectPosY + leftRadii);
             ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + leftRadii, rectPosY );
