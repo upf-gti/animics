@@ -3797,16 +3797,16 @@ class PropagationWindow {
 
         this.opacity = 0.6;
         this.lexguiColor = '#273162';
-        this.gradientColorLimits = "rgba( 39, 49, 98, 0%)"; // relies on lexgui
-        this.gradientColor = "rgba( 39, 49, 98"; // relies on lexgui
-        this.borderColor = "rgba( 255, 255, 255, 1)"; // relies on lexgui
+        this.gradientColorLimits = "rgba( 39, 49, 98, 0%)"; // relies on lexgui input
+        this.gradientColor = "rgba( 39, 49, 98"; // relies on lexgui input
+        this.borderColor = LX.getThemeColor( "global-text-secondary" );
         this.gradient = [ [0.5,1] ]; // implicit 0 in the borders
         // radii = 100;
 
         // create curve Widget
-        const bgColor = "#cfcdcd";
-        const pointsColor = LX.getThemeColor("global-selected-dark");
-        const lineColor = LX.getThemeColor("global-color-secondary");//LX.getThemeColor("global-selected-light");
+        const bgColor = "#cfcdcd"; // relies on lexgui input
+        const pointsColor = "#273162"; // relies on lexgui input
+        const lineColor = "#1c1c1d"; // relies on lexgui input
         const lpos = timeline.timeToX( this.time - this.leftSide );
         const rpos = timeline.timeToX( this.time + this.rightSide );
 
@@ -3825,6 +3825,17 @@ class PropagationWindow {
         curveElement.style.borderRadius = "0px";
         curveElement.children[0].style.borderRadius = "0px 0px " + timeline.trackHeight*0.4 +"px " + timeline.trackHeight*0.4 +"px";
         curveElement.style.zIndex = "0.5";
+        curveElement.style.padding = "0px";
+
+        this.updateTheme();
+        LX.addSignal( "@on_new_color_scheme", (el, value) => {
+            // Retrieve again the color using LX.getThemeColor, which checks the applied theme
+            this.updateTheme();
+        } )
+    }
+
+    updateTheme(){
+        this.borderColor = LX.getThemeColor( "global-text-secondary" );
     }
 
     setEnabler( v ){
