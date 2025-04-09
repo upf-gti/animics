@@ -34,6 +34,7 @@ class Gui {
    
         //Create timelines (keyframes and clips)
         this.createTimelines( );
+
     }
 
     init( showGuide ) {       
@@ -210,7 +211,7 @@ class Gui {
             const refresh = (p, msg) => {
                 p.clear();
                 if(msg) {
-                    p.addText(null, msg, null, {disabled: true, warning: true});
+                    p.addText(null, msg, null, {disabled: true, warning: true,  className: "nobg"});
                 }
                 p.addText("User", username, (v) => {
                     username = v;
@@ -334,13 +335,15 @@ class Gui {
             for( let animationName in animations ) { // animationName is of the source anim (not the bind)
                 let animation = animations[animationName]; 
                 p.sameLine();
-                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px", hideName: false, label: ""});
-                p.addText(null, animation.saveName, (v) => {
+                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {hideName: true, label: ""});
+                p.addLabel(animationName, {width:"30%"});
+                p.addBlank("1rem");
+                p.addText(animationName, animation.saveName, (v) => {
                     animation.saveName = v; 
                     if ( this.editor.currentAnimation == animationName ){
                         this.updateAnimationPanel(); // update name display
                     }
-                }, {placeholder: "...", minWidth:"100px"} );
+                }, {placeholder: "...", width:"55%", hideName: true} );
                 p.endLine();
             }
 
@@ -572,7 +575,7 @@ class Gui {
 
     async promptExit() {
         this.prompt = await new LX.Dialog("Exit confirmation", (p) => {
-            p.addText(null, "Be sure you have exported the animation. If you exit now, your data will be lost. How would you like to proceed?", null, {disabled: true});
+            p.addTextArea(null, "Be sure you have exported the animation. If you exit now, your data will be lost. How would you like to proceed?", null, {disabled: true});
             p.addButton(null, "Export", () => {
                 p.clear();
                 p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
@@ -1917,15 +1920,12 @@ class KeyframesGui extends Gui {
             
             if(!user || user.username == "guest") {
                 this.prompt = new LX.Dialog("Alert", d => {
-                    d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                    d.sameLine(2);
-                    d.addButton(null, "Login", () => {
+                    d.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
+                    const btn = d.addButton(null, "Login", () => {
                         this.prompt.close();
                         this.showLoginModal();
-                    })
-                    d.addButton(null, "Ok", () => {
-                        saveDataToServer("local");
-                    })
+                    }, {width:"50%", buttonClass:"accent"});
+                    btn.root.style.margin = "0 auto";
                 }, {closable: true, modal: true})
                 
             }
@@ -2188,7 +2188,7 @@ class KeyframesGui extends Gui {
                                 e.item.content = parsedFile.content;
                             }
 
-                            panel.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                            panel.addTextArea(null, "How do you want to insert the clip?", null, {disabled:true,  className: "nobg"});
                             panel.sameLine(2);
                             panel.addButton(null, "Add as single clip", (v) => { 
                                 dialog.close();
@@ -2934,7 +2934,7 @@ class ScriptGui extends Gui {
             if(clip.fadein!= undefined && clip.fadeout!= undefined)  {
                 widgets.merge();
                 widgets.branch("Sync points", {icon: "fa-solid fa-chart-line"});
-                widgets.addText(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true});
+                widgets.addTextArea(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true,  className: "nobg"});
                 const syncvalues = [];
                 
                 if(clip.fadein != undefined)
@@ -3050,14 +3050,16 @@ class ScriptGui extends Gui {
 
     showGuide() {       
         this.prompt = new LX.Dialog("How to start?", (p) =>{
-            p.addText(null, "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard.", null, {disabled: true, height: "50%"})
-            p.addText(null, "Go to 'Help' for more information about the application.", null, {disabled: true, height: "50%"})
+            LX.makeContainer( [ "100%", "auto" ], "p-8 whitespace-pre-wrap text-lg", 
+                "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard. <br> <br> Go to 'Help' for more information about the application.", 
+                p.root, 
+                { wordBreak: "break-word", lineHeight: "1.5rem" } );
         }, {closable: true, onclose: (root) => {
             root.remove();
             this.prompt = null;
             LX.popup("Click on Timeline tab to discover all the available interactions.", "Useful info!", {position: [ "10px", "50px"], timeout: 5000})
         },
-        size: ["30%", 200], modal: true
+        modal: true
     })
 
     }
@@ -3113,15 +3115,12 @@ class ScriptGui extends Gui {
             const user = session ? session.user : ""
             if( !user || user.username == "guest" ) {
                 this.prompt = new LX.Dialog("Alert", d => {
-                    d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                    d.sameLine(2);
-                    d.addButton(null, "Login", () => {
+                    d.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
+                    const btn = d.addButton(null, "Login", () => {
                         this.prompt.close();
                         this.showLoginModal();
-                    })
-                    d.addButton(null, "Ok", () => {
-                        saveDataToServer("local");
-                    })
+                    }, {width:"50%", buttonClass:"accent"});
+                    btn.root.style.margin = "0 auto";
                 }, {closable: true, modal: true})
                 
             }
@@ -3629,7 +3628,7 @@ class ScriptGui extends Gui {
                                 e.item.content = parsedFile.content;
                             }
 
-                            p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                            p.addText(null, "How do you want to insert the clip?", null, {disabled:true,  className: "nobg"});
                             p.sameLine(3);
                             p.addButton(null, "Add as single clip", (v) => {
                                 dialog.close();

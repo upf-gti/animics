@@ -868,7 +868,7 @@ class Editor {
             default:
                 const json = this.generateBML();
                 if( !json ) {
-                    return;  
+                    return [];  
                 }
 
                 let clipName = (name || json.name) + '.bml';
@@ -2670,7 +2670,7 @@ class ScriptEditor extends Editor {
                         else {
                             UTILS.hideLoading()
                             this.gui.prompt = new LX.Dialog("Import animation" , ( panel ) => {
-                                panel.addText("", "There is already an animation. What do you want to do?", null, {disabled: true});
+                                panel.addTextArea("", "There is already an animation. What do you want to do?", null, {disabled: true,  className: "nobg"});
                                 panel.sameLine(3);
                                 panel.addButton(null, "Replace", () => { 
                                     this.clearAllTracks(false);

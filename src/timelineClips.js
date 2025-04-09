@@ -1568,7 +1568,9 @@ ElbowRaiseClip.prototype.drawClip = function( ctx, w,h, selected )
 
 ElbowRaiseClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Raises the elbow (added to the elbow raise automatically computed while moving the arm)", null, {disabled: true});
+	panel.addTextArea(null, "Raises the elbow (added to the elbow raise automatically computed while moving the arm)", null, {disabled: true, className:"nobg"});
+
+	
 
 	// Hand property
 	panel.addSelect("Side",  ShoulderClip.hands, this.properties.hand, (v, e, name) => {
@@ -1706,7 +1708,7 @@ ShoulderClip.prototype.drawClip = function( ctx, w,h, selected )
 
 ShoulderClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Moves the shoulder forward or up", null, {disabled: true});
+	panel.addTextArea(null, "Moves the shoulder forward or up", null, {disabled: true});
 	// Movement type
 	panel.addSelect("Movement", ShoulderClip.movements, this.movementType, (v, e, name) => {
 		delete this.properties.shoulderRaise;
@@ -1847,7 +1849,7 @@ BodyMovementClip.prototype.drawClip = function( ctx, w,h, selected )
 
 BodyMovementClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Moves the body (trunk)", null, {disabled: true});
+	panel.addTextArea(null, "Moves the body (trunk)", null, {disabled: true});
 	// Movement
 	panel.addSelect("Movement", BodyMovementClip.movements, this.properties.bodyMovement, (v, e, name) => {
 		
@@ -2061,7 +2063,7 @@ ArmLocationClip.prototype.drawClip = function( ctx, w,h, selected )
 
 ArmLocationClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Moves the arm (wrist) to a location of the body.", null, {disabled: true});
+	panel.addTextArea(null, "Moves the arm (wrist) to a location of the body.", null, {disabled: true});
 	// Location body arm property
 	panel.addSelect("Arm location", ArmLocationClip.locations, this.properties.locationBodyArm, (v, e, name) => {
 		
@@ -2149,7 +2151,7 @@ ArmLocationClip.prototype.showInfo = function(panel, callback)
 
 	panel.addSeparator();
 	// Hand constellation properties
-	panel.addText(null, "Part of the hand that will try to reach the body location", null, {disabled: true});
+	panel.addTextArea(null, "Part of the hand that will try to reach the body location", null, {disabled: true});
 
 	// Part of the hand
 	panel.addSelect("Location", ArmLocationClip.hand_locations, this.properties.srcLocation, (v, e, name) => {
@@ -2362,7 +2364,7 @@ PalmOrientationClip.prototype.drawClip = function( ctx, w,h, selected )
 PalmOrientationClip.prototype.showInfo = function(panel, callback)
 {
 
-	panel.addText(null, "Roll of the wrist joint", null, {disabled: true});
+	panel.addTextArea(null, "Roll of the wrist joint", null, {disabled: true});
 	// Direction property
 	panel.addSelect("Direction", PalmOrientationClip.directions, this.properties.palmor, (v, e, name) => {
 		
@@ -2592,7 +2594,7 @@ HandOrientationClip.prototype.drawClip = function( ctx, w,h, selected )
 
 HandOrientationClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null,"Yaw and pitch rotation of the wrist joint", null, {disabled: true});
+	panel.addTextArea(null,"Yaw and pitch rotation of the wrist joint", null, {disabled: true});
 	// Direction property
 	panel.addSelect("Direction", HandOrientationClip.directions, this.properties.extfidir, (v, e, name) => {
 		
@@ -2799,7 +2801,7 @@ HandshapeClip.prototype.drawClip = function( ctx, w,h, selected )
 
 HandshapeClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null,"Sets the posture of the fingers of a hand. Fingers are numbered from thumb to pinky", null, {disabled: true});
+	panel.addTextArea(null,"Sets the posture of the fingers of a hand. Fingers are numbered from thumb to pinky", null, {disabled: true});
 	
 	// Handshape property
 	panel.addSelect("Hand shape", HandshapeClip.handshapes, this.properties.handshape, (v, e, name) => {
@@ -2874,7 +2876,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 	
 
-	panel.addText(null, "Optional second hand shape", null, {disabled: true});
+	panel.addTextArea(null, "Optional second hand shape", null, {disabled: true});
 
 	// Second handshape property
 	panel.addSelect("Second hand shape", ["", ...HandshapeClip.handshapes], this.properties.secondHandshape, (v, e, name) => {
@@ -2922,7 +2924,7 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 			callback(true);
 	} )
 	if(this.applySpecial) {
-		panel.addText(null, "Select the fingers to apply the movement to.", null, {disabled:true})
+		panel.addTextArea(null, "Select the fingers to apply the movement to.", null, {disabled:true})
 		for(let i=1; i < HandshapeClip.fingers.length; i++) {
 
 			let active = this.properties.specialFingers.includes(HandshapeClip.fingers[i]);
@@ -3150,7 +3152,7 @@ HandConstellationClip.prototype.drawClip = function( ctx, w,h, selected )
 
 HandConstellationClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Moves the hand position with respect to each other.", null, {disabled: true});
+	panel.addTextArea(null, "Moves the hand position with respect to each other.", null, {disabled: true});
 	
 	// Hand property
 	panel.addSelect("Hand", HandConstellationClip.hands, this.properties.hand, (v, e, name) => {
@@ -3163,7 +3165,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 
 
 	// Hand constellation properties
-	panel.addText(null, "Location of the hand in the specified hand (or dominant hand)", null, {disabled: true})
+	panel.addTextArea(null, "Location of the hand in the specified hand (or dominant hand)", null, {disabled: true})
 	// Part of the hand
 	panel.addSelect("Location", HandConstellationClip.hand_locations, this.properties.srcLocation, (v, e, name) => {
 				
@@ -3200,7 +3202,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 			
 		}, {filter: true});
 	}
-	panel.addText(null, "Location of the hand in the unspecified hand (or non dominant hand)", null, {disabled: true});
+	panel.addTextArea(null, "Location of the hand in the unspecified hand (or non dominant hand)", null, {disabled: true});
 
 	// Part of the hand
 	panel.addSelect("Location", [...HandConstellationClip.hand_locations, ...HandConstellationClip.arm_locations], this.properties.dstLocation, (v, e, name) => {
@@ -3511,7 +3513,7 @@ DirectedMotionClip.prototype.drawClip = function( ctx, w,h, selected )
 
 DirectedMotionClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Moves the arm (wrist) in a linear direction.", null, {disabled: true});
+	panel.addTextArea(null, "Moves the arm (wrist) in a linear direction.", null, {disabled: true});
 	
 	// Hand property
 	panel.addSelect("Hand", DirectedMotionClip.hands, this.properties.hand, (v, e, name) => {
@@ -3852,7 +3854,7 @@ CircularMotionClip.prototype.drawClip = function( ctx, w,h, selected )
 
 CircularMotionClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Moves the arm (wrist) in a circular motion.", null, {disabled: true});
+	panel.addTextArea(null, "Moves the arm (wrist) in a circular motion.", null, {disabled: true});
 	
 	// Hand property
 	panel.addSelect("Hand", CircularMotionClip.hands, this.properties.hand, (v, e, name) => {
@@ -3907,7 +3909,7 @@ CircularMotionClip.prototype.showInfo = function(panel, callback)
 			callback();
 	}, {precision: 2, step: 0.1});
 
-	panel.addText(null, "Define an ellipse motion", null, {disabled: true});
+	panel.addTextArea(null, "Define an ellipse motion", null, {disabled: true});
 
 	panel.addSelect("Ellipse axis direction", [" ", ...CircularMotionClip.second_directions], this.properties.ellipseAxisDirection, (v, e, name) => {
 				
@@ -4086,7 +4088,7 @@ WristMotionClip.prototype.drawClip = function( ctx, w,h, selected )
 
 WristMotionClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Repetitive swinging, nodding and twisting of wrist (wiggle for the wrist).", null, {disabled: true});
+	panel.addTextArea(null, "Repetitive swinging, nodding and twisting of wrist (wiggle for the wrist).", null, {disabled: true});
 	
 	// Hand property
 	panel.addSelect("Hand", WristMotionClip.hands, this.properties.hand, (v, e, name) => {
@@ -4267,7 +4269,7 @@ FingerplayMotionClip.prototype.drawClip = function( ctx, w,h, selected )
 
 FingerplayMotionClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Wiggle fingers of the hand.", null, {disabled: true});
+	panel.addTextArea(null, "Wiggle fingers of the hand.", null, {disabled: true});
 	
 	// Hand property
 	panel.addSelect("Hand", FingerplayMotionClip.hands, this.properties.hand, (v, e, name) => {
@@ -4298,7 +4300,7 @@ FingerplayMotionClip.prototype.showInfo = function(panel, callback)
 			callback();
 	}, {precision: 2, min: 0, max: 1, step: 0.1});
 
-	panel.addText(null, "Active fingers", null, {disabled:true, title: "Activate or exempt fingers in the movement"});
+	panel.addTextArea(null, "Active fingers", null, {disabled:true, title: "Activate or exempt fingers in the movement"});
 
 	for(let i=0; i < FingerplayMotionClip.fingers.length; i++) {
 
@@ -4402,8 +4404,8 @@ MouthingClip.prototype.drawClip = function( ctx, w,h, selected )
 
 MouthingClip.prototype.showInfo = function(panel, callback)
 {
-	panel.addText(null, "Applies mouthing given a text in ARPABET 1-letter notation. In addition, '.' and ' ' symbols are supported.", null, {disabled: true});
-	panel.addText(null, "More info about ARPABET notation", null, {disabled: true, url: "https://en.wikipedia.org/wiki/ARPABET"});
+	panel.addTextArea(null, "Applies mouthing given a text in ARPABET 1-letter notation. In addition, '.' and ' ' symbols are supported.", null, {disabled: true});
+	panel.addTextArea(null, "More info about ARPABET notation", null, {disabled: true, url: "https://en.wikipedia.org/wiki/ARPABET"});
 	
 	panel.addTextArea("Text", this.properties.text, (v, e) => {
 		this.properties.text = v;
@@ -4416,7 +4418,7 @@ MouthingClip.prototype.showInfo = function(panel, callback)
 	
 	panel.addTitle( "Optionals");
 
-	panel.addText(null, "Phonemes per second", null, {disabled: true})
+	panel.addTextArea(null, "Phonemes per second", null, {disabled: true})
 
 	panel.addCheckbox("Set for each phonema", this.properties.phT != null, (v,e) => {
 		if(v) {
@@ -4458,7 +4460,7 @@ MouthingClip.prototype.showInfo = function(panel, callback)
 		}
 	}
 
-	panel.addText(null, "Visual exaggeration of phonemes", null, {disabled: true});
+	panel.addTextArea(null, "Visual exaggeration of phonemes", null, {disabled: true});
 
 	panel.addCheckbox("Set for each phonema", this.properties.phInt != null, (v,e) => {
 		if(v) {
