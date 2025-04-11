@@ -1022,11 +1022,11 @@ class KeyframesGui extends Gui {
 
         this.keyFramesTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                this.menubar.getButton("Play").children[0].click();
+                this.menubar.getButton("Play").children[0].children[0].click();
             }
         }
         this.keyFramesTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").children[0].click();
+            this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.keyFramesTimeline.onSetTime = (t) => {
@@ -1233,11 +1233,11 @@ class KeyframesGui extends Gui {
         
         this.curvesTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                this.menubar.getButton("Play").children[0].click();
+                this.menubar.getButton("Play").children[0].children[0].click();
             }
         }
         this.curvesTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").children[0].click();
+            this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
@@ -2361,11 +2361,11 @@ class ScriptGui extends Gui {
        
         this.clipsTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                this.menubar.getButton("Play").children[0].click();
+                this.menubar.getButton("Play").children[0].children[0].click();
             }
         }
         this.clipsTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").children[0].click();
+            this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
@@ -3894,18 +3894,17 @@ class PropagationWindow {
         }, { signal: "@propW_enabler"});
 
         dialog.sameLine();
-        dialog.addNumber("Min (s)", this.leftSide, (v) => {
+        let w = dialog.addNumber("Min (s)", this.leftSide, (v) => {
             this.recomputeGradient( v, this.rightSide );
             this.updateCurve(true);
-        }, {min: 0.001, step: 0.001, signal: "@propW_minT"});
-
+        }, {min: 0.001, step: 0.001, signal: "@propW_minT", width:"50%"});
+        w.root.style.paddingLeft = 0;
         dialog.addNumber("Max (s)", this.rightSide, (v) => {
             this.recomputeGradient( this.leftSide, v );
             this.updateCurve(true);
-        }, {min: 0.001, step: 0.001, signal: "@propW_maxT"});		
+        }, {min: 0.001, step: 0.001, signal: "@propW_maxT", width:"50%"});		
         dialog.endLine();
 
-        dialog.sameLine();
         dialog.addColor("Color", this.lexguiColor, (value, event) => {
             this.lexguiColor = value;
             let rawColor = parseInt(value.slice(1,7), 16);
@@ -3914,12 +3913,10 @@ class PropagationWindow {
             this.gradientColor = color;
             this.curveWidget.curveInstance.element.pointscolor = value;
             this.curveWidget.curveInstance.redraw();
-        });
-        dialog.addNumber("Opacity", this.opacity, (v) => {
-            this.opacity = v;
-            this.curveWidget.root.style.opacity = v;
-        }, {min: 0, max:1, step:0.001});
-        dialog.endLine();
+
+            this.opacity = parseInt(value[7]+value[8], 16) / 255.0;
+            this.curveWidget.root.style.opacity = this.opacity;
+        }, {useAlpha: true});
     }
 
     onMouse( e, time ){

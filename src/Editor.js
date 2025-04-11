@@ -555,7 +555,7 @@ class Editor {
     
                             const playElement = this.gui.menubar.getButton("Play");
                             if ( playElement ){ 
-                                playElement.children[0].click();
+                                playElement.children[0].children[0].click();
                             }
                         }
                     }
