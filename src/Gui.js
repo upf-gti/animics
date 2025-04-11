@@ -417,7 +417,7 @@ class Gui {
 
     createSceneUI(area) {
 
-        $(this.editor.orientationHelper.domElement).show();
+        this.editor.orientationHelper.domElement.classList.remove("hidden");
 
         let editor = this.editor;
         let canvasButtons = []
@@ -530,9 +530,17 @@ class Gui {
     }
          
     setBoneInfoState( enabled ) {
-        for(const ip of $(".bone-position input, .bone-euler input, .bone-quaternion input")){
-            enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
-        }
+
+        let gizmoMode = this.editor.getGizmoMode();
+
+        let w = this.bonePanel.get("Position");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Translate") }); }
+
+        w = this.bonePanel.get("Rotation (XYZ)");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Rotate")}); }
+
+        w = this.bonePanel.get("Scale");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Scale")}); }
     }
 
     /** -------------------- TIMELINE -------------------- */
@@ -1865,7 +1873,7 @@ class KeyframesGui extends Gui {
                 widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-euler'});
 
                 this.boneProperties['quaternion'] = boneSelected.quaternion;
-                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-quaternion'});
+                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: true, precision: 3, className: 'bone-quaternion'});
             }
 
         };
