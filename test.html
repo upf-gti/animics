@@ -10,8 +10,9 @@
     <title>EventUp - Event and Conference Template</title>
 
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v6.7.2/css/all.css">
     <link rel="stylesheet" type="text/css" href="./bootstrap.min.css" >
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v6.7.2/css/all.css">
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./src/libs/lexgui/build/lexgui.css">
     <link rel="stylesheet" type="text/css" href="./main.css" >
 
@@ -27,7 +28,7 @@
           <!-- <img src="data/imgs/animics_logo_name.png" alt=""> -->
           <a href="index.html" class="navbar-brand"><img src="data/imgs/animics_logo_name.png" alt=""></a>       
           <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
-            <i class="lni-menu"></i>
+            <i class="fa-solid fa-bars"></i>
           </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav mr-auto w-100 justify-content-end">
@@ -77,6 +78,25 @@
 
       <!-- Hero Area Start -->
       <div id="hero-area" class="hero-area-bg">
+        <!-- <video id="bgvid" class="stop" loop autoplay controls muted style="
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        min-width: 100%;
+        min-height: 100%;
+        width: auto;
+        height: auto;
+        z-index: -100;
+        -webkit-transform: translateX(-50%) translateY(-50%);
+        -moz-transform: translateX(-50%) translateY(-50%);
+        transform: translateX(-50%) translateY(-50%);
+        background-size: cover;
+        transition: 1s opacity;
+        opacity: 0.2;
+    " >
+              <source src="./docs/summary.mp4" type="video/mp4">
+            </video> -->
+   
         <div class=""></div>
         <div class="container">
           <div class="row justify-content-center">
@@ -104,6 +124,7 @@
 
     <!-- About Section Start -->
     <section id="about" class="section-padding">
+      
         <div class="container">
             <div class="row">
                 <div class="col-lg-6 col-md-12 col-xs-12">
@@ -114,9 +135,9 @@
                         <div>
                             <div class="about-text">  
                                 <h2>What is Animics?</h2>
-                                <p>Animics is an online application to create and
+                                <h6>Animics is an online application to create and
                                 edit animations for 3D humanoid characters,
-                                focused in Sign Language synthesis.</p>
+                                focused in Sign Language synthesis.</h6>
                             </div>
                             <ul class="stylish-list mb-3">
                                 <li><i class="fa-regular fa-circle-check"></i>From Videos</li>
@@ -136,39 +157,79 @@
     </section>
     <!-- About Section End -->
 
-    <!-- Video Section Start -->
+    <!-- Keyframe Section Start -->
     <div class="ready-to-play">
         <div class="container">
-
-            <div class="row flex-row">
-                <div class="video-content" >
-                    <video id="bgvid"loop autoplay controls muted onloadstart="this.playbackRate = 1.5;">
-                        <source src="docs/keyframe_animation.mp4#t=15" type="video/mp4">
-                    </video>
-                </div>
-                  <!-- <div id="polina" class="video-text">
-                    <div class="tb-t">
-                        <div class="tb-c">
-                          <div class="polina"><button><i class='lni-play'></i></button></div>
-                        </div>
-                    </div>
-                  </div> -->
-              
-              
+          <div class="column flex-column">  
+              <h2 class="title">Create 3D animations from videos</h2>
+              <div class="row flex-row">
                 <div class="about-content">
-                    <div>
-                        <div class="about-text">  
-                        <h2 class="title">CREATE 3D ANIMATIONS FROM SIMPLE VIDEOS</h2>
-                        <p>Capture yourself or load videos
-                            and transform the movements
-                            into 3D animations.</p>
-                        </div>
+                    <div class="about-text">  
+                      <h6>Capture yourself or load videos
+                          and transform the movements
+                          into 3D animations.</h6>
                     </div>
-                </div>            
+                    <button class="btn btn-common">Try it!</button>
+                </div>
+                <div class="video-content" >
+                  <video id="bgvid" loop autoplay controls muted onloadstart="this.playbackRate = 1.5;">
+                      <source src="docs/keyframe_animation.mp4#t=15" type="video/mp4">
+                  </video>
+                </div>          
+              </div>
             </div>
         </div>
     </div>
-    <!-- Video Section End -->
+    <!-- Keyframe Section End -->
+
+     <!-- Script Section Start -->
+     <div class="ready-to-play">
+      <div class="container">
+        <div class="column flex-column">  
+            <h2 class="title">Syntesize animations from instructions</h2>
+            <div class="row flex-row">                       
+              <div class="about-content">
+                <div class="about-text">  
+                  <h6>Create procedural animations
+                    based on SL phonetic
+                    descriptions represented by
+                    simple instruction clips.</h6>
+                </div>
+                <button class="btn btn-common">Try it!</button>
+              </div>
+              <div class="video-content" >
+                <video id="bgvid"loop autoplay controls muted onloadstart="this.playbackRate = 1.5;">
+                    <source src="docs/bml_animation_export.mp4#t=15" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+      </div>
+  </div>
+  <!-- Script Section End -->
+
+  <!-- Performs Section Start -->
+  <div class="ready-to-play">
+    <div class="container">
+      <div class="column flex-column">  
+        <h2 class="title">Apply your animations to different avatars</h2>
+        <div class="row flex-row">                       
+          <div class="about-content">
+            <div class="about-text">  
+              <h6>Export your animations or use <b>Performs</b> to apply them to your avatar or others.</h6>
+            </div>
+            <button class="btn btn-common">See more <i class="fa-solid fa-circle-right"></i></button>
+          </div>
+          <div class="video-content" >
+            <video id="bgvid"loop autoplay controls muted onloadstart="this.playbackRate = 1.5;">
+                <source src="docs/performs.mp4" type="video/mp4">
+            </video>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Performs Section End -->
 
      <!-- intro Section Start -->
     <section id="intro" class="intro section-padding">
@@ -306,7 +367,7 @@
     <!-- Counter Area End-->
 
     <!-- Schedule Section Start -->
-    <section id="schedules" class="schedule section-padding">
+    <!-- <section id="schedules" class="schedule section-padding">
       <div class="container">
         <div class="row">
           <div class="col-12">
@@ -705,122 +766,104 @@
           </div>
         </div>
       </div>
-    </section>
+    </section> -->
     <!-- Schedule Section End -->
 
-    <!-- Team Section Start -->
-    <section id="team" class="section-padding text-center">
+    <!-- Action Section Start -->
+    <section id="start" class="section-padding text-center">
       <div class="container">
         <div class="row">
           <div class="col-12">
             <div class="section-title-header text-center">
-              <h2 class="section-title wow fadeInUp" data-wow-delay="0.2s">Our Speakers</h2>
+              <h2 class="section-title wow fadeInUp" data-wow-delay="0.2s">Let's start</h2>
               <p class="wow fadeInDown" data-wow-delay="0.2s">Lorem ipsum dolor sit amet, in quodsi vulputate pro. Ius illum vocent mediocritatem an <br> cule dicta iriure at phaedrum.</p>
             </div>
           </div>
         </div>
+        <!-- Action Item Starts -->
+        <div class="action-item wow fadeInUp drop" data-wow-delay="0.2s">
+          <div class="action-img">
+            <!-- <img class="img-fluid" src="assets/img/action/action-01.jpg" alt=""> -->
+            <!-- <div class="action-overlay">
+              <div class="overlay-social-icon text-center">
+                <ul class="social-icons">
+                  <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
+                  <li><a href="#"><i class="lni-google" aria-hidden="true"></i></a></li>
+                  <li><a href="#"><i class="lni-facebook-filled" aria-hidden="true"></i></a></li>
+                  <li><a href="#"><i class="lni-pinterest" aria-hidden="true"></i></a></li>
+                </ul>
+              </div>
+            </div> -->
+          </div>
+          <div class="info-text">
+            <h3>Drop files</h3>
+            <p>mp4, bvh, bvhe, bml, sigml, json</p>
+          </div>
+        </div>
+        <!-- Action Item Ends -->
         <div class="row justify-content-bt">
           <div class="col-lg-3 col-md-6 col-xs-12">
-            <!-- Team Item Starts -->
-            <div class="team-item wow fadeInUp" data-wow-delay="0.2s">
-              <div class="team-img">
-                <img class="img-fluid" src="assets/img/team/team-01.jpg" alt="">
-                <div class="team-overlay">
-                  <div class="overlay-social-icon text-center">
-                    <ul class="social-icons">
-                      <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-google" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-facebook-filled" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-pinterest" aria-hidden="true"></i></a></li>
-                    </ul>
-                  </div>
-                </div>
+            <!-- Action Item Starts -->
+            <div class="action-item wow fadeInUp" data-wow-delay="0.2s">
+              <div class="action-img">
+                <!-- <img class="img-fluid" src="assets/img/action/action-01.jpg" alt=""> -->
+                <i class="fa-solid fa-circle-plus fa-2xl"></i>
               </div>
               <div class="info-text">
-                <h3><a href="#">JONATHON DOE</a></h3>
-                <p>Product Designer, Tesla</p>
+                <h3><a href="#">Empty project</a></h3>
+                <p>Create from scratch</p>
               </div>
             </div>
-            <!-- Team Item Ends -->
+            <!-- Action Item Ends -->
           </div>
           <div class="col-lg-3 col-md-6 col-xs-12">
-            <!-- Team Item Starts -->
-            <div class="team-item wow fadeInUp" data-wow-delay="0.4s">
-              <div class="team-img">
-                <img class="img-fluid" src="assets/img/team/team-02.jpg" alt="">
-                <div class="team-overlay">
-                  <div class="overlay-social-icon text-center">
-                    <ul class="social-icons">
-                      <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-google" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-facebook-filled" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-pinterest" aria-hidden="true"></i></a></li>
-                    </ul>
-                  </div>
-                </div>
+            <!-- Action Item Starts -->
+            <div class="action-item wow fadeInUp" data-wow-delay="0.4s">
+              <div class="action-img">
+                <i class="fa-solid fa-file-video fa-2xl"></i>
               </div>
               <div class="info-text">
-                <h3><a href="#">Patric Green</a></h3>
-                <p>Front-end Developer</p>
+                <h3><a href="#">From video</a></h3>
+                <p>Upload video/s</p>
               </div>
             </div>
-            <!-- Team Item Ends -->
+            <!-- Action Item Ends -->
           </div>
 
           <div class="col-lg-3 col-md-6 col-xs-12">
-            <!-- Team Item Starts -->
-            <div class="team-item wow fadeInUp" data-wow-delay="0.6s">
-              <div class="team-img">
-                <img class="img-fluid" src="assets/img/team/team-03.jpg" alt="">
-                <div class="team-overlay">
-                  <div class="overlay-social-icon text-center">
-                    <ul class="social-icons">
-                      <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-google" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-facebook-filled" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-pinterest" aria-hidden="true"></i></a></li>
-                    </ul>
-                  </div>
-                </div>
+            <!-- Action Item Starts -->
+            <div class="action-item wow fadeInUp" data-wow-delay="0.6s">
+              <div class="action-img">
+                <i class="fa-solid fa-camera fa-2xl"></i>  
               </div>
               <div class="info-text">
-                <h3><a href="#">Paul Kowalsy</a></h3>
-                <p>Lead Designer, TNW</p>
+                <h3><a href="#">Real-time capture</a></h3>
+                <p>Record yourself</p>
               </div>
             </div>
-            <!-- Team Item Ends -->
+            <!-- Action Item Ends -->
           </div>
 
           <div class="col-lg-3 col-md-6 col-xs-12">
-            <!-- Team Item Starts -->
-            <div class="team-item wow fadeInUp" data-wow-delay="0.8s">
-              <div class="team-img">
-                <img class="img-fluid" src="assets/img/team/team-04.jpg" alt="">
-                <div class="team-overlay">
-                  <div class="overlay-social-icon text-center">
-                    <ul class="social-icons">
-                      <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-google" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-facebook-filled" aria-hidden="true"></i></a></li>
-                      <li><a href="#"><i class="lni-pinterest" aria-hidden="true"></i></a></li>
-                    </ul>
-                  </div>
-                </div>
+            <!-- Action Item Starts -->
+            <div class="action-item wow fadeInUp" data-wow-delay="0.8s">
+              <div class="action-img">
+                <i class="fa-solid fa-cloud-arrow-up fa-2xl"></i>
               </div>
               <div class="info-text">
-                <h3><a href="#">Jhon Doe</a></h3>
-                <p>Back-end Developer, ASUS</p>
+                <h3><a href="#">Edit animation</a></h3>
+                <p>Upload animation file/s</p>
               </div>
             </div>
-            <!-- Team Item Ends -->
+            <!-- Action Item Ends -->
           </div>
 
           <div class="col-lg-3 col-md-6 col-xs-12">
-            <!-- Team Item Starts -->
-            <div class="team-item wow fadeInUp" data-wow-delay="1s">
-              <div class="team-img">
-                <img class="img-fluid" src="assets/img/team/team-05.jpg" alt="">
-                <div class="team-overlay">
+            <!-- Action Item Starts -->
+            <div class="action-item wow fadeInUp" data-wow-delay="1s">
+              <div class="action-img">
+                <img class="img-fluid" src="assets/img/action/action-05.jpg" alt="">
+                <div class="action-overlay">
                   <div class="overlay-social-icon text-center">
                     <ul class="social-icons">
                       <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
@@ -836,15 +879,15 @@
                 <p>Full-stack Developer, Google</p>
               </div>
             </div>
-            <!-- Team Item Ends -->
+            <!-- Action Item Ends -->
           </div>
 
           <div class="col-lg-3 col-md-6 col-xs-12">
-            <!-- Team Item Starts -->
-            <div class="team-item wow fadeInUp" data-wow-delay="1.2s">
-              <div class="team-img">
-                <img class="img-fluid" src="assets/img/team/team-06.jpg" alt="">
-                <div class="team-overlay">
+            <!-- Action Item Starts -->
+            <div class="action-item wow fadeInUp" data-wow-delay="1.2s">
+              <div class="action-img">
+                <img class="img-fluid" src="assets/img/action/action-06.jpg" alt="">
+                <div class="action-overlay">
                   <div class="overlay-social-icon text-center">
                     <ul class="social-icons">
                       <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
@@ -860,15 +903,15 @@
                 <p>UI Designer, Apple</p>
               </div>
             </div>
-            <!-- Team Item Ends -->
+            <!-- Action Item Ends -->
           </div>
 
           <div class="col-lg-3 col-md-6 col-xs-12">
-            <!-- Team Item Starts -->
-            <div class="team-item wow fadeInUp" data-wow-delay="1.4s">
-              <div class="team-img">
-                <img class="img-fluid" src="assets/img/team/team-07.jpg" alt="">
-                <div class="team-overlay">
+            <!-- Action Item Starts -->
+            <div class="action-item wow fadeInUp" data-wow-delay="1.4s">
+              <div class="action-img">
+                <img class="img-fluid" src="assets/img/action/action-07.jpg" alt="">
+                <div class="action-overlay">
                   <div class="overlay-social-icon text-center">
                     <ul class="social-icons">
                       <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
@@ -884,15 +927,15 @@
                 <p>Lead Designer, TNW</p>
               </div>
             </div>
-            <!-- Team Item Ends -->
+            <!-- Action Item Ends -->
           </div>
 
           <div class="col-lg-3 col-md-6 col-xs-12">
-            <!-- Team Item Starts -->
-            <div class="team-item wow fadeInUp" data-wow-delay="1.6s">
-              <div class="team-img">
-                <img class="img-fluid" src="assets/img/team/team-08.jpg" alt="">
-                <div class="team-overlay">
+            <!-- Action Item Starts -->
+            <div class="action-item wow fadeInUp" data-wow-delay="1.6s">
+              <div class="action-img">
+                <img class="img-fluid" src="assets/img/action/action-08.jpg" alt="">
+                <div class="action-overlay">
                   <div class="overlay-social-icon text-center">
                     <ul class="social-icons">
                       <li><a href="#"><i class="lni-twitter-filled" aria-hidden="true"></i></a></li>
@@ -908,13 +951,13 @@
                 <p>Back-end Developer, ASUS</p>
               </div>
             </div>
-            <!-- Team Item Ends -->
+            <!-- Action Item Ends -->
           </div>
         </div>
         <a href="#" class="btn btn-common mt-30 wow fadeInUp" data-wow-delay="1.9s">Meet all speakers</a>
       </div>
     </section>
-    <!-- Team Section End -->
+    <!-- Action Section End -->
 
     <!-- Gallary Section Start -->
     <section id="gallery" class="section-padding">
