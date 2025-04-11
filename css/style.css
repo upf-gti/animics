@@ -22,6 +22,16 @@
 
 html, body {width: 100%;height: 100%;margin: 0;padding: 0;background-color: var(--background);overflow: hidden;font-size: var(--global-font-size);}
 
+/* ----- Lexgui style overrides ----- */
+
+.lexcombobuttons .lexbutton.combo.selected {
+    --button-color: var(--global-color-accent);
+    color: #fff;
+    outline: none;
+}
+/* ----- End of lexGUI overrides ----- */
+
+
 div.masthead {
 	/* padding-top: 10rem; */
 	padding-bottom: calc(10rem - 4.5rem);

@@ -1356,6 +1356,9 @@ class KeyframesGui extends Gui {
         const container = document.createElement("div");
         container.id = "faceAreasContainer";
         container.style.marginTop = "1rem";
+        const colorShceme = document.documentElement.getAttribute("data-theme");
+        container.style.filter = colorShceme == "dark" ? "" : "invert(1) saturate(1) hue-rotate(180deg)";
+
 
         const img = document.createElement("img");
         img.src = "./data/imgs/masks/face areas2.png";
