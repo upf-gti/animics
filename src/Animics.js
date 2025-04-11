@@ -74,10 +74,11 @@ class Animics {
     }
 
     showEditor() {
-        UTILS.hideLoading();
-
+        
         this.editor.enable();
         this.videoProcessor.disable();
+        
+        UTILS.hideLoading();
     }
     
     /**

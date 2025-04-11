@@ -417,8 +417,6 @@ class Gui {
 
     createSceneUI(area) {
 
-        this.editor.orientationHelper.domElement.classList.remove("hidden");
-
         let editor = this.editor;
         let canvasButtons = []
         
@@ -826,7 +824,6 @@ class KeyframesGui extends Gui {
             }
 
             this.computeVideoArea(event.rect);
-            // v.style.clipPath = `inset( ${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px)`; // (startY endX endY startX)
         }
         this.hideVideoOverlay();
     }
@@ -846,7 +843,6 @@ class KeyframesGui extends Gui {
         newRect.top = rect.top * videoRect.height;
         newRect.bottom = rect.bottom * videoRect.height;
 
-        // this.editor.video.style.clipPath = `inset( ${newRect.top}px ${newRect.right}px ${newRect.bottom}px ${newRect.left}px)`; // (startY endX endY startX)   
         this.editor.video.style.webkitMask = `linear-gradient(#000 0 0) ${newRect.left}px ${newRect.top}px / ${videoRect.width*rect.width}px ${videoRect.height*rect.height}px, linear-gradient(rgba(0, 0, 0, 0.3) 0 0)`;
         this.editor.video.style.webkitMaskRepeat = 'no-repeat';
     }
@@ -3746,8 +3742,6 @@ class ScriptGui extends Gui {
     }
 
     createSceneUI(area) {
-
-        $(this.editor.orientationHelper.domElement).show();
 
         let editor = this.editor;
         let canvasButtons = [

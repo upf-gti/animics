@@ -114,10 +114,10 @@ class Editor {
         this.enable();
         this.bindEvents();
         
-        UTILS.hideLoading();
-
         this.animate();
-
+        
+        UTILS.hideLoading();
+        
         window.onbeforeunload =  (e) => {
             if(!this.currentAnimation || !this.loadedAnimations[this.currentAnimation]) {
                 return;
@@ -210,7 +210,6 @@ class Editor {
         });
 
         canvasArea.root.appendChild(orientationHelper.domElement);
-        orientationHelper.domElement.style.display = "none";
         orientationHelper.addEventListener("click", (result) => {
             const side = result.normal.multiplyScalar(4);
             if(side.x != 0 || side.z != 0) side.y =controls.target.y;
