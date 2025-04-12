@@ -86,6 +86,7 @@ class Editor {
     enable() {
         this.enabled = true;
         this.editorArea.root.classList.remove("hidden");
+        this.resize();
     }
 
     disable() {
@@ -2094,10 +2095,10 @@ class KeyframeEditor extends Editor {
 
                 this.activeTimeline = this.gui.keyFramesTimeline;
                 this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().skeletonAnimation, false );
-                this.activeTimeline.show();
-
+                
                 currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
+                this.activeTimeline.show();
                 break;
 
             default:                   
