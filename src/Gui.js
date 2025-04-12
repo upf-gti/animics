@@ -1250,7 +1250,6 @@ class KeyframesGui extends Gui {
         this.timelineArea.attach(this.curvesTimeline.mainArea);
         this.keyFramesTimeline.hide();
         this.curvesTimeline.hide();
-
     }
     
     
