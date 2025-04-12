@@ -6114,6 +6114,8 @@ class NodeTree {
     }
 }
 
+LX.NodeTree = NodeTree;
+
 /**
  * @class Blank
  * @description Blank Widget
