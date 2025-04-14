@@ -62,20 +62,21 @@
 
 		const content = LX.makeContainer( ["100%", "auto"], "wrapper flex flex-col", "", area );
 
-		// const mainLogo = document.createElement( "img" );
-		// mainLogo.src = "docs/animics_white.png";
-		// mainLogo.style.width = "700px";
-		// content.appendChild( mainLogo );
-		// content.appendChild( document.createElement("br") )
 		const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center my-4", "", content );
-		const mainTitle = LX.makeContainer( ["100%", "auto"], "font-medium p-6 mt-4", "Express more. Animate easier.", headerContent, { fontSize: "72px", textAlign: "center" } );
+		const mainLogo = document.createElement( "img" );
+		mainLogo.src = "docs/animics_name.png";
+		mainLogo.style.width = "400px";
+		mainLogo.className = "mt-8"
+		headerContent.appendChild( mainLogo );
+		const mainTitle = LX.makeContainer( ["100%", "auto"], "font-medium p-6 mt-2", "Express more. Animate easier.", headerContent, { fontSize: "72px", textAlign: "center" } );
 		const subtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary", "End-to-end system able to generate animations of the signing avatar from user input.", headerContent, { textAlign: "center", lineHeight: "1.6rem" } );
 
-		const startButton = LX.makeContainer( ["20%", "auto"], "my-4 text-xxl font-medium rounded-lg p-4 bg-accent fg-primary cursor-pointer", "Get started", headerContent, { textAlign: "center" } );
+		const startButton = LX.makeContainer( ["20%", "auto"], "text-xxl font-medium rounded-lg p-4 my-8 bg-accent fg-primary cursor-pointer select-none", "Get started", headerContent, { textAlign: "center" } );
 		startButton.tabIndex = "1";
+		startButton.role = "button";
 		startButton.listen( "click", () => window.__startingContent.scrollIntoView({ behavior: 'smooth', block: 'start' }) );
 
-		const mainCards = LX.makeContainer( ["100%", "600px"], "flex flex-row p-4 gap-4 mt-4", "", headerContent );
+		const mainCards = LX.makeContainer( ["100%", "600px"], "flex flex-row p-4 gap-4", "", headerContent );
 		const mediaCardSources = [ "docs/bml_animation.mp4", "docs/bml_animation.mp4", "docs/bml_animation.mp4", "docs/bml_animation.mp4" ];
 
 		for( const mediaIdx in mediaCardSources )
@@ -95,24 +96,25 @@
 
 		// Utilities
 		{
-			const utilitiesContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4", "", content );
+			const utilitiesContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 border-top", "", content );
 			const mainUtilitiesTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Create stunning 3D animations from simple videos", utilitiesContent, { fontSize: "56px" } );
 			const utilitiesSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Transform raw footage into professional animations in four easy steps", utilitiesContent, { lineHeight: "1.6rem" } );
 			const utilitiesContainer = LX.makeContainer( ["100%", "512px"], "flex flex-row p-6 gap-2 mt-4", "", utilitiesContent );
 			const utilitiesItems = LX.makeContainer( ["35%", "100%"], "flex flex-col gap-2", "", utilitiesContainer );
 
-			const makeUtility = ( title, subtitle, src ) => {
-				const item = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-1 p-4 rounded-lg cursor-pointer select-none hover:bg-secondary", "", utilitiesItems );
+			const makeUtility = ( title, subtitle, src, selected ) => {
+				const item = LX.makeContainer( ["100%", "25%"], `flex flex-col justify-center gap-1 p-4 rounded-lg cursor-pointer select-none hover:bg-secondary ${ selected ? "bg-secondary" : "" }`, "", utilitiesItems );
 				LX.makeContainer( ["100%", "auto"], "font-medium text-xl", title, item );
 				LX.makeContainer( ["100%", "auto"], "font-medium fg-tertiary line-clamp-3", subtitle, item );
-				item.listen( "click", () => {
+				item.listen( "click", function() {
 					videoElement.src = src;
+					this.classList.add( "bg-secondary" );
 				} );
 			};
 
 			// Items
 			{
-				makeUtility( "Effortless video import", "Upload any video - from smartphone footage to online clips. Our AI instantly extracts precise motion data.", "docs/bml_animation.mp4");
+				makeUtility( "Effortless video import", "Upload any video - from smartphone footage to online clips. Our AI instantly extracts precise motion data.", "docs/bml_animation.mp4", true );
 				makeUtility( "Seamless model animation", "Import your 3D character and apply extracted motion. Blinking and physics are supported for MMD and VRM models.", "docs/bml_animation.mp4" );
 				makeUtility( "Intuitive video direction", "Just a few clicks for lighting and camera control. Add cinematic effects like motion blur and depth-of-field", "docs/bml_animation.mp4" );
 				makeUtility( "Versatile export options", "Generate high-quality video renders or export 3D assets compatible with industry-standard tools like Unreal, Maya, and Blender.", "docs/bml_animation.mp4" );
@@ -132,37 +134,43 @@
 
 		// Getting started
 		{
-			const startingContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 items-center", "", content );
+			const startingContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 items-center border-top", "", content );
 			window.__startingContent = startingContent;
-			const startingTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "3D animation has never been easier", startingContent, { fontSize: "56px", textAlign: "center" } );
+			const startingTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Let's get started", startingContent, { fontSize: "72px", textAlign: "center" } );
 			const startingSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Start new animation project based on text or video.", startingContent, {  textAlign: "center", lineHeight: "1.6rem" } );
 			const buttons = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center mt-8", `
 				<div class="flex flex-row gap-4">
-					<a id="script-project" class="btn btn-primary btn-xl uppercase" style="width: 18em" title="From text instructions">Script animation</a>
-					<a id="keyframe-project" class="btn btn-primary btn-xl uppercase" style="width: 18em" title="From video or webcam input">Keyframe animation</a>
+					<a id="script-project" class="text-xxl font-medium rounded-lg p-4 my-4 bg-contrast fg-contrast cursor-pointer select-none" title="From text instructions">Script animation</a>
+					<a id="keyframe-project" class="text-xxl font-medium rounded-lg p-4 my-4 bg-accent fg-primary cursor-pointer select-none" title="From video or webcam input">Keyframe animation</a>
 				</div>
-				<p class="text-md fg-secondary p-4">or</p>
-				<a id="import" class="btn btn-drag btn-xl uppercase" title="Import video or animation">Import source</a>
+				<p class="text-lg fg-secondary p-4">or</p>
+				<a id="import" class="text-xxl font-medium rounded-lg p-4 my-4 bg-secondary fg-primary cursor-pointer select-none drag" title="Import video or animation">Import source</a>
 			`, startingContent );
 		}
 
-
 		const footer = new LX.Footer( {
-			className: "",
+			className: "border-top",
 			parent: LX.root,
 			columns: [
 				{
-					title: "APPLICATIONS",
+					title: "Applications",
 					items: [
 						{ title: `<img src = "data/imgs/performs_monster.png" width = "25px" draggable="false"> PERFORMS`, link: "https://performs.gti.upf.edu/" },
 						{ title: `<img src = "data/imgs/animics_logo.png" width = "25px" draggable="false"> ANIMICS`, link: "https://animics.gti.upf.edu/" }
 					]
+				},
+				{
+					title: "Other",
+					items: [
+						{ title: `ROOMS`, link: "" },
+						{ title: `wgpuEngine`, link: "" }
+					]
 				}
 			],
-			credits: `2021-${ new Date().getUTCFullYear() } GTI - UPF | This application has been developed within the <a href="https://signon-project.eu/" target="_blank">SignON PROJECT</a>. Released under the Apache 2.0 License.`,
+			credits: `<img src="data/imgs/GTIlogo.png" width="250px" style="filter:invert(0.5)" draggable="false"><br><br>2021-${ new Date().getUTCFullYear() } GTI - UPF | This application has been developed within the <a href="https://signon-project.eu/" target="_blank">SignON PROJECT</a>.<br>Released under the Apache 2.0 License.`,
 			socials: [
-				{ title: "Github", link: "https://github.com/jxarco/lexgui.js/", icon: `<a class="fa-brands fa-github"></a>` },
-				{ title: "Discord", link: "https://discord.gg/vwqVrMZBXv", icon: `<a class="fa-brands fa-discord"></a>` }
+				{ title: "Github", link: "https://github.com/upf-gti/", icon: `<a class="fa-brands fa-github"></a>` },
+				{ title: "X/Twitter", link: "https://x.com/gti_upf/", icon: `<a class="fa-brands fa-x-twitter"></a>` }
 			]
 		} );
 
@@ -185,9 +193,13 @@
 
 		const startAnimics = (settings) => {
 			const loadingAnim = UTILS.makeLoading("Starting Animics");
-			loadingAnim.onfinish = () =>{
-				body.innerHTML = "";				
-				animics.init(settings);
+			loadingAnim.onfinish = () => {
+				// Manually resetting lexgui
+				LX.root.innerHTML = "";
+				LX.main_area = new LX.Area( { id: 'mainarea' } );
+				LX.strictViewport = true;
+				document.documentElement.setAttribute( "data-strictVP", "true" );
+				LX.doAsync( () => animics.init(settings), 150 );
 			};			
 			window.global = {app: animics};
 		}

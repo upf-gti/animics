@@ -18,101 +18,29 @@
 	outline: thin;
 }
 
-/* Start Page */
-
-.btn {
-	display: inline-block;
-	font-family: "Merriweather Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-	font-weight: 400;
-	line-height: 1.5;
-	color: #212529;
-	text-align: center;
-	text-decoration: none;
-	vertical-align: middle;
-	cursor: pointer;
-	-webkit-user-select: none;
-	-moz-user-select: none;
-	-ms-user-select: none;
-	user-select: none;
-	background-color: transparent;
-	border: 1px solid transparent;
-	padding: 0.375rem 0.75rem;
-	font-size: 1rem;
-	border-radius: 0.25rem;
-	transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.btn {
-		transition: none;
-	}
-}
-
-.btn-primary {
-	color: #fff;
-	background-color: var(--global-color-highlight);
-	/* --global-color-selected: rgb(35, 105, 102);
-	  --global-color-highlight: rgb(58, 161, 156, 0.8); */
-}
-
-.btn-primary:hover {
-	color: #fff;
-	background-color: var(--global-color-selected);
-}
-
-.btn:hover {
-	color: #212529;
-}
-
-.btn-lg, .btn-group-lg > .btn {
-	padding: 0.5rem 1rem;
-	font-size: 1.25rem;
-	border-radius: 0.3rem;
-}
-
-.btn-drag {
+.drag {
 	border: 2px dashed #bbb !important;
-	-webkit-border-radius: 5px;
-	border-radius: 5px;
-	text-align: center;
-	color: #bbb;
-	background: rgba(255, 255, 255, 0.15);
-}
-
-.btn-drag:hover {
-	color: #fff;
-}
-
-.btn-xl {
-	padding: 1.25rem 2.25rem;
-	font-size: 0.75rem;
-	font-weight: 700;
-	text-transform: uppercase;
-	border: none;
-	border-radius: 10rem;
 }
 
 /* ----- Lexgui style overrides ----- */
 
-.lexarea:has(.lexmenubar) {
+:root[data-strictVP="false"] .lexarea:has(.lexmenubar) {
 	background-color: rgba(10, 10, 10, 0.5) !important;
 	-webkit-backdrop-filter: blur(32px);
     backdrop-filter: blur(32px);
 }
 
-.lexmenubar {
+:root[data-strictVP="false"] .lexmenubar {
 	max-width: 1400px;
 	justify-self: center;
 	background: none;
 }
 
 .lexfooter h2 {
-	font-family: "Merriweather Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 	color:var(--global-text-secondary);
 }
 
 .lexfooter > div {
-	justify-items: end;
 	max-width: 1400px;
 	justify-self: center;
 }
@@ -121,6 +49,7 @@
 	display: flex;
 	gap: 0.4rem;
 	align-items: center;
+    place-content: center;
 }
 
 .lexfooter a:hover {
