@@ -145,6 +145,7 @@ iframe {
   font-weight: 400;
   line-height: 26px;
   padding-bottom: 36px;
+  color: var(--global-text-primary);
 }
 
 .section-title {
@@ -1260,9 +1261,9 @@ h1 {
   font-weight: 700;
 }
 
-/* Sponsors Area */
-#sponsors {
-  background: url(../img/background/countdown.jpg) no-repeat center;
+/* Founding Area */
+#founding {
+  /* background: url(../img/background/countdown.jpg) no-repeat center; */
   background-attachment: scroll;
   background-size: auto auto;
   background-size: cover;
@@ -1270,22 +1271,22 @@ h1 {
   position: relative;
 }
 
-#sponsors .section-title-header .section-title {
-  color: #fff;
+#founding .section-title-header .section-title {
+  /* color: #fff; */
 }
 
-#sponsors .section-title-header p {
-  color: #fff;
+#founding .section-title-header p {
+  /* color: #fff; */
 }
 
-#sponsors .sponsors-logo a img {
+#founding .founding-logo a img {
   margin: 30px;
   vertical-align: middle;
   border-style: none;
   width: 30%;
 }
 
-#sponsors .spnsors-logo:hover {
+#founding .spnsors-logo:hover {
   border-color: transparent;
   box-shadow: 0px 20px 40px rgba(0, 0, 0, 0.2);
 }
@@ -1558,6 +1559,10 @@ h1 {
   background: #fff;
 }
 
+.intro .section-title, .intro .section-title-header p {
+  color: var(--global-color-primary);
+}
+
 .single-intro-text {
   padding: 45px 50px 40px 60px;
   -webkit-box-shadow: 0 8px 24px #E2E8ED;
@@ -1600,6 +1605,14 @@ h1 {
   margin-bottom: 0;
 }
 
+.single-intro-text a {
+  color: inherit;
+};
+
+.single-intro-text a:hover {
+  color: var(--global-selected);
+}
+
 .single-intro-text .count-number {
   position: absolute;
   right: 6px;
@@ -1622,12 +1635,13 @@ h1 {
   object-fit: fill;
 }
 
-.single-intro-text:hover i {
+.single-intro-text:hover a {
+  color: var(--global-selected);
   background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
-  -webkit-background-clip: text;
+  /* -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-fill-color: transparent;
+  background-clip: text; */
+  /* text-fill-color: transparent; */
 }
 
 /* Gallery Section */
@@ -1712,6 +1726,8 @@ h1 {
 .action-item:hover {
   box-shadow: inset 0px 0px 8px var(--global-selected-dark);
   color: var(--global-selected)!important;
+  cursor: pointer;
+  filter: drop-shadow(1px 3px 4px var(--global-selected-dark));
 }
 
 .action-item .action-img {
@@ -2029,7 +2045,7 @@ h1 {
 .container-form .form-wrapper {
   background-color: white;
   padding: 56px;
-  box-shadow: 0 8px 24px #E2E8ED;
+  /* box-shadow: 0 8px 24px #E2E8ED; */
 }
 
 .container-form .form-wrapper .form-group {
@@ -2302,9 +2318,15 @@ footer {
 }
 
 .footer-logo {
+  margin-top: 50px;
   margin-bottom: 50px;
 }
 
+.footer-logo img {
+  object-fit: inherit;
+  width: 300px;
+  border-radius: 0;
+}
 /* ==========================================================================
    Countdown Style Start
    ========================================================================== */
