@@ -1041,7 +1041,7 @@ class KeyframesGui extends Gui {
             currentBinded.auAnimation.duration = t;
 
             if( this.curvesTimeline.duration != t ){
-	            this.curvesTimeline.setDuration(t);			
+	            this.curvesTimeline.setDuration(t, true, true);			
 			}
         };
 
@@ -1207,7 +1207,7 @@ class KeyframesGui extends Gui {
             currentBinded.auAnimation.duration = t;
 
             if( this.keyFramesTimeline.duration != t ){
-	            this.keyFramesTimeline.setDuration(t);			
+	            this.keyFramesTimeline.setDuration(t, true, true);			
 			}
         };
 
@@ -3634,7 +3634,7 @@ class ScriptGui extends Gui {
                                 e.item.content = parsedFile.content;
                             }
 
-                            p.addText(null, "How do you want to insert the clip?", null, {disabled:true,  className: "nobg"});
+                            p.addTextArea(null, "How do you want to insert the clip?", null, {disabled:true, className: "nobg"});
                             p.sameLine(3);
                             p.addButton(null, "Add as single clip", (v) => {
                                 dialog.close();
