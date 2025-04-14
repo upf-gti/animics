@@ -12,7 +12,6 @@
         <link href="https://fonts.googleapis.com/css?family=Merriweather:400,300,300italic,400italic,700,700italic" rel="stylesheet" type="text/css" />
         <link href="https://cdnjs.cloudflare.com/ajax/libs/SimpleLightbox/2.1.0/simpleLightbox.min.css" rel="stylesheet" />
 
-        <link rel="stylesheet" href="css/template-style.css">
 		<!-- <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui@0.1.46/build/lexgui.css"> -->
 		<link rel="stylesheet" href="./src/libs/lexgui/build/lexgui.css">
 		<link rel="stylesheet" href="css/style.css">
@@ -40,10 +39,134 @@
 	<script  type="module" src="./src/libs/lexgui/LexGUI.patches.js"></script>
 	<script type="module">
 
-		import {Animics} from './src/Animics.js'
-		import {UTILS} from './src/Utils.js'
+		import { Animics } from './src/Animics.js'
+		import { UTILS } from './src/Utils.js'
+		import { LX } from 'lexgui';
 
-		const body = document.getElementById("base-page");
+		let area = LX.init( { strictViewport: false, rootClass: "" } );
+
+		// Menubar
+		{
+			const menubar = area.addMenubar( m => {
+
+				m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => { window.location = window.location }, { float: "left" })
+
+				m.add( "Docs", { icon: "", callback: () => { } });
+				m.add( "About", { icon: "", callback: () => { } });
+			});
+
+			area = menubar.siblingArea;
+			area.root.style.placeContent = "center";
+			area.root.classList.add( "hidden" );
+		}
+
+		const content = LX.makeContainer( ["100%", "auto"], "wrapper flex flex-col", "", area );
+
+		// const mainLogo = document.createElement( "img" );
+		// mainLogo.src = "docs/animics_white.png";
+		// mainLogo.style.width = "700px";
+		// content.appendChild( mainLogo );
+		// content.appendChild( document.createElement("br") )
+		const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center my-4", "", content );
+		const mainTitle = LX.makeContainer( ["100%", "auto"], "font-medium p-6 mt-4", "Express more. Animate easier.", headerContent, { fontSize: "72px", textAlign: "center" } );
+		const subtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary", "End-to-end system able to generate animations of the signing avatar from user input.", headerContent, { textAlign: "center", lineHeight: "1.6rem" } );
+
+		const startButton = LX.makeContainer( ["20%", "auto"], "my-4 text-xxl font-medium rounded-lg p-4 bg-accent fg-primary cursor-pointer", "Get started", headerContent, { textAlign: "center" } );
+		startButton.tabIndex = "1";
+		startButton.listen( "click", () => window.__startingContent.scrollIntoView({ behavior: 'smooth', block: 'start' }) );
+
+		const mainCards = LX.makeContainer( ["100%", "600px"], "flex flex-row p-4 gap-4 mt-4", "", headerContent );
+		const mediaCardSources = [ "docs/bml_animation.mp4", "docs/bml_animation.mp4", "docs/bml_animation.mp4", "docs/bml_animation.mp4" ];
+
+		for( const mediaIdx in mediaCardSources )
+		{
+			const cardWidth = 100 / mediaCardSources.length;
+			const card = LX.makeContainer( [`${ cardWidth }%`, "100%"], "", "", mainCards );
+			const videoElement = document.createElement( "video" );
+			videoElement.src = mediaCardSources[ mediaIdx ];
+			videoElement.style.width = "100%";
+			videoElement.style.height = "100%";
+			videoElement.style.objectFit = "cover";
+			videoElement.style.borderRadius = "0.5rem";
+			videoElement.autoplay = true;
+			videoElement.loop = true;
+			card.appendChild( videoElement );
+		}
+
+		// Utilities
+		{
+			const utilitiesContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4", "", content );
+			const mainUtilitiesTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Create stunning 3D animations from simple videos", utilitiesContent, { fontSize: "56px" } );
+			const utilitiesSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Transform raw footage into professional animations in four easy steps", utilitiesContent, { lineHeight: "1.6rem" } );
+			const utilitiesContainer = LX.makeContainer( ["100%", "512px"], "flex flex-row p-6 gap-2 mt-4", "", utilitiesContent );
+			const utilitiesItems = LX.makeContainer( ["35%", "100%"], "flex flex-col gap-2", "", utilitiesContainer );
+
+			const makeUtility = ( title, subtitle, src ) => {
+				const item = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-1 p-4 rounded-lg cursor-pointer select-none hover:bg-secondary", "", utilitiesItems );
+				LX.makeContainer( ["100%", "auto"], "font-medium text-xl", title, item );
+				LX.makeContainer( ["100%", "auto"], "font-medium fg-tertiary line-clamp-3", subtitle, item );
+				item.listen( "click", () => {
+					videoElement.src = src;
+				} );
+			};
+
+			// Items
+			{
+				makeUtility( "Effortless video import", "Upload any video - from smartphone footage to online clips. Our AI instantly extracts precise motion data.", "docs/bml_animation.mp4");
+				makeUtility( "Seamless model animation", "Import your 3D character and apply extracted motion. Blinking and physics are supported for MMD and VRM models.", "docs/bml_animation.mp4" );
+				makeUtility( "Intuitive video direction", "Just a few clicks for lighting and camera control. Add cinematic effects like motion blur and depth-of-field", "docs/bml_animation.mp4" );
+				makeUtility( "Versatile export options", "Generate high-quality video renders or export 3D assets compatible with industry-standard tools like Unreal, Maya, and Blender.", "docs/bml_animation.mp4" );
+			}
+
+			const utilitiesPreview = LX.makeContainer( ["65%", "100%"], "", "", utilitiesContainer );
+			const videoElement = document.createElement( "video" );
+			videoElement.src = "docs/bml_animation.mp4";
+			videoElement.style.width = "100%";
+			videoElement.style.height = "100%";
+			videoElement.style.objectFit = "cover";
+			videoElement.style.borderRadius = "0.5rem";
+			videoElement.autoplay = true;
+			videoElement.loop = true;
+			utilitiesPreview.appendChild( videoElement );
+		}
+
+		// Getting started
+		{
+			const startingContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 items-center", "", content );
+			window.__startingContent = startingContent;
+			const startingTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "3D animation has never been easier", startingContent, { fontSize: "56px", textAlign: "center" } );
+			const startingSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Start new animation project based on text or video.", startingContent, {  textAlign: "center", lineHeight: "1.6rem" } );
+			const buttons = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center mt-8", `
+				<div class="flex flex-row gap-4">
+					<a id="script-project" class="btn btn-primary btn-xl uppercase" style="width: 18em" title="From text instructions">Script animation</a>
+					<a id="keyframe-project" class="btn btn-primary btn-xl uppercase" style="width: 18em" title="From video or webcam input">Keyframe animation</a>
+				</div>
+				<p class="text-md fg-secondary p-4">or</p>
+				<a id="import" class="btn btn-drag btn-xl uppercase" title="Import video or animation">Import source</a>
+			`, startingContent );
+		}
+
+
+		const footer = new LX.Footer( {
+			className: "",
+			parent: LX.root,
+			columns: [
+				{
+					title: "APPLICATIONS",
+					items: [
+						{ title: `<img src = "data/imgs/performs_monster.png" width = "25px" draggable="false"> PERFORMS`, link: "https://performs.gti.upf.edu/" },
+						{ title: `<img src = "data/imgs/animics_logo.png" width = "25px" draggable="false"> ANIMICS`, link: "https://animics.gti.upf.edu/" }
+					]
+				}
+			],
+			credits: `2021-${ new Date().getUTCFullYear() } GTI - UPF | This application has been developed within the <a href="https://signon-project.eu/" target="_blank">SignON PROJECT</a>. Released under the Apache 2.0 License.`,
+			socials: [
+				{ title: "Github", link: "https://github.com/jxarco/lexgui.js/", icon: `<a class="fa-brands fa-github"></a>` },
+				{ title: "Discord", link: "https://discord.gg/vwqVrMZBXv", icon: `<a class="fa-brands fa-discord"></a>` }
+			]
+		} );
+
+		const body = area.root;
 
 		const keyframeBtn = document.getElementById("keyframe-project");
 		// const videoBtn = document.getElementById("video-project");
@@ -54,7 +177,7 @@
 		// const importScriptBtn = document.getElementById("import-script");
 
 		// Wait until the session is loaded
-		UTILS.makeLoading("");
+		UTILS.makeLoading("Loading application, please wait");
 		const animics = new Animics();
 		await animics.loadSession();
 		UTILS.hideLoading();
@@ -135,7 +258,7 @@
 		scriptBtn.addEventListener("click", () => {
 			startAnimics({mode: "script"});
 		});
-    
+
 		// Import resurces 
 		importBtn.addEventListener("click", () => {
     		const input = document.createElement('input');
@@ -156,87 +279,15 @@
 				body.ondrop = null;
 			}
 		};
-		
 	</script>
 
     <body >
-        <!-- Masthead (to change the background image look for div.masthead in the style css)-->
-        <div id="base-page" class="hidden masthead" style="width:100%; height:100%">
-			<div class="container px-4 px-lg-5 h-100">
-				<div id="init-dialog" class="row gx-4 gx-lg-5 h-100 align-items-center justify-content-center text-center" >
-					<div class="col-lg-8 align-self-end">
-						<!-- <h1 class="text-white font-weight-bold">Animics</h1> -->
-						<img src = "docs/animics_white.png" width = "700px" draggable="false">
-						<br><br>
-					</div>
-					<div class="col-lg-8 align-self-baseline">
-						<p class="text-white-75 mb-5">End-to-end system able to generate animations of the signing avatar from user input.</p>
-						<hr class="divider" />
-
-						<p class="text-white-75 mb-5">Start new animation project based on</p>
-						<!-- <a id="from-file" class="btn btn-primary btn-xl">From Video or Animation</a>
-						<a id="new-capture" class="btn btn-primary btn-xl">New Capture</a> -->
-						<div style="margin-left: 1rem;">
-							<a id="script-project" class="btn btn-primary btn-xl" style="width: 18em;" title="From text instructions">Script animation</a>
-							<a id="keyframe-project" class="btn btn-primary btn-xl" style="width: 18em;" title="From video or webcam input">Keyframe animation</a>
-							<p class="text-white-75" style="margin-right: 1rem; padding:0.5em">or</p>
-							<a id="import" class="btn btn-drag btn-xl" title="Import video or animation">Import source</a>
-						</div>
-					</div>
-				</div>
-			</div>
-			<footer class="card-footer fixed-bottom" style="width: 100%; color: #747f8a; display: flex; flex-direction: row; align-content: center; justify-content: center;">
-				<div class="navbar-brand" style="display: flex; justify-content: space-between; align-items: center; width: 96%; padding-bottom: 0px!important;">
-					<div style="display: flex; flex-direction: column;">
-						<a class="fs-2 mb-3 icon-link" href="https://www.upf.edu/web/gti">
-							<img src="data/imgs/GTIlogo.png" width="250px" style="filter:invert(0.5)" draggable="false">
-						</a>
-						<div id="mainNav" class="py-2" style="font-size: 1rem; background-color: transparent">©️ 2021-2024 GTI - UPF | This application has been developed within the <a class="" href="https://signon-project.eu/" target="_blank">SignON PROJECT</a>. Released under the Apache 2.0 License</div>
-					</div>
-					<div style="display: flex;">
-						<div style="padding: 0 20px;">
-							<h1 class="fs-5 mb-3" style="color:var(--global-text-secondary);"><b>APPLICATIONS</b></h1>
-							<a href="https://performs.gti.upf.edu" target="_blank" style="text-decoration: none;">
-								<h3 class="fs-6 mb-3 px-4" style="color:var(--global-text);">
-									<img src = "data/imgs/performs_monster.png" width = "25px" draggable="false"> PERFORMS
-								</h3>
-							</a>
-							<a href="https://animics.gti.upf.edu" target="_blank" style="text-decoration: none;">
-								<h3 class="fs-6 mb-3 px-4" style="color:var(--global-text);">
-									<img src = "data/imgs/animics_logo.png" width = "25px" draggable="false"> ANIMICS
-								</h3>
-							</a>
-						</div> 
-						<div style="padding: 0 20px;">
-							<h1 class="fs-5 mb-3" style="color:var(--global-text-secondary);"><b>MORE INFO</b></h1>
-							<div >
-								<ul class="navbar-nav ms-auto my-2 my-lg-0" style="flex-direction: row; justify-content: center;">
-									<li class="nav-item"><a class="bi-github fs-2 mb-3 icon-link" href="https://github.com/upf-gti/"></a></li>
-									<!-- <li class="nav-item"><a class="bi-youtube fs-2 mb-3 icon-link"></a></li> -->
-									<li class="nav-item"><a class="bi-twitter fs-2 mb-3 icon-link" href="https://twitter.com/gti_upf"></a></li>
-								</ul>
-							</div>
-						</div>
-						<div style="padding: 0 20px;">
-							<h1 class="fs-5 mb-3" style="color:var(--global-text-secondary);"><b></b></h1>
-							<a href="https://jxarco.github.io/lexgui.js/" target="_blank" style="text-decoration: none;">
-								<h3 class="fs-6 mb-3 px-4" style="color:var(--global-text);">
-									<img src = "data/imgs/lexgui.png" draggable="false" style="width:4rem">
-								</h3>
-							</a>
-						</div> 
-					</div> 
-				</div>
-			</footer>
-		
-		</div>
+		<!-- <img src="data/imgs/GTIlogo.png" width="250px" style="filter:invert(0.5)" draggable="false"> -->
 		<!-- Modals -->
-		<div id="loading" class="modal hidden" style = "opacity: 1; z-index: 1040">
-			<div class="load-7">
+		<div id="loading" class="modal hidden" style="opacity: 1; z-index: 1040">
+			<div>
 				<p>Loading application, please wait</p>
-				<div class="square-holder">
-					<img class="loading-icon" src="data/imgs/monster.png" width="50" height="50" draggable="false">
-				</div>
+				<img class="loading-icon" src="data/imgs/monster.png" width="50" height="50" draggable="false">
 			</div>
 		</div>	
     </body>
