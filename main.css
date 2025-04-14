@@ -638,6 +638,9 @@ a.back-to-top:hover, a.back-to-top:focus {
   height: 100%;  
 }
 
+.navbar-brand img {
+  width: auto;
+}
 /* .navbar-brand img {
   position: relative;
   top: 10px;
@@ -1277,6 +1280,9 @@ h1 {
 
 #sponsors .sponsors-logo a img {
   margin: 30px;
+  vertical-align: middle;
+  border-style: none;
+  width: 30%;
 }
 
 #sponsors .spnsors-logo:hover {
@@ -1596,20 +1602,24 @@ h1 {
 
 .single-intro-text .count-number {
   position: absolute;
-  right: -55px;
-  bottom: -55px;
-  width: 120px;
-  height: 120px;
+  right: 6px;
+  top: 10px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
-  -webkit-border-radius: 50%;
+  /* -webkit-border-radius: 50%; */
   -ms-border-radius: 50%;
-  background-image: linear-gradient(0deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(0deg, var(--global-selected-dark) 0, var(--global-selected) 100%);
   color: #fff;
   display: block;
   text-align: left;
   font-size: 16px;
   font-weight: 700;
-  padding: 25px 30px;
+  padding: 5px;
+  /* padding: 25px 30px;*/
+}
+.single-intro-text img {
+  object-fit: fill;
 }
 
 .single-intro-text:hover i {
@@ -1707,7 +1717,7 @@ h1 {
 .action-item .action-img {
   position: relative;
   cursor: pointer;
-  overflow: hidden;
+  /* overflow: hidden; */
 }
 
 .action-item .action-overlay {
@@ -2187,9 +2197,9 @@ footer {
   font-size: 16px;
 }
 
-.social-icons-footer .facebook a:hover {
-  border-color: #4867aa;
-  color: #4867aa;
+.social-icons-footer .github a:hover {
+  border-color: #0b101a;
+  color: #0b101a;
 }
 
 .social-icons-footer .twitter a:hover {
@@ -2202,7 +2212,7 @@ footer {
   color: #0077B5;
 }
 
-.social-icons-footer .google a:hover {
+.social-icons-footer .website a:hover {
   border-color: #ea4335;
   color: #ea4335;
 }
