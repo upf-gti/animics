@@ -33,6 +33,11 @@
 .tracking-wider { letter-spacing: 0.05em }
 .tracking-widest { letter-spacing: 0.1em }
 
+.lexfooter .credits-and-socials {
+	display: flex;
+	justify-content: space-around;
+}
+
 :root[data-strictVP="false"] .lexarea:has(.lexmenubar) {
 	background-color: rgba(10, 10, 10, 0.5) !important;
 	-webkit-backdrop-filter: blur(32px);
@@ -51,10 +56,6 @@
 	background: none;
 }
 
-.lexfooter h2 {
-	color:var(--global-text-secondary);
-}
-
 .lexfooter > div {
 	max-width: 1400px;
 	justify-self: center;
@@ -62,6 +63,11 @@
 
 .lexfooter a:hover {
     color: var(--global-color-highlight);
+}
+
+.lexfooter .credits-and-socials i {
+	cursor: pointer;
+	font-size: 22px;
 }
 
 .lexcontainer.wrapper {
@@ -286,7 +292,6 @@ canvas {
 		border: solid var(--global-color-highlight);
 	}
 }
-
 
 ::-webkit-scrollbar {
 	width: 5px !important;

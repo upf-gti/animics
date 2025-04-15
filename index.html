@@ -250,13 +250,15 @@
 					]
 				}
 			],
-			credits: `<img src="data/imgs/GTIlogo.png" width="250px" style="filter:invert(0.5)" draggable="false"><br><br>2021-${ new Date().getUTCFullYear() } 
-				GTI - UPF | Developed within <a href="https://signon-project.eu/" target="_blank">SignON and EMERALD EU H2020 projects</a>.<br>Released under the Apache 2.0 License.`,
+			credits: `2021-${ new Date().getUTCFullYear() } GTI - UPF | Developed within <a href="https://signon-project.eu/" target="_blank">SignON</a> and EMERALD EU H2020 projects.<br>Released under the Apache 2.0 License.`,
 			socials: [
-				{ title: "Github", link: "https://github.com/upf-gti/", icon: `<a class="fa-brands fa-github"></a>` },
-				{ title: "X/Twitter", link: "https://x.com/gti_upf/", icon: `<a class="fa-brands fa-x-twitter"></a>` }
+				{ title: "Github", link: "https://github.com/upf-gti/", icon: `<i class="fa-brands fa-github"></i>` },
+				{ title: "X/Twitter", link: "https://x.com/gti_upf/", icon: `<i class="fa-brands fa-x-twitter"></i>` }
 			]
 		} );
+
+		const footerCreditsSocials = footer.root.querySelector( ".credits-and-socials" );
+		footerCreditsSocials.innerHTML = `<img src="data/imgs/GTIlogo.png" width="250px" style="filter:invert(0.5)" draggable="false">` + footerCreditsSocials.innerHTML;
 
 		const body = area.root;
 
