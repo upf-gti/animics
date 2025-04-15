@@ -4036,6 +4036,8 @@ class PropagationWindow {
         if(updateSize) {
             const canvas = this.curveWidget.curveInstance.canvas;
             canvas.width = windowRect.rectWidth;
+            canvas.style.width = windowRect.rectWidth + "px";
+
 
             const radii = timeline.trackHeight * 0.4;
 			let leftRadius = windowRect.leftSize > radii ? radii : windowRect.leftSize;
