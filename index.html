@@ -49,7 +49,8 @@
 		{
 			const menubar = area.addMenubar( m => {
 				m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => { window.location = window.location }, { float: "left" })
-				m.add( "Docs", { icon: "", callback: () => { window.open( "https://animics.gti.upf.edu/docs/script_animation.html" , "_blank" ) } });
+				m.add( "Docs/Keyframe Animation", { icon: "", callback: () => { window.open( "docs/keyframe_animation.html" , "_blank" ) } });
+				m.add( "Docs/Script Animation", { icon: "", callback: () => { window.open( "docs/script_animation.html" , "_blank" ) } });
 				m.add( "About", { icon: "", callback: () => window.__gtiContent.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
 				m.addButtons( [
 					{
@@ -107,8 +108,9 @@
 			videoElement.style.height = "100%";
 			videoElement.style.objectFit = "cover";
 			videoElement.style.borderRadius = "0.75rem";
-			videoElement.autoplay = true;
-			videoElement.loop = true;
+			videoElement.toggleAttribute( "autoplay" );
+			videoElement.toggleAttribute( "loop" );
+			videoElement.toggleAttribute( "muted" );
 			card.appendChild( videoElement );
 		}
 
@@ -126,8 +128,9 @@
 			videoElement.style.height = "100%";
 			videoElement.style.objectFit = "cover";
 			videoElement.style.borderRadius = "0.75rem";
-			videoElement.autoplay = true;
-			videoElement.loop = true;
+			videoElement.toggleAttribute( "autoplay" );
+			videoElement.toggleAttribute( "loop" );
+			videoElement.toggleAttribute( "muted" );
 			utilitiesPreview.appendChild( videoElement );
 
 			{
@@ -179,8 +182,9 @@
 			videoElement.style.height = "100%";
 			videoElement.style.objectFit = "cover";
 			videoElement.style.borderRadius = "0.75rem";
-			videoElement.autoplay = true;
-			videoElement.loop = true;
+			videoElement.toggleAttribute( "autoplay" );
+			videoElement.toggleAttribute( "loop" );
+			videoElement.toggleAttribute( "muted" );
 			utilitiesPreview.appendChild( videoElement );
 		}
 
@@ -192,12 +196,12 @@
 			const startingSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary text-center px-4 leading-7", "Start new animation project based on text or video.", startingContent );
 			const buttons = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center mt-8", `
 				<div class="flex flex-row gap-4">
-					<a id="script-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-contrast fg-contrast hover:bg-mix-contrast px-12 cursor-pointer select-none" title="From text instructions">Script animation</a>
-					<a id="keyframe-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-accent fg-white hover:bg-mix px-12 cursor-pointer select-none" title="From video or webcam input">Keyframe animation</a>
+					<a role="button" id="script-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-contrast fg-contrast hover:bg-mix-contrast px-12 cursor-pointer select-none" title="From text instructions">Script animation</a>
+					<a role="button" id="keyframe-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-accent fg-white hover:bg-mix px-12 cursor-pointer select-none" title="From video or webcam input">Keyframe animation</a>
 				</div>
 				<p class="text-lg fg-secondary p-4">or</p>
 			`, startingContent );
-			const fileDropZone = LX.makeContainer( ["50%", "128px"], "font-medium text-xxl rounded-lg content-center bg-secondary hover:bg-mix border-colored border-dashed fg-primary text-center p-4 mt-4 select-none", "Import video or animation", buttons );
+			const fileDropZone = LX.makeContainer( ["50%", "128px"], "font-medium text-xxl rounded-lg content-center bg-secondary hover:bg-mix border-colored border-dashed fg-primary text-center p-4 mt-4 cursor-pointer select-none", "Import video or animation", buttons );
 			fileDropZone.id = "import";
 			fileDropZone.tabIndex = "1";
 			LX.makeContainer( ["100%", "auto"], "text-md fg-tertiary text-center px-4 leading-7", "mp4, bvh, bvhe, bml, sigml, json", fileDropZone );
@@ -232,15 +236,22 @@
 					]
 				},
 				{
-					title: "Other",
+					title: "Other GTI Projects",
 					items: [
 						{ title: `ROOMS`, link: "" },
-						{ title: `wgpuEngine`, link: "" },
+						{ title: `wgpuEngine`, link: "" }
+					]
+				},
+				{
+					title: "UI/UX",
+					items: [
 						{ title: `LexGUI.js`, link: "https://github.com/jxarco/lexgui.js/" },
+						{ title: `LexGUI Docs`, link: "https://github.com/jxarco/lexgui.js/docs" }
 					]
 				}
 			],
-			credits: `<img src="data/imgs/GTIlogo.png" width="250px" style="filter:invert(0.5)" draggable="false"><br><br>2021-${ new Date().getUTCFullYear() } GTI - UPF | This application has been developed within the <a href="https://signon-project.eu/" target="_blank">SignON PROJECT</a>.<br>Released under the Apache 2.0 License.`,
+			credits: `<img src="data/imgs/GTIlogo.png" width="250px" style="filter:invert(0.5)" draggable="false"><br><br>2021-${ new Date().getUTCFullYear() } 
+				GTI - UPF | Developed within <a href="https://signon-project.eu/" target="_blank">SignON and EMERALD EU H2020 projects</a>.<br>Released under the Apache 2.0 License.`,
 			socials: [
 				{ title: "Github", link: "https://github.com/upf-gti/", icon: `<a class="fa-brands fa-github"></a>` },
 				{ title: "X/Twitter", link: "https://x.com/gti_upf/", icon: `<a class="fa-brands fa-x-twitter"></a>` }
@@ -366,7 +377,6 @@
 	</script>
 
     <body >
-		<!-- <img src="data/imgs/GTIlogo.png" width="250px" style="filter:invert(0.5)" draggable="false"> -->
 		<!-- Modals -->
 		<div id="loading" class="modal hidden" style="opacity: 1; z-index: 1040">
 			<div>
