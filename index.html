@@ -69,10 +69,10 @@
 		mainLogo.style.width = "400px";
 		mainLogo.className = "mt-8"
 		headerContent.appendChild( mainLogo );
-		const mainTitle = LX.makeContainer( ["100%", "auto"], "font-medium p-6", "Express more. Animate easier.", headerContent, { fontSize: "72px", textAlign: "center" } );
-		const subtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary", "End-to-end system able to generate animations of the signing avatar from user input.", headerContent, { textAlign: "center", lineHeight: "1.6rem" } );
+		const mainTitle = LX.makeContainer( ["100%", "auto"], "font-medium p-6 text-center", "Express more. Animate easier.", headerContent, { fontSize: "72px" } );
+		const subtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary text-center leading-7", "End-to-end system able to generate animations of the signing avatar from user input.", headerContent );
 
-		const startButton = LX.makeContainer( ["20%", "auto"], "text-xxl font-medium rounded-lg p-4 my-8 bg-accent fg-primary cursor-pointer select-none", "Get started", headerContent, { textAlign: "center" } );
+		const startButton = LX.makeContainer( ["20%", "auto"], "text-xxl font-medium rounded-lg p-4 my-8 bg-accent fg-primary hover:bg-mix text-center cursor-pointer select-none", "Get started", headerContent );
 		startButton.tabIndex = "1";
 		startButton.role = "button";
 		startButton.listen( "click", () => window.__startingContent.scrollIntoView({ behavior: 'smooth', block: 'start' }) );
@@ -97,8 +97,8 @@
 
 		// About Animics
 		{
-			const aboutContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 border-top items-end", "", content, { textAlign: "end" } );
-			const aboutTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Discover Animics", aboutContent, { fontSize: "56px" } );
+			const aboutContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 border-top items-end text-end", "", content );
+			const aboutTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Discover Animics.", aboutContent, { fontSize: "56px" } );
 			const aboutSubtitle = LX.makeContainer( ["50%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Animics is an online application to create and edit animations for 3D humanoid characters, focused in Sign Language synthesis.", aboutContent, { lineHeight: "1.6rem" } );
 			const aboutContainer = LX.makeContainer( ["100%", "512px"], "flex flex-row p-6 gap-2 mt-4", "", aboutContent );
 
@@ -119,7 +119,7 @@
 				const makeAboutItem = ( title ) => {
 					const item = LX.makeContainer( ["100%", "auto"], `flex flex-row gap-2 p-2 select-none items-center justify-end`, "", aboutItems );
 					LX.makeContainer( ["auto", "auto"], "font-medium text-xl fg-tertiary line-clamp-1", title, item );
-					const icon = LX.makeIcon( "circle-check", null, "xl" );
+					const icon = LX.makeIcon( "circle-check", { svgClass: "xl" } );
 					item.appendChild( icon );
 				};
 
@@ -131,7 +131,7 @@
 		// Utilities
 		{
 			const utilitiesContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 border-top", "", content );
-			const mainUtilitiesTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Create stunning 3D animations from simple videos", utilitiesContent, { fontSize: "56px" } );
+			const mainUtilitiesTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Create stunning 3D animations from simple videos.", utilitiesContent, { fontSize: "56px" } );
 			const utilitiesSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Transform raw footage into professional animations in four easy steps.", utilitiesContent, { lineHeight: "1.6rem" } );
 			const utilitiesContainer = LX.makeContainer( ["100%", "512px"], "flex flex-row p-6 gap-2 mt-4", "", utilitiesContent );
 			const utilitiesItems = LX.makeContainer( ["35%", "100%"], "flex flex-col gap-2", "", utilitiesContainer );
@@ -170,29 +170,29 @@
 		{
 			const startingContent = LX.makeContainer( ["100%", "auto"], "flex flex-col mt-4 mb-8 items-center border-top", "", content );
 			window.__startingContent = startingContent;
-			const startingTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Getting started", startingContent, { fontSize: "72px", textAlign: "center" } );
-			const startingSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Start new animation project based on text or video.", startingContent, {  textAlign: "center", lineHeight: "1.6rem" } );
+			const startingTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4 text-center", "Getting started.", startingContent, { fontSize: "72px" } );
+			const startingSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary text-center px-4 leading-7", "Start new animation project based on text or video.", startingContent );
 			const buttons = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center mt-8", `
 				<div class="flex flex-row gap-4">
-					<a id="script-project" class="text-xxl font-medium rounded-lg p-4 my-4 bg-contrast fg-contrast px-12 cursor-pointer select-none" title="From text instructions">Script animation</a>
-					<a id="keyframe-project" class="text-xxl font-medium rounded-lg p-4 my-4 bg-accent fg-primary px-12 cursor-pointer select-none" title="From video or webcam input">Keyframe animation</a>
+					<a id="script-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-contrast fg-contrast hover:bg-mix-contrast px-12 cursor-pointer select-none" title="From text instructions">Script animation</a>
+					<a id="keyframe-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-accent fg-primary hover:bg-mix px-12 cursor-pointer select-none" title="From video or webcam input">Keyframe animation</a>
 				</div>
 				<p class="text-lg fg-secondary p-4">or</p>
 			`, startingContent );
-			const fileDropZone = LX.makeContainer( ["50%", "128px"], "font-medium text-xxl rounded-lg content-center bg-secondary fg-primary p-4 mt-4 select-none drag", "Import video or animation", buttons, { alignContent: "center", textAlign: "center" } );
+			const fileDropZone = LX.makeContainer( ["50%", "128px"], "font-medium text-xxl rounded-lg content-center bg-secondary hover:bg-mix border-colored border-dashed fg-primary text-center p-4 mt-4 select-none", "Import video or animation", buttons );
 			fileDropZone.id = "import";
 			fileDropZone.tabIndex = "1";
-			LX.makeContainer( ["100%", "auto"], "text-md fg-tertiary px-4", "mp4, bvh, bvhe, bml, sigml, json", fileDropZone, {  textAlign: "center", lineHeight: "1.6rem" } );
+			LX.makeContainer( ["100%", "auto"], "text-md fg-tertiary text-center px-4 leading-7", "mp4, bvh, bvhe, bml, sigml, json", fileDropZone );
 		}
 
 		// GTI
 		{
 			const gtiContent = LX.makeContainer( ["100%", "auto"], "flex flex-col mt-4 mb-8 border-top", "", content );
 			window.__gtiContent = gtiContent;
-			const gtiTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "About us", gtiContent, { fontSize: "56px" } );
+			const gtiTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "About us.", gtiContent, { fontSize: "56px" } );
 			const gtiData = LX.makeContainer( ["100%", "auto"], "flex flex-row", "", gtiContent );
-			const gtiSubtitle = LX.makeContainer( ["80%", "auto"], "flex flex-row text-xl font-medium fg-tertiary px-4", `
-				This application is developed by the Interactive Research Group (GTI), which is a research group within the Escola d'Enginyeria at Universitat Pompeu Fabra. The GTI focuses on human aspects and technology, especially those related to enhancing people's use of computer technologies, including technological and HCI research. The group integrates
+			const gtiSubtitle = LX.makeContainer( ["80%", "auto"], "text-xl font-medium fg-tertiary px-4", `
+				This application is developed by the <a href="https://www.upf.edu/web/gti">Interactive Research Group (GTI)</a>, which is a research group within the Escola d'Enginyeria at Universitat Pompeu Fabra. The GTI focuses on human aspects and technology, especially those related to enhancing people's use of computer technologies, including technological and HCI research. The group integrates
 				researchers in the areas of Human-Computer Interaction and Advanced 3D Graphics.
 			`, gtiData, { lineHeight: "1.8rem" } );
 			const funding = LX.makeContainer( ["20%", "auto"], "flex flex-col gap-4 ml-auto", `
@@ -252,8 +252,7 @@
 				// Manually resetting lexgui
 				LX.root.innerHTML = "";
 				LX.main_area = new LX.Area( { id: 'mainarea' } );
-				LX.strictViewport = true;
-				document.documentElement.setAttribute( "data-strictVP", "true" );
+				LX.setStrictViewport( true );
 				LX.doAsync( () => animics.init(settings), 150 );
 			};			
 			window.global = {app: animics};
