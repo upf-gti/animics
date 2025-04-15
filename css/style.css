@@ -13,19 +13,34 @@
 	--dark: #151a30;
 }
 
-
 :focus-visible {
 	outline: thin;
 }
 
-.drag {
-	border: 2px dashed #bbb !important;
+:root[data-theme="light"] .theme-image {
+	filter: invert();
 }
 
 /* ----- Lexgui style overrides ----- */
 
+/* Remove tmp utilities on update lexgui */
+.fg-white { color: white !important }
+
+.tracking-tighter { letter-spacing: -0.05em }
+.tracking-tight { letter-spacing: -0.025em }
+.tracking-normal { letter-spacing: 0em }
+.tracking-wide { letter-spacing: 0.025em }
+.tracking-wider { letter-spacing: 0.05em }
+.tracking-widest { letter-spacing: 0.1em }
+
 :root[data-strictVP="false"] .lexarea:has(.lexmenubar) {
 	background-color: rgba(10, 10, 10, 0.5) !important;
+	-webkit-backdrop-filter: blur(32px);
+    backdrop-filter: blur(32px);
+}
+
+:root[data-theme="light"][data-strictVP="false"] .lexarea:has(.lexmenubar) {
+	background-color: rgba(255, 255, 255, 0.5) !important;
 	-webkit-backdrop-filter: blur(32px);
     backdrop-filter: blur(32px);
 }
@@ -43,13 +58,6 @@
 .lexfooter > div {
 	max-width: 1400px;
 	justify-self: center;
-}
-
-.lexfooter ul li a {
-	display: flex;
-	gap: 0.4rem;
-	align-items: center;
-    place-content: center;
 }
 
 .lexfooter a:hover {
@@ -70,10 +78,6 @@
 
 canvas {
 	outline: none !important;
-}
-
-.hidden {
-	display: none !important;
 }
 
 .captureButton button {
@@ -111,7 +115,6 @@ canvas {
 	right: 0px;
 	top: 0px;
 }
-
 
 /* -------------- Loading popups and animations -------------- */
 #loading {
@@ -309,7 +312,6 @@ area:hover {
 	opacity: 0;
 	position: absolute;
 }
-
 
 option {
 	background-color: var(--global-color-primary);

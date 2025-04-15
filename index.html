@@ -51,9 +51,26 @@
 				m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => { window.location = window.location }, { float: "left" })
 				m.add( "Docs", { icon: "", callback: () => { window.open( "https://animics.gti.upf.edu/docs/script_animation.html" , "_blank" ) } });
 				m.add( "About", { icon: "", callback: () => window.__gtiContent.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
-				m.setButtonIcon("animicsGithub", "fa-brands fa-github", () => { window.open("https://github.com/upf-gti/animics") })
-				const button = m.getButton("animicsGithub");
-				button.className += " ml-auto";
+				m.addButtons( [
+					{
+						title: "Github",
+						icon: "fa-brands fa-github",
+						callback:  (event) => {
+							window.open( "https://github.com/upf-gti/animics/", "_blank" );
+						}
+					},
+					{
+						title: "Change Theme",
+						icon: "fa-solid fa-sun",
+						swap: "fa-solid fa-moon",
+						callback:  (swapValue) => { LX.setTheme( swapValue ? "light" : "dark" ) }
+					}
+				]);
+
+				const startButton = LX.makeContainer( ["auto", "32px"], "text-md font-medium rounded-lg px-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Get Started", m.root );
+				startButton.tabIndex = "1";
+				startButton.role = "button";
+				startButton.listen( "click", () => window.__startingContent.scrollIntoView({ behavior: 'smooth', block: 'start' }) );
 			});
 
 			area = menubar.siblingArea;
@@ -67,12 +84,12 @@
 		const mainLogo = document.createElement( "img" );
 		mainLogo.src = "docs/animics_name.png";
 		mainLogo.style.width = "400px";
-		mainLogo.className = "mt-8"
+		mainLogo.className = "theme-image mt-8";
 		headerContent.appendChild( mainLogo );
-		const mainTitle = LX.makeContainer( ["100%", "auto"], "font-medium p-6 text-center", "Express more. Animate easier.", headerContent, { fontSize: "72px" } );
+		const mainTitle = LX.makeContainer( ["100%", "auto"], "font-medium pt-3 pb-6 text-center tracking-tight", "Express more. Animate easier.", headerContent, { fontSize: "72px" } );
 		const subtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary text-center leading-7", "End-to-end system able to generate animations of the signing avatar from user input.", headerContent );
 
-		const startButton = LX.makeContainer( ["20%", "auto"], "text-xxl font-medium rounded-lg p-4 my-8 bg-accent fg-primary hover:bg-mix text-center cursor-pointer select-none", "Get started", headerContent );
+		const startButton = LX.makeContainer( ["20%", "auto"], "text-xxl font-medium rounded-lg p-4 my-12 bg-accent fg-white hover:bg-mix text-center cursor-pointer select-none", "Get started", headerContent );
 		startButton.tabIndex = "1";
 		startButton.role = "button";
 		startButton.listen( "click", () => window.__startingContent.scrollIntoView({ behavior: 'smooth', block: 'start' }) );
@@ -89,7 +106,7 @@
 			videoElement.style.width = "100%";
 			videoElement.style.height = "100%";
 			videoElement.style.objectFit = "cover";
-			videoElement.style.borderRadius = "0.5rem";
+			videoElement.style.borderRadius = "0.75rem";
 			videoElement.autoplay = true;
 			videoElement.loop = true;
 			card.appendChild( videoElement );
@@ -98,7 +115,7 @@
 		// About Animics
 		{
 			const aboutContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 border-top items-end text-end", "", content );
-			const aboutTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Discover Animics.", aboutContent, { fontSize: "56px" } );
+			const aboutTitle = LX.makeContainer( ["60%", "auto"], "font-medium tracking-tight p-4 mt-4", "Discover Animics.", aboutContent, { fontSize: "56px" } );
 			const aboutSubtitle = LX.makeContainer( ["50%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Animics is an online application to create and edit animations for 3D humanoid characters, focused in Sign Language synthesis.", aboutContent, { lineHeight: "1.6rem" } );
 			const aboutContainer = LX.makeContainer( ["100%", "512px"], "flex flex-row p-6 gap-2 mt-4", "", aboutContent );
 
@@ -108,13 +125,13 @@
 			videoElement.style.width = "100%";
 			videoElement.style.height = "100%";
 			videoElement.style.objectFit = "cover";
-			videoElement.style.borderRadius = "0.5rem";
+			videoElement.style.borderRadius = "0.75rem";
 			videoElement.autoplay = true;
 			videoElement.loop = true;
 			utilitiesPreview.appendChild( videoElement );
 
 			{
-				const aboutItems = LX.makeContainer( ["35%", "100%"], "flex flex-col gap-2", "", aboutContainer );
+				const aboutItems = LX.makeContainer( ["35%", "100%"], "flex flex-col justify-around", "", aboutContainer );
 
 				const makeAboutItem = ( title ) => {
 					const item = LX.makeContainer( ["100%", "auto"], `flex flex-row gap-2 p-2 select-none items-center justify-end`, "", aboutItems );
@@ -131,17 +148,18 @@
 		// Utilities
 		{
 			const utilitiesContent = LX.makeContainer( ["100%", "auto"], "flex flex-col my-4 border-top", "", content );
-			const mainUtilitiesTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "Create stunning 3D animations from simple videos.", utilitiesContent, { fontSize: "56px" } );
+			const mainUtilitiesTitle = LX.makeContainer( ["60%", "auto"], "font-medium tracking-tight p-4 mt-4", "Create stunning 3D animations from simple videos.", utilitiesContent, { fontSize: "56px" } );
 			const utilitiesSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary px-4", "Transform raw footage into professional animations in four easy steps.", utilitiesContent, { lineHeight: "1.6rem" } );
 			const utilitiesContainer = LX.makeContainer( ["100%", "512px"], "flex flex-row p-6 gap-2 mt-4", "", utilitiesContent );
-			const utilitiesItems = LX.makeContainer( ["35%", "100%"], "flex flex-col gap-2", "", utilitiesContainer );
+			const utilitiesItems = LX.makeContainer( ["35%", "100%"], "flex flex-col gap-2 p-4", "", utilitiesContainer );
 
 			const makeUtility = ( title, subtitle, src, selected ) => {
-				const item = LX.makeContainer( ["100%", "25%"], `flex flex-col justify-center gap-1 p-4 rounded-lg cursor-pointer select-none hover:bg-secondary ${ selected ? "bg-secondary" : "" }`, "", utilitiesItems );
+				const item = LX.makeContainer( ["100%", "25%"], `flex flex-col justify-center gap-1 p-6 rounded-lg cursor-pointer select-none hover:bg-secondary ${ selected ? "bg-secondary" : "" }`, "", utilitiesItems );
 				LX.makeContainer( ["100%", "auto"], "font-medium text-xl", title, item );
-				LX.makeContainer( ["100%", "auto"], "font-medium fg-tertiary line-clamp-3", subtitle, item );
+				LX.makeContainer( ["100%", "auto"], "font-medium text-md fg-tertiary line-clamp-3", subtitle, item );
 				item.listen( "click", function() {
 					videoElement.src = src;
+					utilitiesItems.querySelectorAll( ".bg-secondary" ).forEach( e => e.classList.remove( "bg-secondary" ) );
 					this.classList.add( "bg-secondary" );
 				} );
 			};
@@ -160,7 +178,7 @@
 			videoElement.style.width = "100%";
 			videoElement.style.height = "100%";
 			videoElement.style.objectFit = "cover";
-			videoElement.style.borderRadius = "0.5rem";
+			videoElement.style.borderRadius = "0.75rem";
 			videoElement.autoplay = true;
 			videoElement.loop = true;
 			utilitiesPreview.appendChild( videoElement );
@@ -170,12 +188,12 @@
 		{
 			const startingContent = LX.makeContainer( ["100%", "auto"], "flex flex-col mt-4 mb-8 items-center border-top", "", content );
 			window.__startingContent = startingContent;
-			const startingTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4 text-center", "Getting started.", startingContent, { fontSize: "72px" } );
+			const startingTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4 text-center tracking-tight", "Getting started.", startingContent, { fontSize: "72px" } );
 			const startingSubtitle = LX.makeContainer( ["40%", "auto"], "text-xxl font-medium fg-tertiary text-center px-4 leading-7", "Start new animation project based on text or video.", startingContent );
 			const buttons = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center mt-8", `
 				<div class="flex flex-row gap-4">
 					<a id="script-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-contrast fg-contrast hover:bg-mix-contrast px-12 cursor-pointer select-none" title="From text instructions">Script animation</a>
-					<a id="keyframe-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-accent fg-primary hover:bg-mix px-12 cursor-pointer select-none" title="From video or webcam input">Keyframe animation</a>
+					<a id="keyframe-project" class="text-xl font-medium rounded-lg p-4 my-4 bg-accent fg-white hover:bg-mix px-12 cursor-pointer select-none" title="From video or webcam input">Keyframe animation</a>
 				</div>
 				<p class="text-lg fg-secondary p-4">or</p>
 			`, startingContent );
@@ -189,9 +207,9 @@
 		{
 			const gtiContent = LX.makeContainer( ["100%", "auto"], "flex flex-col mt-4 mb-8 border-top", "", content );
 			window.__gtiContent = gtiContent;
-			const gtiTitle = LX.makeContainer( ["60%", "auto"], "font-medium p-4 mt-4", "About us.", gtiContent, { fontSize: "56px" } );
+			const gtiTitle = LX.makeContainer( ["60%", "auto"], "font-medium tracking-tight p-4 mt-4", "About us.", gtiContent, { fontSize: "56px" } );
 			const gtiData = LX.makeContainer( ["100%", "auto"], "flex flex-row", "", gtiContent );
-			const gtiSubtitle = LX.makeContainer( ["80%", "auto"], "text-xl font-medium fg-tertiary px-4", `
+			const gtiSubtitle = LX.makeContainer( ["80%", "auto"], "text-lg fg-tertiary px-4", `
 				This application is developed by the <a href="https://www.upf.edu/web/gti">Interactive Research Group (GTI)</a>, which is a research group within the Escola d'Enginyeria at Universitat Pompeu Fabra. The GTI focuses on human aspects and technology, especially those related to enhancing people's use of computer technologies, including technological and HCI research. The group integrates
 				researchers in the areas of Human-Computer Interaction and Advanced 3D Graphics.
 			`, gtiData, { lineHeight: "1.8rem" } );
