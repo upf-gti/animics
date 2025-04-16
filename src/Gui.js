@@ -73,6 +73,10 @@ class Gui {
         if ( faceAreas ){
             faceAreas.style.filter = scheme == "dark" ? "" : "invert(1) saturate(1) hue-rotate(180deg)";
         }
+
+        this.editor.scene.background.set(this.editor.theme[scheme].background);
+        this.editor.scene.getObjectByName("Grid").material.color.set(this.editor.theme[scheme].grid);
+        // this.editor.scene.getObjectByName("Grid").material.opacity.set(this.editor.theme[scheme].girdOpacity);
     }
 
     /** Create menu bar */
