@@ -209,7 +209,7 @@ class Editor {
         renderer.domElement.setAttribute("tabIndex", 1);
 
         // Camera
-        const camera = new THREE.PerspectiveCamera(60, pixelRatio, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(60, pixelRatio, 0.01, 1000);
         camera.position.set(0, 1.303585797450244, 1.4343282767035261);
         
         window.camera = camera;
@@ -1139,7 +1139,7 @@ class KeyframeEditor extends Editor {
             await new Promise(r => setTimeout(r, 1000));            
         }        
 
-        this.setBoneSize(0.05);
+        this.setBoneSize(0.12);
     }
     
     loadNNSkeleton() {

@@ -200,7 +200,8 @@ class Timeline {
             // units: "s", // commented until lexgui is refactored. There is a performance hit while using units
             signal: "@on_set_time_" + this.name,
             step: 0.01, min: 0, precision: 3,
-            skipSlider: true
+            skipSlider: true,
+            nameWidth: "auto"
         });
 
         header.addNumber("Duration", + this.duration.toFixed(3), (value, event) => {
@@ -208,14 +209,16 @@ class Timeline {
         }, {
             // units: "s", // commented until lexgui is refactored. There is a performance hit while using units
             step: 0.01, min: 0,
-            signal: "@on_set_duration_" + this.name
+            signal: "@on_set_duration_" + this.name,
+            nameWidth: "auto"
         });    
 
         header.addNumber("Speed", + this.speed.toFixed(3), (value, event) => {
             this.setSpeed(value)
         }, {
             step: 0.01,
-            signal: "@on_set_speed_" + this.name
+            signal: "@on_set_speed_" + this.name,
+            nameWidth: "auto"
         });
            
         if( this.onCreateAfterTopBar )
@@ -514,7 +517,7 @@ class Timeline {
         ctx.save();
 
         // background of timeinfo
-        ctx.fillStyle = Timeline.BACKGROUND_COLOR;
+        ctx.fillStyle = Timeline.TRACK_COLOR_SECONDARY;
         ctx.fillRect( 0, 0, this.canvas.width, h );
         ctx.strokeStyle = Timeline.FONT_COLOR_PRIMARY;
 

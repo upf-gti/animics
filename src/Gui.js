@@ -985,7 +985,7 @@ class KeyframesGui extends Gui {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
-                }, {signal: "@on_animation_loaded", id:"animation-selector"})
+                }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
                 
             },
             onCreateSettingsButtons: (panel) => {

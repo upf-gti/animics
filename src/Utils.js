@@ -185,6 +185,7 @@ const UTILS = {
 
 const ShaderChunk = {
 
+	
 	Point: {
 		vertexshader: `
 
@@ -226,7 +227,7 @@ const ShaderChunk = {
 			}
 
 		`
-	}
+    }
 
 };
 
