@@ -831,6 +831,11 @@ class KeyframesGui extends Gui {
         this.hideVideoOverlay();
     }
     
+    /**
+     * 
+     * @param {object} rect normalized rect coordinates { left, top, width, height } 
+     * @returns 
+     */
     computeVideoArea( rect ) {
         const videoRect = this.editor.video.getBoundingClientRect();
         if( !rect ) {
@@ -840,13 +845,7 @@ class KeyframesGui extends Gui {
             }
         }
 
-        const newRect = {};
-        newRect.left = rect.left * videoRect.width;
-        newRect.right = rect.right * videoRect.width;
-        newRect.top = rect.top * videoRect.height;
-        newRect.bottom = rect.bottom * videoRect.height;
-
-        this.editor.video.style.webkitMask = `linear-gradient(#000 0 0) ${newRect.left}px ${newRect.top}px / ${videoRect.width*rect.width}px ${videoRect.height*rect.height}px, linear-gradient(rgba(0, 0, 0, 0.3) 0 0)`;
+        this.editor.video.style.webkitMask = `linear-gradient(#000 0 0) ${rect.left * videoRect.width}px ${rect.top * videoRect.height}px / ${videoRect.width*rect.width}px ${videoRect.height*rect.height}px, linear-gradient(rgba(0, 0, 0, 0.3) 0 0)`;
         this.editor.video.style.webkitMaskRepeat = 'no-repeat';
     }
 

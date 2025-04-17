@@ -1963,6 +1963,7 @@ class KeyframeEditor extends Editor {
     setVideoVisibility( visibility, needsMirror = false ){ // TO DO
         if(visibility && this.getCurrentAnimation().type == "video") {
             this.gui.showVideoOverlay(needsMirror);
+            this.gui.computeVideoArea( this.getCurrentAnimation().rect ?? { left:0, top:0, width: 1, height: 1 } );
         }
         else {
             this.gui.hideVideoOverlay();

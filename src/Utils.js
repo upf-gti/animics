@@ -144,6 +144,10 @@ const UTILS = {
 
 	hideLoading ( ){
 		const loading = document.getElementById("loading");
+		if ( loading.classList.contains("hidden") ){
+			loading.style.opacity = 0;
+			return;
+		}
 		const anim = this.fadeAnimation( loading, 0, 200, true );
 		anim.onfinish = ()=>{ loading.classList.add("hidden"); }
 	},
