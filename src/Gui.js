@@ -54,7 +54,6 @@ class Gui {
         if(showGuide) {
             this.showGuide();
         }
-
     }
 
     showGuide() {
