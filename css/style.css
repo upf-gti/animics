@@ -84,11 +84,11 @@ canvas {
 	color: inherit;
 }
 .captureButton.colored button {
-	background-color: var(--global-selected-light);
+	background-color: var(--global-color-accent-light)!important;
     color: var(--global-text-primary);
 }
 .captureButton button:hover {
-    background-color: var(--global-button-color-hovered);
+    background-color: var(--global-color-accent-dark)!important;
     color: var(--global-text-primary);
 }
 .captureButton.stop{

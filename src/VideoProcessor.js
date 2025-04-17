@@ -258,6 +258,7 @@ class VideoProcessor {
 
         this.videoEditor.video = recordedVideo;
         this.videoEditor.showControls();
+        this.videoEditor.showCropArea();
         this.videoEditor._loadVideo();
         this.buttonsPanel.clear();
 
@@ -285,8 +286,10 @@ class VideoProcessor {
         }, {width: "auto", className: "captureButton colored"});//, {width: "100px"});
     }
 
-    createCaptureAreea() {
+    createCaptureArea() {
         this.buttonsPanel.clear();
+
+        this.videoEditor.hideCropArea();
         
         // Remove border style
         const canvasVideo = this.canvasVideo;
@@ -331,7 +334,7 @@ class VideoProcessor {
                         this.mediaRecorder.stop();
                     }
 
-                    this.createCaptureAreea();
+                    this.createCaptureArea();
 
                 }, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-rotate-left", className: "captureButton colored"});
             }
@@ -560,7 +563,7 @@ class VideoProcessor {
 
             const constraints = { video: true, audio: false, width: 1280, height: 720 };
             try {
-                this.createCaptureAreea();
+                this.createCaptureArea();
                 this.enable();
                 
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);

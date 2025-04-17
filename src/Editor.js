@@ -1560,7 +1560,7 @@ class KeyframeEditor extends Editor {
                 boneSrc.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 );
                 invWorldQuat.invert();
     
-                // world mediapipe phalange direction to local space
+                // world mediapipe bone direction to local space
                 dirPred.subVectors( landmarkTrg, landmarkSrc );
                 dirPred.applyQuaternion( invWorldQuat ).normalize();
     
@@ -1570,7 +1570,7 @@ class KeyframeEditor extends Editor {
                 // move bone to predicted direction
                 qq.setFromUnitVectors( dirBone, dirPred );
                 boneSrc.quaternion.multiply( qq );
-                getTwistQuaternion( qq, dirBone, twist ); // remove twist from phalanges
+                getTwistQuaternion( qq, dirBone, twist ); // remove undesired twist from bone
                 boneSrc.quaternion.multiply( twist.invert() ).normalize();
             }
         }
@@ -1579,11 +1579,11 @@ class KeyframeEditor extends Editor {
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
-            const boneHand = isLeft? skeleton.bones[ 12 ]:  skeleton.bones[ 36 ];
-            const boneMid = isLeft? skeleton.bones[ 21 ]:  skeleton.bones[ 45 ];
-            // const boneThumbd = isLeft? skeleton.bones[ 13 ]:  skeleton.bones[ 53 ];
-            const bonePinky = isLeft? skeleton.bones[ 29 ]:  skeleton.bones[ 37 ];
-            const boneIndex = isLeft? skeleton.bones[ 17 ]:  skeleton.bones[ 49 ];
+            const boneHand = isLeft? skeleton.bones[ 12 ] : skeleton.bones[ 36 ];
+            const boneMid = isLeft? skeleton.bones[ 21 ] : skeleton.bones[ 45 ];
+            // const boneThumbd = isLeft? skeleton.bones[ 13 ] : skeleton.bones[ 53 ];
+            const bonePinky = isLeft? skeleton.bones[ 29 ] : skeleton.bones[ 37 ];
+            const boneIndex = isLeft? skeleton.bones[ 17 ] : skeleton.bones[ 49 ];
     
             boneHand.updateWorldMatrix( true, false );
     
