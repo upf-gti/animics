@@ -81,6 +81,11 @@ class Editor {
 
         this.editorArea = new LX.Area({id: "editor-area", width: "100%", height: "100%"});
         animics.mainArea.attach(this.editorArea);
+
+        this.theme = {
+            dark: { background: 0x272727, grid: 0x272727, gridOpacity: 0.2 }, 
+            light: { background: 0xa0a0a0, grid: 0xffffff, gridOpacity: 0.8 }
+        }
     }
 
     enable() {
@@ -99,6 +104,7 @@ class Editor {
     async init(settings, showGuide = true) {
         
         this.createScene();
+        
         this.disable()
         await this.initCharacters();
 
@@ -111,7 +117,7 @@ class Editor {
 
         await this.processPendingResources(settings.pendingResources);
         this.gui.init(showGuide);
-        
+
         this.enable();
         this.bindEvents();
         
@@ -135,20 +141,28 @@ class Editor {
         const canvasArea = this.gui.canvasArea;
         const [CANVAS_WIDTH, CANVAS_HEIGHT] = canvasArea.size;
 
+        const theme = "dark";
         // Create scene
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color( 0xa0a0a0 );
-        scene.fog = new THREE.Fog( 0xa0a0a0, 10, 50 );
+        scene.background = new THREE.Color(this.theme[theme].background);
+        // scene.fog = new THREE.Fog( 0xa0a0a0, 10, 50 );
         window.scene = scene;
 
-        const grid = new THREE.GridHelper(300, 300, 0x101010, 0x555555 );
+        // const grid = new THREE.GridHelper(300, 300, 0x101010, 0x555555 );
+        const grid = new THREE.GridHelper( 10, 10 );
         grid.name = "Grid";
+        grid.material.color.set( this.theme[theme].grid);
+        grid.material.opacity = this.theme[theme].gridOpacity;
         scene.add(grid);
         window.GridHelper = THREE.GridHelper;
 
-        const ground = new THREE.Mesh( new THREE.PlaneGeometry( 100, 100 ), new THREE.MeshPhongMaterial( { color: 0x353535, depthWrite: false } ) );
-        ground.rotation.x = - Math.PI / 2;
+        const groundGeo = new THREE.PlaneGeometry(10, 10);
+        const groundMat = new THREE.ShadowMaterial({ opacity: 0.2 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
         ground.receiveShadow = true;
+        this.ground = ground;
         scene.add( ground );
         
         // Lights
@@ -196,13 +210,13 @@ class Editor {
 
         // Camera
         const camera = new THREE.PerspectiveCamera(60, pixelRatio, 0.1, 1000);
-        camera.position.set(-0.1175218614251044, 1.303585797450244, 1.4343282767035261);
+        camera.position.set(0, 1.303585797450244, 1.4343282767035261);
         
         window.camera = camera;
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.minDistance = 0.5;
         controls.maxDistance = 5;
-        controls.target.set(-0.20428114060514568, 1.0667066120801934, -0.017019104933513607);
+        controls.target.set(0, 1.0667066120801934, -0.017019104933513607);
         controls.update();  
 
         // Orientation helper
