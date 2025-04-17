@@ -1,7 +1,6 @@
 :root {
 	--header-size: 60px;
     --global-font-family: Verdana, sans-serif;
-    --global-font-size: 0.8rem;
     --global-text-color: #495057;
 	--global-text-color-secondary: #ddd;
 	--global-color-highlight: #5581d7;
@@ -15,12 +14,9 @@
 	--dark: #151a30;
 }
 
-
 :focus-visible{
 	outline: thin;
 }
-
-html, body {width: 100%;height: 100%;margin: 0;padding: 0;background-color: var(--background);overflow: hidden;font-size: var(--global-font-size);}
 
 /* ----- Lexgui style overrides ----- */
 
@@ -107,13 +103,12 @@ canvas {
 	top: 0px;
 }
 
-
 /* -------------- Loading popups and animations -------------- */
 #loading {
 	background-color: #111;
 	opacity: 1;
 	z-index: 1000;
-	font-size: 1.6em;
+	font-size: 1.2em;
 }
 
 .modal {

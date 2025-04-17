@@ -42,7 +42,7 @@ class Animics {
         const mode = settings.mode;
         switch(mode) {
             case 'keyframe': case 'bvh': case 'bvhe': case 'video':
-                // Create empty animaiton
+                // Create empty animation
                 this.editor = new KeyframeEditor(this);
             
                 break;
