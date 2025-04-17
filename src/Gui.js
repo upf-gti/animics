@@ -1289,21 +1289,17 @@ class KeyframesGui extends Gui {
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
-          
-        const area = new LX.Area({className: "sidePanel", id: 'panel', scroll: true});  
-        this.sidePanel.attach(area);
+        const [top, bottom] = this.sidePanel.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
        
-        const [top, bottom] = area.split({type: "vertical", resize: false, sizes: "auto"});
-
-        this.animationPanel = new LX.Panel({id:"animaiton"});
+        this.animationPanel = new LX.Panel({id:"animation"});
         top.attach(this.animationPanel);
         this.updateAnimationPanel( );
 
         //create tabs
         const tabs = bottom.addTabs({fit: true});
 
-        const bodyArea = new LX.Area({className: "sidePanel", id: 'Body', scroll: true});  
-        const faceArea = new LX.Area({className: "sidePanel", id: 'Face', scroll: true});  
+        const bodyArea = new LX.Area({id: 'Body'});  
+        const faceArea = new LX.Area({id: 'Face'});  
         tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.BODY)
             // this.updatePropagationWindowCurve();
@@ -1319,17 +1315,27 @@ class KeyframesGui extends Gui {
             this.imageMap.resize();
         } });
 
-        faceArea.split({type: "vertical", sizes: ["50%", "50%"]});
+        faceArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
         const [faceTop, faceBottom] = faceArea.sections;
+        faceTop.root.style.minHeight = "20px";
+        faceTop.root.style.height = "50%";
+        faceBottom.root.style.minHeight = "20px";
+        faceBottom.root.style.height = "50%";
+        faceBottom.root.classList.add("overflow-y-auto");
         this.createFacePanel(faceTop);
         this.createActionUnitsPanel(faceBottom);
-        
 
         bodyArea.split({type: "vertical", resize: false, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
         this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
         
+
+        this.sidePanel.onresize = (e)=>{
+            if (faceTop.onresize){
+                faceTop.onresize(e);
+            }
+        }
     }
 
     updateAnimationPanel( options = {}) {
@@ -1354,12 +1360,15 @@ class KeyframesGui extends Gui {
 
     createFacePanel(area, itemSelected, options = {}) {
 
+        const padding = 16;
         const container = document.createElement("div");
         container.id = "faceAreasContainer";
-        container.style.marginTop = "1rem";
+        container.style.paddingTop = padding + "px";
         const colorShceme = document.documentElement.getAttribute("data-theme");
         container.style.filter = colorShceme == "dark" ? "" : "invert(1) saturate(1) hue-rotate(180deg)";
-
+        container.style.height = "100%";
+        container.style.width = "100%";
+        container.style.alignItems = "center";
 
         const img = document.createElement("img");
         img.src = "./data/imgs/masks/face areas2.png";
@@ -1456,6 +1465,7 @@ class KeyframesGui extends Gui {
                 areas = map.getElementsByTagName('area'),
                 len = areas.length,
                 coords = [],
+                aspectRatio = w / h,
                 previousWidth = w,
                 previousHeight = h;
             for (n = 0; n < len; n++) {
@@ -1470,8 +1480,9 @@ class KeyframesGui extends Gui {
             this.highlighter.init();
            
             this.resize =  () => {
-                var n, m, clen,
-                    x = area.root.clientHeight / previousHeight;
+                var n, m, clen;
+                let newHeight = Math.max( Math.min( area.root.clientWidth / aspectRatio, area.root.clientHeight ) - padding, 0.01 );
+                let x = newHeight / previousHeight;
                 for (n = 0; n < len; n++) {
                     clen = coords[n].length;
                     for (m = 0; m < clen; m++) {
@@ -1479,8 +1490,8 @@ class KeyframesGui extends Gui {
                     }
                     areas[n].coords = coords[n].join(',');
                 }
-                previousWidth = previousWidth*x;
-                previousHeight = area.root.clientHeight;
+                previousWidth = newHeight * aspectRatio;
+                previousHeight = newHeight;
                 this.highlighter.element.parentElement.querySelector("canvas").width = previousWidth;
                 this.highlighter.element.parentElement.querySelector("canvas").height = previousHeight;
                 this.highlighter.element.parentElement.style.width = previousWidth + "px";
@@ -2288,7 +2299,7 @@ class ScriptGui extends Gui {
         this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
         this.delayedUpdateTime = 500; //ms
 
-        this.animationPanel = new LX.Panel({id:"animaiton"});
+        this.animationPanel = new LX.Panel({id:"animation"});
     }
 
     onCreateMenuBar( menubar ) {

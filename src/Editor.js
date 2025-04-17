@@ -1194,7 +1194,7 @@ class KeyframeEditor extends Editor {
                             }
                             else {
                                 this.loadAnimation( file.name, file.animation );
-                                resolve(file.animaiton);
+                                resolve(file.animation);
                             }
                             UTILS.hideLoading();
                         });
