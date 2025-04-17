@@ -1325,7 +1325,7 @@ class KeyframesGui extends Gui {
         this.createFacePanel(faceTop);
         this.createActionUnitsPanel(faceBottom);
 
-        bodyArea.split({type: "vertical", resize: false, sizes: "auto"});
+        bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
         this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
