@@ -517,7 +517,7 @@ class Timeline {
         ctx.save();
 
         // background of timeinfo
-        ctx.fillStyle = Timeline.TRACK_COLOR_SECONDARY;
+        ctx.fillStyle = Timeline.BACKGROUND_COLOR;
         ctx.fillRect( 0, 0, this.canvas.width, h );
         ctx.strokeStyle = Timeline.FONT_COLOR_PRIMARY;
 
