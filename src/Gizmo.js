@@ -111,12 +111,12 @@ class Gizmo {
         //Change skeleton helper lines colors
         let colorArray = skeletonHelper.geometry.attributes.color.array;
         for(let i = 0; i < colorArray.length; i+=6) { 
-            colorArray[i+3] = 58/256; 
-            colorArray[i+4] = 161/256; 
-            colorArray[i+5] = 156/256;
+            colorArray[i+3] = 0/250;//58/256; 
+            colorArray[i+4] = 94/256;//161/256; 
+            colorArray[i+5] = 166/256;//156/256;
         }
         skeletonHelper.geometry.attributes.color.array = colorArray;
-        skeletonHelper.material.linewidth = 3;
+        skeletonHelper.material.linewidth = 4;
 
         this.skeleton = skeletonHelper.skeleton;
         this.ikInit();
@@ -124,7 +124,7 @@ class Gizmo {
         // point cloud for bones
         const pointsShaderMaterial = new THREE.ShaderMaterial( {
             uniforms: {
-                color: { value: new THREE.Color( 0xffffff ) },
+                color: { value: new THREE.Color( 1.0, 1.0, 1.0) },
                 pointTexture: { value: new THREE.TextureLoader().load( 'data/imgs/disc.png' ) },
                 alphaTest: { value: 0.9 }
             },
@@ -148,7 +148,7 @@ class Gizmo {
         geometry.setFromPoints(vertices);
         
         const positionAttribute = geometry.getAttribute( 'position' );
-        const size = 0.5;
+        const size = 0.1;
         geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( new Array(positionAttribute.count).fill(size), 1 ) );
 
         this.bonePoints = new THREE.Points( geometry, pointsShaderMaterial );
@@ -559,8 +559,10 @@ class Gizmo {
         const geometry = this.bonePoints.geometry;
         const positionAttribute = geometry.getAttribute( 'position' );
         const colors = [];
-        const color = new THREE.Color(0x364964); // new THREE.Color(0.9, 0.9, 0.3);
-        const colorSelected = new THREE.Color(0x5f88c9);
+        // const color = new THREE.Color(0x364964); // new THREE.Color(0.9, 0.9, 0.3);
+        // const colorSelected = new THREE.Color(0x5f88c9);
+        const color = new THREE.Color("#0170D9");
+        const colorSelected = new THREE.Color("#fc9f00");
 
         for ( let i = 0, l = positionAttribute.count; i < l; i ++ ) {
             (i != this.selectedBone ? color : colorSelected).toArray( colors, i * 3 );

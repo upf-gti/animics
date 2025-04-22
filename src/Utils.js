@@ -99,22 +99,57 @@ const UTILS = {
         // }
     },
 
-	makeLoading( string, opacity = 1 ) {
-		$("#loading").removeClass("hidden");
-		if($("#loading").is(':animated')) {
-			$("#loading").stop().animate({opacity:'100'});
-			$("#loading").fadeIn(0);
+	/**
+	 * 
+	 * @param {float} targetOpacity 
+	 * @param {float} fadeTime 
+	 * @param {bool} adaptTime if true, fadeTime is the time it takes to transition from 0 to 1. Final fading time will be computed using the current state opacity
+	 * @returns 
+	 */
+	fadeAnimation( element, targetOpacity, fadeTime, adaptTime = true ){
+		let anims = element.getAnimations({subtree: true});
+
+		for( let i = 0; i < anims.length; ++i ){
+			const a = anims[i];
+			if (a.isOpacityFade){
+				// css animations do not update element.style properties
+				// sets current animation state into the element style properties
+				a.commitStyles(); 
+
+				// will automatically remove itself from the list
+				a.finish();
+				break;
+			}
 		}
-		else {
-			$("#loading").fadeIn(100);
+		if ( adaptTime ){
+			let elop = parseFloat(element.style.opacity);
+			if ( isNaN(elop) ){
+				elop = 1;
+			}
+			fadeTime = fadeTime * Math.abs( elop - targetOpacity );
 		}
-		$("#loading p").text( string );
-		$("#loading").css({ background: "rgba(17,17,17," + opacity + ")" })
+
+		const newAnim = element.animate([ {opacity: element.style.opacity}, {opacity: targetOpacity}], {duration:fadeTime, iterations: 1}); //
+		newAnim.isOpacityFade = true;
+		element.style.opacity = targetOpacity; // set the state it will have after the animation ends
+		return newAnim;
 	},
 
-	hideLoading( ) {
-		
-		$("#loading").fadeOut();
+	makeLoading( string, opacity = 1){
+		const loading = document.getElementById("loading");
+		loading.classList.remove("hidden");
+		loading.getElementsByTagName("p")[0].innerText = string;
+		return this.fadeAnimation( loading, opacity, 200, true );
+	},
+
+	hideLoading ( ){
+		const loading = document.getElementById("loading");
+		if ( loading.classList.contains("hidden") ){
+			loading.style.opacity = 0;
+			return;
+		}
+		const anim = this.fadeAnimation( loading, 0, 200, true );
+		anim.onfinish = ()=>{ loading.classList.add("hidden"); }
 	},
 	
 	// Function to download data to a file
@@ -154,6 +189,7 @@ const UTILS = {
 
 const ShaderChunk = {
 
+	
 	Point: {
 		vertexshader: `
 
@@ -195,7 +231,7 @@ const ShaderChunk = {
 			}
 
 		`
-	}
+    }
 
 };
 

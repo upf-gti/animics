@@ -302,8 +302,10 @@ class CodeEditor {
 
             this.addExplorerItem = function( item )
             {
-                if( !this.explorer.data.children.find( (value, index) => value.id === item.id ) )
-                    this.explorer.data.children.push( item );
+                if( !this.explorer.innerTree.data.children.find( ( value, index ) => value.id === item.id ) )
+                {
+                    this.explorer.innerTree.data.children.push( item );
+                }
             };
 
             explorerArea.attach( panel );
@@ -489,9 +491,9 @@ class CodeEditor {
 
                 searchPanel.sameLine( 4 );
                 searchPanel.addText( null, "", null, { placeholder: "Find" } );
-                searchPanel.addButton( null, "up", () => this.search( null, true ), { className: 'micro', icon: "fa fa-arrow-up" } );
-                searchPanel.addButton( null, "down", () => this.search(), { className: 'micro', icon: "fa fa-arrow-down" } );
-                searchPanel.addButton( null, "x", this.hideSearchBox.bind( this ), { className: 'micro', icon: "fa fa-xmark" } );
+                searchPanel.addButton( null, "up", () => this.search( null, true ), { icon: "fa fa-arrow-up" } );
+                searchPanel.addButton( null, "down", () => this.search(), { icon: "fa fa-arrow-down" } );
+                searchPanel.addButton( null, "x", this.hideSearchBox.bind( this ), { icon: "fa fa-xmark" } );
 
                 box.querySelector( 'input' ).addEventListener( 'keyup', e => {
                     if( e.key == 'Escape' ) this.hideSearchBox();
@@ -528,7 +530,7 @@ class CodeEditor {
         // Add code-sizer
         {
             this.codeSizer = document.createElement( 'div' );
-            this.codeSizer.className = "code-sizer";
+            this.codeSizer.className = "code-sizer pseudoparent-tabs";
 
             // Append all childs
             while( this.codeScroller.firstChild )
@@ -1240,7 +1242,7 @@ class CodeEditor {
 
                 const ext = this.languages[ options.language ] ?. ext;
                 this.addExplorerItem( { 'id': name, 'skipVisibility': true, 'icon': this._getFileIcon( name, ext ) } );
-                this.explorer.frefresh( name );
+                this.explorer.innerTree.frefresh( name );
             }
             else
             {
@@ -1488,10 +1490,10 @@ class CodeEditor {
         // Update explorer icon
         if( this.explorer )
         {
-            const item = this.explorer.data.children.filter( (v) => v.id === this.code.tabName )[ 0 ];
+            const item = this.explorer.innerTree.data.children.filter( (v) => v.id === this.code.tabName )[ 0 ];
             console.assert( item != undefined );
             item.icon = icon;
-            this.explorer.frefresh( this.code.tabName );
+            this.explorer.innerTree.frefresh( this.code.tabName );
         }
     }
 
@@ -1533,9 +1535,9 @@ class CodeEditor {
             let panel = new LX.Panel({ className: "lexcodetabinfo", width: "calc(100%)", height: "auto" });
 
             panel.sameLine();
-            panel.addLabel( this.code.title, { float: 'right', signal: "@tab-name" });
-            panel.addLabel( "Ln " + 1, { maxWidth: "48px", signal: "@cursor-line" });
-            panel.addLabel( "Col " + 1, { maxWidth: "48px", signal: "@cursor-pos" });
+            panel.addLabel( this.code.title, { fit: true, signal: "@tab-name" });
+            panel.addLabel( "Ln " + 1, { fit: true, signal: "@cursor-line" });
+            panel.addLabel( "Col " + 1, { fit: true, signal: "@cursor-pos" });
             panel.addButton( null, "Spaces: " + this.tabSpaces, ( value, event ) => {
                 LX.addContextMenu( "Spaces", event, m => {
                     const options = [ 2, 4, 8 ];
@@ -1546,7 +1548,7 @@ class CodeEditor {
                             this._updateDataInfoPanel( "@tab-spaces", "Spaces: " + this.tabSpaces );
                         } );
                 });
-            }, { width: "10%", nameWidth: "15%", signal: "@tab-spaces" });
+            }, { nameWidth: "15%", signal: "@tab-spaces" });
             panel.addButton( "<b>{ }</b>", this.highlight, ( value, event ) => {
                 LX.addContextMenu( "Language", event, m => {
                     for( const lang of Object.keys( this.languages ) )
@@ -1556,7 +1558,7 @@ class CodeEditor {
                         } );
                     }
                 });
-            }, { width: "17.5%", nameWidth: "15%", signal: "@highlight" });
+            }, { nameWidth: "15%", signal: "@highlight" });
             panel.endLine();
 
             return panel;
@@ -1617,7 +1619,7 @@ class CodeEditor {
         this.processFocus(false);
 
         LX.addContextMenu( null, e, m => {
-            m.add( "Create", this.addTab.bind( this, "unnamed.js", true ) );
+            m.add( "Create", this.addTab.bind( this, "unnamed.js", true, "", { language: "JavaScript" } ) );
             m.add( "Load", this.loadTabFromFile.bind( this, "unnamed.js", true ) );
         });
     }
@@ -1720,7 +1722,7 @@ class CodeEditor {
         if( this.explorer && !isNewTabButton )
         {
             this.addExplorerItem( { 'id': name, 'skipVisibility': true, 'icon': tabIcon } );
-            this.explorer.frefresh( name );
+            this.explorer.innerTree.frefresh( name );
         }
 
         this.tabs.add( name, code, {
@@ -1729,7 +1731,8 @@ class CodeEditor {
             title: code.title,
             icon: tabIcon,
             onSelect: this._onSelectTab.bind( this, isNewTabButton ),
-            onContextMenu: this._onContextMenuTab.bind( this, isNewTabButton )
+            onContextMenu: this._onContextMenuTab.bind( this, isNewTabButton ),
+            allowDelete: true
         } );
 
         // Move into the sizer..
@@ -1803,7 +1806,8 @@ class CodeEditor {
             title: code.title,
             icon: tabIcon,
             onSelect: this._onSelectTab.bind( this, isNewTabButton ),
-            onContextMenu: this._onContextMenuTab.bind( this, isNewTabButton )
+            onContextMenu: this._onContextMenuTab.bind( this, isNewTabButton ),
+            allowDelete: true
         });
 
         // Move into the sizer..
@@ -3909,14 +3913,15 @@ class CodeEditor {
     }
 
     _measureChar( char = "a", use_floating = false, get_bb = false ) {
-
-        var line = document.createElement( "pre" );
-        var text = document.createElement( "span" );
+        const parentContainer = LX.makeContainer( null, "lexcodeeditor", "", document.body );
+        const container = LX.makeContainer( null, "code", "", parentContainer );
+        const line = document.createElement( "pre" );
+        container.appendChild( line );
+        const text = document.createElement( "span" );
         line.appendChild( text );
         text.innerText = char;
-        this.code.appendChild( line );
         var rect = text.getBoundingClientRect();
-        LX.UTILS.deleteElement( line );
+        LX.UTILS.deleteElement( parentContainer );
         const bb = [ use_floating ? rect.width : Math.floor( rect.width ), use_floating ? rect.height : Math.floor( rect.height ) ];
         return get_bb ? bb : bb[ 0 ];
     }
@@ -4487,8 +4492,8 @@ CodeEditor.keywords = {
                   'arguments', 'extends', 'instanceof', 'Infinity'],
     'C': ['int', 'float', 'double', 'long', 'short', 'char', 'const', 'void', 'true', 'false', 'auto', 'struct', 'typedef', 'signed', 'volatile', 'unsigned', 'static', 'extern', 'enum', 'register',
         'union'],
-    'C++': ['int', 'float', 'double', 'bool', 'long', 'short', 'char', 'wchar_t', 'const', 'static_cast', 'dynamic_cast', 'new', 'delete', 'void', 'true', 'false', 'auto', 'struct', 'typedef', 'nullptr',
-            'NULL', 'signed', 'unsigned', 'namespace', 'enum', 'extern', 'union', 'sizeof', 'static'],
+    'C++': ['int', 'float', 'double', 'bool', 'long', 'short', 'char', 'wchar_t', 'const', 'static_cast', 'dynamic_cast', 'new', 'delete', 'void', 'true', 'false', 'auto', 'class', 'struct', 'typedef', 'nullptr',
+            'NULL', 'signed', 'unsigned', 'namespace', 'enum', 'extern', 'union', 'sizeof', 'static', 'private', 'public'],
     'CMake': ['cmake_minimum_required', 'set', 'not', 'if', 'endif', 'exists', 'string', 'strequal', 'add_definitions', 'macro', 'endmacro', 'file', 'list', 'source_group', 'add_executable',
         'target_include_directories', 'set_target_properties', 'set_property', 'add_compile_options', 'add_link_options', 'include_directories', 'add_library', 'target_link_libraries',
         'target_link_options', 'add_subdirectory', 'add_compile_definitions', 'project', 'cache'],

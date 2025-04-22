@@ -34,6 +34,7 @@ class Gui {
    
         //Create timelines (keyframes and clips)
         this.createTimelines( );
+
     }
 
     init( showGuide ) {       
@@ -54,7 +55,6 @@ class Gui {
         if(showGuide) {
             this.showGuide();
         }
-
     }
 
     showGuide() {
@@ -73,6 +73,10 @@ class Gui {
         if ( faceAreas ){
             faceAreas.style.filter = scheme == "dark" ? "" : "invert(1) saturate(1) hue-rotate(180deg)";
         }
+
+        this.editor.scene.background.set(this.editor.theme[scheme].background);
+        this.editor.scene.getObjectByName("Grid").material.color.set(this.editor.theme[scheme].grid);
+        // this.editor.scene.getObjectByName("Grid").material.opacity.set(this.editor.theme[scheme].girdOpacity);
     }
 
     /** Create menu bar */
@@ -152,6 +156,15 @@ class Gui {
                     };
 
                 }
+            },
+            {
+                title: 'Animation loop',
+                selectable: true,
+                selected: this.editor.animLoop,
+                icon: 'fa-solid fa-rotate',
+                callback: (event) =>  {
+                    this.updateLoopModeGui( !this.editor.animLoop );
+                }
             }
         ]);
         const user = this.editor.remoteFileSystem.session ? this.editor.remoteFileSystem.session.user : "" ;
@@ -201,7 +214,7 @@ class Gui {
             const refresh = (p, msg) => {
                 p.clear();
                 if(msg) {
-                    p.addText(null, msg, null, {disabled: true, warning: true});
+                    p.addText(null, msg, null, {disabled: true, warning: true,  className: "nobg"});
                 }
                 p.addText("User", username, (v) => {
                     username = v;
@@ -210,12 +223,14 @@ class Gui {
                     password = v;
                 }, {type: "password"});
                 p.sameLine(2);
-                p.addButton(null, "Cancel", (v) => {
+
+                let b = p.addButton(null, "Cancel", (v) => {
                     this.prompt.close();
                     this.prompt = null;
                 });
+                b.root.style.width = "50%";
     
-                p.addButton(null, "Login", (v) => {
+                b = p.addButton(null, "Login", (v) => {
                     this.editor.remoteFileSystem.login(username, password, (session, response) => {
                         if(response.status == 1) {
                             this.changeLoginButton(session.user.username);
@@ -228,7 +243,8 @@ class Gui {
                             refresh(p, response.msg || "Can't connect to the server. Try again!");
                         }
                     });
-                }, { buttonClass: "accept" });
+                }, { buttonClass: "accent" });
+                b.root.style.width = "50%";
 
                 p.addButton(null, "Sign up", (v) => {
                     this.prompt.close();
@@ -303,7 +319,7 @@ class Gui {
                         refresh(p, "Please confirm password");
                         console.error("Wrong pass confirmation");
                     }
-                }, { buttonClass: "accept" })
+                }, { buttonClass: "accent" })
             }
             refresh(p);
         }, {modal: true, closable: true});
@@ -322,13 +338,15 @@ class Gui {
             for( let animationName in animations ) { // animationName is of the source anim (not the bind)
                 let animation = animations[animationName]; 
                 p.sameLine();
-                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {minWidth:"100px"});
-                p.addText(null, animation.saveName, (v) => {
+                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {hideName: true, label: ""});
+                p.addLabel(animationName, {width:"30%"});
+                p.addBlank("1rem");
+                p.addText(animationName, animation.saveName, (v) => {
                     animation.saveName = v; 
                     if ( this.editor.currentAnimation == animationName ){
                         this.updateAnimationPanel(); // update name display
                     }
-                }, {placeholder: "...", minWidth:"100px"} );
+                }, {placeholder: "...", width:"55%", hideName: true} );
                 p.endLine();
             }
 
@@ -360,7 +378,9 @@ class Gui {
             }            
 
             p.sameLine(2);
-            p.addButton("", options.accept || "OK", (v, e) => { 
+            let b = p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true} );
+            b.root.style.width = "50%";
+            b = p.addButton("exportOk", options.accept || "OK", (v, e) => { 
                 e.stopPropagation();
                 if(options.required && value === '') {
 
@@ -374,8 +394,8 @@ class Gui {
                     dialog.close() ;
                 }
                 
-            }, { buttonClass: "accept" });
-            p.addButton("", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+            }, { buttonClass: "accent", hideName: true });
+            b.root.style.width = "50%";
         }, options);
 
         // Focus text prompt
@@ -384,9 +404,21 @@ class Gui {
         }
     }
 
-    createSceneUI(area) {
+    updateLoopModeGui( loop ){
+        this.editor.setAnimationLoop(loop);
+    
+        if( this.keyFramesTimeline ){
+            this.keyFramesTimeline.setLoopMode(loop, true);
+        }
+        if( this.curvesTimeline ){
+            this.curvesTimeline.setLoopMode(loop, true);
+        }
+        if( this.clipsTimeline ){
+            this.clipsTimeline.setLoopMode(loop, true);
+        }
+    }
 
-        $(this.editor.orientationHelper.domElement).show();
+    createSceneUI(area) {
 
         let editor = this.editor;
         let canvasButtons = []
@@ -396,8 +428,7 @@ class Gui {
                 {
                     name: 'Skin',
                     property: 'showSkin',
-                    icon: 'bi bi-person-x-fill',
-                    nIcon: 'bi bi-person-check-fill',
+                    icon: 'fa-solid fa-user-xmark',
                     selectable: true,
                     callback: (v) =>  {
                         editor.showSkin = !editor.showSkin;
@@ -410,7 +441,6 @@ class Gui {
                     name: 'Skeleton',
                     property: 'showSkeleton',
                     icon: 'fa-solid fa-bone',
-                    nIcon: 'fa-solid fa-bone',
                     selectable: true,
                     selected: true,
                     callback: (v) =>  {
@@ -467,24 +497,18 @@ class Gui {
                             editor.gizmo.stop();
                         }
                         this.hideTimeline();
-                        this.sidePanel.parentArea.extend();  
+                        this.sidePanel.parentArea.extend();
                         this.hideVideoOverlay();
-
+                        
+                        
                     } else {
                         this.showTimeline();
                         this.sidePanel.parentArea.reduce();  
-                        this.showVideoOverlay();
+                        const currentAnim = this.editor.getCurrentAnimation();
+                        if ( currentAnim && currentAnim.type == "video" ){
+                            this.showVideoOverlay();
+                        }
                     }                  
-                }
-            },
-            {
-                name: 'Animation loop',
-                property: 'animLoop',
-                selectable: true,
-                selected: true,
-                icon: 'fa-solid fa-person-walking-arrow-loop-left',
-                callback: (v) =>  {
-                    editor.setAnimationLoop(!editor.animLoop);                    
                 }
             }
         ]
@@ -507,9 +531,17 @@ class Gui {
     }
          
     setBoneInfoState( enabled ) {
-        for(const ip of $(".bone-position input, .bone-euler input, .bone-quaternion input")){
-            enabled ? ip.removeAttribute('disabled') : ip.setAttribute('disabled', !enabled);
-        }
+
+        let gizmoMode = this.editor.getGizmoMode();
+
+        let w = this.bonePanel.get("Position");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Translate") }); }
+
+        w = this.bonePanel.get("Rotation (XYZ)");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Rotate")}); }
+
+        w = this.bonePanel.get("Scale");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Scale")}); }
     }
 
     /** -------------------- TIMELINE -------------------- */
@@ -537,7 +569,7 @@ class Gui {
 
     /** -------------------- ON EVENTS -------------------- */
     onSelectItem(item) { // on bone select through canvas gizmo
-        this.tree.select(item);
+        this.treeWidget.innerTree.select(item);
     }
 
     resize(width, height) {
@@ -552,15 +584,15 @@ class Gui {
 
     async promptExit() {
         this.prompt = await new LX.Dialog("Exit confirmation", (p) => {
-            p.addText(null, "Be sure you have exported the animation. If you exit now, your data will be lost. How would you like to proceed?", null, {disabled: true});
+            p.addTextArea(null, "Be sure you have exported the animation. If you exit now, your data will be lost. How would you like to proceed?", null, {disabled: true});
             p.addButton(null, "Export", () => {
                 p.clear();
                 p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
-                p.addButton(null, "Export extended BVH", () => this.editor.export(null, "BVH extended"), { buttonClass: "accept" });
+                p.addButton(null, "Export extended BVH", () => this.editor.export(null, "BVH extended"), { buttonClass: "accent" });
                 if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-                    p.addButton( null, "Export BML", () => this.editor.export(null, ""), { buttonClass: "accept" });
+                    p.addButton( null, "Export BML", () => this.editor.export(null, ""), { buttonClass: "accent" });
                 }
-                p.addButton( null, "Export GLB", () => this.editor.export(null, "GLB"), { buttonClass: "accept" });
+                p.addButton( null, "Export GLB", () => this.editor.export(null, "GLB"), { buttonClass: "accent" });
             });
             p.addButton(null, "Discard", () => {
 
@@ -621,6 +653,36 @@ class Gui {
         }, options);
     }
 
+    // inserts an area that covers the panel with a loading message. Can be hidden/shown hidden. The new area's parent will have position:relative
+    createLoadingArea(panel, options) {
+        options = options ?? {size: ["100%", "100%"]};
+
+        const div = document.createElement("div");
+        div.classList.add("load");
+
+        const icon = document.createElement("div");
+        icon.classList = "loading-icon big";
+        div.appendChild(icon);
+        
+        const text = document.createElement("div");
+        text.innerText = "Loading content...";
+        text.style.margin = "-5px 14px";
+        div.appendChild(text);
+        const area = new LX.Area(options);
+        area.attach(div);
+
+        area.root.style.minWidth = "100%";
+        area.root.style.minHeight = "100%";
+        area.root.style.top = 0;
+        area.root.style.left = 0;
+        area.root.style.position = "absolute";
+        area.root.style.zIndex = 100;
+
+        panel.attach(area);
+        area.root.parentElement.style.position = "relative";
+        return area;
+    }
+
     highlightSelector( ) {
         const el = document.getElementById("animation-selector");
         if( el ) {
@@ -662,7 +724,7 @@ class KeyframesGui extends Gui {
 
     onCreateMenuBar( menubar ) {    
         
-        menubar.add("Project/Generate animations", {icon:"fa-solid fa-hands-asl-interpreting"});
+        menubar.add("Project/Generate animations", {icon: "fa-solid fa-hands-asl-interpreting"});
         menubar.add("Project/Generate animations/From webcam", {icon: "fa fa-camera", callback: () => this.editor.captureVideo()});
         menubar.add("Project/Generate animations/From videos", {icon: "fa fa-photo-film", callback: () => this.importFiles(), short: "CTRL+O"});
        
@@ -765,11 +827,15 @@ class KeyframesGui extends Gui {
             }
 
             this.computeVideoArea(event.rect);
-            // v.style.clipPath = `inset( ${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px)`; // (startY endX endY startX)
         }
         this.hideVideoOverlay();
     }
     
+    /**
+     * 
+     * @param {object} rect normalized rect coordinates { left, top, width, height } 
+     * @returns 
+     */
     computeVideoArea( rect ) {
         const videoRect = this.editor.video.getBoundingClientRect();
         if( !rect ) {
@@ -779,14 +845,7 @@ class KeyframesGui extends Gui {
             }
         }
 
-        const newRect = {};
-        newRect.left = rect.left * videoRect.width;
-        newRect.right = rect.right * videoRect.width;
-        newRect.top = rect.top * videoRect.height;
-        newRect.bottom = rect.bottom * videoRect.height;
-
-        // this.editor.video.style.clipPath = `inset( ${newRect.top}px ${newRect.right}px ${newRect.bottom}px ${newRect.left}px)`; // (startY endX endY startX)   
-        this.editor.video.style.webkitMask = `linear-gradient(#000 0 0) ${newRect.left}px ${newRect.top}px / ${videoRect.width*rect.width}px ${videoRect.height*rect.height}px, linear-gradient(rgba(0, 0, 0, 0.3) 0 0)`;
+        this.editor.video.style.webkitMask = `linear-gradient(#000 0 0) ${rect.left * videoRect.width}px ${rect.top * videoRect.height}px / ${videoRect.width*rect.width}px ${videoRect.height*rect.height}px, linear-gradient(rgba(0, 0, 0, 0.3) 0 0)`;
         this.editor.video.style.webkitMaskRepeat = 'no-repeat';
     }
 
@@ -899,7 +958,7 @@ class KeyframesGui extends Gui {
                 el.click();
                 UTILS.hideLoading();
 
-            }, { buttonClass: "accept" });
+            }, { buttonClass: "accent" });
             
             p.addButton("", "Cancel", () => {
                 if(options.on_cancel) {
@@ -921,21 +980,21 @@ class KeyframesGui extends Gui {
 
         /* Keyframes Timeline */
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
-            onBeforeCreateTopBar: (panel) => {
-                panel.addDropdown("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+            onCreateBeforeTopBar: (panel) => {
+                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
-                }, {signal: "@on_animation_loaded", id:"animation-selector"})
+                }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
                 
             },
-            onAfterCreateTopBar: (panel) => {
+            onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
                 }, {icon: 'fa-solid fa-trash', width: "40px"});                
             },
-            onChangePlayMode: (loop) => {
-                this.editor.setAnimationLoop(loop);
+            onChangeLoopMode: (loop) => {
+                this.updateLoopModeGui( loop );
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
@@ -959,18 +1018,17 @@ class KeyframesGui extends Gui {
         this.propagationWindow = new PropagationWindow( this.keyFramesTimeline );
 
         this.keyFramesTimeline.leftPanel.parent.root.style.zIndex = 1;
-        // this.keyFramesTimeline.onMouse = this.propagationWindowOnMouse.bind(this);
-        // this.keyFramesTimeline.onDblClick = this.propagationWindowOnDblClick.bind(this);
-        // this.keyFramesTimeline.onBeforeDrawContent = this.drawPropagationWindow.bind(this, this.keyFramesTimeline);
         this.keyFramesTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.keyFramesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.keyFramesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
 
-        this.keyFramesTimeline.onChangeState = (state) => {
+        this.keyFramesTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                let playElement = document.querySelector("[title = Play]");
-                if ( playElement ){ playElement.children[0].click() }
+                this.menubar.getButton("Play").children[0].children[0].click();
             }
+        }
+        this.keyFramesTimeline.onStateStop = () => {
+            this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.keyFramesTimeline.onSetTime = (t) => {
@@ -985,7 +1043,7 @@ class KeyframesGui extends Gui {
             currentBinded.auAnimation.duration = t;
 
             if( this.curvesTimeline.duration != t ){
-	            this.curvesTimeline.setDuration(t);			
+	            this.curvesTimeline.setDuration(t, true, true);			
 			}
         };
 
@@ -1101,14 +1159,14 @@ class KeyframesGui extends Gui {
 
         /* Curves Timeline */
         this.curvesTimeline = new LX.CurvesTimeline("Action Units", {
-            onBeforeCreateTopBar: (panel) => {
-                panel.addDropdown("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+            onCreateBeforeTopBar: (panel) => {
+                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v);
                     this.updateAnimationPanel();
                 }, {signal: "@on_animation_loaded"})
             },
-            onChangePlayMode: (loop) => {
-                this.editor.setAnimationLoop(loop);
+            onChangeLoopMode: (loop) => {
+                this.updateLoopModeGui( loop );
             }, 
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
@@ -1131,9 +1189,6 @@ class KeyframesGui extends Gui {
         });
 
         this.curvesTimeline.leftPanel.parent.root.style.zIndex = 1;
-        // this.curvesTimeline.onMouse = this.propagationWindowOnMouse.bind(this);
-        // this.curvesTimeline.onDblClick = this.propagationWindowOnDblClick.bind(this);
-        // this.curvesTimeline.onBeforeDrawContent = this.drawPropagationWindow.bind(this, this.curvesTimeline);
         this.curvesTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.curvesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.curvesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
@@ -1154,7 +1209,7 @@ class KeyframesGui extends Gui {
             currentBinded.auAnimation.duration = t;
 
             if( this.keyFramesTimeline.duration != t ){
-	            this.keyFramesTimeline.setDuration(t);			
+	            this.keyFramesTimeline.setDuration(t, true, true);			
 			}
         };
 
@@ -1177,11 +1232,14 @@ class KeyframesGui extends Gui {
             }
             return true; // Handled
         };
-        this.curvesTimeline.onChangeState = (state) => {
+        
+        this.curvesTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                let playElement = document.querySelector("[title = Play]");
-                if ( playElement ){ playElement.children[0].click() }
+                this.menubar.getButton("Play").children[0].children[0].click();
             }
+        }
+        this.curvesTimeline.onStateStop = () => {
+            this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
@@ -1190,11 +1248,10 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.clipIdx);}
 
 
-        this.timelineArea.attach(this.keyFramesTimeline.root);
-        this.timelineArea.attach(this.curvesTimeline.root);
+        this.timelineArea.attach(this.keyFramesTimeline.mainArea);
+        this.timelineArea.attach(this.curvesTimeline.mainArea);
         this.keyFramesTimeline.hide();
         this.curvesTimeline.hide();
-
     }
     
     
@@ -1232,21 +1289,17 @@ class KeyframesGui extends Gui {
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
-          
-        const area = new LX.Area({className: "sidePanel", id: 'panel', scroll: true});  
-        this.sidePanel.attach(area);
+        const [top, bottom] = this.sidePanel.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
        
-        const [top, bottom] = area.split({type: "vertical", resize: false, sizes: "auto"});
-
-        this.animationPanel = new LX.Panel({id:"animaiton"});
+        this.animationPanel = new LX.Panel({id:"animation"});
         top.attach(this.animationPanel);
         this.updateAnimationPanel( );
 
         //create tabs
         const tabs = bottom.addTabs({fit: true});
 
-        const bodyArea = new LX.Area({className: "sidePanel", id: 'Body', scroll: true});  
-        const faceArea = new LX.Area({className: "sidePanel", id: 'Face', scroll: true});  
+        const bodyArea = new LX.Area({id: 'Body'});  
+        const faceArea = new LX.Area({id: 'Face'});  
         tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.BODY)
             // this.updatePropagationWindowCurve();
@@ -1262,17 +1315,27 @@ class KeyframesGui extends Gui {
             this.imageMap.resize();
         } });
 
-        faceArea.split({type: "vertical", sizes: ["50%", "50%"]});
+        faceArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
         const [faceTop, faceBottom] = faceArea.sections;
+        faceTop.root.style.minHeight = "20px";
+        faceTop.root.style.height = "50%";
+        faceBottom.root.style.minHeight = "20px";
+        faceBottom.root.style.height = "50%";
+        faceBottom.root.classList.add("overflow-y-auto");
         this.createFacePanel(faceTop);
         this.createActionUnitsPanel(faceBottom);
-        
 
-        bodyArea.split({type: "vertical", resize: false, sizes: "auto"});
+        bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
         this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
         
+
+        this.sidePanel.onresize = (e)=>{
+            if (faceTop.onresize){
+                faceTop.onresize(e);
+            }
+        }
     }
 
     updateAnimationPanel( options = {}) {
@@ -1295,26 +1358,34 @@ class KeyframesGui extends Gui {
         widgets.onRefresh(options);
     }
 
-    createFacePanel(root, itemSelected, options = {}) {
+    createFacePanel(area, itemSelected, options = {}) {
 
-        let container = document.createElement("div");
+        const padding = 16;
+        const container = document.createElement("div");
         container.id = "faceAreasContainer";
+        container.style.paddingTop = padding + "px";
+        const colorShceme = document.documentElement.getAttribute("data-theme");
+        container.style.filter = colorShceme == "dark" ? "" : "invert(1) saturate(1) hue-rotate(180deg)";
+        container.style.height = "100%";
+        container.style.width = "100%";
+        container.style.alignItems = "center";
 
-        let img = document.createElement("img");
+        const img = document.createElement("img");
         img.src = "./data/imgs/masks/face areas2.png";
         img.setAttribute("usemap", "#areasmap");
         img.style.position = "relative";
         container.appendChild(img);
         
         
-        let map = document.createElement("map");
+        const map = document.createElement("map");
         map.name = "areasmap";
 
-        let div = document.createElement("div");
+        const div = document.createElement("div");
         div.style.position = "fixed";
-        let mapHovers = document.createElement("div");
+        const mapHovers = document.createElement("div");
         for(let area in this.faceAreas) {
             let maparea = document.createElement("area");
+            maparea.title = this.faceAreas[area];
             maparea.shape = "poly";
             maparea.name = this.faceAreas[area];
             switch(this.faceAreas[area]) {
@@ -1359,7 +1430,7 @@ class KeyframesGui extends Gui {
         div.appendChild(mapHovers);
         mapHovers.style.position = "relative";
         container.appendChild(div);
-        root.root.appendChild(container);
+        area.root.appendChild(container);
         container.appendChild(map);
         
         container.style.height = "100%";
@@ -1370,7 +1441,9 @@ class KeyframesGui extends Gui {
             e.preventDefault();
             e.stopPropagation();
             this.selectActionUnitArea(e.target.name);
-           
+            this.showTimeline();
+            this.propagationWindow.updateCurve(true); // resize
+
             img.src = "./data/imgs/masks/face areas2 " + e.target.name + ".png";
             document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +img.src +"')";
 
@@ -1392,6 +1465,7 @@ class KeyframesGui extends Gui {
                 areas = map.getElementsByTagName('area'),
                 len = areas.length,
                 coords = [],
+                aspectRatio = w / h,
                 previousWidth = w,
                 previousHeight = h;
             for (n = 0; n < len; n++) {
@@ -1406,8 +1480,9 @@ class KeyframesGui extends Gui {
             this.highlighter.init();
            
             this.resize =  () => {
-                var n, m, clen,
-                    x = root.root.clientHeight / previousHeight;
+                var n, m, clen;
+                let newHeight = Math.max( Math.min( area.root.clientWidth / aspectRatio, area.root.clientHeight ) - padding, 0.01 );
+                let x = newHeight / previousHeight;
                 for (n = 0; n < len; n++) {
                     clen = coords[n].length;
                     for (m = 0; m < clen; m++) {
@@ -1415,21 +1490,20 @@ class KeyframesGui extends Gui {
                     }
                     areas[n].coords = coords[n].join(',');
                 }
-                previousWidth = previousWidth*x;
-                previousHeight = root.root.clientHeight;
+                previousWidth = newHeight * aspectRatio;
+                previousHeight = newHeight;
                 this.highlighter.element.parentElement.querySelector("canvas").width = previousWidth;
                 this.highlighter.element.parentElement.querySelector("canvas").height = previousHeight;
                 this.highlighter.element.parentElement.style.width = previousWidth + "px";
                 this.highlighter.element.parentElement.style.height = previousHeight + "px";
                 return true;
             };
-            root.onresize = this.resize;
+            area.onresize = this.resize;
         }
 
     }
 
     createActionUnitsPanel(root) {
-        
         let tabs = root.addTabs({fit:true});
         let areas = {};
         
@@ -1459,6 +1533,9 @@ class KeyframesGui extends Gui {
             let panel = new LX.Panel({id: "au-"+ area});
             
             panel.clear();
+            panel.addTitle(area, { style: {background: "none", fontSize:"large", margin: "auto"}});
+            panel.addBlank();
+
             for(let name in areas[area]) {
                 for(let i = 0; i < animation.tracks.length; i++) {
                     const track = animation.tracks[i];
@@ -1478,13 +1555,15 @@ class KeyframesGui extends Gui {
             }
                         
             tabs.add(area, panel, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
-                this.showTimeline();
-                this.editor.setSelectedActionUnit(v);
-                document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
-                this.propagationWindow.updateCurve(true); // resize
-            }
+                    this.showTimeline();
+                    this.editor.setSelectedActionUnit(v);
+                    document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
+                    this.propagationWindow.updateCurve(true); // resize
+                }
             });
         }
+
+        tabs.root.classList.add("hidden"); // hide tab titles only
         this.facePanel = tabs;
 
     }
@@ -1493,7 +1572,7 @@ class KeyframesGui extends Gui {
         if(!this.facePanel ) {
             return;
         }
-        this.facePanel.root.querySelector("[data-name='"+area+"']").click();
+        this.facePanel.select(area);
     }
 
     /**
@@ -1545,7 +1624,7 @@ class KeyframesGui extends Gui {
         
         const mytree = this.updateNodeTree();
     
-        let litetree = skeletonPanel.addTree("Skeleton bones", mytree, { 
+        this.treeWidget = skeletonPanel.addTree("Skeleton bones", mytree, { 
             // icons: tree_icons, 
             filter: true,
             onevent: (event) => { 
@@ -1590,9 +1669,6 @@ class KeyframesGui extends Gui {
                 }
             },
         });
-   
-        this.tree = litetree;
-        // this.tree.select(itemSelected);
     }
 
     updateNodeTree() {
@@ -1638,11 +1714,7 @@ class KeyframesGui extends Gui {
         options.itemSelected = options.itemSelected ?? this.editor.selectedBone;
         this.updateSkeletonPanel();
 
-        // // update scroll position
-        // var element = root.content.querySelectorAll(".inspector")[0];
-        // var maxScroll = element.scrollHeight;
-        // element.scrollTop = options.maxScroll ? maxScroll : (options.scroll ? options.scroll : 0);
-    }
+        }
 
     updateSkeletonPanel() {
 
@@ -1672,7 +1744,7 @@ class KeyframesGui extends Gui {
                 const toolsValues = [ {value:"Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }, {value:"Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }] ;
                 const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
                 
-                widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ), settings_title: "<i class='bi bi-gear-fill section-settings'></i>" });
+                widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ) });
                 
                 widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool(), nameWidth: "50%", width: "100%"});
                 
@@ -1812,7 +1884,7 @@ class KeyframesGui extends Gui {
                 widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-euler'});
 
                 this.boneProperties['quaternion'] = boneSelected.quaternion;
-                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-quaternion'});
+                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: true, precision: 3, className: 'bone-quaternion'});
             }
 
         };
@@ -1867,15 +1939,12 @@ class KeyframesGui extends Gui {
             
             if(!user || user.username == "guest") {
                 this.prompt = new LX.Dialog("Alert", d => {
-                    d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                    d.sameLine(2);
-                    d.addButton(null, "Login", () => {
+                    d.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
+                    const btn = d.addButton(null, "Login", () => {
                         this.prompt.close();
                         this.showLoginModal();
-                    })
-                    d.addButton(null, "Ok", () => {
-                        saveDataToServer("local");
-                    })
+                    }, {width:"50%", buttonClass:"accent"});
+                    btn.root.style.margin = "0 auto";
                 }, {closable: true, modal: true})
                 
             }
@@ -1923,9 +1992,9 @@ class KeyframesGui extends Gui {
                 this.keyFramesTimeline.onUnselectKeyFrames();
                 asset.animation.name = asset.id;
 
-                const modal = this.createLoadingModal();
+                dialog.panel.loadingArea.show();
                 this.editor.loadAnimation( asset.id, asset.animation );
-                modal.destroy();
+                dialog.panel.loadingArea.hide();
     
                 assetViewer.clear();
                 dialog.close();
@@ -2053,18 +2122,18 @@ class KeyframesGui extends Gui {
             const assetViewer = new LX.AssetView({  allowedTypes: ["bvh", "bvhe", "glb", "gltf"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
             
-            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+            const loadingArea = p.loadingArea = this.createLoadingArea(p);
 
             if( !repository.length ) {
                 await this.editor.remoteFileSystem.loadAllUnitsFolders(() => {
                     let repository = this.editor.remoteFileSystem.repository;
                     this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
-                    modal.destroy();
+                    loadingArea.hide();
                 }, ["clips"]);
             }            
             else {
                 this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
-                modal.destroy();
+                loadingArea.hide();
             }
        
         }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
@@ -2138,7 +2207,7 @@ class KeyframesGui extends Gui {
                                 e.item.content = parsedFile.content;
                             }
 
-                            panel.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                            panel.addTextArea(null, "How do you want to insert the clip?", null, {disabled:true,  className: "nobg"});
                             panel.sameLine(2);
                             panel.addButton(null, "Add as single clip", (v) => { 
                                 dialog.close();
@@ -2158,7 +2227,7 @@ class KeyframesGui extends Gui {
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
                     if( e.item.unit && !e.item.children.length ) {
-                        const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+                        assetViewer.parent.loadingArea.show();
 
                         this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
                             const files_data = [];
@@ -2183,7 +2252,7 @@ class KeyframesGui extends Gui {
 
                             assetViewer._refreshContent();
 
-                            modal.destroy();
+                            assetViewer.parent.loadingArea.hide();
                         });
                     }                
                     break;
@@ -2230,7 +2299,7 @@ class ScriptGui extends Gui {
         this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
         this.delayedUpdateTime = 500; //ms
 
-        this.animationPanel = new LX.Panel({id:"animaiton"});
+        this.animationPanel = new LX.Panel({id:"animation"});
     }
 
     onCreateMenuBar( menubar ) {
@@ -2276,15 +2345,15 @@ class ScriptGui extends Gui {
                                
         this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
            // trackHeight: 30,
-            onAfterCreateTopBar: (panel) => {
+            onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
                 }, {icon: 'fa-solid fa-trash', width: "40px"});
                 
             },
-            onChangePlayMode: (loop) => {
-                this.editor.setAnimationLoop(loop);
+            onChangeLoopMode: (loop) => {
+                this.updateLoopModeGui( loop );
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
@@ -2301,13 +2370,15 @@ class ScriptGui extends Gui {
             if (!currentBinded){ return; }
             currentBinded.mixerAnimation.duration = t;
         };
-        this.clipsTimeline.onChangeState = (state) => {
+       
+        this.clipsTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                let playElement = document.querySelector("[title = Play]");
-                if ( playElement ){ playElement.children[0].click() }
+                this.menubar.getButton("Play").children[0].children[0].click();
             }
-        };
-
+        }
+        this.clipsTimeline.onStateStop = () => {
+            this.menubar.getButton("Stop").children[0].children[0].click();
+        }
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
@@ -2467,7 +2538,7 @@ class ScriptGui extends Gui {
 
         this.clipsTimeline.onUpdateTrack = this.delayedUpdateTracks.bind(this); 
         this.clipsTimeline.onChangeTrackVisibility = (track, oldState) => { this.editor.updateTracks(); }
-        this.timelineArea.attach(this.clipsTimeline.root);
+        this.timelineArea.attach(this.clipsTimeline.mainArea);
         this.clipsTimeline.canvas.tabIndex = 1;
 
         this.editor.activeTimeline = this.clipsTimeline;
@@ -2882,7 +2953,7 @@ class ScriptGui extends Gui {
             if(clip.fadein!= undefined && clip.fadeout!= undefined)  {
                 widgets.merge();
                 widgets.branch("Sync points", {icon: "fa-solid fa-chart-line"});
-                widgets.addText(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true});
+                widgets.addTextArea(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true,  className: "nobg"});
                 const syncvalues = [];
                 
                 if(clip.fadein != undefined)
@@ -2998,14 +3069,16 @@ class ScriptGui extends Gui {
 
     showGuide() {       
         this.prompt = new LX.Dialog("How to start?", (p) =>{
-            p.addText(null, "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard.", null, {disabled: true, height: "50%"})
-            p.addText(null, "Go to 'Help' for more information about the application.", null, {disabled: true, height: "50%"})
+            LX.makeContainer( [ "100%", "auto" ], "p-8 whitespace-pre-wrap text-lg", 
+                "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard. <br> <br> Go to 'Help' for more information about the application.", 
+                p.root, 
+                { wordBreak: "break-word", lineHeight: "1.5rem" } );
         }, {closable: true, onclose: (root) => {
             root.remove();
             this.prompt = null;
             LX.popup("Click on Timeline tab to discover all the available interactions.", "Useful info!", {position: [ "10px", "50px"], timeout: 5000})
         },
-        size: ["30%", 200], modal: true
+        modal: true
     })
 
     }
@@ -3061,15 +3134,12 @@ class ScriptGui extends Gui {
             const user = session ? session.user : ""
             if( !user || user.username == "guest" ) {
                 this.prompt = new LX.Dialog("Alert", d => {
-                    d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-                    d.sameLine(2);
-                    d.addButton(null, "Login", () => {
+                    d.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
+                    const btn = d.addButton(null, "Login", () => {
                         this.prompt.close();
                         this.showLoginModal();
-                    })
-                    d.addButton(null, "Ok", () => {
-                        saveDataToServer("local");
-                    })
+                    }, {width:"50%", buttonClass:"accent"});
+                    btn.root.style.margin = "0 auto";
                 }, {closable: true, modal: true})
                 
             }
@@ -3078,263 +3148,6 @@ class ScriptGui extends Gui {
             }
         }, {formats: [ "BML"], folders:["signs",  "presets"], from: ["All clips", "Selected clips"], selectedFolder: folder, selectedFrom: (folder == "signs" ? "All clips" : null) } );
     }
-
-
-//    createNewPresetDialog() {
-
-//         const saveDialog = this.prompt = new LX.Dialog("Save preset", (p) => {
-//             let presetInfo = { from: "Selected clips", type: "presets", server: false, clips:[] };
-
-//             p.addComboButtons("Save from", [{value: "Selected clips", callback: (v) => {
-//                 presetInfo.from = v;
-
-//             }}, {value: "All clips", callback: (v) => {
-//                 presetInfo.from = v;
-//             }}], {selected: presetInfo.from});
-//             p.addCheckbox("Upload to server", presetInfo.server, (v) =>  presetInfo.server = v);
-           
-//             p.addText("Name", "", (v) => {
-//                 presetInfo.preset = v;
-//             })
-//             p.sameLine(2);
-//             p.addButton(null, "Cancel", () => this.prompt.close());
-//             p.addButton(null, "Save", () => {
-                
-//                 let clips = null;
-//                 let globalStart = 10000;
-//                 let globalEnd = -10000;
-
-//                 if(presetInfo.preset === "" || !presetInfo.preset) {
-//                     alert("You have to write a name.");
-//                     return;
-//                 }
-//                 if(!presetInfo.clips.length) {
-//                     if(presetInfo.from == "Selected clips") {
-//                         this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-//                             if(a[0]<b[0]) 
-//                                 return -1;
-//                             return 1;
-//                         });
-                        
-//                         clips = this.clipsTimeline.lastClipsSelected;
-//                         for(let i = 0; i < clips.length; i++){
-//                             const [trackIdx, clipIdx] = clips[i];
-//                             const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-//                             if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-//                             if(clip.ready!=undefined) clip.ready = clip.fadein;
-//                             if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-//                             if(clip.relax!=undefined) clip.relax = clip.fadeout;
-//                             if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-//                             presetInfo.clips.push(clip);
-//                             globalStart = Math.min(globalStart, clip.start || globalStart);
-//                             globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-//                         }
-//                     } 
-//                     else {
-//                         const tracks = this.clipsTimeline.animationClip.tracks;
-//                         for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-//                             for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
-//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-//                                 if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
-//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
-//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-//                                 presetInfo.clips.push(clip);
-//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
-//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-//                             }
-//                         }
-//                     }
-                    
-//                     presetInfo.duration = globalEnd - globalStart;
-//                     let preset = new ANIM.FacePresetClip(presetInfo);
-    
-//                     //Convert data to bml file format
-//                     let data = preset.toJSON();
-//                     presetInfo.clips = data.clips;
-//                 }
-                
-//                 if(!presetInfo.clips.length) {
-//                     alert("You can't create an empty preset.")
-//                     return;
-//                 }
-//                 const session = this.editor.FS.getSession();
-//                 if(!presetInfo.server) {
-//                     this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
-//                         saveDialog.close()
-//                         this.closeDialogs();
-//                         LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
-//                         // this.repository.presets[1] = this.localStorage.presets;
-//                     });
-//                 }
-//                 else if(!session.user || session.user.username == "signon") {
-//                     let alert = new LX.Dialog("Alert", d => {
-//                         d.addText(null, "The preset will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-//                         d.sameLine(2);
-//                         d.addButton(null, "Login", () => {
-//                             this.showLoginModal();
-//                             alert.close();
-//                         })
-//                         d.addButton(null, "Ok", () => {
-//                             this.editor.uploadData(presetInfo.preset + ".Preset", presetInfo.clips, presetInfo.type,  "local", (v) => {
-//                                 saveDialog.close();
-//                                 this.closeDialogs();
-//                                 alert.close();
-//                                 LX.popup('"' + presetInfo.preset + '"' + " created successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
-//                                 // this.repository.presets[1] = this.localStorage.presets;
-//                             });
-//                         })
-//                     }, {closable: true, modal: true})
-//                 }
-//                 else {
-//                     this.editor.uploadData(presetInfo.preset + ".bml", presetInfo.clips, presetInfo.type, "server", (filename) => {
-//                         saveDialog.close()
-//                         this.closeDialogs();
-//                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New preset!", {position: [ "10px", "50px"], timeout: 5000});
-                        
-//                     });
-//                 }
-
-//             }, { buttonClass: "accept" });
-//         }, {modal: true, closable: true,  onclose: (root) => {
-                        
-//             root.remove();
-//             this.prompt = null;
-//         } });
-
-       
-//     }
-
-//    createNewSignDialog(clips, location) {
-        
-//         const saveDialog = this.prompt = new LX.Dialog("Save animation", (p) => {
-//             let signInfo = {clips:[], type: "signs"};
-
-//             p.addText("Sign name", "", (v) => {
-//                 signInfo.id = v;
-//             })
-//             p.sameLine(2);
-//             p.addButton(null, "Cancel", () => this.prompt.close());
-//             p.addButton(null, "Save", () => {
-
-//                 if(signInfo.id === "" || !signInfo.id) {
-//                     alert("You have to write a name.")
-//                     return;
-//                 }
-//                 if(!signInfo.clips.length) {
-//                     let globalStart = 10000;
-//                     let globalEnd = -10000;
-
-//                     const tracks = this.clipsTimeline.animationClip.tracks;
-//                     if(clips) {
-//                         for(let i = 0; i < clips.length; i++){
-//                                 let [trackIdx, clipIdx] = clips[i];
-//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-//                                 if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
-//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
-//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-//                                 signInfo.clips.push(clip);
-//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
-//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-//                         }
-//                     }
-//                     else {
-//                         for(let trackIdx = 0; trackIdx < tracks.length; trackIdx++){
-//                             for(let clipIdx = 0; clipIdx < tracks[trackIdx].clips.length; clipIdx++){
-//                                 const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-//                             if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-//                                 if(clip.ready!=undefined) clip.ready = clip.fadein;
-//                                 if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-//                                 if(clip.relax!=undefined) clip.relax = clip.fadeout;
-//                                 if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-//                                 signInfo.clips.push(clip);
-//                                 globalStart = Math.min(globalStart, clip.start || globalStart);
-//                                 globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-//                             }
-//                         }
-//                     }
-                    
-//                     signInfo.duration = globalEnd - globalStart;
-//                     let sign = new ANIM.SuperClip(signInfo);
-
-//                     //Convert data to bml file format
-//                     let data = sign.toJSON();
-//                     delete data.id;
-//                     delete data.start;
-//                     delete data.end;
-//                     delete data.type;
-//                     let bml = [];
-//                     for(let b in data) {
-//                         if(b == "glossa") {
-
-//                             delete data[b].id;
-//                             delete data[b].start;
-//                             delete data[b].end;
-//                             delete data[b].type;
-//                             for(let i = 0; i < data[b].length; i++) {
-//                                 delete data[b][i].id;
-//                                 delete data[b][i].start;
-//                                 delete data[b][i].end;
-//                                 delete data[b][i].type;
-//                                 for(let g in data[b][i]) {
-
-//                                     bml = [...bml, ...data[b][i][g]];
-//                                 }
-//                             }
-//                         }
-//                         else
-//                             bml = [...bml, ...data[b]];
-//                     }
-//                     signInfo.clips = bml;
-//                 }
-
-//                 if(!signInfo.clips.length) {
-//                     alert("You can't save an animation with empty tracks.")
-//                     return;
-//                 }
-//                 const session = this.editor.FS.getSession();
-//                 if(!session.user || session.user.username == "signon") {
-//                     let alert = new LX.Dialog("Alert", d => {
-//                         d.addText(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true});
-//                         d.sameLine(2);
-//                         d.addButton(null, "Login", () => {
-//                             this.showLoginModal();
-//                             alert.close();
-//                         })
-//                         d.addButton(null, "Ok", () => {
-//                             this.editor.uploadData(signInfo.id + ".bml", signInfo.clips , signInfo.type,  "local", (filename) => {
-//                                 saveDialog.close();
-//                                 this.closeDialogs();
-//                                 alert.close();
-//                                 LX.popup('"' + filename + '"' + " created successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
-//                                 // this.repository.presets[1] = this.localStorage.presets;
-//                             });
-//                         })
-//                     }, {closable: true, modal: true})
-                    
-//                 }
-//                 else {
-//                     this.editor.uploadData(signInfo.id + ".bml", signInfo.clips, signInfo.type, "server", (filename) => {
-//                         saveDialog.close()
-//                         this.closeDialogs();
-//                         LX.popup('"' + filename + '"' + " created and uploaded successfully.", "New animation!", {position: [ "10px", "50px"], timeout: 5000});
-                        
-//                     });
-//                 }
-//             },
-//             {
-//                 onclose: (root) => {
-                
-//                     root.remove();
-//                     this.prompt = null;
-//                 }, 
-//                 buttonClass: "accept" 
-//             } )
-//         }, {modal: true, closable: true})
-//     }
 
     createClipsDialog() {
         // Create a new dialog
@@ -3585,10 +3398,10 @@ class ScriptGui extends Gui {
                 }
                 this.clipsTimeline.unSelectAllClips();
                 asset.animation.name = asset.id;
-                const modal = this.createLoadingModal();
-                
+
+                dialog.panel.loadingArea.show();
                 this.loadBMLClip(asset.animation)
-                modal.close();
+                dialog.panel.loadingArea.hide();
     
                 assetViewer.clear();
                 dialog.close();
@@ -3737,19 +3550,19 @@ class ScriptGui extends Gui {
             
             const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
+            
+            const loadingArea = p.loadingArea = this.createLoadingArea(p);
 
-            const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
-         
             if( !repository.length ) {
                 await this.editor.remoteFileSystem.loadAllUnitsFolders( () => {
                     let repository = this.editor.remoteFileSystem.repository;
                     this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
-                    modal.destroy();
+                    loadingArea.hide();
                 }, ["signs", "presets"]);
             }
             else {            
                 this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
-                modal.destroy();
+                loadingArea.hide();
             }
 
             
@@ -3834,7 +3647,7 @@ class ScriptGui extends Gui {
                                 e.item.content = parsedFile.content;
                             }
 
-                            p.addText(null, "How do you want to insert the clip?", null, {disabled:true});
+                            p.addTextArea(null, "How do you want to insert the clip?", null, {disabled:true, className: "nobg"});
                             p.sameLine(3);
                             p.addButton(null, "Add as single clip", (v) => {
                                 dialog.close();
@@ -3859,8 +3672,8 @@ class ScriptGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    if( e.item.unit && !e.item.children.length ) {                        
-                        const modal = this.createLoadingModal({closable:false , size: ["80%", "70%"]});
+                    if( e.item.unit && !e.item.children.length ) { 
+                        assetViewer.parent.loadingArea.show();
 
                         this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
                             const files_data = [];
@@ -3886,7 +3699,7 @@ class ScriptGui extends Gui {
                             }
                             assetViewer._refreshContent();
 
-                            modal.destroy();
+                            assetViewer.parent.loadingArea.hide();
                         })
                     }
                     break;
@@ -3945,8 +3758,6 @@ class ScriptGui extends Gui {
 
     createSceneUI(area) {
 
-        $(this.editor.orientationHelper.domElement).show();
-
         let editor = this.editor;
         let canvasButtons = [
             {
@@ -4002,32 +3813,45 @@ class PropagationWindow {
 
         this.opacity = 0.6;
         this.lexguiColor = '#273162';
-        this.gradientColorLimits = "rgba( 39, 49, 98, 0%)"; // relies on lexgui
-        this.gradientColor = "rgba( 39, 49, 98"; // relies on lexgui
-        this.borderColor = "rgba( 255, 255, 255, 1)"; // relies on lexgui
+        this.gradientColorLimits = "rgba( 39, 49, 98, 0%)"; // relies on lexgui input
+        this.gradientColor = "rgba( 39, 49, 98"; // relies on lexgui input
+        this.borderColor = LX.getThemeColor( "global-text-secondary" );
         this.gradient = [ [0.5,1] ]; // implicit 0 in the borders
         // radii = 100;
 
         // create curve Widget
-        const bgColor = "#cfcdcd";
-        const pointsColor = LX.getThemeColor("global-selected-dark");
-        const lineColor = LX.getThemeColor("global-color-secondary");//LX.getThemeColor("global-selected-light");
+        const bgColor = "#cfcdcd"; // relies on lexgui input
+        const pointsColor = "#273162"; // relies on lexgui input
+        const lineColor = "#1c1c1d"; // relies on lexgui input
         const lpos = timeline.timeToX( this.time - this.leftSide );
         const rpos = timeline.timeToX( this.time + this.rightSide );
 
-        this.curveWidget = new LX.Curve( null, this.gradient, {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor, callback: (v,e) => {
-            if ( v.length <= 0){
-                this.curveWidget.element.value = this.gradient = [[0.5,1]];
-            }
-            this.curveWidget.redraw();
-        }} );
-        const curveElement = this.curveWidget.element; 
+        this.curveWidget = new LX.Curve( null, this.gradient, (v,e) => {
+                if ( v.length <= 0){
+                    this.curveWidget.curveInstance.element.value = this.gradient = [[0.5,1]];
+                }
+                this.curveWidget.curveInstance.redraw();
+            },
+            {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor } 
+        );
+        const curveElement = this.curveWidget.root; 
         curveElement.style.width = "fit-content";
         curveElement.style.height = "fit-content";
         curveElement.style.position = "fixed";
         curveElement.style.borderRadius = "0px";
         curveElement.children[0].style.borderRadius = "0px 0px " + timeline.trackHeight*0.4 +"px " + timeline.trackHeight*0.4 +"px";
         curveElement.style.zIndex = "0.5";
+        curveElement.style.padding = "0px";
+
+        this.updateTheme();
+        LX.addSignal( "@on_new_color_scheme", (el, value) => {
+            // Retrieve again the color using LX.getThemeColor, which checks the applied theme
+            this.updateTheme();
+        } )
+    }
+
+    updateTheme(){
+        this.borderColor = LX.getThemeColor( "global-text-secondary" );
     }
 
     setEnabler( v ){
@@ -4064,9 +3888,9 @@ class PropagationWindow {
     setTimeline( timeline ){
         this.timeline = timeline;
         
-        this.curveWidget.element.remove(); // remove from dom, wherever this is
+        this.curveWidget.root.remove(); // remove from dom, wherever this is
         if(this.showCurve){
-            this.timeline.canvasArea.root.appendChild( this.curveWidget.element );
+            this.timeline.canvasArea.root.appendChild( this.curveWidget.root );
             this.updateCurve( true );
         }
     }
@@ -4082,32 +3906,29 @@ class PropagationWindow {
         }, { signal: "@propW_enabler"});
 
         dialog.sameLine();
-        dialog.addNumber("Min (s)", this.leftSide, (v) => {
+        let w = dialog.addNumber("Min (s)", this.leftSide, (v) => {
             this.recomputeGradient( v, this.rightSide );
             this.updateCurve(true);
-        }, {min: 0.001, step: 0.001, signal: "@propW_minT"});
-
+        }, {min: 0.001, step: 0.001, signal: "@propW_minT", width:"50%"});
+        w.root.style.paddingLeft = 0;
         dialog.addNumber("Max (s)", this.rightSide, (v) => {
             this.recomputeGradient( this.leftSide, v );
             this.updateCurve(true);
-        }, {min: 0.001, step: 0.001, signal: "@propW_maxT"});		
+        }, {min: 0.001, step: 0.001, signal: "@propW_maxT", width:"50%"});		
         dialog.endLine();
 
-        dialog.sameLine();
         dialog.addColor("Color", this.lexguiColor, (value, event) => {
             this.lexguiColor = value;
             let rawColor = parseInt(value.slice(1,7), 16);
             let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
             this.gradientColorLimits = color + ",0%)"; 
             this.gradientColor = color;
-            this.curveWidget.element.pointscolor = value;
-            this.curveWidget.redraw();
-        });
-        dialog.addNumber("Opacity", this.opacity, (v) => {
-            this.opacity = v;
-            this.curveWidget.element.style.opacity = v;
-        }, {min: 0, max:1, step:0.001});
-        dialog.endLine();
+            this.curveWidget.curveInstance.element.pointscolor = value;
+            this.curveWidget.curveInstance.redraw();
+
+            this.opacity = parseInt(value[7]+value[8], 16) / 255.0;
+            this.curveWidget.root.style.opacity = this.opacity;
+        }, {useAlpha: true});
     }
 
     onMouse( e, time ){
@@ -4201,12 +4022,12 @@ class PropagationWindow {
     setCurveVisibility( visibility ){
         if (!visibility){
             this.showCurve = false;
-            this.curveWidget.element.remove(); // detach from timeline (if any)
+            this.curveWidget.root.remove(); // detach from timeline (if any)
         }else{
             const oldVisibility = this.showCurve;
             this.showCurve = true;
             if ( !oldVisibility ){ // only do update on visibility change
-                this.timeline.canvasArea.root.appendChild( this.curveWidget.element );
+                this.timeline.canvasArea.root.appendChild( this.curveWidget.root );
                 this.updateCurve(true);
             }
         }
@@ -4222,11 +4043,14 @@ class PropagationWindow {
 
 		let areaRect = timeline.canvas.getBoundingClientRect();
 
-        this.curveWidget.element.style.left = areaRect.x + windowRect.rectPosX + "px";
-        this.curveWidget.element.style.top = areaRect.y + windowRect.rectPosY + windowRect.rectHeight -2 + "px";
+        this.curveWidget.root.style.left = areaRect.x + windowRect.rectPosX + "px";
+        this.curveWidget.root.style.top = areaRect.y + windowRect.rectPosY + windowRect.rectHeight -2 + "px";
 
         if(updateSize) {
-            this.curveWidget.canvas.width = windowRect.rectWidth;
+            const canvas = this.curveWidget.curveInstance.canvas;
+            canvas.width = windowRect.rectWidth;
+            canvas.style.width = windowRect.rectWidth + "px";
+
 
             const radii = timeline.trackHeight * 0.4;
 			let leftRadius = windowRect.leftSize > radii ? radii : windowRect.leftSize;
@@ -4235,10 +4059,10 @@ class PropagationWindow {
 	        let rightRadius = windowRect.rightSize > radii ? radii : windowRect.rightSize;
 	        rightRadius = windowRect.rectHeight > rightRadius ? rightRadius : (windowRect.rectHeight*0.5);
 
-			this.curveWidget.canvas.style.borderBottomLeftRadius = leftRadius + "px";
-			this.curveWidget.canvas.style.borderBottomRightRadius = rightRadius + "px";
+			canvas.style.borderBottomLeftRadius = leftRadius + "px";
+			canvas.style.borderBottomRightRadius = rightRadius + "px";
 
-            this.curveWidget.redraw();
+            this.curveWidget.curveInstance.redraw();
         }
     }
 
@@ -4249,7 +4073,7 @@ class PropagationWindow {
 
         let rectWidth = leftSize + rightSize;
 		let rectHeight = Math.min(
-            timeline.canvas.height - timeline.topMargin - 2 - (this.showCurve ? this.curveWidget.canvas.clientHeight : 0), 
+            timeline.canvas.height - timeline.topMargin - 2 - (this.showCurve ? this.curveWidget.curveInstance.canvas.clientHeight : 0), 
             timeline.leftPanel.root.children[1].children[0].clientHeight - timeline.leftPanel.root.children[1].scrollTop + timeline.trackHeight*0.5
         );
         rectHeight = Math.max( rectHeight, 0 );
@@ -4311,7 +4135,7 @@ class PropagationWindow {
         
         ctx.lineWidth = 1;
         if(this.showCurve) {
-            rectHeight = rectHeight + this.curveWidget.canvas.clientHeight - 2;
+            rectHeight = rectHeight + this.curveWidget.curveInstance.canvas.clientHeight - 2;
             ctx.beginPath();
             ctx.lineTo(rectPosX, rectPosY + leftRadii);
             ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + leftRadii, rectPosY );

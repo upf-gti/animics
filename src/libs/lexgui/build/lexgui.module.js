@@ -1,5 +1,3 @@
-'use strict';
-
 // Lexgui.js @jxarco
 
 /**
@@ -8,21 +6,25 @@
 */
 
 var LX = {
-    version: "0.1.46",
+    version: "0.5.7",
     ready: false,
-    components: [], // specific pre-build components
-    signals: {} // events and triggers
+    components: [], // Specific pre-build components
+    signals: {}, // Events and triggers
+    extraCommandbarEntries: [], // User specific entries for command bar
+    activeDraggable: null // Watch for the current active draggable
 };
 
 LX.MOUSE_LEFT_CLICK     = 0;
 LX.MOUSE_MIDDLE_CLICK   = 1;
 LX.MOUSE_RIGHT_CLICK    = 2;
 
-LX.MOUSE_DOUBLE_CLICK = 2;
-LX.MOUSE_TRIPLE_CLICK = 3;
+LX.MOUSE_DOUBLE_CLICK   = 2;
+LX.MOUSE_TRIPLE_CLICK   = 3;
 
-LX.CURVE_MOVEOUT_CLAMP = 0;
+LX.CURVE_MOVEOUT_CLAMP  = 0;
 LX.CURVE_MOVEOUT_DELETE = 1;
+
+LX.DRAGGABLE_Z_INDEX    = 101;
 
 function clamp( num, min, max ) { return Math.min( Math.max( num, min ), max ); }
 function round( number, precision ) { return precision == 0 ? Math.floor( number ) : +(( number ).toFixed( precision ?? 2 ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' )); }
@@ -44,7 +46,7 @@ else if( typeof Date != "undefined" && Date.now )
 else if ( typeof process != "undefined" )
 {
     LX.getTime = function() {
-        var t = process.hrtime();
+        const t = process.hrtime();
         return t[ 0 ] * 0.001 + t[ 1 ] * 1e-6;
     };
 }
@@ -83,7 +85,7 @@ LX.doAsync = doAsync;
  */
 function getSupportedDOMName( text )
 {
-    return text.replace(/\s/g, '').replaceAll('@', '_').replaceAll('+', '_plus_').replaceAll('.', '');
+    return text.replace( /\s/g, '' ).replaceAll('@', '_').replaceAll('+', '_plus_').replaceAll( '.', '' );
 }
 
 LX.getSupportedDOMName = getSupportedDOMName;
@@ -111,6 +113,20 @@ function getExtension( name )
 }
 
 LX.getExtension = getExtension;
+
+/**
+ * @method stripHTML
+ * @description Cleans any DOM element string to get only the text
+ * @param {String} html
+ */
+function stripHTML( html )
+{
+    const div = document.createElement( "div" );
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
+}
+
+LX.stripHTML = stripHTML;
 
 /**
  * @method deepCopy
@@ -146,7 +162,7 @@ LX.setTheme = setTheme;
  */
 function setThemeColor( colorName, color )
 {
-    var r = document.querySelector( ':root' );
+    const r = document.querySelector( ':root' );
     r.style.setProperty( '--' + colorName, color );
 }
 
@@ -161,7 +177,6 @@ function getThemeColor( colorName )
 {
     const r = getComputedStyle( document.querySelector( ':root' ) );
     const value = r.getPropertyValue( '--' + colorName );
-    const theme = document.documentElement.getAttribute( "data-theme" );
 
     if( value.includes( "light-dark" ) )
     {
@@ -189,10 +204,10 @@ LX.getThemeColor = getThemeColor;
  */
 function getBase64Image( img )
 {
-    var canvas = document.createElement( 'canvas' );
+    const canvas = document.createElement( 'canvas' );
     canvas.width = img.width;
     canvas.height = img.height;
-    var ctx = canvas.getContext( '2d' );
+    const ctx = canvas.getContext( '2d' );
     ctx.drawImage( img, 0, 0 );
     return canvas.toDataURL( 'image/png' );
 }
@@ -201,40 +216,145 @@ LX.getBase64Image = getBase64Image;
 
 /**
  * @method hexToRgb
- * @description Convert a hexadecimal string to a valid RGB color array
- * @param {String} hexStr Hexadecimal color
+ * @description Convert a hexadecimal string to a valid RGB color
+ * @param {String} hex Hexadecimal color
  */
-function hexToRgb( hexStr )
+function hexToRgb( hex )
 {
-    const red = parseInt( hexStr.substring( 1, 3 ), 16 ) / 255;
-    const green = parseInt( hexStr.substring( 3, 5 ), 16 ) / 255;
-    const blue = parseInt( hexStr.substring( 5, 7 ), 16 ) / 255;
-    return [ red, green, blue ];
+    const hexPattern = /^#(?:[A-Fa-f0-9]{3,4}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/;
+    if( !hexPattern.test( hex ) )
+    {
+        throw( `Invalid Hex Color: ${ hex }` );
+    }
+
+    hex = hex.replace( /^#/, '' );
+
+    // Expand shorthand form (#RGB or #RGBA)
+    if( hex.length === 3 || hex.length === 4 )
+    {
+        hex = hex.split( '' ).map( c => c + c ).join( '' );
+    }
+
+    const bigint = parseInt( hex, 16 );
+
+    const r = ( ( bigint >> ( hex.length === 8 ? 24 : 16 ) ) & 255 ) / 255;
+    const g = ( ( bigint >> ( hex.length === 8 ? 16 : 8 ) ) & 255 ) / 255;
+    const b = ( ( bigint >> ( hex.length === 8 ? 8 : 0 ) ) & 255 ) / 255;
+    const a = ( hex.length === 8 ? ( bigint & 255 ) : ( hex.length === 4 ? parseInt( hex.slice( -2 ), 16 ) : 255 ) ) / 255;
+
+    return { r, g, b, a };
 }
 
 LX.hexToRgb = hexToRgb;
 
 /**
- * @method rgbToHex
- * @description Convert a RGB color array to a hexadecimal string
- * @param {Array} rgb Array containing R, G, B, A*
+ * @method hexToHsv
+ * @description Convert a hexadecimal string to HSV (0..360|0..1|0..1)
+ * @param {String} hexStr Hexadecimal color
  */
-function rgbToHex( rgb )
+function hexToHsv( hexStr )
 {
-    let hex = "#";
-    for( let c of rgb ) {
-        c = Math.floor( c * 255 );
-        hex += c.toString( 16 );
-    }
-    return hex;
+    const rgb = hexToRgb( hexStr );
+    return rgbToHsv( rgb );
+}
+
+LX.hexToHsv = hexToHsv;
+
+/**
+ * @method rgbToHex
+ * @description Convert a RGB color to a hexadecimal string
+ * @param {Object} rgb Object containing RGB color
+ * @param {Number} scale Use 255 for 0..255 range or 1 for 0..1 range
+ */
+function rgbToHex( rgb, scale = 255 )
+{
+    const rgbArray = [ rgb.r, rgb.g, rgb.b ];
+    if( rgb.a != undefined ) rgbArray.push( rgb.a );
+
+    return (
+        "#" +
+        rgbArray.map( c => {
+            c = Math.floor( c * scale );
+            const hex = c.toString(16);
+            return hex.length === 1 ? ( '0' + hex ) : hex;
+        }).join("")
+    );
 }
 
 LX.rgbToHex = rgbToHex;
 
 /**
+ * @method rgbToCss
+ * @description Convert a RGB color (0..1) to a CSS color format
+ * @param {Object} rgb Object containing RGB color
+ */
+function rgbToCss( rgb )
+{
+    return { r: Math.floor( rgb.r * 255 ), g: Math.floor( rgb.g * 255 ), b: Math.floor( rgb.b * 255 ), a: rgb.a };
+}
+
+LX.rgbToCss = rgbToCss;
+
+/**
+ * @method rgbToHsv
+ * @description Convert a RGB color (0..1) array to HSV (0..360|0..1|0..1)
+ * @param {Object} rgb Array containing R, G, B
+ */
+function rgbToHsv( rgb )
+{
+    let { r, g, b, a } = rgb;
+    a = a ?? 1;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+    let h = 0;
+
+    if (d !== 0) {
+        if (max === r) { h = ((g - b) / d) % 6 }
+        else if (max === g) { h = (b - r) / d + 2 }
+        else { h = (r - g) / d + 4 }
+        h *= 60
+        if (h < 0) { h += 360 }
+    }
+
+    const s = max === 0 ? 0 : (d / max);
+    const v = max;
+
+    return { h, s, v, a };
+}
+
+LX.rgbToHsv = rgbToHsv;
+
+/**
+ * @method hsvToRgb
+ * @description Convert an HSV color (0..360|0..1|0..1) array to RGB (0..1|0..255)
+ * @param {Array} hsv Array containing H, S, V
+ */
+function hsvToRgb( hsv )
+{
+    const { h, s, v, a } = hsv;
+    const c = v * s;
+    const x = c * (1 - Math.abs( ( (h / 60) % 2 ) - 1) )
+    const m = v - c;
+    let r = 0, g = 0, b = 0;
+
+    if( h < 60 ) { r = c; g = x; b = 0; }
+    else if ( h < 120 ) { r = x; g = c; b = 0; }
+    else if ( h < 180 ) { r = 0; g = c; b = x; }
+    else if ( h < 240 ) { r = 0; g = x; b = c; }
+    else if ( h < 300 ) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+
+    return { r: ( r + m ), g: ( g + m ), b: ( b + m ), a };
+}
+
+LX.hsvToRgb = hsvToRgb;
+
+/**
  * @method measureRealWidth
  * @description Measure the pixel width of a text
- * @param {Object} value Text to measure
+ * @param {Number} value Text to measure
  * @param {Number} paddingPlusMargin Padding offset
  */
 function measureRealWidth( value, paddingPlusMargin = 8 )
@@ -297,7 +417,7 @@ LX.buildTextPattern = buildTextPattern;
 
 /**
  * @method makeDraggable
- * @description Allow an element to be dragged
+ * @description Allows an element to be dragged
  * @param {Element} domEl
  * @param {Object} options
  * autoAdjust (Bool): Sets in a correct position at the beggining
@@ -322,6 +442,7 @@ function makeDraggable( domEl, options = { } )
         top = top ?? e.clientY - offsetY - parentRect.y;
         domEl.style.left = clamp( left, dragMargin + fixedOffset.x, fixedOffset.x + parentRect.width - domEl.offsetWidth - dragMargin ) + 'px';
         domEl.style.top = clamp( top, dragMargin + fixedOffset.y, fixedOffset.y + parentRect.height - domEl.offsetHeight - dragMargin ) + 'px';
+        domEl.style.translate = "none"; // Force remove translation
     };
 
     // Initial adjustment
@@ -366,26 +487,45 @@ function makeDraggable( domEl, options = { } )
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        if( !currentTarget ) return;
+
+        if( !currentTarget )
+        {
+            return;
+        }
+
         // Remove image when dragging
         var img = new Image();
         img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
         e.dataTransfer.setDragImage( img, 0, 0 );
         e.dataTransfer.effectAllowed = "move";
+
         const rect = e.target.getBoundingClientRect();
         const parentRect = currentTarget.parentElement.getBoundingClientRect();
         const isFixed = ( currentTarget.style.position == "fixed" );
         const fixedOffset = isFixed ? new LX.vec2( parentRect.x, parentRect.y ) : new LX.vec2();
         offsetX = e.clientX - rect.x - fixedOffset.x;
         offsetY = e.clientY - rect.y - fixedOffset.y;
+
         document.addEventListener( "mousemove", onMove );
+
+        currentTarget.eventCatched = true;
+
+        // Force active dialog to show on top
+        if( LX.activeDraggable )
+        {
+            LX.activeDraggable.style.zIndex = LX.DRAGGABLE_Z_INDEX;
+        }
+
+        LX.activeDraggable = domEl;
+        LX.activeDraggable.style.zIndex = LX.DRAGGABLE_Z_INDEX + 1;
+
         if( onDragStart )
         {
             onDragStart( currentTarget, e );
         }
     }, false );
 
-    document.addEventListener( 'mouseup', () => {
+    document.addEventListener( 'mouseup', (e) => {
         if( currentTarget )
         {
             currentTarget = null;
@@ -395,6 +535,49 @@ function makeDraggable( domEl, options = { } )
 }
 
 LX.makeDraggable = makeDraggable;
+
+/**
+ * @method makeCollapsible
+ * @description Allows an element to be collapsed/expanded
+ * @param {Element} domEl: Element to be treated as collapsible
+ * @param {Element} content: Content to display/hide on collapse/extend
+ * @param {Element} parent: Element where the content will be appended (default is domEl.parent)
+ * @param {Object} options
+ */
+function makeCollapsible( domEl, content, parent, options = { } )
+{
+    domEl.classList.add( "collapsible" );
+
+    const collapsed = ( options.collapsed ?? true );
+    const actionIcon = LX.makeIcon( "right" );
+    actionIcon.classList.add( "collapser" );
+    actionIcon.dataset[ "collapsed" ] = collapsed;
+    actionIcon.style.marginLeft = "auto";
+    actionIcon.style.marginRight = "0.2rem";
+
+    actionIcon.addEventListener( "click", function( e ) {
+        e.preventDefault();
+        e.stopPropagation();
+        if( this.dataset[ "collapsed" ] )
+        {
+            delete this.dataset[ "collapsed" ];
+            content.style.display = "block";
+        }
+        else
+        {
+            this.dataset[ "collapsed" ] = true;
+            content.style.display = "none";
+        }
+    } );
+
+    domEl.appendChild( actionIcon );
+
+    parent = parent ?? domEl.parentElement;
+
+    parent.appendChild( content );
+}
+
+LX.makeCollapsible = makeCollapsible;
 
 /**
  * @method makeCodeSnippet
@@ -409,6 +592,7 @@ LX.makeDraggable = makeDraggable;
  * linesAdded (Array):
  * linesRemoved (Array):
  * tabName (String):
+ * className (String): Extra class to customize snippet
  */
 function makeCodeSnippet( code, size, options = { } )
 {
@@ -419,7 +603,7 @@ function makeCodeSnippet( code, size, options = { } )
     }
 
     const snippet = document.createElement( "div" );
-    snippet.className = "lexcodesnippet";
+    snippet.className = "lexcodesnippet " + ( options.className ?? "" );
     snippet.style.width = size ? size[ 0 ] : "auto";
     snippet.style.height = size ? size[ 1 ] : "auto";
     const area = new Area( { noAppend: true } );
@@ -498,7 +682,187 @@ function makeCodeSnippet( code, size, options = { } )
 
 LX.makeCodeSnippet = makeCodeSnippet;
 
-// Math classes
+/**
+ * @method makeKbd
+ * @description Kbd element to display a keyboard key.
+ * @param {Array} keys
+ * @param {String} extraClass
+ */
+function makeKbd( keys, extraClass = "" )
+{
+    const specialKeys = {
+        "Ctrl": '⌃',
+        "Enter": '↩',
+        "Shift": '⇧',
+        "CapsLock": '⇪',
+        "Meta": '⌘',
+        "Option": '⌥',
+        "Alt": '⌥',
+        "Tab": '⇥',
+        "ArrowUp": '↑',
+        "ArrowDown": '↓',
+        "ArrowLeft": '←',
+        "ArrowRight": '→',
+        "Space": '␣'
+    };
+
+    const kbd = LX.makeContainer( ["auto", "auto"], "flex flex-row ml-auto" );
+
+    for( const k of keys )
+    {
+        LX.makeContainer( ["auto", "auto"], "self-center text-xs fg-secondary select-none", specialKeys[ k ] ?? k, kbd );
+    }
+
+    return kbd;
+}
+
+LX.makeKbd = makeKbd;
+
+/**
+ * @method makeIcon
+ * @description Gets an SVG element using one of LX.ICONS
+ * @param {String} iconName
+ * @param {Object} options
+ * iconTitle
+ * extraClass
+ * svgClass
+ */
+function makeIcon( iconName, options = { } )
+{
+    let data = LX.ICONS[ iconName ];
+    console.assert( data, `No icon named _${ iconName }_` );
+
+    const iconTitle = options.iconTitle;
+    const iconClass = options.iconClass;
+    const svgClass = options.svgClass;
+
+    // Just another name for the same icon..
+    if( data.constructor == String )
+    {
+        data = LX.ICONS[ data ];
+    }
+
+    const svg = document.createElementNS( "http://www.w3.org/2000/svg", "svg" );
+    svg.setAttribute( "viewBox", `0 0 ${ data[ 0 ] } ${ data[ 1 ] }` );
+
+    if( svgClass )
+    {
+        svg.classList.add( svgClass );
+    }
+
+    if( data[ 5 ] )
+    {
+        const attr = data[ 5 ].split( '=' );
+        svg.setAttribute( attr[ 0 ], attr[ 1 ] );
+    }
+
+    const path = document.createElement( "path" );
+    path.setAttribute( "fill",  "var(--color)" );
+    path.setAttribute( "d",  data[ 4 ] );
+    svg.appendChild( path );
+
+    if( data[ 6 ] )
+    {
+        const attrs = data[ 6 ].split( ' ' );
+        attrs.forEach( attr => {
+            const t = attr.split( '=' );
+            path.setAttribute( t[ 0 ], t[ 1 ] );
+        } );
+    }
+
+    const faLicense = `<!-- This icon might belong to a collection from Iconify - https://iconify.design/ - or !Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. -->`;
+    svg.innerHTML += faLicense;
+
+    const icon = document.createElement( "a" );
+    icon.title = iconTitle ?? "";
+    icon.className = "lexicon " + ( iconClass ?? "" );
+    icon.appendChild( svg );
+
+    return icon;
+}
+
+LX.makeIcon = makeIcon;
+
+/**
+ * @method registerIcon
+ * @description Register an SVG icon to LX.ICONS
+ * @param {String} iconName
+ * @param {String} svgString
+ * @param {String} category
+ * @param {Array} aliases
+ */
+function registerIcon( iconName, svgString, category = "none", aliases = [] )
+{
+    const svg = new DOMParser().parseFromString( svgString, 'image/svg+xml' ).documentElement;
+    const path = svg.querySelector( "path" );
+    const viewBox = svg.getAttribute( "viewBox" ).split( ' ' );
+    const pathData = path.getAttribute( 'd' );
+
+    let svgAttributes = [];
+    let pathAttributes = [];
+
+    for( const attr of svg.attributes )
+    {
+        switch( attr.name )
+        {
+        case "transform":
+        case "fill":
+        case "stroke-width":
+        case "stroke-linecap":
+        case "stroke-linejoin":
+            svgAttributes.push( `${ attr.name }=${ attr.value }` );
+            break;
+        }
+    }
+
+    for( const attr of path.attributes )
+    {
+        switch( attr.name )
+        {
+        case "transform":
+        case "fill":
+        case "stroke-width":
+        case "stroke-linecap":
+        case "stroke-linejoin":
+            pathAttributes.push( `${ attr.name }=${ attr.value }` );
+            break;
+        }
+    }
+
+    const iconData = [
+        parseInt( viewBox[ 2 ] ),
+        parseInt( viewBox[ 3 ] ),
+        aliases,
+        category,
+        pathData,
+        svgAttributes.length ? svgAttributes.join( ' ' ) : null,
+        pathAttributes.length ? pathAttributes.join( ' ' ) : null
+    ];
+
+    if( LX.ICONS[ iconName ] )
+    {
+        console.warn( `${ iconName } will be replaced in LX.ICONS` );
+    }
+
+    LX.ICONS[ iconName ] = iconData;
+}
+
+LX.registerIcon = registerIcon;
+
+/**
+ * @method registerCommandbarEntry
+ * @description Adds an extra command bar entry
+ * @param {String} name
+ * @param {Function} callback
+ */
+function registerCommandbarEntry( name, callback )
+{
+    LX.extraCommandbarEntries.push( { name, callback } );
+}
+
+LX.registerCommandbarEntry = registerCommandbarEntry;
+
+// Utils classes
 
 class vec2 {
 
@@ -526,24 +890,94 @@ class vec2 {
 
 LX.vec2 = vec2;
 
-function create_global_searchbar( root )
+class Color {
+
+	constructor( value ) {
+
+        Object.defineProperty( Color.prototype, "rgb", {
+            get: function() { return this._rgb; },
+            set: function( v ) { this._fromRGB( v ) }, enumerable: true, configurable: true
+        });
+
+        Object.defineProperty( Color.prototype, "hex", {
+            get: function() { return this._hex; },
+            set: function( v ) { this._fromHex( v ) }, enumerable: true, configurable: true
+        });
+
+        Object.defineProperty( Color.prototype, "hsv", {
+            get: function() { return this._hsv; },
+            set: function( v ) { this._fromHSV( v ) }, enumerable: true, configurable: true
+        });
+
+		this.set( value );
+	}
+
+	set( value ) {
+
+		if ( typeof value === 'string' && value.startsWith( '#' ) )
+        {
+			this._fromHex( value );
+		}
+        else if( 'r' in value && 'g' in value && 'b' in value)
+        {
+            value.a = value.a ?? 1.0;
+			this._fromRGB( value );
+		}
+        else if( 'h' in value && 's' in value && 'v' in value )
+        {
+            value.a = value.a ?? 1.0;
+			this._fromHSV( value );
+		}
+        else
+        {
+            throw( "Bad color model!", value );
+        }
+	}
+
+    setHSV( hsv ) { this._fromHSV( hsv ); }
+    setRGB( rgb ) { this._fromRGB( rgb ); }
+    setHex( hex ) { this._fromHex( hex ); }
+
+	_fromHex( hex ) {
+		this._fromRGB( hexToRgb( hex ) );
+	}
+
+	_fromRGB( rgb ) {
+		this._rgb = rgb;
+		this._hsv = rgbToHsv( rgb );
+		this._hex = rgbToHex( rgb );
+        this.css = rgbToCss( this._rgb );
+	}
+
+	_fromHSV( hsv ) {
+		this._hsv = hsv;
+		this._rgb = hsvToRgb( hsv );
+		this._hex = rgbToHex( this._rgb );
+        this.css = rgbToCss( this._rgb );
+	}
+}
+
+LX.Color = Color;
+
+// Command bar creation
+
+function _createCommandbar( root )
 {
-    let globalSearch = document.createElement("div");
-    globalSearch.id = "global-search";
-    globalSearch.className = "hidden";
-    globalSearch.tabIndex = -1;
-    root.appendChild( globalSearch );
+    let commandbar = document.createElement( "dialog" );
+    commandbar.className = "commandbar";
+    commandbar.tabIndex = -1;
+    root.appendChild( commandbar );
 
     let allItems = [];
     let hoverElId = null;
 
-    globalSearch.addEventListener('keydown', function( e ) {
+    commandbar.addEventListener('keydown', function( e ) {
         e.stopPropagation();
         e.stopImmediatePropagation();
         hoverElId = hoverElId ?? -1;
         if( e.key == 'Escape' )
         {
-            this.classList.add("hidden");
+            this.close();
             _resetBar( true );
         }
         else if( e.key == 'Enter' )
@@ -552,7 +986,7 @@ function create_global_searchbar( root )
             if( el )
             {
                 const isCheckbox = (el.item.type && el.item.type === 'checkbox');
-                this.classList.toggle('hidden');
+                this.close();
                 if( isCheckbox )
                 {
                     el.item.checked = !el.item.checked;
@@ -567,7 +1001,7 @@ function create_global_searchbar( root )
         else if ( e.key == 'ArrowDown' && hoverElId < (allItems.length - 1) )
         {
             hoverElId++;
-            globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+            commandbar.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
             allItems[ hoverElId ].classList.add('hovered');
 
             let dt = allItems[ hoverElId ].offsetHeight * (hoverElId + 1) - itemContainer.offsetHeight;
@@ -582,19 +1016,19 @@ function create_global_searchbar( root )
         } else if ( e.key == 'ArrowUp' && hoverElId > 0 )
         {
             hoverElId--;
-            globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+            commandbar.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
             allItems[ hoverElId ].classList.add('hovered');
         }
     });
 
-    globalSearch.addEventListener('focusout', function( e ) {
+    commandbar.addEventListener('focusout', function( e ) {
         if( e.relatedTarget == e.currentTarget )
         {
             return;
         }
         e.stopPropagation();
         e.stopImmediatePropagation();
-        this.classList.add( "hidden" );
+        this.close();
         _resetBar( true );
     });
 
@@ -603,9 +1037,7 @@ function create_global_searchbar( root )
         {
             e.stopImmediatePropagation();
             e.stopPropagation();
-            globalSearch.classList.toggle('hidden');
-            globalSearch.querySelector('input').focus();
-            _addElements( undefined );
+            LX.setCommandbarState( true );
         }
         else
         {
@@ -643,7 +1075,7 @@ function create_global_searchbar( root )
         className: "gs-tabs"
     } );
 
-    const gsTabs = tabArea.addTabs();
+    const gsTabs = tabArea.addTabs( { parentClass: "p-2" } );
     let gsFilter = null;
 
     // These tabs will serve as buttons by now
@@ -683,26 +1115,26 @@ function create_global_searchbar( root )
         const isCheckbox = (i && i.type && i.type === 'checkbox');
         if( isCheckbox )
         {
-            searchItem.innerHTML = "<a class='fa fa-check'></a><span>" + p + t + "</span>"
+            searchItem.innerHTML = "<a class='fa fa-check'></a><span>" + ( p + t ) + "</span>"
         }
         else
         {
-            searchItem.innerHTML = p + t;
+            searchItem.innerHTML = ( p + t );
         }
         searchItem.entry_name = t;
         searchItem.callback = c;
         searchItem.item = i;
-        searchItem.addEventListener('click', function(e) {
-            this.callback.call(window, this.entry_name);
-            globalSearch.classList.toggle('hidden');
+        searchItem.addEventListener('click', function( e ) {
+            this.callback.call( window, this.entry_name );
+            LX.setCommandbarState( false );
             _resetBar( true );
         });
-        searchItem.addEventListener('mouseenter', function(e) {
-            globalSearch.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
+        searchItem.addEventListener('mouseenter', function( e ) {
+            commandbar.querySelectorAll(".hovered").forEach(e => e.classList.remove('hovered'));
             this.classList.add('hovered');
             hoverElId = allItems.indexOf( this );
         });
-        searchItem.addEventListener('mouseleave', function(e) {
+        searchItem.addEventListener('mouseleave', function( e ) {
             this.classList.remove('hovered');
         });
         allItems.push( searchItem );
@@ -732,7 +1164,7 @@ function create_global_searchbar( root )
             _propagateAdd( c, filter, path );
     };
 
-    const _addElements = filter => {
+    commandbar._addElements = filter => {
 
         _resetBar();
 
@@ -744,15 +1176,25 @@ function create_global_searchbar( root )
             }
         }
 
+        for( let entry of LX.extraCommandbarEntries )
+        {
+            const name = entry.name;
+            if( !name.toLowerCase().includes( filter ) )
+            {
+                continue;
+            }
+            _addElement( name, entry.callback, "", {} );
+        }
+
         if( LX.has('CodeEditor') )
         {
             const instances = LX.CodeEditor.getInstances();
-            if(!instances.length) return;
+            if( !instances.length ) return;
 
             const languages = instances[ 0 ].languages;
 
-            for( let l of Object.keys( languages ) ) {
-
+            for( let l of Object.keys( languages ) )
+            {
                 const key = "Language: " + l;
                 const icon = instances[ 0 ]._getFileIcon( null, languages[ l ].ext );
 
@@ -760,9 +1202,11 @@ function create_global_searchbar( root )
                         "<img src='" + ( "https://raw.githubusercontent.com/jxarco/lexgui.js/master/" + icon ) + "'>";
 
                 value += key + " <span class='lang-ext'>(" + languages[ l ].ext + ")</span>";
-                if( key.toLowerCase().includes( filter ) ) {
-                    add_element( value, () => {
-                        for( let i of instances ) {
+                if( key.toLowerCase().includes( filter ) )
+                {
+                    _addElement( value, () => {
+                        for( let i of instances )
+                        {
                             i._changeLanguage( l );
                         }
                     }, "", {} );
@@ -771,24 +1215,27 @@ function create_global_searchbar( root )
         }
     }
 
-    input.addEventListener('input', function(e) {
-        _addElements( this.value.toLowerCase() );
+    input.addEventListener('input', function( e ) {
+        commandbar._addElements( this.value.toLowerCase() );
     });
 
-    globalSearch.appendChild( header );
-    globalSearch.appendChild( tabArea.root );
-    globalSearch.appendChild( itemContainer );
+    commandbar.appendChild( header );
+    commandbar.appendChild( tabArea.root );
+    commandbar.appendChild( itemContainer );
 
-    return globalSearch;
+    return commandbar;
 }
 
 /**
  * @method init
  * @param {Object} options
+ * autoTheme: Use theme depending on browser-system default theme [true]
  * container: Root location for the gui (default is the document body)
  * id: Id of the main area
+ * rootClass: Extra class to the root container
  * skipRoot: Skip adding LX root container
  * skipDefaultArea: Skip creation of main area
+ * strictViewport: Use only window area (no scroll)
  */
 
 function init( options = { } )
@@ -802,7 +1249,13 @@ function init( options = { } )
 
     var root = document.createElement( 'div' );
     root.id = "lexroot";
+    root.className = "lexcontainer";
     root.tabIndex = -1;
+
+    if( options.rootClass )
+    {
+        root.className += ` ${ options.rootClass }`;
+    }
 
     var modal = document.createElement( 'div' );
     modal.id = "modal";
@@ -811,16 +1264,29 @@ function init( options = { } )
     this.root = root;
     this.container = document.body;
 
-    // this.modal.toggleAttribute( 'hidden', true );
-    // this.modal.toggle = function( force ) { this.toggleAttribute( 'hidden', force ); };
-
-    this.modal.classList.add( 'hiddenOpacity' );
-    this.modal.toggle = function( force ) { this.classList.toggle( 'hiddenOpacity', force ); };
+    this.modal.classList.add( 'hidden-opacity' );
+    this.modal.toggle = function( force ) { this.classList.toggle( 'hidden-opacity', force ); };
 
     if( options.container )
-        this.container = document.getElementById( options.container );
+    {
+        this.container = options.container.constructor === String ? document.getElementById( options.container ) : options.container;
+    }
 
-    this.globalSearch = create_global_searchbar( this.container );
+    this.usingStrictViewport = options.strictViewport ?? true;
+    document.documentElement.setAttribute( "data-strictVP", ( this.usingStrictViewport ) ? "true" : "false" );
+
+    if( !this.usingStrictViewport )
+    {
+        document.addEventListener( "scroll", e => {
+            // Get all active menuboxes
+            const mbs = document.body.querySelectorAll( ".lexmenubox" );
+            mbs.forEach( ( mb ) => {
+                mb._updatePosition();
+            } );
+        } );
+    }
+
+    this.commandbar = _createCommandbar( this.container );
 
     this.container.appendChild( modal );
 
@@ -831,6 +1297,25 @@ function init( options = { } )
     else
     {
         this.root = document.body;
+    }
+
+    // Notifications
+    {
+        const notifSection = document.createElement( "section" );
+        notifSection.className = "notifications";
+        this.notifications = document.createElement( "ol" );
+        this.notifications.className = "";
+        this.notifications.iWidth = 0;
+        notifSection.appendChild( this.notifications );
+        document.body.appendChild( notifSection );
+
+        this.notifications.addEventListener( "mouseenter", () => {
+            this.notifications.classList.add( "list" );
+        } );
+
+        this.notifications.addEventListener( "mouseleave", () => {
+            this.notifications.classList.remove( "list" );
+        } );
     }
 
     // Disable drag icon
@@ -856,6 +1341,17 @@ function init( options = { } )
     this.DEFAULT_SPLITBAR_SIZE  = 4;
     this.OPEN_CONTEXTMENU_ENTRY = 'click';
 
+    this.widgetResizeObserver = new ResizeObserver( entries => {
+        for ( const entry of entries )
+        {
+            const widget = entry.target?.jsInstance;
+            if( widget && widget.onResize )
+            {
+                widget.onResize( entry.contentRect );
+            }
+        }
+    });
+
     this.ready = true;
     this.menubars = [ ];
 
@@ -879,10 +1375,51 @@ function init( options = { } )
 LX.init = init;
 
 /**
+ * @method setStrictViewport
+ * @param {Boolean} value
+ */
+
+function setStrictViewport( value )
+{
+    this.usingStrictViewport = value ?? true;
+    document.documentElement.setAttribute( "data-strictVP", ( this.usingStrictViewport ) ? "true" : "false" );
+}
+
+LX.setStrictViewport = setStrictViewport;
+
+/**
+ * @method setCommandbarState
+ * @param {Boolean} value
+ * @param {Boolean} resetEntries
+ */
+
+function setCommandbarState( value, resetEntries = true )
+{
+    const cb = this.commandbar;
+
+    if( value )
+    {
+        cb.show();
+        cb.querySelector('input').focus();
+
+        if( resetEntries )
+        {
+            cb._addElements( undefined );
+        }
+    }
+    else
+    {
+        cb.close();
+    }
+}
+
+LX.setCommandbarState = setCommandbarState;
+
+/**
  * @method message
  * @param {String} text
  * @param {String} title (Optional)
- * @param {*} options
+ * @param {Object} options
  * id: Id of the message dialog
  * position: Dialog position in screen [screen centered]
  * draggable: Dialog can be dragged [false]
@@ -908,11 +1445,11 @@ LX.message = message;
  * @method popup
  * @param {String} text
  * @param {String} title (Optional)
- * @param {*} options
+ * @param {Object} options
  * id: Id of the message dialog
- * time: (Number) Delay time before close automatically (ms). Defalut: [3000]
- * position: (Array) [x,y] Dialog position in screen. Default: [screen centered]
- * size: (Array) [width, height]
+ * timeout (Number): Delay time before it closes automatically (ms). Default: [3000]
+ * position (Array): [x,y] Dialog position in screen. Default: [screen centered]
+ * size (Array): [width, height]
  */
 
 function popup( text, title, options = {} )
@@ -922,7 +1459,7 @@ function popup( text, title, options = {} )
         throw("No message to show");
     }
 
-    options.size = options.size ?? [ "auto", "auto" ];
+    options.size = options.size ?? [ "max-content", "auto" ];
     options.class = "lexpopup";
 
     const time = options.timeout || 3000;
@@ -930,13 +1467,9 @@ function popup( text, title, options = {} )
         p.addTextArea( null, text, null, { disabled: true, fitHeight: true } );
     }, options );
 
-    dialog.root.classList.add( 'fadein' );
-    setTimeout(() => {
-        dialog.root.classList.remove( 'fadein' );
-        dialog.root.classList.add( 'fadeout' );
-    }, time - 1000 );
-
-    setTimeout( dialog.close, time );
+    setTimeout( () => {
+        dialog.close();
+    }, Math.max( time, 150 ) );
 
     return dialog;
 }
@@ -947,7 +1480,7 @@ LX.popup = popup;
  * @method prompt
  * @param {String} text
  * @param {String} title (Optional)
- * @param {*} options
+ * @param {Object} options
  * id: Id of the prompt dialog
  * position: Dialog position in screen [screen centered]
  * draggable: Dialog can be dragged [false]
@@ -959,6 +1492,7 @@ LX.popup = popup;
 function prompt( text, title, callback, options = {} )
 {
     options.modal = true;
+    options.className = "prompt";
 
     let value = "";
 
@@ -973,7 +1507,9 @@ function prompt( text, title, callback, options = {} )
 
         p.sameLine( 2 );
 
-        p.addButton( null, options.accept || "OK", () => {
+        p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
+
+        p.addButton( null, options.accept || "Continue", () => {
             if( options.required && value === '' )
             {
                 text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
@@ -986,8 +1522,6 @@ function prompt( text, title, callback, options = {} )
                 dialog.close();
             }
         }, { buttonClass: "primary" });
-
-        p.addButton(null, "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();} );
 
     }, options );
 
@@ -1003,11 +1537,107 @@ function prompt( text, title, callback, options = {} )
 LX.prompt = prompt;
 
 /**
+ * @method toast
+ * @param {String} title
+ * @param {String} description (Optional)
+ * @param {Object} options
+ * action: Data of the custom action { name, callback }
+ * closable: Allow closing the toast
+ * timeout: Time in which the toast closed automatically, in ms. -1 means persistent. [3000]
+ */
+
+function toast( title, description, options = {} )
+{
+    if( !title )
+    {
+        throw( "The toast needs at least a title!" );
+    }
+
+    console.assert( this.notifications );
+
+    const toast = document.createElement( "li" );
+    toast.className = "lextoast";
+    toast.style.translate = "0 calc(100% + 30px)";
+    this.notifications.prepend( toast );
+
+    doAsync( () => {
+
+        if( this.notifications.offsetWidth > this.notifications.iWidth )
+        {
+            this.notifications.iWidth = Math.min( this.notifications.offsetWidth, 480 );
+            this.notifications.style.width = this.notifications.iWidth + "px";
+        }
+
+        toast.dataset[ "open" ] = true;
+    }, 10 );
+
+    const content = document.createElement( "div" );
+    content.className = "lextoastcontent";
+    toast.appendChild( content );
+
+    const titleContent = document.createElement( "div" );
+    titleContent.className = "title";
+    titleContent.innerHTML = title;
+    content.appendChild( titleContent );
+
+    if( description )
+    {
+        const desc = document.createElement( "div" );
+        desc.className = "desc";
+        desc.innerHTML = description;
+        content.appendChild( desc );
+    }
+
+    if( options.action )
+    {
+        const panel = new Panel();
+        panel.addButton(null, options.action.name ?? "Accept", options.action.callback.bind( this, toast ), { width: "auto", maxWidth: "150px", className: "right", buttonClass: "outline" });
+        toast.appendChild( panel.root.childNodes[ 0 ] );
+    }
+
+    const that = this;
+
+    toast.close = function() {
+        this.dataset[ "closed" ] = true;
+        doAsync( () => {
+            this.remove();
+            if( !that.notifications.childElementCount )
+            {
+                that.notifications.style.width = "unset";
+                that.notifications.iWidth = 0;
+            }
+        }, 500 );
+    };
+
+    if( options.closable ?? true )
+    {
+        const closeButton = document.createElement( "a" );
+        closeButton.className = "fa fa-xmark lexicon closer";
+        closeButton.addEventListener( "click", () => {
+            toast.close();
+        } );
+        toast.appendChild( closeButton );
+    }
+
+    const timeout = options.timeout ?? 3000;
+
+    if( timeout != -1 )
+    {
+        doAsync( () => {
+            toast.close();
+        }, timeout );
+    }
+}
+
+LX.toast = toast;
+
+/**
  * @method badge
  * @param {String} text
  * @param {String} className
- * @param {*} options
+ * @param {Object} options
  * style: Style attributes to override
+ * asElement: Returns the badge as HTMLElement [false]
  */
 
 function badge( text, className, options = {} )
@@ -1016,10 +1646,130 @@ function badge( text, className, options = {} )
     container.innerHTML = text;
     container.className = "lexbadge " + ( className ?? "" );
     Object.assign( container.style, options.style ?? {} );
-    return container.outerHTML;
+    return ( options.asElement ?? false ) ? container : container.outerHTML;
 }
 
 LX.badge = badge;
+
+/**
+ * @method makeContainer
+ * @param {Array} size
+ * @param {String} className
+ * @param {String} innerHTML
+ * @param {HTMLElement} parent
+ * @param {Object} overrideStyle
+ */
+
+function makeContainer( size, className, innerHTML, parent, overrideStyle = {} )
+{
+    const container = document.createElement( "div" );
+    container.className = "lexcontainer " + ( className ?? "" );
+    container.innerHTML = innerHTML ?? "";
+    container.style.width = size && size[ 0 ] ? size[ 0 ] : "100%";
+    container.style.height = size && size[ 1 ] ? size[ 1 ] : "100%";
+    Object.assign( container.style, overrideStyle );
+
+    if( parent )
+    {
+        if( parent.attach ) // Use attach method if possible
+        {
+            parent.attach( container );
+        }
+        else // its a native HTMLElement
+        {
+            parent.appendChild( container );
+        }
+    }
+
+    return container;
+}
+
+LX.makeContainer = makeContainer;
+
+/**
+ * @method asTooltip
+ * @param {HTMLElement} trigger
+ * @param {String} content
+ * @param {Object} options
+ * side: Side of the tooltip
+ * offset: Tooltip margin offset
+ * active: Tooltip active by default [true]
+ */
+
+function asTooltip( trigger, content, options = {} )
+{
+    console.assert( trigger, "You need a trigger to generate a tooltip!" );
+
+    trigger.dataset[ "disableTooltip" ] = !( options.active ?? true );
+
+    let tooltipDom = null;
+
+    trigger.addEventListener( "mouseenter", function(e) {
+
+        if( trigger.dataset[ "disableTooltip" ] == "true" )
+        {
+            return;
+        }
+
+        LX.root.querySelectorAll( ".lextooltip" ).forEach( e => e.remove() );
+
+        tooltipDom = document.createElement( "div" );
+        tooltipDom.className = "lextooltip";
+        tooltipDom.innerHTML = content;
+
+        doAsync( () => {
+
+            const position = [ 0, 0 ];
+            const rect = this.getBoundingClientRect();
+            const offset = options.offset ?? 6;
+            let alignWidth = true;
+
+            switch( options.side ?? "top" )
+            {
+                case "left":
+                    position[ 0 ] += ( rect.x - tooltipDom.offsetWidth - offset );
+                    alignWidth = false;
+                    break;
+                case "right":
+                    position[ 0 ] += ( rect.x + rect.width + offset );
+                    alignWidth = false;
+                    break;
+                case "top":
+                    position[ 1 ] += ( rect.y - tooltipDom.offsetHeight - offset );
+                    alignWidth = true;
+                    break;
+                case "bottom":
+                    position[ 1 ] += ( rect.y + rect.height + offset );
+                    alignWidth = true;
+                    break;
+            }
+
+            if( alignWidth ) { position[ 0 ] += ( rect.x + rect.width * 0.5 ) - tooltipDom.offsetWidth * 0.5; }
+            else { position[ 1 ] += ( rect.y + rect.height * 0.5 ) - tooltipDom.offsetHeight * 0.5; }
+
+            // Avoid collisions
+            position[ 0 ] = LX.clamp( position[ 0 ], 0, window.innerWidth - tooltipDom.offsetWidth - 4 );
+            position[ 1 ] = LX.clamp( position[ 1 ], 0, window.innerHeight - tooltipDom.offsetHeight - 4 );
+
+            tooltipDom.style.left = `${ position[ 0 ] }px`;
+            tooltipDom.style.top = `${ position[ 1 ] }px`;
+        } )
+
+        LX.root.appendChild( tooltipDom );
+    } );
+
+    trigger.addEventListener( "mouseleave", function(e) {
+        if( !tooltipDom ) return;
+
+        tooltipDom.dataset[ "closed" ] = true;
+
+        doAsync( () => {
+            tooltipDom.remove();
+        }, 300 )
+    } )
+}
+
+LX.asTooltip = asTooltip;
 
 /*
 *   Events and Signals
@@ -1027,7 +1777,7 @@ LX.badge = badge;
 
 class IEvent {
 
-    constructor(name, value, domEvent) {
+    constructor( name, value, domEvent ) {
         this.name = name;
         this.value = value;
         this.domEvent = domEvent;
@@ -1097,20 +1847,21 @@ function emit( signalName, value, options = {} )
 
     for( let obj of data )
     {
-        if( obj.constructor === Widget )
+        if( obj instanceof Widget )
         {
             obj.set( value, options.skipCallback ?? true );
-
-            if( obj.options && obj.options.callback )
-            {
-                obj.options.callback( value, data );
-            }
+        }
+        else if( obj.constructor === Function )
+        {
+            const fn = obj;
+            fn( null, value );
         }
         else
         {
-            // This is a function callback!
-            const fn = obj;
-            fn( null, value );
+            // This is an element
+            const fn = obj[ signalName ];
+            console.assert( fn, `No callback registered with _${ signalName }_ signal` );
+            fn.bind( obj )( value );
         }
     }
 }
@@ -1119,7 +1870,7 @@ LX.emit = emit;
 
 function addSignal( name, obj, callback )
 {
-    obj[name] = callback;
+    obj[ name ] = callback;
 
     if( !LX.signals[ name ] )
     {
@@ -1140,11 +1891,758 @@ LX.addSignal = addSignal;
 *   DOM Elements
 */
 
+/**
+ * @class DropdownMenu
+ */
+
+class DropdownMenu {
+
+    static currentMenu = false;
+
+    constructor( trigger, items, options = {} ) {
+
+        console.assert( trigger, "DropdownMenu needs a DOM element as trigger!" );
+
+        if( DropdownMenu.currentMenu )
+        {
+            DropdownMenu.currentMenu.destroy();
+            return;
+        }
+
+        this._trigger = trigger;
+        trigger.classList.add( "triggered" );
+        trigger.ddm = this;
+
+        this._items = items;
+
+        this._windowPadding = 4;
+        this.side = options.side ?? "bottom";
+        this.align = options.align ?? "center";
+        this.avoidCollisions = options.avoidCollisions ?? true;
+
+        this.root = document.createElement( "div" );
+        this.root.id = "root";
+        this.root.dataset["side"] = this.side;
+        this.root.tabIndex = "1";
+        this.root.className = "lexdropdownmenu";
+        LX.root.appendChild( this.root );
+
+        this._create( this._items );
+
+        DropdownMenu.currentMenu = this;
+
+        doAsync( () => {
+            this._adjustPosition();
+
+            this.root.focus();
+
+            this._onClick = e => {
+                if( e.target && ( this.root.contains( e.target ) || e.target == this._trigger ) )
+                {
+                    return;
+                }
+                this.destroy();
+            };
+
+            document.body.addEventListener( "click", this._onClick );
+        }, 10 );
+    }
+
+    destroy() {
+
+        this._trigger.classList.remove( "triggered" );
+
+        delete this._trigger.ddm;
+
+        document.body.removeEventListener( "click", this._onClick );
+
+        LX.root.querySelectorAll( ".lexdropdownmenu" ).forEach( m => { m.remove(); } );
+
+        DropdownMenu.currentMenu = null;
+    }
+
+    _create( items, parentDom ) {
+
+        if( !parentDom )
+        {
+            parentDom = this.root;
+        }
+        else
+        {
+            const parentRect = parentDom.getBoundingClientRect();
+
+            let newParent = document.createElement( "div" );
+            newParent.tabIndex = "1";
+            newParent.className = "lexdropdownmenu";
+            newParent.id = parentDom.id;
+            newParent.dataset["side"] = "right"; // submenus always come from the right
+            LX.root.appendChild( newParent );
+
+            newParent.currentParent = parentDom;
+            parentDom = newParent;
+
+            doAsync( () => {
+                const position = [ parentRect.x + parentRect.width, parentRect.y ];
+
+                if( this.avoidCollisions )
+                {
+                    position[ 0 ] = LX.clamp( position[ 0 ], 0, window.innerWidth - newParent.offsetWidth - this._windowPadding );
+                    position[ 1 ] = LX.clamp( position[ 1 ], 0, window.innerHeight - newParent.offsetHeight - this._windowPadding );
+                }
+
+                newParent.style.left = `${ position[ 0 ] }px`;
+                newParent.style.top = `${ position[ 1 ] }px`;
+            }, 10 );
+        }
+
+        for( let item of items )
+        {
+            if( !item )
+            {
+                this._addSeparator( parentDom );
+                continue;
+            }
+
+            const key = item.name ?? item;
+            const pKey = key.replace( /\s/g, '' ).replaceAll( '.', '' );
+
+            // Item already created
+            if( parentDom.querySelector( "#" + pKey ) )
+            {
+                continue;
+            }
+
+            const menuItem = document.createElement('div');
+            menuItem.className = "lexdropdownmenuitem" + ( item.name ? "" : " label" ) + ( item.disabled ?? false ? " disabled" : "" ) + ( ` ${ item.className ?? "" }` );
+            menuItem.id = pKey;
+            menuItem.innerHTML = `<span>${ key }</span>`;
+
+            menuItem.tabIndex = "1";
+            parentDom.appendChild( menuItem );
+
+            if( item.constructor === String || ( item.disabled ?? false ) )
+            {
+                continue;
+            }
+
+            if( item.submenu )
+            {
+                let submenuIcon = document.createElement('a');
+                submenuIcon.className = "fa-solid fa-angle-right fa-xs";
+                menuItem.appendChild( submenuIcon );
+            }
+            else if( item.kbd )
+            {
+                item.kbd = [].concat( item.kbd );
+
+                const kbd = LX.makeKbd( item.kbd );
+                menuItem.appendChild( kbd );
+            }
+
+            if( item.icon )
+            {
+                const icon = LX.makeIcon( item.icon );
+                menuItem.prepend( icon );
+            }
+
+            if( item.checked != undefined )
+            {
+                const checkbox = new Checkbox( pKey + "_entryChecked", item.checked, (v) => {
+                    const f = item[ 'callback' ];
+                    if( f )
+                    {
+                        f.call( this, key, menuItem, v );
+                    }
+                }, { className: "accent" });
+                const input = checkbox.root.querySelector( "input" );
+                menuItem.prepend( input );
+
+                menuItem.addEventListener( "click", (e) => {
+                    if( e.target.type == "checkbox" ) return;
+                    input.checked = !input.checked;
+                    checkbox.set( input.checked );
+                } );
+            }
+            else
+            {
+                menuItem.addEventListener( "click", () => {
+                    const f = item[ 'callback' ];
+                    if( f )
+                    {
+                        f.call( this, key, menuItem );
+                    }
+                    this.destroy();
+                } );
+            }
+
+            menuItem.addEventListener("mouseover", e => {
+
+                let path = menuItem.id;
+                let p = parentDom;
+
+                while( p )
+                {
+                    path += "/" + p.id;
+                    p = p.currentParent?.parentElement;
+                }
+
+                LX.root.querySelectorAll( ".lexdropdownmenu" ).forEach( m => {
+                    if( !path.includes( m.id ) )
+                    {
+                        m.currentParent.built = false;
+                        m.remove();
+                    }
+                } );
+
+                if( item.submenu )
+                {
+                    if( menuItem.built )
+                    {
+                        return;
+                    }
+                    menuItem.built = true;
+                    this._create( item.submenu, menuItem );
+                }
+
+                e.stopPropagation();
+            });
+        }
+    }
+
+    _adjustPosition() {
+
+        const position = [ 0, 0 ];
+
+        // Place menu using trigger position and user options
+        {
+            const rect = this._trigger.getBoundingClientRect();
+
+            let alignWidth = true;
+
+            switch( this.side )
+            {
+                case "left":
+                    position[ 0 ] += ( rect.x - this.root.offsetWidth );
+                    alignWidth = false;
+                    break;
+                case "right":
+                    position[ 0 ] += ( rect.x + rect.width );
+                    alignWidth = false;
+                    break;
+                case "top":
+                    position[ 1 ] += ( rect.y - this.root.offsetHeight );
+                    alignWidth = true;
+                    break;
+                case "bottom":
+                    position[ 1 ] += ( rect.y + rect.height );
+                    alignWidth = true;
+                    break;
+                default:
+                    break;
+            }
+
+            switch( this.align )
+            {
+                case "start":
+                    if( alignWidth ) { position[ 0 ] += rect.x; }
+                    else { position[ 1 ] += rect.y; }
+                    break;
+                case "center":
+                    if( alignWidth ) { position[ 0 ] += ( rect.x + rect.width * 0.5 ) - this.root.offsetWidth * 0.5; }
+                    else { position[ 1 ] += ( rect.y + rect.height * 0.5 ) - this.root.offsetHeight * 0.5; }
+                    break;
+                case "end":
+                    if( alignWidth ) { position[ 0 ] += rect.x - this.root.offsetWidth + rect.width; }
+                    else { position[ 1 ] += rect.y - this.root.offsetHeight + rect.height; }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if( this.avoidCollisions )
+        {
+            position[ 0 ] = LX.clamp( position[ 0 ], 0, window.innerWidth - this.root.offsetWidth - this._windowPadding );
+            position[ 1 ] = LX.clamp( position[ 1 ], 0, window.innerHeight - this.root.offsetHeight - this._windowPadding );
+        }
+
+        this.root.style.left = `${ position[ 0 ] }px`;
+        this.root.style.top = `${ position[ 1 ] }px`;
+    }
+
+    _addSeparator( parent ) {
+        const separator = document.createElement('div');
+        separator.className = "separator";
+        parent = parent ?? this.root;
+        parent.appendChild( separator );
+    }
+};
+
+LX.DropdownMenu = DropdownMenu;
+
+/**
+ * @class ColorPicker
+ */
+
+class ColorPicker {
+
+    static currentPicker = false;
+
+    constructor( hexValue, trigger, options = {} ) {
+
+        console.assert( trigger, "ColorPicker needs a DOM element as trigger!" );
+
+        this._windowPadding = 4;
+        this.side = options.side ?? "bottom";
+        this.align = options.align ?? "center";
+        this.avoidCollisions = options.avoidCollisions ?? true;
+        this.colorModel = options.colorModel ?? "Hex";
+        this.useAlpha = options.useAlpha ?? false;
+        this.callback = options.onChange;
+
+        if( !this.callback )
+        {
+            console.warn( "Define a callback in _options.onChange_ to allow getting new Color values!" );
+        }
+
+        if( ColorPicker.currentPicker )
+        {
+            ColorPicker.currentPicker.destroy();
+            return;
+        }
+
+        this._trigger = trigger;
+        trigger.classList.add( "triggered" );
+        trigger.picker = this;
+
+        this.root = document.createElement( "div" );
+        this.root.tabIndex = "1";
+        this.root.className = "lexcolorpicker";
+        this.root.dataset["side"] = this.side;
+        LX.root.appendChild( this.root );
+
+        this.root.addEventListener( "keydown", (e) => {
+            if( e.key == "Escape" )
+            {
+                e.preventDefault();
+                e.stopPropagation();
+                this.destroy();
+            }
+        } )
+
+        ColorPicker.currentPicker = this;
+
+        this.markerHalfSize = 8;
+        this.markerSize = this.markerHalfSize * 2;
+        this.currentColor = new Color( hexValue );
+
+        const hueColor = new Color( { h: this.currentColor.hsv.h, s: 1, v: 1 } );
+
+        // Intensity, Sat
+        this.colorPickerBackground = document.createElement( 'div' );
+        this.colorPickerBackground.className = "lexcolorpickerbg";
+        this.colorPickerBackground.style.backgroundColor = `rgb(${ hueColor.css.r }, ${ hueColor.css.g }, ${ hueColor.css.b })`;
+        this.root.appendChild( this.colorPickerBackground );
+
+        this.intSatMarker = document.createElement( 'div' );
+        this.intSatMarker.className = "lexcolormarker";
+        this.intSatMarker.style.backgroundColor = this.currentColor.hex;
+        this.colorPickerBackground.appendChild( this.intSatMarker );
+
+        doAsync( this._svToPosition.bind( this, this.currentColor.hsv.s, this.currentColor.hsv.v ) );
+
+        let innerMouseDown = e => {
+            var doc = this.root.ownerDocument;
+            doc.addEventListener( 'mousemove', innerMouseMove );
+            doc.addEventListener( 'mouseup', innerMouseUp );
+            document.body.classList.add( 'noevents' );
+            e.stopImmediatePropagation();
+            e.stopPropagation();
+
+            const currentLeft = ( e.offsetX - this.markerHalfSize );
+            this.intSatMarker.style.left = currentLeft + "px";
+            const currentTop = ( e.offsetY - this.markerHalfSize );
+            this.intSatMarker.style.top = currentTop + "px";
+            this._positionToSv( currentLeft, currentTop );
+            this._updateColorValue();
+        }
+
+        let innerMouseMove = e => {
+            const dX = e.movementX;
+            const dY = e.movementY;
+
+            const rect = this.colorPickerBackground.getBoundingClientRect();
+            const mouseX = e.offsetX - rect.x;
+            const mouseY = e.offsetY - rect.y;
+
+            if ( dX != 0 && ( mouseX >= 0 || dX < 0 ) && ( mouseX < this.colorPickerBackground.offsetWidth || dX > 0 ) )
+            {
+                this.intSatMarker.style.left = LX.clamp( parseInt( this.intSatMarker.style.left ) + dX, -this.markerHalfSize, this.colorPickerBackground.offsetWidth - this.markerHalfSize ) + "px";
+            }
+
+            if ( dY != 0 && ( mouseY >= 0 || dY < 0 ) && ( mouseY < this.colorPickerBackground.offsetHeight || dY > 0 ) )
+            {
+                this.intSatMarker.style.top = LX.clamp( parseInt( this.intSatMarker.style.top ) + dY, -this.markerHalfSize, this.colorPickerBackground.offsetHeight - this.markerHalfSize ) + "px";
+            }
+
+            this._positionToSv( parseInt( this.intSatMarker.style.left ), parseInt( this.intSatMarker.style.top ) );
+            this._updateColorValue();
+
+            e.stopPropagation();
+            e.preventDefault();
+        }
+
+        let innerMouseUp = e => {
+            var doc = this.root.ownerDocument;
+            doc.removeEventListener( 'mousemove', innerMouseMove );
+            doc.removeEventListener( 'mouseup', innerMouseUp );
+            document.body.classList.remove( 'noevents' );
+        }
+
+        this.colorPickerBackground.addEventListener( "mousedown", innerMouseDown );
+
+        const hueAlphaContainer = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-1 items-center", "", this.root );
+
+        if( window.EyeDropper )
+        {
+            hueAlphaContainer.appendChild( new Button(null, "eyedrop",  async () => {
+                const eyeDropper = new EyeDropper()
+                try {
+                    const result = await eyeDropper.open();
+                    this.fromHexColor( result.sRGBHex );
+                } catch ( err ) {
+                    // console.error("EyeDropper cancelled or failed: ", err)
+                }
+            }, { icon: "eye-dropper", buttonClass: "bg-none", title: "Sample Color" }).root );
+        }
+
+        const innerHueAlpha = LX.makeContainer( ["100%", "100%"], "flex flex-col gap-2", "", hueAlphaContainer );
+
+        // Hue
+        this.colorPickerTracker = document.createElement( 'div' );
+        this.colorPickerTracker.className = "lexhuetracker";
+        innerHueAlpha.appendChild( this.colorPickerTracker );
+
+        this.hueMarker = document.createElement( 'div' );
+        this.hueMarker.className = "lexcolormarker";
+        this.hueMarker.style.backgroundColor = `rgb(${ hueColor.css.r }, ${ hueColor.css.g }, ${ hueColor.css.b })`;
+        this.colorPickerTracker.appendChild( this.hueMarker );
+
+        doAsync( () => {
+            const hueLeft = LX.remapRange( this.currentColor.hsv.h, 0, 360, 0, this.colorPickerTracker.offsetWidth - this.markerSize );
+            this.hueMarker.style.left = hueLeft + "px";
+        } );
+
+        const _fromHueX = ( hueX ) => {
+            this.hueMarker.style.left = hueX + "px";
+            this.currentColor.hsv.h = LX.remapRange( hueX, 0, this.colorPickerTracker.offsetWidth - this.markerSize, 0, 360 );
+
+            const hueColor = new Color( { h: this.currentColor.hsv.h, s: 1, v: 1 } );
+            this.hueMarker.style.backgroundColor = `rgb(${ hueColor.css.r }, ${ hueColor.css.g }, ${ hueColor.css.b })`;
+            this.colorPickerBackground.style.backgroundColor = `rgb(${ hueColor.css.r }, ${ hueColor.css.g }, ${ hueColor.css.b })`;
+            this._updateColorValue();
+        };
+
+        let innerMouseDownHue = e => {
+            const doc = this.root.ownerDocument;
+            doc.addEventListener( 'mousemove', innerMouseMoveHue );
+            doc.addEventListener( 'mouseup', innerMouseUpHue );
+            document.body.classList.add( 'noevents' );
+            e.stopImmediatePropagation();
+            e.stopPropagation();
+
+            const hueX = clamp( e.offsetX - this.markerHalfSize, 0, this.colorPickerTracker.offsetWidth - this.markerSize );
+            _fromHueX( hueX );
+        }
+
+        let innerMouseMoveHue = e => {
+            let dX = e.movementX;
+
+            const rect = this.colorPickerTracker.getBoundingClientRect();
+            const mouseX = e.offsetX - rect.x;
+
+            if ( dX != 0 && ( mouseX >= 0 || dX < 0 ) && ( mouseX < this.colorPickerTracker.offsetWidth || dX > 0 ) )
+            {
+                const hueX = LX.clamp( parseInt( this.hueMarker.style.left ) + dX, 0, this.colorPickerTracker.offsetWidth - this.markerSize );
+                _fromHueX( hueX )
+            }
+
+            e.stopPropagation();
+            e.preventDefault();
+        }
+
+        let innerMouseUpHue = e => {
+            var doc = this.root.ownerDocument;
+            doc.removeEventListener( 'mousemove', innerMouseMoveHue );
+            doc.removeEventListener( 'mouseup', innerMouseUpHue );
+            document.body.classList.remove( 'noevents' );
+        }
+
+        this.colorPickerTracker.addEventListener( "mousedown", innerMouseDownHue );
+
+        // Alpha
+        if( this.useAlpha )
+        {
+            this.alphaTracker = document.createElement( 'div' );
+            this.alphaTracker.className = "lexalphatracker";
+            this.alphaTracker.style.color = `rgb(${ this.currentColor.css.r }, ${ this.currentColor.css.g }, ${ this.currentColor.css.b })`;
+            innerHueAlpha.appendChild( this.alphaTracker );
+
+            this.alphaMarker = document.createElement( 'div' );
+            this.alphaMarker.className = "lexcolormarker";
+            this.alphaMarker.style.backgroundColor = `rgb(${ this.currentColor.css.r }, ${ this.currentColor.css.g }, ${ this.currentColor.css.b },${ this.currentColor.css.a })`;
+            this.alphaTracker.appendChild( this.alphaMarker );
+
+            doAsync( () => {
+                const alphaLeft = LX.remapRange( this.currentColor.hsv.a, 0, 1, 0, this.alphaTracker.offsetWidth - this.markerSize );
+                this.alphaMarker.style.left = alphaLeft + "px";
+            } );
+
+            const _fromAlphaX = ( alphaX ) => {
+                this.alphaMarker.style.left = alphaX + "px";
+                this.currentColor.hsv.a = LX.remapRange( alphaX, 0, this.alphaTracker.offsetWidth - this.markerSize, 0, 1 );
+                this._updateColorValue();
+                // Update alpha marker once the color is updated
+                this.alphaMarker.style.backgroundColor = `rgb(${ this.currentColor.css.r }, ${ this.currentColor.css.g }, ${ this.currentColor.css.b },${ this.currentColor.css.a })`;
+            };
+
+            let innerMouseDownAlpha = e => {
+                const doc = this.root.ownerDocument;
+                doc.addEventListener( 'mousemove', innerMouseMoveAlpha );
+                doc.addEventListener( 'mouseup', innerMouseUpAlpha );
+                document.body.classList.add( 'noevents' );
+                e.stopImmediatePropagation();
+                e.stopPropagation();
+                const alphaX = clamp( e.offsetX - this.markerHalfSize, 0, this.alphaTracker.offsetWidth - this.markerSize );
+                _fromAlphaX( alphaX );
+            }
+
+            let innerMouseMoveAlpha = e => {
+                let dX = e.movementX;
+
+                const rect = this.alphaTracker.getBoundingClientRect();
+                const mouseX = e.offsetX - rect.x;
+
+                if ( dX != 0 && ( mouseX >= 0 || dX < 0 ) && ( mouseX < this.alphaTracker.offsetWidth || dX > 0 ) )
+                {
+                    const alphaX = LX.clamp( parseInt( this.alphaMarker.style.left ) + dX, 0, this.alphaTracker.offsetWidth - this.markerSize );
+                    _fromAlphaX( alphaX );
+                }
+
+                e.stopPropagation();
+                e.preventDefault();
+            }
+
+            let innerMouseUpAlpha = e => {
+                var doc = this.root.ownerDocument;
+                doc.removeEventListener( 'mousemove', innerMouseMoveAlpha );
+                doc.removeEventListener( 'mouseup', innerMouseUpAlpha );
+                document.body.classList.remove( 'noevents' );
+            }
+
+            this.alphaTracker.addEventListener( "mousedown", innerMouseDownAlpha );
+        }
+
+        // Info display
+        const colorLabel = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-1", "", this.root );
+
+        colorLabel.appendChild( new Select( null, [ "CSS", "Hex", "HSV", "RGB" ], this.colorModel, v => {
+            this.colorModel = v;
+            this._updateColorValue( null, true );
+        } ).root );
+
+        this.labelWidget = new TextInput( null, "", null, { inputClass: "bg-none", fit: true, disabled: true } );
+        colorLabel.appendChild( this.labelWidget.root );
+
+        // Copy button
+        {
+            const copyButtonWidget = new Button(null, "copy",  async () => {
+                navigator.clipboard.writeText( this.labelWidget.value() );
+                copyButtonWidget.root.querySelector( "input[type='checkbox']" ).style.pointerEvents = "none";
+
+                doAsync( () => {
+                    copyButtonWidget.root.swap( true );
+                    copyButtonWidget.root.querySelector( "input[type='checkbox']" ).style.pointerEvents = "auto";
+                }, 3000 );
+
+            }, { swap: "check", icon: "copy", buttonClass: "bg-none", className: "ml-auto", title: "Copy" })
+
+            copyButtonWidget.root.querySelector( ".swap-on svg path" ).style.fill = "#42d065";
+
+            colorLabel.appendChild( copyButtonWidget.root );
+        }
+
+        this._updateColorValue( hexValue, true );
+
+        doAsync( () => {
+            this._adjustPosition();
+
+            this.root.focus();
+
+            this._onClick = e => {
+                if( e.target && ( this.root.contains( e.target ) || e.target == this._trigger ) )
+                {
+                    return;
+                }
+                this.destroy();
+            };
+
+            document.body.addEventListener( "mousedown", this._onClick, true );
+            document.body.addEventListener( "focusin", this._onClick, true );
+        }, 10 );
+    }
+
+    fromHexColor( hexColor ) {
+
+        this.currentColor.setHex( hexColor );
+
+        // Decompose into HSV
+        const { h, s, v } = this.currentColor.hsv;
+        this._svToPosition( s, v );
+
+        const hueColor = new Color( { h, s: 1, v: 1 } );
+        this.hueMarker.style.backgroundColor = this.colorPickerBackground.style.backgroundColor = `rgb(${ hueColor.css.r }, ${ hueColor.css.g }, ${ hueColor.css.b })`;
+        this.hueMarker.style.left = LX.remapRange( h, 0, 360, -this.markerHalfSize, this.colorPickerTracker.offsetWidth - this.markerHalfSize ) + "px";
+
+        this._updateColorValue( hexColor );
+    }
+
+    destroy() {
+
+        this._trigger.classList.remove( "triggered" );
+
+        delete this._trigger.picker;
+
+        document.body.removeEventListener( "mousedown", this._onClick, true );
+        document.body.removeEventListener( "focusin", this._onClick, true );
+
+        LX.root.querySelectorAll( ".lexcolorpicker" ).forEach( m => { m.remove(); } );
+
+        ColorPicker.currentPicker = null;
+    }
+
+    _svToPosition( s, v ) {
+        this.intSatMarker.style.left = `${ LX.remapRange( s, 0, 1, -this.markerHalfSize, this.colorPickerBackground.offsetWidth - this.markerHalfSize ) }px`;
+        this.intSatMarker.style.top = `${ LX.remapRange( 1 - v, 0, 1, -this.markerHalfSize, this.colorPickerBackground.offsetHeight - this.markerHalfSize ) }px`
+    };
+
+    _positionToSv( left, top ) {
+        this.currentColor.hsv.s = LX.remapRange( left, -this.markerHalfSize, this.colorPickerBackground.offsetWidth - this.markerHalfSize, 0, 1 );
+        this.currentColor.hsv.v = 1 - LX.remapRange( top, -this.markerHalfSize, this.colorPickerBackground.offsetHeight - this.markerHalfSize, 0, 1 );
+    };
+
+    _updateColorValue( newHexValue, skipCallback = false ) {
+
+        this.currentColor.set( newHexValue ?? this.currentColor.hsv );
+
+        if( this.callback && !skipCallback )
+        {
+            this.callback( this.currentColor );
+        }
+
+        this.intSatMarker.style.backgroundColor = this.currentColor.hex;
+
+        if( this.useAlpha )
+        {
+            this.alphaTracker.style.color = `rgb(${ this.currentColor.css.r }, ${ this.currentColor.css.g }, ${ this.currentColor.css.b })`;
+        }
+
+        const toFixed = ( s, n = 2) => { return s.toFixed( n ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' ) };
+
+        if( this.colorModel == "CSS" )
+        {
+            const { r, g, b, a } = this.currentColor.css;
+            this.labelWidget.set( `rgb${ this.useAlpha ? 'a' : '' }(${ r },${ g },${ b }${ this.useAlpha ? ',' + toFixed( a ) : '' })` );
+        }
+        else if( this.colorModel == "Hex" )
+        {
+            this.labelWidget.set( ( this.useAlpha ? this.currentColor.hex : this.currentColor.hex.substr( 0, 7 ) ).toUpperCase() );
+        }
+        else if( this.colorModel == "HSV" )
+        {
+            const { h, s, v, a } = this.currentColor.hsv;
+            const components = [ Math.floor( h ) + 'º', Math.floor( s * 100 ) + '%', Math.floor( v * 100 ) + '%' ];
+            if( this.useAlpha ) components.push( toFixed( a ) );
+            this.labelWidget.set( components.join( ' ' ) );
+        }
+        else // RGB
+        {
+            const { r, g, b, a } = this.currentColor.rgb;
+            const components = [ toFixed( r ), toFixed( g ), toFixed( b ) ];
+            if( this.useAlpha ) components.push( toFixed( a ) );
+            this.labelWidget.set( components.join( ' ' ) );
+        }
+    };
+
+    _adjustPosition() {
+
+        const position = [ 0, 0 ];
+
+        // Place menu using trigger position and user options
+        {
+            const rect = this._trigger.getBoundingClientRect();
+
+            let alignWidth = true;
+
+            switch( this.side )
+            {
+                case "left":
+                    position[ 0 ] += ( rect.x - this.root.offsetWidth );
+                    alignWidth = false;
+                    break;
+                case "right":
+                    position[ 0 ] += ( rect.x + rect.width );
+                    alignWidth = false;
+                    break;
+                case "top":
+                    position[ 1 ] += ( rect.y - this.root.offsetHeight );
+                    alignWidth = true;
+                    break;
+                case "bottom":
+                    position[ 1 ] += ( rect.y + rect.height );
+                    alignWidth = true;
+                    break;
+                default:
+                    break;
+            }
+
+            switch( this.align )
+            {
+                case "start":
+                    if( alignWidth ) { position[ 0 ] += rect.x; }
+                    else { position[ 1 ] += rect.y; }
+                    break;
+                case "center":
+                    if( alignWidth ) { position[ 0 ] += ( rect.x + rect.width * 0.5 ) - this.root.offsetWidth * 0.5; }
+                    else { position[ 1 ] += ( rect.y + rect.height * 0.5 ) - this.root.offsetHeight * 0.5; }
+                    break;
+                case "end":
+                    if( alignWidth ) { position[ 0 ] += rect.x - this.root.offsetWidth + rect.width; }
+                    else { position[ 1 ] += rect.y - this.root.offsetHeight + rect.height; }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if( this.avoidCollisions )
+        {
+            position[ 0 ] = LX.clamp( position[ 0 ], 0, window.innerWidth - this.root.offsetWidth - this._windowPadding );
+            position[ 1 ] = LX.clamp( position[ 1 ], 0, window.innerHeight - this.root.offsetHeight - this._windowPadding );
+        }
+
+        this.root.style.left = `${ position[ 0 ] }px`;
+        this.root.style.top = `${ position[ 1 ] }px`;
+    }
+};
+
+LX.ColorPicker = ColorPicker;
+
 class Area {
 
     /**
      * @constructor Area
-     * @param {*} options
+     * @param {Object} options
      * id: Id of the element
      * className: Add class to the element
      * width: Width of the area element [fit space]
@@ -1169,7 +2667,7 @@ class Area {
             root.className += " " + options.className;
         }
 
-        var width = options.width || "calc( 100% )";
+        var width = options.width || "100%";
         var height = options.height || "100%";
 
         // This has default options..
@@ -1193,9 +2691,9 @@ class Area {
         this.sections = [];
         this.panels = [];
 
-        if( !options.skipAppend )
+        let lexroot = document.getElementById("lexroot");
+        if( lexroot && !options.skipAppend )
         {
-            var lexroot = document.getElementById("lexroot");
             lexroot.appendChild( this.root );
         }
 
@@ -1263,17 +2761,17 @@ class Area {
                     this.splitBar.style.top = -(LX.DEFAULT_SPLITBAR_SIZE / 2.0) + "px";
                 }
 
-                this.splitBar.addEventListener("mousedown", inner_mousedown);
+                this.splitBar.addEventListener("mousedown", innerMouseDown);
                 this.root.appendChild( this.splitBar );
 
-                var that = this;
-                var lastMousePosition = [ 0, 0 ];
+                const that = this;
+                let lastMousePosition = [ 0, 0 ];
 
-                function inner_mousedown( e )
+                function innerMouseDown( e )
                 {
-                    var doc = that.root.ownerDocument;
-                    doc.addEventListener( 'mousemove', inner_mousemove );
-                    doc.addEventListener( 'mouseup', inner_mouseup );
+                    const doc = that.root.ownerDocument;
+                    doc.addEventListener( 'mousemove', innerMouseMove );
+                    doc.addEventListener( 'mouseup', innerMouseUp );
                     lastMousePosition[ 0 ] = e.x;
                     lastMousePosition[ 1 ] = e.y;
                     e.stopPropagation();
@@ -1282,9 +2780,10 @@ class Area {
                     that.splitBar.classList.add( 'nocursor' );
                 }
 
-                function inner_mousemove( e )
+                function innerMouseMove( e )
                 {
-                    switch( that.type ) {
+                    switch( that.type )
+                    {
                         case "right":
                             var dt = ( lastMousePosition[ 0 ] - e.x );
                             var size = ( that.root.offsetWidth + dt );
@@ -1321,11 +2820,11 @@ class Area {
                     }
                 }
 
-                function inner_mouseup( e )
+                function innerMouseUp( e )
                 {
-                    var doc = that.root.ownerDocument;
-                    doc.removeEventListener( 'mousemove', inner_mousemove );
-                    doc.removeEventListener( 'mouseup', inner_mouseup );
+                    const doc = that.root.ownerDocument;
+                    doc.removeEventListener( 'mousemove', innerMouseMove );
+                    doc.removeEventListener( 'mouseup', innerMouseUp );
                     document.body.classList.remove( 'nocursor' );
                     that.splitBar.classList.remove( 'nocursor' );
                 }
@@ -1341,7 +2840,7 @@ class Area {
     attach( content ) {
 
         // Append to last split section if area has been split
-        if( this.sections.length)
+        if( this.sections.length )
         {
             this.sections[ 1 ].attach( content );
             return;
@@ -1360,9 +2859,11 @@ class Area {
 
     /**
      * @method split
-     * @param {*} options
+     * @param {Object} options
      * type: Split mode (horizontal, vertical) ["horizontal"]
      * sizes: Size of each new area (Array) ["50%", "50%"]
+     * resize: Allow area manual resizing [true]
+     * sizes: "Allow the area to be minimized [false]
      */
 
     split( options = {} ) {
@@ -1375,9 +2876,9 @@ class Area {
             this.root = this.sections[ 1 ].root;
         }
 
-        var type = options.type || "horizontal";
-        var sizes = options.sizes || [ "50%", "50%" ];
-        var auto = (options.sizes === 'auto');
+        const type = options.type || "horizontal";
+        const sizes = options.sizes || [ "50%", "50%" ];
+        const auto = (options.sizes === 'auto') || ( options.sizes && options.sizes[ 0 ] == "auto" && options.sizes[ 1 ] == "auto" );
 
         if( !sizes[ 1 ] )
         {
@@ -1393,8 +2894,8 @@ class Area {
         }
 
         // Create areas
-        var area1 = new Area( { skipAppend: true, className: "split" + ( options.menubar || options.sidebar ? "" : " origin" ) } );
-        var area2 = new Area( { skipAppend: true, className: "split" } );
+        let area1 = new Area( { skipAppend: true, className: "split" + ( options.menubar || options.sidebar ? "" : " origin" ) } );
+        let area2 = new Area( { skipAppend: true, className: "split" } );
 
         area1.parentArea = this;
         area2.parentArea = this;
@@ -1402,7 +2903,7 @@ class Area {
         let minimizable = options.minimizable ?? false;
         let resize = ( options.resize ?? true ) || minimizable;
 
-        var data = "0px";
+        let data = "0px";
         this.offset = 0;
 
         if( resize )
@@ -1449,7 +2950,7 @@ class Area {
 
         if( type == "horizontal" )
         {
-            var width1 = sizes[ 0 ],
+            let width1 = sizes[ 0 ],
                 width2 = sizes[ 1 ];
 
             if( width1.constructor == Number )
@@ -1479,9 +2980,10 @@ class Area {
 
                 // Listen resize event on first area
                 const resizeObserver = new ResizeObserver( entries => {
-                    for (const entry of entries) {
-                        const bb = entry.contentRect;
-                        area2.root.style.height = "calc(100% - " + ( bb.height + 4) + "px )";
+                    for ( const entry of entries )
+                    {
+                        const size = entry.target.getComputedSize();
+                        area2.root.style.height = "calc(100% - " + ( size.height ) + "px )";
                     }
                 });
 
@@ -1489,7 +2991,7 @@ class Area {
             }
             else
             {
-                var height1 = sizes[ 0 ],
+                let height1 = sizes[ 0 ],
                     height2 = sizes[ 1 ];
 
                 if( height1.constructor == Number )
@@ -1503,8 +3005,8 @@ class Area {
                 }
 
                 area1.root.style.width = "100%";
-                area1.root.style.height = "calc( " + height1 + " - " + data + " )";
-                area2.root.style.height = "calc( " + height2 + " - " + data + " )";
+                area1.root.style.height = ( height1 == "auto" ? height1 : "calc( " + height1 + " - " + data + " )");
+                area2.root.style.height = ( height2 == "auto" ? height2 : "calc( " + height2 + " - " + data + " )");
             }
         }
 
@@ -1512,7 +3014,7 @@ class Area {
 
         if( resize )
         {
-            this.root.appendChild(this.splitBar);
+            this.root.appendChild( this.splitBar );
         }
 
         this.root.appendChild( area2.root );
@@ -1527,11 +3029,11 @@ class Area {
             return this.sections;
         }
 
-        var that = this;
+        const that = this;
 
         function innerMouseDown( e )
         {
-            var doc = that.root.ownerDocument;
+            const doc = that.root.ownerDocument;
             doc.addEventListener( 'mousemove', innerMouseMove );
             doc.addEventListener( 'mouseup', innerMouseUp );
             e.stopPropagation();
@@ -1551,26 +3053,13 @@ class Area {
                 that._moveSplit( -e.movementY );
             }
 
-            const widgets = that.root.querySelectorAll( ".lexwidget" );
-
-            // Send area resize to every widget in the area
-            for( let widget of widgets )
-            {
-                const jsInstance = widget.jsInstance;
-
-                if( jsInstance.onresize )
-                {
-                    jsInstance.onresize();
-                }
-            }
-
             e.stopPropagation();
             e.preventDefault();
         }
 
         function innerMouseUp( e )
         {
-            var doc = that.root.ownerDocument;
+            const doc = that.root.ownerDocument;
             doc.removeEventListener( 'mousemove', innerMouseMove );
             doc.removeEventListener( 'mouseup', innerMouseUp );
             document.body.classList.remove( 'nocursor' );
@@ -1620,9 +3109,15 @@ class Area {
             this.root.style.height = height;
         }
 
-        this.size = [ this.root.clientWidth, this.root.clientHeight ];
+        if( this.onresize )
+        {
+            this.onresize( this.root.getBoundingClientRect() );
+        }
 
-        this.propagateEvent( "onresize" );
+        doAsync( () => {
+            this.size = [ this.root.clientWidth, this.root.clientHeight ];
+            this.propagateEvent( "onresize" );
+        }, 150 );
     }
 
     /**
@@ -1639,7 +3134,7 @@ class Area {
         let [area1, area2] = this.sections;
         this.splitExtended = true;
 
-        if(this.type == "vertical")
+        if( this.type == "vertical")
         {
             this.offset = area2.root.offsetHeight;
             area2.root.classList.add("fadeout-vertical");
@@ -1653,7 +3148,6 @@ class Area {
             this._moveSplit(-Infinity, true, 8);
         }
 
-        // Async resize in some ms...
         doAsync( () => this.propagateEvent('onresize'), 150 );
     }
 
@@ -1669,7 +3163,7 @@ class Area {
         this.splitExtended = false;
         let [area1, area2] = this.sections;
 
-        if(this.type == "vertical")
+        if( this.type == "vertical")
         {
             area2.root.classList.add("fadein-vertical");
             this._moveSplit(this.offset);
@@ -1680,7 +3174,6 @@ class Area {
             this._moveSplit(this.offset);
         }
 
-        // Async resize in some ms...
         doAsync( () => this.propagateEvent('onresize'), 150 );
     }
 
@@ -1714,18 +3207,22 @@ class Area {
 
     propagateEvent( eventName ) {
 
-        for(var i = 0; i < this.sections.length; i++)
+        for( let i = 0; i < this.sections.length; i++ )
         {
-            const area = this.sections[i];
-            if(area[ eventName ])
+            const area = this.sections[ i ];
+
+            if( area[ eventName ] )
+            {
                 area[ eventName ].call( this, area.root.getBoundingClientRect() );
+            }
+
             area.propagateEvent( eventName );
         }
     }
 
     /**
      * @method addPanel
-     * @param {*} options
+     * @param {Object} options
      * Options to create a Panel
      */
 
@@ -1739,51 +3236,82 @@ class Area {
     /**
      * @method addMenubar
      * @param {Function} callback Function to fill the menubar
-     * @param {*} options:
+     * @param {Object} options:
      * float: Justify content (left, center, right) [left]
+     * sticky: Fix menubar at the top [true]
      */
 
     addMenubar( callback, options = {} ) {
 
-        let menubar = new Menubar(options);
+        let menubar = new Menubar( options );
 
-        if(callback) callback( menubar );
+        if( callback )
+        {
+            callback( menubar );
+        }
 
         LX.menubars.push( menubar );
 
         const height = 48; // pixels
+        const [ bar, content ] = this.split({ type: 'vertical', sizes: [height, null], resize: false, menubar: true });
+        menubar.siblingArea = content;
 
-        const [bar, content] = this.split({type: 'vertical', sizes: [height, null], resize: false, menubar: true});
         bar.attach( menubar );
-        bar.is_menubar = true;
+        bar.isMenubar = true;
+
+        if( options.sticky ?? true )
+        {
+            bar.root.className += " sticky top-0";
+        }
+
+        if( options.parentClass )
+        {
+            bar.root.className += ` ${ options.parentClass }`;
+        }
+
         return menubar;
     }
 
     /**
      * @method addSidebar
      * @param {Function} callback Function to fill the sidebar
+     * @param {Object} options: Sidebar options
+     * width: Width of the sidebar [16rem]
      */
 
     addSidebar( callback, options = {} ) {
 
         let sidebar = new SideBar( options );
 
-        if( callback ) callback( sidebar );
+        if( callback )
+        {
+            callback( sidebar );
+        }
+
+        // Generate DOM elements after adding all entries
+        sidebar.update();
 
         LX.menubars.push( sidebar );
 
-        const width = 64; // pixels
+        const width = options.width ?? "16rem";
+        const [ bar, content ] = this.split( { type: 'horizontal', sizes: [ width, null ], resize: false, sidebar: true } );
+        sidebar.siblingArea = content;
 
-        const [bar, content] = this.split( { type: 'horizontal', sizes: [ width, null ], resize: false, sidebar: true } );
         bar.attach( sidebar );
-        bar.is_sidebar = true;
+        bar.isSidebar = true;
+
+        if( options.parentClass )
+        {
+            bar.root.className += ` ${ options.parentClass }`;
+        }
+
         return sidebar;
     }
 
     /**
      * @method addOverlayButtons
      * @param {Array} buttons Buttons info
-     * @param {*} options:
+     * @param {Object} options:
      * float: Where to put the buttons (h: horizontal, v: vertical, t: top, m: middle, b: bottom, l: left, c: center, r: right) [htc]
      */
 
@@ -1815,7 +3343,7 @@ class Area {
 
         if( float )
         {
-            for( var i = 0; i < float.length; i++ )
+            for( let i = 0; i < float.length; i++ )
             {
                 const t = float[i];
                 switch( t )
@@ -1840,7 +3368,9 @@ class Area {
                 selected: b.selected,
                 icon: b.icon,
                 img: b.img,
-                className: b.class
+                className: b.class ?? "",
+                title: b.name,
+                overflowContainerX: overlayPanel.root
             };
 
             if( group )
@@ -1859,11 +3389,11 @@ class Area {
 
             if( b.options )
             {
-                overlayPanel.addDropdown( null, b.options, b.name, callback, _options );
+                overlayPanel.addSelect( null, b.options, b.name, callback, _options );
             }
             else
             {
-                overlayPanel.addButton( null, b.name, function( value, event ) {
+                const button = overlayPanel.addButton( null, b.name, function( value, event ) {
                     if( b.selectable )
                     {
                         if( b.group )
@@ -1878,7 +3408,10 @@ class Area {
                         }
                     }
 
-                    callback( value, event );
+                    if( callback )
+                    {
+                        callback( value, event, button.root );
+                    }
 
                 }, _options );
             }
@@ -1934,7 +3467,8 @@ class Area {
 
     /**
      * @method addTabs
-     * @param {*} options:
+     * @param {Object} options:
+     * parentClass: Add extra class to tab buttons container
      */
 
     addTabs( options = {} ) {
@@ -2032,8 +3566,9 @@ class Area {
 
         this.size = [ rect.width, rect.height ];
 
-        for(var i = 0; i < this.sections.length; i++) {
-            this.sections[i]._update();
+        for( var i = 0; i < this.sections.length; i++ )
+        {
+            this.sections[ i ]._update();
         }
     }
 };
@@ -2053,62 +3588,105 @@ function flushCss(element) {
 
 class Tabs {
 
-    static TAB_SIZE = 28;
     static TAB_ID   = 0;
 
-    constructor( area, options = {} )  {
+    constructor( area, options = {} ) {
 
         this.onclose = options.onclose;
 
         let container = document.createElement('div');
-        container.className = "lexareatabs " + (options.fit ? "fit" : "row");
+        container.className = "lexareatabs " + ( options.fit ? "fit" : "row" );
 
         const folding = options.folding ?? false;
-        if(folding) container.classList.add("folding");
+        if( folding ) container.classList.add("folding");
 
         let that = this;
 
-        container.addEventListener("dragenter", function(e) {
+        container.addEventListener("dragenter", function( e ) {
             e.preventDefault(); // Prevent default action (open as link for some elements)
             this.classList.add("dockingtab");
         });
 
-        container.addEventListener("dragleave", function(e) {
+        container.addEventListener("dragleave", function( e ) {
             e.preventDefault(); // Prevent default action (open as link for some elements)
+            if ( this.contains( e.relatedTarget ) ) return; // Still inside
             this.classList.remove("dockingtab");
         });
 
-        container.addEventListener("drop", function(e) {
+        container.addEventListener("drop", function( e ) {
             e.preventDefault(); // Prevent default action (open as link for some elements)
 
-            const tab_id = e.dataTransfer.getData("source");
-            const el = document.getElementById(tab_id);
-            if( !el ) return;
+            const tabId = e.dataTransfer.getData( "source" );
+            const tabDom = document.getElementById( tabId );
+            if( !tabDom ) return;
 
-            // Append tab and content
-            this.appendChild( el );
-            const content = document.getElementById(tab_id + "_content");
+            const sourceContainer = tabDom.parentElement;
+            const target = e.target;
+            const rect = target.getBoundingClientRect();
+
+            if( e.offsetX < ( rect.width * 0.5 ) )
+            {
+                this.insertBefore( tabDom, target );
+            }
+            else if( target.nextElementSibling )
+            {
+                this.insertBefore( tabDom, target.nextElementSibling );
+            }
+            else
+            {
+                this.appendChild( tabDom );
+            }
+
+            {
+                // Update childIndex for fit mode tabs in source container
+                sourceContainer.childNodes.forEach( (c, idx) => c.childIndex = ( idx - 1 ) );
+
+                // If needed, set last tab of source container active
+                const sourceAsFit = (/true/).test( e.dataTransfer.getData( "fit" ) );
+                if( sourceContainer.childElementCount == ( sourceAsFit ? 2 : 1 ) )
+                {
+                    sourceContainer.lastChild.click(); // single tab or thumb first (fit mode)
+                }
+                else
+                {
+                    const sourceSelected = sourceContainer.querySelector( ".selected" );
+                    ( sourceSelected ?? sourceContainer.childNodes[ sourceAsFit ? 1 : 0 ] ).click();
+                }
+            }
+
+            // Update childIndex for fit mode tabs in target container
+            this.childNodes.forEach( (c, idx) => c.childIndex = ( idx - 1 ) );
+
+            const content = document.getElementById( tabId + "_content" );
             that.area.attach( content );
             this.classList.remove("dockingtab");
 
-            // Change tabs instance
-            LX.emit( "@on_tab_docked" );
-            el.instance = that;
-
-            // Show on drop
-            el.click();
+            // Change tabs instance and select on drop
+            tabDom.instance = that;
+            tabDom.click();
 
             // Store info
-            that.tabs[ el.dataset["name"] ] = content;
+            that.tabs[ tabDom.dataset["name"] ] = content;
         });
 
         area.root.classList.add( "lexareatabscontainer" );
 
-        area.split({type: 'vertical', sizes: "auto", resize: false, top: 6});
-        area.sections[0].attach( container );
+        const [ tabButtons, content ] = area.split({ type: 'vertical', sizes: options.sizes ?? "auto", resize: false, top: 2 });
+        tabButtons.attach( container );
 
-        this.area = area.sections[1];
+        if( options.parentClass )
+        {
+            container.parentElement.className += ` ${ options.parentClass }`;
+        }
+
+        this.area = content;
         this.area.root.className += " lexareatabscontent";
+
+        if( options.contentClass )
+        {
+            this.area.root.className += ` ${ options.contentClass }`;
+        }
+
         this.selected = null;
         this.root = container;
         this.tabs = {};
@@ -2128,8 +3706,7 @@ class Tabs {
                 var transition = this.thumb.style.transition;
                 this.thumb.style.transition = "none";
                 this.thumb.style.transform = "translate( " + ( tabEl.childIndex * tabEl.offsetWidth ) + "px )";
-                this.thumb.style.width = ( tabEl.offsetWidth - 5 ) + "px";
-                this.thumb.style.height = ( tabEl.offsetHeight - 6 ) + "px";
+                this.thumb.style.width = ( tabEl.offsetWidth ) + "px";
                 flushCss( this.thumb );
                 this.thumb.style.transition = transition;
             });
@@ -2138,24 +3715,28 @@ class Tabs {
         }
 
         // debug
-        if(folding)
+        if( folding )
         {
             this.folded = true;
             this.folding = folding;
 
-            if(folding == "up") area.root.insertChildAtIndex(area.sections[1].root, 0);
+            if( folding == "up" )
+            {
+                area.root.insertChildAtIndex( area.sections[ 1 ].root, 0 );
+            }
 
             // Listen resize event on parent area
             const resizeObserver = new ResizeObserver((entries) => {
-                for (const entry of entries) {
+                for (const entry of entries)
+                {
                     const bb = entry.contentRect;
-                    const sibling = area.parentArea.sections[0].root;
-                    const add_offset = true; // hardcoded...
-                    sibling.style.height = "calc(100% - " + ((add_offset ? 42 : 0) + bb.height) + "px )";
+                    const sibling = area.parentArea.sections[ 0 ].root;
+                    const addOffset = true; // hardcoded...
+                    sibling.style.height = "calc(100% - " + ((addOffset ? 42 : 0) + bb.height) + "px )";
                 }
             });
 
-            resizeObserver.observe(this.area.root);
+            resizeObserver.observe( this.area.root );
             this.area.root.classList.add('folded');
         }
     }
@@ -2167,7 +3748,9 @@ class Tabs {
         if( isSelected )
         {
             this.root.querySelectorAll( 'span' ).forEach( s => s.classList.remove( 'selected' ) );
-            this.area.root.querySelectorAll( '.lextabcontent' ).forEach( c => c.style.display = 'none' );
+            const pseudoParent = this.area.root.querySelector( ":scope > .pseudoparent-tabs" );
+            const contentRoot = pseudoParent ?? this.area.root;
+            contentRoot.querySelectorAll( ':scope > .lextabcontent' ).forEach( c => c.style.display = 'none' );
         }
 
         isSelected = !Object.keys( this.tabs ).length && !this.folding ? true : isSelected;
@@ -2208,17 +3791,12 @@ class Tabs {
             this.selected = name;
         }
 
-        LX.addSignal( "@on_tab_docked", tabEl, function() {
-            if( this.parentElement.childNodes.length == 1 )
-            {
-                this.parentElement.childNodes[ 0 ].click(); // single tab!!
-            }
-        } );
-
         tabEl.addEventListener("click", e => {
 
             e.preventDefault();
             e.stopPropagation();
+
+            const scope = tabEl.instance;
 
             if( !tabEl.fixed )
             {
@@ -2228,17 +3806,19 @@ class Tabs {
                 tabEl.selected = !lastValue;
                 // Manage selected
                 tabEl.parentElement.querySelectorAll( 'span' ).forEach( s => s.classList.remove( 'selected' ));
-                tabEl.classList.toggle('selected', ( this.folding && tabEl.selected ));
+                tabEl.classList.toggle('selected', ( scope.folding && tabEl.selected ));
                 // Manage visibility
-                tabEl.instance.area.root.querySelectorAll( '.lextabcontent' ).forEach( c => c.style.display = 'none' );
+                const pseudoParent = scope.area.root.querySelector( ":scope > .pseudoparent-tabs" );
+                const contentRoot = pseudoParent ?? scope.area.root;
+                contentRoot.querySelectorAll( ':scope > .lextabcontent' ).forEach( c => c.style.display = 'none' );
                 contentEl.style.display = contentEl.originalDisplay;
-                tabEl.instance.selected = tabEl.dataset.name;
+                scope.selected = tabEl.dataset.name;
             }
 
-            if( this.folding )
+            if( scope.folding )
             {
-                this.folded = tabEl.selected;
-                this.area.root.classList.toggle( 'folded', !this.folded );
+                scope.folded = tabEl.selected;
+                scope.area.root.classList.toggle( 'folded', !scope.folded );
             }
 
             if( options.onSelect )
@@ -2246,12 +3826,11 @@ class Tabs {
                 options.onSelect(e, tabEl.dataset.name);
             }
 
-            if( this.thumb )
+            if( scope.thumb )
             {
-                this.thumb.style.transform = "translate( " + ( tabEl.childIndex * tabEl.offsetWidth ) + "px )";
-                this.thumb.style.width = ( tabEl.offsetWidth - 5 ) + "px";
-                this.thumb.style.height = ( tabEl.offsetHeight - 6 ) + "px";
-                this.thumb.item = tabEl;
+                scope.thumb.style.transform = "translate( " + ( tabEl.childIndex * tabEl.offsetWidth ) + "px )";
+                scope.thumb.style.width = ( tabEl.offsetWidth ) + "px";
+                scope.thumb.item = tabEl;
             }
         });
 
@@ -2265,22 +3844,34 @@ class Tabs {
             }
         });
 
-        tabEl.addEventListener("mouseup", e => {
-            e.preventDefault();
-            e.stopPropagation();
-            if( e.button == 1 )
-            {
-                this.delete( tabEl.dataset[ "name" ] );
-            }
-        });
+        if( options.allowDelete ?? false )
+        {
+            tabEl.addEventListener("mousedown", e => {
+                if( e.button == LX.MOUSE_MIDDLE_CLICK )
+                {
+                    e.preventDefault();
+                }
+            });
+
+            tabEl.addEventListener("mouseup", e => {
+                e.preventDefault();
+                e.stopPropagation();
+                if( e.button == LX.MOUSE_MIDDLE_CLICK )
+                {
+                    this.delete( tabEl.dataset[ "name" ] );
+                }
+            });
+        }
 
         tabEl.setAttribute( 'draggable', true );
-        tabEl.addEventListener( 'dragstart', function( e ) {
-            if( this.parentElement.childNodes.length == 1 ){
+        tabEl.addEventListener( 'dragstart', e => {
+            const sourceAsFit = !!this.thumb;
+            if( tabEl.parentElement.childNodes.length == ( sourceAsFit ? 2 : 1 ) ){
                 e.preventDefault();
                 return;
             }
             e.dataTransfer.setData( 'source', e.target.id );
+            e.dataTransfer.setData( 'fit', sourceAsFit );
         });
 
         // Attach content
@@ -2292,15 +3883,15 @@ class Tabs {
 
         setTimeout( () => {
 
-            if( options.onCreate ) {
+            if( options.onCreate )
+            {
                 options.onCreate.call(this, this.area.root.getBoundingClientRect());
             }
 
             if( isSelected && this.thumb )
             {
                 this.thumb.style.transform = "translate( " + ( tabEl.childIndex * tabEl.offsetWidth ) + "px )";
-                this.thumb.style.width = ( tabEl.offsetWidth - 5 ) + "px";
-                this.thumb.style.height = ( tabEl.offsetHeight - 6 ) + "px";
+                this.thumb.style.width = ( tabEl.offsetWidth ) + "px";
                 this.thumb.item = tabEl;
             }
 
@@ -2354,278 +3945,389 @@ LX.Tabs = Tabs;
 
 class Menubar {
 
-    constructor( options = {} )  {
+    constructor( options = {} ) {
 
-        this.root = document.createElement('div');
+        this.root = document.createElement( "div" );
         this.root.className = "lexmenubar";
-        if(options.float)
-            this.root.style.justifyContent = options.float;
-        this.items = [];
 
-        this.icons = {};
-        this.shorts = {};
-        this.buttons = [];
+        if( options.float )
+        {
+            this.root.style.justifyContent = options.float;
+        }
+
+        this.items = [ ];
+        this.buttons = [ ];
+        this.icons = { };
+        this.shorts = { };
+    }
+
+    _resetMenubar( focus ) {
+
+        // Menu entries are in the menubar..
+        this.root.querySelectorAll(".lexmenuentry").forEach( _entry => {
+            _entry.classList.remove( 'selected' );
+            _entry.built = false;
+        } );
+
+        // Menuboxes are in the root area!
+        LX.root.querySelectorAll(".lexmenubox").forEach(e => e.remove());
+
+        // Next time we need to click again
+        this.focused = focus ?? false;
+    }
+
+    _createSubmenu( o, k, c, d ) {
+
+        let menuElement = document.createElement('div');
+        menuElement.className = "lexmenubox";
+        menuElement.tabIndex = "0";
+        c.currentMenu = menuElement;
+        menuElement.parentEntry = c;
+
+        const isSubMenu = c.classList.contains( "lexmenuboxentry" );
+        if( isSubMenu )
+        {
+            menuElement.dataset[ "submenu" ] = true;
+        }
+
+        menuElement._updatePosition = () => {
+            // Remove transitions for this change..
+            const transition = menuElement.style.transition;
+            menuElement.style.transition = "none";
+            flushCss( menuElement );
+
+            doAsync( () => {
+                let rect = c.getBoundingClientRect();
+                menuElement.style.left = ( isSubMenu ? ( rect.x + rect.width ) : rect.x ) + "px";
+                menuElement.style.top = ( isSubMenu ? rect.y : ( ( rect.y + rect.height ) ) - 4 ) + "px";
+                menuElement.style.transition = transition;
+            } );
+        };
+
+        menuElement._updatePosition();
+
+        doAsync( () => {
+            menuElement.dataset[ "open" ] = true;
+        }, 10 );
+
+        LX.root.appendChild( menuElement );
+
+        for( var i = 0; i < o[ k ].length; ++i )
+        {
+            const subitem = o[ k ][ i ];
+            const subkey = Object.keys( subitem )[ 0 ];
+            const hasSubmenu = subitem[ subkey ].length;
+            const isCheckbox = subitem[ 'type' ] == 'checkbox';
+            let subentry = document.createElement('div');
+            subentry.tabIndex = "-1";
+            subentry.className = "lexmenuboxentry";
+            subentry.className += (i == o[k].length - 1 ? " last" : "") + ( subitem.disabled ? " disabled" : "" );
+
+            if( subkey == '' )
+            {
+                subentry.className = " lexseparator";
+            }
+            else
+            {
+                subentry.id = subkey;
+                let subentrycont = document.createElement('div');
+                subentrycont.innerHTML = "";
+                subentrycont.classList = "lexmenuboxentrycontainer";
+                subentry.appendChild(subentrycont);
+                const icon = this.icons[ subkey ];
+                if( isCheckbox )
+                {
+                    subentrycont.innerHTML += "<input type='checkbox' >";
+                }
+                else if( icon )
+                {
+                    subentrycont.innerHTML += "<a class='" + icon + " fa-sm'></a>";
+                }
+                else
+                {
+                    subentrycont.innerHTML += "<a class='fa-solid fa-sm noicon'></a>";
+                    subentrycont.classList.add( "noicon" );
+
+                }
+                subentrycont.innerHTML += "<div class='lexentryname'>" + subkey + "</div>";
+            }
+
+            let checkboxInput = subentry.querySelector('input');
+            if( checkboxInput )
+            {
+                checkboxInput.checked = subitem.checked ?? false;
+                checkboxInput.addEventListener('change', e => {
+                    subitem.checked = checkboxInput.checked;
+                    const f = subitem[ 'callback' ];
+                    if( f )
+                    {
+                        f.call( this, subitem.checked, subkey, subentry );
+                        this._resetMenubar();
+                    }
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                })
+            }
+
+            menuElement.appendChild( subentry );
+
+            // Nothing more for separators
+            if( subkey == '' )
+            {
+                continue;
+            }
+
+            menuElement.addEventListener('keydown', e => {
+                e.preventDefault();
+                let short = this.shorts[ subkey ];
+                if(!short) return;
+                // check if it's a letter or other key
+                short = short.length == 1 ? short.toLowerCase() : short;
+                if( short == e.key )
+                {
+                    subentry.click()
+                }
+            });
+
+            // Add callback
+            subentry.addEventListener("click", e => {
+                if( checkboxInput )
+                {
+                    subitem.checked = !subitem.checked;
+                }
+                const f = subitem[ 'callback' ];
+                if( f )
+                {
+                    f.call( this, checkboxInput ? subitem.checked : subkey, checkboxInput ? subkey : subentry );
+                    this._resetMenubar();
+                }
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            });
+
+            subentry.addEventListener("blur", e => {
+                if( e.relatedTarget && !e.relatedTarget.className.includes( "lexmenu" ) )
+                {
+                    this._resetMenubar();
+                }
+            });
+
+            // Add icon if has submenu, else check for shortcut
+            if( !hasSubmenu )
+            {
+                if( this.shorts[ subkey ] )
+                {
+                    let shortEl = document.createElement('div');
+                    shortEl.className = "lexentryshort";
+                    shortEl.innerText = this.shorts[ subkey ];
+                    subentry.appendChild( shortEl );
+                }
+                continue;
+            }
+
+            let submenuIcon = document.createElement('a');
+            submenuIcon.className = "fa-solid fa-angle-right fa-xs";
+            subentry.appendChild( submenuIcon );
+
+            subentry.addEventListener("mouseover", e => {
+                if( subentry.built )
+                {
+                    return;
+                }
+                subentry.built = true;
+                this._createSubmenu( subitem, subkey, subentry, ++d );
+                e.stopPropagation();
+            });
+
+            subentry.addEventListener("mouseleave", e => {
+                if( subentry.currentMenu && ( subentry.currentMenu != e.toElement ) && !( subentry.currentMenu.contains( e.toElement ) ) )
+                {
+                    d = -1; // Reset depth
+                    delete subentry.built;
+                    subentry.currentMenu.remove();
+                    delete subentry.currentMenu;
+                }
+            });
+        }
+
+        // Set final width
+        menuElement.style.width = menuElement.offsetWidth + "px";
     }
 
     /**
      * @method add
-     * @param {*} options:
+     * @param {Object} options:
      * callback: Function to call on each item
+     * icon: Entry icon
+     * short: Entry shortcut name
      */
 
     add( path, options = {} ) {
 
-        if(options.constructor == Function)
+        if( options.constructor == Function )
+        {
             options = { callback: options };
+        }
 
-        // process path
-        const tokens = path.split("/");
+        // Process path
+        const tokens = path.split( "/" );
 
-        // assign icons and shortcuts to last token in path
+        // Assign icons and shortcuts to last token in path
         const lastPath = tokens[tokens.length - 1];
         this.icons[ lastPath ] = options.icon;
         this.shorts[ lastPath ] = options.short;
 
         let idx = 0;
-        let that = this;
 
-        const insert = (token, list) => {
-            if(token == undefined) return;
+        const _insertEntry = ( token, list ) => {
+            if( token == undefined )
+            {
+                return;
+            }
 
             let found = null;
             list.forEach( o => {
-                const keys = Object.keys(o);
+                const keys = Object.keys( o );
                 const key = keys.find( t => t == token );
-                if(key) found = o[ key ];
+                if( key ) found = o[ key ];
             } );
 
-            if(found) {
-                insert( tokens[idx++], found );
+            if( found )
+            {
+                _insertEntry( tokens[ idx++ ], found );
             }
-            else {
+            else
+            {
                 let item = {};
                 item[ token ] = [];
-                const next_token = tokens[idx++];
+                const nextToken = tokens[ idx++ ];
                 // Check if last token -> add callback
-                if(!next_token) {
+                if( !nextToken )
+                {
                     item[ 'callback' ] = options.callback;
+                    item[ 'disabled' ] = options.disabled;
                     item[ 'type' ] = options.type;
                     item[ 'checked' ] = options.checked;
                 }
                 list.push( item );
-                insert( next_token, item[ token ] );
+                _insertEntry( nextToken, item[ token ] );
             }
         };
 
-        insert( tokens[idx++], this.items );
+        _insertEntry( tokens[idx++], this.items );
 
         // Create elements
 
         for( let item of this.items )
         {
-            let key = Object.keys(item)[0];
-            let pKey = key.replace(/\s/g, '').replaceAll('.', '');
+            let key = Object.keys( item )[ 0 ];
+            let pKey = key.replace( /\s/g, '' ).replaceAll( '.', '' );
 
             // Item already created
-            if( this.root.querySelector("#" + pKey) )
+            if( this.root.querySelector( "#" + pKey ) )
+            {
                 continue;
+            }
 
             let entry = document.createElement('div');
             entry.className = "lexmenuentry";
             entry.id = pKey;
             entry.innerHTML = "<span>" + key + "</span>";
-            if(options.position == "left") {
+            entry.tabIndex = "1";
+
+            if( options.position == "left" )
+            {
                 this.root.prepend( entry );
             }
-            else {
-                if(options.position == "right")
+            else
+            {
+                if( options.position == "right" )
+                {
                     entry.right = true;
-                if(this.root.lastChild && this.root.lastChild.right) {
+                }
+
+                if( this.root.lastChild && this.root.lastChild.right )
+                {
                     this.root.lastChild.before( entry );
                 }
-                else {
+                else
+                {
                     this.root.appendChild( entry );
                 }
             }
 
-            const create_submenu = function( o, k, c, d ) {
-
-                let contextmenu = document.createElement('div');
-                contextmenu.className = "lexcontextmenu";
-                contextmenu.tabIndex = "0";
-                const isSubMenu = c.classList.contains('lexcontextmenuentry');
-                var rect = c.getBoundingClientRect();
-                contextmenu.style.left = (isSubMenu ? rect.width : rect.left) + "px";
-                // Entries use css to set top relative to parent
-                contextmenu.style.top = (isSubMenu ? 0 : rect.bottom - 4) + "px";
-                c.appendChild( contextmenu );
-
-                contextmenu.focus();
-
-                rect = contextmenu.getBoundingClientRect();
-
-                for( var i = 0; i < o[k].length; ++i )
-                {
-                    const subitem = o[k][i];
-                    const subkey = Object.keys(subitem)[0];
-                    const hasSubmenu = subitem[ subkey ].length;
-                    const isCheckbox = subitem[ 'type' ] == 'checkbox';
-                    let subentry = document.createElement('div');
-                    subentry.className = "lexcontextmenuentry";
-                    subentry.className += (i == o[k].length - 1 ? " last" : "");
-                    if(subkey == '')
-                        subentry.className = " lexseparator";
-                    else {
-
-                        subentry.id = subkey;
-                        let subentrycont = document.createElement('div');
-                        subentrycont.innerHTML = "";
-                        subentrycont.classList = "lexcontextmenuentrycontainer";
-                        subentry.appendChild(subentrycont);
-                        const icon = that.icons[ subkey ];
-                        if(isCheckbox){
-                            subentrycont.innerHTML += "<input type='checkbox' >";
-                        }else if(icon) {
-                            subentrycont.innerHTML += "<a class='" + icon + " fa-sm'></a>";
-                        }else {
-                            subentrycont.innerHTML += "<a class='fa-solid fa-sm noicon'></a>";
-                            subentrycont.classList.add( "noicon" );
-
-                        }
-                        subentrycont.innerHTML += "<div class='lexentryname'>" + subkey + "</div>";
-                    }
-
-                    let checkbox_input = subentry.querySelector('input');
-                    if(checkbox_input) {
-                        checkbox_input.checked = subitem.checked ?? false;
-                        checkbox_input.addEventListener('change', (e) => {
-                            subitem.checked = checkbox_input.checked;
-                            const f = subitem[ 'callback' ];
-                            if(f) {
-                                f.call( this, subitem.checked, subkey, subentry );
-                                that.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
-                            }
-                            e.stopPropagation();
-                            e.stopImmediatePropagation();
-                        })
-                    }
-
-                    contextmenu.appendChild( subentry );
-
-                    // Nothing more for separators
-                    if(subkey == '') continue;
-
-                    contextmenu.addEventListener('keydown', function(e) {
-                        e.preventDefault();
-                        let short = that.shorts[ subkey ];
-                        if(!short) return;
-                        // check if it's a letter or other key
-                        short = short.length == 1 ? short.toLowerCase() : short;
-                        if(short == e.key) {
-                            subentry.click()
-                        }
-                    });
-
-                    // Add callback
-                    subentry.addEventListener("click", e => {
-                        if(checkbox_input) {
-                            subitem.checked = !subitem.checked;
-                        }
-                        const f = subitem[ 'callback' ];
-                        if(f) {
-                            f.call( this, checkbox_input ? subitem.checked : subkey, checkbox_input ? subkey : subentry );
-                            that.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
-                        }
-                        e.stopPropagation();
-                        e.stopImmediatePropagation();
-                    });
-
-                    // Add icon if has submenu, else check for shortcut
-                    if( !hasSubmenu)
-                    {
-                        if(that.shorts[ subkey ]) {
-                            let shortEl = document.createElement('div');
-                            shortEl.className = "lexentryshort";
-                            shortEl.innerText = that.shorts[ subkey ];
-                            subentry.appendChild( shortEl );
-                        }
-                        continue;
-                    }
-
-                    let submenuIcon = document.createElement('a');
-                    submenuIcon.className = "fa-solid fa-angle-right fa-xs";
-                    subentry.appendChild( submenuIcon );
-
-                    subentry.addEventListener("mouseover", e => {
-                        if(subentry.built)
-                        return;
-                        subentry.built = true;
-                        create_submenu( subitem, subkey, subentry, ++d );
-                        e.stopPropagation();
-                    });
-
-                    subentry.addEventListener("mouseleave", () => {
-                        d = -1; // Reset depth
-                        delete subentry.built;
-                        contextmenu.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
-                    });
-                }
-
-                // Set final width
-                contextmenu.style.width = contextmenu.offsetWidth + "px";
+            const _showEntry = () => {
+                this._resetMenubar(true);
+                entry.classList.add( "selected" );
+                entry.built = true;
+                this._createSubmenu( item, key, entry, -1 );
             };
 
             entry.addEventListener("click", () => {
-
                 const f = item[ 'callback' ];
-                if(f) {
+                if( f )
+                {
                     f.call( this, key, entry );
                     return;
                 }
 
-                // Manage selected
-                this.root.querySelectorAll(".lexmenuentry").forEach( e => e.classList.remove( 'selected' ) );
-                entry.classList.add( "selected" );
+                _showEntry();
 
-                this.root.querySelectorAll(".lexcontextmenu").forEach( e => e.remove() );
-                create_submenu( item, key, entry, -1 );
+                this.focused = true;
             });
 
-            entry.addEventListener("mouseleave", () => {
-                this.root.querySelectorAll(".lexmenuentry").forEach( e => e.classList.remove( 'selected' ) );
-                this.root.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
+            entry.addEventListener( "mouseover", (e) => {
+
+                if( this.focused && !entry.built )
+                {
+                    _showEntry();
+                }
+            });
+
+            entry.addEventListener("blur", e => {
+
+                if( e.relatedTarget && e.relatedTarget.className.includes( "lexmenubox" ) )
+                {
+                    return;
+                }
+
+                this._resetMenubar();
             });
         }
     }
 
     /**
      * @method getButton
-     * @param {String} title
+     * @param {String} name
      */
 
-    getButton( title ) {
-        return this.buttons[ title ];
+    getButton( name ) {
+        return this.buttons[ name ];
     }
 
     /**
-     * @method getSubitems: recursive method to find subentries of a menu entry
+     * @method getSubitems
      * @param {Object} item: parent item
      * @param {Array} tokens: split path strings
     */
-    getSubitem(item, tokens) {
+    getSubitem( item, tokens ) {
 
         let subitem = null;
-        let path = tokens[0];
-        for(let i = 0; i < item.length; i++) {
-            if(item[i][path]) {
+        let path = tokens[ 0 ];
 
-                if(tokens.length == 1) {
-                    subitem = item[i];
+        for( let i = 0; i < item.length; i++ )
+        {
+            if( item[ i ][ path ] )
+            {
+                if( tokens.length == 1 )
+                {
+                    subitem = item[ i ];
                     return subitem;
                 }
-                else {
-                    tokens.splice(0,1);
-                    return this.getSubitem(item[i][path], tokens);
+                else
+                {
+                    tokens.splice( 0, 1 );
+                    return this.getSubitem( item[ i ][ path ], tokens );
                 }
 
             }
@@ -2637,6 +4339,7 @@ class Menubar {
      * @param {String} path
     */
     getItem( path ) {
+
         // process path
         const tokens = path.split("/");
 
@@ -2645,92 +4348,124 @@ class Menubar {
 
     /**
      * @method setButtonIcon
-     * @param {String} title
+     * @param {String} name
      * @param {String} icon
+     * @param {Function} callback
+     * @param {Object} options
      */
 
-    setButtonIcon( title, icon, callback, options = {} ) {
+    setButtonIcon( name, icon, callback, options = {} ) {
 
-        const button = this.buttons[ title ];
-        if(button) {
+        if( !name )
+        {
+            throw( "Set Button Name!" );
+        }
 
+        let button = this.buttons[ name ];
+        if( button )
+        {
             button.querySelector('a').className = "fa-solid" + " " + icon + " lexicon";
+            return;
         }
-        else {
-            let button = document.createElement('div');
-            const disabled = options.disabled ?? false;
-            button.className = "lexmenubutton" + (disabled ? " disabled" : "");
-            button.title = title ?? "";
-            button.innerHTML = "<a class='" + icon + " lexicon' style='font-size:x-large;'></a>";
-            button.style.padding = "5px 10px";
-            button.style.maxHeight = "calc(100% - 10px)";
-            button.style.alignItems = "center";
 
-            if(options.float == "right")
-                button.right = true;
-            if(this.root.lastChild && this.root.lastChild.right) {
-                this.root.lastChild.before( button );
-            }
-            else if(options.float == "left") {
-                this.root.prepend(button);
-            }
-            else {
-                this.root.appendChild( button );
-            }
+        // Otherwise, create it
+        button = document.createElement('div');
+        const disabled = options.disabled ?? false;
+        button.className = "lexmenubutton main" + (disabled ? " disabled" : "");
+        button.title = name;
+        button.innerHTML = "<a class='" + icon + " lexicon'></a>";
 
-            const _b = button.querySelector('a');
-            _b.addEventListener("click", (e) => {
-                if(callback && !disabled)
-                    callback.call( this, _b, e );
-            });
+        if( options.float == "right" )
+        {
+            button.right = true;
         }
+
+        if( this.root.lastChild && this.root.lastChild.right )
+        {
+            this.root.lastChild.before( button );
+        }
+        else if( options.float == "left" )
+        {
+            this.root.prepend( button );
+        }
+        else
+        {
+            this.root.appendChild( button );
+        }
+
+        const _b = button.querySelector('a');
+        _b.addEventListener("click", (e) => {
+            if( callback && !disabled )
+            {
+                callback.call( this, _b, e );
+            }
+        });
+
+        this.buttons[ name ] = button;
     }
 
     /**
      * @method setButtonImage
-     * @param {String} title
+     * @param {String} name
      * @param {String} src
+     * @param {Function} callback
+     * @param {Object} options
      */
 
-    setButtonImage( title, src, callback, options = {} ) {
-        const button = this.buttons[ title ];
-        if(button) {
+    setButtonImage( name, src, callback, options = {} ) {
 
-            button.querySelector('a').className = "fa-solid" + " " + icon + " lexicon";
+        if( !name )
+        {
+            throw( "Set Button Name!" );
         }
-        else {
-            let button = document.createElement('div');
-            const disabled = options.disabled ?? false;
-            button.className = "lexmenubutton" + (disabled ? " disabled" : "");
-            button.title = title ?? "";
-            button.innerHTML = "<a><image src='" + src + "' class='lexicon' style='height:32px;'></a>";
-            button.style.padding = "5px";
-            button.style.alignItems = "center";
 
-            if(options.float == "right")
-                button.right = true;
-            if(this.root.lastChild && this.root.lastChild.right) {
-                this.root.lastChild.before( button );
-            }
-            else if(options.float == "left") {
-                this.root.prepend(button);
-            }
-            else {
-                this.root.appendChild( button );
-            }
-
-            const _b = button.querySelector('a');
-            _b.addEventListener("click", (e) => {
-                if(callback && !disabled)
-                    callback.call( this, _b, e );
-            });
+        let button = this.buttons[ name ];
+        if( button )
+        {
+            button.querySelector('img').src = src;
+            return;
         }
+
+        // Otherwise, create it
+        button = document.createElement('div');
+        const disabled = options.disabled ?? false;
+        button.className = "lexmenubutton main" + (disabled ? " disabled" : "");
+        button.title = name;
+        button.innerHTML = "<a><image src='" + src + "' class='lexicon' style='height:32px;'></a>";
+
+        if( options.float == "right" )
+        {
+            button.right = true;
+        }
+
+        if( this.root.lastChild && this.root.lastChild.right )
+        {
+            this.root.lastChild.before( button );
+        }
+        else if( options.float == "left" )
+        {
+            this.root.prepend( button );
+        }
+        else
+        {
+            this.root.appendChild( button );
+        }
+
+        const _b = button.querySelector('a');
+        _b.addEventListener("click", (e) => {
+            if( callback && !disabled )
+            {
+                callback.call( this, _b, e );
+            }
+        });
+
+        this.buttons[ name ] = button;
     }
 
     /**
      * @method addButton
      * @param {Array} buttons
-     * @param {*} options
+     * @param {Object} options
      * float: center (Default), right
      */
 
@@ -2764,57 +4499,14 @@ class Menubar {
 
         for( let i = 0; i < buttons.length; ++i )
         {
-            let data = buttons[ i ];
-            let button = document.createElement( "label" );
+            const data = buttons[ i ];
             const title = data.title;
-            let disabled = data.disabled ?? false;
-            button.className = "lexmenubutton" + (disabled ? " disabled" : "");
-            button.title = title ?? "";
-            this.buttonContainer.appendChild( button );
-
-            const icon = document.createElement( "a" );
-            icon.className = data.icon + " lexicon";
-            button.appendChild( icon );
-
-            let trigger = icon;
-
-            if( data.swap )
-            {
-                button.classList.add( "swap" );
-                icon.classList.add( "swap-off" );
-
-                const input = document.createElement( "input" );
-                input.type = "checkbox";
-                button.prepend( input );
-                trigger = input;
-
-                const swapIcon = document.createElement( "a" );
-                swapIcon.className = data.swap + " swap-on lexicon";
-                button.appendChild( swapIcon );
-
-                button.swap = function() {
-                    const swapInput = this.querySelector( "input" );
-                    swapInput.checked = !swapInput.checked;
-                };
-
-                // Set if swap has to be performed
-                button.setState = function( v ) {
-                    const swapInput = this.querySelector( "input" );
-                    swapInput.checked = v;
-                };
-            }
-
-            trigger.addEventListener("click", e => {
-                if( data.callback && !disabled )
-                {
-                    const swapInput = button.querySelector( "input" );
-                    data.callback.call( this, e, swapInput?.checked );
-                }
-            });
+            const button = new Button( title, "", data.callback, { title, buttonClass: "bg-none", disabled: data.disabled, icon: data.icon, hideName: true, swap: data.swap } )
+            this.buttonContainer.appendChild( button.root );
 
             if( title )
             {
-                this.buttons[ title ] = button;
+                this.buttons[ title ] = button.root;
             }
         }
     }
@@ -2828,90 +4520,356 @@ LX.Menubar = Menubar;
 
 class SideBar {
 
-    constructor( options = {} )  {
+    /**
+     * @param {Object} options
+     * className: Extra class to customize root element
+     * filter: Add search bar to filter entries [false]
+     * displaySelected: Indicate if an entry is displayed as selected
+     * skipHeader: Do not use sidebar header [false]
+     * headerImg: Image to be shown as avatar
+     * headerIcon: Icon to be shown as avatar (from LX.ICONS)
+     * headerTitle: Header title
+     * headerSubtitle: Header subtitle
+     * header: HTMLElement to add a custom header
+     * skipFooter: Do not use sidebar footer [false]
+     * footerImg: Image to be shown as avatar
+     * footerIcon: Icon to be shown as avatar (from LX.ICONS)
+     * footerTitle: Footer title
+     * footerSubtitle: Footer subtitle
+     * footer: HTMLElement to add a custom footer
+     * collapsable: Sidebar can toggle between collapsed/expanded [true]
+     * collapseToIcons: When Sidebar collapses, icons remains visible [true]
+     * onHeaderPressed: Function to call when header is pressed
+     * onFooterPressed: Function to call when footer is pressed
+     */
 
-        this.root = document.createElement( 'div' );
-        this.root.className = "lexsidebar";
+    constructor( options = {} ) {
 
-        this.footer = document.createElement( 'div' );
-        this.footer.className = "lexsidebarfooter";
-        this.root.appendChild( this.footer );
+        this.root = document.createElement( "div" );
+        this.root.className = "lexsidebar " + ( options.className ?? "" );
+
+        this._displaySelected = options.displaySelected ?? false;
+
+        Object.defineProperty( SideBar.prototype, "displaySelected", {
+            get: function() { return this._displaySelected; },
+            set: function( v ) {
+                this._displaySelected = v;
+                if( !this._displaySelected )
+                {
+                    this.root.querySelectorAll(".lexsidebarentry").forEach( e => e.classList.remove( 'selected' ) );
+                }
+            },
+            enumerable: true,
+            configurable: true
+        });
+
+        this.collapsable = options.collapsable ?? true;
+        this._collapseWidth = ( options.collapseToIcons ?? true ) ? "58px" : "0px";
+        this.collapsed = false;
+
+        this.filterString = "";
+
+        doAsync( () => {
+
+            this.root.parentElement.ogWidth = this.root.parentElement.style.width;
+            this.root.parentElement.style.transition = "width 0.25s ease-out";
+
+            this.resizeObserver = new ResizeObserver( entries => {
+                for ( const entry of entries )
+                {
+                    this.siblingArea.setSize( [ "calc(100% - " + ( entry.contentRect.width ) + "px )", null ] );
+                }
+            });
+
+        }, 10 );
+
+        // Header
+        if( !( options.skipHeader ?? false ) )
+        {
+            this.header = options.header ?? this._generateDefaultHeader( options );
+            console.assert( this.header.constructor === HTMLDivElement, "Use an HTMLDivElement to build your custom header" );
+            this.header.className = "lexsidebarheader";
+            this.root.appendChild( this.header );
+
+            if( this.collapsable )
+            {
+                const icon = LX.makeIcon( "sidebar", { title: "Toggle Sidebar", iconClass: "toggler" } );
+                this.header.appendChild( icon );
+
+                icon.addEventListener( "click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.toggleCollapsed();
+                } );
+            }
+        }
+
+        // Entry filter
+        if( ( options.filter ?? false ) )
+        {
+            const filterTextInput = new TextInput(null, "", (value, event) => {
+                this.filterString = value;
+                this.update();
+            }, { inputClass: "outline", placeholder: "Search...", icon: "fa-solid fa-magnifying-glass", className: "lexsidebarfilter" });
+            this.filter = filterTextInput.root;
+            this.root.appendChild( this.filter );
+        }
+
+        // Content
+        {
+            this.content = document.createElement( 'div' );
+            this.content.className = "lexsidebarcontent";
+            this.root.appendChild( this.content );
+        }
+
+        // Footer
+        if( !( options.skipFooter ?? false ) )
+        {
+            this.footer = options.footer ?? this._generateDefaultFooter( options );
+            console.assert( this.footer.constructor === HTMLDivElement, "Use an HTMLDivElement to build your custom footer" );
+            this.footer.className = "lexsidebarfooter";
+            this.root.appendChild( this.footer );
+        }
+
+        // Set width depending on header/footer
+        doAsync( () => {
+            // This account for header, footer and all inner margins
+            const contentOffset = ( parseInt( this.header?.getComputedSize().height ) ?? 0 ) +
+            ( parseInt( this.filter?.getComputedSize().height ) ?? 0 ) +
+            ( parseInt( this.footer?.getComputedSize().height ) ?? 0 );
+            this.content.style.height = `calc(100% - ${ contentOffset }px)`;
+        }, 10 );
 
         this.items = [ ];
+        this.icons = { };
+        this.groups = { };
+    }
+
+    _generateDefaultHeader( options ) {
+
+        const header = document.createElement( 'div' );
+
+        header.addEventListener( "click", e => {
+            if( this.collapsed )
+            {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleCollapsed();
+            }
+            else if( options.onHeaderPressed )
+            {
+                options.onHeaderPressed( e );
+            }
+        } );
+
+        const avatar = document.createElement( 'span' );
+        avatar.className = "lexavatar";
+        header.appendChild( avatar );
+
+        if( options.headerImage )
+        {
+            const avatarImg = document.createElement( 'img' );
+            avatarImg.src = options.headerImage;
+            avatar.appendChild( avatarImg );
+        }
+        else if( options.headerIcon )
+        {
+            const avatarIcon = LX.makeIcon( options.headerIcon );
+            avatar.appendChild( avatarIcon );
+        }
+
+        // Info
+        {
+            const info = document.createElement( 'div' );
+            info.className = "infodefault";
+            header.appendChild( info );
+
+            const infoText = document.createElement( 'span' );
+            infoText.innerHTML = options.headerTitle ?? "";
+            info.appendChild( infoText );
+
+            const infoSubtext = document.createElement( 'span' );
+            infoSubtext.innerHTML = options.headerSubtitle ?? "";
+            info.appendChild( infoSubtext );
+        }
+
+        return header;
+    }
+
+    _generateDefaultFooter( options ) {
+
+        const footer = document.createElement( 'div' );
+
+        footer.addEventListener( "click", e => {
+            if( options.onFooterPressed )
+            {
+                options.onFooterPressed( e, footer );
+            }
+        } );
+
+        const avatar = document.createElement( 'span' );
+        avatar.className = "lexavatar";
+        footer.appendChild( avatar );
+
+        if( options.footerImage )
+        {
+            const avatarImg = document.createElement( 'img' );
+            avatarImg.src = options.footerImage;
+            avatar.appendChild( avatarImg );
+        }
+        else if( options.footerIcon )
+        {
+            const avatarIcon = LX.makeIcon( options.footerIcon );
+            avatar.appendChild( avatarIcon );
+        }
+
+        // Info
+        {
+            const info = document.createElement( 'div' );
+            info.className = "infodefault";
+            footer.appendChild( info );
+
+            const infoText = document.createElement( 'span' );
+            infoText.innerHTML = options.footerTitle ?? "";
+            info.appendChild( infoText );
+
+            const infoSubtext = document.createElement( 'span' );
+            infoSubtext.innerHTML = options.footerSubtitle ?? "";
+            info.appendChild( infoSubtext );
+        }
+
+        const icon = LX.makeIcon( "menu-arrows" );
+        footer.appendChild( icon );
+
+        return footer;
+    }
+
+    /**
+     * @method toggleCollapsed
+     * @param {Boolean} force: Force collapsed state
+     */
+
+    toggleCollapsed( force ) {
+
+        if( !this.collapsable )
+        {
+            return;
+        }
+
+        this.collapsed = force ?? !this.collapsed;
+
+        if( this.collapsed )
+        {
+            this.root.classList.add( "collapsing" );
+            this.root.parentElement.style.width = this._collapseWidth;
+        }
+        else
+        {
+            this.root.classList.remove( "collapsing" );
+            this.root.classList.remove( "collapsed" );
+            this.root.parentElement.style.width = this.root.parentElement.ogWidth;
+        }
+
+        if( !this.resizeObserver )
+        {
+            throw( "Wait until ResizeObserver has been created!" );
+        }
+
+        this.resizeObserver.observe( this.root.parentElement );
+
+        doAsync( () => {
+            this.root.classList.toggle( "collapsed", this.collapsed );
+            this.resizeObserver.unobserve( this.root.parentElement );
+            this.root.querySelectorAll( ".lexsidebarentrycontent" ).forEach( e => e.dataset[ "disableTooltip" ] = !this.collapsed );
+        }, 250 );
+    }
+
+    /**
+     * @method separator
+     */
+
+    separator() {
+
+        this.currentGroup = null;
+
+        this.add( "" );
+    }
+
+    /**
+     * @method group
+     * @param {String} groupName
+     * @param {Object} action: { icon, callback }
+     */
+
+    group( groupName, action ) {
+
+        this.currentGroup = groupName;
+
+        this.groups[ groupName ] = action;
     }
 
     /**
      * @method add
-     * @param {*} options:
+     * @param {String} path
+     * @param {Object} options:
      * callback: Function to call on each item
-     * bottom: Bool to set item at the bottom as helper button (not selectable)
      * className: Add class to the entry DOM element
+     * collapsable: Add entry as a collapsable section
+     * icon: Entry icon
      */
 
-    add( key, options = {} ) {
+    add( path, options = {} ) {
 
         if( options.constructor == Function )
+        {
             options = { callback: options };
-
-        let pKey = key.replace( /\s/g, '' ).replaceAll( '.', '' );
-
-        if( this.items.findIndex( (v, i) => v.key == pKey ) > -1 )
-        {
-            console.warn( `'${key}' already created in Sidebar` );
-            return;
         }
 
-        let entry = document.createElement( 'div' );
-        entry.className = "lexsidebarentry " + ( options.className ?? "" );
-        entry.id = pKey;
+        // Process path
+        const tokens = path.split( "/" );
 
-        if( options.bottom )
-        {
-            this.footer.appendChild( entry );
-        }
-        else
-        {
-            this.root.appendChild( entry );
-        }
+        // Assign icons and shortcuts to last token in path
+        const lastPath = tokens[tokens.length - 1];
+        this.icons[ lastPath ] = options.icon;
 
-        // Reappend footer in root
-        this.root.appendChild( this.footer );
+        let idx = 0;
 
-        let button = document.createElement( 'button' );
-        button.innerHTML = "<i class='"+ (options.icon ?? "") + "'></i>";
-        entry.appendChild( button );
+        const _insertEntry = ( token, list ) => {
 
-        let desc = document.createElement( 'span' );
-        desc.className = 'lexsidebarentrydesc';
-        desc.innerHTML = key;
-        entry.appendChild( desc );
-
-        button.addEventListener("mouseenter", () => {
-            setTimeout( () => {
-                desc.style.display = "unset";
-            }, 100 );
-        });
-
-        button.addEventListener("mouseleave", () => {
-            setTimeout( () => {
-                desc.style.display = "none";
-            }, 100 );
-        });
-
-        entry.addEventListener("click", () => {
-
-            const f = options.callback;
-            if( f ) f.call( this, key, entry );
-
-            // Manage selected
-            if( !options.bottom )
+            if( token == undefined )
             {
-                this.root.querySelectorAll(".lexsidebarentry").forEach( e => e.classList.remove( 'selected' ) );
-                entry.classList.add( "selected" );
+                return;
             }
-        });
 
-        this.items.push( { name: pKey, domEl: entry, callback: options.callback } );
+            let found = null;
+            list.forEach( o => {
+                const keys = Object.keys( o );
+                const key = keys.find( t => t == token );
+                if( key ) found = o[ key ];
+            } );
+
+            if( found )
+            {
+                _insertEntry( tokens[ idx++ ], found );
+            }
+            else
+            {
+                let item = {};
+                item[ token ] = [];
+                const nextToken = tokens[ idx++ ];
+                // Check if last token -> add callback
+                if( !nextToken )
+                {
+                    item[ 'callback' ] = options.callback;
+                    item[ 'group' ] = this.currentGroup;
+                    item[ 'options' ] = options;
+                }
+                list.push( item );
+                _insertEntry( nextToken, item[ token ] );
+            }
+        };
+
+        _insertEntry( tokens[idx++], this.items );
     }
 
     /**
@@ -2928,7 +4886,289 @@ class SideBar {
         if( !entry )
             return;
 
-        entry.domEl.click();
+        entry.dom.click();
+    }
+
+    update() {
+
+        // Reset first
+
+        this.content.innerHTML = "";
+
+        for( let item of this.items )
+        {
+            delete item.dom;
+        }
+
+        for( let item of this.items )
+        {
+            const options = item.options ?? { };
+
+            // Item already created
+            if( item.dom )
+            {
+                continue;
+            }
+
+            let key = Object.keys( item )[ 0 ];
+
+            if( this.filterString.length && !key.toLowerCase().includes( this.filterString.toLowerCase() ) )
+            {
+                continue;
+            }
+
+            let pKey = key.replace( /\s/g, '' ).replaceAll( '.', '' );
+            let currentGroup = null;
+
+            let entry = document.createElement( 'div' );
+            entry.id = item.name = pKey;
+            entry.className = "lexsidebarentry " + ( options.className ?? "" );
+
+            if( this.displaySelected && options.selected )
+            {
+                entry.classList.add( "selected" );
+            }
+
+            if( item.group )
+            {
+                const pGroupKey = item.group.replace( /\s/g, '' ).replaceAll( '.', '' );
+                currentGroup = this.content.querySelector( "#" + pGroupKey );
+
+                if( !currentGroup )
+                {
+                    currentGroup = document.createElement( 'div' );
+                    currentGroup.id = pGroupKey;
+                    currentGroup.className = "lexsidebargroup";
+                    this.content.appendChild( currentGroup );
+
+                    let groupEntry = document.createElement( 'div' );
+                    groupEntry.className = "lexsidebargrouptitle";
+                    currentGroup.appendChild( groupEntry );
+
+                    let groupLabel = document.createElement( 'div' );
+                    groupLabel.innerHTML = item.group;
+                    groupEntry.appendChild( groupLabel );
+
+                    if( this.groups[ item.group ] != null )
+                    {
+                        let groupAction = document.createElement( 'a' );
+                        groupAction.className = ( this.groups[ item.group ].icon ?? "" ) + " lexicon";
+                        groupEntry.appendChild( groupAction );
+                        groupAction.addEventListener( "click", (e) => {
+                            if( this.groups[ item.group ].callback )
+                            {
+                                this.groups[ item.group ].callback( item.group, e );
+                            }
+                        } );
+                    }
+
+                }
+                else if( !currentGroup.classList.contains( "lexsidebargroup" ) )
+                {
+                    throw( "Bad id: " + item.group );
+                }
+            }
+
+            if( pKey == "" )
+            {
+                let separatorDom = document.createElement( 'div' );
+                separatorDom.className = "lexsidebarseparator";
+                this.content.appendChild( separatorDom );
+                continue;
+            }
+
+            if( this.collapseContainer )
+            {
+                this.collapseContainer.appendChild( entry );
+
+                this.collapseQueue--;
+                if( !this.collapseQueue )
+                {
+                    delete this.collapseContainer;
+                }
+            }
+            else if( currentGroup )
+            {
+                currentGroup.appendChild( entry );
+            }
+            else
+            {
+                this.content.appendChild( entry );
+            }
+
+            let itemDom = document.createElement( 'div' );
+            itemDom.className = "lexsidebarentrycontent";
+            entry.appendChild( itemDom );
+            item.dom = entry;
+
+            if( options.type == "checkbox" )
+            {
+                item.value = options.value ?? false;
+                const panel = new Panel();
+                item.checkbox = panel.addCheckbox(null, item.value, (value, event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const f = options.callback;
+                    item.value = value;
+                    if( f ) f.call( this, key, value, event );
+                }, { className: "accent", label: key, signal: ( "@checkbox_"  + key ) });
+                itemDom.appendChild( panel.root.childNodes[ 0 ] );
+            }
+            else
+            {
+                if( options.icon )
+                {
+                    let itemIcon = null;
+
+                    // @legacy
+                    if( options.icon.includes( "fa-" ) )
+                    {
+                        itemIcon = document.createElement( 'i' );
+                        itemIcon.className = options.icon;
+                    }
+                    else
+                    {
+                        itemIcon = LX.makeIcon( options.icon );
+                    }
+
+                    itemIcon.classList.add( "lexsidebarentryicon" );
+                    itemDom.appendChild( itemIcon );
+                    LX.asTooltip( itemDom, key, { side: "right", offset: 16, active: false } );
+                }
+
+                let itemName = document.createElement( 'a' );
+                itemName.innerHTML = key;
+                itemDom.appendChild( itemName );
+
+                if( options.content )
+                {
+                    itemDom.appendChild( options.content );
+                }
+            }
+
+            const isCollapsable = options.collapsable != undefined ? options.collapsable : ( options.collapsable || item[ key ].length );
+
+            entry.addEventListener("click", ( e ) => {
+                if( e.target && e.target.classList.contains( "lexcheckbox" ) )
+                {
+                    return;
+                }
+
+                if( isCollapsable )
+                {
+                    itemDom.querySelector( ".collapser" ).click();
+                }
+                else
+                {
+                    const f = options.callback;
+                    if( f ) f.call( this, key, item.value, e );
+
+                    if( item.checkbox )
+                    {
+                        item.value = !item.value;
+                        item.checkbox.set( item.value, true );
+                    }
+                }
+
+                // Manage selected
+                if( this.displaySelected )
+                {
+                    this.root.querySelectorAll(".lexsidebarentry").forEach( e => e.classList.remove( 'selected' ) );
+                    entry.classList.add( "selected" );
+                }
+            });
+
+            if( options.action )
+            {
+                const actionIcon = LX.makeIcon( options.action.icon ?? "more-horizontal", { title: options.action.name } );
+                itemDom.appendChild( actionIcon );
+
+                actionIcon.addEventListener( "click", (e) => {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    const f = options.action.callback;
+                    if( f ) f.call( this, key, e );
+                } );
+            }
+            else if( isCollapsable )
+            {
+                const collapsableContent = document.createElement( 'div' );
+                collapsableContent.className = "collapsablecontainer";
+                Object.assign( collapsableContent.style, { width: "100%", display: "none" } );
+                LX.makeCollapsible( itemDom, collapsableContent, currentGroup ?? this.content );
+                this.collapseQueue = options.collapsable;
+                this.collapseContainer = collapsableContent;
+            }
+
+            // Subentries
+            if( !item[ key ].length )
+            {
+                continue;
+            }
+
+            let subentryContainer = document.createElement( 'div' );
+            subentryContainer.className = "lexsidebarsubentrycontainer";
+
+            if( isCollapsable )
+            {
+                this.collapseContainer.appendChild( subentryContainer )
+                delete this.collapseContainer;
+            }
+            else if( currentGroup )
+            {
+                subentryContainer.classList.add( "collapsablecontainer" );
+                currentGroup.appendChild( subentryContainer );
+            }
+            else
+            {
+                this.content.appendChild( subentryContainer );
+            }
+
+            for( let i = 0; i < item[ key ].length; ++i )
+            {
+                const subitem = item[ key ][ i ];
+                const suboptions = subitem.options ?? {};
+                const subkey = Object.keys( subitem )[ 0 ];
+
+                if( this.filterString.length && !subkey.toLowerCase().includes( this.filterString.toLowerCase() ) )
+                {
+                    continue;
+                }
+
+                let subentry = document.createElement( 'div' );
+                subentry.innerHTML = `<span>${ subkey }</span>`;
+
+                if( suboptions.action )
+                {
+                    const actionIcon = LX.makeIcon( suboptions.action.icon ?? "more-horizontal", { title: suboptions.action.name } );
+                    subentry.appendChild( actionIcon );
+
+                    actionIcon.addEventListener( "click", (e) => {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        const f = suboptions.action.callback;
+                        if( f ) f.call( this, subkey, e );
+                    } );
+                }
+
+                subentry.className = "lexsidebarentry";
+                subentry.id = subkey;
+                subentryContainer.appendChild( subentry );
+
+                subentry.addEventListener("click", (e) => {
+
+                    const f = suboptions.callback;
+                    if( f ) f.call( this, subkey, subentry, e );
+
+                    // Manage selected
+                    if( this.displaySelected )
+                    {
+                        this.root.querySelectorAll(".lexsidebarentry").forEach( e => e.classList.remove( 'selected' ) );
+                        entry.classList.add( "selected" );
+                    }
+                });
+            }
+        }
     }
 };
 
@@ -2944,32 +5184,40 @@ class Widget {
     static TEXT         = 1;
     static TEXTAREA     = 2;
     static BUTTON       = 3;
-    static DROPDOWN     = 4;
+    static SELECT       = 4;
     static CHECKBOX     = 5;
     static TOGGLE       = 6;
-    static COLOR        = 7;
-    static NUMBER       = 8;
-    static TITLE        = 9;
-    static VECTOR       = 10;
-    static TREE         = 11;
-    static PROGRESS     = 12;
-    static FILE         = 13;
-    static LAYERS       = 14;
-    static ARRAY        = 15;
-    static LIST         = 16;
-    static TAGS         = 17;
-    static CURVE        = 18;
-    static CARD         = 19;
-    static IMAGE        = 20;
-    static CONTENT      = 21;
-    static CUSTOM       = 22;
-    static SEPARATOR    = 23;
-    static KNOB         = 24;
-    static SIZE         = 25;
-    static PAD          = 26;
-    static FORM         = 27;
-    static DIAL         = 28;
-    static COUNTER      = 29;
+    static RADIO        = 7;
+    static BUTTONS      = 8;
+    static COLOR        = 9;
+    static RANGE        = 10;
+    static NUMBER       = 11;
+    static TITLE        = 12;
+    static VECTOR       = 13;
+    static TREE         = 14;
+    static PROGRESS     = 15;
+    static FILE         = 16;
+    static LAYERS       = 17;
+    static ARRAY        = 18;
+    static LIST         = 19;
+    static TAGS         = 20;
+    static CURVE        = 21;
+    static CARD         = 22;
+    static IMAGE        = 23;
+    static CONTENT      = 24;
+    static CUSTOM       = 25;
+    static SEPARATOR    = 26;
+    static KNOB         = 27;
+    static SIZE         = 28;
+    static OTP          = 29;
+    static PAD          = 30;
+    static FORM         = 31;
+    static DIAL         = 32;
+    static COUNTER      = 33;
+    static TABLE        = 34;
+    static TABS         = 35;
+    static LABEL        = 36;
+    static BLANK        = 37;
 
     static NO_CONTEXT_TYPES = [
         Widget.BUTTON,
@@ -2978,10 +5226,135 @@ class Widget {
         Widget.PROGRESS
     ];
 
-    constructor( name, type, options ) {
-        this.name = name;
+    constructor( type, name, value, options = {} ) {
+
         this.type = type;
+        this.name = name;
         this.options = options;
+        this._initialValue = value;
+
+        const root = document.createElement( 'div' );
+        root.className = "lexwidget";
+
+        if( options.id )
+        {
+            root.id = options.id;
+        }
+
+        if( options.title )
+        {
+            root.title = options.title;
+        }
+
+        if( options.className )
+        {
+            root.className += " " + options.className;
+        }
+
+        if( type != Widget.TITLE )
+        {
+            if( options.width )
+            {
+                root.style.width = root.style.minWidth = options.width;
+            }
+            if( options.maxWidth )
+            {
+                root.style.maxWidth = options.maxWidth;
+            }
+            if( options.minWidth )
+            {
+                root.style.minWidth = options.minWidth;
+            }
+            if( options.height )
+            {
+                root.style.height = root.style.minHeight = options.height;
+            }
+
+            LX.widgetResizeObserver.observe( root );
+        }
+
+        if( name != undefined )
+        {
+            if( !( options.hideName ?? false ) )
+            {
+                let domName = document.createElement( 'div' );
+                domName.className = "lexwidgetname";
+
+                if( options.justifyName )
+                {
+                    domName.classList.add( "float-" + options.justifyName );
+                }
+
+                domName.innerHTML = name;
+                domName.title = options.title ?? domName.innerHTML;
+                domName.style.width = options.nameWidth || LX.DEFAULT_NAME_WIDTH;
+                domName.style.minWidth = domName.style.width;
+
+                root.appendChild( domName );
+                root.domName = domName;
+
+                const that = this;
+
+                // Copy-paste info
+                domName.addEventListener('contextmenu', function( e ) {
+                    e.preventDefault();
+                    that.oncontextmenu( e );
+                });
+
+                if( !( options.skipReset ?? false )  && ( value != null ) )
+                {
+                    this._addResetProperty( domName, function( e ) {
+                        that.set( that._initialValue, false, e );
+                        this.style.display = "none"; // Og value, don't show it
+                    });
+                }
+            }
+        }
+        else
+        {
+            options.hideName = true;
+        }
+
+        if( options.signal )
+        {
+            LX.addSignal( options.signal, this );
+        }
+
+        this.root = root;
+        this.root.jsInstance = this;
+        this.options = options;
+    }
+
+    static _dispatchEvent( element, type, data, bubbles, cancelable ) {
+        let event = new CustomEvent( type, { 'detail': data, 'bubbles': bubbles, 'cancelable': cancelable } );
+        element.dispatchEvent( event );
+    }
+
+    _addResetProperty( container, callback ) {
+
+        const domEl = LX.makeIcon( "rotate-left", { title: "Reset" } )
+        domEl.style.display = "none";
+        domEl.style.marginRight = "6px";
+        domEl.style.marginLeft = "0";
+        domEl.style.paddingInline = "6px";
+        domEl.addEventListener( "click", callback );
+        container.appendChild( domEl );
+        return domEl;
+    }
+
+    _canPaste() {
+        return this.type === Widget.CUSTOM ? navigator.clipboard.customIdx !== undefined && this.customIdx == navigator.clipboard.customIdx :
+            navigator.clipboard.type === this.type;
+    }
+
+    _trigger( event, callback, scope = this ) {
+
+        if( !callback )
+        {
+            return;
+        }
+
+        callback.call( scope, event.value, event.domEvent, event.name );
     }
 
     value() {
@@ -2994,22 +5367,44 @@ class Widget {
         console.warn( "Can't get value of " + this.typeName() );
     }
 
-    set( value, skipCallback = false, signalName = "" ) {
+    set( value, skipCallback, event ) {
 
         if( this.onSetValue )
-            return this.onSetValue( value, skipCallback );
+        {
+            let resetButton = this.root.querySelector( ".lexwidgetname .lexicon" );
+            if( resetButton )
+            {
+                resetButton.style.display = ( value != this.value() ? "block" : "none" );
+
+                const equalInitial = value.constructor === Array ? (function arraysEqual(a, b) {
+                    if (a === b) return true;
+                    if (a == null || b == null) return false;
+                    if (a.length !== b.length) return false;
+                    for (var i = 0; i < a.length; ++i) {
+                        if (a[i] !== b[i]) return false;
+                    }
+                    return true;
+                })( value, this._initialValue ) : ( value == this._initialValue );
+
+                resetButton.style.display = ( !equalInitial ? "block" : "none" );
+            }
+
+            return this.onSetValue( value, skipCallback ?? false, event );
+        }
 
         console.warn("Can't set value of " + this.typeName());
     }
 
-    oncontextmenu(e) {
+    oncontextmenu( e ) {
 
-        if( Widget.NO_CONTEXT_TYPES.includes(this.type) )
+        if( Widget.NO_CONTEXT_TYPES.includes( this.type ) )
+        {
             return;
+        }
 
-        addContextMenu(this.typeName(), e, c => {
+        addContextMenu( this.typeName(), e, c => {
             c.add("Copy", () => { this.copy() });
-            c.add("Paste", { disabled: !this._can_paste(), callback: () => { this.paste() } } );
+            c.add("Paste", { disabled: !this._canPaste(), callback: () => { this.paste() } } );
         });
     }
 
@@ -3020,13 +5415,8 @@ class Widget {
         navigator.clipboard.writeText( navigator.clipboard.data );
     }
 
-    _can_paste() {
-        return this.type === Widget.CUSTOM ? navigator.clipboard.customIdx !== undefined && this.customIdx == navigator.clipboard.customIdx :
-            navigator.clipboard.type === this.type;
-    }
-
     paste() {
-        if( !this._can_paste() )
+        if( !this._canPaste() )
         {
             return;
         }
@@ -3036,14 +5426,17 @@ class Widget {
 
     typeName() {
 
-        switch( this.type ) {
+        switch( this.type )
+        {
             case Widget.TEXT: return "Text";
             case Widget.TEXTAREA: return "TextArea";
             case Widget.BUTTON: return "Button";
-            case Widget.DROPDOWN: return "Dropdown";
+            case Widget.SELECT: return "Select";
             case Widget.CHECKBOX: return "Checkbox";
             case Widget.TOGGLE: return "Toggle";
+            case Widget.RADIO: return "Radio";
             case Widget.COLOR: return "Color";
+            case Widget.RANGE: return "Range";
             case Widget.NUMBER: return "Number";
             case Widget.VECTOR: return "Vector";
             case Widget.TREE: return "Tree";
@@ -3060,6 +5453,10 @@ class Widget {
             case Widget.FORM: return "Form";
             case Widget.DIAL: return "Dial";
             case Widget.COUNTER: return "Counter";
+            case Widget.TABLE: return "Table";
+            case Widget.TABS: return "Tabs";
+            case Widget.LABEL: return "Label";
+            case Widget.BLANK: return "Blank";
             case Widget.CUSTOM: return this.customName;
         }
 
@@ -3073,73 +5470,86 @@ class Widget {
 
 LX.Widget = Widget;
 
-function ADD_CUSTOM_WIDGET( custom_widget_name, options = {} )
+function ADD_CUSTOM_WIDGET( customWidgetName, options = {} )
 {
-    let custom_idx = simple_guidGenerator();
+    let customIdx = simple_guidGenerator();
 
-    Panel.prototype[ 'add' + custom_widget_name ] = function( name, instance, callback ) {
+    Panel.prototype[ 'add' + customWidgetName ] = function( name, instance, callback ) {
 
-        let widget = this.create_widget(name, Widget.CUSTOM, options);
-        widget.customName = custom_widget_name;
-        widget.customIdx = custom_idx;
+        options.nameWidth = "100%";
+
+        let widget = new Widget( Widget.CUSTOM, name, null, options );
+        this._attachWidget( widget );
+
+        widget.customName = customWidgetName;
+        widget.customIdx = customIdx;
+
         widget.onGetValue = () => {
             return instance;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
+
+        widget.onSetValue = ( newValue, skipCallback, event ) => {
             instance = newValue;
             refresh_widget();
             element.querySelector( ".lexcustomitems" ).toggleAttribute( 'hidden', false );
-            if( !skipCallback ) this._trigger( new IEvent( name, instance, null ), callback );
+            if( !skipCallback )
+            {
+                widget._trigger( new IEvent( name, instance, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
-        element.style.flexWrap = "wrap";
+        const element = widget.root;
 
-        let container, custom_widgets;
+        let container, customWidgetsDom;
         let default_instance = options.default ?? {};
 
         // Add instance button
 
         const refresh_widget = () => {
 
-            if(instance)
+            if( instance )
+            {
                 widget.instance = instance = Object.assign(deepCopy(default_instance), instance);
+            }
 
-            if(container) container.remove();
-            if(custom_widgets) custom_widgets.remove();
+            if( container ) container.remove();
+            if( customWidgetsDom ) customWidgetsDom.remove();
 
             container = document.createElement('div');
             container.className = "lexcustomcontainer";
-            container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+            container.style.width = "100%";
+            element.appendChild( container );
+            element.dataset["opened"] = false;
 
-            this.queue(container);
-
-            let buttonName = "<a class='fa-solid " + (options.icon ?? "fa-cube")  + "' style='float:left'></a>";
-            buttonName += custom_widget_name + (!instance ? " [empty]" : "");
-            // Add alwayis icon to keep spacing right
-            buttonName += "<a class='fa-solid " + (instance ? "fa-bars-staggered" : " ") + " menu' style='float:right; width:5%;'></a>";
+            let buttonName = "<a class='fa-solid " + (options.icon ?? "fa-cube")  + "'></a>";
+            buttonName += customWidgetName + (!instance ? " [empty]" : "");
+            // Add always icon to keep spacing right
+            buttonName += "<a class='fa-solid " + (instance ? "fa-bars-staggered" : " ") + " menu'></a>";
 
             let buttonEl = this.addButton(null, buttonName, (value, event) => {
-
-                if( instance ) {
+                if( instance )
+                {
                     element.querySelector(".lexcustomitems").toggleAttribute('hidden');
+                    element.dataset["opened"] = !element.querySelector(".lexcustomitems").hasAttribute("hidden");
                 }
-                else {
+                else
+                {
                     addContextMenu(null, event, c => {
-                        c.add("New " + custom_widget_name, () => {
+                        c.add("New " + customWidgetName, () => {
                             instance = {};
                             refresh_widget();
                             element.querySelector(".lexcustomitems").toggleAttribute('hidden', false);
+                            element.dataset["opened"] = !element.querySelector(".lexcustomitems").hasAttribute("hidden");
                         });
                     });
                 }
 
             }, { buttonClass: 'custom' });
+            container.appendChild( buttonEl.root );
 
-            this.clearQueue();
-
-            if(instance)
-                buttonEl.querySelector('a.menu').addEventListener('click', e => {
+            if( instance )
+            {
+                buttonEl.root.querySelector('a.menu').addEventListener('click', e => {
                     e.stopImmediatePropagation();
                     e.stopPropagation();
                     addContextMenu(null, e, c => {
@@ -3149,24 +5559,22 @@ function ADD_CUSTOM_WIDGET( custom_widget_name, options = {} )
                         });
                     });
                 });
+            }
 
             // Show elements
 
-            custom_widgets = document.createElement('div');
-            custom_widgets.className = "lexcustomitems";
-            custom_widgets.toggleAttribute('hidden', true);
-
-            element.appendChild( container );
-            element.appendChild( custom_widgets );
+            customWidgetsDom = document.createElement('div');
+            customWidgetsDom.className = "lexcustomitems";
+            customWidgetsDom.toggleAttribute('hidden', true);
+            element.appendChild( customWidgetsDom );
 
             if( instance )
             {
-
-                this.queue( custom_widgets );
+                this.queue( customWidgetsDom );
 
                 const on_instance_changed = ( key, value, event ) => {
                     instance[ key ] = value;
-                    this._trigger( new IEvent( name, instance, event ), callback );
+                    widget._trigger( new IEvent( name, instance, event ), callback );
                 };
 
                 for( let key in default_instance )
@@ -3198,7 +5606,7 @@ function ADD_CUSTOM_WIDGET( custom_widget_name, options = {} )
                             }
                             else
                             {
-                                this._add_vector( value.length, key, value, on_instance_changed.bind( this, key ) );
+                                this._addVector( value.length, key, value, on_instance_changed.bind( this, key ) );
                             }
                             break;
                     }
@@ -3228,24 +5636,32 @@ class NodeTree {
         this.options = options;
         this.selected = [];
 
-        if(data.constructor === Object)
-            this._create_item( null, data );
+        this._forceClose = false;
+
+        if( data.constructor === Object )
+        {
+            this._createItem( null, data );
+        }
         else
+        {
             for( let d of data )
-                this._create_item( null, d );
+            {
+                this._createItem( null, d );
+            }
+        }
     }
 
-    _create_item( parent, node, level = 0, selectedId ) {
+    _createItem( parent, node, level = 0, selectedId ) {
 
         const that = this;
-        const node_filter_input = this.domEl.querySelector( "#lexnodetree_filter" );
+        const nodeFilterInput = this.domEl.querySelector( ".lexnodetree_filter" );
 
         node.children = node.children ?? [];
-        if( node_filter_input && !node.id.includes( node_filter_input.value ) || (selectedId != undefined) && selectedId != node.id )
+        if( nodeFilterInput && nodeFilterInput.value != "" && !node.id.includes( nodeFilterInput.value ) )
         {
             for( var i = 0; i < node.children.length; ++i )
             {
-                this._create_item( node, node.children[ i ], level + 1, selectedId );
+                this._createItem( node, node.children[ i ], level + 1, selectedId );
             }
             return;
         }
@@ -3268,11 +5684,15 @@ class NodeTree {
         item.className = "lextreeitem " + "datalevel" + level + (isParent ? " parent" : "") + (isSelected ? " selected" : "");
         item.id = LX.getSupportedDOMName( node.id );
         item.tabIndex = "0";
+        item.treeData = node;
 
         // Select hierarchy icon
         let icon = (this.options.skip_default_icon ?? true) ? "" : "fa-solid fa-square"; // Default: no childs
-        if( isParent ) icon = node.closed ? "fa-solid fa-caret-right" : "fa-solid fa-caret-down";
-        item.innerHTML = "<a class='" + icon + " hierarchy'></a>";
+        if( isParent )
+        {
+            icon = node.closed ? "fa-solid fa-caret-right" : "fa-solid fa-caret-down";
+            item.innerHTML = "<a class='" + icon + " hierarchy'></a>";
+        }
 
         // Add display icon
         icon = node.icon;
@@ -3292,7 +5712,7 @@ class NodeTree {
         item.innerHTML += (node.rename ? "" : node.id);
 
         item.setAttribute( 'draggable', true );
-        item.style.paddingLeft = ((isParent ? 0 : 3 ) + (3 + (level+1) * 15)) + "px";
+        item.style.paddingLeft = ((3 + (level+1) * 15)) + "px";
         list.appendChild( item );
 
         // Callbacks
@@ -3311,16 +5731,20 @@ class NodeTree {
 
             // Add or remove
             const idx = this.selected.indexOf( node );
-            if( idx > -1 ) {
+            if( idx > -1 )
+            {
                 item.classList.remove( 'selected' );
                 this.selected.splice( idx, 1 );
-            }else {
+            }
+            else
+            {
                 item.classList.add( 'selected' );
                 this.selected.push( node );
             }
 
             // Only Show children...
-            if( isParent && node.id.length > 1 /* Strange case... */) {
+            if( isParent && node.id.length > 1 /* Strange case... */)
+            {
                 node.closed = false;
                 if( that.onevent )
                 {
@@ -3358,7 +5782,7 @@ class NodeTree {
 
             e.preventDefault();
 
-            if( that.onevent )
+            if( !that.onevent )
             {
                 return;
             }
@@ -3372,7 +5796,7 @@ class NodeTree {
 
             that.onevent( event );
 
-            if( ( this.options.addDefault ?? false ) == true )
+            if( this.options.addDefault ?? false )
             {
                 if( event.panel.items )
                 {
@@ -3396,25 +5820,28 @@ class NodeTree {
                             }
 
                             let nodeItem = this.domEl.querySelector( '#' + child.id );
-                            nodeItem.classList.add('selected');
+                            nodeItem.classList.add( "selected" );
                             this.selected.push( child );
                             selectChildren( child );
                         }
                     };
+
+                    this.domEl.querySelectorAll( ".selected" ).forEach( i => i.classList.remove( "selected" ) );
+                    this.selected.length = 0;
 
                     // Add childs of the clicked node
                     selectChildren( node );
                 } );
 
                 event.panel.add( "Delete", { callback: () => {
-
                     // It's the root node
                     if( !node.parent )
                     {
                         return;
                     }
 
-                    if( that.onevent ) {
+                    if( that.onevent )
+                    {
                         const event = new TreeEvent( TreeEvent.NODE_DELETED, node, e );
                         that.onevent( event );
                     }
@@ -3441,7 +5868,8 @@ class NodeTree {
             if( e.key == "Delete" )
             {
                 // Send event now so we have the info in selected array..
-                if( that.onevent ) {
+                if( that.onevent )
+                {
                     const event = new TreeEvent( TreeEvent.NODE_DELETED, this.selected.length > 1 ? this.selected : node, e );
                     event.multiple = this.selected.length > 1;
                     that.onevent( event );
@@ -3472,22 +5900,25 @@ class NodeTree {
 
         // Node rename
 
-        let name_input = document.createElement('input');
-        name_input.toggleAttribute('hidden', !node.rename);
-        name_input.value = node.id;
-        item.appendChild(name_input);
+        const nameInput = document.createElement( "input" );
+        nameInput.toggleAttribute( "hidden", !node.rename );
+        nameInput.className = "bg-none";
+        nameInput.value = node.id;
+        item.appendChild( nameInput );
 
-        if(node.rename) {
+        if( node.rename )
+        {
             item.classList.add('selected');
-            name_input.focus();
+            nameInput.focus();
         }
 
-        name_input.addEventListener("keyup", function(e){
-            if(e.key == 'Enter') {
-
+        nameInput.addEventListener("keyup", function( e ) {
+            if( e.key == "Enter" )
+            {
                 this.value = this.value.replace(/\s/g, '_');
 
-                if(that.onevent) {
+                if( that.onevent )
+                {
                     const event = new TreeEvent(TreeEvent.NODE_RENAMED, node, this.value);
                     that.onevent( event );
                 }
@@ -3495,22 +5926,24 @@ class NodeTree {
                 node.id = LX.getSupportedDOMName( this.value );
                 delete node.rename;
                 that.frefresh( node.id );
-                list.querySelector("#" + node.id).classList.add('selected');
+                list.querySelector( "#" + node.id ).classList.add('selected');
             }
-            if(e.key == 'Escape') {
+            else if(e.key == "Escape")
+            {
                 delete node.rename;
                 that.frefresh( node.id );
             }
         });
 
-        name_input.addEventListener("blur", function(e){
+        nameInput.addEventListener("blur", function( e ) {
             delete node.rename;
             that.refresh();
         });
 
-        if(this.options.draggable ?? true) {
+        if( this.options.draggable ?? true )
+        {
             // Drag nodes
-            if(parent) // Root doesn't move!
+            if( parent ) // Root doesn't move!
             {
                 item.addEventListener("dragstart", e => {
                     window.__tree_node_dragged = node;
@@ -3534,29 +5967,32 @@ class NodeTree {
                     return;
                 let target = node;
                 // Can't drop to same node
-                if(dragged.id == target.id) {
+                if( dragged.id == target.id )
+                {
                     console.warn("Cannot parent node to itself!");
                     return;
                 }
 
                 // Can't drop to child node
-                const isChild = function(new_parent, node) {
+                const isChild = function( newParent, node ) {
                     var result = false;
-                    for( var c of node.children ) {
-                        if( c.id == new_parent.id )
-                            return true;
-                        result |= isChild(new_parent, c);
+                    for( var c of node.children )
+                    {
+                        if( c.id == newParent.id ) return true;
+                        result |= isChild( newParent, c );
                     }
                     return result;
                 };
 
-                if(isChild(target, dragged)) {
+                if( isChild( target, dragged ))
+                {
                     console.warn("Cannot parent node to a current child!");
                     return;
                 }
 
                 // Trigger node dragger event
-                if(that.onevent) {
+                if( that.onevent )
+                {
                     const event = new TreeEvent(TreeEvent.NODE_DRAGGED, dragged, target);
                     that.onevent( event );
                 }
@@ -3572,15 +6008,32 @@ class NodeTree {
         let handled = false;
 
         // Show/hide children
-        if(isParent) {
-            item.querySelector('a.hierarchy').addEventListener("click", function(e) {
+        if( isParent )
+        {
+            item.querySelector('a.hierarchy').addEventListener("click", function( e ) {
 
                 handled = true;
                 e.stopImmediatePropagation();
                 e.stopPropagation();
 
-                node.closed = !node.closed;
-                if(that.onevent) {
+                if( e.altKey )
+                {
+                    const _closeNode = function( node ) {
+                        node.closed = !node.closed;
+                        for( var c of node.children )
+                        {
+                            _closeNode( c );
+                        }
+                    };
+                    _closeNode( node );
+                }
+                else
+                {
+                    node.closed = !node.closed;
+                }
+
+                if( that.onevent )
+                {
                     const event = new TreeEvent(TreeEvent.NODE_CARETCHANGED, node, node.closed);
                     that.onevent( event );
                 }
@@ -3590,684 +6043,159 @@ class NodeTree {
 
         // Add button icons
 
+        const inputContainer = document.createElement( "div" );
+        item.appendChild( inputContainer );
+
+        if( node.actions )
+        {
+            for( let i = 0; i < node.actions.length; ++i )
+            {
+                let a = node.actions[ i ];
+                let actionEl = document.createElement('a');
+                actionEl.className = "lexicon " + a.icon;
+                actionEl.title = a.name;
+                actionEl.addEventListener("click", function( e ) {
+                    a.callback( node, actionEl );
+                    e.stopPropagation();
+                });
+
+                inputContainer.appendChild( actionEl );
+            }
+        }
+
         if( !node.skipVisibility ?? false )
         {
-            let visibility = document.createElement('a');
-            visibility.className = "itemicon fa-solid fa-eye" + (!node.visible ? "-slash" : "");
+            let visibility = document.createElement( 'a' );
+            visibility.className = "lexicon fa-solid fa-eye" + ( !node.visible ? "-slash" : "" );
             visibility.title = "Toggle visible";
-            visibility.addEventListener("click", function(e) {
+            visibility.addEventListener("click", function( e ) {
                 e.stopPropagation();
                 node.visible = node.visible === undefined ? false : !node.visible;
-                this.className = "itemicon fa-solid fa-eye" + (!node.visible ? "-slash" : "");
+                this.className = "lexicon fa-solid fa-eye" + ( !node.visible ? "-slash" : "" );
                 // Trigger visibility event
-                if(that.onevent) {
-                    const event = new TreeEvent(TreeEvent.NODE_VISIBILITY, node, node.visible);
+                if( that.onevent )
+                {
+                    const event = new TreeEvent( TreeEvent.NODE_VISIBILITY, node, node.visible );
                     that.onevent( event );
                 }
             });
 
-            item.appendChild(visibility);
+            inputContainer.appendChild( visibility );
         }
 
-        if(node.actions)
-        {
-            for(var i = 0; i < node.actions.length; ++i) {
-                let a = node.actions[i];
-                var actionEl = document.createElement('a');
-                actionEl.className = "itemicon " + a.icon;
-                actionEl.title = a.name;
-                actionEl.addEventListener("click", function(e) {
-                    a.callback(node, actionEl);
-                    e.stopPropagation();
-                });
-                item.appendChild(actionEl);
+        const _hasChild = function( parent, id ) {
+            if( !parent.length  ) return;
+            for( var c of parent.children )
+            {
+                if( c.id == id ) return true;
+                return _hasChild( c, id );
             }
-        }
+        };
 
-        if(selectedId != undefined && node.id == selectedId) {
-            this.selected = [node];
-            item.click();
-        }
+        const exists = _hasChild( node, selectedId );
 
-        if(node.closed )
+        if( node.closed && !exists )
+        {
             return;
+        }
 
         for( var i = 0; i < node.children.length; ++i )
         {
-            let child = node.children[i];
+            let child = node.children[ i ];
 
-            if( this.options.onlyFolders && child.type != 'folder')
+            if( this.options.onlyFolders && child.type != 'folder' )
+            {
                 continue;
+            }
 
-            this._create_item( node, child, level + 1 );
+            this._createItem( node, child, level + 1, selectedId );
         }
     }
 
     refresh( newData, selectedId ) {
+
         this.data = newData ?? this.data;
         this.domEl.querySelector( "ul" ).innerHTML = "";
-        this._create_item( null, this.data, 0, selectedId );
+        this._createItem( null, this.data, 0, selectedId );
     }
 
     /* Refreshes the tree and focuses current element */
     frefresh( id ) {
+
         this.refresh();
         var el = this.domEl.querySelector( "#" + id );
-        if( el ) el.focus();
+        if( el )
+        {
+            el.focus();
+        }
     }
 
     select( id ) {
+
         this.refresh( null, id );
+
+        this.domEl.querySelectorAll( ".selected" ).forEach( i => i.classList.remove( "selected" ) );
+        this.selected.length = 0;
+
+        var el = this.domEl.querySelector( "#" + id );
+        if( el )
+        {
+            el.classList.add( "selected" );
+            this.selected = [ el.treeData ];
+            el.focus();
+        }
     }
 }
 
+LX.NodeTree = NodeTree;
+
 /**
- * @class Panel
+ * @class Blank
+ * @description Blank Widget
  */
 
-class Panel {
+class Blank extends Widget {
 
-    /**
-     * @param {*} options
-     * id: Id of the element
-     * className: Add class to the element
-     * width: Width of the panel element [fit space]
-     * height: Height of the panel element [fit space]
-     * style: CSS Style object to be applied to the panel
-     */
+    constructor( width, height ) {
 
-    constructor( options = {} )  {
-        var root = document.createElement('div');
-        root.className = "lexpanel";
-        if(options.id)
-            root.id = options.id;
-        if(options.className)
-            root.className += " " + options.className;
+        super( Widget.BLANK );
 
-        root.style.width = options.width || "calc( 100% - 6px )";
-        root.style.height = options.height || "100%";
-        Object.assign(root.style, options.style ?? {});
-
-        this._inline_widgets_left = -1;
-        this._inline_queued_container = null;
-
-        this.root = root;
-
-        this.onevent = (e => {});
-
-        // branches
-        this.branch_open = false;
-        this.branches = [];
-        this.current_branch = null;
-        this.widgets = {};
-        this._queue = []; // Append widgets in other locations
+        this.root.style.width = width ?? "auto";
+        this.root.style.height = height ?? "8px";
     }
+}
 
-    get( name ) {
+LX.Blank = Blank;
 
-        return this.widgets[ name ];
-    }
+/**
+ * @class Title
+ * @description Title Widget
+ */
 
-    getValue( name ) {
+class Title extends Widget {
 
-        let widget = this.widgets[ name ];
+    constructor( name, options = {} ) {
 
-        if( !widget )
-        {
-            throw( "No widget called " + name );
-        }
+        console.assert( name, "Can't create Title Widget without text!" );
 
-        return widget.value();
-    }
+        // Note: Titles are not registered in Panel.widgets by now
+        super( Widget.TITLE, null, null, options );
 
-    setValue( name, value, skipCallback ) {
-
-        let widget = this.widgets[ name ];
-
-        if( !widget )
-        {
-            throw( "No widget called " + name );
-        }
-
-        return widget.set( value, skipCallback );
-    }
-
-    /**
-     * @method attach
-     * @param {Element} content child element to append to panel
-     */
-
-    attach( content ) {
-
-        if(!content)
-        throw("no content to attach");
-
-        content.parent = this;
-        let element = content.root ? content.root : content;
-        //this.root.style.maxHeight = "800px"; // limit size when attaching stuff from outside
-        this.root.appendChild( element );
-    }
-
-    /**
-     * @method clear
-     */
-
-    clear() {
-
-        this.branch_open = false;
-        this.branches = [];
-        this.current_branch = null;
-
-        for(let w in this.widgets) {
-            if(this.widgets[w].options && this.widgets[w].options.signal) {
-                const signal = this.widgets[w].options.signal;
-                for(let i = 0; i < LX.signals[signal].length; i++) {
-                    if(LX.signals[signal][i] == this.widgets[w]) {
-                        LX.signals[signal] = [...LX.signals[signal].slice(0, i), ...LX.signals[signal].slice(i+1)];
-                    }
-                }
-            }
-        }
-
-        if(this.signals) {
-            for(let w = 0; w < this.signals.length; w++) {
-                let widget = Object.values(this.signals[w])[0];
-                let signal = widget.options.signal;
-                for(let i = 0; i < LX.signals[signal].length; i++) {
-                    if(LX.signals[signal][i] == widget) {
-                        LX.signals[signal] = [...LX.signals[signal].slice(0, i), ...LX.signals[signal].slice(i+1)];
-                    }
-                }
-            }
-        }
-
-        this.widgets = {};
-        this.root.innerHTML = "";
-    }
-
-    /**
-     * @method sameLine
-     * @param {Number} number Of widgets that will be placed in the same line
-     * @description Next N widgets will be in the same line. If no number, it will inline all until calling nextLine()
-     */
-
-    sameLine( number ) {
-
-        this._inline_queued_container = this.queuedContainer;
-        this._inline_widgets_left = number || Infinity;
-    }
-
-    /**
-     * @method endLine
-     * @description Stop inlining widgets. Use it only if the number of widgets to be inlined is NOT specified.
-     */
-
-    endLine( justifyContent ) {
-
-        if( this._inline_widgets_left == -1)
-        {
-            console.warn("No pending widgets to be inlined!");
-            return;
-        }
-
-        this._inline_widgets_left = -1;
-
-        if(!this._inlineContainer)  {
-            this._inlineContainer = document.createElement('div');
-            this._inlineContainer.className = "lexinlinewidgets";
-            if(justifyContent)
-            {
-                this._inlineContainer.style.justifyContent = justifyContent;
-            }
-        }
-
-        // Push all elements single element or Array[element, container]
-        for( let item of this._inlineWidgets )
-        {
-            const is_pair = item.constructor == Array;
-
-            if(is_pair)
-            {
-                // eg. an array, inline items appended later to
-                if(this._inline_queued_container)
-                    this._inlineContainer.appendChild( item[0] );
-                // eg. a dropdown, item is appended to parent, not to inline cont.
-                else
-                    item[1].appendChild(item[0]);
-            }
-            else
-                this._inlineContainer.appendChild( item );
-        }
-
-        if(!this._inline_queued_container)
-        {
-            if(this.current_branch)
-                this.current_branch.content.appendChild( this._inlineContainer );
-            else
-                this.root.appendChild( this._inlineContainer );
-        }
-        else
-        {
-            this._inline_queued_container.appendChild( this._inlineContainer );
-        }
-
-        delete this._inlineWidgets;
-        delete this._inlineContainer;
-    }
-
-    /**
-     * @method branch
-     * @param {String} name Name of the branch/section
-     * @param {*} options
-     * id: Id of the branch
-     * className: Add class to the branch
-     * closed: Set branch collapsed/opened [false]
-     * icon: Set branch icon (Fontawesome class e.g. "fa-solid fa-skull")
-     * filter: Allow filter widgets in branch by name [false]
-     */
-
-    branch( name, options = {} ) {
-
-        if( this.branch_open )
-            this.merge();
-
-        // Create new branch
-        var branch = new Branch(name, options);
-        branch.panel = this;
-
-        // Declare new open
-        this.branch_open = true;
-        this.current_branch = branch;
-
-        // Append to panel
-        if(this.branches.length == 0)
-            branch.root.classList.add('first');
-
-        // This is the last!
-        this.root.querySelectorAll(".lexbranch.last").forEach( e => { e.classList.remove("last"); } );
-        branch.root.classList.add('last');
-
-        this.branches.push( branch );
-        this.root.appendChild( branch.root );
-
-        // Add widget filter
-        if(options.filter) {
-            this._addFilter( options.filter, {callback: this._searchWidgets.bind(this, branch.name)} );
-        }
-
-        return branch;
-    }
-
-    merge() {
-
-        this.branch_open = false;
-        this.current_branch = null;
-    }
-
-    _pick( arg, def ) {
-        return (typeof arg == 'undefined' ? def : arg);
-    }
-
-    static _dispatch_event( element, type, data, bubbles, cancelable ) {
-        let event = new CustomEvent( type, { 'detail': data, 'bubbles': bubbles, 'cancelable': cancelable } );
-        element.dispatchEvent( event );
-    }
-
-    static _add_reset_property( container, callback ) {
-        var domEl = document.createElement('a');
-        domEl.style.display = "none";
-        domEl.style.marginRight = "6px";
-        domEl.className = "lexicon fa fa-rotate-left";
-        domEl.addEventListener( "click", callback );
-        container.appendChild( domEl );
-        return domEl;
-    }
-
-    /*
-        Panel Widgets
-    */
-
-    create_widget( name, type, options = {} ) {
-
-        let widget = new Widget( name, type, options );
-
-        let element = document.createElement( 'div' );
-        element.className = "lexwidget";
-        element.id = options.id ?? "";
-        element.title = options.title ?? "";
-
-        if( options.className )
-        {
-            element.className += " " + options.className;
-        }
-
-        if( type != Widget.TITLE )
-        {
-            element.style.width = "calc(100% - " + (this.current_branch || type == Widget.FILE ? 10 : 20) + "px)";
-
-            if( options.width )
-            {
-                element.style.width = element.style.minWidth = options.width;
-            }
-            if( options.maxWidth )
-            {
-                element.style.maxWidth = options.maxWidth;
-            }
-            if( options.minWidth )
-            {
-                element.style.minWidth = options.minWidth;
-            }
-            if( options.height )
-            {
-                element.style.height = element.style.minHeight = options.height;
-            }
-        }
-
-        if( name != undefined )
-        {
-            if( !(options.hideName ?? false) )
-            {
-                let domName = document.createElement( 'div' );
-                domName.className = "lexwidgetname";
-                if( options.justifyName )
-                {
-                    domName.classList.add( "float-" + options.justifyName );
-                }
-                domName.innerHTML = name || "";
-                domName.title = options.title ?? domName.innerHTML;
-                domName.style.width = options.nameWidth || LX.DEFAULT_NAME_WIDTH;
-                element.appendChild(domName);
-                element.domName = domName;
-
-                // Copy-paste info
-                domName.addEventListener('contextmenu', function( e ) {
-                    e.preventDefault();
-                    widget.oncontextmenu( e );
-                });
-            }
-
-            this.widgets[ name ] = widget;
-        }
-
-        if( options.signal )
-        {
-            if( !name )
-            {
-                if( !this.signals )
-                {
-                    this.signals = [];
-                }
-
-                this.signals.push( { [ options.signal ]: widget } )
-            }
-
-            LX.addSignal( options.signal, widget );
-        }
-
-        widget.domEl = element;
-        element.jsInstance = widget;
-
-        const insert_widget = el => {
-            if(options.container)
-                options.container.appendChild(el);
-            else if(!this.queuedContainer) {
-
-                if(this.current_branch)
-                {
-                    if(!options.skipWidget)
-                        this.current_branch.widgets.push( widget );
-                    this.current_branch.content.appendChild( el );
-                }
-                else
-                {
-                    el.classList.add("nobranch");
-                    this.root.appendChild( el );
-                }
-            }
-            // Append content to queued tab container
-            else {
-                this.queuedContainer.appendChild( el );
-            }
-        };
-
-        const store_widget = el => {
-
-            if(!this.queuedContainer) {
-                this._inlineWidgets.push( el );
-            }
-            // Append content to queued tab container
-            else {
-                this._inlineWidgets.push( [el, this.queuedContainer] );
-            }
-        };
-
-        // Process inline widgets
-        if(this._inline_widgets_left > 0 && !options.skipInlineCount)
-        {
-            if(!this._inlineWidgets)  {
-                this._inlineWidgets = [];
-            }
-
-            // Store widget and its container
-            store_widget(element);
-
-            this._inline_widgets_left--;
-
-            // Last widget
-            if(!this._inline_widgets_left) {
-                this.endLine();
-            }
-        }else {
-            insert_widget(element);
-        }
-
-        return widget;
-    }
-
-    _addFilter( placeholder, options = {} ) {
-
-        options.placeholder = placeholder.constructor == String ? placeholder : "Filter properties..";
-        options.skipWidget = options.skipWidget ?? true;
-        options.skipInlineCount = true;
-
-        let widget = this.create_widget(null, Widget.TEXT, options);
-        let element = widget.domEl;
-        element.className += " lexfilter noname";
-
-        let input = document.createElement('input');
-        input.className = 'lexinput-filter';
-        input.setAttribute("placeholder", options.placeholder);
-        input.style.width =  "calc( 100% - 17px )";
-        input.value = options.filterValue || "";
-
-        let searchIcon = document.createElement('a');
-        searchIcon.className = "fa-solid fa-magnifying-glass";
-        element.appendChild(input);
-        element.appendChild(searchIcon);
-
-        input.addEventListener("input", (e) => {
-            if(options.callback)
-                options.callback(input.value, e);
-        });
-
-        return element;
-    }
-
-    _searchWidgets(branchName, value) {
-
-        for( let b of this.branches ) {
-
-            if(b.name !== branchName)
-                continue;
-
-            // remove all widgets
-            for( let w of b.widgets ) {
-                if(w.domEl.classList.contains('lexfilter'))
-                    continue;
-                w.domEl.remove();
-            }
-
-            // push to right container
-            this.queue( b.content );
-
-            const emptyFilter = !value.length;
-
-            // add widgets
-            for( let w of b.widgets ) {
-
-                if(!emptyFilter)
-                {
-                    if(!w.name) continue;
-                    const filterWord = value.toLowerCase();
-                    const name = w.name.toLowerCase();
-                    if(!name.includes(value)) continue;
-                }
-
-                // insert filtered widget
-                this.queuedContainer.appendChild( w.domEl );
-            }
-
-            // push again to current branch
-            this.clearQueue();
-
-            // no more branches to check!
-            return;
-        }
-    }
-
-    _search_options(options, value) {
-        // push to right container
-        const emptyFilter = !value.length;
-        let filteredOptions = [];
-        // add widgets
-        for( let i = 0; i < options.length; i++) {
-            let o = options[i];
-            if(!emptyFilter)
-            {
-                let toCompare = (typeof o == 'string') ? o : o.value;
-                ;
-                const filterWord = value.toLowerCase();
-                const name = toCompare.toLowerCase();
-                if(!name.includes(filterWord)) continue;
-            }
-            // insert filtered widget
-            filteredOptions.push(o);
-        }
-
-        this.refresh(filteredOptions);
-    }
-
-    _trigger( event, callback ) {
-
-        if( callback )
-            callback.call( this, event.value, event.domEvent, event.name );
-
-        if( this.onevent )
-            this.onevent.call( this, event );
-    }
-
-    /**
-     * @method getBranch
-     * @param {String} name if null, return current branch
-     */
-
-    getBranch( name ) {
-
-        if( name )
-        {
-            return this.branches.find( b => b.name == name );
-        }
-
-        return this.current_branch;
-    }
-
-    /**
-     * @method queue
-     * @param {HTMLElement} domEl container to append elements to
-     */
-
-    queue( domEl ) {
-
-        if( !domEl && this.current_branch)
-        {
-            domEl = this.current_branch.root;
-        }
-
-        if( this.queuedContainer )
-        {
-            this._queue.push( this.queuedContainer );
-        }
-
-        this.queuedContainer = domEl;
-    }
-
-    /**
-     * @method clearQueue
-     */
-
-    clearQueue() {
-
-        if(this._queue && this._queue.length)
-        {
-            this.queuedContainer = this._queue.pop();
-            return;
-        }
-
-        delete this.queuedContainer;
-    }
-
-    /**
-     * @method addBlank
-     * @param {Number} height
-     */
-
-    addBlank( height = 8, width ) {
-
-        let widget = this.create_widget(null, Widget.addBlank);
-        widget.domEl.className += " blank";
-        widget.domEl.style.height = height + "px";
-
-        if(width)
-            widget.domEl.style.width = width;
-
-        return widget;
-    }
-
-    /**
-     * @method addTitle
-     * @param {String} name Title name
-     * @param {*} options:
-     * link: Href in case title is an hyperlink
-     * target: Target name of the iframe (if any)
-     * icon: FA class of the icon (if any)
-     * iconColor: Color of title icon (if any)
-     * style: CSS to override
-     */
-
-    addTitle( name, options = {} ) {
-
-        if( !name )
-        {
-            throw( "Can't create Title without text!" );
-        }
-
-        let widget = this.create_widget( null, Widget.TITLE, options );
-        let element = widget.domEl;
-        element.className = "lextitle";
+        this.root.className = "lextitle";
 
         if( options.icon )
         {
             let icon = document.createElement( 'a' );
             icon.className = options.icon;
             icon.style.color = options.iconColor || "";
-            element.appendChild( icon );
+            this.root.appendChild( icon );
         }
 
-        let text = document.createElement( "span");
+        let text = document.createElement( "span" );
         text.innerText = name;
-        element.appendChild( text );
+        this.root.appendChild( text );
 
-        Object.assign( element.style, options.style ?? {} );
+        Object.assign( this.root.style, options.style ?? {} );
 
         if( options.link != undefined )
         {
@@ -4277,70 +6205,62 @@ class Panel {
             linkDom.target = options.target ?? "";
             linkDom.className = "lextitle link";
             Object.assign( linkDom.style, options.style ?? {} );
-            element.replaceWith( linkDom );
+            this.root.replaceWith( linkDom );
         }
-
-        return element;
     }
+}
 
-    /**
-     * @method addText
-     * @param {String} name Widget name
-     * @param {String} value Text value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * required: Make the input required
-     * placeholder: Add input placeholder
-     * pattern: Regular expression that value must match
-     * trigger: Choose onchange trigger (default, input) [default]
-     * inputWidth: Width of the text input
-     * skipReset: Don't add the reset value button when value changes
-     * float: Justify input text content
-     * justifyName: Justify name content
-     */
+LX.Title = Title;
 
-    addText( name, value, callback, options = {} ) {
+/**
+ * @class TextInput
+ * @description TextInput Widget
+ */
 
-        let widget = this.create_widget( name, Widget.TEXT, options );
+class TextInput extends Widget {
 
-        widget.onGetValue = () => {
-            return wValue.value;
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.TEXT, name, String( value ), options );
+
+        this.onGetValue = () => {
+            return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            this.disabled ? wValue.innerText = newValue : wValue.value = newValue;
-            Panel._dispatch_event( wValue, "focusout", skipCallback );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( !this.valid( newValue ) || ( this._lastValueTriggered == newValue ) )
+            {
+                return;
+            }
+
+            this._lastValueTriggered = value = newValue;
+
+            wValue.value = newValue;
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
         };
 
-        widget.valid = () => {
-            if( wValue.pattern == "" ) { return true; }
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = options.inputWidth ?? `calc( 100% - ${ realNameWidth }px)`;
+        };
+
+        this.valid = ( v ) => {
+            v = v ?? this.value();
+            if( !v.length || wValue.pattern == "" ) return true;
             const regexp = new RegExp( wValue.pattern );
-            return regexp.test( wValue.value );
+            return regexp.test( v );
         };
-
-        let element = widget.domEl;
-
-        // Add reset functionality
-        if( widget.name && !( options.skipReset ?? false ) ) {
-            Panel._add_reset_property( element.domName, function() {
-                wValue.value = wValue.iValue;
-                this.style.display = "none";
-                Panel._dispatch_event( wValue, "focusout" );
-            } );
-        }
-
-        // Add widget value
 
         let container = document.createElement( 'div' );
-        container.className = "lextext" + ( options.warning ? " lexwarning" : "" );
-        container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + " )";
+        container.className = ( options.warning ? " lexwarning" : "" );
         container.style.display = "flex";
-
-        if( options.textClass )
-        {
-            container.classList.add( options.textClass );
-        }
+        container.style.position = "relative";
+        this.root.appendChild( container );
 
         this.disabled = ( options.disabled || options.warning ) ?? ( options.url ? true : false );
         let wValue = null;
@@ -4348,10 +6268,10 @@ class Panel {
         if( !this.disabled )
         {
             wValue = document.createElement( 'input' );
+            wValue.className = "lextext " + ( options.inputClass ?? "" );
             wValue.type = options.type || "";
-            wValue.value = wValue.iValue = value || "";
-            wValue.style.width = "100%";
-            wValue.style.textAlign = options.float ?? "";
+            wValue.value = value || "";
+            wValue.style.textAlign = ( options.float ?? "" );
 
             wValue.setAttribute( "placeholder", options.placeholder ?? "" );
 
@@ -4365,39 +6285,25 @@ class Panel {
                 wValue.setAttribute( "pattern", options.pattern );
             }
 
-            var resolve = ( function( val, event ) {
+            const trigger = options.trigger ?? "default";
 
-                if( !widget.valid() )
-                {
-                    return;
-                }
-
-                const skipCallback = event.detail;
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = ( val != wValue.iValue ? "block" : "none" );
-                if( !skipCallback )
-                {
-                    this._trigger( new IEvent( name, val, event ), callback );
-                }
-
-            }).bind( this );
-
-            const trigger = options.trigger ?? 'default';
-
-            if( trigger == 'default' )
+            if( trigger == "default" )
             {
-                wValue.addEventListener( "keyup", function( e ){
-                    if(e.key == 'Enter')
-                        resolve( e.target.value, e );
+                wValue.addEventListener( "keyup", e => {
+                    if( e.key == "Enter" )
+                    {
+                        wValue.blur();
+                    }
                 });
-                wValue.addEventListener( "focusout", function( e ){
-                    resolve( e.target.value, e );
+
+                wValue.addEventListener( "focusout", e => {
+                    this.set( e.target.value, false, e );
                 });
             }
-            else if( trigger == 'input' )
+            else if( trigger == "input" )
             {
-                wValue.addEventListener("input", function( e ){
-                    resolve( e.target.value, e );
+                wValue.addEventListener("input", e => {
+                    this.set( e.target.value, false, e );
                 });
             }
 
@@ -4408,376 +6314,516 @@ class Panel {
 
             if( options.icon )
             {
+                wValue.style.paddingLeft = "1.75rem";
                 let icon = document.createElement( 'a' );
                 icon.className = "inputicon " + options.icon;
                 container.appendChild( icon );
             }
 
-        } else
+        }
+        else if( options.url )
         {
-            wValue = document.createElement( options.url ? 'a' : 'div' );
-            if( options.url )
-            {
-                wValue.href = options.url;
-                wValue.target = "_blank";
-            }
+            wValue = document.createElement( 'a' );
+            wValue.href = options.url;
+            wValue.target = "_blank";
+
             const icon = options.warning ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '';
             wValue.innerHTML = ( icon + value ) || "";
-            wValue.style.width = "100%";
             wValue.style.textAlign = options.float ?? "";
+            wValue.className = "lextext ellipsis-overflow";
+        }
+        else
+        {
+            wValue = document.createElement( 'input' );
+
+            const icon = options.warning ? '<i class="fa-solid fa-triangle-exclamation"></i>' : '';
+            wValue.disabled = true;
+            wValue.innerHTML = icon;
+            wValue.value = value;
+            wValue.style.textAlign = options.float ?? "";
+            wValue.className = "lextext ellipsis-overflow " + ( options.inputClass ?? "" );
+        }
+
+        if( options.fit )
+        {
+            wValue.classList.add( "size-content" );
         }
 
         Object.assign( wValue.style, options.style ?? {} );
-
         container.appendChild( wValue );
-        element.appendChild( container );
 
-        // Remove branch padding and margins
-        if( !widget.name ) {
-            element.className += " noname";
-            container.style.width = "100%";
-        }
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addTextArea
-     * @param {String} name Widget name
-     * @param {String} value Text Area value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * placeholder: Add input placeholder
-     * trigger: Choose onchange trigger (default, input) [default]
-     * inputWidth: Width of the text input
-     * float: Justify input text content
-     * justifyName: Justify name content
-     * fitHeight: Height adapts to text
-     */
+LX.TextInput = TextInput;
 
-    addTextArea( name, value, callback, options = {} ) {
+/**
+ * @class TextArea
+ * @description TextArea Widget
+ */
 
-        let widget = this.create_widget( name, Widget.TEXTAREA, options );
+class TextArea extends Widget {
 
-        widget.onGetValue = () => {
-            return wValue.value;
-        };
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            wValue.value = newValue;
-            Panel._dispatch_event( wValue, "focusout", skipCallback );
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.TEXTAREA, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
         };
 
-        let element = widget.domEl;
+        this.onSetValue = ( newValue, skipCallback, event ) => {
 
-        // Add reset functionality
-        if( widget.name && !( options.skipReset ?? false ) ) {
-            Panel._add_reset_property( element.domName, function() {
-                wValue.value = wValue.iValue;
-                this.style.display = "none";
-                Panel._dispatch_event( wValue, "focusout" );
-            });
-        }
+            wValue.value = value = newValue;
 
-        // Add widget value
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
+        };
 
-        let container = document.createElement( 'div' );
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = options.inputWidth ?? `calc( 100% - ${ realNameWidth }px)`;
+        };
+
+        let container = document.createElement( "div" );
         container.className = "lextextarea";
-        container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + " )";
-        container.style.height = options.height;
         container.style.display = "flex";
+        this.root.appendChild( container );
 
-        let wValue = document.createElement( 'textarea' );
-        wValue.value = wValue.iValue = value || "";
-        wValue.style.width = "100%";
+        let wValue = document.createElement( "textarea" );
+        wValue.value = value ?? "";
+        wValue.className = ( options.inputClass ?? "" );
         wValue.style.textAlign = options.float ?? "";
         Object.assign( wValue.style, options.style ?? {} );
 
-        if( options.disabled ?? false ) wValue.setAttribute("disabled", true);
-        if( options.placeholder ) wValue.setAttribute("placeholder", options.placeholder);
-
-        var resolve = (function( val, event ) {
-            const skipCallback = event.detail;
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( val != wValue.iValue ? "block" : "none" );
-            if( !skipCallback ) this._trigger( new IEvent( name, val, event ), callback );
-        }).bind(this);
-
-        const trigger = options.trigger ?? 'default';
-
-        if(trigger == 'default')
+        if( options.fitHeight )
         {
-            wValue.addEventListener("keyup", function(e){
-                if(e.key == 'Enter')
-                    resolve(e.target.value, e);
-            });
-            wValue.addEventListener("focusout", function(e){
-                resolve(e.target.value, e);
-            });
-        }
-        else if(trigger == 'input')
-        {
-            wValue.addEventListener("input", function(e){
-                resolve(e.target.value, e);
-            });
+            wValue.classList.add( "size-content" );
         }
 
-        if(options.icon)
+        if( !( options.resize ?? true ) )
+        {
+            wValue.classList.add( "resize-none" );
+        }
+
+        container.appendChild( wValue );
+
+        if( options.disabled ?? false ) wValue.setAttribute( "disabled", true );
+        if( options.placeholder ) wValue.setAttribute( "placeholder", options.placeholder );
+
+        const trigger = options.trigger ?? "default";
+
+        if( trigger == "default" )
+        {
+            wValue.addEventListener("keyup", function(e) {
+                if( e.key == "Enter" )
+                {
+                    wValue.blur();
+                }
+            });
+
+            wValue.addEventListener("focusout", e => {
+                this.set( e.target.value, false, e );
+            });
+        }
+        else if( trigger == "input" )
+        {
+            wValue.addEventListener("input", e => {
+                this.set( e.target.value, false, e );
+            });
+        }
+
+        if( options.icon )
         {
             let icon = document.createElement('a');
             icon.className = "inputicon " + options.icon;
-            container.appendChild(icon);
+            container.appendChild( icon );
         }
 
-        container.appendChild(wValue);
-        element.appendChild(container);
-
-        // Remove branch padding and margins
-        if(!widget.name) {
-            element.className += " noname";
-            container.style.width = "100%";
-        }
-
-        // Do this after creating the DOM element
         doAsync( () => {
-            if( options.fitHeight )
+            container.style.height = options.height ?? "";
+            this.onResize();
+        }, 10 );
+    }
+}
+
+LX.TextArea = TextArea;
+
+/**
+ * @class Button
+ * @description Button Widget
+ */
+
+class Button extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.BUTTON, name, null, options );
+
+        this.onGetValue = () => {
+            return wValue.querySelector( "input" )?.checked;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( !( options.swap ?? false ) )
             {
-                // Update height depending on the content
-                wValue.style.height = wValue.scrollHeight + "px";
+                return;
             }
-        }, 10);
 
-        return widget;
-    }
-
-    /**
-     * @method addLabel
-     * @param {String} value Information string
-     */
-
-    addLabel( value, options = {} ) {
-
-        options.disabled = true;
-        return this.addText( null, value, null, options );
-    }
-
-    /**
-     * @method addButton
-     * @param {String} name Widget name
-     * @param {String} value Button name
-     * @param {Function} callback Callback function on click
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * icon: Icon class to show as button value
-     * img: Path to image to show as button value
-     * title: Text to show in native Element title
-     */
-
-    addButton( name, value, callback, options = {} ) {
-
-        let widget = this.create_widget( name, Widget.BUTTON, options );
-
-        widget.onGetValue = () => {
-            return wValue.innerText;
+            this.root.setState( newValue, skipCallback );
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            wValue.innerHTML =
-            (options.icon ? "<a class='" + options.icon + "'></a>" :
-            ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + (newValue || "") + "</span>" ));
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            wValue.style.width = `calc( 100% - ${ realNameWidth }px)`;
         };
-
-        let element = widget.domEl;
 
         var wValue = document.createElement( 'button' );
-        wValue.title = options.title ?? "";
+        wValue.title = options.tooltip ? "" : ( options.title ?? "" );
         wValue.className = "lexbutton " + ( options.buttonClass ?? "" );
+
+        if( options.icon )
+        {
+            wValue.classList.add( "justify-center" );
+        }
+
+        this.root.appendChild( wValue );
 
         if( options.selected )
         {
             wValue.classList.add( "selected" );
         }
 
-        wValue.innerHTML =
-            (options.icon ? "<a class='" + options.icon + "'></a>" :
-            ( options.img  ? "<img src='" + options.img + "'>" : "<span>" + (value || "") + "</span>" ));
+        if( options.icon )
+        {
+            let icon = null;
 
-        wValue.style.width = "calc( 100% - " + (options.nameWidth ?? LX.DEFAULT_NAME_WIDTH) + ")";
+            // @legacy
+            if( options.icon.includes( "fa-" ) )
+            {
+                icon = document.createElement( 'a' );
+                icon.className = options.icon + " lexicon";
+            }
+            else
+            {
+                icon = LX.makeIcon( options.icon );
+            }
+
+            wValue.prepend( icon );
+        }
+        else if( options.img )
+        {
+            let img = document.createElement( 'img' );
+            img.src = options.img;
+            wValue.prepend( img );
+        }
+        else
+        {
+            wValue.innerHTML = `<span>${ ( value || "" ) }</span>`;
+        }
 
         if( options.disabled )
         {
             wValue.setAttribute( "disabled", true );
         }
 
-        wValue.addEventListener("click", e => {
+        let trigger = wValue;
+
+        if( options.swap )
+        {
+            wValue.classList.add( "swap" );
+            wValue.querySelector( "a" ).classList.add( "swap-off" );
+
+            const input = document.createElement( "input" );
+            input.type = "checkbox";
+            wValue.prepend( input );
+
+            let swapIcon = null;
+
+            // @legacy
+            if( options.swap.includes( "fa-" ) )
+            {
+                swapIcon = document.createElement( 'a' );
+                swapIcon.className = options.swap + " swap-on lexicon";
+            }
+            else
+            {
+                swapIcon = LX.makeIcon( options.swap, { iconClass: "swap-on" } );
+            }
+
+            wValue.appendChild( swapIcon );
+
+            this.root.swap = function( skipCallback ) {
+                const swapInput = wValue.querySelector( "input" );
+                swapInput.checked = !swapInput.checked;
+                if( !skipCallback )
+                {
+                    trigger.click();
+                }
+            };
+
+            // Set if swap has to be performed
+            this.root.setState = function( v, skipCallback ) {
+                const swapInput = wValue.querySelector( "input" );
+                swapInput.checked = v;
+                if( !skipCallback )
+                {
+                    trigger.click();
+                }
+            };
+        }
+
+        trigger.addEventListener( "click", e => {
             if( options.selectable )
             {
                 if( options.parent )
                 {
-                    options.parent.querySelectorAll(".lexbutton.selected").forEach( e => { if(e == wValue) return; e.classList.remove("selected") } );
+                    options.parent.querySelectorAll(".lexbutton.selected").forEach( b => { if( b == wValue ) return; b.classList.remove( "selected" ) } );
                 }
 
                 wValue.classList.toggle('selected');
             }
 
-            this._trigger( new IEvent( name, value, e ), callback );
+            const swapInput = wValue.querySelector( "input" );
+            this._trigger( new IEvent( name, swapInput?.checked ?? value, e ), callback );
         });
 
-        element.appendChild( wValue );
-
-        // Remove branch padding and margins
-        if( !widget.name )
+        if( options.tooltip )
         {
-            wValue.className += " noname";
-            wValue.style.width = "100%";
+            LX.asTooltip( wValue, options.title ?? name );
         }
 
-        return element;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addComboButtons
-     * @param {String} name Widget name
-     * @param {Array} values Each of the {value, callback} items
-     * @param {*} options:
-     * float: Justify content (left, center, right) [center]
-     * noSelection: Buttons can be clicked, but they are not selectable
-     */
+LX.Button = Button;
 
-    addComboButtons( name, values, options = {} ) {
+/**
+ * @class ComboButtons
+ * @description ComboButtons Widget
+ */
 
-        let widget = this.create_widget(name, Widget.BUTTON, options);
-        let element = widget.domEl;
+class ComboButtons extends Widget {
 
-        let that = this;
+    constructor( name, values, options = {} ) {
+
+        const shouldSelect = !( options.noSelection ?? false );
+        let shouldToggle = shouldSelect && ( options.toggle ?? false );
+
         let container = document.createElement('div');
         container.className = "lexcombobuttons ";
-        if( options.float ) container.className += options.float;
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
 
-        let should_select = !(options.noSelection ?? false);
+        options.skipReset = true;
+
+        if( options.float )
+        {
+            container.className += options.float;
+        }
+
+        let currentValue = [];
+        let buttonsBox = document.createElement('div');
+        buttonsBox.className = "lexcombobuttonsbox ";
+        container.appendChild( buttonsBox );
+
         for( let b of values )
         {
-            if( !b.value ) throw("Set 'value' for each button!");
+            if( !b.value )
+            {
+                throw( "Set 'value' for each button!" );
+            }
 
             let buttonEl = document.createElement('button');
             buttonEl.className = "lexbutton combo";
             buttonEl.title = b.icon ? b.value : "";
-            if(options.buttonClass)
-                buttonEl.classList.add(options.buttonClass);
+            buttonEl.id = b.id ?? "";
+            buttonEl.dataset["value"] = b.value;
 
-            if(options.selected == b.value)
+            if( options.buttonClass )
+            {
+                buttonEl.classList.add( options.buttonClass );
+            }
+
+            if( shouldSelect && ( b.selected || options.selected == b.value ) )
+            {
                 buttonEl.classList.add("selected");
+                currentValue = ( currentValue ).concat( [ b.value ] );
+            }
 
-            if(b.id)
-                buttonEl.id = b.id;
+            buttonEl.innerHTML = ( b.icon ? "<a class='" + b.icon +"'></a>" : "" ) + "<span>" + ( b.icon ? "" : b.value ) + "</span>";
 
-            buttonEl.innerHTML = (b.icon ? "<a class='" + b.icon +"'></a>" : "") + "<span>" + (b.icon ? "" : b.value) + "</span>";
+            if( b.disabled )
+            {
+                buttonEl.setAttribute( "disabled", true );
+            }
 
-            if(options.disabled)
-                buttonEl.setAttribute("disabled", true);
+            buttonEl.addEventListener("click", e => {
 
-            buttonEl.addEventListener("click", function(e) {
-                if(should_select) {
-                    container.querySelectorAll('button').forEach( s => s.classList.remove('selected'));
-                    this.classList.add('selected');
+                currentValue = [];
+
+                if( shouldSelect )
+                {
+                    if( shouldToggle )
+                    {
+                        buttonEl.classList.toggle( "selected" );
+                    }
+                    else
+                    {
+                        container.querySelectorAll( "button" ).forEach( s => s.classList.remove( "selected" ));
+                        buttonEl.classList.add( "selected" );
+                    }
                 }
-                that._trigger( new IEvent(name, b.value, e), b.callback );
+
+                container.querySelectorAll( "button" ).forEach( s => {
+
+                    if( s.classList.contains( "selected" ) )
+                    {
+                        currentValue.push( s.dataset[ "value" ] );
+                    }
+
+                } );
+
+                if( !shouldToggle && currentValue.length > 1 )
+                {
+                    console.error( `Enable _options.toggle_ to allow selecting multiple options in ComboButtons.` )
+                    return;
+                }
+
+                currentValue = currentValue[ 0 ];
+
+                this.set( b.value, false, buttonEl.classList.contains( "selected" ) );
             });
 
-            container.appendChild(buttonEl);
+            buttonsBox.appendChild( buttonEl );
+        }
 
-            // Remove branch padding and margins
-            if(widget.name === undefined) {
-                buttonEl.className += " noname";
-                buttonEl.style.width =  "100%";
+        if( currentValue.length > 1 )
+        {
+            options.toggle = true;
+            shouldToggle = shouldSelect;
+            console.warn( `Multiple options selected in '${ name }' ComboButtons. Enabling _toggle_ mode.` );
+        }
+        else
+        {
+            currentValue = currentValue[ 0 ];
+        }
+
+        super( Widget.BUTTONS, name, null, options );
+
+        this.onGetValue = () => {
+            return currentValue;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( shouldSelect && ( event == undefined ) )
+            {
+                container.querySelectorAll( "button" ).forEach( s => s.classList.remove( "selected" ));
+
+                container.querySelectorAll( "button" ).forEach( s => {
+                    if( currentValue && currentValue.indexOf( s.dataset[ "value" ] ) > -1 )
+                    {
+                        s.classList.add( "selected" );
+                    }
+                } );
             }
-        }
 
-        // Remove branch padding and margins
-        if(widget.name !== undefined) {
-            element.className += " noname";
-            container.style.width = "100%";
-        }
+            if( !skipCallback && newValue.constructor != Array )
+            {
+                const enabled = event;
+                const fn = values.filter( v => v.value == newValue )[ 0 ]?.callback;
+                this._trigger( new IEvent( name, shouldToggle ? [ newValue, enabled ] : newValue, null ), fn );
+            }
+        };
 
-        element.appendChild(container);
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
 
-        return widget;
+        this.root.appendChild( container );
+
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addCard
-     * @param {String} name Card Name
-     * @param {*} options:
-     * title: title if any
-     * text: card text if any
-     * src: url of the image if any
-     * callback (Function): function to call on click
-     */
+LX.ComboButtons = ComboButtons;
 
-    addCard( name, options = {} ) {
+/**
+ * @class Card
+ * @description Card Widget
+ */
+
+class Card extends Widget {
+
+    constructor( name, options = {} ) {
 
         options.hideName = true;
-        let widget = this.create_widget(name, Widget.CARD, options);
-        let element = widget.domEl;
+
+        super( Widget.CARD, name, null, options );
 
         let container = document.createElement('div');
         container.className = "lexcard";
         container.style.width = "100%";
+        this.root.appendChild( container );
 
         if( options.img )
         {
             let img = document.createElement('img');
             img.src = options.img;
-            container.appendChild(img);
+            container.appendChild( img );
 
-            if(options.link != undefined)
+            if( options.link != undefined )
             {
                 img.style.cursor = "pointer";
                 img.addEventListener('click', function() {
-                    const _a = container.querySelector('a');
-                    if(_a) _a.click();
+                    const hLink = container.querySelector('a');
+                    if( hLink )
+                    {
+                        hLink.click();
+                    }
                 });
             }
         }
 
-        let name_el = document.createElement('span');
-        name_el.innerText = name;
+        let cardNameDom = document.createElement('span');
+        cardNameDom.innerText = name;
+        container.appendChild( cardNameDom );
 
-        if(options.link != undefined)
+        if( options.link != undefined )
         {
-            let link_el = document.createElement('a');
-            link_el.innerText = name;
-            link_el.href = options.link;
-            link_el.target = options.target ?? "";
-            name_el.innerText = "";
-            name_el.appendChild(link_el);
+            let cardLinkDom = document.createElement( 'a' );
+            cardLinkDom.innerText = name;
+            cardLinkDom.href = options.link;
+            cardLinkDom.target = options.target ?? "";
+            cardNameDom.innerText = "";
+            cardNameDom.appendChild( cardLinkDom );
         }
 
-        container.appendChild(name_el);
-
-        if( options.callback ) {
+        if( options.callback )
+        {
             container.style.cursor = "pointer";
-            container.addEventListener("click", (e) => {
-                this._trigger( new IEvent(name, null, e), options.callback );
+            container.addEventListener("click", ( e ) => {
+                this._trigger( new IEvent( name, null, e ), options.callback );
             });
         }
-
-        element.appendChild(container);
-
-        return widget;
     }
+}
 
-    /**
-     * @method addForm
-     * @param {String} name Widget name
-     * @param {Object} data Form data
-     * @param {Function} callback Callback function on submit form
-     * @param {*} options:
-     * actionName: Text to be shown in the button
-     */
+LX.Card = Card;
 
-    addForm( name, data, callback, options = {} ) {
+/**
+ * @class Form
+ * @description Form Widget
+ */
+
+class Form extends Widget {
+
+    constructor( name, data, callback, options = {} ) {
 
         if( data.constructor != Object )
         {
@@ -4788,13 +6834,13 @@ class Panel {
         // Always hide name for this one
         options.hideName = true;
 
-        let widget = this.create_widget( name, Widget.FORM, options );
+        super( Widget.FORM, name, null, options );
 
-        widget.onGetValue = () => {
+        this.onGetValue = () => {
             return container.formData;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             container.formData = newValue;
             const entries = container.querySelectorAll( ".lexwidget" );
             for( let i = 0; i < entries.length; ++i )
@@ -4807,20 +6853,15 @@ class Panel {
                 let entryName = entries[ i ].querySelector( ".lexwidgetname" ).innerText;
                 let entryInput = entries[ i ].querySelector( ".lextext input" );
                 entryInput.value = newValue[ entryName ] ?? "";
-                Panel._dispatch_event( entryInput, "focusout", skipCallback );
+                Widget._dispatchEvent( entryInput, "focusout", skipCallback );
             }
         };
 
-        // Add widget value
-
-        let element = widget.domEl;
-
         let container = document.createElement( 'div' );
         container.className = "lexformdata";
-
-        this.queue( container );
-
+        container.style.width = "100%";
         container.formData = {};
+        this.root.appendChild( container );
 
         for( let entry in data )
         {
@@ -4832,20 +6873,21 @@ class Panel {
             }
 
             entryData.placeholder = entryData.placeholder ?? entry;
-            entryData.width = "calc(100% - 10px)";
+            entryData.width = "100%";
 
-            this.addLabel( entry, { textClass: "formlabel" } );
+            // this.addLabel( entry, { textClass: "formlabel" } );
 
-            entryData.textWidget = this.addText( null, entryData.constructor == Object ? entryData.value : entryData, ( value ) => {
+            entryData.textWidget = new TextInput( null, entryData.constructor == Object ? entryData.value : entryData, ( value ) => {
                 container.formData[ entry ] = value;
             }, entryData );
+            container.appendChild( entryData.textWidget.root );
 
             container.formData[ entry ] = entryData.constructor == Object ? entryData.value : entryData;
         }
 
-        this.addBlank( );
+        container.appendChild( new Blank().root );
 
-        this.addButton( null, options.actionName ?? "Submit", ( value, event ) => {
+        const submitButton = new Button( null, options.actionName ?? "Submit", ( value, event ) => {
 
             for( let entry in data )
             {
@@ -4861,218 +6903,214 @@ class Panel {
             {
                 callback( container.formData, event );
             }
-        }, { buttonClass: "primary", width: "calc(100% - 10px)" } );
+        }, { buttonClass: "primary" } );
 
-        this.clearQueue();
-
-        element.appendChild( container );
-
-        if( !widget.name || options.hideName ) {
-            element.className += " noname";
-            container.style.width = "100%";
-        }
-
-        return widget;
+        container.appendChild( submitButton.root );
     }
+}
 
-    /**
-     * @method addContent
-     * @param {HTMLElement/String} element
-     */
+LX.Form = Form;
 
-    addContent( element, options = {} ) {
+/**
+ * @class Select
+ * @description Select Widget
+ */
 
-        if( !element )
-        {
-            return;
-        }
+class Select extends Widget {
 
-        if( element.constructor == String )
-        {
-            const tmp = document.createElement( "div" );
-            tmp.innerHTML = element;
-            if( tmp.childElementCount > 1 )
-            {
-                element = tmp;
-            }
-            else
-            {
-                element = tmp.firstElementChild;
-            }
-        }
+    constructor( name, values, value, callback, options = {} ) {
 
-        let widget = this.create_widget( null, Widget.CONTENT, options );
-        widget.domEl.appendChild( element );
-        return widget;
-    }
+        super( Widget.SELECT, name, value, options );
 
-    /**
-     * @method addImage
-     * @param {String} url Image Url
-     * @param {*} options
-     */
-
-    async addImage( url, options = {} ) {
-
-        if( !url )
-        {
-            return;
-        }
-
-        options.hideName = true;
-        let widget = this.create_widget( null, Widget.IMAGE, options );
-        let element = widget.domEl;
-
-        let container = document.createElement( 'div' );
-        container.className = "leximage";
-        container.style.width = "100%";
-
-        let img = document.createElement( 'img' );
-        img.src = url;
-
-        for( let s in options.style )
-        {
-            img.style[ s ] = options.style[ s ];
-        }
-
-        await img.decode();
-        container.appendChild( img );
-        element.appendChild( container );
-
-        return widget;
-    }
-
-    /**
-     * @method addDropdown
-     * @param {String} name Widget name
-     * @param {Array} values Posible options of the dropdown widget -> String (for default dropdown) or Object = {value, url} (for images, gifs..)
-     * @param {String} value Select by default option
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * filter: Add a search bar to the widget [false]
-     * disabled: Make the widget disabled [false]
-     * skipReset: Don't add the reset value button when value changes
-     */
-
-    addDropdown( name, values, value, callback, options = {} ) {
-
-        let widget = this.create_widget( name, Widget.DROPDOWN, options );
-
-        widget.onGetValue = () => {
-            return element.querySelector( "li.selected" ).getAttribute( 'value' );
+        this.onGetValue = () => {
+            return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( newValue != wValue.iValue ? "block" : "none" );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             value = newValue;
-            list.querySelectorAll( 'li' ).forEach( e => { if( e.getAttribute('value') == value ) e.click() } );
-            if( !skipCallback ) this._trigger( new IEvent( name, value, null ), callback );
+
+            let item = null;
+            const options = listOptions.childNodes;
+            options.forEach( e => {
+                e.classList.remove( "selected" );
+                if( e.getAttribute( "value" ) == newValue )
+                {
+                    item = e;
+                }
+            } );
+
+            console.assert( item, `Item ${ newValue } does not exist in the Select.` );
+            item.classList.add( "selected" );
+            selectedOption.refresh( value );
+
+            // Reset filter
+            if( filter )
+            {
+                filter.root.querySelector( "input" ).value = "";
+                const filteredOptions = this._filterOptions( values, "" );
+                list.refresh( filteredOptions );
+            }
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, value, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
-        let that = this;
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = options.inputWidth ?? `calc( 100% - ${ realNameWidth }px)`;
+        };
 
-        // Add reset functionality
-        if(widget.name && !( options.skipReset ?? false ))
-        {
-            Panel._add_reset_property( element.domName, function() {
-                value = wValue.iValue;
-                list.querySelectorAll( 'li' ).forEach( e => { if( e.getAttribute('value') == value ) e.click() } );
-                this.style.display = "none";
-            });
-        }
+        let container = document.createElement( "div" );
+        container.className = "lexselect";
+        this.root.appendChild( container );
 
-        let container = document.createElement( 'div' );
-        container.className = "lexdropdown";
-        container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
-
-        // Add widget value
         let wValue = document.createElement( 'div' );
-        wValue.className = "lexdropdown lexoption";
+        wValue.className = "lexselect lexoption";
         wValue.name = name;
         wValue.iValue = value;
 
-        // Add dropdown widget button
+        // Add select widget button
         let buttonName = value;
-        buttonName += "<a class='fa-solid fa-angle-down' style='float:right; margin-right: 3px;'></a>";
+        buttonName += "<a class='fa-solid fa-angle-down'></a>";
 
-        this.queue(container);
+        if( options.overflowContainer )
+        {
+            options.overflowContainerX = options.overflowContainerY = options.overflowContainer;
+        }
 
-        const _getMaxListWidth = () => {
+        const _placeOptions = ( parent ) => {
 
-            let maxWidth = 0;
-            for( let i of values )
+            const selectRoot = selectedOption.root;
+            const rect = selectRoot.getBoundingClientRect();
+            const nestedDialog = parent.parentElement.closest( "dialog" ) ?? parent.parentElement.closest( ".lexcolorpicker" );
+
+            // Manage vertical aspect
             {
-                const iString = String( i );
-                maxWidth = Math.max( iString.length, maxWidth );
+                const overflowContainer = options.overflowContainerY ?? parent.getParentArea();
+                const listHeight = parent.offsetHeight;
+                let topPosition = rect.y;
+
+                let maxY = window.innerHeight;
+
+                if( overflowContainer )
+                {
+                    const parentRect = overflowContainer.getBoundingClientRect();
+                    maxY = parentRect.y + parentRect.height;
+                }
+
+                if( nestedDialog )
+                {
+                    const rect = nestedDialog.getBoundingClientRect();
+                    topPosition -= rect.y;
+                    maxY -= rect.y;
+                }
+
+                parent.style.top = ( topPosition + selectRoot.offsetHeight ) + 'px';
+
+                const showAbove = ( topPosition + listHeight ) > maxY;
+                if( showAbove )
+                {
+                    parent.style.top = ( topPosition - listHeight ) + 'px';
+                    parent.classList.add( "place-above" );
+                }
             }
-            return Math.max( maxWidth * 10, 80 );
+
+            // Manage horizontal aspect
+            {
+                const overflowContainer = options.overflowContainerX ?? parent.getParentArea();
+                const listWidth = parent.offsetWidth;
+                let leftPosition = rect.x;
+
+                parent.style.minWidth = ( rect.width ) + 'px';
+
+                if( nestedDialog )
+                {
+                    const rect = nestedDialog.getBoundingClientRect();
+                    leftPosition -= rect.x;
+                }
+
+                parent.style.left = ( leftPosition ) + 'px';
+
+                let maxX = window.innerWidth;
+
+                if( overflowContainer )
+                {
+                    const parentRect = overflowContainer.getBoundingClientRect();
+                    maxX = parentRect.x + parentRect.width;
+                }
+
+                const showLeft = ( leftPosition + listWidth ) > maxX;
+                if( showLeft )
+                {
+                    parent.style.left = ( leftPosition - ( listWidth - rect.width ) ) + 'px';
+                }
+            }
         };
 
-        let selectedOption = this.addButton( null, buttonName, ( value, event ) => {
+        let selectedOption = new Button( null, buttonName, ( value, event ) => {
             if( list.unfocus_event )
             {
                 delete list.unfocus_event;
                 return;
             }
 
-            list.toggleAttribute( "hidden" );
-            list.classList.remove( "place-above" );
+            listDialog.classList.remove( "place-above" );
+            const opened = listDialog.hasAttribute( "open" );
 
-            const listHeight = 26 * values.length;
-            const rect = selectedOption.getBoundingClientRect();
-            const topPosition = rect.y;
-
-            let maxY = window.innerHeight;
-            let overflowContainer = list.getParentArea();
-
-            if( overflowContainer )
+            if( !opened )
             {
-                const parentRect = overflowContainer.getBoundingClientRect();
-                maxY = parentRect.y + parentRect.height;
+                listDialog.show();
+                _placeOptions( listDialog );
+            }
+            else
+            {
+                listDialog.close();
             }
 
-            list.style.top = ( topPosition + selectedOption.offsetHeight ) + 'px';
-
-            const showAbove = ( topPosition + listHeight ) > maxY;
-            if( showAbove )
+            if( filter )
             {
-                list.style.top = ( topPosition - listHeight ) + 'px';
-                list.classList.add( "place-above" );
+                filter.root.querySelector( "input" ).focus();
             }
 
-            list.style.width = (event.currentTarget.clientWidth) + 'px';
-            list.style.minWidth = (_getMaxListWidth()) + 'px';
-            list.focus();
-        }, { buttonClass: "array", skipInlineCount: true });
+        }, { buttonClass: "array", skipInlineCount: true, disabled: options.disabled } );
 
-        this.clearQueue();
+        container.appendChild( selectedOption.root );
 
-        selectedOption.style.width = "100%";
+        selectedOption.root.style.width = "100%";
 
         selectedOption.refresh = (v) => {
-            if(selectedOption.querySelector("span").innerText == "")
-                selectedOption.querySelector("span").innerText = v;
+            const buttonSpan = selectedOption.root.querySelector("span");
+            if( buttonSpan.innerText == "" )
+            {
+                buttonSpan.innerText = v;
+            }
             else
-                selectedOption.querySelector("span").innerHTML = selectedOption.querySelector("span").innerHTML.replaceAll(selectedOption.querySelector("span").innerText, v);
+            {
+                buttonSpan.innerHTML = buttonSpan.innerHTML.replaceAll( buttonSpan.innerText, v );
+            }
         }
 
-        // Add dropdown options container
+        // Add select options container
+
+        const listDialog = document.createElement( 'dialog' );
+        listDialog.className = "lexselectoptions";
+
         let list = document.createElement( 'ul' );
         list.tabIndex = -1;
         list.className = "lexoptions";
-        list.hidden = true;
+        listDialog.appendChild( list )
 
         list.addEventListener( 'focusout', function( e ) {
             e.stopPropagation();
             e.stopImmediatePropagation();
-            if( e.relatedTarget === selectedOption.querySelector( 'button' ) )
+            if( e.relatedTarget === selectedOption.root.querySelector( 'button' ) )
             {
                 this.unfocus_event = true;
                 setTimeout( () => delete this.unfocus_event, 200 );
             }
-            else if ( e.relatedTarget && e.relatedTarget.tagName == "INPUT" )
+            else if ( e.relatedTarget && ( e.relatedTarget.tagName == "INPUT" || e.relatedTarget.classList.contains("lexoptions") ) )
             {
                 return;
             }
@@ -5080,97 +7118,127 @@ class Panel {
             {
                 return;
             }
-            this.toggleAttribute( 'hidden', true );
+            listDialog.close();
         });
 
         // Add filter options
         let filter = null;
-        if(options.filter ?? false)
+        if( options.filter ?? false )
         {
-            filter = this._addFilter("Search option", {container: list, callback: this._search_options.bind(list, values)});
-        }
+            const filterOptions = LX.deepCopy( options );
+            filterOptions.placeholder = filterOptions.placeholder ?? "Search...";
+            filterOptions.skipWidget = filterOptions.skipWidget ?? true;
+            filterOptions.trigger = "input";
+            filterOptions.icon = "fa-solid fa-magnifying-glass";
+            filterOptions.className = "lexfilter";
+            filterOptions.inputClass = "outline";
 
-        // Create option list to empty it easily..
-        const listOptions = document.createElement('span');
-        list.appendChild( listOptions );
+            filter = new TextInput(null, options.filterValue ?? "", ( v ) => {
+                const filteredOptions = this._filterOptions( values, v );
+                list.refresh( filteredOptions );
+            }, filterOptions );
+            filter.root.querySelector( ".lextext" ).style.border = "1px solid transparent";
 
-        if( filter )
-        {
-            list.prepend( filter );
-            listOptions.style.height = "calc(100% - 25px)";
+            const input = filter.root.querySelector( "input" );
 
-            filter.addEventListener('focusout', function( e ) {
+            input.addEventListener('focusout', function( e ) {
                 if (e.relatedTarget && e.relatedTarget.tagName == "UL" && e.relatedTarget.classList.contains("lexoptions"))
                 {
                     return;
                 }
-                list.toggleAttribute( 'hidden', true );
+                listDialog.close();
             });
+
+            list.appendChild( filter.root );
         }
 
-        // Add dropdown options list
-        list.refresh = options => {
+        // Create option list to empty it easily..
+        const listOptions = document.createElement('span');
+        listOptions.className = "lexselectinnerlist";
+        list.appendChild( listOptions );
+
+        // Add select options list
+        list.refresh = ( currentOptions ) => {
 
             // Empty list
             listOptions.innerHTML = "";
 
-            for(let i = 0; i < options.length; i++)
+            if( !currentOptions.length )
             {
-                let iValue = options[i];
-                let li = document.createElement('li');
-                let option = document.createElement('div');
+                let iValue = options.emptyMsg ?? "No options found.";
+
+                let option = document.createElement( "div" );
                 option.className = "option";
-                li.appendChild(option);
-                li.addEventListener("click", (e) => {
-                    element.querySelector(".lexoptions").toggleAttribute('hidden', true);
-                    const currentSelected = element.querySelector(".lexoptions .selected");
-                    if(currentSelected) currentSelected.classList.remove("selected");
-                    value = e.currentTarget.getAttribute("value");
-                    e.currentTarget.toggleAttribute('hidden', false);
-                    e.currentTarget.classList.add("selected");
-                    selectedOption.refresh(value);
+                option.innerHTML = iValue;
 
-                    let btn = element.querySelector(".lexwidgetname .lexicon");
-                    if(btn) btn.style.display = (value != wValue.iValue ? "block" : "none");
-                    that._trigger( new IEvent(name, value, null), callback );
+                let li = document.createElement( "li" );
+                li.className = "lexselectitem empty";
+                li.appendChild( option );
 
-                    // Reset filter
-                    if(filter)
-                    {
-                        filter.querySelector('input').value = "";
-                        this._search_options.bind(list, values, "")();
-                    }
-                });
+                listOptions.appendChild( li );
+                return;
+            }
+
+            for( let i = 0; i < currentOptions.length; i++ )
+            {
+                let iValue = currentOptions[ i ];
+                let li = document.createElement( "li" );
+                let option = document.createElement( "div" );
+                option.className = "option";
+                li.appendChild( option );
+
+                const onSelect = e => {
+                    this.set( e.currentTarget.getAttribute( "value" ), false, e );
+                    listDialog.close();
+                };
+
+                li.addEventListener( "click", onSelect );
 
                 // Add string option
-                if( iValue.constructor != Object ) {
-                    option.style.flexDirection = 'unset';
-                    option.innerHTML = "</a><span>" + iValue + "</span><a class='fa-solid fa-check'>";
-                    option.value = iValue;
-                    li.setAttribute("value", iValue);
-                    li.className = "lexdropdownitem";
-                    if( i == (options.length - 1) ) li.className += " last";
-                    if(iValue == value) {
-                        li.classList.add("selected");
-                        wValue.innerHTML = iValue;
+                if( iValue.constructor != Object )
+                {
+                    const asLabel = ( iValue[ 0 ] === '@' );
+
+                    if( !asLabel )
+                    {
+                        option.innerHTML = "</a><span>" + iValue + "</span><a class='fa-solid fa-check'>";
+                        option.value = iValue;
+                        li.setAttribute( "value", iValue );
+
+                        if( iValue == value )
+                        {
+                            li.classList.add( "selected" );
+                            wValue.innerHTML = iValue;
+                        }
                     }
+                    else
+                    {
+                        option.innerHTML = "<span>" + iValue.substr( 1 ) + "</span>";
+                        li.removeEventListener( "click", onSelect );
+                    }
+
+                    li.classList.add( asLabel ? "lexselectlabel" : "lexselectitem" );
                 }
-                else {
+                else
+                {
                     // Add image option
-                    let img = document.createElement("img");
+                    let img = document.createElement( "img" );
                     img.src = iValue.src;
-                    li.setAttribute("value", iValue.value);
+                    li.setAttribute( "value", iValue.value );
                     li.className = "lexlistitem";
                     option.innerText = iValue.value;
                     option.className += " media";
-                    option.prepend(img);
+                    option.prepend( img );
 
-                    option.setAttribute("value", iValue.value);
-                    option.setAttribute("data-index", i);
-                    option.setAttribute("data-src", iValue.src);
-                    option.setAttribute("title", iValue.value);
-                    if(value == iValue.value)
-                        li.classList.add("selected");
+                    option.setAttribute( "value", iValue.value );
+                    option.setAttribute( "data-index", i );
+                    option.setAttribute( "data-src", iValue.src );
+                    option.setAttribute( "title", iValue.value );
+
+                    if( value == iValue.value )
+                    {
+                        li.classList.add( "selected" );
+                    }
                 }
 
                 listOptions.appendChild( li );
@@ -5179,426 +7247,404 @@ class Panel {
 
         list.refresh( values );
 
-        container.appendChild( list );
-        element.appendChild( container );
+        container.appendChild( listDialog );
 
-        // Remove branch padding and margins
-        if( !widget.name )
-        {
-            element.className += " noname";
-            container.style.width = "100%";
-        }
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
 
-    /**
-     * @method addCurve
-     * @param {String} name Widget name
-     * @param {Array of Array} values Array of 2N Arrays of each value of the curve
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * skipReset: Don't add the reset value button when value changes
-     * bgColor: Widget background color
-     * pointsColor: Curve points color
-     * lineColor: Curve line color
-     * noOverlap: Points do not overlap, replacing themselves if necessary
-     * allowAddValues: Support adding values on click
-     * smooth: Curve smoothness
-     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
-    */
+    _filterOptions( options, value ) {
 
-    addCurve( name, values, callback, options = {} ) {
+        // Push to right container
+        const emptyFilter = !value.length;
+        let filteredOptions = [];
 
-        if(!name) {
-            throw("Set Widget Name!");
+        // Add widgets
+        for( let i = 0; i < options.length; i++ )
+        {
+            let o = options[ i ];
+            if( !emptyFilter )
+            {
+                let toCompare = ( typeof o == 'string' ) ? o : o.value;
+                const filterWord = value.toLowerCase();
+                const name = toCompare.toLowerCase();
+                if( !name.includes( filterWord ) ) continue;
+            }
+
+            filteredOptions.push( o );
         }
 
-        let that = this;
-        let widget = this.create_widget(name, Widget.CURVE, options);
+        return filteredOptions;
+    }
+}
 
-        widget.onGetValue = () => {
-            return JSON.parse(JSON.stringify(curveInstance.element.value));
-        };
+LX.Select = Select;
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( newValue != curveInstance.element.value ? "block" : "none" );
-            curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
-            curveInstance.redraw();
-            if( !skipCallback ) that._trigger( new IEvent( name, curveInstance.element.value, null ), callback );
-        };
+/**
+ * @class Curve
+ * @description Curve Widget
+ */
 
-        let element = widget.domEl;
+class Curve extends Widget {
+
+    constructor( name, values, callback, options = {} ) {
+
         let defaultValues = JSON.parse( JSON.stringify( values ) );
 
-        // Add reset functionality
-        if( !(options.skipReset ?? false) )
-        {
-            Panel._add_reset_property(element.domName, function(e) {
-                this.style.display = "none";
-                curveInstance.element.value = JSON.parse( JSON.stringify( defaultValues ) );
-                curveInstance.redraw();
-                that._trigger( new IEvent( name, curveInstance.element.value, e ), callback );
-            });
-        }
+        super( Widget.CURVE, name, defaultValues, options );
 
-        // Add widget value
-
-        var container = document.createElement( 'div' );
-        container.className = "lexcurve";
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
-
-        options.callback = (v, e) => {
-            let btn = element.querySelector(".lexwidgetname .lexicon");
-            if(btn) btn.style.display = (v != defaultValues ? "block" : "none");
-            that._trigger( new IEvent(name, v, e), callback );
+        this.onGetValue = () => {
+            return JSON.parse(JSON.stringify( curveInstance.element.value ));
         };
 
-        options.name = name;
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
+            curveInstance.redraw();
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, curveInstance.element.value, event ), callback );
+            }
+        };
 
-        let curveInstance = new Curve( this, values, options );
-        container.appendChild( curveInstance.element );
-        element.appendChild( container );
-
-        // Resize
-        widget.onresize = curveInstance.redraw.bind( curveInstance );
-        widget.curveInstance = curveInstance;
-
-        doAsync(() => {
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+            flushCss( container );
             curveInstance.canvas.width = container.offsetWidth;
             curveInstance.redraw();
-        });
-
-        return widget;
-    }
-
-    /**
-     * @method addDial
-     * @param {String} name Widget name
-     * @param {Array of Array} values Array of 2N Arrays of each value of the dial
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * skipReset: Don't add the reset value button when value changes
-     * bgColor: Widget background color
-     * pointsColor: Curve points color
-     * lineColor: Curve line color
-     * noOverlap: Points do not overlap, replacing themselves if necessary
-     * allowAddValues: Support adding values on click
-     * smooth: Curve smoothness
-     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
-    */
-
-    addDial( name, values, callback, options = {} ) {
-
-        let that = this;
-        let widget = this.create_widget(name, Widget.DIAL, options);
-
-        widget.onGetValue = () => {
-            return JSON.parse(JSON.stringify(curveInstance.element.value));
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( newValue != curveInstance.element.value ? "block" : "none" );
-            curveInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
-            curveInstance.redraw();
-            if( !skipCallback ) that._trigger( new IEvent( name, curveInstance.element.value, null ), callback );
-        };
-
-        let element = widget.domEl;
-        let defaultValues = JSON.parse( JSON.stringify( values ) );
-
-        // Add reset functionality
-        if( widget.name && !(options.skipReset ?? false) )
-        {
-            Panel._add_reset_property(element.domName, function(e) {
-                this.style.display = "none";
-                curveInstance.element.value = JSON.parse( JSON.stringify( defaultValues ) );
-                curveInstance.redraw();
-                that._trigger( new IEvent( name, curveInstance.element.value, e ), callback );
-            });
-        }
-
-        // Add widget value
-
-        var container = document.createElement( 'div' );
+        var container = document.createElement( "div" );
         container.className = "lexcurve";
-        container.style.width = widget.name ? "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")" : '100%';
+        this.root.appendChild( container );
 
         options.callback = (v, e) => {
-            let btn = element.querySelector(".lexwidgetname .lexicon");
-            if(btn) btn.style.display = (v != defaultValues ? "block" : "none");
-            that._trigger( new IEvent(name, v, e), callback );
+            this._trigger( new IEvent( name, v, e ), callback );
         };
 
         options.name = name;
 
-        let curveInstance = new Dial( this, values, options );
+        let curveInstance = new CanvasCurve( values, options );
         container.appendChild( curveInstance.element );
-        element.appendChild( container );
+        this.curveInstance = curveInstance;
 
-        // Resize
-        widget.onresize = curveInstance.redraw.bind( curveInstance );
-        widget.curveInstance = curveInstance;
-
-        doAsync(() => {
-            curveInstance.element.style.height = curveInstance.element.offsetWidth + "px";
-            curveInstance.canvas.width = curveInstance.element.offsetWidth;
-            container.style.width = curveInstance.element.offsetWidth + "px";
-            curveInstance.canvas.height = curveInstance.canvas.width;
-            curveInstance.redraw();
-        });
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addLayers
-     * @param {String} name Widget name
-     * @param {Number} value Flag value by default option
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     */
+LX.Curve = Curve;
 
-    addLayers( name, value, callback, options = {} ) {
+/**
+ * @class Dial
+ * @description Dial Widget
+ */
 
-        if(!name) {
-            throw("Set Widget Name!");
-        }
+class Dial extends Widget {
 
-        let that = this;
-        let widget = this.create_widget(name, Widget.LAYERS, options);
-        widget.onGetValue = () => {
-            return element.value;
-        };
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            let btn = element.querySelector(".lexwidgetname .lexicon");
-            if(btn) btn.style.display = (newValue != defaultValue ? "block" : "none");
-            value = element.value = newValue;
-            setLayers();
-            if( !skipCallback ) that._trigger( new IEvent(name, value), callback );
+    constructor( name, values, callback, options = {} ) {
+
+        let defaultValues = JSON.parse( JSON.stringify( values ) );
+
+        super( Widget.DIAL, name, defaultValues, options );
+
+        this.onGetValue = () => {
+            return JSON.parse( JSON.stringify( dialInstance.element.value ) );
         };
 
-        let element = widget.domEl;
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            dialInstance.element.value = JSON.parse( JSON.stringify( newValue ) );
+            dialInstance.redraw();
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, dialInstance.element.value, event ), callback );
+            }
+        };
 
-        // Add reset functionality
-        Panel._add_reset_property(element.domName, function(e) {
-            this.style.display = "none";
-            value = element.value = defaultValue;
-            setLayers();
-            that._trigger( new IEvent(name, value, e), callback );
-        });
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+            flushCss( container );
+            dialInstance.element.style.height = dialInstance.element.offsetWidth + "px";
+            dialInstance.canvas.width = dialInstance.element.offsetWidth;
+            container.style.width = dialInstance.element.offsetWidth + "px";
+            dialInstance.canvas.height = dialInstance.canvas.width;
+            dialInstance.redraw();
+        };
 
-        // Add widget value
+        var container = document.createElement( "div" );
+        container.className = "lexcurve";
+        this.root.appendChild( container );
 
-        var container = document.createElement('div');
+        options.callback = ( v, e ) => {
+            this._trigger( new IEvent( name, v, e ), callback );
+        };
+
+        options.name = name;
+
+        let dialInstance = new CanvasDial( this, values, options );
+        container.appendChild( dialInstance.element );
+        this.dialInstance = dialInstance;
+
+        doAsync( this.onResize.bind( this ) );
+    }
+}
+
+LX.Curve = Curve;
+
+/**
+ * @class Layers
+ * @description Layers Widget
+ */
+
+class Layers extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.LAYERS, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            value = newValue;
+            this.setLayers( value );
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent(name, value, event), callback );
+            }
+        };
+
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
+
+        var container = document.createElement( "div" );
         container.className = "lexlayers";
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        this.root.appendChild( container );
 
-        let defaultValue = element.value = value;
-
-        const setLayers = () =>  {
+        this.setLayers = ( val ) =>  {
 
             container.innerHTML = "";
 
-            let binary = value.toString( 2 );
+            let binary = val.toString( 2 );
             let nbits = binary.length;
+
             // fill zeros
-            for(var i = 0; i < (16 - nbits); ++i) {
+            for( let i = 0; i < ( 16 - nbits ); ++i )
+            {
                 binary = '0' + binary;
             }
 
             for( let bit = 0; bit < 16; ++bit )
             {
-                let layer = document.createElement('div');
+                let layer = document.createElement( "div" );
                 layer.className = "lexlayer";
-                if( value != undefined )
+
+                if( val != undefined )
                 {
                     const valueBit = binary[ 16 - bit - 1 ];
-                    if(valueBit != undefined && valueBit == '1')
-                        layer.classList.add('selected');
+                    if( valueBit != undefined && valueBit == '1' )
+                    {
+                        layer.classList.add( "selected" );
+                    }
                 }
+
                 layer.innerText = bit + 1;
                 layer.title = "Bit " + bit + ", value " + (1 << bit);
                 container.appendChild( layer );
 
-                layer.addEventListener("click", e => {
-
+                layer.addEventListener( "click", e => {
                     e.stopPropagation();
                     e.stopImmediatePropagation();
-                    e.target.classList.toggle('selected');
-                    value ^= ( 1 << bit );
-                    element.value = value;
-
-                    let btn = element.querySelector(".lexwidgetname .lexicon");
-                    if(btn) btn.style.display = (value != defaultValue ? "block" : "none");
-
-                    this._trigger( new IEvent(name, value, e), callback );
-                });
+                    e.target.classList.toggle( "selected" );
+                    const newValue = val ^ ( 1 << bit );
+                    this.set( newValue, false, e );
+                } );
             }
-
         };
 
-        setLayers();
+        this.setLayers( value );
 
-        element.appendChild(container);
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addArray
-     * @param {String} name Widget name
-     * @param {Array} values By default values in the array
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * innerValues (Array): Use dropdown mode and use values as options
-     */
+LX.Layers = Layers;
 
-    addArray( name, values = [], callback, options = {} ) {
+/**
+ * @class ItemArray
+ * @description ItemArray Widget
+ */
 
-        if(!name) {
-            throw("Set Widget Name!");
-        }
+class ItemArray extends Widget {
 
-        let widget = this.create_widget(name, Widget.ARRAY, options);
-        widget.onGetValue = () => {
-            let array_inputs = element.querySelectorAll("input");
-            let values = [];
-            for( var v of array_inputs )
-            values.push( v.value );
+    constructor( name, values = [], callback, options = {} ) {
+
+        options.nameWidth = "100%";
+
+        super( Widget.ARRAY, name, null, options );
+
+        this.onGetValue = () => {
             return values;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             values = newValue;
-            updateItems();
-            if( !skipCallback ) this._trigger( new IEvent(name, values, null), callback );
+            this._updateItems();
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, values, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
-        element.style.flexWrap = "wrap";
-
-        // Add dropdown array button
+        // Add open array button
 
         const itemNameWidth = "4%";
 
         var container = document.createElement('div');
         container.className = "lexarray";
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        container.style.width = "100%";
+        this.root.appendChild( container );
+        this.root.dataset["opened"] = false;
 
-        this.queue( container );
-
-        const angle_down = `<a class='fa-solid fa-angle-down' style='float:right; margin-right: 3px;'></a>`;
+        const angleDown = `<a class='fa-solid fa-angle-down'></a>`;
 
         let buttonName = "Array (size " + values.length + ")";
-        buttonName += angle_down;
-        this.addButton(null, buttonName, () => {
-            element.querySelector(".lexarrayitems").toggleAttribute('hidden');
-        }, { buttonClass: 'array' });
+        buttonName += angleDown;
 
-        this.clearQueue();
+        const toggleButton = new Button(null, buttonName, () => {
+            this.root.dataset["opened"] = this.root.dataset["opened"] == "true" ? false : true;
+            this.root.querySelector(".lexarrayitems").toggleAttribute('hidden');
+        }, { buttonClass: 'array' });
+        container.appendChild( toggleButton.root );
 
         // Show elements
 
-        let array_items = document.createElement('div');
-        array_items.className = "lexarrayitems";
-        array_items.toggleAttribute('hidden',  true);
+        let arrayItems = document.createElement( "div" );
+        arrayItems.className = "lexarrayitems";
+        arrayItems.toggleAttribute( "hidden",  true );
+        this.root.appendChild( arrayItems );
 
-        element.appendChild(container);
-        element.appendChild(array_items);
-
-        const updateItems = () => {
+        this._updateItems = () => {
 
             // Update num items
-            let buttonEl = element.querySelector(".lexbutton.array span");
+            let buttonEl = this.root.querySelector(".lexbutton.array span");
             buttonEl.innerHTML = "Array (size " + values.length + ")";
-            buttonEl.innerHTML += angle_down;
+            buttonEl.innerHTML += angleDown;
 
             // Update inputs
-            array_items.innerHTML = "";
-
-            this.queue( array_items );
+            arrayItems.innerHTML = "";
 
             for( let i = 0; i < values.length; ++i )
             {
-                const value = values[i];
-                let baseclass = options.innerValues ? 'dropdown' : value.constructor;
+                const value = values[ i ];
+                let baseclass = options.innerValues ? 'select' : value.constructor;
+                let widget = null;
 
-                this.sameLine(2);
-
-                switch(baseclass)
+                switch( baseclass  )
                 {
                     case String:
-                        this.addText(i + "", value, function(value, event) {
-                            values[i] = value;
+                        widget = new TextInput(i + "", value, function(value, event) {
+                            values[ i ] = value;
                             callback( values );
                         }, { nameWidth: itemNameWidth, inputWidth: "95%", skipReset: true });
                         break;
                     case Number:
-                        this.addNumber(i + "", value, function(value, event) {
-                            values[i] = value;
+                        widget = new NumberInput(i + "", value, function(value, event) {
+                            values[ i ] = value;
                             callback( values );
                         }, { nameWidth: itemNameWidth, inputWidth: "95%", skipReset: true });
                         break;
-                    case 'dropdown':
-                        this.addDropdown(i + "", options.innerValues, value, function(value, event) {
-                            values[i] = value;
+                    case 'select':
+                        widget = new Select(i + "", options.innerValues, value, function(value, event) {
+                            values[ i ] = value;
                             callback( values );
                         }, { nameWidth: itemNameWidth, inputWidth: "95%", skipReset: true });
                         break;
                 }
 
-                this.addButton( null, "<a class='lexicon fa-solid fa-trash'></a>", (v, event) => {
-                    values.splice(values.indexOf( value ), 1);
-                    updateItems();
+                console.assert( widget, `Value of type ${ baseclass } cannot be modified in ItemArray` );
+
+                arrayItems.appendChild( widget.root );
+
+                const removeWidget = new Button( null, "<a class='lexicon fa-solid fa-trash'></a>", ( v, event) => {
+                    values.splice( values.indexOf( value ), 1 );
+                    this._updateItems();
                     this._trigger( new IEvent(name, values, event), callback );
                 }, { title: "Remove item", className: 'micro'} );
+
+                widget.root.appendChild( removeWidget.root );
             }
 
             buttonName = "Add item";
-            buttonName += "<a class='fa-solid fa-plus' style='float:right; margin-right: 3px; margin-top: 2px;'></a>";
-            this.addButton(null, buttonName, (v, event) => {
+            buttonName += "<a class='fa-solid fa-plus'></a>";
+
+            const addButton = new Button(null, buttonName, (v, event) => {
                 values.push( options.innerValues ? options.innerValues[ 0 ] : "" );
-                updateItems();
+                this._updateItems();
                 this._trigger( new IEvent(name, values, event), callback );
             }, { buttonClass: 'array' });
 
-            // Stop pushing to array_items
-            this.clearQueue();
+            arrayItems.appendChild( addButton.root );
         };
 
-        updateItems();
-
-        return widget;
+        this._updateItems();
     }
+}
 
-    /**
-     * @method addList
-     * @param {String} name Widget name
-     * @param {Array} values List values
-     * @param {String} value Selected list value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     */
+LX.ItemArray = ItemArray;
 
-    addList( name, values, value, callback, options = {} ) {
+/**
+ * @class List
+ * @description List Widget
+ */
 
-        let widget = this.create_widget( name, Widget.LIST, options );
+class List extends Widget {
 
-        widget.onGetValue = () => {
+    constructor( name, values, value, callback, options = {} ) {
+
+        super( Widget.LIST, name, value, options );
+
+        this.onGetValue = () => {
             return value;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             listContainer.querySelectorAll( '.lexlistitem' ).forEach( e => e.classList.remove( 'selected' ) );
-            const idx = values.indexOf( newValue );
-            if( idx == -1 ) return;
+
+            let idx = null;
+            for( let i = 0; i < values.length; ++i )
+            {
+                const v = values[ i ];
+                if( v == newValue || ( ( v.constructor == Array ) && ( v[ 0 ] == newValue ) ) )
+                {
+                    idx = i;
+                    break;
+                }
+            }
+
+            if( !idx )
+            {
+                console.error( `Cannot find item ${ newValue } in List.` );
+                return;
+            }
+
             listContainer.children[ idx ].classList.toggle( 'selected' );
             value = newValue;
-            if( !skipCallback ) this._trigger( new IEvent( name, newValue ), callback );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
         };
 
-        widget.updateValues = ( newValues ) => {
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            listContainer.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
+
+        this._updateValues = ( newValues ) => {
 
             values = newValues;
             listContainer.innerHTML = "";
@@ -5629,73 +7675,59 @@ class Panel {
             }
         };
 
-        let element = widget.domEl;
-
         // Show list
 
         let listContainer = document.createElement( 'div' );
         listContainer.className = "lexlist";
-        listContainer.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        this.root.appendChild( listContainer );
 
-        widget.updateValues( values );
+        this._updateValues( values );
 
-        // Remove branch padding and margins
-        if( !widget.name ) {
-            element.className += " noname";
-            listContainer.style.width = "100%";
-        }
-
-        element.appendChild( listContainer );
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addTags
-     * @param {String} name Widget name
-     * @param {String} value Comma separated tags
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     */
+LX.List = List;
 
-    addTags( name, value, callback, options = {} ) {
+/**
+ * @class Tags
+ * @description Tags Widget
+ */
+
+class Tags extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
 
         value = value.replace( /\s/g, '' ).split( ',' );
-        let defaultValue = [].concat( value );
-        let widget = this.create_widget( name, Widget.TAGS, options );
 
-        widget.onGetValue = () => {
+        let defaultValue = [].concat( value );
+        super( Widget.TAGS, name, defaultValue, options );
+
+        this.onGetValue = () => {
             return [].concat( value );
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             value = [].concat( newValue );
-            create_tags();
-            let btn = element.querySelector( ".lexwidgetname .lexicon" );
-            if( btn ) btn.style.display = ( newValue != defaultValue ? "block" : "none" );
-            if( !skipCallback ) that._trigger( new IEvent( name, value ), callback );
+            this.generateTags( value );
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, value, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
-        let that = this;
-
-        // Add reset functionality
-        if(widget.name)
-        {
-            Panel._add_reset_property(element.domName, function(e) {
-                this.style.display = "none";
-                value = [].concat(defaultValue);
-                create_tags();
-                that._trigger( new IEvent(name, value, e), callback );
-            });
-        }
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            tagsContainer.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
 
         // Show tags
 
         const tagsContainer = document.createElement('div');
         tagsContainer.className = "lextags";
-        tagsContainer.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        this.root.appendChild( tagsContainer );
 
-        const create_tags = () => {
+        this.generateTags = ( value ) => {
 
             tagsContainer.innerHTML = "";
 
@@ -5713,9 +7745,7 @@ class Panel {
                 removeButton.addEventListener( 'click', e => {
                     tag.remove();
                     value.splice( value.indexOf( tagName ), 1 );
-                    let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                    if( btn ) btn.style.display = ( value != defaultValue ? "block" : "none" );
-                    that._trigger( new IEvent( name, value, e ), callback );
+                    this.set( value, false, e );
                 } );
 
                 tagsContainer.appendChild( tag );
@@ -5726,178 +7756,158 @@ class Panel {
             tagInput.placeholder = "Add tag...";
             tagsContainer.appendChild( tagInput );
 
-            tagInput.onkeydown = function( e ) {
-                const val = this.value.replace(/\s/g, '');
+            tagInput.onkeydown = e => {
+                const val = tagInput.value.replace( /\s/g, '' );
                 if( e.key == ' ' || e.key == 'Enter' )
                 {
                     e.preventDefault();
                     if( !val.length || value.indexOf( val ) > -1 )
                         return;
                     value.push( val );
-                    create_tags();
-                    let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                    if(btn) btn.style.display = "block";
-                    that._trigger( new IEvent( name, value, e ), callback );
+                    this.set( value, false, e );
                 }
             };
 
             tagInput.focus();
         }
 
-        create_tags();
+        this.generateTags( value );
 
-        // Remove branch padding and margins
-        if( !widget.name )
-        {
-            element.className += " noname";
-            tagsContainer.style.width = "100%";
-        }
-
-        element.appendChild( tagsContainer );
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addCheckbox
-     * @param {String} name Widget name
-     * @param {Boolean} value Value of the checkbox
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * suboptions: Callback to add widgets in case of TRUE value
-     * className: Customize colors
-     */
+LX.Tags = Tags;
 
-    addCheckbox( name, value, callback, options = {} ) {
+/**
+ * @class Checkbox
+ * @description Checkbox Widget
+ */
 
-        if( !name )
+class Checkbox extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        if( !name && !options.label )
         {
-            throw( "Set Widget Name!" );
+            throw( "Set Widget Name or at least a label!" );
         }
 
-        let widget = this.create_widget( name, Widget.CHECKBOX, options );
+        super( Widget.CHECKBOX, name, value, options );
 
-        widget.onGetValue = () => {
-            return checkbox.checked;
+        this.onGetValue = () => {
+            return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            if( checkbox.checked !== newValue )
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( newValue == value )
             {
-                checkbox.checked = newValue;
-                Panel._dispatch_event( checkbox, "change", skipCallback );
+                return;
+            }
+
+            checkbox.checked = value = newValue;
+
+            // Update suboptions menu
+            this.root.querySelector( ".lexcheckboxsubmenu" )?.toggleAttribute( 'hidden', !newValue );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
             }
         };
 
-        let element = widget.domEl;
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = options.inputWidth ?? `calc( 100% - ${ realNameWidth }px)`;
+        };
 
-        // Add reset functionality
-        Panel._add_reset_property( element.domName, function() {
-            checkbox.checked = !checkbox.checked;
-            Panel._dispatch_event( checkbox, "change" );
-        });
-
-        // Add widget value
-
-        var container = document.createElement('div');
+        var container = document.createElement( "div" );
         container.className = "lexcheckboxcont";
+        this.root.appendChild( container );
 
-        let checkbox = document.createElement('input');
+        let checkbox = document.createElement( "input" );
         checkbox.type = "checkbox";
-        checkbox.className = "lexcheckbox " + ( options.className ?? "" );
+        checkbox.className = "lexcheckbox " + ( options.className ?? "primary" );
         checkbox.checked = value;
-        checkbox.iValue = value;
         checkbox.disabled = options.disabled ?? false;
-
-        let valueName = document.createElement( 'span' );
-        valueName.className = "checkboxtext";
-        valueName.innerHTML = "On";
-
         container.appendChild( checkbox );
+
+        let valueName = document.createElement( "span" );
+        valueName.className = "checkboxtext";
+        valueName.innerHTML = options.label ?? "On";
         container.appendChild( valueName );
 
         checkbox.addEventListener( "change" , e => {
-
-            const skipCallback = ( e.detail?.constructor == Number ? null : e.detail );
-
-            // Reset button (default value)
-            if( !skipCallback )
-            {
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = checkbox.checked != checkbox.iValue ? "block": "none";
-            }
-
-            // Open suboptions
-            let submenu = element.querySelector( ".lexcheckboxsubmenu" );
-            if( submenu ) submenu.toggleAttribute( 'hidden', !checkbox.checked );
-
-            if( !skipCallback ) this._trigger( new IEvent( name, checkbox.checked, e ), callback );
+            this.set( checkbox.checked, false, e );
         });
-
-        element.appendChild( container );
 
         if( options.suboptions )
         {
-            element.style.flexWrap = "wrap";
-            let suboptions = document.createElement('div');
+            let suboptions = document.createElement( "div" );
             suboptions.className = "lexcheckboxsubmenu";
-            suboptions.toggleAttribute( 'hidden', !checkbox.checked );
+            suboptions.toggleAttribute( "hidden", !checkbox.checked );
 
-            this.queue( suboptions );
-            options.suboptions.call(this, this);
-            this.clearQueue();
+            const suboptionsPanel = new Panel();
+            suboptionsPanel.queue( suboptions );
+            options.suboptions.call(this, suboptionsPanel);
+            suboptionsPanel.clearQueue();
 
-            element.appendChild( suboptions );
+            this.root.appendChild( suboptions );
         }
 
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addToggle
-     * @param {String} name Widget name
-     * @param {Boolean} value Value of the checkbox
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * suboptions: Callback to add widgets in case of TRUE value
-     * className: Customize colors
-     */
+LX.Checkbox = Checkbox;
 
-    addToggle( name, value, callback, options = {} ) {
+/**
+ * @class Toggle
+ * @description Toggle Widget
+ */
 
-        if( !name )
+class Toggle extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        if( !name && !options.label )
         {
-            throw( "Set Widget Name!" );
+            throw( "Set Widget Name or at least a label!" );
         }
 
-        let widget = this.create_widget( name, Widget.TOGGLE, options );
+        super( Widget.TOGGLE, name, value, options );
 
-        widget.onGetValue = () => {
+        this.onGetValue = () => {
             return toggle.checked;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            if( toggle.checked !== newValue )
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( newValue == value )
             {
-                toggle.checked = newValue;
-                Panel._dispatch_event( toggle, "change", skipCallback );
+                return;
+            }
+
+            toggle.checked = value = newValue;
+
+            // Update suboptions menu
+            this.root.querySelector( ".lextogglesubmenu" )?.toggleAttribute( 'hidden', !newValue );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
             }
         };
 
-        let element = widget.domEl;
-
-        // Add reset functionality
-        Panel._add_reset_property( element.domName, function() {
-            toggle.checked = !toggle.checked;
-            Panel._dispatch_event( toggle, "change" );
-        });
-
-        // Add widget value
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = options.inputWidth ?? `calc( 100% - ${ realNameWidth }px)`;
+        };
 
         var container = document.createElement('div');
         container.className = "lextogglecont";
+        this.root.appendChild( container );
 
         let toggle = document.createElement('input');
         toggle.type = "checkbox";
@@ -5905,194 +7915,391 @@ class Panel {
         toggle.checked = value;
         toggle.iValue = value;
         toggle.disabled = options.disabled ?? false;
+        container.appendChild( toggle );
 
         let valueName = document.createElement( 'span' );
         valueName.className = "toggletext";
-        valueName.innerHTML = "On";
-
-        container.appendChild( toggle );
+        valueName.innerHTML = options.label ?? "On";
         container.appendChild( valueName );
 
         toggle.addEventListener( "change" , e => {
-
-            const skipCallback = ( e.detail?.constructor == Number ? null : e.detail );
-
-            // Reset button (default value)
-            if( !skipCallback )
-            {
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = toggle.checked != toggle.iValue ? "block": "none";
-            }
-
-            // Open suboptions
-            let submenu = element.querySelector( ".lextogglesubmenu" );
-            if( submenu ) submenu.toggleAttribute( 'hidden', !toggle.checked );
-
-            if( !skipCallback ) this._trigger( new IEvent( name, toggle.checked, e ), callback );
+            this.set( toggle.checked, false, e );
         });
-
-        element.appendChild( container );
 
         if( options.suboptions )
         {
-            element.style.flexWrap = "wrap";
             let suboptions = document.createElement('div');
             suboptions.className = "lextogglesubmenu";
             suboptions.toggleAttribute( 'hidden', !toggle.checked );
 
-            this.queue( suboptions );
-            options.suboptions.call(this, this);
-            this.clearQueue();
+            const suboptionsPanel = new Panel();
+            suboptionsPanel.queue( suboptions );
+            options.suboptions.call(this, suboptionsPanel);
+            suboptionsPanel.clearQueue();
 
-            element.appendChild( suboptions );
+            this.root.appendChild( suboptions );
         }
 
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addColor
-     * @param {String} name Widget name
-     * @param {String} value Default color (hex)
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * useRGB: The callback returns color as Array (r, g, b) and not hex [false]
-     */
+LX.Toggle = Toggle;
 
-    addColor( name, value, callback, options = {} ) {
+/**
+ * @class RadioGroup
+ * @description RadioGroup Widget
+ */
 
-        if( !name ) {
-            throw( "Set Widget Name!" );
+class RadioGroup extends Widget {
+
+    constructor( name, label, values, callback, options = {} ) {
+
+        super( Widget.RADIO, name, null, options );
+
+        let currentIndex = null;
+
+        this.onGetValue = () => {
+            const items = container.querySelectorAll( 'button' );
+            return currentIndex ? [ currentIndex, items[ currentIndex ] ] : undefined;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            newValue = newValue[ 0 ] ?? newValue; // Allow getting index of { index, value } tupple
+
+            console.assert( newValue.constructor == Number, "RadioGroup _value_ must be an Array index!" );
+
+            const items = container.querySelectorAll( 'button' );
+            items.forEach( b => { b.checked = false; b.classList.remove( "checked" ) } );
+
+            const optionItem = items[ newValue ];
+            optionItem.checked = !optionItem.checked;
+            optionItem.classList.toggle( "checked" );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( null, [ newValue, values[ newValue ] ], event ), callback );
+            }
+        };
+
+        var container = document.createElement( 'div' );
+        container.className = "lexradiogroup " + ( options.className ?? "" );
+        this.root.appendChild( container );
+
+        let labelSpan = document.createElement( 'span' );
+        labelSpan.innerHTML = label;
+        container.appendChild( labelSpan );
+
+        for( let i = 0; i < values.length; ++i )
+        {
+            const optionItem = document.createElement( 'div' );
+            optionItem.className = "lexradiogroupitem";
+            container.appendChild( optionItem );
+
+            const optionButton = document.createElement( 'button' );
+            optionButton.className = "lexbutton";
+            optionButton.disabled = options.disabled ?? false;
+            optionItem.appendChild( optionButton );
+
+            optionButton.addEventListener( "click", ( e ) => {
+                this.set( i, false, e );
+            } );
+
+            const checkedSpan = document.createElement( 'span' );
+            optionButton.appendChild( checkedSpan );
+
+            const optionLabel = document.createElement( 'span' );
+            optionLabel.innerHTML = values[ i ];
+            optionItem.appendChild( optionLabel );
         }
 
-        let widget = this.create_widget( name, Widget.COLOR, options );
+        if( options.selected )
+        {
+            console.assert( options.selected.constructor == Number, "RadioGroup _selected_ must be an Array index!" );
+            currentIndex = options.selected;
+            this.set( currentIndex, true );
+        }
+    }
+}
 
-        widget.onGetValue = () => {
-            return color.value;
+LX.RadioGroup = RadioGroup;
+
+/**
+ * @class ColorInput
+ * @description ColorInput Widget
+ */
+
+class ColorInput extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        const useAlpha = options.useAlpha ??
+            ( ( value.constructor === Object && 'a' in value ) || ( value.constructor === String && [ 5, 9 ].includes( value.length ) ) );
+
+        const widgetColor = new Color( value );
+
+        // Force always hex internally
+        value = useAlpha ? widgetColor.hex : widgetColor.hex.substr( 0, 7 );
+
+        super( Widget.COLOR, name, value, options );
+
+        this.onGetValue = () => {
+            const currentColor = new Color( value );
+            return options.useRGB ? currentColor.rgb : value;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            color.value = newValue;
-            Panel._dispatch_event( color, "input", skipCallback );
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            const newColor = new Color( newValue );
+
+            colorSampleRGB.style.color = value = newColor.hex.substr( 0, 7 );
+
+            if( useAlpha )
+            {
+                colorSampleAlpha.style.color = value = newColor.hex;
+            }
+
+            if( !this._skipTextUpdate )
+            {
+                textWidget.set( value, true, event );
+            }
+
+            if( !skipCallback )
+            {
+                let retValue = value;
+
+                if( options.useRGB )
+                {
+                    retValue = newColor.rgb;
+
+                    if( !useAlpha )
+                    {
+                        delete retValue.a;
+                    }
+                }
+
+                this._trigger( new IEvent( name, retValue, event ), callback );
+            }
         };
 
-        let element = widget.domEl;
-        let change_from_input = false;
-
-        // Add reset functionality
-        Panel._add_reset_property( element.domName, function() {
-            this.style.display = "none";
-            color.value = color.iValue;
-            Panel._dispatch_event( color, "input" );
-        });
-
-        // Add widget value
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
 
         var container = document.createElement( 'span' );
         container.className = "lexcolor";
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        this.root.appendChild( container );
 
-        let color = document.createElement( 'input' );
-        color.style.width = "32px";
-        color.type = 'color';
-        color.className = "colorinput";
-        color.id = "color" + simple_guidGenerator();
-        color.useRGB = options.useRGB ?? false;
-        color.value = color.iValue = value.constructor === Array ? rgbToHex( value ) : value;
+        let sampleContainer = LX.makeContainer( ["18px", "18px"], "flex flex-row bg-contrast rounded overflow-hidden", "", container );
+        sampleContainer.tabIndex = "1";
+        sampleContainer.addEventListener( "click", e => {
+            if( ( options.disabled ?? false ) )
+            {
+                return;
+            }
+            new ColorPicker( value, sampleContainer, {
+                colorModel: options.useRGB ? "RGB" : "Hex",
+                useAlpha,
+                onChange: ( color ) => {
+                    this._fromColorPicker = true;
+                    this.set( color.hex );
+                    delete this._fromColorPicker;
+                }
+            } );
+        } );
 
-        if( options.disabled ) {
-            color.disabled = true;
+        let colorSampleRGB = document.createElement( 'div' );
+        colorSampleRGB.className = "lexcolorsample";
+        colorSampleRGB.style.color = value;
+        sampleContainer.appendChild( colorSampleRGB );
+
+        let colorSampleAlpha = null;
+
+        if( useAlpha )
+        {
+            colorSampleAlpha = document.createElement( 'div' );
+            colorSampleAlpha.className = "lexcolorsample";
+            colorSampleAlpha.style.color = value;
+            sampleContainer.appendChild( colorSampleAlpha );
+        }
+        else
+        {
+            colorSampleRGB.style.width = "18px";
         }
 
-        color.addEventListener( "input", e => {
-            let val = e.target.value;
+        const textWidget = new TextInput( null, value, v => {
+            this._skipTextUpdate = true;
+            this.set( v );
+            delete this._skipTextUpdate;
+        }, { width: "calc( 100% - 24px )", disabled: options.disabled });
 
-            const skipCallback = e.detail;
+        textWidget.root.style.marginLeft = "6px";
+        container.appendChild( textWidget.root );
 
-            // Change value (always hex)
-            if( !change_from_input )
-                text_widget.set( val );
+        doAsync( this.onResize.bind( this ) );
+    }
+}
 
-            // Reset button (default value)
-            if( !skipCallback )
+LX.ColorInput = ColorInput;
+
+/**
+ * @class RangeInput
+ * @description RangeInput Widget
+ */
+
+class RangeInput extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.RANGE, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( isNaN( newValue ) )
             {
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = val != color.iValue ? "block": "none";
+                return;
             }
 
-            if( color.useRGB )
-                val = hexToRgb( val );
+            slider.value = value = clamp( +newValue, +slider.min, +slider.max );
 
-            if( !skipCallback ) this._trigger( new IEvent( name, val, e ), callback );
-        }, false );
-
-        container.appendChild( color );
-
-        this.queue( container );
-
-        const text_widget = this.addText( null, color.value, v => {
-            change_from_input = true;
-            widget.set( v );
-            change_from_input = false;
-        }, { width: "calc( 100% - 32px )"});
-
-        text_widget.domEl.style.marginLeft = "4px";
-
-        this.clearQueue();
-
-        element.appendChild( container );
-
-        return widget;
-    }
-
-    /**
-     * @method addNumber
-     * @param {String} name Widget name
-     * @param {Number} value Default number value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * step: Step of the input
-     * precision: The number of digits to appear after the decimal point
-     * min, max: Min and Max values for the input
-     * skipSlider: If there are min and max values, skip the slider
-     * units: Unit as string added to the end of the value
-     * onPress: Callback function on mouse down
-     * onRelease: Callback function on mouse up
-     */
-
-    addNumber( name, value, callback, options = {} ) {
-
-        let widget = this.create_widget( name, Widget.NUMBER, options );
-
-        widget.onGetValue = () => {
-            return +vecinput.value;
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, options.left ? ( ( +slider.max ) - value + ( +slider.min ) ) : value, event ), callback );
+            }
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            vecinput.value = round( newValue, options.precision );
-            Panel._dispatch_event( vecinput, "change", skipCallback );
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = options.inputWidth ?? `calc( 100% - ${ realNameWidth }px)`;
         };
 
-        let element = widget.domEl;
+        const container = document.createElement( 'div' );
+        container.className = "lexrange";
+        this.root.appendChild( container );
 
-        // add reset functionality
-        if( widget.name ) {
-            Panel._add_reset_property( element.domName, function() {
-                this.style.display = "none";
-                vecinput.value = vecinput.iValue;
-                Panel._dispatch_event( vecinput, "change" );
-            });
+        let slider = document.createElement( 'input' );
+        slider.className = "lexrangeslider " + ( options.className ?? "" );
+        slider.min = options.min ?? 0;
+        slider.max = options.max ?? 100;
+        slider.step = options.step ?? 1;
+        slider.type = "range";
+        slider.disabled = options.disabled ?? false;
+
+        if( value.constructor == Number )
+        {
+            value = clamp( value, +slider.min, +slider.max );
         }
 
-        // add widget value
+        if( options.left )
+        {
+            value = ( ( +slider.max ) - value + ( +slider.min ) );
+        }
+
+        slider.value = value;
+        container.appendChild( slider );
+
+        if( options.left ?? false )
+        {
+            slider.classList.add( "left" );
+        }
+
+        if( !( options.fill ?? true ) )
+        {
+            slider.classList.add( "no-fill" );
+        }
+
+        slider.addEventListener( "input", e => {
+            this.set( e.target.valueAsNumber, false, e );
+        }, { passive: false });
+
+        slider.addEventListener( "mousedown", function( e ) {
+            if( options.onPress )
+            {
+                options.onPress.bind( slider )( e, slider );
+            }
+        }, false );
+
+        slider.addEventListener( "mouseup", function( e ) {
+            if( options.onRelease )
+            {
+                options.onRelease.bind( slider )( e, slider );
+            }
+        }, false );
+
+        // Method to change min, max, step parameters
+        this.setLimits = ( newMin, newMax, newStep ) => {
+            slider.min = newMin ?? slider.min;
+            slider.max = newMax ?? slider.max;
+            slider.step = newStep ?? slider.step;
+            Widget._dispatchEvent( slider, "input", true );
+        };
+
+        doAsync( this.onResize.bind( this ) );
+    }
+}
+
+LX.RangeInput = RangeInput;
+
+/**
+ * @class NumberInput
+ * @description NumberInput Widget
+ */
+
+class NumberInput extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.NUMBER, name, value, options );
+
+        this.onGetValue = () => {
+            return value;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( isNaN( newValue ) )
+            {
+                return;
+            }
+
+            value = clamp( +newValue, +vecinput.min, +vecinput.max );
+            vecinput.value = value = round( value, options.precision );
+
+            // Update slider!
+            if( box.querySelector( ".lexinputslider" ) )
+            {
+                box.querySelector( ".lexinputslider" ).value = value;
+            }
+
+            if( options.units )
+            {
+                vecinput.unitSpan.style.left = measureRealWidth( value ) + "px";
+            }
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, value, event ), callback );
+            }
+        };
+
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = options.inputWidth ?? `calc( 100% - ${ realNameWidth }px)`;
+        };
 
         var container = document.createElement( 'div' );
         container.className = "lexnumber";
-        container.style.width = options.inputWidth || "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        this.root.appendChild( container );
 
         let box = document.createElement( 'div' );
         box.className = "numberbox";
+        container.appendChild( box );
 
         let vecinput = document.createElement( 'input' );
         vecinput.id = "number_" + simple_guidGenerator();
@@ -6141,10 +8348,8 @@ class Panel {
             slider.type = "range";
             slider.value = value;
 
-            slider.addEventListener( "input", function( e ) {
-                let new_value = +this.valueAsNumber;
-                vecinput.value = round( new_value, options.precision );
-                Panel._dispatch_event( vecinput, "change" );
+            slider.addEventListener( "input", ( e ) => {
+                this.set( slider.valueAsNumber, false, e );
             }, false );
 
             slider.addEventListener( "mousedown", function( e ) {
@@ -6164,89 +8369,55 @@ class Panel {
             box.appendChild( slider );
 
             // Method to change min, max, step parameters
-            widget.setLimits = ( newMin, newMax, newStep ) => {
+            this.setLimits = ( newMin, newMax, newStep ) => {
                 vecinput.min = slider.min = newMin ?? vecinput.min;
                 vecinput.max = slider.max = newMax ?? vecinput.max;
                 vecinput.step = newStep ?? vecinput.step;
                 slider.step = newStep ?? slider.step;
-                Panel._dispatch_event( vecinput, "change", true );
+                this.set( value, true );
             };
         }
 
         vecinput.addEventListener( "input", function( e ) {
-            let new_value = +this.valueAsNumber;
-            vecinput.value = round( new_value, options.precision );
+            value = +this.valueAsNumber;
+            value = round( value, options.precision );
             if( options.units )
             {
                 vecinput.unitSpan.style.left = measureRealWidth( vecinput.value ) + "px";
             }
         }, false );
 
-        vecinput.addEventListener( "wheel", function( e ) {
+        vecinput.addEventListener( "wheel", e => {
             e.preventDefault();
-            if( this !== document.activeElement )
+            if( vecinput !== document.activeElement )
             {
                 return;
             }
             let mult = options.step ?? 1;
             if( e.shiftKey ) mult *= 10;
             else if( e.altKey ) mult *= 0.1;
-            let new_value = ( +this.valueAsNumber - mult * ( e.deltaY > 0 ? 1 : -1 ) );
-            this.value = round( new_value, options.precision );
-            Panel._dispatch_event(vecinput, "change");
+            value = ( +vecinput.valueAsNumber - mult * ( e.deltaY > 0 ? 1 : -1 ) );
+            this.set( value, false, e );
         }, { passive: false });
 
         vecinput.addEventListener( "change", e => {
-
-            if( isNaN( e.target.valueAsNumber ) )
-            {
-                return;
-            }
-
-            const skipCallback = e.detail;
-
-            let val = e.target.value = clamp( +e.target.valueAsNumber, +vecinput.min, +vecinput.max );
-            val = options.precision ? round( val, options.precision ) : val;
-
-            // Update slider!
-            if( box.querySelector( ".lexinputslider" ) )
-            {
-                box.querySelector( ".lexinputslider" ).value = val;
-            }
-
-            vecinput.value = val;
-
-            if( options.units )
-            {
-                vecinput.unitSpan.style.left = measureRealWidth( vecinput.value ) + "px";
-            }
-
-            // Reset button (default value)
-            if( !skipCallback )
-            {
-                let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                if( btn ) btn.style.display = val != vecinput.iValue ? "block": "none";
-            }
-
-            if( !skipCallback ) this._trigger( new IEvent( name, val, e ), callback );
+            this.set( vecinput.valueAsNumber, false, e );
         }, { passive: false });
 
         // Add drag input
 
-        vecinput.addEventListener( "mousedown", inner_mousedown );
-
         var that = this;
 
-        function inner_mousedown( e )
-        {
+        let innerMouseDown = e => {
+
             if( document.activeElement == vecinput )
             {
                 return;
             }
 
             var doc = that.root.ownerDocument;
-            doc.addEventListener( 'mousemove', inner_mousemove );
-            doc.addEventListener( 'mouseup', inner_mouseup );
+            doc.addEventListener( 'mousemove', innerMouseMove );
+            doc.addEventListener( 'mouseup', innerMouseUp );
             document.body.classList.add( 'noevents' );
             dragIcon.classList.remove( 'hidden' );
             e.stopImmediatePropagation();
@@ -6263,8 +8434,8 @@ class Panel {
             }
         }
 
-        function inner_mousemove( e )
-        {
+        let innerMouseMove = e => {
+
             let dt = -e.movementY;
 
             if ( dt != 0 )
@@ -6272,20 +8443,19 @@ class Panel {
                 let mult = options.step ?? 1;
                 if( e.shiftKey ) mult *= 10;
                 else if( e.altKey ) mult *= 0.1;
-                let new_value = ( +vecinput.valueAsNumber + mult * dt );
-                vecinput.value = ( +new_value ).toFixed( 4 ).replace( /([0-9]+(\.[0-9]+[1-9])?)(\.?0+$)/, '$1' );
-                Panel._dispatch_event( vecinput, "change" );
+                value = ( +vecinput.valueAsNumber + mult * dt );
+                this.set( value, false, e );
             }
 
             e.stopPropagation();
             e.preventDefault();
         }
 
-        function inner_mouseup( e )
-        {
+        let innerMouseUp = e => {
+
             var doc = that.root.ownerDocument;
-            doc.removeEventListener( 'mousemove', inner_mousemove );
-            doc.removeEventListener( 'mouseup', inner_mouseup );
+            doc.removeEventListener( 'mousemove', innerMouseMove );
+            doc.removeEventListener( 'mouseup', innerMouseUp );
             document.body.classList.remove( 'noevents' );
             dragIcon.classList.add( 'hidden' );
 
@@ -6300,35 +8470,30 @@ class Panel {
             }
         }
 
-        container.appendChild( box );
-        element.appendChild( container );
+        vecinput.addEventListener( "mousedown", innerMouseDown );
 
-        // Remove branch padding and margins
-        if( !widget.name )
-        {
-            element.className += " noname";
-            container.style.width = "100%";
-        }
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    static VECTOR_COMPONENTS = { 0: 'x', 1: 'y', 2: 'z', 3: 'w' };
+LX.NumberInput = NumberInput;
 
-    _add_vector( num_components, name, value, callback, options = {} ) {
+/**
+ * @class Vector
+ * @description Vector Widget
+ */
 
-        num_components = clamp( num_components, 2, 4 );
-        value = value ?? new Array( num_components ).fill( 0 );
+class Vector extends Widget {
 
-        if( !name )
-        {
-            throw( "Set Widget Name!" );
-        }
+    constructor( numComponents, name, value, callback, options = {} ) {
 
-        let widget = this.create_widget( name, Widget.VECTOR, options );
+        numComponents = clamp( numComponents, 2, 4 );
+        value = value ?? new Array( numComponents ).fill( 0 );
 
-        widget.onGetValue = () => {
-            let inputs = element.querySelectorAll( "input" );
+        super( Widget.VECTOR, name, [].concat( value ), options );
+
+        this.onGetValue = () => {
+            let inputs = this.root.querySelectorAll( "input" );
             let value = [];
             for( var v of inputs )
             {
@@ -6337,52 +8502,56 @@ class Panel {
             return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            const inputs = element.querySelectorAll( ".vecinput" );
-            if( inputs.length == newValue.length )
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            if( vectorInputs.length != newValue.length )
             {
                 console.error( "Input length does not match vector length." );
                 return;
             }
 
-            for( let i = 0; i < inputs.length; ++i ) {
+            for( let i = 0; i < vectorInputs.length; ++i )
+            {
                 let value = newValue[ i ];
-                inputs[ i ].value = round( value, options.precision ) ?? 0;
-                Panel._dispatch_event( inputs[ i ], "change", skipCallback );
+                value = clamp( value, +vectorInputs[ i ].min, +vectorInputs[ i ].max );
+                value = round( value, options.precision ) ?? 0;
+                vectorInputs[ i ].value = newValue[ i ] = value;
+            }
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
             }
         };
 
-        let element = widget.domEl;
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
 
-        // Add reset functionality
-        Panel._add_reset_property( element.domName, function() {
-            this.style.display = "none";
-            for( let v of element.querySelectorAll( ".vecinput" ) ) {
-                v.value = v.iValue;
-                Panel._dispatch_event( v, "change" );
-            }
-        });
-
-        // Add widget value
+        const vectorInputs = [];
 
         var container = document.createElement( 'div' );
         container.className = "lexvector";
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        this.root.appendChild( container );
 
-        for( let i = 0; i < num_components; ++i ) {
+        const that = this;
 
+        for( let i = 0; i < numComponents; ++i )
+        {
             let box = document.createElement( 'div' );
             box.className = "vecbox";
             box.innerHTML = "<span class='" + Panel.VECTOR_COMPONENTS[ i ] + "'></span>";
 
             let vecinput = document.createElement( 'input' );
-            vecinput.className = "vecinput v" + num_components;
+            vecinput.className = "vecinput v" + numComponents;
             vecinput.min = options.min ?? -1e24;
             vecinput.max = options.max ?? 1e24;
             vecinput.step = options.step ?? "any";
             vecinput.type = "number";
-            vecinput.id = "vec" + num_components + "_" + simple_guidGenerator();
+            vecinput.id = "vec" + numComponents + "_" + simple_guidGenerator();
             vecinput.idx = i;
+            vectorInputs[ i ] = vecinput;
 
             if( value[ i ].constructor == Number )
             {
@@ -6412,16 +8581,16 @@ class Panel {
 
                 if( locker.locked )
                 {
-                    for( let v of element.querySelectorAll(".vecinput") )
+                    for( let v of that.querySelectorAll(".vecinput") )
                     {
                         v.value = round( +v.valueAsNumber - mult * ( e.deltaY > 0 ? 1 : -1 ), options.precision );
-                        Panel._dispatch_event( v, "change" );
+                        Widget._dispatchEvent( v, "change" );
                     }
                 }
                 else
                 {
                     this.value = round( +this.valueAsNumber - mult * ( e.deltaY > 0 ? 1 : -1 ), options.precision );
-                    Panel._dispatch_event( vecinput, "change" );
+                    Widget._dispatchEvent( vecinput, "change" );
                 }
             }, { passive: false } );
 
@@ -6432,21 +8601,13 @@ class Panel {
                     return;
                 }
 
-                const skipCallback = e.detail;
-
-                let val = e.target.value = clamp( e.target.value, +vecinput.min, +vecinput.max );
+                let val = clamp( e.target.value, +vecinput.min, +vecinput.max );
                 val = round( val, options.precision );
-
-                // Reset button (default value)
-                if( !skipCallback )
-                {
-                    let btn = element.querySelector( ".lexwidgetname .lexicon" );
-                    if( btn ) btn.style.display = val != vecinput.iValue ? "block" : "none";
-                }
 
                 if( locker.locked )
                 {
-                    for( let v of element.querySelectorAll( ".vecinput" ) ) {
+                    for( let v of vectorInputs )
+                    {
                         v.value = val;
                         value[ v.idx ] = val;
                     }
@@ -6457,16 +8618,12 @@ class Panel {
                     value[ e.target.idx ] = val;
                 }
 
-                if( !skipCallback ) this._trigger( new IEvent( name, value, e ), callback );
+                this.set( value, false, e );
             }, false );
 
             // Add drag input
 
-            vecinput.addEventListener( "mousedown", inner_mousedown );
-
-            var that = this;
-
-            function inner_mousedown( e )
+            function innerMouseDown( e )
             {
                 if( document.activeElement == vecinput )
                 {
@@ -6474,8 +8631,8 @@ class Panel {
                 }
 
                 var doc = that.root.ownerDocument;
-                doc.addEventListener( 'mousemove', inner_mousemove );
-                doc.addEventListener( 'mouseup', inner_mouseup );
+                doc.addEventListener( 'mousemove', innerMouseMove );
+                doc.addEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.add( 'noevents' );
                 dragIcon.classList.remove( 'hidden' );
                 e.stopImmediatePropagation();
@@ -6492,7 +8649,7 @@ class Panel {
                 }
             }
 
-            function inner_mousemove( e )
+            function innerMouseMove( e )
             {
                 let dt = -e.movementY;
 
@@ -6504,15 +8661,16 @@ class Panel {
 
                     if( locker.locked )
                     {
-                        for( let v of element.querySelectorAll( ".vecinput" ) ) {
+                        for( let v of this.root.querySelectorAll( ".vecinput" ) )
+                        {
                             v.value = round( +v.valueAsNumber + mult * dt, options.precision );
-                            Panel._dispatch_event( v, "change" );
+                            Widget._dispatchEvent( v, "change" );
                         }
                     }
                     else
                     {
                         vecinput.value = round( +vecinput.valueAsNumber + mult * dt, options.precision );
-                        Panel._dispatch_event( vecinput, "change" );
+                        Widget._dispatchEvent( vecinput, "change" );
                     }
                 }
 
@@ -6520,11 +8678,11 @@ class Panel {
                 e.preventDefault();
             }
 
-            function inner_mouseup( e )
+            function innerMouseUp( e )
             {
                 var doc = that.root.ownerDocument;
-                doc.removeEventListener( 'mousemove', inner_mousemove );
-                doc.removeEventListener( 'mouseup', inner_mouseup );
+                doc.removeEventListener( 'mousemove', innerMouseMove );
+                doc.removeEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.remove( 'noevents' );
                 dragIcon.classList.add('hidden');
 
@@ -6539,6 +8697,8 @@ class Panel {
                 }
             }
 
+            vecinput.addEventListener( "mousedown", innerMouseDown );
+
             box.appendChild( vecinput );
             container.appendChild( box );
         }
@@ -6546,18 +8706,15 @@ class Panel {
         // Method to change min, max, step parameters
         if( options.min !== undefined || options.max !== undefined )
         {
-            widget.setLimits = ( newMin, newMax, newStep ) => {
-                const inputs = element.querySelectorAll(".vecinput");
-                for( let v of inputs )
+            this.setLimits = ( newMin, newMax, newStep ) => {
+                for( let v of vectorInputs )
                 {
                     v.min = newMin ?? v.min;
                     v.max = newMax ?? v.max;
                     v.step = newStep ?? v.step;
-                    Panel._dispatch_event( v, "change", true );
                 }
 
-                // To call onChange callback
-                this._trigger( new IEvent( name, value ), callback );
+                this.set( value, true );
             };
         }
 
@@ -6579,88 +8736,55 @@ class Panel {
             }
         }, false );
 
-        element.appendChild( container );
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addVector N (2, 3, 4)
-     * @param {String} name Widget name
-     * @param {Array} value Array of N components
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * step: Step of the inputs
-     * min, max: Min and Max values for the inputs
-     * onPress: Callback function on mouse down
-     * onRelease: Callback function on mouse is released
-     */
+LX.Vector = Vector;
 
-    addVector2( name, value, callback, options ) {
+/**
+ * @class SizeInput
+ * @description SizeInput Widget
+ */
 
-        return this._add_vector( 2, name, value, callback, options );
-    }
+class SizeInput extends Widget {
 
-    addVector3( name, value, callback, options ) {
+    constructor( name, value, callback, options = {} ) {
 
-        return this._add_vector( 3, name, value, callback, options );
-    }
+        super( Widget.SIZE, name, value, options );
 
-    addVector4( name, value, callback, options ) {
-
-        return this._add_vector( 4, name, value, callback, options );
-    }
-
-    /**
-     * @method addSize
-     * @param {String} name Widget name
-     * @param {Number} value Default number value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * units: Unit as string added to the end of the value
-     */
-
-    addSize( name, value, callback, options = {} ) {
-
-        let widget = this.create_widget( name, Widget.SIZE, options );
-
-        widget.onGetValue = () => {
+        this.onGetValue = () => {
             const value = [];
-            for( let i = 0; i < element.dimensions.length; ++i )
+            for( let i = 0; i < this.root.dimensions.length; ++i )
             {
-                value.push( element.dimensions[ i ].onGetValue() );
+                value.push( this.root.dimensions[ i ].value() );
             }
             return value;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            for( let i = 0; i < element.dimensions.length; ++i )
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            for( let i = 0; i < this.root.dimensions.length; ++i )
             {
-                element.dimensions[ i ].onSetValue( newValue[ i ], skipCallback );
+                this.root.dimensions[ i ].set( newValue[ i ], skipCallback );
             }
         };
 
-        let element = widget.domEl;
-
-        this.queue( element );
-
-        element.aspectRatio = ( value.length == 2 ? value[ 0 ] / value[ 1 ] : null );
-        element.dimensions = [];
+        this.root.aspectRatio = ( value.length == 2 ? value[ 0 ] / value[ 1 ] : null );
+        this.root.dimensions = [];
 
         for( let i = 0; i < value.length; ++i )
         {
-            element.dimensions[ i ] = this.addNumber( null, value[ i ], ( v ) => {
+            const p = new Panel();
+            this.root.dimensions[ i ] = p.addNumber( null, value[ i ], ( v ) => {
 
-                const value = widget.onGetValue();
+                const value = this.value();
 
-                if( element.locked )
+                if( this.root.locked )
                 {
-                    const ar = ( i == 0 ? 1.0 / element.aspectRatio : element.aspectRatio );
+                    const ar = ( i == 0 ? 1.0 / this.root.aspectRatio : this.root.aspectRatio );
                     const index = ( 1 + i ) % 2;
                     value[ index ] = v * ar;
-                    element.dimensions[ index ].onSetValue( value[ index ], true );
+                    this.root.dimensions[ index ].set( value[ index ], true );
                 }
 
                 if( callback )
@@ -6670,87 +8794,228 @@ class Panel {
 
             }, { min: 0, disabled: options.disabled, precision: options.precision } );
 
+            this.root.appendChild( this.root.dimensions[ i ].root );
+
             if( ( i + 1 ) != value.length )
             {
                 let cross = document.createElement( 'a' );
                 cross.className = "lexsizecross fa-solid fa-xmark";
-                element.appendChild( cross );
+                this.root.appendChild( cross );
             }
         }
-
-        this.clearQueue();
 
         if( options.units )
         {
             let unitSpan = document.createElement( 'span' );
             unitSpan.className = "lexunit";
             unitSpan.innerText = options.units;
-            element.appendChild( unitSpan );
+            this.root.appendChild( unitSpan );
         }
 
         // Lock aspect ratio
-        if( element.aspectRatio )
+        if( this.root.aspectRatio )
         {
             let locker = document.createElement( 'a' );
             locker.title = "Lock Aspect Ratio";
             locker.className = "fa-solid fa-lock-open lexicon lock";
-            element.appendChild( locker );
-            locker.addEventListener( "click", function( e ) {
-                element.locked = !element.locked;
-                if( element.locked )
+            this.root.appendChild( locker );
+            locker.addEventListener( "click", e => {
+                this.root.locked = !this.root.locked;
+                if( this.root.locked )
                 {
-                    this.classList.add( "fa-lock" );
-                    this.classList.remove( "fa-lock-open" );
+                    locker.classList.add( "fa-lock" );
+                    locker.classList.remove( "fa-lock-open" );
 
                     // Recompute ratio
-                    const value = widget.onGetValue();
-                    element.aspectRatio = value[ 0 ] / value[ 1 ];
+                    const value = this.value();
+                    this.root.aspectRatio = value[ 0 ] / value[ 1 ];
                 }
                 else
                 {
-                    this.classList.add( "fa-lock-open" );
-                    this.classList.remove( "fa-lock" );
+                    locker.classList.add( "fa-lock-open" );
+                    locker.classList.remove( "fa-lock" );
                 }
             }, false );
         }
-
-        // Remove branch padding and margins
-        if( !widget.name )
-        {
-            element.className += " noname";
-            container.style.width = "100%";
-        }
-
-        return widget;
     }
+}
 
-    /**
-     * @method addPad
-     * @param {String} name Widget name
-     * @param {Array} value Pad value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * min, max: Min and Max values
-     * padSize: Size of the pad (css)
-     * onPress: Callback function on mouse down
-     * onRelease: Callback function on mouse up
-     */
+LX.SizeInput = SizeInput;
 
-    addPad( name, value, callback, options = {} ) {
+/**
+ * @class OTPInput
+ * @description OTPInput Widget
+ */
 
-        if( !name )
+class OTPInput extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        const pattern = options.pattern ?? "xxx-xxx";
+        const patternSize = ( pattern.match(/x/g) || [] ).length;
+
+        value = String( value );
+        if( !value.length )
         {
-            throw( "Set Widget Name!" );
+            value = "x".repeat( patternSize );
         }
 
-        let widget = this.create_widget( name, Widget.PAD, options );
+        super( Widget.OTP, name, value, options );
 
-        widget.onGetValue = () => {
+        this.onGetValue = () => {
+            return +value;
+        };
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+
+            value = newValue;
+
+            _refreshInput( value );
+
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, +newValue, event ), callback );
+            }
+        };
+
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
+
+        this.disabled = options.disabled ?? false;
+
+        const container = document.createElement( 'div' );
+        container.className = "lexotp flex flex-row items-center";
+        this.root.appendChild( container );
+
+        const groups = pattern.split( '-' );
+
+        const _refreshInput = ( valueString ) => {
+
+            container.innerHTML = "";
+
+            let itemsCount = 0;
+            let activeSlot = 0;
+
+            for( let i = 0; i < groups.length; ++i )
+            {
+                const g = groups[ i ];
+
+                for( let j = 0; j < g.length; ++j )
+                {
+                    let number = valueString[ itemsCount++ ];
+                    number = ( number == 'x' ? '' : number );
+
+                    const slotDom = LX.makeContainer( ["36px", "30px"],
+                        "lexotpslot border-top border-bottom border-left px-3 cursor-text select-none font-medium outline-none", number, container );
+                    slotDom.tabIndex = "1";
+
+                    if( this.disabled )
+                    {
+                        slotDom.classList.add( "disabled" );
+                    }
+
+                    const otpIndex = itemsCount;
+
+                    if( j == 0 )
+                    {
+                        slotDom.className += " rounded-l";
+                    }
+                    else if( j == ( g.length - 1 ) )
+                    {
+                        slotDom.className += " rounded-r border-right";
+                    }
+
+                    slotDom.addEventListener( "click", () => {
+                        if( this.disabled ) { return; }
+                        container.querySelectorAll( ".lexotpslot" ).forEach( s => s.classList.remove( "active" ) );
+                        const activeDom = container.querySelectorAll( ".lexotpslot" )[ activeSlot ];
+                        activeDom.classList.add( "active" );
+                        activeDom.focus();
+                    } );
+
+                    slotDom.addEventListener( "blur", () => {
+                        if( this.disabled ) { return; }
+                        doAsync( () => {
+                            if( container.contains( document.activeElement ) ) { return; }
+                            container.querySelectorAll( ".lexotpslot" ).forEach( s => s.classList.remove( "active" ) );
+                        }, 10 );
+                    } );
+
+                    slotDom.addEventListener( "keyup", e => {
+                        if( this.disabled ) { return; }
+                        if( !/[^0-9]+/g.test( e.key ) )
+                        {
+                            const number = e.key;
+                            console.assert( parseInt( number ) != NaN );
+
+                            slotDom.innerHTML = number;
+                            valueString = valueString.substring( 0, otpIndex - 1 ) + number + valueString.substring( otpIndex );
+
+                            const nexActiveDom = container.querySelectorAll( ".lexotpslot" )[ activeSlot + 1 ];
+                            if( nexActiveDom )
+                            {
+                                container.querySelectorAll( ".lexotpslot" )[ activeSlot ].classList.remove( "active" );
+                                nexActiveDom.classList.add( "active" );
+                                nexActiveDom.focus();
+                                activeSlot++;
+                            }
+                            else
+                            {
+                                this.set( valueString );
+                            }
+                        }
+                        else if( e.key == "ArrowLeft" || e.key == "ArrowRight" )
+                        {
+                            const dt = ( e.key == "ArrowLeft" ) ? -1 : 1;
+                            const newActiveDom = container.querySelectorAll( ".lexotpslot" )[ activeSlot + dt ];
+                            if( newActiveDom )
+                            {
+                                container.querySelectorAll( ".lexotpslot" )[ activeSlot ].classList.remove( "active" );
+                                newActiveDom.classList.add( "active" );
+                                newActiveDom.focus();
+                                activeSlot += dt;
+                            }
+                        }
+                        else if( e.key == "Enter" && !valueString.includes( 'x' ) )
+                        {
+                            this.set( valueString );
+                        }
+                    } );
+                }
+
+                if( i < ( groups.length - 1 ) )
+                {
+                    LX.makeContainer( ["auto", "auto"], "mx-2", `-`, container );
+                }
+            }
+
+            console.assert( itemsCount == valueString.length, "OTP Value/Pattern Mismatch!" )
+        }
+
+        _refreshInput( value );
+    }
+}
+
+LX.OTPInput = OTPInput;
+
+/**
+ * @class Pad
+ * @description Pad Widget
+ */
+
+class Pad extends Widget {
+
+    constructor( name, value, callback, options = {} ) {
+
+        super( Widget.PAD, name, null, options );
+
+        this.onGetValue = () => {
             return thumb.value.xy;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
+        this.onSetValue = ( newValue, skipCallback, event ) => {
             thumb.value.set( newValue[ 0 ], newValue[ 1 ] );
             _updateValue( thumb.value );
             if( !skipCallback )
@@ -6759,37 +9024,34 @@ class Panel {
             }
         };
 
-        let element = widget.domEl;
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
 
         var container = document.createElement( 'div' );
         container.className = "lexpad";
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        this.root.appendChild( container );
 
         let pad = document.createElement('div');
         pad.id = "lexpad-" + name;
         pad.className = "lexinnerpad";
         pad.style.width = options.padSize ?? '96px';
         pad.style.height = options.padSize ?? '96px';
+        container.appendChild( pad );
 
         let thumb = document.createElement('div');
         thumb.className = "lexpadthumb";
         thumb.value = new LX.vec2( value[ 0 ], value[ 1 ] );
         thumb.min = options.min ?? 0;
         thumb.max = options.max ?? 1;
+        pad.appendChild( thumb );
 
         let _updateValue = v => {
             const [ w, h ] = [ pad.offsetWidth, pad.offsetHeight ];
             const value0to1 = new LX.vec2( remapRange( v.x, thumb.min, thumb.max, 0.0, 1.0 ), remapRange( v.y, thumb.min, thumb.max, 0.0, 1.0 ) );
             thumb.style.transform = `translate(calc( ${ w * value0to1.x }px - 50% ), calc( ${ h * value0to1.y }px - 50%)`;
         }
-
-        doAsync( () => {
-            _updateValue( thumb.value )
-        } );
-
-        pad.appendChild( thumb );
-        container.appendChild( pad );
-        element.appendChild( container );
 
         pad.addEventListener( "mousedown", innerMouseDown );
 
@@ -6809,6 +9071,7 @@ class Panel {
             document.body.classList.add( 'noevents' );
             e.stopImmediatePropagation();
             e.stopPropagation();
+            thumb.classList.add( "active" );
 
             if( options.onPress )
             {
@@ -6840,6 +9103,7 @@ class Panel {
             doc.removeEventListener( 'mouseup', innerMouseUp );
             document.body.classList.remove( 'nocursor' );
             document.body.classList.remove( 'noevents' );
+            thumb.classList.remove( "active" );
 
             if( options.onRelease )
             {
@@ -6847,47 +9111,47 @@ class Panel {
             }
         }
 
-        return widget;
+        doAsync( () => {
+            this.onResize();
+            _updateValue( thumb.value )
+        } );
     }
+}
 
-    /**
-     * @method addProgress
-     * @param {String} name Widget name
-     * @param {Number} value Progress value
-     * @param {*} options:
-     * min, max: Min and Max values
-     * low, optimum, high: Low and High boundary values, Optimum point in the range
-     * showValue: Show current value
-     * editable: Allow edit value
-     * callback: Function called on change value
-     */
+LX.Pad = Pad;
 
-    addProgress( name, value, options = {} ) {
+/**
+ * @class Progress
+ * @description Progress Widget
+ */
 
-        if( !name )
-        {
-            throw("Set Widget Name!");
-        }
+class Progress extends Widget {
 
-        let widget = this.create_widget( name, Widget.PROGRESS, options );
+    constructor( name, value, options = {} ) {
 
-        widget.onGetValue = () => {
+        super( Widget.PROGRESS, name, value, options );
+
+        this.onGetValue = () => {
             return progress.value;
         };
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            element.querySelector("meter").value = newValue;
+
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            this.root.querySelector("meter").value = newValue;
             _updateColor();
-            if( element.querySelector("span") )
+            if( this.root.querySelector("span") )
             {
-                element.querySelector("span").innerText = newValue;
+                this.root.querySelector("span").innerText = newValue;
             }
         };
 
-        let element = widget.domEl;
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
 
-        var container = document.createElement('div');
+        const container = document.createElement('div');
         container.className = "lexprogress";
-        container.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + ")";
+        this.root.appendChild( container );
 
         // add slider (0-1 if not specified different )
 
@@ -6901,6 +9165,7 @@ class Panel {
         progress.high = options.high ?? progress.high;
         progress.optimum = options.optimum ?? progress.optimum;
         progress.value = value;
+        container.appendChild( progress );
 
         const _updateColor = () => {
 
@@ -6917,9 +9182,6 @@ class Panel {
 
             progress.style.background = `color-mix(in srgb, ${backgroundColor} 20%, transparent)`;
         };
-
-        container.appendChild( progress );
-        element.appendChild( container );
 
         if( options.showValue )
         {
@@ -6938,15 +9200,12 @@ class Panel {
         if( options.editable )
         {
             progress.classList.add( "editable" );
-            progress.addEventListener( "mousedown", inner_mousedown );
 
-            const that = this;
+            let innerMouseDown = e => {
 
-            function inner_mousedown( e )
-            {
-                var doc = that.root.ownerDocument;
-                doc.addEventListener( 'mousemove', inner_mousemove );
-                doc.addEventListener( 'mouseup', inner_mouseup );
+                var doc = this.root.ownerDocument;
+                doc.addEventListener( 'mousemove', innerMouseMove );
+                doc.addEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.add( 'noevents' );
                 progress.classList.add( "grabbing" );
                 e.stopImmediatePropagation();
@@ -6954,18 +9213,18 @@ class Panel {
 
                 const rect = progress.getBoundingClientRect();
                 const newValue = round( remapRange( e.offsetX, 0, rect.width, progress.min, progress.max ) );
-                that.setValue( name, newValue );
+                this.set( newValue, false, e );
             }
 
-            function inner_mousemove( e )
-            {
+            let innerMouseMove = e => {
+
                 let dt = e.movementX;
 
                 if ( dt != 0 )
                 {
                     const rect = progress.getBoundingClientRect();
                     const newValue = round( remapRange( e.offsetX - rect.x, 0, rect.width, progress.min, progress.max ) );
-                    that.setValue( name, newValue );
+                    this.set( newValue, false, e );
 
                     if( options.callback )
                     {
@@ -6977,52 +9236,52 @@ class Panel {
                 e.preventDefault();
             }
 
-            function inner_mouseup( e )
-            {
-                var doc = that.root.ownerDocument;
-                doc.removeEventListener( 'mousemove', inner_mousemove );
-                doc.removeEventListener( 'mouseup', inner_mouseup );
+            let innerMouseUp = e => {
+
+                var doc = this.root.ownerDocument;
+                doc.removeEventListener( 'mousemove', innerMouseMove );
+                doc.removeEventListener( 'mouseup', innerMouseUp );
                 document.body.classList.remove( 'noevents' );
                 progress.classList.remove( "grabbing" );
             }
+
+            progress.addEventListener( "mousedown", innerMouseDown );
         }
 
         _updateColor();
 
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addFile
-     * @param {String} name Widget name
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * local: Ask for local file
-     * disabled: Make the widget disabled [false]
-     * read: Return the file itself (False) or the contents (True)
-     * type: type to read as [text (Default), buffer, bin, url]
-     */
+LX.Progress = Progress;
 
-    addFile( name, callback, options = { } ) {
+/**
+ * @class FileInput
+ * @description FileInput Widget
+ */
 
-        if( !name )
-        {
-            throw( "Set Widget Name!" );
-        }
+class FileInput extends Widget {
 
-        let widget = this.create_widget( name, Widget.FILE, options );
-        let element = widget.domEl;
+    constructor( name, callback, options = { } ) {
+
+        super( Widget.FILE, name, null, options );
 
         let local = options.local ?? true;
         let type = options.type ?? 'text';
         let read = options.read ?? true;
 
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            input.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
+
         // Create hidden input
         let input = document.createElement( 'input' );
         input.className = "lexfileinput";
-        input.style.width = "calc( 100% - " + LX.DEFAULT_NAME_WIDTH + " - 10%)";
         input.type = 'file';
         input.disabled = options.disabled ?? false;
+        this.root.appendChild( input );
 
         if( options.placeholder )
         {
@@ -7052,19 +9311,14 @@ class Panel {
         });
 
         input.addEventListener( 'cancel', function( e ) {
-
             callback( null );
         });
-
-        element.appendChild( input );
-
-        this.queue( element );
 
         if( local )
         {
             let settingsDialog = null;
 
-            this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-gear'></a>", () => {
+            const settingButton = new Button(null, "", () => {
 
                 if( settingsDialog )
                 {
@@ -7072,55 +9326,62 @@ class Panel {
                 }
 
                 settingsDialog = new Dialog( "Load Settings", p => {
-                    p.addDropdown( "Type", [ 'text', 'buffer', 'bin', 'url' ], type, v => { type = v } );
+                    p.addSelect( "Type", [ 'text', 'buffer', 'bin', 'url' ], type, v => { type = v } );
                     p.addButton( null, "Reload", v => { input.dispatchEvent( new Event( 'change' ) ) } );
                 }, { onclose: ( root ) => { root.remove(); settingsDialog = null; } } );
 
-            }, { className: "micro", skipInlineCount: true, title: "Settings" });
+            }, { skipInlineCount: true, title: "Settings", disabled: options.disabled, icon: "fa-solid fa-gear" });
+
+            this.root.appendChild( settingButton.root );
         }
 
-        this.clearQueue();
-
-        return widget;
+        doAsync( this.onResize.bind( this ) );
     }
+}
 
-    /**
-     * @method addTree
-     * @param {String} name Widget name
-     * @param {Object} data Data of the tree
-     * @param {*} options:
-     * icons: Array of objects with icon button information {name, icon, callback}
-     * filter: Add nodes filter [true]
-     * rename: Boolean to allow rename [true]
-     * onevent(tree_event): Called when node is selected, dbl clicked, contextmenu opened, changed visibility, parent or name
-     */
+LX.FileInput = FileInput;
 
-    addTree( name, data, options = {} ) {
+/**
+ * @class Tree
+ * @description Tree Widget
+ */
+
+class Tree extends Widget {
+
+    constructor( name, data, options = {} ) {
+
+        options.hideName = true;
+
+        super( Widget.TREE, name, null, options );
 
         let container = document.createElement('div');
         container.className = "lextree";
+        this.root.appendChild( container );
 
-        if(name) {
+        if( name )
+        {
             let title = document.createElement('span');
             title.innerHTML = name;
-            container.appendChild(title);
+            container.appendChild( title );
         }
 
         let toolsDiv = document.createElement('div');
         toolsDiv.className = "lextreetools";
-        if(!name)
+        if( !name )
+        {
             toolsDiv.className += " notitle";
+        }
 
         // Tree icons
-        if(options.icons) {
-
+        if( options.icons )
+        {
             for( let data of options.icons )
             {
                 let iconEl = document.createElement('a');
                 iconEl.title = data.name;
                 iconEl.className = "lexicon " + data.icon;
                 iconEl.addEventListener("click", data.callback);
-                toolsDiv.appendChild(iconEl);
+                toolsDiv.appendChild( iconEl );
             }
         }
 
@@ -7128,79 +9389,55 @@ class Panel {
 
         options.filter = options.filter ?? true;
 
-        let node_filter_input = null;
-        if(options.filter)
+        let nodeFilterInput = null;
+        if( options.filter )
         {
-            node_filter_input = document.createElement('input');
-            node_filter_input.id = "lexnodetree_filter";
-            node_filter_input.setAttribute("placeholder", "Filter..");
-            node_filter_input.style.width =  "calc( 100% - 17px )";
-            node_filter_input.addEventListener('input', function(){
-                nodeTree.refresh();
+            nodeFilterInput = document.createElement('input');
+            nodeFilterInput.className = "lexnodetree_filter";
+            nodeFilterInput.setAttribute("placeholder", "Filter..");
+            nodeFilterInput.style.width =  "100%";
+            nodeFilterInput.addEventListener('input', () => {
+                this.innerTree.refresh();
             });
 
             let searchIcon = document.createElement('a');
             searchIcon.className = "lexicon fa-solid fa-magnifying-glass";
-            toolsDiv.appendChild(node_filter_input);
-            toolsDiv.appendChild(searchIcon);
+            toolsDiv.appendChild( nodeFilterInput );
+            toolsDiv.appendChild( searchIcon );
         }
 
-        if(options.icons || options.filter)
-            container.appendChild(toolsDiv);
+        if( options.icons || options.filter )
+        {
+            container.appendChild( toolsDiv );
+        }
 
         // Tree
 
         let list = document.createElement('ul');
-        list.addEventListener("contextmenu", function(e) {
+        list.addEventListener("contextmenu", function( e ) {
             e.preventDefault();
         });
 
-        container.appendChild(list);
-        this.root.appendChild(container);
+        container.appendChild( list );
 
-        const nodeTree = new NodeTree( container, data, options );
-        return nodeTree;
+        this.innerTree = new NodeTree( container, data, options );
     }
+}
 
-    /**
-     * @method addSeparator
-     */
+LX.Tree = Tree;
 
-    addSeparator() {
+/**
+ * @class TabSections
+ * @description TabSections Widget
+ */
 
-        var element = document.createElement('div');
-        element.className = "lexseparator";
-        let widget = new Widget( null, Widget.SEPARATOR );
-        widget.domEl = element;
+class TabSections extends Widget {
 
-        if(this.current_branch) {
-            this.current_branch.content.appendChild( element );
-            this.current_branch.widgets.push( widget );
-        } else
-            this.root.appendChild(element);
-    }
+    constructor( name, tabs, options = {} ) {
 
-    /**
-     * @method addTabs
-     * @param {Array} tabs Contains objects with {
-     *      name: Name of the tab (if icon, use as title)
-     *      icon: Icon to be used as the tab icon (optional)
-     *      onCreate: Func to be called at tab creation
-     *      onSelect: Func to be called on select tab (optional)
-     * }
-     * @param {*} options
-     * vertical: Use vertical or horizontal tabs (vertical by default)
-     * showNames: Show tab name only in horizontal tabs
-     */
+        options.hideName = true;
 
-    addTabs( tabs, options = {} ) {
-
-        let root = this.current_branch ? this.current_branch.content : this.root;
-
-        if( !this.current_branch )
-        {
-            console.warn("No current branch!");
-        }
+        super( Widget.TABS, name, null, options );
 
         if( tabs.constructor != Array )
         {
@@ -7217,42 +9454,41 @@ class Panel {
             container.className += " horizontal";
         }
 
-        let tabContainer = document.createElement( 'div' );
-        tabContainer.className = 'tabs';
+        let tabContainer = document.createElement( "div" );
+        tabContainer.className = "tabs";
         container.appendChild( tabContainer );
-        root.appendChild( container );
+        this.root.appendChild( container );
 
         for( let i = 0; i < tabs.length; ++i )
         {
             const tab = tabs[ i ];
             console.assert( tab.name );
             const isSelected = ( i == 0 );
-            let tabEl = document.createElement( 'div' );
+            let tabEl = document.createElement( "div" );
             tabEl.className = "lextab " + (i == tabs.length - 1 ? "last" : "") + ( isSelected ? "selected" : "" );
             tabEl.innerHTML = ( showNames ? tab.name : "" ) + "<a class='" + ( tab.icon || "fa fa-hashtag" ) + " " + (showNames ? "withname" : "") + "'></a>";
             tabEl.title = tab.name;
 
-            let infoContainer = document.createElement( 'div' );
+            let infoContainer = document.createElement( "div" );
             infoContainer.id = tab.name.replace( /\s/g, '' );
             infoContainer.className = "widgets";
 
-            if(!isSelected)
+            if( !isSelected )
             {
-                infoContainer.toggleAttribute('hidden', true);
+                infoContainer.toggleAttribute( "hidden", true );
             }
 
             container.appendChild( infoContainer );
 
-            tabEl.addEventListener( 'click', e => {
-
+            tabEl.addEventListener( "click", e => {
                 // Change selected tab
-                tabContainer.querySelectorAll( '.lextab' ).forEach( e => { e.classList.remove( 'selected' ); } );
-                e.target.classList.add( 'selected' );
+                tabContainer.querySelectorAll( ".lextab" ).forEach( e => { e.classList.remove( "selected" ); } );
+                tabEl.classList.add( "selected" );
                 // Hide all tabs content
-                container.querySelectorAll(".widgets").forEach( e => { e.toggleAttribute( 'hidden', true ); } );
+                container.querySelectorAll(".widgets").forEach( e => { e.toggleAttribute( "hidden", true ); } );
                 // Show tab content
                 const el = container.querySelector( '#' + infoContainer.id );
-                el.toggleAttribute( 'hidden' );
+                el.toggleAttribute( "hidden" );
 
                 if( tab.onSelect )
                 {
@@ -7264,69 +9500,58 @@ class Panel {
 
             if( tab.onCreate )
             {
-                // push to tab space
-                this.queue( infoContainer );
-                tab.onCreate( this, infoContainer );
-                this.clearQueue();
+                // Push to tab space
+                const creationPanel = new Panel();
+                creationPanel.queue( infoContainer );
+                tab.onCreate.call(this, creationPanel);
+                creationPanel.clearQueue();
             }
         }
-
-        this.addSeparator();
     }
+}
 
-    /**
-     * @method addCounter
-     * @param {String} name Widget name
-     * @param {Number} value Counter value
-     * @param {Function} callback Callback function on change
-     * @param {*} options:
-     * disabled: Make the widget disabled [false]
-     * min, max: Min and Max values
-     * step: Step for adding/substracting
-     * label: Text to show below the counter
-     */
+LX.TabSections = TabSections;
 
-    addCounter( name, value, callback, options = { } ) {
+/**
+ * @class Counter
+ * @description Counter Widget
+ */
 
-        let widget = this.create_widget( name, Widget.COUNTER, options );
+class Counter extends Widget {
 
-        widget.onGetValue = () => {
+    constructor( name, value, callback, options = { } ) {
+
+        super( Widget.COUNTER, name, value, options );
+
+        this.onGetValue = () => {
             return counterText.count;
         };
 
-        widget.onSetValue = ( newValue, skipCallback ) => {
-            _onChange( newValue, skipCallback );
+        this.onSetValue = ( newValue, skipCallback, event ) => {
+            newValue = clamp( newValue, min, max );
+            counterText.count = newValue;
+            counterText.innerHTML = newValue;
+            if( !skipCallback )
+            {
+                this._trigger( new IEvent( name, newValue, event ), callback );
+            }
         };
-
-        let element = widget.domEl;
 
         const min = options.min ?? 0;
         const max = options.max ?? 100;
         const step = options.step ?? 1;
 
-        const _onChange = ( value, skipCallback, event ) => {
-            value = clamp( value, min, max );
-            counterText.count = value;
-            counterText.innerHTML = value;
-            if( !skipCallback )
-            {
-                this._trigger( new IEvent( name, value, event ), callback );
-            }
-        }
-
         const container = document.createElement( 'div' );
         container.className = "lexcounter";
-        element.appendChild( container );
+        this.root.appendChild( container );
 
-        this.queue( container );
-
-        this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-minus'></a>", (value, e) => {
+        const substrButton = new Button(null, "", ( value, e ) => {
             let mult = step ?? 1;
             if( e.shiftKey ) mult *= 10;
-            _onChange( counterText.count - mult, false, e );
-        }, { className: "micro", skipInlineCount: true, title: "Minus" });
+            this.set( counterText.count - mult, false, e );
+        }, { skipInlineCount: true, title: "Minus", icon: "fa-solid fa-minus" });
 
-        this.clearQueue();
+        container.appendChild( substrButton.root );
 
         const containerBox = document.createElement( 'div' );
         containerBox.className = "lexcounterbox";
@@ -7346,17 +9571,1680 @@ class Panel {
             containerBox.appendChild( counterLabel );
         }
 
-        this.queue( container );
-
-        this.addButton(null, "<a style='margin-top: 0px;' class='fa-solid fa-plus'></a>", (value, e) => {
+        const addButton = new Button(null, "", ( value, e ) => {
             let mult = step ?? 1;
             if( e.shiftKey ) mult *= 10;
-            _onChange( counterText.count + mult, false, e );
-        }, { className: "micro", skipInlineCount: true, title: "Plus" });
+            this.set( counterText.count + mult, false, e );
+        }, { skipInlineCount: true, title: "Plus", icon: "fa-solid fa-plus" });
+        container.appendChild( addButton.root );
+    }
+}
 
-        this.clearQueue();
+LX.Counter = Counter;
+
+/**
+ * @class Table
+ * @description Table Widget
+ */
+
+class Table extends Widget {
+
+    constructor( name, data, options = { } ) {
+
+        if( !data )
+        {
+            throw( "Data is needed to create a table!" );
+        }
+
+        super( Widget.TABLE, name, null, options );
+
+        this.onResize = ( rect ) => {
+            const realNameWidth = ( this.root.domName?.offsetWidth ?? 0 );
+            container.style.width = `calc( 100% - ${ realNameWidth }px)`;
+        };
+
+        const container = document.createElement('div');
+        container.className = "lextable";
+        this.root.appendChild( container );
+
+        this.centered = options.centered ?? false;
+        if( this.centered === true )
+        {
+            container.classList.add( "centered" );
+        }
+
+        this.filter = options.filter ?? false;
+        this.toggleColumns = options.toggleColumns ?? false;
+        this.customFilters = options.customFilters ?? false;
+        this.activeCustomFilters = {};
+        this._currentFilter = options.filterValue;
+
+        data.head = data.head ?? [];
+        data.body = data.body ?? [];
+        data.checkMap = { };
+        data.colVisibilityMap = { };
+        data.head.forEach( (col, index) => { data.colVisibilityMap[ index ] = true; })
+
+        const compareFn = ( idx, order, a, b) => {
+            if (a[idx] < b[idx]) return -order;
+            else if (a[idx] > b[idx]) return order;
+            return 0;
+        }
+
+        const sortFn = ( idx, sign ) => {
+            data.body = data.body.sort( compareFn.bind( this, idx, sign ) );
+            this.refresh();
+        }
+
+        // Append header
+        if( this.filter || this.customFilters || this.toggleColumns )
+        {
+            const headerContainer = LX.makeContainer( [ "100%", "auto" ], "flex flex-row" );
+
+            if( this.filter )
+            {
+                const filterOptions = LX.deepCopy( options );
+                filterOptions.placeholder = `Filter ${ this.filter }...`;
+                filterOptions.skipWidget = true;
+                filterOptions.trigger = "input";
+                filterOptions.inputClass = "outline";
+
+                let filter = new TextInput(null, this._currentFilter ?? "", ( v ) => {
+                    this._currentFilter = v;
+                    this.refresh();
+                }, filterOptions );
+
+                headerContainer.appendChild( filter.root );
+            }
+
+            if( this.customFilters )
+            {
+                const icon = LX.makeIcon( "circle-plus", { svgClass: "sm" } );
+
+                for( let f of this.customFilters )
+                {
+                    const customFilterBtn = new Button(null, icon.innerHTML + f.name, ( v ) => {
+
+                        const menuOptions = f.options.map( ( colName, idx ) => {
+                            const item = {
+                                name: colName,
+                                checked:  !!this.activeCustomFilters[ colName ],
+                                callback: (key, dom, v) => {
+                                    if( v ) { this.activeCustomFilters[ key ] = f.name; }
+                                    else {
+                                        delete this.activeCustomFilters[ key ];
+                                    }
+                                    this.refresh();
+                                }
+                            }
+                            return item;
+                        } );
+                        new DropdownMenu( customFilterBtn.root, menuOptions, { side: "bottom", align: "start" });
+                    }, { buttonClass: " primary dashed" } );
+                    headerContainer.appendChild( customFilterBtn.root );
+                }
+
+                this._resetCustomFiltersBtn = new Button(null, "resetButton", ( v ) => {
+                    this.activeCustomFilters = {};
+                    this.refresh();
+                    this._resetCustomFiltersBtn.root.classList.add( "hidden" );
+                }, { title: "Reset filters", icon: "fa fa-xmark" } );
+                headerContainer.appendChild( this._resetCustomFiltersBtn.root );
+                this._resetCustomFiltersBtn.root.classList.add( "hidden" );
+            }
+
+            if( this.toggleColumns )
+            {
+                const icon = LX.makeIcon( "sliders-large" );
+                const toggleColumnsBtn = new Button( "toggleColumnsBtn", icon.innerHTML + "View", (value, e) => {
+                    const menuOptions = data.head.map( ( colName, idx ) => {
+                        const item = {
+                            name: colName,
+                            icon: "check",
+                            callback: () => {
+                                data.colVisibilityMap[ idx ] = !data.colVisibilityMap[ idx ];
+                                const cells = table.querySelectorAll(`tr > *:nth-child(${idx + this.rowOffsetCount + 1})`);
+                                cells.forEach(cell => {
+                                    cell.style.display = (cell.style.display === "none") ? "" : "none";
+                                });
+                            }
+                        }
+                        if( !data.colVisibilityMap[ idx ] ) delete item.icon;
+                        return item;
+                    } );
+                    new DropdownMenu( e.target, menuOptions, { side: "bottom", align: "end" });
+                }, { hideName: true } );
+                headerContainer.appendChild( toggleColumnsBtn.root );
+                toggleColumnsBtn.root.style.marginLeft = "auto";
+            }
+
+            container.appendChild( headerContainer );
+        }
+
+        const table = document.createElement( 'table' );
+        container.appendChild( table );
+
+        this.refresh = () => {
+
+            this._currentFilter = this._currentFilter ?? "";
+
+            table.innerHTML = "";
+
+            this.rowOffsetCount = 0;
+
+            // Head
+            {
+                const head = document.createElement( 'thead' );
+                head.className = "lextablehead";
+                table.appendChild( head );
+
+                const hrow = document.createElement( 'tr' );
+
+                if( options.sortable )
+                {
+                    const th = document.createElement( 'th' );
+                    th.style.width = "0px";
+                    hrow.appendChild( th );
+                    this.rowOffsetCount++;
+                }
+
+                if( options.selectable )
+                {
+                    const th = document.createElement( 'th' );
+                    th.style.width = "0px";
+                    const input = document.createElement( 'input' );
+                    input.type = "checkbox";
+                    input.className = "lexcheckbox accent";
+                    input.checked = data.checkMap[ ":root" ] ?? false;
+                    th.appendChild( input );
+
+                    input.addEventListener( 'change', function() {
+
+                        data.checkMap[ ":root" ] = this.checked;
+
+                        const body = table.querySelector( "tbody" );
+                        for( const el of body.childNodes )
+                        {
+                            data.checkMap[ el.getAttribute( "rowId" ) ] = this.checked;
+                            el.querySelector( "input[type='checkbox']" ).checked = this.checked;
+                        }
+                    });
+
+                    this.rowOffsetCount++;
+                    hrow.appendChild( th );
+                }
+
+                for( const headData of data.head )
+                {
+                    const th = document.createElement( 'th' );
+                    th.innerHTML = `<span>${ headData }</span>`;
+                    th.querySelector( "span" ).appendChild( LX.makeIcon( "menu-arrows", { svgClass: "sm" } ) );
+
+                    const idx = data.head.indexOf( headData );
+                    if( this.centered && this.centered.indexOf( idx ) > -1 )
+                    {
+                        th.classList.add( "centered" );
+                    }
+
+                    const menuOptions = [
+                        { name: "Asc", icon: "up", callback: sortFn.bind( this, idx, 1 ) },
+                        { name: "Desc", icon: "down", callback: sortFn.bind( this, idx, -1 ) }
+                    ];
+
+                    if( this.toggleColumns )
+                    {
+                        menuOptions.push(
+                            null,
+                            {
+                                name: "Hide", icon: "eye-slash", callback: () => {
+                                    data.colVisibilityMap[ idx ] = false;
+                                    const cells = table.querySelectorAll(`tr > *:nth-child(${idx + this.rowOffsetCount + 1})`);
+                                    cells.forEach(cell => {
+                                        cell.style.display = (cell.style.display === "none") ? "" : "none";
+                                    });
+                                }
+                            }
+                        );
+                    }
+
+                    th.addEventListener( 'click', event => {
+                        new DropdownMenu( event.target, menuOptions, { side: "bottom", align: "start" });
+                    });
+
+                    hrow.appendChild( th );
+                }
+
+                // Add empty header column
+                if( options.rowActions )
+                {
+                    const th = document.createElement( 'th' );
+                    th.className = "sm";
+                    hrow.appendChild( th );
+                }
+
+                head.appendChild( hrow );
+            }
+
+            // Body
+            {
+                const body = document.createElement( 'tbody' );
+                body.className = "lextablebody";
+                table.appendChild( body );
+
+                let rIdx = null;
+                let eventCatched = false;
+                let movePending = null;
+
+                document.addEventListener( 'mouseup', (e) => {
+                    if( !rIdx ) return;
+                    document.removeEventListener( "mousemove", onMove );
+                    const fromRow = table.rows[ rIdx ];
+                    fromRow.dY = 0;
+                    fromRow.classList.remove( "dragging" );
+                    Array.from( table.rows ).forEach( v => {
+                        v.style.transform = ``;
+                        v.style.transition = `none`;
+                    } );
+                    flushCss( fromRow );
+
+                    if( movePending )
+                    {
+                        // Modify inner data first
+                        const fromIdx = rIdx - 1;
+                        const targetIdx = movePending[ 1 ] - 1;
+                        var b = data.body[fromIdx];
+                        data.body[fromIdx] = data.body[targetIdx];
+                        data.body[targetIdx] = b;
+
+                        const parent = movePending[ 0 ].parentNode;
+                        parent.insertChildAtIndex(  movePending[ 0 ],  movePending[ 1 ] );
+                        movePending = null;
+                    }
+
+                    rIdx = null;
+
+                    doAsync( () => {
+                        Array.from( table.rows ).forEach( v => {
+                            v.style.transition = `transform 0.2s ease-in`;
+                        } );
+                    } )
+                } );
+
+                let onMove = ( e ) => {
+                    if( !rIdx ) return;
+                    const fromRow = table.rows[ rIdx ];
+                    fromRow.dY = fromRow.dY ?? 0;
+                    fromRow.dY += e.movementY;
+                    fromRow.style.transform = `translateY(${fromRow.dY}px)`;
+                };
+
+                for( let r = 0; r < data.body.length; ++r )
+                {
+                    const bodyData = data.body[ r ];
+
+                    if( this.filter )
+                    {
+                        const filterColIndex = data.head.indexOf( this.filter );
+                        if( filterColIndex > -1 )
+                        {
+                            const validRowValue = stripHTML( bodyData[ filterColIndex ] ).toLowerCase();
+                            if( !validRowValue.includes( this._currentFilter.toLowerCase() ) )
+                            {
+                                continue;
+                            }
+                        }
+                    }
+
+                    if( Object.keys( this.activeCustomFilters ).length )
+                    {
+                        let acfMap = {};
+
+                        this._resetCustomFiltersBtn.root.classList.remove( "hidden" );
+
+                        for( let acfValue in this.activeCustomFilters )
+                        {
+                            const acfName = this.activeCustomFilters[ acfValue ];
+                            acfMap[ acfName ] = acfMap[ acfName ] ?? false;
+
+                            const filterColIndex = data.head.indexOf( acfName );
+                            if( filterColIndex > -1 )
+                            {
+                                acfMap[ acfName ] |= ( bodyData[ filterColIndex ] === acfValue );
+                            }
+                        }
+
+                        const show = Object.values( acfMap ).reduce( ( e, acc ) => acc *= e );
+                        if( !show )
+                        {
+                            continue;
+                        }
+                    }
+
+                    const row = document.createElement( 'tr' );
+                    const rowId = LX.getSupportedDOMName( bodyData.join( '-' ) );
+                    row.setAttribute( "rowId", rowId.substr(0, 32) );
+
+                    if( options.sortable )
+                    {
+                        const td = document.createElement( 'td' );
+                        td.style.width = "0px";
+                        const icon = LX.makeIcon( "grip-vertical" );
+                        td.appendChild( icon );
+
+                        icon.draggable = true;
+
+                        icon.addEventListener("dragstart", (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.stopImmediatePropagation();
+
+                            rIdx = row.rowIndex;
+                            row.classList.add( "dragging" );
+
+                            document.addEventListener( "mousemove", onMove );
+                        }, false );
+
+                        row.addEventListener("mouseenter", function(e) {
+                            e.preventDefault();
+
+                            if( rIdx && ( this.rowIndex != rIdx ) && ( eventCatched != this.rowIndex ) )
+                            {
+                                eventCatched = this.rowIndex;
+                                const fromRow = table.rows[ rIdx ];
+                                const undo = ( this.style.transform != `` );
+                                if (this.rowIndex > rIdx) {
+                                    movePending = [ fromRow, undo ? (this.rowIndex-1) : this.rowIndex ];
+                                    this.style.transform = undo ? `` : `translateY(-${this.offsetHeight}px)`;
+                                } else {
+                                    movePending = [ fromRow, undo ? (this.rowIndex) : (this.rowIndex-1) ];
+                                    this.style.transform = undo ? `` : `translateY(${this.offsetHeight}px)`;
+                                }
+                                doAsync( () => {
+                                    eventCatched = false;
+                                } )
+                            }
+                        });
+
+                        row.appendChild( td );
+                    }
+
+                    if( options.selectable )
+                    {
+                        const td = document.createElement( 'td' );
+                        const input = document.createElement( 'input' );
+                        input.type = "checkbox";
+                        input.className = "lexcheckbox accent";
+                        input.checked = data.checkMap[ rowId ];
+                        td.appendChild( input );
+
+                        input.addEventListener( 'change', function() {
+                            data.checkMap[ rowId ] = this.checked;
+
+                            const headInput = table.querySelector( "thead input[type='checkbox']" );
+
+                            if( !this.checked )
+                            {
+                                headInput.checked = data.checkMap[ ":root" ] = false;
+                            }
+                            else
+                            {
+                                const rowInputs = Array.from( table.querySelectorAll( "tbody input[type='checkbox']" ) );
+                                const uncheckedRowInputs = rowInputs.filter( i => { return !i.checked; } );
+                                if( !uncheckedRowInputs.length )
+                                {
+                                    headInput.checked = data.checkMap[ ":root" ] = true;
+                                }
+                            }
+                        });
+
+                        row.appendChild( td );
+                    }
+
+                    for( const rowData of bodyData )
+                    {
+                        const td = document.createElement( 'td' );
+                        td.innerHTML = `${ rowData }`;
+
+                        const idx = bodyData.indexOf( rowData );
+                        if( this.centered && this.centered.indexOf( idx ) > -1 )
+                        {
+                            td.classList.add( "centered" );
+                        }
+
+                        row.appendChild( td );
+                    }
+
+                    if( options.rowActions )
+                    {
+                        const td = document.createElement( 'td' );
+                        td.style.width = "0px";
+
+                        const buttons = document.createElement( 'div' );
+                        buttons.className = "lextablebuttons";
+                        td.appendChild( buttons );
+
+                        for( const action of options.rowActions )
+                        {
+                            let button = null;
+
+                            if( action == "delete" )
+                            {
+                                button = LX.makeIcon( "trash-can", { title: "Delete Row" } );
+                                button.addEventListener( 'click', function() {
+                                    // Don't need to refresh table..
+                                    data.body.splice( r, 1 );
+                                    row.remove();
+                                });
+                            }
+                            else if( action == "menu" )
+                            {
+                                button = LX.makeIcon( "more-horizontal", { title: "Menu" } );
+                                button.addEventListener( 'click', function( event ) {
+                                    if( !options.onMenuAction )
+                                    {
+                                        return;
+                                    }
+
+                                    const menuOptions = options.onMenuAction( r, data );
+                                    console.assert( menuOptions.length, "Add items to the Menu Action Dropdown!" );
+
+                                    new DropdownMenu( event.target, menuOptions, { side: "bottom", align: "end" });
+                                });
+                            }
+                            else // custom actions
+                            {
+                                console.assert( action.constructor == Object );
+                                button = LX.makeIcon( action.icon, { title: action.title } );
+
+                                if( action.callback )
+                                {
+                                    button.addEventListener( 'click', e => {
+                                        const mustRefresh = action.callback( bodyData, table, e );
+                                        if( mustRefresh )
+                                        {
+                                            this.refresh();
+                                        }
+                                    });
+                                }
+                            }
+
+                            console.assert( button );
+                            buttons.appendChild( button );
+                        }
+
+                        row.appendChild( td );
+                    }
+
+                    body.appendChild( row );
+                }
+            }
+
+            for( const v in data.colVisibilityMap )
+            {
+                const idx = parseInt( v );
+                if( !data.colVisibilityMap[ idx ] )
+                {
+                    const cells = table.querySelectorAll(`tr > *:nth-child(${idx + this.rowOffsetCount + 1})`);
+                    cells.forEach(cell => {
+                        cell.style.display = (cell.style.display === "none") ? "" : "none";
+                    });
+                }
+            }
+        }
+
+        this.refresh();
+
+        doAsync( this.onResize.bind( this ) );
+    }
+}
+
+LX.Table = Table;
+
+/**
+ * @class Panel
+ */
+
+class Panel {
+
+    /**
+     * @param {Object} options
+     * id: Id of the element
+     * className: Add class to the element
+     * width: Width of the panel element [fit space]
+     * height: Height of the panel element [fit space]
+     * style: CSS Style object to be applied to the panel
+     */
+
+    constructor( options = {} ) {
+
+        var root = document.createElement('div');
+        root.className = "lexpanel";
+
+        if( options.id )
+        {
+            root.id = options.id;
+        }
+
+        if( options.className )
+        {
+            root.className += " " + options.className;
+        }
+
+        root.style.width = options.width || "100%";
+        root.style.height = options.height || "100%";
+        Object.assign( root.style, options.style ?? {} );
+
+        this.root = root;
+        this.branches = [];
+        this.widgets = {};
+
+        this._branchOpen = false;
+        this._currentBranch = null;
+        this._queue = []; // Append widgets in other locations
+        this._inlineWidgetsLeft = -1;
+        this._inline_queued_container = null;
+    }
+
+    get( name ) {
+
+        return this.widgets[ name ];
+    }
+
+    getValue( name ) {
+
+        let widget = this.widgets[ name ];
+
+        if( !widget )
+        {
+            throw( "No widget called " + name );
+        }
+
+        return widget.value();
+    }
+
+    setValue( name, value, skipCallback ) {
+
+        let widget = this.widgets[ name ];
+
+        if( !widget )
+        {
+            throw( "No widget called " + name );
+        }
+
+        return widget.set( value, skipCallback );
+    }
+
+    /**
+     * @method attach
+     * @param {Element} content child element to append to panel
+     */
+
+    attach( content ) {
+
+        console.assert( content, "No content to attach!" );
+        content.parent = this;
+        this.root.appendChild( content.root ? content.root : content );
+    }
+
+    /**
+     * @method clear
+     */
+
+    clear() {
+
+        this._branchOpen = false;
+        this.branches = [];
+        this._currentBranch = null;
+
+        for( let w in this.widgets )
+        {
+            if( this.widgets[ w ].options && this.widgets[ w ].options.signal )
+            {
+                const signal = this.widgets[ w ].options.signal;
+                for( let i = 0; i < LX.signals[signal].length; i++ )
+                {
+                    if( LX.signals[signal][i] == this.widgets[ w ] )
+                    {
+                        LX.signals[signal] = [...LX.signals[signal].slice(0, i), ...LX.signals[signal].slice(i+1)];
+                    }
+                }
+            }
+        }
+
+        if( this.signals )
+        {
+            for( let w = 0; w < this.signals.length; w++ )
+            {
+                let widget = Object.values(this.signals[ w ])[0];
+                let signal = widget.options.signal;
+                for( let i = 0; i < LX.signals[signal].length; i++ )
+                {
+                    if( LX.signals[signal][i] == widget )
+                    {
+                        LX.signals[signal] = [...LX.signals[signal].slice(0, i), ...LX.signals[signal].slice(i+1)];
+                    }
+                }
+            }
+        }
+
+        this.widgets = {};
+        this.root.innerHTML = "";
+    }
+
+    /**
+     * @method sameLine
+     * @param {Number} number Of widgets that will be placed in the same line
+     * @description Next N widgets will be in the same line. If no number, it will inline all until calling nextLine()
+     */
+
+    sameLine( number ) {
+
+        this._inline_queued_container = this.queuedContainer;
+        this._inlineWidgetsLeft = ( number || Infinity );
+    }
+
+    /**
+     * @method endLine
+     * @param {String} className Extra class to customize inline widgets parent container
+     * @description Stop inlining widgets. Use it only if the number of widgets to be inlined is NOT specified.
+     */
+
+    endLine( className ) {
+
+        if( this._inlineWidgetsLeft == -1 )
+        {
+            console.warn("No pending widgets to be inlined!");
+            return;
+        }
+
+        this._inlineWidgetsLeft = -1;
+
+        if( !this._inlineContainer )
+        {
+            this._inlineContainer = document.createElement('div');
+            this._inlineContainer.className = "lexinlinewidgets";
+
+            if( className )
+            {
+                this._inlineContainer.className += ` ${ className }`;
+            }
+        }
+
+        // Push all elements single element or Array[element, container]
+        for( let item of this._inlineWidgets )
+        {
+            const isPair = ( item.constructor == Array );
+
+            if( isPair )
+            {
+                // eg. an array, inline items appended later to
+                if( this._inline_queued_container )
+                {
+                    this._inlineContainer.appendChild( item[ 0 ] );
+                }
+                // eg. a select, item is appended to parent, not to inline cont.
+                else
+                {
+                    item[ 1 ].appendChild( item[ 0 ] );
+                }
+            }
+            else
+            {
+                this._inlineContainer.appendChild( item );
+            }
+        }
+
+        if( !this._inline_queued_container )
+        {
+            if( this._currentBranch )
+            {
+                this._currentBranch.content.appendChild( this._inlineContainer );
+            }
+            else
+            {
+                this.root.appendChild( this._inlineContainer );
+            }
+        }
+        else
+        {
+            this._inline_queued_container.appendChild( this._inlineContainer );
+        }
+
+        delete this._inlineWidgets;
+        delete this._inlineContainer;
+    }
+
+    /**
+     * @method branch
+     * @param {String} name Name of the branch/section
+     * @param {Object} options
+     * id: Id of the branch
+     * className: Add class to the branch
+     * closed: Set branch collapsed/opened [false]
+     * icon: Set branch icon (Fontawesome class e.g. "fa-solid fa-skull")
+     * filter: Allow filter widgets in branch by name [false]
+     */
+
+    branch( name, options = {} ) {
+
+        if( this._branchOpen )
+        {
+            this.merge();
+        }
+
+        // Create new branch
+        var branch = new Branch( name, options );
+        branch.panel = this;
+
+        // Declare new open
+        this._branchOpen = true;
+        this._currentBranch = branch;
+
+        // Append to panel
+        if( this.branches.length == 0 )
+        {
+            branch.root.classList.add('first');
+        }
+
+        // This is the last!
+        this.root.querySelectorAll(".lexbranch.last").forEach( e => { e.classList.remove("last"); } );
+        branch.root.classList.add('last');
+
+        this.branches.push( branch );
+        this.root.appendChild( branch.root );
+
+        // Add widget filter
+        if( options.filter )
+        {
+            this._addFilter( options.filter, { callback: this._searchWidgets.bind( this, branch.name ) } );
+        }
+
+        return branch;
+    }
+
+    merge() {
+        this._branchOpen = false;
+        this._currentBranch = null;
+    }
+
+    _pick( arg, def ) {
+        return (typeof arg == 'undefined' ? def : arg);
+    }
+
+    /*
+        Panel Widgets
+    */
+
+    _attachWidget( widget, options = {} ) {
+
+        if( widget.name != undefined )
+        {
+            this.widgets[ widget.name ] = widget;
+        }
+
+        if( widget.options.signal && !widget.name )
+        {
+            if( !this.signals )
+            {
+                this.signals = [];
+            }
+
+            this.signals.push( { [ widget.options.signal ]: widget } )
+        }
+
+        const _insertWidget = el => {
+            if( options.container )
+            {
+                options.container.appendChild( el );
+            }
+            else if( !this.queuedContainer )
+            {
+                if( this._currentBranch )
+                {
+                    if( !options.skipWidget )
+                    {
+                        this._currentBranch.widgets.push( widget );
+                    }
+                    this._currentBranch.content.appendChild( el );
+                }
+                else
+                {
+                    el.className += " nobranch w-full";
+                    this.root.appendChild( el );
+                }
+            }
+            // Append content to queued tab container
+            else
+            {
+                this.queuedContainer.appendChild( el );
+            }
+        };
+
+        const _storeWidget = el => {
+
+            if( !this.queuedContainer )
+            {
+                this._inlineWidgets.push( el );
+            }
+            // Append content to queued tab container
+            else
+            {
+                this._inlineWidgets.push( [ el, this.queuedContainer ] );
+            }
+        };
+
+        // Process inline widgets
+        if( this._inlineWidgetsLeft > 0 && !options.skipInlineCount )
+        {
+            if( !this._inlineWidgets )
+            {
+                this._inlineWidgets = [];
+            }
+
+            // Store widget and its container
+            _storeWidget( widget.root );
+
+            this._inlineWidgetsLeft--;
+
+            // Last widget
+            if( !this._inlineWidgetsLeft )
+            {
+                this.endLine();
+            }
+        }
+        else
+        {
+            _insertWidget( widget.root );
+        }
 
         return widget;
+    }
+
+    _addFilter( placeholder, options = {} ) {
+
+        options.placeholder = placeholder.constructor == String ? placeholder : "Filter properties..";
+        options.skipWidget = options.skipWidget ?? true;
+        options.skipInlineCount = true;
+
+        let widget = new TextInput( null, null, null, options )
+        const element = widget.root;
+        element.className += " lexfilter";
+
+        let input = document.createElement('input');
+        input.className = 'lexinput-filter';
+        input.setAttribute( "placeholder", options.placeholder );
+        input.style.width =  "100%";
+        input.value = options.filterValue || "";
+
+        let searchIcon = document.createElement('a');
+        searchIcon.className = "fa-solid fa-magnifying-glass";
+        element.appendChild( searchIcon );
+        element.appendChild( input );
+
+        input.addEventListener("input", e => {
+            if( options.callback )
+            {
+                options.callback( input.value, e );
+            }
+        });
+
+        return element;
+    }
+
+    _searchWidgets( branchName, value ) {
+
+        for( let b of this.branches )
+        {
+            if( b.name !== branchName )
+            {
+                continue;
+            }
+
+            // remove all widgets
+            for( let w of b.widgets )
+            {
+                if( w.domEl.classList.contains('lexfilter') )
+                {
+                    continue;
+                }
+                w.domEl.remove();
+            }
+
+            // push to right container
+            this.queue( b.content );
+
+            const emptyFilter = !value.length;
+
+            // add widgets
+            for( let w of b.widgets )
+            {
+                if( !emptyFilter )
+                {
+                    if(!w.name) continue;
+                    const filterWord = value.toLowerCase();
+                    const name = w.name.toLowerCase();
+                    if(!name.includes(value)) continue;
+                }
+
+                // insert filtered widget
+                this.queuedContainer.appendChild( w.domEl );
+            }
+
+            // push again to current branch
+            this.clearQueue();
+
+            // no more branches to check!
+            return;
+        }
+    }
+
+    /**
+     * @method getBranch
+     * @param {String} name if null, return current branch
+     */
+
+    getBranch( name ) {
+
+        if( name )
+        {
+            return this.branches.find( b => b.name == name );
+        }
+
+        return this._currentBranch;
+    }
+
+    /**
+     * @method queue
+     * @param {HTMLElement} domEl container to append elements to
+     */
+
+    queue( domEl ) {
+
+        if( !domEl && this._currentBranch)
+        {
+            domEl = this._currentBranch.root;
+        }
+
+        if( this.queuedContainer )
+        {
+            this._queue.push( this.queuedContainer );
+        }
+
+        this.queuedContainer = domEl;
+    }
+
+    /**
+     * @method clearQueue
+     */
+
+    clearQueue() {
+
+        if( this._queue && this._queue.length)
+        {
+            this.queuedContainer = this._queue.pop();
+            return;
+        }
+
+        delete this.queuedContainer;
+    }
+
+    /**
+     * @method addSeparator
+     */
+
+    addSeparator() {
+
+        var element = document.createElement('div');
+        element.className = "lexseparator";
+
+        let widget = new Widget( Widget.SEPARATOR );
+        widget.root = element;
+
+        if( this._currentBranch )
+        {
+            this._currentBranch.content.appendChild( element );
+            this._currentBranch.widgets.push( widget );
+        }
+        else
+        {
+            this.root.appendChild( element );
+        }
+    }
+
+    /**
+     * @method addBlank
+     * @param {Number} width
+     * @param {Number} height
+     */
+
+    addBlank( width, height ) {
+        const widget = new Blank( width, height );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTitle
+     * @param {String} name Title name
+     * @param {Object} options:
+     * link: Href in case title is an hyperlink
+     * target: Target name of the iframe (if any)
+     * icon: FA class of the icon (if any)
+     * iconColor: Color of title icon (if any)
+     * style: CSS to override
+     */
+
+    addTitle( name, options = {} ) {
+        const widget = new Title( name, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addText
+     * @param {String} name Widget name
+     * @param {String} value Text value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * required: Make the input required
+     * placeholder: Add input placeholder
+     * icon: Icon (if any) to append at the input start
+     * pattern: Regular expression that value must match
+     * trigger: Choose onchange trigger (default, input) [default]
+     * inputWidth: Width of the text input
+     * fit: Input widts fits content [false]
+     * inputClass: Class to add to the native input element
+     * skipReset: Don't add the reset value button when value changes
+     * float: Justify input text content
+     * justifyName: Justify name content
+     */
+
+    addText( name, value, callback, options = {} ) {
+        const widget = new TextInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTextArea
+     * @param {String} name Widget name
+     * @param {String} value Text Area value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * placeholder: Add input placeholder
+     * resize: Allow resize [true]
+     * trigger: Choose onchange trigger (default, input) [default]
+     * inputWidth: Width of the text input
+     * float: Justify input text content
+     * justifyName: Justify name content
+     * fitHeight: Height adapts to text
+     */
+
+    addTextArea( name, value, callback, options = {} ) {
+        const widget = new TextArea( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addLabel
+     * @param {String} value Information string
+     * @param {Object} options Text options
+     */
+
+    addLabel( value, options = {} ) {
+        options.disabled = true;
+        options.inputClass = ( options.inputClass ?? "" ) + " nobg";
+        const widget = this.addText( null, value, null, options );
+        widget.type = Widget.LABEL;
+        return widget;
+    }
+
+    /**
+     * @method addButton
+     * @param {String} name Widget name
+     * @param {String} value Button name
+     * @param {Function} callback Callback function on click
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * icon: Icon class to show as button value
+     * img: Path to image to show as button value
+     * title: Text to show in native Element title
+     * buttonClass: Class to add to the native button element
+     */
+
+    addButton( name, value, callback, options = {} ) {
+        const widget = new Button( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addComboButtons
+     * @param {String} name Widget name
+     * @param {Array} values Each of the {value, callback, selected, disabled} items
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * float: Justify content (left, center, right) [center]
+     * @legacy selected: Selected item by default by value
+     * noSelection: Buttons can be clicked, but they are not selectable
+     * toggle: Buttons can be toggled insted of selecting only one
+     */
+
+    addComboButtons( name, values, options = {} ) {
+        const widget = new ComboButtons( name, values, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addCard
+     * @param {String} name Card Name
+     * @param {Object} options:
+     * text: Card text
+     * link: Card link
+     * title: Card dom title
+     * src: url of the image
+     * callback (Function): function to call on click
+     */
+
+    addCard( name, options = {} ) {
+        const widget = new Card( name, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addForm
+     * @param {String} name Widget name
+     * @param {Object} data Form data
+     * @param {Function} callback Callback function on submit form
+     * @param {Object} options:
+     * actionName: Text to be shown in the button
+     */
+
+    addForm( name, data, callback, options = {} ) {
+        const widget = new Form( name, data, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addContent
+     * @param {String} name Widget name
+     * @param {HTMLElement/String} element
+     * @param {Object} options
+     */
+
+    addContent( name, element, options = {} ) {
+
+        console.assert( element, "Empty content!" );
+
+        if( element.constructor == String )
+        {
+            const tmp = document.createElement( "div" );
+            tmp.innerHTML = element;
+
+            if( tmp.childElementCount > 1 )
+            {
+                element = tmp;
+            }
+            else
+            {
+                element = tmp.firstElementChild;
+            }
+        }
+
+        options.hideName = true;
+
+        let widget = new Widget( Widget.CONTENT, name, null, options );
+        widget.root.appendChild( element );
+
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addImage
+     * @param {String} name Widget name
+     * @param {String} url Image Url
+     * @param {Object} options
+     * hideName: Don't use name as label [false]
+     */
+
+    async addImage( name, url, options = {} ) {
+
+        console.assert( url, "Empty src/url for Image!" );
+
+        let container = document.createElement( 'div' );
+        container.className = "leximage";
+        container.style.width = "100%";
+
+        let img = document.createElement( 'img' );
+        img.src = url;
+        Object.assign( img.style, options.style ?? {} );
+        container.appendChild( img );
+
+        let widget = new Widget( Widget.IMAGE, name, null, options );
+        widget.root.appendChild( container );
+
+        // await img.decode();
+        img.decode();
+
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addSelect
+     * @param {String} name Widget name
+     * @param {Array} values Posible options of the select widget -> String (for default select) or Object = {value, url} (for images, gifs..)
+     * @param {String} value Select by default option
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * filter: Add a search bar to the widget [false]
+     * disabled: Make the widget disabled [false]
+     * skipReset: Don't add the reset value button when value changes
+     * placeholder: Placeholder for the filter input
+     * emptyMsg: Custom message to show when no filtered results
+     */
+
+    addSelect( name, values, value, callback, options = {} ) {
+        const widget = new Select( name, values, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addCurve
+     * @param {String} name Widget name
+     * @param {Array of Array} values Array of 2N Arrays of each value of the curve
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * skipReset: Don't add the reset value button when value changes
+     * bgColor: Widget background color
+     * pointsColor: Curve points color
+     * lineColor: Curve line color
+     * noOverlap: Points do not overlap, replacing themselves if necessary
+     * allowAddValues: Support adding values on click
+     * smooth: Curve smoothness
+     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
+    */
+
+    addCurve( name, values, callback, options = {} ) {
+        const widget = new Curve( name, values, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addDial
+     * @param {String} name Widget name
+     * @param {Array of Array} values Array of 2N Arrays of each value of the dial
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * skipReset: Don't add the reset value button when value changes
+     * bgColor: Widget background color
+     * pointsColor: Curve points color
+     * lineColor: Curve line color
+     * noOverlap: Points do not overlap, replacing themselves if necessary
+     * allowAddValues: Support adding values on click
+     * smooth: Curve smoothness
+     * moveOutAction: Clamp or delete points moved out of the curve (LX.CURVE_MOVEOUT_CLAMP, LX.CURVE_MOVEOUT_DELETE)
+    */
+
+    addDial( name, values, callback, options = {} ) {
+        const widget = new Dial( name, values, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addLayers
+     * @param {String} name Widget name
+     * @param {Number} value Flag value by default option
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     */
+
+    addLayers( name, value, callback, options = {} ) {
+        const widget = new Layers( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addArray
+     * @param {String} name Widget name
+     * @param {Array} values By default values in the array
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * innerValues (Array): Use select mode and use values as options
+     */
+
+    addArray( name, values = [], callback, options = {} ) {
+        const widget = new ItemArray( name, values, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addList
+     * @param {String} name Widget name
+     * @param {Array} values List values
+     * @param {String} value Selected list value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     */
+
+    addList( name, values, value, callback, options = {} ) {
+        const widget = new List( name, values, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTags
+     * @param {String} name Widget name
+     * @param {String} value Comma separated tags
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     */
+
+    addTags( name, value, callback, options = {} ) {
+        const widget = new Tags( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addCheckbox
+     * @param {String} name Widget name
+     * @param {Boolean} value Value of the checkbox
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * label: Checkbox label
+     * suboptions: Callback to add widgets in case of TRUE value
+     * className: Extra classes to customize style
+     */
+
+    addCheckbox( name, value, callback, options = {} ) {
+        const widget = new Checkbox( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addToggle
+     * @param {String} name Widget name
+     * @param {Boolean} value Value of the checkbox
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * label: Toggle label
+     * suboptions: Callback to add widgets in case of TRUE value
+     * className: Customize colors
+     */
+
+    addToggle( name, value, callback, options = {} ) {
+        const widget = new Toggle( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addRadioGroup
+     * @param {String} name Widget name
+     * @param {String} label Radio label
+     * @param {Array} values Radio options
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * className: Customize colors
+     * selected: Index of the default selected option
+     */
+
+    addRadioGroup( name, label, values, callback, options = {} ) {
+        const widget = new RadioGroup( name, label, values, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addColor
+     * @param {String} name Widget name
+     * @param {String} value Default color (hex)
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * useRGB: The callback returns color as Array (r, g, b) and not hex [false]
+     */
+
+    addColor( name, value, callback, options = {} ) {
+        const widget = new ColorInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addRange
+     * @param {String} name Widget name
+     * @param {Number} value Default number value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * className: Extra classes to customize style
+     * disabled: Make the widget disabled [false]
+     * left: The slider goes to the left instead of the right
+     * fill: Fill slider progress [true]
+     * step: Step of the input
+     * min, max: Min and Max values for the input
+     */
+
+    addRange( name, value, callback, options = {} ) {
+        const widget = new RangeInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addNumber
+     * @param {String} name Widget name
+     * @param {Number} value Default number value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * step: Step of the input
+     * precision: The number of digits to appear after the decimal point
+     * min, max: Min and Max values for the input
+     * skipSlider: If there are min and max values, skip the slider
+     * units: Unit as string added to the end of the value
+     * onPress: Callback function on mouse down
+     * onRelease: Callback function on mouse up
+     */
+
+    addNumber( name, value, callback, options = {} ) {
+        const widget = new NumberInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    static VECTOR_COMPONENTS = { 0: 'x', 1: 'y', 2: 'z', 3: 'w' };
+
+    _addVector( numComponents, name, value, callback, options = {} ) {
+        const widget = new Vector( numComponents, name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addVector N (2, 3, 4)
+     * @param {String} name Widget name
+     * @param {Array} value Array of N components
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * step: Step of the inputs
+     * min, max: Min and Max values for the inputs
+     * onPress: Callback function on mouse down
+     * onRelease: Callback function on mouse is released
+     */
+
+    addVector2( name, value, callback, options ) {
+        return this._addVector( 2, name, value, callback, options );
+    }
+
+    addVector3( name, value, callback, options ) {
+        return this._addVector( 3, name, value, callback, options );
+    }
+
+    addVector4( name, value, callback, options ) {
+        return this._addVector( 4, name, value, callback, options );
+    }
+
+    /**
+     * @method addSize
+     * @param {String} name Widget name
+     * @param {Number} value Default number value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * units: Unit as string added to the end of the value
+     */
+
+    addSize( name, value, callback, options = {} ) {
+        const widget = new SizeInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addOTP
+     * @param {String} name Widget name
+     * @param {String} value Default numeric value in string format
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * disabled: Make the widget disabled [false]
+     * pattern: OTP numeric pattern
+     */
+
+    addOTP( name, value, callback, options = {} ) {
+        const widget = new OTPInput( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addPad
+     * @param {String} name Widget name
+     * @param {Array} value Pad value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * min, max: Min and Max values
+     * padSize: Size of the pad (css)
+     * onPress: Callback function on mouse down
+     * onRelease: Callback function on mouse up
+     */
+
+    addPad( name, value, callback, options = {} ) {
+        const widget = new Pad( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addProgress
+     * @param {String} name Widget name
+     * @param {Number} value Progress value
+     * @param {Object} options:
+     * min, max: Min and Max values
+     * low, optimum, high: Low and High boundary values, Optimum point in the range
+     * showValue: Show current value
+     * editable: Allow edit value
+     * callback: Function called on change value
+     */
+
+    addProgress( name, value, options = {} ) {
+        const widget = new Progress( name, value, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addFile
+     * @param {String} name Widget name
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * local: Ask for local file
+     * disabled: Make the widget disabled [false]
+     * read: Return the file itself (False) or the contents (True)
+     * type: type to read as [text (Default), buffer, bin, url]
+     */
+
+    addFile( name, callback, options = { } ) {
+        const widget = new FileInput( name, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTree
+     * @param {String} name Widget name
+     * @param {Object} data Data of the tree
+     * @param {Object} options:
+     * icons: Array of objects with icon button information {name, icon, callback}
+     * filter: Add nodes filter [true]
+     * rename: Boolean to allow rename [true]
+     * onevent(tree_event): Called when node is selected, dbl clicked, contextmenu opened, changed visibility, parent or name
+     */
+
+    addTree( name, data, options = {} ) {
+        const widget = new Tree( name, data, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTabSections
+     * @param {String} name Widget name
+     * @param {Array} tabs Contains objects with {
+     *      name: Name of the tab (if icon, use as title)
+     *      icon: Icon to be used as the tab icon (optional)
+     *      onCreate: Func to be called at tab creation
+     *      onSelect: Func to be called on select tab (optional)
+     * }
+     * @param {Object} options
+     * vertical: Use vertical or horizontal tabs (vertical by default)
+     * showNames: Show tab name only in horizontal tabs
+     */
+
+    addTabSections( name, tabs, options = {} ) {
+        const widget = new TabSections( name, tabs, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addCounter
+     * @param {String} name Widget name
+     * @param {Number} value Counter value
+     * @param {Function} callback Callback function on change
+     * @param {Object} options:
+     * disabled: Make the widget disabled [false]
+     * min, max: Min and Max values
+     * step: Step for adding/substracting
+     * label: Text to show below the counter
+     */
+
+    addCounter( name, value, callback, options = { } ) {
+        const widget = new Counter( name, value, callback, options );
+        return this._attachWidget( widget );
+    }
+
+    /**
+     * @method addTable
+     * @param {String} name Widget name
+     * @param {Number} data Table data
+     * @param {Object} options:
+     * hideName: Don't use name as label [false]
+     * head: Table headers (each of the headers per column)
+     * body: Table body (data per row for each column)
+     * rowActions: Allow to add actions per row
+     * onMenuAction: Function callback to fill the "menu" context
+     * selectable: Each row can be selected
+     * sortable: Rows can be sorted by the user manually
+     * centered: Center text within columns. true for all, Array for center selected cols
+     * toggleColumns: Columns visibility can be toggled
+     * filter: Name of the column to filter by text input (if any)
+     * filterValue: Initial filter value
+     * customFilters: Add selectors to filter by specific option values
+     */
+
+    addTable( name, data, options = { } ) {
+        const widget = new Table( name, data, options );
+        return this._attachWidget( widget );
     }
 }
 
@@ -7383,7 +11271,6 @@ class Branch {
             root.className += " " + options.className;
         }
 
-        root.style.width = "calc(100% - 7px)";
         root.style.margin = "0 auto";
 
         var that = this;
@@ -7395,42 +11282,44 @@ class Branch {
         var title = document.createElement( 'div' );
         title.className = "lexbranchtitle";
 
-        title.innerHTML = "<a class='fa-solid fa-angle-up switch-branch-button'></a>";
         if( options.icon )
         {
-            title.innerHTML += "<a class='branchicon " + options.icon + "' style='margin-right: 8px; margin-bottom: -2px;'>";
+            title.innerHTML = "<a class='branchicon " + options.icon + "'>";
         }
-        title.innerHTML += name || "Branch";
+
+        title.innerHTML += ( name || "Branch" );
+
+        title.innerHTML += "<a class='fa-solid fa-angle-right switch-branch-button'></a>";
 
         root.appendChild( title );
 
         var branchContent = document.createElement( 'div' );
-        branchContent.id = name.replace(/\s/g, '');
+        branchContent.id = name.replace( /\s/g, '' );
         branchContent.className = "lexbranchcontent";
-        root.appendChild(branchContent);
+        root.appendChild( branchContent );
         this.content = branchContent;
 
         this._addBranchSeparator();
 
         if( options.closed )
         {
-            title.className += " closed";
-            root.className += " closed";
-            this.grabber.setAttribute('hidden', true);
+            title.classList.add( "closed" );
+            root.classList.add( "closed" );
+            this.grabber.setAttribute( "hidden", true );
             doAsync( () => {
-                this.content.setAttribute( 'hidden', true );
-            }, 15 );
+                this.content.setAttribute( "hidden", true );
+            }, 10 );
         }
 
         this.onclick = function( e ) {
-            e.stopPropagation();
-            this.classList.toggle( 'closed' );
-            this.parentElement.classList.toggle( 'closed' );
+            // e.stopPropagation();
+            this.classList.toggle( "closed" );
+            this.parentElement.classList.toggle( "closed" );
 
-            that.content.toggleAttribute( 'hidden' );
-            that.grabber.toggleAttribute( 'hidden' );
+            that.content.toggleAttribute( "hidden" );
+            that.grabber.toggleAttribute( "hidden" );
 
-            LX.emit( "@on_branch_closed", this.classList.contains("closed"), { target: that.panel } );
+            LX.emit( "@on_branch_closed", this.classList.contains( "closed" ) );
         };
 
         this.oncontextmenu = function( e ) {
@@ -7449,7 +11338,7 @@ class Branch {
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-180">', {id: 'dock_options1'});
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-90">', {id: 'dock_options2'});
                 // p.add('<i class="fa-regular fa-window-maximize fa-rotate-270">', {id: 'dock_options3'});
-                p.add( 'Floating', that._on_make_floating.bind( that ) );
+                p.add( 'Floating', that._onMakeFloating.bind( that ) );
             }, { icon: "fa-regular fa-window-restore" });
         };
 
@@ -7457,12 +11346,13 @@ class Branch {
         title.addEventListener( 'contextmenu', this.oncontextmenu );
     }
 
-    _on_make_floating() {
+    _onMakeFloating() {
 
         const dialog = new Dialog(this.name, p => {
             // add widgets
-            for( let w of this.widgets ) {
-                p.root.appendChild( w.domEl );
+            for( let w of this.widgets )
+            {
+                p.root.appendChild( w.root );
             }
         });
         dialog.widgets = this.widgets;
@@ -7554,39 +11444,32 @@ class Branch {
         var size = this.grabber.style.marginLeft;
 
         // Update sizes of widgets inside
-        for(var i = 0; i < this.widgets.length; i++) {
-
+        for( let i = 0; i < this.widgets.length; i++ )
+        {
             let widget = this.widgets[ i ];
-            let element = widget.domEl;
+            const element = widget.root;
 
             if( element.children.length < 2 )
             {
                 continue;
             }
 
-            var name = element.children[ 0 ];
-            var value = element.children[ 1 ];
+            let name = element.children[ 0 ];
+            let value = element.children[ 1 ];
 
             name.style.width = size;
-            let padding = "0px";
+            name.style.minWidth = size;
+
             switch( widget.type )
             {
-                case Widget.FILE:
-                    padding = "10%";
-                    break;
-                case Widget.TEXT:
-                    padding = "8px";
-                    break;
+                case Widget.CUSTOM:
+                case Widget.ARRAY:
+                    continue;
             };
 
-            value.style.width = "-moz-calc( 100% - " + size + " - " + padding + " )";
-            value.style.width = "-webkit-calc( 100% - " + size + " - " + padding + " )";
-            value.style.width = "calc( 100% - " + size + " - " + padding + " )";
-
-            if( widget.onresize )
-            {
-                widget.onresize();
-            }
+            value.style.width = "-moz-calc( 100% - " + size + " )";
+            value.style.width = "-webkit-calc( 100% - " + size + " )";
+            value.style.width = "calc( 100% - " + size + " )";
         }
     }
 };
@@ -7599,19 +11482,24 @@ LX.Branch = Branch;
 
 class Footer {
     /**
-     * @param {*} options:
+     * @param {Object} options:
      * columns: Array with data per column { title, items: [ { title, link } ]  }
      * credits: html string
      * socials: Array with data per item { title, link, iconHtml }
+     * className: Extra class to customize
     */
     constructor( options = {} ) {
 
         const root = document.createElement( "footer" );
-        root.className = "lexfooter";
+        root.className = "lexfooter" + ` ${ options.className ?? "" }`;
 
         const wrapper = document.createElement( "div" );
-        wrapper.className = "wrapper";
+        wrapper.style.minHeight = "48px";
+        wrapper.className = "w-full";
         root.appendChild( wrapper );
+
+        // const hr = document.createElement( "hr" );
+        // wrapper.appendChild( hr );
 
         if( options.columns && options.columns.constructor == Array )
         {
@@ -7649,9 +11537,6 @@ class Footer {
 
         if( options.credits || options.socials )
         {
-            const hr = document.createElement( "hr" );
-            wrapper.appendChild( hr );
-
             const creditsSocials = document.createElement( "div" );
             creditsSocials.className = "credits-and-socials";
             wrapper.appendChild( creditsSocials );
@@ -7685,8 +11570,13 @@ class Footer {
         // Append directly to body
         const parent = options.parent ?? document.body;
         parent.appendChild( root );
-    }
 
+        // Set always at bottom
+        root.previousElementSibling.style.height = "unset";
+        root.previousElementSibling.style.flexGrow = "1";
+
+        this.root = root;
+    }
 }
 
 LX.Footer = Footer;
@@ -7714,19 +11604,18 @@ class Dialog {
             draggable = options.draggable ?? true,
             modal = options.modal ?? false;
 
-        if( modal )
-        {
-            LX.modal.toggle( false );
-        }
-
-        var root = document.createElement('div');
-        root.className = "lexdialog " + (options.class ?? "");
+        let root = document.createElement('dialog');
+        root.className = "lexdialog " + (options.className ?? "");
         root.id = options.id ?? "dialog" + Dialog._last_id++;
         LX.root.appendChild( root );
 
+        doAsync( () => {
+            modal ? root.showModal() : root.show();
+        }, 10 );
+
         let that = this;
 
-        var titleDiv = document.createElement('div');
+        const titleDiv = document.createElement('div');
 
         if( title )
         {
@@ -7734,7 +11623,7 @@ class Dialog {
             titleDiv.innerHTML = title;
             titleDiv.setAttribute('draggable', false);
 
-            titleDiv.oncontextmenu = function(e) {
+            titleDiv.oncontextmenu = function( e ) {
                 e.preventDefault();
                 e.stopPropagation();
 
@@ -7767,7 +11656,7 @@ class Dialog {
 
                         for( let w of that.widgets )
                         {
-                            branch.content.appendChild( w.domEl );
+                            branch.content.appendChild( w.root );
                         }
 
                         branch.widgets = that.widgets;
@@ -7791,7 +11680,7 @@ class Dialog {
                 }, { icon: "fa-regular fa-window-restore" });
             };
 
-            root.appendChild(titleDiv);
+            root.appendChild( titleDiv );
         }
 
         if( options.closable ?? true )
@@ -7805,17 +11694,16 @@ class Dialog {
 
                 if( !options.onclose )
                 {
-                    that.panel.clear();
-                    root.remove();
+                    root.close();
+
+                    doAsync( () => {
+                        that.panel.clear();
+                        root.remove();
+                    }, 150 );
                 }
                 else
                 {
                     options.onclose( this.root );
-                }
-
-                if( modal )
-                {
-                    LX.modal.toggle( true );
                 }
             };
 
@@ -7875,17 +11763,16 @@ class Dialog {
 
         root.style.width = size[ 0 ] ? (size[ 0 ]) : "25%";
         root.style.height = size[ 1 ] ? (size[ 1 ]) : "auto";
+        root.style.translate = options.position ? "unset" : "-50% -50%";
 
         if( options.size )
         {
             this.size = size;
         }
 
-        let rect = root.getBoundingClientRect();
-        root.style.left = position[ 0 ] ? (position[ 0 ]) : "calc( 50% - " + ( rect.width * 0.5 ) + "px )";
-        root.style.top = position[ 1 ] ? (position[ 1 ]) : "calc( 50% - " + ( rect.height * 0.5 ) + "px )";
+        root.style.left = position[ 0 ] ?? "50%";
+        root.style.top = position[ 1 ] ?? "50%";
 
-        panel.root.style.width = "calc( 100% - 30px )";
         panel.root.style.height = title ? "calc( 100% - " + ( titleDiv.offsetHeight + 30 ) + "px )" : "calc( 100% - 51px )";
     }
 
@@ -7900,7 +11787,7 @@ class Dialog {
         this._oncreate.call(this, this.panel);
     }
 
-    setPosition(x, y) {
+    setPosition( x, y ) {
 
         this.root.style.left = x + "px";
         this.root.style.top = y + "px";
@@ -7931,28 +11818,44 @@ class PocketDialog extends Dialog {
         options.draggable = options.draggable ?? false;
         options.closable = options.closable ?? false;
 
+        const dragMargin = 3;
+
         super( title, callback, options );
 
         let that = this;
         // Update margins on branch title closes/opens
         LX.addSignal("@on_branch_closed", this.panel, closed => {
             if( this.dock_pos == PocketDialog.BOTTOM )
-                this.root.style.top = "calc(100% - " + (this.root.offsetHeight + 6) + "px)";
+            {
+                this.root.style.top = "calc(100% - " + (this.root.offsetHeight + dragMargin) + "px)";
+            }
         });
 
         // Custom
         this.root.classList.add( "pocket" );
-        if( !options.position ) {
-            this.root.style.left = "calc(100% - " + (this.root.offsetWidth + 6) + "px)";
-            this.root.style.top = "0px";
+
+        this.root.style.translate = "none";
+        this.root.style.top = "0";
+        this.root.style.left = "unset";
+
+        if( !options.position )
+        {
+            this.root.style.right = dragMargin + "px";
+            this.root.style.top = dragMargin + "px";
         }
-        this.panel.root.style.width = "calc( 100% - 12px )";
-        this.panel.root.style.height = "calc( 100% - 40px )";
+
+        this.panel.root.style.width = "100%";
+        this.panel.root.style.height = "100%";
         this.dock_pos = PocketDialog.TOP;
 
         this.minimized = false;
         this.title.tabIndex = -1;
         this.title.addEventListener("click", e => {
+            if( this.title.eventCatched )
+            {
+                this.title.eventCatched = false;
+                return;
+            }
 
             // Sized dialogs have to keep their size
             if( this.size )
@@ -7966,7 +11869,7 @@ class PocketDialog extends Dialog {
 
             if( this.dock_pos == PocketDialog.BOTTOM )
                 that.root.style.top = this.root.classList.contains("minimized") ?
-                "calc(100% - " + (that.title.offsetHeight + 6) + "px)" : "calc(100% - " + (that.root.offsetHeight + 6) + "px)";
+                "calc(100% - " + (that.title.offsetHeight + 6) + "px)" : "calc(100% - " + (that.root.offsetHeight + dragMargin) + "px)";
         });
 
         if( !options.draggable )
@@ -7975,32 +11878,48 @@ class PocketDialog extends Dialog {
 
             if( float )
             {
-                for( var i = 0; i < float.length; i++ )
+                for( let i = 0; i < float.length; i++ )
                 {
                     const t = float[i];
                     switch( t )
                     {
                     case 'b':
-                        this.root.style.top = "calc(100% - " + (this.root.offsetHeight + 6) + "px)";
+                        this.root.style.top = "calc(100% - " + (this.root.offsetHeight + dragMargin) + "px)";
                         break;
                     case 'l':
-                        this.root.style.left = options.position ? options.position[ 1 ] : "0px";
+                        this.root.style.right = "unset";
+                        this.root.style.left = options.position ? options.position[ 1 ] : ( dragMargin + "px" );
                         break;
                     }
                 }
             }
 
             this.root.classList.add('dockable');
-            this.title.addEventListener("keydown", function(e) {
-                if( e.ctrlKey && e.key == 'ArrowLeft' ) {
+
+            this.title.addEventListener("keydown", function( e ) {
+                if( !e.ctrlKey )
+                {
+                    return;
+                }
+
+                that.root.style.right = "unset";
+
+                if( e.key == 'ArrowLeft' )
+                {
                     that.root.style.left = '0px';
-                } else if( e.ctrlKey && e.key == 'ArrowRight' ) {
-                    that.root.style.left = "calc(100% - " + (that.root.offsetWidth + 6) + "px)";
-                }else if( e.ctrlKey && e.key == 'ArrowUp' ) {
+                }
+                else if( e.key == 'ArrowRight' )
+                {
+                    that.root.style.left = "calc(100% - " + (that.root.offsetWidth + dragMargin) + "px)";
+                }
+                else if( e.key == 'ArrowUp' )
+                {
                     that.root.style.top = "0px";
                     that.dock_pos = PocketDialog.TOP;
-                }else if( e.ctrlKey && e.key == 'ArrowDown' ) {
-                    that.root.style.top = "calc(100% - " + (that.root.offsetHeight + 6) + "px)";
+                }
+                else if( e.key == 'ArrowDown' )
+                {
+                    that.root.style.top = "calc(100% - " + (that.root.offsetHeight + dragMargin) + "px)";
                     that.dock_pos = PocketDialog.BOTTOM;
                 }
             });
@@ -8019,12 +11938,12 @@ class ContextMenu {
     constructor( event, title, options = {} ) {
 
         // remove all context menus
-        document.body.querySelectorAll(".lexcontextmenubox").forEach(e => e.remove());
+        document.body.querySelectorAll( ".lexcontextmenu" ).forEach( e => e.remove() );
 
-        this.root = document.createElement('div');
-        this.root.className = "lexcontextmenubox";
-        this.root.style.left = (event.x - 48 + document.scrollingElement.scrollLeft) + "px";
-        this.root.style.top = (event.y - 8 + document.scrollingElement.scrollTop) + "px";
+        this.root = document.createElement( "div" );
+        this.root.className = "lexcontextmenu";
+        this.root.style.left = ( event.x - 48 ) + "px";
+        this.root.style.top = ( event.y - 8 ) + "px";
 
         this.root.addEventListener("mouseleave", function() {
             this.remove();
@@ -8037,13 +11956,13 @@ class ContextMenu {
         {
             const item = {};
             item[ title ] = [];
-            item[ 'className' ] = "cmtitle";
-            item[ 'icon' ] = options.icon;
+            item[ "className" ] = "cmtitle";
+            item[ "icon" ] = options.icon;
             this.items.push( item );
         }
     }
 
-    _adjust_position( div, margin, useAbsolute = false ) {
+    _adjustPosition( div, margin, useAbsolute = false ) {
 
         let rect = div.getBoundingClientRect();
 
@@ -8084,49 +12003,52 @@ class ContextMenu {
         }
     }
 
-    _create_submenu( o, k, c, d ) {
+    _createSubmenu( o, k, c, d ) {
 
-        this.root.querySelectorAll(".lexcontextmenubox").forEach( cm => cm.remove() );
+        this.root.querySelectorAll( ".lexcontextmenu" ).forEach( cm => cm.remove() );
 
         let contextmenu = document.createElement('div');
-        contextmenu.className = "lexcontextmenubox";
+        contextmenu.className = "lexcontextmenu";
         c.appendChild( contextmenu );
 
-        for( var i = 0; i < o[k].length; ++i )
+        for( let i = 0; i < o[ k ].length; ++i )
         {
-            const subitem = o[k][i];
-            const subkey = Object.keys(subitem)[0];
-            this._create_entry(subitem, subkey, contextmenu, d);
+            const subitem = o[ k ][ i ];
+            const subkey = Object.keys( subitem )[ 0 ];
+            this._createEntry( subitem, subkey, contextmenu, d );
         }
 
-        var rect = c.getBoundingClientRect();
-        contextmenu.style.left = rect.width + "px";
-        contextmenu.style.marginTop =  3.5 - c.offsetHeight + "px";
+        const rect = c.getBoundingClientRect();
+        contextmenu.style.left = ( rect.x + rect.width ) + "px";
+        contextmenu.style.marginTop = "-31px"; // Force to be at the first element level
 
         // Set final width
-        this._adjust_position( contextmenu, 6, true );
+        this._adjustPosition( contextmenu, 6 );
     }
 
-    _create_entry( o, k, c, d ) {
+    _createEntry( o, k, c, d ) {
 
         const hasSubmenu = o[ k ].length;
         let entry = document.createElement('div');
-        entry.className = "lexcontextmenuentry" + (o[ 'className' ] ? " " + o[ 'className' ] : "" );
+        entry.className = "lexmenuboxentry" + (o[ 'className' ] ? " " + o[ 'className' ] : "" );
         entry.id = o.id ?? ("eId" + getSupportedDOMName( k ));
         entry.innerHTML = "";
         const icon = o[ 'icon' ];
-        if(icon) {
+        if( icon )
+        {
             entry.innerHTML += "<a class='" + icon + " fa-sm'></a>";
         }
         const disabled = o['disabled'];
         entry.innerHTML += "<div class='lexentryname" + (disabled ? " disabled" : "") + "'>" + k + "</div>";
         c.appendChild( entry );
 
-        if( this.colors[ k ] ) {
+        if( this.colors[ k ] )
+        {
             entry.style.borderColor = this.colors[ k ];
         }
 
-        if( k == "" ) {
+        if( k == "" )
+        {
             entry.className += " cmseparator";
             return;
         }
@@ -8139,7 +12061,8 @@ class ContextMenu {
             if(disabled) return;
 
             const f = o[ 'callback' ];
-            if(f) {
+            if( f )
+            {
                 f.call( this, k, entry );
                 this.root.remove();
             }
@@ -8148,7 +12071,7 @@ class ContextMenu {
             return;
 
             if( LX.OPEN_CONTEXTMENU_ENTRY == 'click' )
-                this._create_submenu( o, k, entry, ++d );
+                this._createSubmenu( o, k, entry, ++d );
         });
 
         if( !hasSubmenu )
@@ -8164,20 +12087,19 @@ class ContextMenu {
                 if(entry.built)
                     return;
                 entry.built = true;
-                this._create_submenu( o, k, entry, ++d );
+                this._createSubmenu( o, k, entry, ++d );
                 e.stopPropagation();
             });
         }
 
         entry.addEventListener("mouseleave", () => {
             d = -1; // Reset depth
-            // delete entry.built;
-            c.querySelectorAll(".lexcontextmenubox").forEach(e => e.remove());
+            c.querySelectorAll(".lexcontextmenu").forEach(e => e.remove());
         });
     }
 
     onCreate() {
-        doAsync( () => this._adjust_position( this.root, 6 ) );
+        doAsync( () => this._adjustPosition( this.root, 6 ) );
     }
 
     add( path, options = {} ) {
@@ -8205,22 +12127,25 @@ class ContextMenu {
                 if(key) found = o[ key ];
             } );
 
-            if(found) {
-                insert( tokens[idx++], found );
+            if( found )
+            {
+                insert( tokens[ idx++ ], found );
             }
-            else {
+            else
+            {
                 let item = {};
                 item[ token ] = [];
-                const next_token = tokens[idx++];
+                const nextToken = tokens[ idx++ ];
                 // Check if last token -> add callback
-                if(!next_token) {
+                if( !nextToken )
+                {
                     item[ 'id' ] = options.id;
                     item[ 'callback' ] = options.callback;
                     item[ 'disabled' ] = options.disabled ?? false;
                 }
 
                 list.push( item );
-                insert( next_token, item[ token ] );
+                insert( nextToken, item[ token ] );
             }
         };
 
@@ -8230,13 +12155,15 @@ class ContextMenu {
 
         const setParent = _item => {
 
-            let key = Object.keys(_item)[0];
+            let key = Object.keys( _item )[ 0 ];
             let children = _item[ key ];
 
-            if(!children.length)
+            if( !children.length )
+            {
                 return;
+            }
 
-            if(children.find( c => Object.keys(c)[0] == key ) == null)
+            if( children.find( c => Object.keys(c)[0] == key ) == null )
             {
                 const parent = {};
                 parent[ key ] = [];
@@ -8244,27 +12171,34 @@ class ContextMenu {
                 _item[ key ].unshift( parent );
             }
 
-            for( var child of _item[ key ] ) {
-                let k = Object.keys(child)[0];
-                for( var i = 0; i < child[k].length; ++i )
-                    setParent(child);
+            for( let child of _item[ key ] )
+            {
+                let k = Object.keys( child )[ 0 ];
+                for( let i = 0; i < child[ k ].length; ++i )
+                {
+                    setParent( child );
+                }
             }
         };
 
         for( let item of this.items )
-            setParent(item);
+        {
+            setParent( item );
+        }
 
         // Create elements
 
         for( let item of this.items )
         {
-            let key = Object.keys(item)[0];
+            let key = Object.keys( item )[ 0 ];
             let pKey = "eId" + getSupportedDOMName( key );
 
             // Item already created
-            const id = "#" + (item.id ?? pKey);
-            if( !this.root.querySelector(id) )
-                this._create_entry(item, key, this.root, -1);
+            const id = "#" + ( item.id ?? pKey );
+            if( !this.root.querySelector( id ) )
+            {
+                this._createEntry( item, key, this.root, -1 );
+            }
         }
     }
 
@@ -8281,7 +12215,7 @@ LX.ContextMenu = ContextMenu;
 
 function addContextMenu( title, event, callback, options )
 {
-    var menu = new ContextMenu( event, title, options );
+    const menu = new ContextMenu( event, title, options );
     LX.root.appendChild( menu.root );
 
     if( callback )
@@ -8297,14 +12231,12 @@ function addContextMenu( title, event, callback, options )
 LX.addContextMenu = addContextMenu;
 
 /**
- * @class Curve
+ * @class CanvasCurve
  */
 
-// forked from litegui.js @jagenjo
+class CanvasCurve {
 
-class Curve {
-
-    constructor( panel, value, options = {} ) {
+    constructor( value, options = {} ) {
 
         let element = document.createElement( "div" );
         element.className = "curve " + ( options.className ? options.className : "" );
@@ -8314,7 +12246,8 @@ class Curve {
         element.style.minHeight = "20px";
 
         element.bgcolor = options.bgColor || LX.getThemeColor( "global-intense-background" );
-        element.pointscolor = options.pointsColor || LX.getThemeColor( "global-selected-light" );
+        element.pointscolor = options.pointsColor || LX.getThemeColor( "global-color-accent" );
+        element.activepointscolor = options.activePointsColor || LX.getThemeColor( "global-color-accent-light" );
         element.linecolor = options.lineColor || "#555";
         element.value = value || [];
         element.xrange = options.xrange || [ 0, 1 ]; // min, max
@@ -8330,7 +12263,8 @@ class Curve {
 
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
             element.bgcolor = options.bgColor || LX.getThemeColor( "global-intense-background" );
-            element.pointscolor = options.pointsColor || LX.getThemeColor( "global-selected-light" );
+            element.pointscolor = options.pointsColor || LX.getThemeColor( "global-color-accent" );
+            element.activepointscolor = options.activePointsColor || LX.getThemeColor( "global-color-accent-light" );
             this.redraw();
         } );
 
@@ -8351,11 +12285,11 @@ class Curve {
                 return element.defaulty;
             }
 
-            var last = [ element.xrange[ 0 ], element.defaulty ];
-            var f = 0;
-            for( var i = 0; i < element.value.length; i += 1 )
+            let last = [ element.xrange[ 0 ], element.defaulty ];
+            let f = 0;
+            for( let i = 0; i < element.value.length; i += 1 )
             {
-                var v = element.value[ i ];
+                let v = element.value[ i ];
                 if( x == v[ 0 ] ) return v[ 1 ];
                 if( x < v[ 0 ] )
                 {
@@ -8373,9 +12307,9 @@ class Curve {
 
         element.resample = function( samples ) {
 
-            var r = [];
-            var dx = (element.xrange[1] - element.xrange[ 0 ]) / samples;
-            for(var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
+            let r = [];
+            let dx = (element.xrange[1] - element.xrange[ 0 ]) / samples;
+            for( let i = element.xrange[0]; i <= element.xrange[1]; i += dx )
             {
                 r.push( element.getValueAt(i) );
             }
@@ -8384,8 +12318,9 @@ class Curve {
 
         element.addValue = function(v) {
 
-            for(var i = 0; i < element.value; i++) {
-                var value = element.value[i];
+            for( let i = 0; i < element.value; i++ )
+            {
+                let value = element.value[i];
                 if(value[0] < v[0]) continue;
                 element.value.splice(i,0,v);
                 redraw();
@@ -8408,9 +12343,9 @@ class Curve {
                     (v[1] * element.yrange[1] / canvas.height + element.yrange[0])];
         }
 
-        var selected = -1;
+        let selected = -1;
 
-        element.redraw = function( o = {} )  {
+        element.redraw = function( o = {} ) {
 
             if( o.value ) element.value = o.value;
             if( o.xrange ) element.xrange = o.xrange;
@@ -8439,13 +12374,16 @@ class Curve {
             ctx.moveTo( pos[ 0 ], pos[ 1 ] );
             let values = [pos[ 0 ], pos[ 1 ]];
 
-            for(var i in element.value) {
-                var value = element.value[i];
-                pos = convert(value);
-                values.push(pos[ 0 ]);
-                values.push(pos[ 1 ]);
-                if(!element.smooth)
+            for( var i in element.value )
+            {
+                var value = element.value[ i ];
+                pos = convert( value );
+                values.push( pos[ 0 ] );
+                values.push( pos[ 1 ] );
+                if( !element.smooth )
+                {
                     ctx.lineTo( pos[ 0 ], pos[ 1 ] );
+                }
             }
 
             pos = convert([ element.xrange[ 1 ], element.defaulty ]);
@@ -8462,11 +12400,12 @@ class Curve {
             }
 
             // Draw points
-            for( var i = 0; i < element.value.length; i += 1 ) {
+            for( var i = 0; i < element.value.length; i += 1 )
+            {
                 var value = element.value[ i ];
                 pos = convert( value );
                 if( selected == i )
-                    ctx.fillStyle = "white";
+                    ctx.fillStyle = element.activepointscolor;
                 else
                     ctx.fillStyle = element.pointscolor;
                 ctx.beginPath();
@@ -8474,10 +12413,11 @@ class Curve {
                 ctx.fill();
             }
 
-            if(element.show_samples) {
+            if( element.show_samples )
+            {
                 var samples = element.resample(element.show_samples);
                 ctx.fillStyle = "#888";
-                for(var i = 0; i < samples.length; i += 1)
+                for( var i = 0; i < samples.length; i += 1)
                 {
                     var value = [ i * ((element.xrange[ 1 ] - element.xrange[ 0 ]) / element.show_samples) + element.xrange[ 0 ], samples[ i ] ];
                     pos = convert(value);
@@ -8500,7 +12440,8 @@ class Curve {
 
             selected = computeSelected( mousex, canvas.height - mousey );
 
-            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values ) {
+            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values )
+            {
                 var v = unconvert([ mousex, canvas.height - mousey ]);
                 element.value.push( v );
                 sortValues();
@@ -8548,7 +12489,8 @@ class Curve {
             var dy = element.draggable_y ? last_mouse[ 1 ] - mousey : 0;
             var delta = unconvert([ -dx, dy ]);
 
-            if( selected != -1 ) {
+            if( selected != -1 )
+            {
                 var minx = element.xrange[ 0 ];
                 var maxx = element.xrange[ 1 ];
 
@@ -8635,13 +12577,13 @@ class Curve {
     }
 }
 
-LX.Curve = Curve;
+LX.CanvasCurve = CanvasCurve;
 
 /**
- * @class Dial
+ * @class CanvasDial
  */
 
-class Dial {
+class CanvasDial {
 
     constructor( panel, value, options = {} ) {
 
@@ -8651,7 +12593,7 @@ class Dial {
         element.style.minWidth = element.style.minHeight = "50px";
 
         element.bgcolor = options.bgColor || LX.getThemeColor( "global-dark-background" );
-        element.pointscolor = options.pointsColor || LX.getThemeColor( "global-selected-light" );
+        element.pointscolor = options.pointsColor || LX.getThemeColor( "global-color-accent-light" );
         element.linecolor = options.lineColor || "#555";
         element.value = value || [];
         element.xrange = options.xrange || [ 0, 1 ]; // min, max
@@ -8705,7 +12647,7 @@ class Dial {
 
             var r = [];
             var dx = (element.xrange[1] - element.xrange[ 0 ]) / samples;
-            for(var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
+            for( var i = element.xrange[0]; i <= element.xrange[1]; i += dx)
             {
                 r.push( element.getValueAt(i) );
             }
@@ -8714,15 +12656,16 @@ class Dial {
 
         element.addValue = function(v) {
 
-            for(var i = 0; i < element.value; i++) {
-                var value = element.value[i];
-                if(value[0] < v[0]) continue;
-                element.value.splice(i,0,v);
+            for( var i = 0; i < element.value; i++ )
+            {
+                var value = element.value[ i ];
+                if(value[ 0 ] < v[ 0 ]) continue;
+                element.value.splice( i, 0, v );
                 redraw();
                 return;
             }
 
-            element.value.push(v);
+            element.value.push( v );
             redraw();
         }
 
@@ -8742,7 +12685,7 @@ class Dial {
 
         var selected = -1;
 
-        element.redraw = function( o = {} )  {
+        element.redraw = function( o = {} ) {
 
             if( o.value ) element.value = o.value;
             if( o.xrange ) element.xrange = o.xrange;
@@ -8771,17 +12714,17 @@ class Dial {
             ctx.moveTo( pos[ 0 ], pos[ 1 ] );
             let values = [pos[ 0 ], pos[ 1 ]];
 
-            for(var i in element.value) {
-                var value = element.value[i];
-                pos = convert(value);
-                values.push(pos[ 0 ]);
-                values.push(pos[ 1 ]);
-
+            for( var i in element.value)
+            {
+                var value = element.value[ i ];
+                pos = convert( value );
+                values.push( pos[ 0 ] );
+                values.push( pos[ 1 ] );
             }
 
             pos = convert([ element.xrange[ 1 ], element.defaulty ]);
-            values.push(pos[ 0 ]);
-            values.push(pos[ 1 ]);
+            values.push( pos[ 0 ] );
+            values.push( pos[ 1 ] );
 
             // Draw points
             const center =  [0,0];
@@ -8791,7 +12734,8 @@ class Dial {
             ctx.arc( pos[ 0 ], pos[ 1 ], 3, 0, Math.PI * 2);
             ctx.fill();
 
-            for( var i = 0; i < element.value.length; i += 1 ) {
+            for( var i = 0; i < element.value.length; i += 1 )
+            {
                 var value = element.value[ i ];
                 pos = convert( value );
                 if( selected == i )
@@ -8803,10 +12747,11 @@ class Dial {
                 ctx.fill();
             }
 
-            if(element.show_samples) {
+            if( element.show_samples )
+            {
                 var samples = element.resample(element.show_samples);
                 ctx.fillStyle = "#888";
-                for(var i = 0; i < samples.length; i += 1)
+                for( var i = 0; i < samples.length; i += 1)
                 {
                     var value = [ i * ((element.xrange[ 1 ] - element.xrange[ 0 ]) / element.show_samples) + element.xrange[ 0 ], samples[ i ] ];
                     pos = convert(value);
@@ -8829,7 +12774,8 @@ class Dial {
 
             selected = computeSelected( mousex, canvas.height - mousey );
 
-            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values ) {
+            if( e.button == LX.MOUSE_LEFT_CLICK && selected == -1 && element.allow_add_values )
+            {
                 var v = unconvert([ mousex, canvas.height - mousey ]);
                 element.value.push( v );
                 sortValues();
@@ -8877,7 +12823,8 @@ class Dial {
             var dy = element.draggable_y ? last_mouse[ 1 ] - mousey : 0;
             var delta = unconvert([ -dx, dy ]);
 
-            if( selected != -1 ) {
+            if( selected != -1 )
+            {
                 var minx = element.xrange[ 0 ];
                 var maxx = element.xrange[ 1 ];
 
@@ -8985,7 +12932,8 @@ class AssetViewEvent {
     }
 
     string() {
-        switch(this.type) {
+        switch(this.type)
+        {
             case AssetViewEvent.NONE: return "assetview_event_none";
             case AssetViewEvent.ASSET_SELECTED: return "assetview_event_selected";
             case AssetViewEvent.ASSET_DELETED: return "assetview_event_deleted";
@@ -9195,7 +13143,7 @@ class AssetView {
             children: this.data
         }
 
-        this.tree = this.leftPanel.addTree( "Content Browser", tree_data, {
+        const tree = this.leftPanel.addTree( "Content Browser", tree_data, {
             // icons: tree_icons,
             filter: false,
             onlyFolders: this.onlyFolders,
@@ -9228,6 +13176,8 @@ class AssetView {
                 }
             },
         });
+
+        this.tree = tree.innerTree;
     }
 
     /**
@@ -9299,13 +13249,17 @@ class AssetView {
         }
 
         this.rightPanel.sameLine();
-        this.rightPanel.addDropdown( "Filter", this.allowedTypes, this.allowedTypes[ 0 ], v => this._refreshContent.call(this, null, v), { width: "20%", minWidth: "128px" } );
+        this.rightPanel.addSelect( "Filter", this.allowedTypes, this.allowedTypes[ 0 ], v => this._refreshContent.call(this, null, v), { width: "30%", minWidth: "128px" } );
         this.rightPanel.addText( null, this.searchValue ?? "", v => this._refreshContent.call(this, v, null), { placeholder: "Search assets.." } );
-        this.rightPanel.addButton( null, "<a class='fa fa-arrow-up-short-wide'></a>", on_sort.bind(this), { className: "micro", title: "Sort" } );
-        this.rightPanel.addButton( null, "<a class='fa-solid fa-grip'></a>", on_change_view.bind(this), { className: "micro", title: "View" } );
+        this.rightPanel.addButton( null, "<a class='fa fa-arrow-up-short-wide'></a>", on_sort.bind(this), { title: "Sort" } );
+        this.rightPanel.addButton( null, "<a class='fa-solid fa-grip'></a>", on_change_view.bind(this), { title: "View" } );
         // Content Pages
-        this.rightPanel.addButton( null, "<a class='fa-solid fa-angles-left'></a>", on_change_page.bind(this, -1), { className: "micro", title: "Previous Page" } );
-        this.rightPanel.addButton( null, "<a class='fa-solid fa-angles-right'></a>", on_change_page.bind(this, 1), { className: "micro", title: "Next Page" } );
+        this.rightPanel.addButton( null, "<a class='fa-solid fa-angles-left'></a>", on_change_page.bind(this, -1), { title: "Previous Page", className: "ml-auto" } );
+        this.rightPanel.addButton( null, "<a class='fa-solid fa-angles-right'></a>", on_change_page.bind(this, 1), { title: "Next Page" } );
+        const textString = "Page " + this.contentPage + " / " + ((((this.currentData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1);
+        this.rightPanel.addText(null, textString, null, {
+            inputClass: "nobg", disabled: true, signal: "@on_page_change", maxWidth: "16ch" }
+        );
         this.rightPanel.endLine();
 
         if( !this.skipBrowser )
@@ -9339,9 +13293,13 @@ class AssetView {
                     icon: "fa-solid fa-arrows-rotate",
                     callback: domEl => { this._refreshContent(); }
                 }
-            ], { width: "auto", noSelection: true } );
-            this.rightPanel.addText(null, this.path.join('/'), null, { disabled: true, signal: "@on_folder_change", style: { fontWeight: "bolder", fontSize: "16px", color: "#aaa" } });
-            this.rightPanel.addText(null, "Page " + this.contentPage + " / " + ((((this.currentData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1), null, {disabled: true, signal: "@on_page_change", width: "fit-content"})
+            ], { noSelection: true } );
+
+            this.rightPanel.addText(null, this.path.join('/'), null, {
+                inputClass: "nobg", disabled: true, signal: "@on_folder_change",
+                style: { fontWeight: "600", fontSize: "15px" }
+            });
+
             this.rightPanel.endLine();
         }
 
@@ -9466,8 +13424,8 @@ class AssetView {
             title.innerText = item.id;
             itemEl.appendChild( title );
 
-            if( !that.skipPreview ) {
-
+            if( !that.skipPreview )
+            {
                 let preview = null;
                 const hasImage = item.src && (['png', 'jpg'].indexOf( getExtension( item.src ) ) > -1 || item.src.includes("data:image/") ); // Support b64 image as src
 
@@ -9494,7 +13452,8 @@ class AssetView {
                     var newEmSize = charsPerLine / newLength;
                     var textBaseSize = 64;
 
-                    if(newEmSize < 1) {
+                    if( newEmSize < 1 )
+                    {
                         var newFontSize = newEmSize * textBaseSize;
                         textEl.style.fontSize = newFontSize + "px";
                         preview.style.paddingTop = "calc(50% - " + (textEl.offsetHeight * 0.5 + 10) + "px)"
@@ -9510,7 +13469,7 @@ class AssetView {
                 itemEl.appendChild(info);
             }
 
-            itemEl.addEventListener('click', function(e) {
+            itemEl.addEventListener('click', function( e ) {
                 e.stopImmediatePropagation();
                 e.stopPropagation();
 
@@ -9547,7 +13506,7 @@ class AssetView {
 
             if( that.contextMenu )
             {
-                itemEl.addEventListener('contextmenu', function(e) {
+                itemEl.addEventListener('contextmenu', function( e ) {
                     e.preventDefault();
 
                     const multiple = that.content.querySelectorAll('.selected').length;
@@ -9572,7 +13531,7 @@ class AssetView {
                 });
             }
 
-            itemEl.addEventListener("dragstart", function(e) {
+            itemEl.addEventListener("dragstart", function( e ) {
                 e.preventDefault();
             }, false );
 
@@ -9618,7 +13577,9 @@ class AssetView {
         }
 
         this.allowNextPage = filteredData.length - 1 > AssetView.MAX_PAGE_ELEMENTS;
-        LX.emit("@on_page_change", "Page " + this.contentPage + " / " + ((((filteredData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1));
+
+        const textString = "Page " + this.contentPage + " / " + ((((filteredData.length - 1) / AssetView.MAX_PAGE_ELEMENTS )|0) + 1);
+        LX.emit( "@on_page_change", textString );
 
         if( this.onRefreshContent )
         {
@@ -9642,7 +13603,7 @@ class AssetView {
             const hasImage = ['png', 'jpg'].indexOf( getExtension( file.src ) ) > -1 || is_base_64;
             if( hasImage )
             {
-                this.previewPanel.addImage( file.src, { style: { width: "100%" } } );
+                this.previewPanel.addImage( null, file.src, { style: { width: "100%" } } );
             }
         }
 
@@ -9723,7 +13684,8 @@ class AssetView {
 
                 this.currentData.push( item );
 
-                if(i == (num_files - 1)) {
+                if( i == (num_files - 1) )
+                {
                     this._refreshContent();
                     if( !this.skipBrowser )
                         this.tree.refresh();
@@ -9775,7 +13737,7 @@ class AssetView {
         this.currentData.splice( idx, 1 );
         this._refreshContent( this.searchValue, this.filter );
 
-        if(this.onevent)
+        if( this.onevent)
         {
             const event = new AssetViewEvent( AssetViewEvent.ASSET_DELETED, item );
             this.onevent( event );
@@ -9851,7 +13813,7 @@ Object.assign(LX, {
         xhr.onload = function(load)
         {
             var response = this.response;
-            if(this.status != 200)
+            if( this.status != 200)
             {
                 var err = "Error " + this.status;
                 if(request.error)
@@ -9899,7 +13861,7 @@ Object.assign(LX, {
         var data = new FormData();
         if( request.data )
         {
-            for(var i in request.data)
+            for( var i in request.data)
                 data.append(i,request.data[i]);
         }
 
@@ -9911,44 +13873,44 @@ Object.assign(LX, {
     * Request file from url
     * @method requestText
     * @param {String} url
-    * @param {Function} on_complete
-    * @param {Function} on_error
+    * @param {Function} onComplete
+    * @param {Function} onError
     **/
-    requestText(url, on_complete, on_error ) {
-        return this.request({ url: url, dataType:"text", success: on_complete, error: on_error });
+    requestText( url, onComplete, onError ) {
+        return this.request({ url: url, dataType:"text", success: onComplete, error: onError });
     },
 
     /**
     * Request file from url
     * @method requestJSON
     * @param {String} url
-    * @param {Function} on_complete
-    * @param {Function} on_error
+    * @param {Function} onComplete
+    * @param {Function} onError
     **/
-    requestJSON(url, on_complete, on_error ) {
-        return this.request({ url: url, dataType:"json", success: on_complete, error: on_error });
+    requestJSON( url, onComplete, onError ) {
+        return this.request({ url: url, dataType:"json", success: onComplete, error: onError });
     },
 
     /**
     * Request binary file from url
     * @method requestBinary
     * @param {String} url
-    * @param {Function} on_complete
-    * @param {Function} on_error
+    * @param {Function} onComplete
+    * @param {Function} onError
     **/
-    requestBinary(url, on_complete, on_error ) {
-        return this.request({ url: url, dataType:"binary", success: on_complete, error: on_error });
+    requestBinary( url, onComplete, onError ) {
+        return this.request({ url: url, dataType:"binary", success: onComplete, error: onError });
     },
 
     /**
     * Request script and inserts it in the DOM
     * @method requireScript
     * @param {String|Array} url the url of the script or an array containing several urls
-    * @param {Function} on_complete
-    * @param {Function} on_error
-    * @param {Function} on_progress (if several files are required, on_progress is called after every file is added to the DOM)
+    * @param {Function} onComplete
+    * @param {Function} onError
+    * @param {Function} onProgress (if several files are required, onProgress is called after every file is added to the DOM)
     **/
-    requireScript(url, on_complete, on_error, on_progress, version ) {
+    requireScript( url, onComplete, onError, onProgress, version ) {
 
         if(!url)
             throw("invalid URL");
@@ -9960,7 +13922,7 @@ Object.assign(LX, {
         var size = total;
         var loaded_scripts = [];
 
-        for(var i in url)
+        for( var i in url)
         {
             var script = document.createElement('script');
             script.num = i;
@@ -9968,20 +13930,22 @@ Object.assign(LX, {
             script.src = url[i] + ( version ? "?version=" + version : "" );
             script.original_src = url[i];
             script.async = false;
-            script.onload = function(e) {
+            script.onload = function( e ) {
                 total--;
                 loaded_scripts.push(this);
                 if(total)
                 {
-                    if(on_progress)
-                        on_progress(this.original_src, this.num);
+                    if( onProgress )
+                    {
+                        onProgress( this.original_src, this.num );
+                    }
                 }
-                else if(on_complete)
-                    on_complete( loaded_scripts );
+                else if(onComplete)
+                    onComplete( loaded_scripts );
             };
-            if(on_error)
+            if(onError)
                 script.onerror = function(err) {
-                    on_error(err, this.original_src, this.num );
+                    onError(err, this.original_src, this.num );
                 }
             document.getElementsByTagName('head')[0].appendChild(script);
         }
@@ -10070,10 +14034,11 @@ Element.prototype.addClass = function( className ) {
 }
 
 Element.prototype.getComputedSize = function() {
-    const cs = getComputedStyle( this );
+    // Since we use "box-sizing: border-box" now,
+    // it's all included in offsetWidth/offsetHeight
     return {
-        width: this.offsetWidth + cs.getPropertyValue('marginLeft') + cs.getPropertyValue('marginRight'),
-        height: this.offsetHeight + cs.getPropertyValue('marginTop') + cs.getPropertyValue('marginBottom')
+        width: this.offsetWidth,
+        height: this.offsetHeight
     }
 }
 
@@ -10083,6 +14048,18 @@ Element.prototype.getParentArea = function() {
         if( parent.classList.contains( "lexarea" ) ) { return parent; }
         parent = parent.parentElement;
     }
+}
+
+Element.prototype.listen = function( eventName, callback, callbackName ) {
+    callbackName = callbackName ?? ( "_on" + eventName );
+    this[ callbackName ] = callback;
+    this.addEventListener( eventName, callback );
+}
+
+Element.prototype.ignore = function( eventName, callbackName ) {
+    callbackName = callbackName ?? ( "_on" + eventName );
+    const callback = this[ callbackName ];
+    this.removeEventListener( eventName, callback );
 }
 
 LX.UTILS = {
@@ -10124,17 +14101,19 @@ LX.UTILS = {
     drawSpline( ctx, pts, t ) {
 
         ctx.save();
-        var cp=[];   // array of control points, as x0,y0,x1,y1,...
-        var n=pts.length;
+        var cp = [];   // array of control points, as x0,y0,x1,y1,...
+        var n = pts.length;
 
         // Draw an open curve, not connected at the ends
-        for(var i=0;i<n-4;i+=2) {
-            cp=cp.concat(LX.UTILS.getControlPoints(pts[i],pts[i+1],pts[i+2],pts[i+3],pts[i+4],pts[i+5],t));
+        for( var i = 0; i < (n - 4); i += 2 )
+        {
+            cp = cp.concat(LX.UTILS.getControlPoints(pts[i],pts[i+1],pts[i+2],pts[i+3],pts[i+4],pts[i+5],t));
         }
 
-        for(var i=2;i<pts.length-5;i+=2) {
+        for( var i = 2; i < ( pts.length - 5 ); i += 2 )
+        {
             ctx.beginPath();
-            ctx.moveTo(pts[i],pts[i+1]);
+            ctx.moveTo(pts[i], pts[i+1]);
             ctx.bezierCurveTo(cp[2*i-2],cp[2*i-1],cp[2*i],cp[2*i+1],pts[i+2],pts[i+3]);
             ctx.stroke();
             ctx.closePath();
@@ -10142,19 +14121,238 @@ LX.UTILS = {
 
         //  For open curves the first and last arcs are simple quadratics.
         ctx.beginPath();
-        ctx.moveTo(pts[0],pts[1]);
-        ctx.quadraticCurveTo(cp[0],cp[1],pts[2],pts[3]);
+        ctx.moveTo( pts[ 0 ], pts[ 1 ] );
+        ctx.quadraticCurveTo( cp[ 0 ], cp[ 1 ], pts[ 2 ], pts[ 3 ]);
         ctx.stroke();
         ctx.closePath();
 
         ctx.beginPath();
-        ctx.moveTo(pts[n-2],pts[n-1]);
-        ctx.quadraticCurveTo(cp[2*n-10],cp[2*n-9],pts[n-4],pts[n-3]);
+        ctx.moveTo( pts[ n-2 ], pts[ n-1 ] );
+        ctx.quadraticCurveTo( cp[ 2*n-10 ], cp[ 2*n-9 ], pts[ n-4 ], pts[ n-3 ]);
         ctx.stroke();
         ctx.closePath();
 
         ctx.restore();
     }
 };
+
+LX.ICONS = {
+    "align-center": [448, 512, [], "solid", "M352 64c0-17.7-14.3-32-32-32L128 32c-17.7 0-32 14.3-32 32s14.3 32 32 32l192 0c17.7 0 32-14.3 32-32zm96 128c0-17.7-14.3-32-32-32L32 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l384 0c17.7 0 32-14.3 32-32zM0 448c0 17.7 14.3 32 32 32l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L32 416c-17.7 0-32 14.3-32 32zM352 320c0-17.7-14.3-32-32-32l-192 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l192 0c17.7 0 32-14.3 32-32z"],
+    "align-justify": [448, 512, [], "solid", "M448 64c0-17.7-14.3-32-32-32L32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32zm0 256c0-17.7-14.3-32-32-32L32 288c-17.7 0-32 14.3-32 32s14.3 32 32 32l384 0c17.7 0 32-14.3 32-32zM0 192c0 17.7 14.3 32 32 32l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L32 160c-17.7 0-32 14.3-32 32zM448 448c0-17.7-14.3-32-32-32L32 416c-17.7 0-32 14.3-32 32s14.3 32 32 32l384 0c17.7 0 32-14.3 32-32z"],
+    "align-left": [448, 512, [], "solid", "M288 64c0 17.7-14.3 32-32 32L32 96C14.3 96 0 81.7 0 64S14.3 32 32 32l224 0c17.7 0 32 14.3 32 32zm0 256c0 17.7-14.3 32-32 32L32 352c-17.7 0-32-14.3-32-32s14.3-32 32-32l224 0c17.7 0 32 14.3 32 32zM0 192c0-17.7 14.3-32 32-32l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 224c-17.7 0-32-14.3-32-32zM448 448c0 17.7-14.3 32-32 32L32 480c-17.7 0-32-14.3-32-32s14.3-32 32-32l384 0c17.7 0 32 14.3 32 32z"],
+    "align-right": [448, 512, [], "solid", "M448 64c0 17.7-14.3 32-32 32L192 96c-17.7 0-32-14.3-32-32s14.3-32 32-32l224 0c17.7 0 32 14.3 32 32zm0 256c0 17.7-14.3 32-32 32l-224 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l224 0c17.7 0 32 14.3 32 32zM0 192c0-17.7 14.3-32 32-32l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 224c-17.7 0-32-14.3-32-32zM448 448c0 17.7-14.3 32-32 32L32 480c-17.7 0-32-14.3-32-32s14.3-32 32-32l384 0c17.7 0 32 14.3 32 32z"],
+    "bell": [448, 512, [], "regular", "M224 0c-17.7 0-32 14.3-32 32l0 19.2C119 66 64 130.6 64 208l0 25.4c0 45.4-15.5 89.5-43.8 124.9L5.3 377c-5.8 7.2-6.9 17.1-2.9 25.4S14.8 416 24 416l400 0c9.2 0 17.6-5.3 21.6-13.6s2.9-18.2-2.9-25.4l-14.9-18.6C399.5 322.9 384 278.8 384 233.4l0-25.4c0-77.4-55-142-128-156.8L256 32c0-17.7-14.3-32-32-32zm0 96c61.9 0 112 50.1 112 112l0 25.4c0 47.9 13.9 94.6 39.7 134.6L72.3 368C98.1 328 112 281.3 112 233.4l0-25.4c0-61.9 50.1-112 112-112zm64 352l-64 0-64 0c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7s18.7-28.3 18.7-45.3z"],
+    "bell-slash": [640, 512, [], "regular", "M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L542.6 400c2.7-7.8 1.3-16.5-3.9-23l-14.9-18.6C495.5 322.9 480 278.8 480 233.4l0-33.4c0-75.8-55.5-138.6-128-150.1L352 32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 17.9c-43.9 7-81.5 32.7-104.4 68.7L38.8 5.1zM221.7 148.4C239.6 117.1 273.3 96 312 96l8 0 8 0c57.4 0 104 46.6 104 104l0 33.4c0 32.7 6.4 64.8 18.7 94.5L221.7 148.4zM406.2 416l-60.9-48-176.9 0c21.2-32.8 34.4-70.3 38.4-109.1L160 222.1l0 11.4c0 45.4-15.5 89.5-43.8 124.9L101.3 377c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l286.2 0zM384 448l-64 0-64 0c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7s18.7-28.3 18.7-45.3z"],
+    "display": [576, 512, [], "solid", "M64 0C28.7 0 0 28.7 0 64L0 352c0 35.3 28.7 64 64 64l176 0-10.7 32L160 448c-17.7 0-32 14.3-32 32s14.3 32 32 32l256 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-69.3 0L336 416l176 0c35.3 0 64-28.7 64-64l0-288c0-35.3-28.7-64-64-64L64 0zM512 64l0 288L64 352 64 64l448 0z"],
+    "fingerprint": [512, 512, [], "regular", "M48 256C48 141.1 141.1 48 256 48c63.1 0 119.6 28.1 157.8 72.5c8.6 10.1 23.8 11.2 33.8 2.6s11.2-23.8 2.6-33.8C403.3 34.6 333.7 0 256 0C114.6 0 0 114.6 0 256l0 40c0 13.3 10.7 24 24 24s24-10.7 24-24l0-40zm458.5-52.9c-2.7-13-15.5-21.3-28.4-18.5s-21.3 15.5-18.5 28.4c2.9 13.9 4.5 28.3 4.5 43.1l0 40c0 13.3 10.7 24 24 24s24-10.7 24-24l0-40c0-18.1-1.9-35.8-5.5-52.9zM256 80c-19 0-37.4 3-54.5 8.6c-15.2 5-18.7 23.7-8.3 35.9c7.1 8.3 18.8 10.8 29.4 7.9c10.6-2.9 21.8-4.4 33.4-4.4c70.7 0 128 57.3 128 128l0 24.9c0 25.2-1.5 50.3-4.4 75.3c-1.7 14.6 9.4 27.8 24.2 27.8c11.8 0 21.9-8.6 23.3-20.3c3.3-27.4 5-55 5-82.7l0-24.9c0-97.2-78.8-176-176-176zM150.7 148.7c-9.1-10.6-25.3-11.4-33.9-.4C93.7 178 80 215.4 80 256l0 24.9c0 24.2-2.6 48.4-7.8 71.9C68.8 368.4 80.1 384 96.1 384c10.5 0 19.9-7 22.2-17.3c6.4-28.1 9.7-56.8 9.7-85.8l0-24.9c0-27.2 8.5-52.4 22.9-73.1c7.2-10.4 8-24.6-.2-34.2zM256 160c-53 0-96 43-96 96l0 24.9c0 35.9-4.6 71.5-13.8 106.1c-3.8 14.3 6.7 29 21.5 29c9.5 0 17.9-6.2 20.4-15.4c10.5-39 15.9-79.2 15.9-119.7l0-24.9c0-28.7 23.3-52 52-52s52 23.3 52 52l0 24.9c0 36.3-3.5 72.4-10.4 107.9c-2.7 13.9 7.7 27.2 21.8 27.2c10.2 0 19-7 21-17c7.7-38.8 11.6-78.3 11.6-118.1l0-24.9c0-53-43-96-96-96zm24 96c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 24.9c0 59.9-11 119.3-32.5 175.2l-5.9 15.3c-4.8 12.4 1.4 26.3 13.8 31s26.3-1.4 31-13.8l5.9-15.3C267.9 411.9 280 346.7 280 280.9l0-24.9z"],
+    "mobile-screen": [384, 512, [], "solid", "M16 64C16 28.7 44.7 0 80 0L304 0c35.3 0 64 28.7 64 64l0 384c0 35.3-28.7 64-64 64L80 512c-35.3 0-64-28.7-64-64L16 64zM144 448c0 8.8 7.2 16 16 16l64 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-64 0c-8.8 0-16 7.2-16 16zM304 64L80 64l0 320 224 0 0-320z"],
+    "window-restore": [512, 512, [], "regular", "M432 48L208 48c-17.7 0-32 14.3-32 32l0 16-48 0 0-16c0-44.2 35.8-80 80-80L432 0c44.2 0 80 35.8 80 80l0 224c0 44.2-35.8 80-80 80l-16 0 0-48 16 0c17.7 0 32-14.3 32-32l0-224c0-17.7-14.3-32-32-32zM48 448c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16l0-192L48 256l0 192zM64 128l256 0c35.3 0 64 28.7 64 64l0 256c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 192c0-35.3 28.7-64 64-64z"],
+    "window-maximize": [512, 512, [], "regular", "M.3 89.5C.1 91.6 0 93.8 0 96L0 224 0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-192 0-128c0-35.3-28.7-64-64-64L64 32c-2.2 0-4.4 .1-6.5 .3c-9.2 .9-17.8 3.8-25.5 8.2C21.8 46.5 13.4 55.1 7.7 65.5c-3.9 7.3-6.5 15.4-7.4 24zM48 224l416 0 0 192c0 8.8-7.2 16-16 16L64 432c-8.8 0-16-7.2-16-16l0-192z"],
+    "window-minimize": [512, 512, [], "regular", "M24 432c-13.3 0-24 10.7-24 24s10.7 24 24 24l464 0c13.3 0 24-10.7 24-24s-10.7-24-24-24L24 432z"],
+    "vr-cardboard": [640, 512, ["vr"], "solid", "M576 64L64 64C28.7 64 0 92.7 0 128L0 384c0 35.3 28.7 64 64 64l120.4 0c24.2 0 46.4-13.7 57.2-35.4l32-64c8.8-17.5 26.7-28.6 46.3-28.6s37.5 11.1 46.3 28.6l32 64c10.8 21.7 33 35.4 57.2 35.4L576 448c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64zM96 240a64 64 0 1 1 128 0A64 64 0 1 1 96 240zm384-64a64 64 0 1 1 0 128 64 64 0 1 1 0-128z"],
+    "gamepad": [640, 512, [], "solid", "M192 64C86 64 0 150 0 256S86 448 192 448l256 0c106 0 192-86 192-192s-86-192-192-192L192 64zM496 168a40 40 0 1 1 0 80 40 40 0 1 1 0-80zM392 304a40 40 0 1 1 80 0 40 40 0 1 1 -80 0zM168 200c0-13.3 10.7-24 24-24s24 10.7 24 24l0 32 32 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-32 0 0 32c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-32-32 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l32 0 0-32z"],
+    "keyboard": [576, 512, [], "regular", "M64 112c-8.8 0-16 7.2-16 16l0 256c0 8.8 7.2 16 16 16l448 0c8.8 0 16-7.2 16-16l0-256c0-8.8-7.2-16-16-16L64 112zM0 128C0 92.7 28.7 64 64 64l448 0c35.3 0 64 28.7 64 64l0 256c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 128zM176 320l224 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-224 0c-8.8 0-16-7.2-16-16l0-16c0-8.8 7.2-16 16-16zm-72-72c0-8.8 7.2-16 16-16l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16zm16-96l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16c0-8.8 7.2-16 16-16zm64 96c0-8.8 7.2-16 16-16l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16zm16-96l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16c0-8.8 7.2-16 16-16zm64 96c0-8.8 7.2-16 16-16l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16zm16-96l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16c0-8.8 7.2-16 16-16zm64 96c0-8.8 7.2-16 16-16l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16zm16-96l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16c0-8.8 7.2-16 16-16zm64 96c0-8.8 7.2-16 16-16l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16zm16-96l16 0c8.8 0 16 7.2 16 16l0 16c0 8.8-7.2 16-16 16l-16 0c-8.8 0-16-7.2-16-16l0-16c0-8.8 7.2-16 16-16z"],
+    "headset": [512, 512, [], "solid", "M256 48C141.1 48 48 141.1 48 256l0 40c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-40C0 114.6 114.6 0 256 0S512 114.6 512 256l0 144.1c0 48.6-39.4 88-88.1 88L313.6 488c-8.3 14.3-23.8 24-41.6 24l-32 0c-26.5 0-48-21.5-48-48s21.5-48 48-48l32 0c17.8 0 33.3 9.7 41.6 24l110.4 .1c22.1 0 40-17.9 40-40L464 256c0-114.9-93.1-208-208-208zM144 208l16 0c17.7 0 32 14.3 32 32l0 112c0 17.7-14.3 32-32 32l-16 0c-35.3 0-64-28.7-64-64l0-48c0-35.3 28.7-64 64-64zm224 0c35.3 0 64 28.7 64 64l0 48c0 35.3-28.7 64-64 64l-16 0c-17.7 0-32-14.3-32-32l0-112c0-17.7 14.3-32 32-32l16 0z"],
+    "hard-drive": [512, 512, [], "regular", "M64 80c-8.8 0-16 7.2-16 16l0 162c5.1-1.3 10.5-2 16-2l384 0c5.5 0 10.9 .7 16 2l0-162c0-8.8-7.2-16-16-16L64 80zM48 320l0 96c0 8.8 7.2 16 16 16l384 0c8.8 0 16-7.2 16-16l0-96c0-8.8-7.2-16-16-16L64 304c-8.8 0-16 7.2-16 16zM0 320L0 96C0 60.7 28.7 32 64 32l384 0c35.3 0 64 28.7 64 64l0 224 0 96c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64l0-96zm280 48a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zm120-24a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"],
+    "camera": [512, 512, [], "solid", "M149.1 64.8L138.7 96 64 96C28.7 96 0 124.7 0 160L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64l-74.7 0L362.9 64.8C356.4 45.2 338.1 32 317.4 32L194.6 32c-20.7 0-39 13.2-45.5 32.8zM256 192a96 96 0 1 1 0 192 96 96 0 1 1 0-192z"],
+    "print": [512, 512, [], "solid", "M128 0C92.7 0 64 28.7 64 64l0 96 64 0 0-96 226.7 0L384 93.3l0 66.7 64 0 0-66.7c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0L128 0zM384 352l0 32 0 64-256 0 0-64 0-16 0-16 256 0zm64 32l32 0c17.7 0 32-14.3 32-32l0-96c0-35.3-28.7-64-64-64L64 192c-35.3 0-64 28.7-64 64l0 96c0 17.7 14.3 32 32 32l32 0 0 64c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-64zM432 248a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"],
+    "server": [512, 512, [], "solid", "M64 32C28.7 32 0 60.7 0 96l0 64c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-64c0-35.3-28.7-64-64-64L64 32zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64l0 64c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-64c0-35.3-28.7-64-64-64L64 288zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z"],
+    "bookmark": [384, 512, [], "regular", "M0 48C0 21.5 21.5 0 48 0l0 48 0 393.4 130.1-92.9c8.3-6 19.6-6 27.9 0L336 441.4 336 48 48 48 48 0 336 0c26.5 0 48 21.5 48 48l0 440c0 9-5 17.2-13 21.3s-17.6 3.4-24.9-1.8L192 397.5 37.9 507.5c-7.3 5.2-16.9 5.9-24.9 1.8S0 497 0 488L0 48z"],
+    "address-book": [512, 512, [], "regular", "M384 48c8.8 0 16 7.2 16 16l0 384c0 8.8-7.2 16-16 16L96 464c-8.8 0-16-7.2-16-16L80 64c0-8.8 7.2-16 16-16l288 0zM96 0C60.7 0 32 28.7 32 64l0 384c0 35.3 28.7 64 64 64l288 0c35.3 0 64-28.7 64-64l0-384c0-35.3-28.7-64-64-64L96 0zM240 256a64 64 0 1 0 0-128 64 64 0 1 0 0 128zm-32 32c-44.2 0-80 35.8-80 80c0 8.8 7.2 16 16 16l192 0c8.8 0 16-7.2 16-16c0-44.2-35.8-80-80-80l-64 0zM512 80c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 64c0 8.8 7.2 16 16 16s16-7.2 16-16l0-64zM496 192c-8.8 0-16 7.2-16 16l0 64c0 8.8 7.2 16 16 16s16-7.2 16-16l0-64c0-8.8-7.2-16-16-16zm16 144c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 64c0 8.8 7.2 16 16 16s16-7.2 16-16l0-64z"],
+    "id-card": [576, 512, [], "regular", "M528 160l0 256c0 8.8-7.2 16-16 16l-192 0c0-44.2-35.8-80-80-80l-64 0c-44.2 0-80 35.8-80 80l-32 0c-8.8 0-16-7.2-16-16l0-256 480 0zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l448 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM272 256a64 64 0 1 0 -128 0 64 64 0 1 0 128 0zm104-48c-13.3 0-24 10.7-24 24s10.7 24 24 24l80 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-80 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l80 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-80 0z"],
+    "id-badge": [384, 512, [], "regular", "M256 48l0 16c0 17.7-14.3 32-32 32l-64 0c-17.7 0-32-14.3-32-32l0-16L64 48c-8.8 0-16 7.2-16 16l0 384c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16l0-384c0-8.8-7.2-16-16-16l-64 0zM0 64C0 28.7 28.7 0 64 0L320 0c35.3 0 64 28.7 64 64l0 384c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zM160 320l64 0c44.2 0 80 35.8 80 80c0 8.8-7.2 16-16 16L96 416c-8.8 0-16-7.2-16-16c0-44.2 35.8-80 80-80zm-32-96a64 64 0 1 1 128 0 64 64 0 1 1 -128 0z"],
+    "address-card": [576, 512, [], "regular", "M512 80c8.8 0 16 7.2 16 16l0 320c0 8.8-7.2 16-16 16L64 432c-8.8 0-16-7.2-16-16L48 96c0-8.8 7.2-16 16-16l448 0zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l448 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM208 256a64 64 0 1 0 0-128 64 64 0 1 0 0 128zm-32 32c-44.2 0-80 35.8-80 80c0 8.8 7.2 16 16 16l192 0c8.8 0 16-7.2 16-16c0-44.2-35.8-80-80-80l-64 0zM376 144c-13.3 0-24 10.7-24 24s10.7 24 24 24l80 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-80 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l80 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-80 0z"],
+    "calendar": [448, 512, [], "regular", "M152 24c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40L64 64C28.7 64 0 92.7 0 128l0 16 0 48L0 448c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-256 0-48 0-16c0-35.3-28.7-64-64-64l-40 0 0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40L152 64l0-40zM48 192l352 0 0 256c0 8.8-7.2 16-16 16L64 464c-8.8 0-16-7.2-16-16l0-256z"],
+    "calendar-days": [448, 512, [], "regular", "M152 24c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40L64 64C28.7 64 0 92.7 0 128l0 16 0 48L0 448c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-256 0-48 0-16c0-35.3-28.7-64-64-64l-40 0 0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40L152 64l0-40zM48 192l80 0 0 56-80 0 0-56zm0 104l80 0 0 64-80 0 0-64zm128 0l96 0 0 64-96 0 0-64zm144 0l80 0 0 64-80 0 0-64zm80-48l-80 0 0-56 80 0 0 56zm0 160l0 40c0 8.8-7.2 16-16 16l-64 0 0-56 80 0zm-128 0l0 56-96 0 0-56 96 0zm-144 0l0 56-64 0c-8.8 0-16-7.2-16-16l0-40 80 0zM272 248l-96 0 0-56 96 0 0 56z"],
+    "calendar-xmark": [448, 512, [], "regular", "M128 0c13.3 0 24 10.7 24 24l0 40 144 0 0-40c0-13.3 10.7-24 24-24s24 10.7 24 24l0 40 40 0c35.3 0 64 28.7 64 64l0 16 0 48 0 256c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 192l0-48 0-16C0 92.7 28.7 64 64 64l40 0 0-40c0-13.3 10.7-24 24-24zM400 192L48 192l0 256c0 8.8 7.2 16 16 16l320 0c8.8 0 16-7.2 16-16l0-256zm-95 89l-47 47 47 47c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-47-47-47 47c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l47-47-47-47c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47 47-47c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"],
+    "calendar-check": [448, 512, [], "regular", "M128 0c13.3 0 24 10.7 24 24l0 40 144 0 0-40c0-13.3 10.7-24 24-24s24 10.7 24 24l0 40 40 0c35.3 0 64 28.7 64 64l0 16 0 48 0 256c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 192l0-48 0-16C0 92.7 28.7 64 64 64l40 0 0-40c0-13.3 10.7-24 24-24zM400 192L48 192l0 256c0 8.8 7.2 16 16 16l320 0c8.8 0 16-7.2 16-16l0-256zM329 297L217 409c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47 95-95c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"],
+    "calendar-plus": [448, 512, [], "regular", "M152 24c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40L64 64C28.7 64 0 92.7 0 128l0 16 0 48L0 448c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-256 0-48 0-16c0-35.3-28.7-64-64-64l-40 0 0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40L152 64l0-40zM48 192l352 0 0 256c0 8.8-7.2 16-16 16L64 464c-8.8 0-16-7.2-16-16l0-256zm176 40c-13.3 0-24 10.7-24 24l0 48-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0 0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48 48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-48c0-13.3-10.7-24-24-24z"],
+    "calendar-minus": [448, 512, [], "regular", "M128 0c13.3 0 24 10.7 24 24l0 40 144 0 0-40c0-13.3 10.7-24 24-24s24 10.7 24 24l0 40 40 0c35.3 0 64 28.7 64 64l0 16 0 48 0 256c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 192l0-48 0-16C0 92.7 28.7 64 64 64l40 0 0-40c0-13.3 10.7-24 24-24zM400 192L48 192l0 256c0 8.8 7.2 16 16 16l320 0c8.8 0 16-7.2 16-16l0-256zM296 352l-144 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l144 0c13.3 0 24 10.7 24 24s-10.7 24-24 24z"],
+    "chart": [448, 512, [], "solid", "M160 80c0-26.5 21.5-48 48-48l32 0c26.5 0 48 21.5 48 48l0 352c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48l0-352zM0 272c0-26.5 21.5-48 48-48l32 0c26.5 0 48 21.5 48 48l0 160c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48L0 272zM368 96l32 0c26.5 0 48 21.5 48 48l0 288c0 26.5-21.5 48-48 48l-32 0c-26.5 0-48-21.5-48-48l0-288c0-26.5 21.5-48 48-48z"],
+    "chart-line": [512, 512, [], "solid", "M64 64c0-17.7-14.3-32-32-32S0 46.3 0 64L0 400c0 44.2 35.8 80 80 80l400 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 416c-8.8 0-16-7.2-16-16L64 64zm406.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L320 210.7l-57.4-57.4c-12.5-12.5-32.8-12.5-45.3 0l-112 112c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L240 221.3l57.4 57.4c12.5 12.5 32.8 12.5 45.3 0l128-128z"],
+    "chart-bar": [512, 512, [], "regular", "M24 32c13.3 0 24 10.7 24 24l0 352c0 13.3 10.7 24 24 24l416 0c13.3 0 24 10.7 24 24s-10.7 24-24 24L72 480c-39.8 0-72-32.2-72-72L0 56C0 42.7 10.7 32 24 32zM128 136c0-13.3 10.7-24 24-24l208 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-208 0c-13.3 0-24-10.7-24-24zm24 72l144 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-144 0c-13.3 0-24-10.7-24-24s10.7-24 24-24zm0 96l272 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-272 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"],
+    "check": [448, 512, [], "solid", "M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"],
+    "clone": [512, 512, [], "regular", "M64 464l224 0c8.8 0 16-7.2 16-16l0-64 48 0 0 64c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 224c0-35.3 28.7-64 64-64l64 0 0 48-64 0c-8.8 0-16 7.2-16 16l0 224c0 8.8 7.2 16 16 16zM224 304l224 0c8.8 0 16-7.2 16-16l0-224c0-8.8-7.2-16-16-16L224 48c-8.8 0-16 7.2-16 16l0 224c0 8.8 7.2 16 16 16zm-64-16l0-224c0-35.3 28.7-64 64-64L448 0c35.3 0 64 28.7 64 64l0 224c0 35.3-28.7 64-64 64l-224 0c-35.3 0-64-28.7-64-64z"],
+    "copy": [448, 512, [], "regular", "M384 336l-192 0c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l140.1 0L400 115.9 400 320c0 8.8-7.2 16-16 16zM192 384l192 0c35.3 0 64-28.7 64-64l0-204.1c0-12.7-5.1-24.9-14.1-33.9L366.1 14.1c-9-9-21.2-14.1-33.9-14.1L192 0c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64zM64 128c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l192 0c35.3 0 64-28.7 64-64l0-32-48 0 0 32c0 8.8-7.2 16-16 16L64 464c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l32 0 0-48-32 0z"],
+    "paste": [512, 512, [], "regular", "M104.6 48L64 48C28.7 48 0 76.7 0 112L0 384c0 35.3 28.7 64 64 64l96 0 0-48-96 0c-8.8 0-16-7.2-16-16l0-272c0-8.8 7.2-16 16-16l16 0c0 17.7 14.3 32 32 32l72.4 0C202 108.4 227.6 96 256 96l62 0c-7.1-27.6-32.2-48-62-48l-40.6 0C211.6 20.9 188.2 0 160 0s-51.6 20.9-55.4 48zM144 56a16 16 0 1 1 32 0 16 16 0 1 1 -32 0zM448 464l-192 0c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16l140.1 0L464 243.9 464 448c0 8.8-7.2 16-16 16zM256 512l192 0c35.3 0 64-28.7 64-64l0-204.1c0-12.7-5.1-24.9-14.1-33.9l-67.9-67.9c-9-9-21.2-14.1-33.9-14.1L256 128c-35.3 0-64 28.7-64 64l0 256c0 35.3 28.7 64 64 64z"],
+    "clipboard": [384, 512, [], "regular", "M280 64l40 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 128C0 92.7 28.7 64 64 64l40 0 9.6 0C121 27.5 153.3 0 192 0s71 27.5 78.4 64l9.6 0zM64 112c-8.8 0-16 7.2-16 16l0 320c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16l0-320c0-8.8-7.2-16-16-16l-16 0 0 24c0 13.3-10.7 24-24 24l-88 0-88 0c-13.3 0-24-10.7-24-24l0-24-16 0zm128-8a24 24 0 1 0 0-48 24 24 0 1 0 0 48z"],
+    "eye-dropper": [512, 512, [], "solid", "M341.6 29.2L240.1 130.8l-9.4-9.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-9.4-9.4L482.8 170.4c39-39 39-102.2 0-141.1s-102.2-39-141.1 0zM55.4 323.3c-15 15-23.4 35.4-23.4 56.6l0 42.4L5.4 462.2c-8.5 12.7-6.8 29.6 4 40.4s27.7 12.5 40.4 4L89.7 480l42.4 0c21.2 0 41.6-8.4 56.6-23.4L309.4 335.9l-45.3-45.3L143.4 411.3c-3 3-7.1 4.7-11.3 4.7L96 416l0-36.1c0-4.2 1.7-8.3 4.7-11.3L221.4 247.9l-45.3-45.3L55.4 323.3z"],
+    "edit": [512, 512, [], "regular", "M441 58.9L453.1 71c9.4 9.4 9.4 24.6 0 33.9L424 134.1 377.9 88 407 58.9c9.4-9.4 24.6-9.4 33.9 0zM209.8 256.2L344 121.9 390.1 168 255.8 302.2c-2.9 2.9-6.5 5-10.4 6.1l-58.5 16.7 16.7-58.5c1.1-3.9 3.2-7.5 6.1-10.4zM373.1 25L175.8 222.2c-8.7 8.7-15 19.4-18.3 31.1l-28.6 100c-2.4 8.4-.1 17.4 6.1 23.6s15.2 8.5 23.6 6.1l100-28.6c11.8-3.4 22.5-9.7 31.1-18.3L487 138.9c28.1-28.1 28.1-73.7 0-101.8L474.9 25C446.8-3.1 401.2-3.1 373.1 25zM88 64C39.4 64 0 103.4 0 152L0 424c0 48.6 39.4 88 88 88l272 0c48.6 0 88-39.4 88-88l0-112c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 112c0 22.1-17.9 40-40 40L88 464c-22.1 0-40-17.9-40-40l0-272c0-22.1 17.9-40 40-40l112 0c13.3 0 24-10.7 24-24s-10.7-24-24-24L88 64z"],
+    "envelope": [512, 512, [], "regular", "M64 112c-8.8 0-16 7.2-16 16l0 22.1L220.5 291.7c20.7 17 50.4 17 71.1 0L464 150.1l0-22.1c0-8.8-7.2-16-16-16L64 112zM48 212.2L48 384c0 8.8 7.2 16 16 16l384 0c8.8 0 16-7.2 16-16l0-171.8L322 328.8c-38.4 31.5-93.7 31.5-132 0L48 212.2zM0 128C0 92.7 28.7 64 64 64l384 0c35.3 0 64 28.7 64 64l0 256c0 35.3-28.7 64-64 64L64 448c-35.3 0-64-28.7-64-64L0 128z"],
+    "envelope-open": [512, 512, [], "regular", "M255.4 48.2c.2-.1 .4-.2 .6-.2s.4 .1 .6 .2L460.6 194c2.1 1.5 3.4 3.9 3.4 6.5l0 13.6L291.5 355.7c-20.7 17-50.4 17-71.1 0L48 214.1l0-13.6c0-2.6 1.2-5 3.4-6.5L255.4 48.2zM48 276.2L190 392.8c38.4 31.5 93.7 31.5 132 0L464 276.2 464 456c0 4.4-3.6 8-8 8L56 464c-4.4 0-8-3.6-8-8l0-179.8zM256 0c-10.2 0-20.2 3.2-28.5 9.1L23.5 154.9C8.7 165.4 0 182.4 0 200.5L0 456c0 30.9 25.1 56 56 56l400 0c30.9 0 56-25.1 56-56l0-255.5c0-18.1-8.7-35.1-23.4-45.6L284.5 9.1C276.2 3.2 266.2 0 256 0z"],
+    "inbox": [24, 24, [], "regular", "M22 12H16l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z", null, "fill=none stroke-width=2 stroke-linejoin=round stroke-linecap=round"],
+    "map": [576, 512, [], "regular", "M565.6 36.2C572.1 40.7 576 48.1 576 56l0 336c0 10-6.2 18.9-15.5 22.4l-168 64c-5.2 2-10.9 2.1-16.1 .3L192.5 417.5l-160 61c-7.4 2.8-15.7 1.8-22.2-2.7S0 463.9 0 456L0 120c0-10 6.1-18.9 15.5-22.4l168-64c5.2-2 10.9-2.1 16.1-.3L383.5 94.5l160-61c7.4-2.8 15.7-1.8 22.2 2.7zM48 136.5l0 284.6 120-45.7 0-284.6L48 136.5zM360 422.7l0-285.4-144-48 0 285.4 144 48zm48-1.5l120-45.7 0-284.6L408 136.5l0 284.6z"],
+    "note-sticky": [448, 512, ["sticky-note"], "regular", "M64 80c-8.8 0-16 7.2-16 16l0 320c0 8.8 7.2 16 16 16l224 0 0-80c0-17.7 14.3-32 32-32l80 0 0-224c0-8.8-7.2-16-16-16L64 80zM288 480L64 480c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l320 0c35.3 0 64 28.7 64 64l0 224 0 5.5c0 17-6.7 33.3-18.7 45.3l-90.5 90.5c-12 12-28.3 18.7-45.3 18.7l-5.5 0z"],
+    "file": [384, 512, [], "regular", "M320 464c8.8 0 16-7.2 16-16l0-288-80 0c-17.7 0-32-14.3-32-32l0-80L64 48c-8.8 0-16 7.2-16 16l0 384c0 8.8 7.2 16 16 16l256 0zM0 64C0 28.7 28.7 0 64 0L229.5 0c17 0 33.3 6.7 45.3 18.7l90.5 90.5c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64z"],
+    "file-lines": [384, 512, ["file-text"], "regular", "M64 464c-8.8 0-16-7.2-16-16L48 64c0-8.8 7.2-16 16-16l160 0 0 80c0 17.7 14.3 32 32 32l80 0 0 288c0 8.8-7.2 16-16 16L64 464zM64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-293.5c0-17-6.7-33.3-18.7-45.3L274.7 18.7C262.7 6.7 246.5 0 229.5 0L64 0zm56 256c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"],
+    "file-video": [384, 512, [], "regular", "M320 464c8.8 0 16-7.2 16-16l0-288-80 0c-17.7 0-32-14.3-32-32l0-80L64 48c-8.8 0-16 7.2-16 16l0 384c0 8.8 7.2 16 16 16l256 0zM0 64C0 28.7 28.7 0 64 0L229.5 0c17 0 33.3 6.7 45.3 18.7l90.5 90.5c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zM80 288c0-17.7 14.3-32 32-32l96 0c17.7 0 32 14.3 32 32l0 16 44.9-29.9c2-1.3 4.4-2.1 6.8-2.1c6.8 0 12.3 5.5 12.3 12.3l0 103.4c0 6.8-5.5 12.3-12.3 12.3c-2.4 0-4.8-.7-6.8-2.1L240 368l0 16c0 17.7-14.3 32-32 32l-96 0c-17.7 0-32-14.3-32-32l0-96z"],
+    "file-audio": [384, 512, [], "regular", "M64 464l256 0c8.8 0 16-7.2 16-16l0-288-80 0c-17.7 0-32-14.3-32-32l0-80L64 48c-8.8 0-16 7.2-16 16l0 384c0 8.8 7.2 16 16 16zM0 64C0 28.7 28.7 0 64 0L229.5 0c17 0 33.3 6.7 45.3 18.7l90.5 90.5c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zM192 272l0 128c0 6.5-3.9 12.3-9.9 14.8s-12.9 1.1-17.4-3.5L129.4 376 112 376c-8.8 0-16-7.2-16-16l0-48c0-8.8 7.2-16 16-16l17.4 0 35.3-35.3c4.6-4.6 11.5-5.9 17.4-3.5s9.9 8.3 9.9 14.8zm85.8-4c11.6 20 18.2 43.3 18.2 68s-6.6 48-18.2 68c-6.6 11.5-21.3 15.4-32.8 8.8s-15.4-21.3-8.8-32.8c7.5-12.9 11.8-27.9 11.8-44s-4.3-31.1-11.8-44c-6.6-11.5-2.7-26.2 8.8-32.8s26.2-2.7 32.8 8.8z"],
+    "file-code": [384, 512, [], "regular", "M64 464c-8.8 0-16-7.2-16-16L48 64c0-8.8 7.2-16 16-16l160 0 0 80c0 17.7 14.3 32 32 32l80 0 0 288c0 8.8-7.2 16-16 16L64 464zM64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-293.5c0-17-6.7-33.3-18.7-45.3L274.7 18.7C262.7 6.7 246.5 0 229.5 0L64 0zm97 289c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0L79 303c-9.4 9.4-9.4 24.6 0 33.9l48 48c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-31-31 31-31zM257 255c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l31 31-31 31c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l48-48c9.4-9.4 9.4-24.6 0-33.9l-48-48z"],
+    "file-zip": [384, 512, [], "regular", "M64 464c-8.8 0-16-7.2-16-16L48 64c0-8.8 7.2-16 16-16l48 0c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16l48 0 0 80c0 17.7 14.3 32 32 32l80 0 0 288c0 8.8-7.2 16-16 16L64 464zM64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-293.5c0-17-6.7-33.3-18.7-45.3L274.7 18.7C262.7 6.7 246.5 0 229.5 0L64 0zm48 112c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0c-8.8 0-16 7.2-16 16zm0 64c0 8.8 7.2 16 16 16l32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0c-8.8 0-16 7.2-16 16zm-6.3 71.8L82.1 335.9c-1.4 5.4-2.1 10.9-2.1 16.4c0 35.2 28.8 63.7 64 63.7s64-28.5 64-63.7c0-5.5-.7-11.1-2.1-16.4l-23.5-88.2c-3.7-14-16.4-23.8-30.9-23.8l-14.8 0c-14.5 0-27.2 9.7-30.9 23.8zM128 336l32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0c-8.8 0-16-7.2-16-16s7.2-16 16-16z"],
+    "file-pdf": [512, 512, [], "regular", "M64 464l48 0 0 48-48 0c-35.3 0-64-28.7-64-64L0 64C0 28.7 28.7 0 64 0L229.5 0c17 0 33.3 6.7 45.3 18.7l90.5 90.5c12 12 18.7 28.3 18.7 45.3L384 304l-48 0 0-144-80 0c-17.7 0-32-14.3-32-32l0-80L64 48c-8.8 0-16 7.2-16 16l0 384c0 8.8 7.2 16 16 16zM176 352l32 0c30.9 0 56 25.1 56 56s-25.1 56-56 56l-16 0 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-80c0-8.8 7.2-16 16-16zm32 80c13.3 0 24-10.7 24-24s-10.7-24-24-24l-16 0 0 48 16 0zm96-80l32 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-32 0c-8.8 0-16-7.2-16-16l0-128c0-8.8 7.2-16 16-16zm32 128c8.8 0 16-7.2 16-16l0-64c0-8.8-7.2-16-16-16l-16 0 0 96 16 0zm80-112c0-8.8 7.2-16 16-16l48 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 32 32 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-32 0 0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-64 0-64z"],
+    "file-import": [512, 512, [], "solid", "M128 64c0-35.3 28.7-64 64-64L352 0l0 128c0 17.7 14.3 32 32 32l128 0 0 288c0 35.3-28.7 64-64 64l-256 0c-35.3 0-64-28.7-64-64l0-112 174.1 0-39 39c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l80-80c9.4-9.4 9.4-24.6 0-33.9l-80-80c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l39 39L128 288l0-224zm0 224l0 48L24 336c-13.3 0-24-10.7-24-24s10.7-24 24-24l104 0zM512 128l-128 0L384 0 512 128z"],
+    "file-word": [384, 512, [], "regular", "M48 448L48 64c0-8.8 7.2-16 16-16l160 0 0 80c0 17.7 14.3 32 32 32l80 0 0 288c0 8.8-7.2 16-16 16L64 464c-8.8 0-16-7.2-16-16zM64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-293.5c0-17-6.7-33.3-18.7-45.3L274.7 18.7C262.7 6.7 246.5 0 229.5 0L64 0zm55 241.1c-3.8-12.7-17.2-19.9-29.9-16.1s-19.9 17.2-16.1 29.9l48 160c3 10.2 12.4 17.1 23 17.1s19.9-7 23-17.1l25-83.4 25 83.4c3 10.2 12.4 17.1 23 17.1s19.9-7 23-17.1l48-160c3.8-12.7-3.4-26.1-16.1-29.9s-26.1 3.4-29.9 16.1l-25 83.4-25-83.4c-3-10.2-12.4-17.1-23-17.1s-19.9 7-23 17.1l-25 83.4-25-83.4z"],
+    "file-powerpoint": [384, 512, [], "regular", "M64 464c-8.8 0-16-7.2-16-16L48 64c0-8.8 7.2-16 16-16l160 0 0 80c0 17.7 14.3 32 32 32l80 0 0 288c0 8.8-7.2 16-16 16L64 464zM64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-293.5c0-17-6.7-33.3-18.7-45.3L274.7 18.7C262.7 6.7 246.5 0 229.5 0L64 0zm72 208c-13.3 0-24 10.7-24 24l0 104 0 56c0 13.3 10.7 24 24 24s24-10.7 24-24l0-32 44 0c42 0 76-34 76-76s-34-76-76-76l-68 0zm68 104l-44 0 0-56 44 0c15.5 0 28 12.5 28 28s-12.5 28-28 28z"],
+    "file-excel": [384, 512, [], "regular", "M48 448L48 64c0-8.8 7.2-16 16-16l160 0 0 80c0 17.7 14.3 32 32 32l80 0 0 288c0 8.8-7.2 16-16 16L64 464c-8.8 0-16-7.2-16-16zM64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-293.5c0-17-6.7-33.3-18.7-45.3L274.7 18.7C262.7 6.7 246.5 0 229.5 0L64 0zm90.9 233.3c-8.1-10.5-23.2-12.3-33.7-4.2s-12.3 23.2-4.2 33.7L161.6 320l-44.5 57.3c-8.1 10.5-6.3 25.5 4.2 33.7s25.5 6.3 33.7-4.2L192 359.1l37.1 47.6c8.1 10.5 23.2 12.3 33.7 4.2s12.3-23.2 4.2-33.7L222.4 320l44.5-57.3c8.1-10.5 6.3-25.5-4.2-33.7s-25.5-6.3-33.7 4.2L192 280.9l-37.1-47.6z"],
+    "box-archive": [24, 24, [], "regular", "M2 3a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2V3Zm2 5h16v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Zm6 4h4", null, "fill=none stroke-width=2 stroke-linecap=round stroke-linejoin=round"],
+    "box-archive-x": [24, 24, [], "regular", "M3 3h18a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M9.5 17l5-5m-5-0l5 5", null, "fill=none stroke-width=2 stroke-linecap=round stroke-linejoin=round"],
+    "code-pull-request": [512, 512, [], "solid", "M305.8 2.1C314.4 5.9 320 14.5 320 24l0 40 16 0c70.7 0 128 57.3 128 128l0 166.7c28.3 12.3 48 40.5 48 73.3c0 44.2-35.8 80-80 80s-80-35.8-80-80c0-32.8 19.7-61 48-73.3L400 192c0-35.3-28.7-64-64-64l-16 0 0 40c0 9.5-5.6 18.1-14.2 21.9s-18.8 2.3-25.8-4.1l-80-72c-5.1-4.6-7.9-11-7.9-17.8s2.9-13.3 7.9-17.8l80-72c7-6.3 17.2-7.9 25.8-4.1zM104 80A24 24 0 1 0 56 80a24 24 0 1 0 48 0zm8 73.3l0 205.3c28.3 12.3 48 40.5 48 73.3c0 44.2-35.8 80-80 80s-80-35.8-80-80c0-32.8 19.7-61 48-73.3l0-205.3C19.7 141 0 112.8 0 80C0 35.8 35.8 0 80 0s80 35.8 80 80c0 32.8-19.7 61-48 73.3zM104 432a24 24 0 1 0 -48 0 24 24 0 1 0 48 0zm328 24a24 24 0 1 0 0-48 24 24 0 1 0 0 48z"],
+    "code-fork": [448, 512, [], "solid", "M80 104a24 24 0 1 0 0-48 24 24 0 1 0 0 48zm80-24c0 32.8-19.7 61-48 73.3l0 38.7c0 17.7 14.3 32 32 32l160 0c17.7 0 32-14.3 32-32l0-38.7C307.7 141 288 112.8 288 80c0-44.2 35.8-80 80-80s80 35.8 80 80c0 32.8-19.7 61-48 73.3l0 38.7c0 53-43 96-96 96l-48 0 0 70.7c28.3 12.3 48 40.5 48 73.3c0 44.2-35.8 80-80 80s-80-35.8-80-80c0-32.8 19.7-61 48-73.3l0-70.7-48 0c-53 0-96-43-96-96l0-38.7C19.7 141 0 112.8 0 80C0 35.8 35.8 0 80 0s80 35.8 80 80zm208 24a24 24 0 1 0 0-48 24 24 0 1 0 0 48zM248 432a24 24 0 1 0 -48 0 24 24 0 1 0 48 0z"],
+    "code-branch": [448, 512, [], "solid", "M80 104a24 24 0 1 0 0-48 24 24 0 1 0 0 48zm80-24c0 32.8-19.7 61-48 73.3l0 87.8c18.8-10.9 40.7-17.1 64-17.1l96 0c35.3 0 64-28.7 64-64l0-6.7C307.7 141 288 112.8 288 80c0-44.2 35.8-80 80-80s80 35.8 80 80c0 32.8-19.7 61-48 73.3l0 6.7c0 70.7-57.3 128-128 128l-96 0c-35.3 0-64 28.7-64 64l0 6.7c28.3 12.3 48 40.5 48 73.3c0 44.2-35.8 80-80 80s-80-35.8-80-80c0-32.8 19.7-61 48-73.3l0-6.7 0-198.7C19.7 141 0 112.8 0 80C0 35.8 35.8 0 80 0s80 35.8 80 80zm232 0a24 24 0 1 0 -48 0 24 24 0 1 0 48 0zM80 456a24 24 0 1 0 0-48 24 24 0 1 0 0 48z"],
+    "code-merge": [448, 512, [], "solid", "M80 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm32.4 97.2c28-12.4 47.6-40.5 47.6-73.2c0-44.2-35.8-80-80-80S0 35.8 0 80c0 32.8 19.7 61 48 73.3l0 205.3C19.7 371 0 399.2 0 432c0 44.2 35.8 80 80 80s80-35.8 80-80c0-32.8-19.7-61-48-73.3l0-86.6c26.7 20.1 60 32 96 32l86.7 0c12.3 28.3 40.5 48 73.3 48c44.2 0 80-35.8 80-80s-35.8-80-80-80c-32.8 0-61 19.7-73.3 48L208 240c-49.9 0-91-38.1-95.6-86.8zM80 408a24 24 0 1 1 0 48 24 24 0 1 1 0-48zM344 272a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z"],
+    "code-compare": [512, 512, [], "solid", "M320 488c0 9.5-5.6 18.1-14.2 21.9s-18.8 2.3-25.8-4.1l-80-72c-5.1-4.6-7.9-11-7.9-17.8s2.9-13.3 7.9-17.8l80-72c7-6.3 17.2-7.9 25.8-4.1s14.2 12.4 14.2 21.9l0 40 16 0c35.3 0 64-28.7 64-64l0-166.7C371.7 141 352 112.8 352 80c0-44.2 35.8-80 80-80s80 35.8 80 80c0 32.8-19.7 61-48 73.3L464 320c0 70.7-57.3 128-128 128l-16 0 0 40zM456 80a24 24 0 1 0 -48 0 24 24 0 1 0 48 0zM192 24c0-9.5 5.6-18.1 14.2-21.9s18.8-2.3 25.8 4.1l80 72c5.1 4.6 7.9 11 7.9 17.8s-2.9 13.3-7.9 17.8l-80 72c-7 6.3-17.2 7.9-25.8 4.1s-14.2-12.4-14.2-21.9l0-40-16 0c-35.3 0-64 28.7-64 64l0 166.7c28.3 12.3 48 40.5 48 73.3c0 44.2-35.8 80-80 80s-80-35.8-80-80c0-32.8 19.7-61 48-73.3L48 192c0-70.7 57.3-128 128-128l16 0 0-40zM56 432a24 24 0 1 0 48 0 24 24 0 1 0 -48 0z"],
+    "code-commit": [640, 512, [], "solid", "M320 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160zm156.8-48C462 361 397.4 416 320 416s-142-55-156.8-128L32 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l131.2 0C178 151 242.6 96 320 96s142 55 156.8 128L608 224c17.7 0 32 14.3 32 32s-14.3 32-32 32l-131.2 0z"],
+    "scroll": [576, 512, ["script"], "solid", "M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z"],
+    "paper-plane": [512, 512, [], "regular", "M16.1 260.2c-22.6 12.9-20.5 47.3 3.6 57.3L160 376l0 103.3c0 18.1 14.6 32.7 32.7 32.7c9.7 0 18.9-4.3 25.1-11.8l62-74.3 123.9 51.6c18.9 7.9 40.8-4.5 43.9-24.7l64-416c1.9-12.1-3.4-24.3-13.5-31.2s-23.3-7.5-34-1.4l-448 256zm52.1 25.5L409.7 90.6 190.1 336l1.2 1L68.2 285.7zM403.3 425.4L236.7 355.9 450.8 116.6 403.3 425.4z"],
+    "floppy-disk": [448, 512, ["save"], "regular", "M48 96l0 320c0 8.8 7.2 16 16 16l320 0c8.8 0 16-7.2 16-16l0-245.5c0-4.2-1.7-8.3-4.7-11.3l33.9-33.9c12 12 18.7 28.3 18.7 45.3L448 416c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l245.5 0c17 0 33.3 6.7 45.3 18.7l74.5 74.5-33.9 33.9L320.8 84.7c-.3-.3-.5-.5-.8-.8L320 184c0 13.3-10.7 24-24 24l-192 0c-13.3 0-24-10.7-24-24L80 80 64 80c-8.8 0-16 7.2-16 16zm80-16l0 80 144 0 0-80L128 80zm32 240a64 64 0 1 1 128 0 64 64 0 1 1 -128 0z"],
+    "download": [512, 512, [], "solid", "M288 32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 242.7-73.4-73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l128 128c12.5 12.5 32.8 12.5 45.3 0l128-128c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L288 274.7 288 32zM64 352c-35.3 0-64 28.7-64 64l0 32c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-32c0-35.3-28.7-64-64-64l-101.5 0-45.3 45.3c-25 25-65.5 25-90.5 0L165.5 352 64 352zm368 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"],
+    "upload": [512, 512, [], "solid", "M288 109.3L288 352c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-242.7-73.4 73.4c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l128-128c12.5-12.5 32.8-12.5 45.3 0l128 128c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L288 109.3zM64 352l128 0c0 35.3 28.7 64 64 64s64-28.7 64-64l128 0c35.3 0 64 28.7 64 64l0 32c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64l0-32c0-35.3 28.7-64 64-64zM432 456a24 24 0 1 0 0-48 24 24 0 1 0 0 48z"],
+    "gear": [512, 512, [], "solid", "M495.9 166.6c3.2 8.7 .5 18.4-6.4 24.6l-43.3 39.4c1.1 8.3 1.7 16.8 1.7 25.4s-.6 17.1-1.7 25.4l43.3 39.4c6.9 6.2 9.6 15.9 6.4 24.6c-4.4 11.9-9.7 23.3-15.8 34.3l-4.7 8.1c-6.6 11-14 21.4-22.1 31.2c-5.9 7.2-15.7 9.6-24.5 6.8l-55.7-17.7c-13.4 10.3-28.2 18.9-44 25.4l-12.5 57.1c-2 9.1-9 16.3-18.2 17.8c-13.8 2.3-28 3.5-42.5 3.5s-28.7-1.2-42.5-3.5c-9.2-1.5-16.2-8.7-18.2-17.8l-12.5-57.1c-15.8-6.5-30.6-15.1-44-25.4L83.1 425.9c-8.8 2.8-18.6 .3-24.5-6.8c-8.1-9.8-15.5-20.2-22.1-31.2l-4.7-8.1c-6.1-11-11.4-22.4-15.8-34.3c-3.2-8.7-.5-18.4 6.4-24.6l43.3-39.4C64.6 273.1 64 264.6 64 256s.6-17.1 1.7-25.4L22.4 191.2c-6.9-6.2-9.6-15.9-6.4-24.6c4.4-11.9 9.7-23.3 15.8-34.3l4.7-8.1c6.6-11 14-21.4 22.1-31.2c5.9-7.2 15.7-9.6 24.5-6.8l55.7 17.7c13.4-10.3 28.2-18.9 44-25.4l12.5-57.1c2-9.1 9-16.3 18.2-17.8C227.3 1.2 241.5 0 256 0s28.7 1.2 42.5 3.5c9.2 1.5 16.2 8.7 18.2 17.8l12.5 57.1c15.8 6.5 30.6 15.1 44 25.4l55.7-17.7c8.8-2.8 18.6-.3 24.5 6.8c8.1 9.8 15.5 20.2 22.1 31.2l4.7 8.1c6.1 11 11.4 22.4 15.8 34.3zM256 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160z"],
+    "gears": [640, 512, [], "solid", "M308.5 135.3c7.1-6.3 9.9-16.2 6.2-25c-2.3-5.3-4.8-10.5-7.6-15.5L304 89.4c-3-5-6.3-9.9-9.8-14.6c-5.7-7.6-15.7-10.1-24.7-7.1l-28.2 9.3c-10.7-8.8-23-16-36.2-20.9L199 27.1c-1.9-9.3-9.1-16.7-18.5-17.8C173.9 8.4 167.2 8 160.4 8l-.7 0c-6.8 0-13.5 .4-20.1 1.2c-9.4 1.1-16.6 8.6-18.5 17.8L115 56.1c-13.3 5-25.5 12.1-36.2 20.9L50.5 67.8c-9-3-19-.5-24.7 7.1c-3.5 4.7-6.8 9.6-9.9 14.6l-3 5.3c-2.8 5-5.3 10.2-7.6 15.6c-3.7 8.7-.9 18.6 6.2 25l22.2 19.8C32.6 161.9 32 168.9 32 176s.6 14.1 1.7 20.9L11.5 216.7c-7.1 6.3-9.9 16.2-6.2 25c2.3 5.3 4.8 10.5 7.6 15.6l3 5.2c3 5.1 6.3 9.9 9.9 14.6c5.7 7.6 15.7 10.1 24.7 7.1l28.2-9.3c10.7 8.8 23 16 36.2 20.9l6.1 29.1c1.9 9.3 9.1 16.7 18.5 17.8c6.7 .8 13.5 1.2 20.4 1.2s13.7-.4 20.4-1.2c9.4-1.1 16.6-8.6 18.5-17.8l6.1-29.1c13.3-5 25.5-12.1 36.2-20.9l28.2 9.3c9 3 19 .5 24.7-7.1c3.5-4.7 6.8-9.5 9.8-14.6l3.1-5.4c2.8-5 5.3-10.2 7.6-15.5c3.7-8.7 .9-18.6-6.2-25l-22.2-19.8c1.1-6.8 1.7-13.8 1.7-20.9s-.6-14.1-1.7-20.9l22.2-19.8zM112 176a48 48 0 1 1 96 0 48 48 0 1 1 -96 0zM504.7 500.5c6.3 7.1 16.2 9.9 25 6.2c5.3-2.3 10.5-4.8 15.5-7.6l5.4-3.1c5-3 9.9-6.3 14.6-9.8c7.6-5.7 10.1-15.7 7.1-24.7l-9.3-28.2c8.8-10.7 16-23 20.9-36.2l29.1-6.1c9.3-1.9 16.7-9.1 17.8-18.5c.8-6.7 1.2-13.5 1.2-20.4s-.4-13.7-1.2-20.4c-1.1-9.4-8.6-16.6-17.8-18.5L583.9 307c-5-13.3-12.1-25.5-20.9-36.2l9.3-28.2c3-9 .5-19-7.1-24.7c-4.7-3.5-9.6-6.8-14.6-9.9l-5.3-3c-5-2.8-10.2-5.3-15.6-7.6c-8.7-3.7-18.6-.9-25 6.2l-19.8 22.2c-6.8-1.1-13.8-1.7-20.9-1.7s-14.1 .6-20.9 1.7l-19.8-22.2c-6.3-7.1-16.2-9.9-25-6.2c-5.3 2.3-10.5 4.8-15.6 7.6l-5.2 3c-5.1 3-9.9 6.3-14.6 9.9c-7.6 5.7-10.1 15.7-7.1 24.7l9.3 28.2c-8.8 10.7-16 23-20.9 36.2L315.1 313c-9.3 1.9-16.7 9.1-17.8 18.5c-.8 6.7-1.2 13.5-1.2 20.4s.4 13.7 1.2 20.4c1.1 9.4 8.6 16.6 17.8 18.5l29.1 6.1c5 13.3 12.1 25.5 20.9 36.2l-9.3 28.2c-3 9-.5 19 7.1 24.7c4.7 3.5 9.5 6.8 14.6 9.8l5.4 3.1c5 2.8 10.2 5.3 15.5 7.6c8.7 3.7 18.6 .9 25-6.2l19.8-22.2c6.8 1.1 13.8 1.7 20.9 1.7s14.1-.6 20.9-1.7l19.8 22.2zM464 304a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"],
+    "sliders": [512, 512, [], "solid", "M0 416c0 17.7 14.3 32 32 32l54.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48L480 448c17.7 0 32-14.3 32-32s-14.3-32-32-32l-246.7 0c-12.3-28.3-40.5-48-73.3-48s-61 19.7-73.3 48L32 384c-17.7 0-32 14.3-32 32zm128 0a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zM320 256a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm32-80c-32.8 0-61 19.7-73.3 48L32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l246.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48l54.7 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-54.7 0c-12.3-28.3-40.5-48-73.3-48zM192 128a32 32 0 1 1 0-64 32 32 0 1 1 0 64zm73.3-64C253 35.7 224.8 16 192 16s-61 19.7-73.3 48L32 64C14.3 64 0 78.3 0 96s14.3 32 32 32l86.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48L480 128c17.7 0 32-14.3 32-32s-14.3-32-32-32L265.3 64z"],
+    "sliders-large": [24, 24, [], "solid", "M20 7H11M14 17H5M17 14a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM7 4a3 3 0 1 0 0 6a3 3 0 0 0 0-6z", null, "fill=none stroke-width=2 stroke-linejoin=round stroke-linecap=round"],
+    "eye": [576, 512, [], "regular", "M288 80c-65.2 0-118.8 29.6-159.9 67.7C89.6 183.5 63 226 49.4 256c13.6 30 40.2 72.5 78.6 108.3C169.2 402.4 222.8 432 288 432s118.8-29.6 159.9-67.7C486.4 328.5 513 286 526.6 256c-13.6-30-40.2-72.5-78.6-108.3C406.8 109.6 353.2 80 288 80zM95.4 112.6C142.5 68.8 207.2 32 288 32s145.5 36.8 192.6 80.6c46.8 43.5 78.1 95.4 93 131.1c3.3 7.9 3.3 16.7 0 24.6c-14.9 35.7-46.2 87.7-93 131.1C433.5 443.2 368.8 480 288 480s-145.5-36.8-192.6-80.6C48.6 356 17.3 304 2.5 268.3c-3.3-7.9-3.3-16.7 0-24.6C17.3 208 48.6 156 95.4 112.6zM288 336c44.2 0 80-35.8 80-80s-35.8-80-80-80c-.7 0-1.3 0-2 0c1.3 5.1 2 10.5 2 16c0 35.3-28.7 64-64 64c-5.5 0-10.9-.7-16-2c0 .7 0 1.3 0 2c0 44.2 35.8 80 80 80zm0-208a128 128 0 1 1 0 256 128 128 0 1 1 0-256z"],
+    "eye-slash": [640, 512, [], "regular", "M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zm151 118.3C226 97.7 269.5 80 320 80c65.2 0 118.8 29.6 159.9 67.7C518.4 183.5 545 226 558.6 256c-12.6 28-36.6 66.8-70.9 100.9l-53.8-42.2c9.1-17.6 14.2-37.5 14.2-58.7c0-70.7-57.3-128-128-128c-32.2 0-61.7 11.9-84.2 31.5l-46.1-36.1zM394.9 284.2l-81.5-63.9c4.2-8.5 6.6-18.2 6.6-28.3c0-5.5-.7-10.9-2-16c.7 0 1.3 0 2 0c44.2 0 80 35.8 80 80c0 9.9-1.8 19.4-5.1 28.2zm9.4 130.3C378.8 425.4 350.7 432 320 432c-65.2 0-118.8-29.6-159.9-67.7C121.6 328.5 95 286 81.4 256c8.3-18.4 21.5-41.5 39.4-64.8L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5l-41.9-33zM192 256c0 70.7 57.3 128 128 128c13.3 0 26.1-2 38.2-5.8L302 334c-23.5-5.4-43.1-21.2-53.7-42.3l-56.1-44.2c-.2 2.8-.3 5.6-.3 8.5z"],
+    "comment": [512, 512, [], "regular", "M123.6 391.3c12.9-9.4 29.6-11.8 44.6-6.4c26.5 9.6 56.2 15.1 87.8 15.1c124.7 0 208-80.5 208-160s-83.3-160-208-160S48 160.5 48 240c0 32 12.4 62.8 35.7 89.2c8.6 9.7 12.8 22.5 11.8 35.5c-1.4 18.1-5.7 34.7-11.3 49.4c17-7.9 31.1-16.7 39.4-22.7zM21.2 431.9c1.8-2.7 3.5-5.4 5.1-8.1c10-16.6 19.5-38.4 21.4-62.9C17.7 326.8 0 285.1 0 240C0 125.1 114.6 32 256 32s256 93.1 256 208s-114.6 208-256 208c-37.1 0-72.3-6.4-104.1-17.9c-11.9 8.7-31.3 20.6-54.3 30.6c-15.1 6.6-32.3 12.6-50.1 16.1c-.8 .2-1.6 .3-2.4 .5c-4.4 .8-8.7 1.5-13.2 1.9c-.2 0-.5 .1-.7 .1c-5.1 .5-10.2 .8-15.3 .8c-6.5 0-12.3-3.9-14.8-9.9c-2.5-6-1.1-12.8 3.4-17.4c4.1-4.2 7.8-8.7 11.3-13.5c1.7-2.3 3.3-4.6 4.8-6.9l.3-.5z"],
+    "comments": [640, 512, [], "regular", "M88.2 309.1c9.8-18.3 6.8-40.8-7.5-55.8C59.4 230.9 48 204 48 176c0-63.5 63.8-128 160-128s160 64.5 160 128s-63.8 128-160 128c-13.1 0-25.8-1.3-37.8-3.6c-10.4-2-21.2-.6-30.7 4.2c-4.1 2.1-8.3 4.1-12.6 6c-16 7.2-32.9 13.5-49.9 18c2.8-4.6 5.4-9.1 7.9-13.6c1.1-1.9 2.2-3.9 3.2-5.9zM208 352c114.9 0 208-78.8 208-176S322.9 0 208 0S0 78.8 0 176c0 41.8 17.2 80.1 45.9 110.3c-.9 1.7-1.9 3.5-2.8 5.1c-10.3 18.4-22.3 36.5-36.6 52.1c-6.6 7-8.3 17.2-4.6 25.9C5.8 378.3 14.4 384 24 384c43 0 86.5-13.3 122.7-29.7c4.8-2.2 9.6-4.5 14.2-6.8c15.1 3 30.9 4.5 47.1 4.5zM432 480c16.2 0 31.9-1.6 47.1-4.5c4.6 2.3 9.4 4.6 14.2 6.8C529.5 498.7 573 512 616 512c9.6 0 18.2-5.7 22-14.5c3.8-8.8 2-19-4.6-25.9c-14.2-15.6-26.2-33.7-36.6-52.1c-.9-1.7-1.9-3.4-2.8-5.1C622.8 384.1 640 345.8 640 304c0-94.4-87.9-171.5-198.2-175.8c4.1 15.2 6.2 31.2 6.2 47.8l0 .6c87.2 6.7 144 67.5 144 127.4c0 28-11.4 54.9-32.7 77.2c-14.3 15-17.3 37.6-7.5 55.8c1.1 2 2.2 4 3.2 5.9c2.5 4.5 5.2 9 7.9 13.6c-17-4.5-33.9-10.7-49.9-18c-4.3-1.9-8.5-3.9-12.6-6c-9.5-4.8-20.3-6.2-30.7-4.2c-12.1 2.4-24.8 3.6-37.8 3.6c-61.7 0-110-26.5-136.8-62.3c-16 5.4-32.8 9.4-50 11.8C279 439.8 350 480 432 480z"],
+    "comment-dots": [512, 512, [], "regular", "M168.2 384.9c-15-5.4-31.7-3.1-44.6 6.4c-8.2 6-22.3 14.8-39.4 22.7c5.6-14.7 9.9-31.3 11.3-49.4c1-12.9-3.3-25.7-11.8-35.5C60.4 302.8 48 272 48 240c0-79.5 83.3-160 208-160s208 80.5 208 160s-83.3 160-208 160c-31.6 0-61.3-5.5-87.8-15.1zM26.3 423.8c-1.6 2.7-3.3 5.4-5.1 8.1l-.3 .5c-1.6 2.3-3.2 4.6-4.8 6.9c-3.5 4.7-7.3 9.3-11.3 13.5c-4.6 4.6-5.9 11.4-3.4 17.4c2.5 6 8.3 9.9 14.8 9.9c5.1 0 10.2-.3 15.3-.8l.7-.1c4.4-.5 8.8-1.1 13.2-1.9c.8-.1 1.6-.3 2.4-.5c17.8-3.5 34.9-9.5 50.1-16.1c22.9-10 42.4-21.9 54.3-30.6c31.8 11.5 67 17.9 104.1 17.9c141.4 0 256-93.1 256-208S397.4 32 256 32S0 125.1 0 240c0 45.1 17.7 86.8 47.7 120.9c-1.9 24.5-11.4 46.3-21.4 62.9zM144 272a32 32 0 1 0 0-64 32 32 0 1 0 0 64zm144-32a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zm80 32a32 32 0 1 0 0-64 32 32 0 1 0 0 64z"],
+    "message": [512, 512, [], "regular", "M160 368c26.5 0 48 21.5 48 48l0 16 72.5-54.4c8.3-6.2 18.4-9.6 28.8-9.6L448 368c8.8 0 16-7.2 16-16l0-288c0-8.8-7.2-16-16-16L64 48c-8.8 0-16 7.2-16 16l0 288c0 8.8 7.2 16 16 16l96 0zm48 124l-.2 .2-5.1 3.8-17.1 12.8c-4.8 3.6-11.3 4.2-16.8 1.5s-8.8-8.2-8.8-14.3l0-21.3 0-6.4 0-.3 0-4 0-48-48 0-48 0c-35.3 0-64-28.7-64-64L0 64C0 28.7 28.7 0 64 0L448 0c35.3 0 64 28.7 64 64l0 288c0 35.3-28.7 64-64 64l-138.7 0L208 492z"],
+    "folder": [512, 512, [], "regular", "M0 96C0 60.7 28.7 32 64 32l132.1 0c19.1 0 37.4 7.6 50.9 21.1L289.9 96 448 96c35.3 0 64 28.7 64 64l0 256c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zM64 80c-8.8 0-16 7.2-16 16l0 320c0 8.8 7.2 16 16 16l384 0c8.8 0 16-7.2 16-16l0-256c0-8.8-7.2-16-16-16l-161.4 0c-10.6 0-20.8-4.2-28.3-11.7L213.1 87c-4.5-4.5-10.6-7-17-7L64 80z"],
+    "folder-closed": [512, 512, [], "regular", "M251.7 127.6s0 0 0 0c10.5 10.5 24.7 16.4 39.6 16.4L448 144c8.8 0 16 7.2 16 16l0 32L48 192l0-96c0-8.8 7.2-16 16-16l133.5 0c4.2 0 8.3 1.7 11.3 4.7l33.9-33.9L208.8 84.7l42.9 42.9zM48 240l416 0 0 176c0 8.8-7.2 16-16 16L64 432c-8.8 0-16-7.2-16-16l0-176zM285.7 93.7L242.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-256c0-35.3-28.7-64-64-64L291.3 96c-2.1 0-4.2-.8-5.7-2.3z"],
+    "folder-open": [576, 512, [], "regular", "M384 480l48 0c11.4 0 21.9-6 27.6-15.9l112-192c5.8-9.9 5.8-22.1 .1-32.1S555.5 224 544 224l-400 0c-11.4 0-21.9 6-27.6 15.9L48 357.1 48 96c0-8.8 7.2-16 16-16l117.5 0c4.2 0 8.3 1.7 11.3 4.7l26.5 26.5c21 21 49.5 32.8 79.2 32.8L416 144c8.8 0 16 7.2 16 16l0 32 48 0 0-32c0-35.3-28.7-64-64-64L298.5 96c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l23.7 0L384 480z"],
+    "play": [384, 512, [], "solid", "M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80L0 432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"],
+    "pause": [320, 512, [], "solid", "M48 64C21.5 64 0 85.5 0 112L0 400c0 26.5 21.5 48 48 48l32 0c26.5 0 48-21.5 48-48l0-288c0-26.5-21.5-48-48-48L48 64zm192 0c-26.5 0-48 21.5-48 48l0 288c0 26.5 21.5 48 48 48l32 0c26.5 0 48-21.5 48-48l0-288c0-26.5-21.5-48-48-48l-32 0z"],
+    "stop": [384, 512, [], "solid", "M0 128C0 92.7 28.7 64 64 64H320c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V128z"],
+    "font": [448, 512, [], "solid", "M254 52.8C249.3 40.3 237.3 32 224 32s-25.3 8.3-30 20.8L57.8 416 32 416c-17.7 0-32 14.3-32 32s14.3 32 32 32l96 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-1.8 0 18-48 159.6 0 18 48-1.8 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l96 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-25.8 0L254 52.8zM279.8 304l-111.6 0L224 155.1 279.8 304z"],
+    "grip-vertical": [320, 512, [], "solid", "M40 352l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40zm192 0l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40zM40 320c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0zM232 192l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40zM40 160c-22.1 0-40-17.9-40-40L0 72C0 49.9 17.9 32 40 32l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0zM232 32l48 0c22.1 0 40 17.9 40 40l0 48c0 22.1-17.9 40-40 40l-48 0c-22.1 0-40-17.9-40-40l0-48c0-22.1 17.9-40 40-40z"],
+    "image": [512, 512, [], "regular", "M448 80c8.8 0 16 7.2 16 16l0 319.8-5-6.5-136-176c-4.5-5.9-11.6-9.3-19-9.3s-14.4 3.4-19 9.3L202 340.7l-30.5-42.7C167 291.7 159.8 288 152 288s-15 3.7-19.5 10.1l-80 112L48 416.3l0-.3L48 96c0-8.8 7.2-16 16-16l384 0zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zm80 192a48 48 0 1 0 0-96 48 48 0 1 0 0 96z"],
+    "images": [576, 512, [], "regular", "M160 80l352 0c8.8 0 16 7.2 16 16l0 224c0 8.8-7.2 16-16 16l-21.2 0L388.1 178.9c-4.4-6.8-12-10.9-20.1-10.9s-15.7 4.1-20.1 10.9l-52.2 79.8-12.4-16.9c-4.5-6.2-11.7-9.8-19.4-9.8s-14.8 3.6-19.4 9.8L175.6 336 160 336c-8.8 0-16-7.2-16-16l0-224c0-8.8 7.2-16 16-16zM96 96l0 224c0 35.3 28.7 64 64 64l352 0c35.3 0 64-28.7 64-64l0-224c0-35.3-28.7-64-64-64L160 32c-35.3 0-64 28.7-64 64zM48 120c0-13.3-10.7-24-24-24S0 106.7 0 120L0 344c0 75.1 60.9 136 136 136l320 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-320 0c-48.6 0-88-39.4-88-88l0-224zm208 24a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"],
+    "photo-film": [640, 512, ["media"], "solid", "M256 0L576 0c35.3 0 64 28.7 64 64l0 224c0 35.3-28.7 64-64 64l-320 0c-35.3 0-64-28.7-64-64l0-224c0-35.3 28.7-64 64-64zM476 106.7C471.5 100 464 96 456 96s-15.5 4-20 10.7l-56 84L362.7 169c-4.6-5.7-11.5-9-18.7-9s-14.2 3.3-18.7 9l-64 80c-5.8 7.2-6.9 17.1-2.9 25.4s12.4 13.6 21.6 13.6l80 0 48 0 144 0c8.9 0 17-4.9 21.2-12.7s3.7-17.3-1.2-24.6l-96-144zM336 96a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zM64 128l96 0 0 256 0 32c0 17.7 14.3 32 32 32l128 0c17.7 0 32-14.3 32-32l0-32 160 0 0 64c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 192c0-35.3 28.7-64 64-64zm8 64c-8.8 0-16 7.2-16 16l0 16c0 8.8 7.2 16 16 16l16 0c8.8 0 16-7.2 16-16l0-16c0-8.8-7.2-16-16-16l-16 0zm0 104c-8.8 0-16 7.2-16 16l0 16c0 8.8 7.2 16 16 16l16 0c8.8 0 16-7.2 16-16l0-16c0-8.8-7.2-16-16-16l-16 0zm0 104c-8.8 0-16 7.2-16 16l0 16c0 8.8 7.2 16 16 16l16 0c8.8 0 16-7.2 16-16l0-16c0-8.8-7.2-16-16-16l-16 0zm336 16l0 16c0 8.8 7.2 16 16 16l16 0c8.8 0 16-7.2 16-16l0-16c0-8.8-7.2-16-16-16l-16 0c-8.8 0-16 7.2-16 16z"],
+    "clapperboard": [512, 512, [], "solid", "M448 32l-86.1 0-1 1-127 127 92.1 0 1-1L453.8 32.3c-1.9-.2-3.8-.3-5.8-.3zm64 128l0-64c0-15.1-5.3-29.1-14-40l-104 104L512 160zM294.1 32l-92.1 0-1 1L73.9 160l92.1 0 1-1 127-127zM64 32C28.7 32 0 60.7 0 96l0 64 6.1 0 1-1 127-127L64 32zM512 192L0 192 0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-224z"],
+    "object-group": [576, 512, [], "regular", "M48 115.8C38.2 107 32 94.2 32 80c0-26.5 21.5-48 48-48c14.2 0 27 6.2 35.8 16l344.4 0c8.8-9.8 21.6-16 35.8-16c26.5 0 48 21.5 48 48c0 14.2-6.2 27-16 35.8l0 280.4c9.8 8.8 16 21.6 16 35.8c0 26.5-21.5 48-48 48c-14.2 0-27-6.2-35.8-16l-344.4 0c-8.8 9.8-21.6 16-35.8 16c-26.5 0-48-21.5-48-48c0-14.2 6.2-27 16-35.8l0-280.4zM125.3 96c-4.8 13.6-15.6 24.4-29.3 29.3l0 261.5c13.6 4.8 24.4 15.6 29.3 29.3l325.5 0c4.8-13.6 15.6-24.4 29.3-29.3l0-261.5c-13.6-4.8-24.4-15.6-29.3-29.3L125.3 96zm2.7 64c0-17.7 14.3-32 32-32l128 0c17.7 0 32 14.3 32 32l0 96c0 17.7-14.3 32-32 32l-128 0c-17.7 0-32-14.3-32-32l0-96zM256 320l32 0c35.3 0 64-28.7 64-64l0-32 64 0c17.7 0 32 14.3 32 32l0 96c0 17.7-14.3 32-32 32l-128 0c-17.7 0-32-14.3-32-32l0-32z"],
+    "object-ungroup": [640, 512, [], "regular", "M48.2 66.8c-.1-.8-.2-1.7-.2-2.5l0-.2c0-8.8 7.2-16 16-16c.9 0 1.9 .1 2.8 .2C74.3 49.5 80 56.1 80 64c0 8.8-7.2 16-16 16c-7.9 0-14.5-5.7-15.8-13.2zM0 64c0 26.9 16.5 49.9 40 59.3l0 105.3C16.5 238.1 0 261.1 0 288c0 35.3 28.7 64 64 64c26.9 0 49.9-16.5 59.3-40l201.3 0c9.5 23.5 32.5 40 59.3 40c35.3 0 64-28.7 64-64c0-26.9-16.5-49.9-40-59.3l0-105.3c23.5-9.5 40-32.5 40-59.3c0-35.3-28.7-64-64-64c-26.9 0-49.9 16.5-59.3 40L123.3 40C113.9 16.5 90.9 0 64 0C28.7 0 0 28.7 0 64zm368 0a16 16 0 1 1 32 0 16 16 0 1 1 -32 0zM324.7 88c6.5 16 19.3 28.9 35.3 35.3l0 105.3c-16 6.5-28.9 19.3-35.3 35.3l-201.3 0c-6.5-16-19.3-28.9-35.3-35.3l0-105.3c16-6.5 28.9-19.3 35.3-35.3l201.3 0zM384 272a16 16 0 1 1 0 32 16 16 0 1 1 0-32zM80 288c0 7.9-5.7 14.5-13.2 15.8c-.8 .1-1.7 .2-2.5 .2l-.2 0c-8.8 0-16-7.2-16-16c0-.9 .1-1.9 .2-2.8C49.5 277.7 56.1 272 64 272c8.8 0 16 7.2 16 16zm391.3-40l45.4 0c6.5 16 19.3 28.9 35.3 35.3l0 105.3c-16 6.5-28.9 19.3-35.3 35.3l-201.3 0c-6.5-16-19.3-28.9-35.3-35.3l0-36.7-48 0 0 36.7c-23.5 9.5-40 32.5-40 59.3c0 35.3 28.7 64 64 64c26.9 0 49.9-16.5 59.3-40l201.3 0c9.5 23.5 32.5 40 59.3 40c35.3 0 64-28.7 64-64c0-26.9-16.5-49.9-40-59.3l0-105.3c23.5-9.5 40-32.5 40-59.3c0-35.3-28.7-64-64-64c-26.9 0-49.9 16.5-59.3 40L448 200l0 16.4c9.8 8.8 17.8 19.5 23.3 31.6zm88.9-26.7a16 16 0 1 1 31.5 5.5 16 16 0 1 1 -31.5-5.5zM271.8 450.7a16 16 0 1 1 -31.5-5.5 16 16 0 1 1 31.5 5.5zm307-18.5a16 16 0 1 1 -5.5 31.5 16 16 0 1 1 5.5-31.5z"],
+    "left": [320, 512, [], "solid", "M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"],
+    "right": [320, 512, [], "solid", "M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"],
+    "up": [448, 512, [], "solid", "M201.4 137.4c12.5-12.5 32.8-12.5 45.3 0l160 160c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L224 205.3 86.6 342.6c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l160-160z"],
+    "down": [448, 512, [], "solid", "M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"],
+    "arrows": [512, 512, ["arrows-up-down-left-right"], "solid", "M278.6 9.4c-12.5-12.5-32.8-12.5-45.3 0l-64 64c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l9.4-9.4L224 224l-114.7 0 9.4-9.4c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-64 64c-12.5 12.5-12.5 32.8 0 45.3l64 64c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-9.4-9.4L224 288l0 114.7-9.4-9.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l64 64c12.5 12.5 32.8 12.5 45.3 0l64-64c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-9.4 9.4L288 288l114.7 0-9.4 9.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l64-64c12.5-12.5 12.5-32.8 0-45.3l-64-64c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l9.4 9.4L288 224l0-114.7 9.4 9.4c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-64-64z"],
+    "arrow-pointer": [320, 512, [], "solid", "M0 55.2L0 426c0 12.2 9.9 22 22 22c6.3 0 12.4-2.7 16.6-7.5L121.2 346l58.1 116.3c7.9 15.8 27.1 22.2 42.9 14.3s22.2-27.1 14.3-42.9L179.8 320l118.1 0c12.2 0 22.1-9.9 22.1-22.1c0-6.3-2.7-12.3-7.4-16.5L38.6 37.9C34.3 34.1 28.9 32 23.2 32C10.4 32 0 42.4 0 55.2z"],
+    "axis-arrow": [24, 24, [], "solid", "m12 2l4 4h-3v7.85l6.53 3.76L21 15.03l1.5 5.47l-5.5 1.46l1.53-2.61L12 15.58l-6.53 3.77L7 21.96L1.5 20.5L3 15.03l1.47 2.58L11 13.85V6H8z"],
+    "reply": [24, 24, [], "regular", "M9 17L4 12L9 7M4 12H16A4 4 0 0 1 20 16V18", null, "fill=none stroke-width=2 stroke-linejoin=round stroke-linecap=round"],
+    "reply-all": [24, 24, [], "regular", "M7 17L2 12L7 7M12 17L7 12L12 7M7 12H18A4 4 0 0 1 22 16V18", null, "fill=none stroke-width=2 stroke-linejoin=round stroke-linecap=round"],
+    "forward": [24, 24, [], "regular", "M15 17L20 12L15 7M4 18V16A4 4 0 0 1 8 12H20", null, "fill=none stroke-width=2 stroke-linejoin=round stroke-linecap=round"],
+    "rotate": [512, 512, [], "solid", "M142.9 142.9c-17.5 17.5-30.1 38-37.8 59.8c-5.9 16.7-24.2 25.4-40.8 19.5s-25.4-24.2-19.5-40.8C55.6 150.7 73.2 122 97.6 97.6c87.2-87.2 228.3-87.5 315.8-1L455 55c6.9-6.9 17.2-8.9 26.2-5.2s14.8 12.5 14.8 22.2l0 128c0 13.3-10.7 24-24 24l-8.4 0c0 0 0 0 0 0L344 224c-9.7 0-18.5-5.8-22.2-14.8s-1.7-19.3 5.2-26.2l41.1-41.1c-62.6-61.5-163.1-61.2-225.3 1zM16 312c0-13.3 10.7-24 24-24l7.6 0 .7 0L168 288c9.7 0 18.5 5.8 22.2 14.8s1.7 19.3-5.2 26.2l-41.1 41.1c62.6 61.5 163.1 61.2 225.3-1c17.5-17.5 30.1-38 37.8-59.8c5.9-16.7 24.2-25.4 40.8-19.5s25.4 24.2 19.5 40.8c-10.8 30.6-28.4 59.3-52.9 83.8c-87.2 87.2-228.3 87.5-315.8 1L57 457c-6.9 6.9-17.2 8.9-26.2 5.2S16 449.7 16 440l0-119.6 0-.7 0-7.6z"],
+    "rotate-right": [512, 512, ["rotate-forward"], "solid", "M463.5 224l8.5 0c13.3 0 24-10.7 24-24l0-128c0-9.7-5.8-18.5-14.8-22.2s-19.3-1.7-26.2 5.2L413.4 96.6c-87.6-86.5-228.7-86.2-315.8 1c-87.5 87.5-87.5 229.3 0 316.8s229.3 87.5 316.8 0c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0c-62.5 62.5-163.8 62.5-226.3 0s-62.5-163.8 0-226.3c62.2-62.2 162.7-62.5 225.3-1L327 183c-6.9 6.9-8.9 17.2-5.2 26.2s12.5 14.8 22.2 14.8l119.5 0z"],
+    "rotate-left": [512, 512, ["rotate-back"], "solid", "M48.5 224L40 224c-13.3 0-24-10.7-24-24L16 72c0-9.7 5.8-18.5 14.8-22.2s19.3-1.7 26.2 5.2L98.6 96.6c87.6-86.5 228.7-86.2 315.8 1c87.5 87.5 87.5 229.3 0 316.8s-229.3 87.5-316.8 0c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0c62.5 62.5 163.8 62.5 226.3 0s62.5-163.8 0-226.3c-62.2-62.2-162.7-62.5-225.3-1L185 183c6.9 6.9 8.9 17.2 5.2 26.2s-12.5 14.8-22.2 14.8L48.5 224z"],
+    "hand": [512, 512, [], "regular", "M256 0c-25.3 0-47.2 14.7-57.6 36c-7-2.6-14.5-4-22.4-4c-35.3 0-64 28.7-64 64l0 165.5-2.7-2.7c-25-25-65.5-25-90.5 0s-25 65.5 0 90.5L106.5 437c48 48 113.1 75 181 75l8.5 0 8 0c1.5 0 3-.1 4.5-.4c91.7-6.2 165-79.4 171.1-171.1c.3-1.5 .4-3 .4-4.5l0-176c0-35.3-28.7-64-64-64c-5.5 0-10.9 .7-16 2l0-2c0-35.3-28.7-64-64-64c-7.9 0-15.4 1.4-22.4 4C303.2 14.7 281.3 0 256 0zM240 96.1l0-.1 0-32c0-8.8 7.2-16 16-16s16 7.2 16 16l0 31.9 0 .1 0 136c0 13.3 10.7 24 24 24s24-10.7 24-24l0-136c0 0 0 0 0-.1c0-8.8 7.2-16 16-16s16 7.2 16 16l0 55.9c0 0 0 .1 0 .1l0 80c0 13.3 10.7 24 24 24s24-10.7 24-24l0-71.9c0 0 0-.1 0-.1c0-8.8 7.2-16 16-16s16 7.2 16 16l0 172.9c-.1 .6-.1 1.3-.2 1.9c-3.4 69.7-59.3 125.6-129 129c-.6 0-1.3 .1-1.9 .2l-4.9 0-8.5 0c-55.2 0-108.1-21.9-147.1-60.9L52.7 315.3c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L119 336.4c6.9 6.9 17.2 8.9 26.2 5.2s14.8-12.5 14.8-22.2L160 96c0-8.8 7.2-16 16-16c8.8 0 16 7.1 16 15.9L192 232c0 13.3 10.7 24 24 24s24-10.7 24-24l0-135.9z"],
+    "hand-pointer": [448, 512, [], "regular", "M160 64c0-8.8 7.2-16 16-16s16 7.2 16 16l0 136c0 10.3 6.6 19.5 16.4 22.8s20.6-.1 26.8-8.3c3-3.9 7.6-6.4 12.8-6.4c8.8 0 16 7.2 16 16c0 10.3 6.6 19.5 16.4 22.8s20.6-.1 26.8-8.3c3-3.9 7.6-6.4 12.8-6.4c7.8 0 14.3 5.6 15.7 13c1.6 8.2 7.3 15.1 15.1 18s16.7 1.6 23.3-3.6c2.7-2.1 6.1-3.4 9.9-3.4c8.8 0 16 7.2 16 16l0 16 0 104c0 39.8-32.2 72-72 72l-56 0-59.8 0-.9 0c-37.4 0-72.4-18.7-93.2-49.9L50.7 312.9c-4.9-7.4-2.9-17.3 4.4-22.2s17.3-2.9 22.2 4.4L116 353.2c5.9 8.8 16.8 12.7 26.9 9.7s17-12.4 17-23l0-19.9 0-256zM176 0c-35.3 0-64 28.7-64 64l0 197.7C91.2 238 55.5 232.8 28.5 250.7C-.9 270.4-8.9 310.1 10.8 339.5L78.3 440.8c29.7 44.5 79.6 71.2 133.1 71.2l.9 0 59.8 0 56 0c66.3 0 120-53.7 120-120l0-104 0-16c0-35.3-28.7-64-64-64c-4.5 0-8.8 .5-13 1.3c-11.7-15.4-30.2-25.3-51-25.3c-6.9 0-13.5 1.1-19.7 3.1C288.7 170.7 269.6 160 248 160c-2.7 0-5.4 .2-8 .5L240 64c0-35.3-28.7-64-64-64zm48 304c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 96c0 8.8 7.2 16 16 16s16-7.2 16-16l0-96zm48-16c-8.8 0-16 7.2-16 16l0 96c0 8.8 7.2 16 16 16s16-7.2 16-16l0-96c0-8.8-7.2-16-16-16zm80 16c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 96c0 8.8 7.2 16 16 16s16-7.2 16-16l0-96z"],
+    "hand-point-right": [512, 512, [], "regular", "M448 128l-177.6 0c1 5.2 1.6 10.5 1.6 16l0 16 32 0 144 0c8.8 0 16-7.2 16-16s-7.2-16-16-16zM224 144c0-17.7-14.3-32-32-32c0 0 0 0 0 0l-24 0c-66.3 0-120 53.7-120 120l0 48c0 52.5 33.7 97.1 80.7 113.4c-.5-3.1-.7-6.2-.7-9.4c0-20 9.2-37.9 23.6-49.7c-4.9-9-7.6-19.4-7.6-30.3c0-15.1 5.3-29 14-40c-8.8-11-14-24.9-14-40l0-40c0-13.3 10.7-24 24-24s24 10.7 24 24l0 40c0 8.8 7.2 16 16 16s16-7.2 16-16l0-40 0-40zM192 64s0 0 0 0c18 0 34.6 6 48 16l208 0c35.3 0 64 28.7 64 64s-28.7 64-64 64l-82 0c1.3 5.1 2 10.5 2 16c0 25.3-14.7 47.2-36 57.6c2.6 7 4 14.5 4 22.4c0 20-9.2 37.9-23.6 49.7c4.9 9 7.6 19.4 7.6 30.3c0 35.3-28.7 64-64 64l-64 0-24 0C75.2 448 0 372.8 0 280l0-48C0 139.2 75.2 64 168 64l24 0zm64 336c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0-16 0c-8.8 0-16 7.2-16 16s7.2 16 16 16l64 0zm16-176c0 5.5-.7 10.9-2 16l2 0 32 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-32 0 0 16zm-24 64l-40 0c-8.8 0-16 7.2-16 16s7.2 16 16 16l48 0 16 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-24 0z"],
+    "hand-point-up": [384, 512, [], "regular", "M64 64l0 177.6c5.2-1 10.5-1.6 16-1.6l16 0 0-32L96 64c0-8.8-7.2-16-16-16s-16 7.2-16 16zM80 288c-17.7 0-32 14.3-32 32c0 0 0 0 0 0l0 24c0 66.3 53.7 120 120 120l48 0c52.5 0 97.1-33.7 113.4-80.7c-3.1 .5-6.2 .7-9.4 .7c-20 0-37.9-9.2-49.7-23.6c-9 4.9-19.4 7.6-30.3 7.6c-15.1 0-29-5.3-40-14c-11 8.8-24.9 14-40 14l-40 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l40 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-40 0-40 0zM0 320s0 0 0 0c0-18 6-34.6 16-48L16 64C16 28.7 44.7 0 80 0s64 28.7 64 64l0 82c5.1-1.3 10.5-2 16-2c25.3 0 47.2 14.7 57.6 36c7-2.6 14.5-4 22.4-4c20 0 37.9 9.2 49.7 23.6c9-4.9 19.4-7.6 30.3-7.6c35.3 0 64 28.7 64 64l0 64 0 24c0 92.8-75.2 168-168 168l-48 0C75.2 512 0 436.8 0 344l0-24zm336-64c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 48 0 16c0 8.8 7.2 16 16 16s16-7.2 16-16l0-64zM160 240c5.5 0 10.9 .7 16 2l0-2 0-32c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 32 16 0zm64 24l0 40c0 8.8 7.2 16 16 16s16-7.2 16-16l0-48 0-16c0-8.8-7.2-16-16-16s-16 7.2-16 16l0 24z"],
+    "hand-point-down": [384, 512, [], "regular", "M64 448l0-177.6c5.2 1 10.5 1.6 16 1.6l16 0 0 32 0 144c0 8.8-7.2 16-16 16s-16-7.2-16-16zM80 224c-17.7 0-32-14.3-32-32c0 0 0 0 0 0l0-24c0-66.3 53.7-120 120-120l48 0c52.5 0 97.1 33.7 113.4 80.7c-3.1-.5-6.2-.7-9.4-.7c-20 0-37.9 9.2-49.7 23.6c-9-4.9-19.4-7.6-30.3-7.6c-15.1 0-29 5.3-40 14c-11-8.8-24.9-14-40-14l-40 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l40 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-40 0-40 0zM0 192s0 0 0 0c0 18 6 34.6 16 48l0 208c0 35.3 28.7 64 64 64s64-28.7 64-64l0-82c5.1 1.3 10.5 2 16 2c25.3 0 47.2-14.7 57.6-36c7 2.6 14.5 4 22.4 4c20 0 37.9-9.2 49.7-23.6c9 4.9 19.4 7.6 30.3 7.6c35.3 0 64-28.7 64-64l0-64 0-24C384 75.2 308.8 0 216 0L168 0C75.2 0 0 75.2 0 168l0 24zm336 64c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48 0-16c0-8.8 7.2-16 16-16s16 7.2 16 16l0 64zM160 272c5.5 0 10.9-.7 16-2l0 2 0 32c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-32 16 0zm64-24l0-40c0-8.8 7.2-16 16-16s16 7.2 16 16l0 48 0 16c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-24z"],
+    "hand-point-left": [512, 512, [], "regular", "M64 128l177.6 0c-1 5.2-1.6 10.5-1.6 16l0 16-32 0L64 160c-8.8 0-16-7.2-16-16s7.2-16 16-16zm224 16c0-17.7 14.3-32 32-32c0 0 0 0 0 0l24 0c66.3 0 120 53.7 120 120l0 48c0 52.5-33.7 97.1-80.7 113.4c.5-3.1 .7-6.2 .7-9.4c0-20-9.2-37.9-23.6-49.7c4.9-9 7.6-19.4 7.6-30.3c0-15.1-5.3-29-14-40c8.8-11 14-24.9 14-40l0-40c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 40c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-40 0-40zm32-80s0 0 0 0c-18 0-34.6 6-48 16L64 80C28.7 80 0 108.7 0 144s28.7 64 64 64l82 0c-1.3 5.1-2 10.5-2 16c0 25.3 14.7 47.2 36 57.6c-2.6 7-4 14.5-4 22.4c0 20 9.2 37.9 23.6 49.7c-4.9 9-7.6 19.4-7.6 30.3c0 35.3 28.7 64 64 64l64 0 24 0c92.8 0 168-75.2 168-168l0-48c0-92.8-75.2-168-168-168l-24 0zM256 400c-8.8 0-16-7.2-16-16s7.2-16 16-16l48 0 16 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-64 0zM240 224c0 5.5 .7 10.9 2 16l-2 0-32 0c-8.8 0-16-7.2-16-16s7.2-16 16-16l32 0 0 16zm24 64l40 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-48 0-16 0c-8.8 0-16-7.2-16-16s7.2-16 16-16l24 0z"],
+    "hand-scissors": [512, 512, [], "regular", "M.2 276.3c-1.2-35.3 26.4-65 61.7-66.2l3.3-.1L57 208.1C22.5 200.5 .7 166.3 8.3 131.8S50.2 75.5 84.7 83.2l173 38.3c2.3-2.9 4.7-5.7 7.1-8.5l18.4-20.3C299.9 74.5 323.5 64 348.3 64l10.2 0c54.1 0 104.1 28.7 131.3 75.4l1.5 2.6c13.6 23.2 20.7 49.7 20.7 76.6L512 344c0 66.3-53.7 120-120 120l-8 0-96 0c-35.3 0-64-28.7-64-64c0-2.8 .2-5.6 .5-8.3c-19.4-11-32.5-31.8-32.5-55.7c0-.8 0-1.6 0-2.4L66.4 338c-35.3 1.2-65-26.4-66.2-61.7zm63.4-18.2c-8.8 .3-15.7 7.7-15.4 16.5s7.7 15.7 16.5 15.4l161.5-5.6c9.8-.3 18.7 5.3 22.7 14.2s2.2 19.3-4.5 26.4c-2.8 2.9-4.4 6.7-4.4 11c0 8.8 7.2 16 16 16c9.1 0 17.4 5.1 21.5 13.3s3.2 17.9-2.3 25.1c-2 2.7-3.2 6-3.2 9.6c0 8.8 7.2 16 16 16l96 0 8 0c39.8 0 72-32.2 72-72l0-125.4c0-18.4-4.9-36.5-14.2-52.4l-1.5-2.6c-18.6-32-52.8-51.6-89.8-51.6l-10.2 0c-11.3 0-22 4.8-29.6 13.1l-17.5-15.9 17.5 15.9-18.4 20.3c-.6 .6-1.1 1.3-1.7 1.9l57 13.2c8.6 2 14 10.6 12 19.2s-10.6 14-19.2 12l-85.6-19.7L74.3 130c-8.6-1.9-17.2 3.5-19.1 12.2s3.5 17.2 12.2 19.1l187.5 41.6c10.2 2.3 17.8 10.9 18.7 21.4l.1 1c.6 6.6-1.5 13.1-5.8 18.1s-10.6 7.9-17.2 8.2L63.6 258.1z"],
+    "hand-spock": [576, 512, [], "regular", "M170.2 80.8C161 47 180.8 12 214.6 2.4c34-9.6 69.4 10.2 79 44.2l30.3 107.1L337.1 84c6.6-34.7 40.1-57.5 74.8-50.9c31.4 6 53 33.9 52 64.9c10-2.6 20.8-2.8 31.5-.1c34.3 8.6 55.1 43.3 46.6 77.6L486.7 397.2C469.8 464.7 409.2 512 339.6 512l-33.7 0c-56.9 0-112.2-19-157.2-53.9l-92-71.6c-27.9-21.7-32.9-61.9-11.2-89.8s61.9-32.9 89.8-11.2l17 13.2L100.5 167.5c-13-32.9 3.2-70.1 36-83c11.1-4.4 22.7-5.4 33.7-3.7zm77.1-21.2c-2.4-8.5-11.2-13.4-19.7-11s-13.4 11.2-11 19.7l54.8 182.4c3.5 12.3-3.3 25.2-15.4 29.3s-25.3-2-30-13.9L174.9 138.1c-3.2-8.2-12.5-12.3-20.8-9s-12.3 12.5-9 20.8l73.3 185.6c12 30.3-23.7 57-49.4 37l-63.1-49.1c-7-5.4-17-4.2-22.5 2.8s-4.2 17 2.8 22.5l92 71.6c36.5 28.4 81.4 43.8 127.7 43.8l33.7 0c47.5 0 89-32.4 100.5-78.5l55.4-221.6c2.1-8.6-3.1-17.3-11.6-19.4s-17.3 3.1-19.4 11.6l-26 104C435.6 271.8 425 280 413 280c-16.5 0-28.9-15-25.8-31.2L415.7 99c1.7-8.7-4-17.1-12.7-18.7s-17.1 4-18.7 12.7L352.5 260c-2.2 11.6-12.4 20-24.2 20c-11 0-20.7-7.3-23.7-17.9L247.4 59.6z"],
+    "hand-back-fist": [448, 512, ["hand-rock"], "regular", "M144 64c0-8.8 7.2-16 16-16s16 7.2 16 16c0 9.1 5.1 17.4 13.3 21.5s17.9 3.2 25.1-2.3c2.7-2 6-3.2 9.6-3.2c8.8 0 16 7.2 16 16c0 9.1 5.1 17.4 13.3 21.5s17.9 3.2 25.1-2.3c2.7-2 6-3.2 9.6-3.2c8.8 0 16 7.2 16 16c0 9.1 5.1 17.4 13.3 21.5s17.9 3.2 25.1-2.3c2.7-2 6-3.2 9.6-3.2c8.8 0 16 7.2 16 16l0 104c0 31.3-20 58-48 67.9c-9.6 3.4-16 12.5-16 22.6L304 488c0 13.3 10.7 24 24 24s24-10.7 24-24l0-117.8c38-20.1 64-60.1 64-106.2l0-104c0-35.3-28.7-64-64-64c-2.8 0-5.6 .2-8.3 .5C332.8 77.1 311.9 64 288 64c-2.8 0-5.6 .2-8.3 .5C268.8 45.1 247.9 32 224 32c-2.8 0-5.6 .2-8.3 .5C204.8 13.1 183.9 0 160 0C124.7 0 96 28.7 96 64l0 64.3c-11.7 7.4-22.5 16.4-32 26.9l17.8 16.1L64 155.2l-9.4 10.5C40 181.8 32 202.8 32 224.6l0 12.8c0 49.6 24.2 96.1 64.8 124.5l13.8-19.7L96.8 361.9l8.9 6.2c6.9 4.8 14.4 8.6 22.3 11.3L128 488c0 13.3 10.7 24 24 24s24-10.7 24-24l0-128.1c0-12.6-9.8-23.1-22.4-23.9c-7.3-.5-14.3-2.9-20.3-7.1l-13.1 18.7 13.1-18.7-8.9-6.2C96.6 303.1 80 271.3 80 237.4l0-12.8c0-9.9 3.7-19.4 10.3-26.8l9.4-10.5c3.8-4.2 7.9-8.1 12.3-11.6l0 32.3c0 8.8 7.2 16 16 16s16-7.2 16-16l0-65.7 0-14.3 0-64z"],
+    "hand-lizard": [512, 512, [], "regular", "M72 112c-13.3 0-24 10.7-24 24s10.7 24 24 24l168 0c35.3 0 64 28.7 64 64s-28.7 64-64 64l-104 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l152 0c4.5 0 8.9 1.3 12.7 3.6l64 40c7 4.4 11.3 12.1 11.3 20.4l0 24c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-10.7L281.1 384 136 384c-39.8 0-72-32.2-72-72s32.2-72 72-72l104 0c8.8 0 16-7.2 16-16s-7.2-16-16-16L72 208c-39.8 0-72-32.2-72-72S32.2 64 72 64l209.6 0c46.7 0 90.9 21.5 119.7 58.3l78.4 100.1c20.9 26.7 32.3 59.7 32.3 93.7L512 424c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-107.9c0-23.2-7.8-45.8-22.1-64.1L363.5 151.9c-19.7-25.2-49.9-39.9-81.9-39.9L72 112z"],
+    "hand-peace": [512, 512, [], "regular", "M250.8 1.4c-35.2-3.7-66.6 21.8-70.3 57L174 119 156.7 69.6C145 36.3 108.4 18.8 75.1 30.5S24.2 78.8 35.9 112.1L88.7 262.2C73.5 276.7 64 297.3 64 320c0 0 0 0 0 0l0 24c0 92.8 75.2 168 168 168l48 0c92.8 0 168-75.2 168-168l0-72 0-16 0-32c0-35.3-28.7-64-64-64c-7.9 0-15.4 1.4-22.4 4c-10.4-21.3-32.3-36-57.6-36c-.7 0-1.5 0-2.2 0l5.9-56.3c3.7-35.2-21.8-66.6-57-70.3zm-.2 155.4C243.9 166.9 240 179 240 192l0 48c0 .7 0 1.4 0 2c-5.1-1.3-10.5-2-16-2l-7.4 0-5.4-15.3 17-161.3c.9-8.8 8.8-15.2 17.6-14.2s15.2 8.8 14.2 17.6l-9.5 90.1zM111.4 85.6L165.7 240 144 240c-4 0-8 .3-11.9 .9L81.2 96.2c-2.9-8.3 1.5-17.5 9.8-20.4s17.5 1.5 20.4 9.8zM288 192c0-8.8 7.2-16 16-16s16 7.2 16 16l0 32 0 16c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48zm38.4 108c10.4 21.3 32.3 36 57.6 36c5.5 0 10.9-.7 16-2l0 10c0 66.3-53.7 120-120 120l-48 0c-66.3 0-120-53.7-120-120l0-24s0 0 0 0c0-17.7 14.3-32 32-32l80 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-40 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l40 0c35.3 0 64-28.7 64-64c0-.7 0-1.4 0-2c5.1 1.3 10.5 2 16 2c7.9 0 15.4-1.4 22.4-4zM400 272c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-32 0-16c0-8.8 7.2-16 16-16s16 7.2 16 16l0 32 0 16z"],
+    "hands-asl-interpreting": [640, 512, ["asl"], "solid", "M156.6 46.3c7.9-15.8 1.5-35-14.3-42.9s-35-1.5-42.9 14.3L13.5 189.4C4.6 207.2 0 226.8 0 246.7L0 256c0 70.7 57.3 128 128 128l72 0 8 0 0-.3c35.2-2.7 65.4-22.8 82.1-51.7c8.8-15.3 3.6-34.9-11.7-43.7s-34.9-3.6-43.7 11.7c-7 12-19.9 20-34.7 20c-22.1 0-40-17.9-40-40s17.9-40 40-40c14.8 0 27.7 8 34.7 20c8.8 15.3 28.4 20.5 43.7 11.7s20.5-28.4 11.7-43.7c-12.8-22.1-33.6-39.1-58.4-47.1l80.8-22c17-4.6 27.1-22.2 22.5-39.3s-22.2-27.1-39.3-22.5L194.9 124.6l81.6-68c13.6-11.3 15.4-31.5 4.1-45.1S249.1-3.9 235.5 7.4L133.6 92.3l23-46zM483.4 465.7c-7.9 15.8-1.5 35 14.3 42.9s35 1.5 42.9-14.3l85.9-171.7c8.9-17.8 13.5-37.4 13.5-57.2l0-9.3c0-70.7-57.3-128-128-128l-72 0-8 0 0 .3c-35.2 2.7-65.4 22.8-82.1 51.7c-8.9 15.3-3.6 34.9 11.7 43.7s34.9 3.6 43.7-11.7c7-12 19.9-20 34.7-20c22.1 0 40 17.9 40 40s-17.9 40-40 40c-14.8 0-27.7-8-34.7-20c-8.9-15.3-28.4-20.5-43.7-11.7s-20.5 28.4-11.7 43.7c12.8 22.1 33.6 39.1 58.4 47.1l-80.8 22c-17.1 4.7-27.1 22.2-22.5 39.3s22.2 27.1 39.3 22.5l100.7-27.5-81.6 68c-13.6 11.3-15.4 31.5-4.1 45.1s31.5 15.4 45.1 4.1l101.9-84.9-23 46z"],
+    "handshake": [640, 512, [], "regular", "M272.2 64.6l-51.1 51.1c-15.3 4.2-29.5 11.9-41.5 22.5L153 161.9C142.8 171 129.5 176 115.8 176L96 176l0 128c20.4 .6 39.8 8.9 54.3 23.4l35.6 35.6 7 7c0 0 0 0 0 0L219.9 397c6.2 6.2 16.4 6.2 22.6 0c1.7-1.7 3-3.7 3.7-5.8c2.8-7.7 9.3-13.5 17.3-15.3s16.4 .6 22.2 6.5L296.5 393c11.6 11.6 30.4 11.6 41.9 0c5.4-5.4 8.3-12.3 8.6-19.4c.4-8.8 5.6-16.6 13.6-20.4s17.3-3 24.4 2.1c9.4 6.7 22.5 5.8 30.9-2.6c9.4-9.4 9.4-24.6 0-33.9L340.1 243l-35.8 33c-27.3 25.2-69.2 25.6-97 .9c-31.7-28.2-32.4-77.4-1.6-106.5l70.1-66.2C303.2 78.4 339.4 64 377.1 64c36.1 0 71 13.3 97.9 37.2L505.1 128l38.9 0 40 0 40 0c8.8 0 16 7.2 16 16l0 208c0 17.7-14.3 32-32 32l-32 0c-11.8 0-22.2-6.4-27.7-16l-84.9 0c-3.4 6.7-7.9 13.1-13.5 18.7c-17.1 17.1-40.8 23.8-63 20.1c-3.6 7.3-8.5 14.1-14.6 20.2c-27.3 27.3-70 30-100.4 8.1c-25.1 20.8-62.5 19.5-86-4.1L159 404l-7-7-35.6-35.6c-5.5-5.5-12.7-8.7-20.4-9.3C96 369.7 81.6 384 64 384l-32 0c-17.7 0-32-14.3-32-32L0 144c0-8.8 7.2-16 16-16l40 0 40 0 19.8 0c2 0 3.9-.7 5.3-2l26.5-23.6C175.5 77.7 211.4 64 248.7 64L259 64c4.4 0 8.9 .2 13.2 .6zM544 320l0-144-48 0c-5.9 0-11.6-2.2-15.9-6.1l-36.9-32.8c-18.2-16.2-41.7-25.1-66.1-25.1c-25.4 0-49.8 9.7-68.3 27.1l-70.1 66.2c-10.3 9.8-10.1 26.3 .5 35.7c9.3 8.3 23.4 8.1 32.5-.3l71.9-66.4c9.7-9 24.9-8.4 33.9 1.4s8.4 24.9-1.4 33.9l-.8 .8 74.4 74.4c10 10 16.5 22.3 19.4 35.1l74.8 0zM64 336a16 16 0 1 0 -32 0 16 16 0 1 0 32 0zm528 16a16 16 0 1 0 0-32 16 16 0 1 0 0 32z"],
+    "thumbs-down": [512, 512, [], "regular", "M323.8 477.2c-38.2 10.9-78.1-11.2-89-49.4l-5.7-20c-3.7-13-10.4-25-19.5-35l-51.3-56.4c-8.9-9.8-8.2-25 1.6-33.9s25-8.2 33.9 1.6l51.3 56.4c14.1 15.5 24.4 34 30.1 54.1l5.7 20c3.6 12.7 16.9 20.1 29.7 16.5s20.1-16.9 16.5-29.7l-5.7-20c-5.7-19.9-14.7-38.7-26.6-55.5c-5.2-7.3-5.8-16.9-1.7-24.9s12.3-13 21.3-13L448 288c8.8 0 16-7.2 16-16c0-6.8-4.3-12.7-10.4-15c-7.4-2.8-13-9-14.9-16.7s.1-15.8 5.3-21.7c2.5-2.8 4-6.5 4-10.6c0-7.8-5.6-14.3-13-15.7c-8.2-1.6-15.1-7.3-18-15.2s-1.6-16.7 3.6-23.3c2.1-2.7 3.4-6.1 3.4-9.9c0-6.7-4.2-12.6-10.2-14.9c-11.5-4.5-17.7-16.9-14.4-28.8c.4-1.3 .6-2.8 .6-4.3c0-8.8-7.2-16-16-16l-97.5 0c-12.6 0-25 3.7-35.5 10.7l-61.7 41.1c-11 7.4-25.9 4.4-33.3-6.7s-4.4-25.9 6.7-33.3l61.7-41.1c18.4-12.3 40-18.8 62.1-18.8L384 32c34.7 0 62.9 27.6 64 62c14.6 11.7 24 29.7 24 50c0 4.5-.5 8.8-1.3 13c15.4 11.7 25.3 30.2 25.3 51c0 6.5-1 12.8-2.8 18.7C504.8 238.3 512 254.3 512 272c0 35.3-28.6 64-64 64l-92.3 0c4.7 10.4 8.7 21.2 11.8 32.2l5.7 20c10.9 38.2-11.2 78.1-49.4 89zM32 384c-17.7 0-32-14.3-32-32L0 128c0-17.7 14.3-32 32-32l64 0c17.7 0 32 14.3 32 32l0 224c0 17.7-14.3 32-32 32l-64 0z"],
+    "thumbs-up": [512, 512, [], "regular", "M323.8 34.8c-38.2-10.9-78.1 11.2-89 49.4l-5.7 20c-3.7 13-10.4 25-19.5 35l-51.3 56.4c-8.9 9.8-8.2 25 1.6 33.9s25 8.2 33.9-1.6l51.3-56.4c14.1-15.5 24.4-34 30.1-54.1l5.7-20c3.6-12.7 16.9-20.1 29.7-16.5s20.1 16.9 16.5 29.7l-5.7 20c-5.7 19.9-14.7 38.7-26.6 55.5c-5.2 7.3-5.8 16.9-1.7 24.9s12.3 13 21.3 13L448 224c8.8 0 16 7.2 16 16c0 6.8-4.3 12.7-10.4 15c-7.4 2.8-13 9-14.9 16.7s.1 15.8 5.3 21.7c2.5 2.8 4 6.5 4 10.6c0 7.8-5.6 14.3-13 15.7c-8.2 1.6-15.1 7.3-18 15.2s-1.6 16.7 3.6 23.3c2.1 2.7 3.4 6.1 3.4 9.9c0 6.7-4.2 12.6-10.2 14.9c-11.5 4.5-17.7 16.9-14.4 28.8c.4 1.3 .6 2.8 .6 4.3c0 8.8-7.2 16-16 16l-97.5 0c-12.6 0-25-3.7-35.5-10.7l-61.7-41.1c-11-7.4-25.9-4.4-33.3 6.7s-4.4 25.9 6.7 33.3l61.7 41.1c18.4 12.3 40 18.8 62.1 18.8l97.5 0c34.7 0 62.9-27.6 64-62c14.6-11.7 24-29.7 24-50c0-4.5-.5-8.8-1.3-13c15.4-11.7 25.3-30.2 25.3-51c0-6.5-1-12.8-2.8-18.7C504.8 273.7 512 257.7 512 240c0-35.3-28.6-64-64-64l-92.3 0c4.7-10.4 8.7-21.2 11.8-32.2l5.7-20c10.9-38.2-11.2-78.1-49.4-89zM32 192c-17.7 0-32 14.3-32 32L0 448c0 17.7 14.3 32 32 32l64 0c17.7 0 32-14.3 32-32l0-224c0-17.7-14.3-32-32-32l-64 0z"],
+    "log-in": [512, 512, [], "solid", "M352 96l64 0c17.7 0 32 14.3 32 32l0 256c0 17.7-14.3 32-32 32l-64 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l64 0c53 0 96-43 96-96l0-256c0-53-43-96-96-96l-64 0c-17.7 0-32 14.3-32 32s14.3 32 32 32zm-9.4 182.6c12.5-12.5 12.5-32.8 0-45.3l-128-128c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L242.7 224 32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l210.7 0-73.4 73.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l128-128z"],
+    "log-out": [512, 512, [], "solid", "M502.6 278.6c12.5-12.5 12.5-32.8 0-45.3l-128-128c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L402.7 224 192 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l210.7 0-73.4 73.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l128-128zM160 96c17.7 0 32-14.3 32-32s-14.3-32-32-32L96 32C43 32 0 75 0 128L0 384c0 53 43 96 96 96l64 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-64 0c-17.7 0-32-14.3-32-32l0-256c0-17.7 14.3-32 32-32l64 0z"],
+    "menu-arrows": [512, 512, [], "solid", "M352 144l96 112-96 112M160 144L64 256l96 112", "transform=rotate(90)", "fill=none stroke-width=60 stroke-linejoin=round stroke-linecap=round"],
+    "more": [128, 512, [], "solid", "M64 360a56 56 0 1 0 0 112 56 56 0 1 0 0-112zm0-160a56 56 0 1 0 0 112 56 56 0 1 0 0-112zM120 96A56 56 0 1 0 8 96a56 56 0 1 0 112 0z"],
+    "minus": [448, 512, [], "solid", "M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l352 0c17.7 0 32 14.3 32 32z"],
+    "more-horizontal": [448, 512, [], "solid", "M8 256a56 56 0 1 1 112 0A56 56 0 1 1 8 256zm160 0a56 56 0 1 1 112 0 56 56 0 1 1 -112 0zm216-56a56 56 0 1 1 0 112 56 56 0 1 1 0-112z"],
+    "plus": [448, 512, [], "solid", "M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z"],
+    "equals": [448, 512, [], "solid", "M48 128c-17.7 0-32 14.3-32 32s14.3 32 32 32l352 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L48 128zm0 192c-17.7 0-32 14.3-32 32s14.3 32 32 32l352 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L48 320z"],
+    "circle-nodes": [512, 512, [], "solid", "M418.4 157.9c35.3-8.3 61.6-40 61.6-77.9c0-44.2-35.8-80-80-80c-43.4 0-78.7 34.5-80 77.5L136.2 151.1C121.7 136.8 101.9 128 80 128c-44.2 0-80 35.8-80 80s35.8 80 80 80c12.2 0 23.8-2.7 34.1-7.6L259.7 407.8c-2.4 7.6-3.7 15.8-3.7 24.2c0 44.2 35.8 80 80 80s80-35.8 80-80c0-27.7-14-52.1-35.4-66.4l37.8-207.7zM156.3 232.2c2.2-6.9 3.5-14.2 3.7-21.7l183.8-73.5c3.6 3.5 7.4 6.7 11.6 9.5L317.6 354.1c-5.5 1.3-10.8 3.1-15.8 5.5L156.3 232.2z"],
+    "circle-plus": [24, 24, [], "regular", "M12 8V16M8 12H16M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z", null, "fill=none stroke-width=2 stroke-linecap=round stroke-linejoin=round"],
+    "circle-info": [24, 24, [], "regular", "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20ZM12 8v4M12 16h.01", null, "fill=none stroke-width=2 stroke-linejoin=round stroke-linecap=round"],
+    "circle-play": [512, 512, [], "regular", "M464 256A208 208 0 1 0 48 256a208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256zM188.3 147.1c7.6-4.2 16.8-4.1 24.3 .5l144 88c7.1 4.4 11.5 12.1 11.5 20.5s-4.4 16.1-11.5 20.5l-144 88c-7.4 4.5-16.7 4.7-24.3 .5s-12.3-12.2-12.3-20.9l0-176c0-8.7 4.7-16.7 12.3-20.9z"],
+    "circle-check": [512, 512, [], "regular", "M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-111 111-47-47c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l64 64c9.4 9.4 24.6 9.4 33.9 0L369 209z"],
+    "circle-stop": [512, 512, [], "regular", "M464 256A208 208 0 1 0 48 256a208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256zm192-96l128 0c17.7 0 32 14.3 32 32l0 128c0 17.7-14.3 32-32 32l-128 0c-17.7 0-32-14.3-32-32l0-128c0-17.7 14.3-32 32-32z"],
+    "circle-pause": [512, 512, [], "regular", "M464 256A208 208 0 1 0 48 256a208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256zm224-72l0 144c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-144c0-13.3 10.7-24 24-24s24 10.7 24 24zm112 0l0 144c0 13.3-10.7 24-24 24s-24-10.7-24-24l0-144c0-13.3 10.7-24 24-24s24 10.7 24 24z"],
+    "circle-xmark": [512, 512, [], "regular", "M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM175 175c-9.4 9.4-9.4 24.6 0 33.9l47 47-47 47c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l47-47 47 47c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-47-47 47-47c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-47 47-47-47c-9.4-9.4-24.6-9.4-33.9 0z"],
+    "circle-user": [512, 512, [], "regular", "M406.5 399.6C387.4 352.9 341.5 320 288 320l-64 0c-53.5 0-99.4 32.9-118.5 79.6C69.9 362.2 48 311.7 48 256C48 141.1 141.1 48 256 48s208 93.1 208 208c0 55.7-21.9 106.2-57.5 143.6zm-40.1 32.7C334.4 452.4 296.6 464 256 464s-78.4-11.6-110.5-31.7c7.3-36.7 39.7-64.3 78.5-64.3l64 0c38.8 0 71.2 27.6 78.5 64.3zM256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zm0-272a40 40 0 1 1 0-80 40 40 0 1 1 0 80zm-88-40a88 88 0 1 0 176 0 88 88 0 1 0 -176 0z"],
+    "circle-dot": [512, 512, [], "regular", "M464 256A208 208 0 1 0 48 256a208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256zm256-96a96 96 0 1 1 0 192 96 96 0 1 1 0-192z"],
+    "circle-right": [512, 512, [], "regular", "M464 256A208 208 0 1 1 48 256a208 208 0 1 1 416 0zM0 256a256 256 0 1 0 512 0A256 256 0 1 0 0 256zM294.6 151.2c-4.2-4.6-10.1-7.2-16.4-7.2C266 144 256 154 256 166.3l0 41.7-96 0c-17.7 0-32 14.3-32 32l0 32c0 17.7 14.3 32 32 32l96 0 0 41.7c0 12.3 10 22.3 22.3 22.3c6.2 0 12.1-2.6 16.4-7.2l84-91c3.5-3.8 5.4-8.7 5.4-13.9s-1.9-10.1-5.4-13.9l-84-91z"],
+    "circle-up": [512, 512, [], "regular", "M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM151.2 217.4c-4.6 4.2-7.2 10.1-7.2 16.4c0 12.3 10 22.3 22.3 22.3l41.7 0 0 96c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-96 41.7 0c12.3 0 22.3-10 22.3-22.3c0-6.2-2.6-12.1-7.2-16.4l-91-84c-3.8-3.5-8.7-5.4-13.9-5.4s-10.1 1.9-13.9 5.4l-91 84z"],
+    "circle-question": [512, 512, [], "regular", "M464 256A208 208 0 1 0 48 256a208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256zm169.8-90.7c7.9-22.3 29.1-37.3 52.8-37.3l58.3 0c34.9 0 63.1 28.3 63.1 63.1c0 22.6-12.1 43.5-31.7 54.8L280 264.4c-.2 13-10.9 23.6-24 23.6c-13.3 0-24-10.7-24-24l0-13.5c0-8.6 4.6-16.5 12.1-20.8l44.3-25.4c4.7-2.7 7.6-7.7 7.6-13.1c0-8.4-6.8-15.1-15.1-15.1l-58.3 0c-3.4 0-6.4 2.1-7.5 5.3l-.4 1.2c-4.4 12.5-18.2 19-30.6 14.6s-19-18.2-14.6-30.6l.4-1.2zM224 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z"],
+    "circle-left": [512, 512, [], "regular", "M48 256a208 208 0 1 1 416 0A208 208 0 1 1 48 256zm464 0A256 256 0 1 0 0 256a256 256 0 1 0 512 0zM217.4 376.9c4.2 4.5 10.1 7.1 16.3 7.1c12.3 0 22.3-10 22.3-22.3l0-57.7 96 0c17.7 0 32-14.3 32-32l0-32c0-17.7-14.3-32-32-32l-96 0 0-57.7c0-12.3-10-22.3-22.3-22.3c-6.2 0-12.1 2.6-16.3 7.1L117.5 242.2c-3.5 3.8-5.5 8.7-5.5 13.8s2 10.1 5.5 13.8l99.9 107.1z"],
+    "circle-down": [512, 512, [], "regular", "M256 464a208 208 0 1 1 0-416 208 208 0 1 1 0 416zM256 0a256 256 0 1 0 0 512A256 256 0 1 0 256 0zM376.9 294.6c4.5-4.2 7.1-10.1 7.1-16.3c0-12.3-10-22.3-22.3-22.3L304 256l0-96c0-17.7-14.3-32-32-32l-32 0c-17.7 0-32 14.3-32 32l0 96-57.7 0C138 256 128 266 128 278.3c0 6.2 2.6 12.1 7.1 16.3l107.1 99.9c3.8 3.5 8.7 5.5 13.8 5.5s10.1-2 13.8-5.5l107.1-99.9z"],
+    "search": [512, 512, [], "solid", "M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"],
+    "compass": [512, 512, [], "regular", "M464 256A208 208 0 1 0 48 256a208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256zm306.7 69.1L162.4 380.6c-19.4 7.5-38.5-11.6-31-31l55.5-144.3c3.3-8.5 9.9-15.1 18.4-18.4l144.3-55.5c19.4-7.5 38.5 11.6 31 31L325.1 306.7c-3.2 8.5-9.9 15.1-18.4 18.4zM288 256a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"],
+    "clock": [512, 512, [], "regular", "M464 256A208 208 0 1 1 48 256a208 208 0 1 1 416 0zM0 256a256 256 0 1 0 512 0A256 256 0 1 0 0 256zM232 120l0 136c0 8 4 15.5 10.7 20l96 64c11 7.4 25.9 4.4 33.3-6.7s4.4-25.9-6.7-33.3L280 243.2 280 120c0-13.3-10.7-24-24-24s-24 10.7-24 24z"],
+    "hourglass": [384, 512, [], "regular", "M24 0C10.7 0 0 10.7 0 24S10.7 48 24 48l8 0 0 19c0 40.3 16 79 44.5 107.5L158.1 256 76.5 337.5C48 366 32 404.7 32 445l0 19-8 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l336 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-8 0 0-19c0-40.3-16-79-44.5-107.5L225.9 256l81.5-81.5C336 146 352 107.3 352 67l0-19 8 0c13.3 0 24-10.7 24-24s-10.7-24-24-24L24 0zM192 289.9l81.5 81.5C293 391 304 417.4 304 445l0 19L80 464l0-19c0-27.6 11-54 30.5-73.5L192 289.9zm0-67.9l-81.5-81.5C91 121 80 94.6 80 67l0-19 224 0 0 19c0 27.6-11 54-30.5 73.5L192 222.1z"],
+    "hourglass-half": [384, 512, [], "regular", "M0 24C0 10.7 10.7 0 24 0L360 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-8 0 0 19c0 40.3-16 79-44.5 107.5L225.9 256l81.5 81.5C336 366 352 404.7 352 445l0 19 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24L24 512c-13.3 0-24-10.7-24-24s10.7-24 24-24l8 0 0-19c0-40.3 16-79 44.5-107.5L158.1 256 76.5 174.5C48 146 32 107.3 32 67l0-19-8 0C10.7 48 0 37.3 0 24zM110.5 371.5c-3.9 3.9-7.5 8.1-10.7 12.5l184.4 0c-3.2-4.4-6.8-8.6-10.7-12.5L192 289.9l-81.5 81.5zM284.2 128C297 110.4 304 89 304 67l0-19L80 48l0 19c0 22.1 7 43.4 19.8 61l184.4 0z"],
+    "sidebar": [512, 512, [], "regular", "M64 64h384a32 32 0 0 1 32 32v320a32 32 0 0 1-32 32H64a32 32 0 0 1-32-32V96a32 32 0 0 1 32-32zm128 0v384", null, "fill=none stroke-width=50 stroke-linejoin=round stroke-linecap=round"],
+    "table-cells": [512, 512, [], "solid", "M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zm88 64l0 64-88 0 0-64 88 0zm56 0l88 0 0 64-88 0 0-64zm240 0l0 64-88 0 0-64 88 0zM64 224l88 0 0 64-88 0 0-64zm232 0l0 64-88 0 0-64 88 0zm64 0l88 0 0 64-88 0 0-64zM152 352l0 64-88 0 0-64 88 0zm56 0l88 0 0 64-88 0 0-64zm240 0l0 64-88 0 0-64 88 0z"],
+    "table-cells-large": [512, 512, [], "solid", "M448 96l0 128-160 0 0-128 160 0zm0 192l0 128-160 0 0-128 160 0zM224 224L64 224 64 96l160 0 0 128zM64 288l160 0 0 128L64 416l0-128zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l384 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32z"],
+    "lightbulb": [384, 512, [], "regular", "M297.2 248.9C311.6 228.3 320 203.2 320 176c0-70.7-57.3-128-128-128S64 105.3 64 176c0 27.2 8.4 52.3 22.8 72.9c3.7 5.3 8.1 11.3 12.8 17.7c0 0 0 0 0 0c12.9 17.7 28.3 38.9 39.8 59.8c10.4 19 15.7 38.8 18.3 57.5L109 384c-2.2-12-5.9-23.7-11.8-34.5c-9.9-18-22.2-34.9-34.5-51.8c0 0 0 0 0 0s0 0 0 0c-5.2-7.1-10.4-14.2-15.4-21.4C27.6 247.9 16 213.3 16 176C16 78.8 94.8 0 192 0s176 78.8 176 176c0 37.3-11.6 71.9-31.4 100.3c-5 7.2-10.2 14.3-15.4 21.4c0 0 0 0 0 0s0 0 0 0c-12.3 16.8-24.6 33.7-34.5 51.8c-5.9 10.8-9.6 22.5-11.8 34.5l-48.6 0c2.6-18.7 7.9-38.6 18.3-57.5c11.5-20.9 26.9-42.1 39.8-59.8c0 0 0 0 0 0s0 0 0 0s0 0 0 0c4.7-6.4 9-12.4 12.7-17.7zM192 128c-26.5 0-48 21.5-48 48c0 8.8-7.2 16-16 16s-16-7.2-16-16c0-44.2 35.8-80 80-80c8.8 0 16 7.2 16 16s-7.2 16-16 16zm0 384c-44.2 0-80-35.8-80-80l0-16 160 0 0 16c0 44.2-35.8 80-80 80z"],
+    "flag": [448, 512, [], "regular", "M48 24C48 10.7 37.3 0 24 0S0 10.7 0 24L0 64 0 350.5 0 400l0 88c0 13.3 10.7 24 24 24s24-10.7 24-24l0-100 80.3-20.1c41.1-10.3 84.6-5.5 122.5 13.4c44.2 22.1 95.5 24.8 141.7 7.4l34.7-13c12.5-4.7 20.8-16.6 20.8-30l0-279.7c0-23-24.2-38-44.8-27.7l-9.6 4.8c-46.3 23.2-100.8 23.2-147.1 0c-35.1-17.6-75.4-22-113.5-12.5L48 52l0-28zm0 77.5l96.6-24.2c27-6.7 55.5-3.6 80.4 8.8c54.9 27.4 118.7 29.7 175 6.8l0 241.8-24.4 9.1c-33.7 12.6-71.2 10.7-103.4-5.4c-48.2-24.1-103.3-30.1-155.6-17.1L48 338.5l0-237z"],
+    "newspaper": [512, 512, [], "regular", "M168 80c-13.3 0-24 10.7-24 24l0 304c0 8.4-1.4 16.5-4.1 24L440 432c13.3 0 24-10.7 24-24l0-304c0-13.3-10.7-24-24-24L168 80zM72 480c-39.8 0-72-32.2-72-72L0 112C0 98.7 10.7 88 24 88s24 10.7 24 24l0 296c0 13.3 10.7 24 24 24s24-10.7 24-24l0-304c0-39.8 32.2-72 72-72l272 0c39.8 0 72 32.2 72 72l0 304c0 39.8-32.2 72-72 72L72 480zM176 136c0-13.3 10.7-24 24-24l96 0c13.3 0 24 10.7 24 24l0 80c0 13.3-10.7 24-24 24l-96 0c-13.3 0-24-10.7-24-24l0-80zm200-24l32 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-32 0c-13.3 0-24-10.7-24-24s10.7-24 24-24zm0 80l32 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-32 0c-13.3 0-24-10.7-24-24s10.7-24 24-24zM200 272l208 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-208 0c-13.3 0-24-10.7-24-24s10.7-24 24-24zm0 80l208 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-208 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"],
+    "shuffle": [512, 512, [], "solid", "M403.8 34.4c12-5 25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64c-9.2 9.2-22.9 11.9-34.9 6.9s-19.8-16.6-19.8-29.6l0-32-32 0c-10.1 0-19.6 4.7-25.6 12.8L284 229.3 244 176l31.2-41.6C293.3 110.2 321.8 96 352 96l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6zM164 282.7L204 336l-31.2 41.6C154.7 401.8 126.2 416 96 416l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c10.1 0 19.6-4.7 25.6-12.8L164 282.7zm274.6 188c-9.2 9.2-22.9 11.9-34.9 6.9s-19.8-16.6-19.8-29.6l0-32-32 0c-30.2 0-58.7-14.2-76.8-38.4L121.6 172.8c-6-8.1-15.5-12.8-25.6-12.8l-64 0c-17.7 0-32-14.3-32-32s14.3-32 32-32l64 0c30.2 0 58.7 14.2 76.8 38.4L326.4 339.2c6 8.1 15.5 12.8 25.6 12.8l32 0 0-32c0-12.9 7.8-24.6 19.8-29.6s25.7-2.2 34.9 6.9l64 64c6 6 9.4 14.1 9.4 22.6s-3.4 16.6-9.4 22.6l-64 64z"],
+    "shopping-cart": [24, 24, [], "regular", "M8 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM19 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12", null, "fill=none stroke-width=2 stroke-linecap=round stroke-linejoin=round"],
+    "credit-card": [576, 512, [], "regular", "M512 80c8.8 0 16 7.2 16 16l0 32L48 128l0-32c0-8.8 7.2-16 16-16l448 0zm16 144l0 192c0 8.8-7.2 16-16 16L64 432c-8.8 0-16-7.2-16-16l0-192 480 0zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l448 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zm56 304c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0zm128 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l112 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-112 0z"],
+    "lock": [448, 512, [], "solid", "M144 144l0 48 160 0 0-48c0-44.2-35.8-80-80-80s-80 35.8-80 80zM80 192l0-48C80 64.5 144.5 0 224 0s144 64.5 144 144l0 48 16 0c35.3 0 64 28.7 64 64l0 192c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 256c0-35.3 28.7-64 64-64l16 0z"],
+    "lock-open": [576, 512, [], "solid", "M352 144c0-44.2 35.8-80 80-80s80 35.8 80 80l0 48c0 17.7 14.3 32 32 32s32-14.3 32-32l0-48C576 64.5 511.5 0 432 0S288 64.5 288 144l0 48L64 192c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192c0-35.3-28.7-64-64-64l-32 0 0-48z"],
+    "trash-can": [448, 512, [], "regular", "M170.5 51.6L151.5 80l145 0-19-28.4c-1.5-2.2-4-3.6-6.7-3.6l-93.7 0c-2.7 0-5.2 1.3-6.7 3.6zm147-26.6L354.2 80 368 80l48 0 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-8 0 0 304c0 44.2-35.8 80-80 80l-224 0c-44.2 0-80-35.8-80-80l0-304-8 0c-13.3 0-24-10.7-24-24S10.7 80 24 80l8 0 48 0 13.8 0 36.7-55.1C140.9 9.4 158.4 0 177.1 0l93.7 0c18.7 0 36.2 9.4 46.6 24.9zM80 128l0 304c0 17.7 14.3 32 32 32l224 0c17.7 0 32-14.3 32-32l0-304L80 128zm80 64l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16z"],
+    "user": [448, 512, [], "regular", "M304 128a80 80 0 1 0 -160 0 80 80 0 1 0 160 0zM96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM49.3 464l349.5 0c-8.9-63.3-63.3-112-129-112l-91.4 0c-65.7 0-120.1 48.7-129 112zM0 482.3C0 383.8 79.8 304 178.3 304l91.4 0C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7L29.7 512C13.3 512 0 498.7 0 482.3z"],
+    "user-check": [640, 512, [], "solid", "M96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM0 482.3C0 383.8 79.8 304 178.3 304l91.4 0C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7L29.7 512C13.3 512 0 498.7 0 482.3zM625 177L497 305c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L591 143c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"],
+    "user-xmark": [640, 512, [], "solid", "M96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM0 482.3C0 383.8 79.8 304 178.3 304l91.4 0C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7L29.7 512C13.3 512 0 498.7 0 482.3zM471 143c9.4-9.4 24.6-9.4 33.9 0l47 47 47-47c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-47 47 47 47c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-47-47-47 47c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l47-47-47-47c-9.4-9.4-9.4-24.6 0-33.9z"],
+    "user-large": [512, 512, [], "solid", "M256 288A144 144 0 1 0 256 0a144 144 0 1 0 0 288zm-94.7 32C72.2 320 0 392.2 0 481.3c0 17 13.8 30.7 30.7 30.7l450.6 0c17 0 30.7-13.8 30.7-30.7C512 392.2 439.8 320 350.7 320l-189.4 0z"],
+    "user-large-slash": [640, 512, [], "solid", "M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L381.9 274c48.5-23.2 82.1-72.7 82.1-130C464 64.5 399.5 0 320 0C250.4 0 192.4 49.3 178.9 114.9L38.8 5.1zM545.5 512L528 512 284.3 320l-59 0C136.2 320 64 392.2 64 481.3c0 17 13.8 30.7 30.7 30.7l450.6 0 .3 0z"],
+    "child-reaching": [384, 512, [], "solid", "M256 64A64 64 0 1 0 128 64a64 64 0 1 0 128 0zM152.9 169.3c-23.7-8.4-44.5-24.3-58.8-45.8L74.6 94.2C64.8 79.5 45 75.6 30.2 85.4s-18.7 29.7-8.9 44.4L40.9 159c18.1 27.1 42.8 48.4 71.1 62.4L112 480c0 17.7 14.3 32 32 32s32-14.3 32-32l0-96 32 0 0 96c0 17.7 14.3 32 32 32s32-14.3 32-32l0-258.4c29.1-14.2 54.4-36.2 72.7-64.2l18.2-27.9c9.6-14.8 5.4-34.6-9.4-44.3s-34.6-5.5-44.3 9.4L291 122.4c-21.8 33.4-58.9 53.6-98.8 53.6c-12.6 0-24.9-2-36.6-5.8c-.9-.3-1.8-.7-2.7-.9z"],
+    "person-walking-dashed-line-arrow-right": [640, 512, [], "solid", "M208 96a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM123.7 200.5c1-.4 1.9-.8 2.9-1.2l-16.9 63.5c-5.6 21.1-.1 43.6 14.7 59.7l70.7 77.1 22 88.1c4.3 17.1 21.7 27.6 38.8 23.3s27.6-21.7 23.3-38.8l-23-92.1c-1.9-7.8-5.8-14.9-11.2-20.8l-49.5-54 19.3-65.5 9.6 23c4.4 10.6 12.5 19.3 22.8 24.5l26.7 13.3c15.8 7.9 35 1.5 42.9-14.3s1.5-35-14.3-42.9L281 232.7l-15.3-36.8C248.5 154.8 208.3 128 163.7 128c-22.8 0-45.3 4.8-66.1 14l-8 3.5c-32.9 14.6-58.1 42.4-69.4 76.5l-2.6 7.8c-5.6 16.8 3.5 34.9 20.2 40.5s34.9-3.5 40.5-20.2l2.6-7.8c5.7-17.1 18.3-30.9 34.7-38.2l8-3.5zm-30 135.1L68.7 398 9.4 457.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L116.3 441c4.6-4.6 8.2-10.1 10.6-16.1l14.5-36.2-40.7-44.4c-2.5-2.7-4.8-5.6-7-8.6zM550.6 153.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L530.7 224 384 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l146.7 0-25.4 25.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l80-80c12.5-12.5 12.5-32.8 0-45.3l-80-80zM392 0c-13.3 0-24 10.7-24 24l0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48c0-13.3-10.7-24-24-24zm24 152c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 16c0 13.3 10.7 24 24 24s24-10.7 24-24l0-16zM392 320c-13.3 0-24 10.7-24 24l0 16c0 13.3 10.7 24 24 24s24-10.7 24-24l0-16c0-13.3-10.7-24-24-24zm24 120c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48z"],
+    "person-walking-arrow-loop-left": [640, 512, [], "solid", "M208 96a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM123.7 200.5c1-.4 1.9-.8 2.9-1.2l-16.9 63.5c-5.6 21.1-.1 43.6 14.7 59.7l70.7 77.1 22 88.1c4.3 17.1 21.7 27.6 38.8 23.3s27.6-21.7 23.3-38.8l-23-92.1c-1.9-7.8-5.8-14.9-11.2-20.8l-49.5-54 19.3-65.5 9.6 23c4.4 10.6 12.5 19.3 22.8 24.5l26.7 13.3c15.8 7.9 35 1.5 42.9-14.3s1.5-35-14.3-42.9L281 232.7l-15.3-36.8C248.5 154.8 208.3 128 163.7 128c-22.8 0-45.3 4.8-66.1 14l-8 3.5c-32.9 14.6-58.1 42.4-69.4 76.5l-2.6 7.8c-5.6 16.8 3.5 34.9 20.2 40.5s34.9-3.5 40.5-20.2l2.6-7.8c5.7-17.1 18.3-30.9 34.7-38.2l8-3.5zm-30 135.1L68.7 398 9.4 457.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L116.3 441c4.6-4.6 8.2-10.1 10.6-16.1l14.5-36.2-40.7-44.4c-2.5-2.7-4.8-5.6-7-8.6zm347.7 119c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L461.3 384l18.7 0c88.4 0 160-71.6 160-160s-71.6-160-160-160L352 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l128 0c53 0 96 43 96 96s-43 96-96 96l-18.7 0 25.4-25.4c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-80 80c-12.5 12.5-12.5 32.8 0 45.3l80 80z"],
+    "person-walking-arrow-right": [640, 512, [], "solid", "M208 96a48 48 0 1 0 0-96 48 48 0 1 0 0 96zM123.7 200.5c1-.4 1.9-.8 2.9-1.2l-16.9 63.5c-5.6 21.1-.1 43.6 14.7 59.7l70.7 77.1 22 88.1c4.3 17.1 21.7 27.6 38.8 23.3s27.6-21.7 23.3-38.8l-23-92.1c-1.9-7.8-5.8-14.9-11.2-20.8l-49.5-54 19.3-65.5 9.6 23c4.4 10.6 12.5 19.3 22.8 24.5l26.7 13.3c15.8 7.9 35 1.5 42.9-14.3s1.5-35-14.3-42.9L281 232.7l-15.3-36.8C248.5 154.8 208.3 128 163.7 128c-22.8 0-45.3 4.8-66.1 14l-8 3.5c-32.9 14.6-58.1 42.4-69.4 76.5l-2.6 7.8c-5.6 16.8 3.5 34.9 20.2 40.5s34.9-3.5 40.5-20.2l2.6-7.8c5.7-17.1 18.3-30.9 34.7-38.2l8-3.5zm-30 135.1L68.7 398 9.4 457.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L116.3 441c4.6-4.6 8.2-10.1 10.6-16.1l14.5-36.2-40.7-44.4c-2.5-2.7-4.8-5.6-7-8.6zM550.6 153.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L530.7 224 384 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l146.7 0-25.4 25.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l80-80c12.5-12.5 12.5-32.8 0-45.3l-80-80z"],
+    "street-view": [512, 512, [], "solid", "M320 64A64 64 0 1 0 192 64a64 64 0 1 0 128 0zm-96 96c-35.3 0-64 28.7-64 64l0 48c0 17.7 14.3 32 32 32l1.8 0 11.1 99.5c1.8 16.2 15.5 28.5 31.8 28.5l38.7 0c16.3 0 30-12.3 31.8-28.5L318.2 304l1.8 0c17.7 0 32-14.3 32-32l0-48c0-35.3-28.7-64-64-64l-64 0zM132.3 394.2c13-2.4 21.7-14.9 19.3-27.9s-14.9-21.7-27.9-19.3c-32.4 5.9-60.9 14.2-82 24.8c-10.5 5.3-20.3 11.7-27.8 19.6C6.4 399.5 0 410.5 0 424c0 21.4 15.5 36.1 29.1 45c14.7 9.6 34.3 17.3 56.4 23.4C130.2 504.7 190.4 512 256 512s125.8-7.3 170.4-19.6c22.1-6.1 41.8-13.8 56.4-23.4c13.7-8.9 29.1-23.6 29.1-45c0-13.5-6.4-24.5-14-32.6c-7.5-7.9-17.3-14.3-27.8-19.6c-21-10.6-49.5-18.9-82-24.8c-13-2.4-25.5 6.3-27.9 19.3s6.3 25.5 19.3 27.9c30.2 5.5 53.7 12.8 69 20.5c3.2 1.6 5.8 3.1 7.9 4.5c3.6 2.4 3.6 7.2 0 9.6c-8.8 5.7-23.1 11.8-43 17.3C374.3 457 318.5 464 256 464s-118.3-7-157.7-17.9c-19.9-5.5-34.2-11.6-43-17.3c-3.6-2.4-3.6-7.2 0-9.6c2.1-1.4 4.8-2.9 7.9-4.5c15.3-7.7 38.8-14.9 69-20.5z"],
+    "closed-captioning": [576, 512, ["cc"], "regular", "M512 80c8.8 0 16 7.2 16 16l0 320c0 8.8-7.2 16-16 16L64 432c-8.8 0-16-7.2-16-16L48 96c0-8.8 7.2-16 16-16l448 0zM64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l448 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM200 208c14.2 0 27 6.1 35.8 16c8.8 9.9 24 10.7 33.9 1.9s10.7-24 1.9-33.9c-17.5-19.6-43.1-32-71.5-32c-53 0-96 43-96 96s43 96 96 96c28.4 0 54-12.4 71.5-32c8.8-9.9 8-25-1.9-33.9s-25-8-33.9 1.9c-8.8 9.9-21.6 16-35.8 16c-26.5 0-48-21.5-48-48s21.5-48 48-48zm144 48c0-26.5 21.5-48 48-48c14.2 0 27 6.1 35.8 16c8.8 9.9 24 10.7 33.9 1.9s10.7-24 1.9-33.9c-17.5-19.6-43.1-32-71.5-32c-53 0-96 43-96 96s43 96 96 96c28.4 0 54-12.4 71.5-32c8.8-9.9 8-25-1.9-33.9s-25-8-33.9 1.9c-8.8 9.9-21.6 16-35.8 16c-26.5 0-48-21.5-48-48z"],
+    "bone": [576, 512, [], "solid", "M153.7 144.8c6.9 16.3 20.6 31.2 38.3 31.2l192 0c17.7 0 31.4-14.9 38.3-31.2C434.4 116.1 462.9 96 496 96c44.2 0 80 35.8 80 80c0 30.4-17 56.9-42 70.4c-3.6 1.9-6 5.5-6 9.6s2.4 7.7 6 9.6c25 13.5 42 40 42 70.4c0 44.2-35.8 80-80 80c-33.1 0-61.6-20.1-73.7-48.8C415.4 350.9 401.7 336 384 336l-192 0c-17.7 0-31.4 14.9-38.3 31.2C141.6 395.9 113.1 416 80 416c-44.2 0-80-35.8-80-80c0-30.4 17-56.9 42-70.4c3.6-1.9 6-5.5 6-9.6s-2.4-7.7-6-9.6C17 232.9 0 206.4 0 176c0-44.2 35.8-80 80-80c33.1 0 61.6 20.1 73.7 48.8z"],
+    "sun": [512, 512, [], "regular", "M375.7 19.7c-1.5-8-6.9-14.7-14.4-17.8s-16.1-2.2-22.8 2.4L256 61.1 173.5 4.2c-6.7-4.6-15.3-5.5-22.8-2.4s-12.9 9.8-14.4 17.8l-18.1 98.5L19.7 136.3c-8 1.5-14.7 6.9-17.8 14.4s-2.2 16.1 2.4 22.8L61.1 256 4.2 338.5c-4.6 6.7-5.5 15.3-2.4 22.8s9.8 13 17.8 14.4l98.5 18.1 18.1 98.5c1.5 8 6.9 14.7 14.4 17.8s16.1 2.2 22.8-2.4L256 450.9l82.5 56.9c6.7 4.6 15.3 5.5 22.8 2.4s12.9-9.8 14.4-17.8l18.1-98.5 98.5-18.1c8-1.5 14.7-6.9 17.8-14.4s2.2-16.1-2.4-22.8L450.9 256l56.9-82.5c4.6-6.7 5.5-15.3 2.4-22.8s-9.8-12.9-17.8-14.4l-98.5-18.1L375.7 19.7zM269.6 110l65.6-45.2 14.4 78.3c1.8 9.8 9.5 17.5 19.3 19.3l78.3 14.4L402 242.4c-5.7 8.2-5.7 19 0 27.2l45.2 65.6-78.3 14.4c-9.8 1.8-17.5 9.5-19.3 19.3l-14.4 78.3L269.6 402c-8.2-5.7-19-5.7-27.2 0l-65.6 45.2-14.4-78.3c-1.8-9.8-9.5-17.5-19.3-19.3L64.8 335.2 110 269.6c5.7-8.2 5.7-19 0-27.2L64.8 176.8l78.3-14.4c9.8-1.8 17.5-9.5 19.3-19.3l14.4-78.3L242.4 110c8.2 5.7 19 5.7 27.2 0zM256 368a112 112 0 1 0 0-224 112 112 0 1 0 0 224zM192 256a64 64 0 1 1 128 0 64 64 0 1 1 -128 0z"],
+    "moon": [384, 512, [], "regular", "M144.7 98.7c-21 34.1-33.1 74.3-33.1 117.3c0 98 62.8 181.4 150.4 211.7c-12.4 2.8-25.3 4.3-38.6 4.3C126.6 432 48 353.3 48 256c0-68.9 39.4-128.4 96.8-157.3zm62.1-66C91.1 41.2 0 137.9 0 256C0 379.7 100 480 223.5 480c47.8 0 92-15 128.4-40.6c1.9-1.3 3.7-2.7 5.5-4c4.8-3.6 9.4-7.4 13.9-11.4c2.7-2.4 5.3-4.8 7.9-7.3c5-4.9 6.3-12.5 3.1-18.7s-10.1-9.7-17-8.5c-3.7 .6-7.4 1.2-11.1 1.6c-5 .5-10.1 .9-15.3 1c-1.2 0-2.5 0-3.7 0l-.3 0c-96.8-.2-175.2-78.9-175.2-176c0-54.8 24.9-103.7 64.1-136c1-.9 2.1-1.7 3.2-2.6c4-3.2 8.2-6.2 12.5-9c3.1-2 6.3-4 9.6-5.8c6.1-3.5 9.2-10.5 7.7-17.3s-7.3-11.9-14.3-12.5c-3.6-.3-7.1-.5-10.7-.6c-2.7-.1-5.5-.1-8.2-.1c-3.3 0-6.5 .1-9.8 .2c-2.3 .1-4.6 .2-6.9 .4z"],
+    "heart": [512, 512, [], "regular", "M225.8 468.2l-2.5-2.3L48.1 303.2C17.4 274.7 0 234.7 0 192.8l0-3.3c0-70.4 50-130.8 119.2-144C158.6 37.9 198.9 47 231 69.6c9 6.4 17.4 13.8 25 22.3c4.2-4.8 8.7-9.2 13.5-13.3c3.7-3.2 7.5-6.2 11.5-9c0 0 0 0 0 0C313.1 47 353.4 37.9 392.8 45.4C462 58.6 512 119.1 512 189.5l0 3.3c0 41.9-17.4 81.9-48.1 110.4L288.7 465.9l-2.5 2.3c-8.2 7.6-19 11.9-30.2 11.9s-22-4.2-30.2-11.9zM239.1 145c-.4-.3-.7-.7-1-1.1l-17.8-20-.1-.1s0 0 0 0c-23.1-25.9-58-37.7-92-31.2C81.6 101.5 48 142.1 48 189.5l0 3.3c0 28.5 11.9 55.8 32.8 75.2L256 430.7 431.2 268c20.9-19.4 32.8-46.7 32.8-75.2l0-3.3c0-47.3-33.6-88-80.1-96.9c-34-6.5-69 5.4-92 31.2c0 0 0 0-.1 .1s0 0-.1 .1l-17.8 20c-.3 .4-.7 .7-1 1.1c-4.5 4.5-10.6 7-16.9 7s-12.4-2.5-16.9-7z"],
+    "face-smile": [512, 512, ["smile"], "regular", "M464 256A208 208 0 1 0 48 256a208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256zm177.6 62.1C192.8 334.5 218.8 352 256 352s63.2-17.5 78.4-33.9c9-9.7 24.2-10.4 33.9-1.4s10.4 24.2 1.4 33.9c-22 23.8-60 49.4-113.6 49.4s-91.7-25.5-113.6-49.4c-9-9.7-8.4-24.9 1.4-33.9s24.9-8.4 33.9 1.4zM144.4 208a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm192-32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z"],
+    "xmark": [384, 512, [], "solid", "M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"],
+    "wand-sparkles": [512, 512, [], "solid", "M464 6.1c9.5-8.5 24-8.1 33 .9l8 8c9 9 9.4 23.5 .9 33l-85.8 95.9c-2.6 2.9-4.1 6.7-4.1 10.7l0 21.4c0 8.8-7.2 16-16 16l-15.8 0c-4.6 0-8.9 1.9-11.9 5.3L100.7 500.9C94.3 508 85.3 512 75.8 512c-8.8 0-17.3-3.5-23.5-9.8L9.7 459.7C3.5 453.4 0 445 0 436.2c0-9.5 4-18.5 11.1-24.8l111.6-99.8c3.4-3 5.3-7.4 5.3-11.9l0-27.6c0-8.8 7.2-16 16-16l34.6 0c3.9 0 7.7-1.5 10.7-4.1L464 6.1zM432 288c3.6 0 6.7 2.4 7.7 5.8l14.8 51.7 51.7 14.8c3.4 1 5.8 4.1 5.8 7.7s-2.4 6.7-5.8 7.7l-51.7 14.8-14.8 51.7c-1 3.4-4.1 5.8-7.7 5.8s-6.7-2.4-7.7-5.8l-14.8-51.7-51.7-14.8c-3.4-1-5.8-4.1-5.8-7.7s2.4-6.7 5.8-7.7l51.7-14.8 14.8-51.7c1-3.4 4.1-5.8 7.7-5.8zM87.7 69.8l14.8 51.7 51.7 14.8c3.4 1 5.8 4.1 5.8 7.7s-2.4 6.7-5.8 7.7l-51.7 14.8L87.7 218.2c-1 3.4-4.1 5.8-7.7 5.8s-6.7-2.4-7.7-5.8L57.5 166.5 5.8 151.7c-3.4-1-5.8-4.1-5.8-7.7s2.4-6.7 5.8-7.7l51.7-14.8L72.3 69.8c1-3.4 4.1-5.8 7.7-5.8s6.7 2.4 7.7 5.8zM208 0c3.7 0 6.9 2.5 7.8 6.1l6.8 27.3 27.3 6.8c3.6 .9 6.1 4.1 6.1 7.8s-2.5 6.9-6.1 7.8l-27.3 6.8-6.8 27.3c-.9 3.6-4.1 6.1-7.8 6.1s-6.9-2.5-7.8-6.1l-6.8-27.3-27.3-6.8c-3.6-.9-6.1-4.1-6.1-7.8s2.5-6.9 6.1-7.8l27.3-6.8 6.8-27.3c.9-3.6 4.1-6.1 7.8-6.1z"],
+    "star": [576, 512, [], "regular", "M287.9 0c9.2 0 17.6 5.2 21.6 13.5l68.6 141.3 153.2 22.6c9 1.3 16.5 7.6 19.3 16.3s.5 18.1-5.9 24.5L433.6 328.4l26.2 155.6c1.5 9-2.2 18.1-9.7 23.5s-17.3 6-25.3 1.7l-137-73.2L151 509.1c-8.1 4.3-17.9 3.7-25.3-1.7s-11.2-14.5-9.7-23.5l26.2-155.6L31.1 218.2c-6.5-6.4-8.7-15.9-5.9-24.5s10.3-14.9 19.3-16.3l153.2-22.6L266.3 13.5C270.4 5.2 278.7 0 287.9 0zm0 79L235.4 187.2c-3.5 7.1-10.2 12.1-18.1 13.3L99 217.9 184.9 303c5.5 5.5 8.1 13.3 6.8 21L171.4 443.7l105.2-56.2c7.1-3.8 15.6-3.8 22.6 0l105.2 56.2L384.2 324.1c-1.3-7.7 1.2-15.5 6.8-21l85.9-85.1L358.6 200.5c-7.8-1.2-14.6-6.1-18.1-13.3L287.9 79z"],
+    "puzzle-piece": [512, 512, [], "solid", "M192 104.8c0-9.2-5.8-17.3-13.2-22.8C167.2 73.3 160 61.3 160 48c0-26.5 28.7-48 64-48s64 21.5 64 48c0 13.3-7.2 25.3-18.8 34c-7.4 5.5-13.2 13.6-13.2 22.8c0 12.8 10.4 23.2 23.2 23.2l56.8 0c26.5 0 48 21.5 48 48l0 56.8c0 12.8 10.4 23.2 23.2 23.2c9.2 0 17.3-5.8 22.8-13.2c8.7-11.6 20.7-18.8 34-18.8c26.5 0 48 28.7 48 64s-21.5 64-48 64c-13.3 0-25.3-7.2-34-18.8c-5.5-7.4-13.6-13.2-22.8-13.2c-12.8 0-23.2 10.4-23.2 23.2L384 464c0 26.5-21.5 48-48 48l-56.8 0c-12.8 0-23.2-10.4-23.2-23.2c0-9.2 5.8-17.3 13.2-22.8c11.6-8.7 18.8-20.7 18.8-34c0-26.5-28.7-48-64-48s-64 21.5-64 48c0 13.3 7.2 25.3 18.8 34c7.4 5.5 13.2 13.6 13.2 22.8c0 12.8-10.4 23.2-23.2 23.2L48 512c-26.5 0-48-21.5-48-48L0 343.2C0 330.4 10.4 320 23.2 320c9.2 0 17.3 5.8 22.8 13.2C54.7 344.8 66.7 352 80 352c26.5 0 48-28.7 48-64s-21.5-64-48-64c-13.3 0-25.3 7.2-34 18.8C40.5 250.2 32.4 256 23.2 256C10.4 256 0 245.6 0 232.8L0 176c0-26.5 21.5-48 48-48l120.8 0c12.8 0 23.2-10.4 23.2-23.2z"],
+    // brands
+    "discord": [640, 512, [], "brands", "M524.531,69.836a1.5,1.5,0,0,0-.764-.7A485.065,485.065,0,0,0,404.081,32.03a1.816,1.816,0,0,0-1.923.91,337.461,337.461,0,0,0-14.9,30.6,447.848,447.848,0,0,0-134.426,0,309.541,309.541,0,0,0-15.135-30.6,1.89,1.89,0,0,0-1.924-.91A483.689,483.689,0,0,0,116.085,69.137a1.712,1.712,0,0,0-.788.676C39.068,183.651,18.186,294.69,28.43,404.354a2.016,2.016,0,0,0,.765,1.375A487.666,487.666,0,0,0,176.02,479.918a1.9,1.9,0,0,0,2.063-.676A348.2,348.2,0,0,0,208.12,430.4a1.86,1.86,0,0,0-1.019-2.588,321.173,321.173,0,0,1-45.868-21.853,1.885,1.885,0,0,1-.185-3.126c3.082-2.309,6.166-4.711,9.109-7.137a1.819,1.819,0,0,1,1.9-.256c96.229,43.917,200.41,43.917,295.5,0a1.812,1.812,0,0,1,1.924.233c2.944,2.426,6.027,4.851,9.132,7.16a1.884,1.884,0,0,1-.162,3.126,301.407,301.407,0,0,1-45.89,21.83,1.875,1.875,0,0,0-1,2.611,391.055,391.055,0,0,0,30.014,48.815,1.864,1.864,0,0,0,2.063.7A486.048,486.048,0,0,0,610.7,405.729a1.882,1.882,0,0,0,.765-1.352C623.729,277.594,590.933,167.465,524.531,69.836ZM222.491,337.58c-28.972,0-52.844-26.587-52.844-59.239S193.056,219.1,222.491,219.1c29.665,0,53.306,26.82,52.843,59.239C275.334,310.993,251.924,337.58,222.491,337.58Zm195.38,0c-28.971,0-52.843-26.587-52.843-59.239S388.437,219.1,417.871,219.1c29.667,0,53.307,26.82,52.844,59.239C470.715,310.993,447.538,337.58,417.871,337.58Z"],
+    "github": [496, 512, [], "brands", "M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"],
+    "square-js": [448, 512, [], "brands", "M448 96c0-35.3-28.7-64-64-64H64C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V96zM180.9 444.9c-33.7 0-53.2-17.4-63.2-38.5L152 385.7c6.6 11.7 12.6 21.6 27.1 21.6c13.8 0 22.6-5.4 22.6-26.5V237.7h42.1V381.4c0 43.6-25.6 63.5-62.9 63.5zm85.8-43L301 382.1c9 14.7 20.8 25.6 41.5 25.6c17.4 0 28.6-8.7 28.6-20.8c0-14.4-11.4-19.5-30.7-28l-10.5-4.5c-30.4-12.9-50.5-29.2-50.5-63.5c0-31.6 24.1-55.6 61.6-55.6c26.8 0 46 9.3 59.8 33.7L368 290c-7.2-12.9-15-18-27.1-18c-12.3 0-20.1 7.8-20.1 18c0 12.6 7.8 17.7 25.9 25.6l10.5 4.5c35.8 15.3 55.9 31 55.9 66.2c0 37.8-29.8 58.6-69.7 58.6c-39.1 0-64.4-18.6-76.7-43z"],
+    "python": [448, 512, [], "brands", "M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6zM286.2 404c11.1 0 20.1 9.1 20.1 20.3 0 11.3-9 20.4-20.1 20.4-11 0-20.1-9.2-20.1-20.4.1-11.3 9.1-20.3 20.1-20.3zM167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4zm-6.7-142.6c-11.1 0-20.1-9.1-20.1-20.3.1-11.3 9-20.4 20.1-20.4 11 0 20.1 9.2 20.1 20.4s-9 20.3-20.1 20.3z"],
+    "microsoft": [448, 512, [], "brands", "M0 32h214.6v214.6H0V32zm233.4 0H448v214.6H233.4V32zM0 265.4h214.6V480H0V265.4zm233.4 0H448V480H233.4V265.4z"],
+    "apple": [384, 512, [], "brands", "M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"],
+    "youtube": [576, 512, [], "brands", "M549.655 124.083c-6.281-23.65-24.787-42.276-48.284-48.597C458.781 64 288 64 288 64S117.22 64 74.629 75.486c-23.497 6.322-42.003 24.947-48.284 48.597-11.412 42.867-11.412 132.305-11.412 132.305s0 89.438 11.412 132.305c6.281 23.65 24.787 41.5 48.284 47.821C117.22 448 288 448 288 448s170.78 0 213.371-11.486c23.497-6.321 42.003-24.171 48.284-47.821 11.412-42.867 11.412-132.305 11.412-132.305s0-89.438-11.412-132.305zm-317.51 213.508V175.185l142.739 81.205-142.739 81.201z"],
+    "x-twitter": [512, 512, [], "brands", "M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8L200.7 275.5 26.8 48H172.4L272.9 180.9 389.2 48zM364.4 421.8h39.1L151.1 88h-42L364.4 421.8z"],
+    "chrome": [512, 512, [], "brands", "M0 256C0 209.4 12.47 165.6 34.27 127.1L144.1 318.3C166 357.5 207.9 384 256 384C270.3 384 283.1 381.7 296.8 377.4L220.5 509.6C95.9 492.3 0 385.3 0 256zM365.1 321.6C377.4 302.4 384 279.1 384 256C384 217.8 367.2 183.5 340.7 160H493.4C505.4 189.6 512 222.1 512 256C512 397.4 397.4 511.1 256 512L365.1 321.6zM477.8 128H256C193.1 128 142.3 172.1 130.5 230.7L54.19 98.47C101 38.53 174 0 256 0C350.8 0 433.5 51.48 477.8 128V128zM168 256C168 207.4 207.4 168 256 168C304.6 168 344 207.4 344 256C344 304.6 304.6 344 256 344C207.4 344 168 304.6 168 256z"],
+    "reddit": [512, 512, [], "brands", "M0 256C0 114.6 114.6 0 256 0S512 114.6 512 256s-114.6 256-256 256L37.1 512c-13.7 0-20.5-16.5-10.9-26.2L75 437C28.7 390.7 0 326.7 0 256zM349.6 153.6c23.6 0 42.7-19.1 42.7-42.7s-19.1-42.7-42.7-42.7c-20.6 0-37.8 14.6-41.8 34c-34.5 3.7-61.4 33-61.4 68.4l0 .2c-37.5 1.6-71.8 12.3-99 29.1c-10.1-7.8-22.8-12.5-36.5-12.5c-33 0-59.8 26.8-59.8 59.8c0 24 14.1 44.6 34.4 54.1c2 69.4 77.6 125.2 170.6 125.2s168.7-55.9 170.6-125.3c20.2-9.6 34.1-30.2 34.1-54c0-33-26.8-59.8-59.8-59.8c-13.7 0-26.3 4.6-36.4 12.4c-27.4-17-62.1-27.7-100-29.1l0-.2c0-25.4 18.9-46.5 43.4-49.9l0 0c4.4 18.8 21.3 32.8 41.5 32.8zM177.1 246.9c16.7 0 29.5 17.6 28.5 39.3s-13.5 29.6-30.3 29.6s-31.4-8.8-30.4-30.5s15.4-38.3 32.1-38.3zm190.1 38.3c1 21.7-13.7 30.5-30.4 30.5s-29.3-7.9-30.3-29.6c-1-21.7 11.8-39.3 28.5-39.3s31.2 16.6 32.1 38.3zm-48.1 56.7c-10.3 24.6-34.6 41.9-63 41.9s-52.7-17.3-63-41.9c-1.2-2.9 .8-6.2 3.9-6.5c18.4-1.9 38.3-2.9 59.1-2.9s40.7 1 59.1 2.9c3.1 .3 5.1 3.6 3.9 6.5z"],
+    "ubuntu": [576, 512, [], "brands", "M469.2 75A75.6 75.6 0 1 0 317.9 75a75.6 75.6 0 1 0 151.2 0zM154.2 240.7A75.6 75.6 0 1 0 3 240.7a75.6 75.6 0 1 0 151.2 0zM57 346C75.6 392.9 108 433 150 461.1s91.5 42.6 142 41.7c-14.7-18.6-22.9-41.5-23.2-65.2c-6.8-.9-13.3-2.1-19.5-3.4c-26.8-5.7-51.9-17.3-73.6-34s-39.3-38.1-51.7-62.5c-20.9 9.9-44.5 12.8-67.1 8.2zm395.1 89.8a75.6 75.6 0 1 0 -151.2 0 75.6 75.6 0 1 0 151.2 0zM444 351.6c18.5 14.8 31.6 35.2 37.2 58.2c33.3-41.3 52.6-92.2 54.8-145.2s-12.5-105.4-42.2-149.4c-8.6 21.5-24 39.6-43.8 51.6c15.4 28.6 22.9 60.8 21.9 93.2s-10.7 64-28 91.6zM101.1 135.4c12.4 2.7 24.3 7.5 35.1 14.3c16.6-24.2 38.9-44.1 64.8-58S255.8 70.4 285.2 70c.2-5.9 .9-11.9 2-17.7c3.6-16.7 11.1-32.3 21.8-45.5c-47.7-3.8-95.4 6-137.6 28.5S94.3 91.7 70.8 133.4c2.7-.2 5.3-.3 8-.3c7.5 0 15 .8 22.4 2.3z"],
+    "whatsapp": [448, 512, [], "brands", "M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"],
+    "linux": [448, 512, [], "brands", "M220.8 123.3c1 .5 1.8 1.7 3 1.7 1.1 0 2.8-.4 2.9-1.5.2-1.4-1.9-2.3-3.2-2.9-1.7-.7-3.9-1-5.5-.1-.4.2-.8.7-.6 1.1.3 1.3 2.3 1.1 3.4 1.7zm-21.9 1.7c1.2 0 2-1.2 3-1.7 1.1-.6 3.1-.4 3.5-1.6.2-.4-.2-.9-.6-1.1-1.6-.9-3.8-.6-5.5.1-1.3.6-3.4 1.5-3.2 2.9.1 1 1.8 1.5 2.8 1.4zM420 403.8c-3.6-4-5.3-11.6-7.2-19.7-1.8-8.1-3.9-16.8-10.5-22.4-1.3-1.1-2.6-2.1-4-2.9-1.3-.8-2.7-1.5-4.1-2 9.2-27.3 5.6-54.5-3.7-79.1-11.4-30.1-31.3-56.4-46.5-74.4-17.1-21.5-33.7-41.9-33.4-72C311.1 85.4 315.7.1 234.8 0 132.4-.2 158 103.4 156.9 135.2c-1.7 23.4-6.4 41.8-22.5 64.7-18.9 22.5-45.5 58.8-58.1 96.7-6 17.9-8.8 36.1-6.2 53.3-6.5 5.8-11.4 14.7-16.6 20.2-4.2 4.3-10.3 5.9-17 8.3s-14 6-18.5 14.5c-2.1 3.9-2.8 8.1-2.8 12.4 0 3.9.6 7.9 1.2 11.8 1.2 8.1 2.5 15.7.8 20.8-5.2 14.4-5.9 24.4-2.2 31.7 3.8 7.3 11.4 10.5 20.1 12.3 17.3 3.6 40.8 2.7 59.3 12.5 19.8 10.4 39.9 14.1 55.9 10.4 11.6-2.6 21.1-9.6 25.9-20.2 12.5-.1 26.3-5.4 48.3-6.6 14.9-1.2 33.6 5.3 55.1 4.1.6 2.3 1.4 4.6 2.5 6.7v.1c8.3 16.7 23.8 24.3 40.3 23 16.6-1.3 34.1-11 48.3-27.9 13.6-16.4 36-23.2 50.9-32.2 7.4-4.5 13.4-10.1 13.9-18.3.4-8.2-4.4-17.3-15.5-29.7zM223.7 87.3c9.8-22.2 34.2-21.8 44-.4 6.5 14.2 3.6 30.9-4.3 40.4-1.6-.8-5.9-2.6-12.6-4.9 1.1-1.2 3.1-2.7 3.9-4.6 4.8-11.8-.2-27-9.1-27.3-7.3-.5-13.9 10.8-11.8 23-4.1-2-9.4-3.5-13-4.4-1-6.9-.3-14.6 2.9-21.8zM183 75.8c10.1 0 20.8 14.2 19.1 33.5-3.5 1-7.1 2.5-10.2 4.6 1.2-8.9-3.3-20.1-9.6-19.6-8.4.7-9.8 21.2-1.8 28.1 1 .8 1.9-.2-5.9 5.5-15.6-14.6-10.5-52.1 8.4-52.1zm-13.6 60.7c6.2-4.6 13.6-10 14.1-10.5 4.7-4.4 13.5-14.2 27.9-14.2 7.1 0 15.6 2.3 25.9 8.9 6.3 4.1 11.3 4.4 22.6 9.3 8.4 3.5 13.7 9.7 10.5 18.2-2.6 7.1-11 14.4-22.7 18.1-11.1 3.6-19.8 16-38.2 14.9-3.9-.2-7-1-9.6-2.1-8-3.5-12.2-10.4-20-15-8.6-4.8-13.2-10.4-14.7-15.3-1.4-4.9 0-9 4.2-12.3zm3.3 334c-2.7 35.1-43.9 34.4-75.3 18-29.9-15.8-68.6-6.5-76.5-21.9-2.4-4.7-2.4-12.7 2.6-26.4v-.2c2.4-7.6.6-16-.6-23.9-1.2-7.8-1.8-15 .9-20 3.5-6.7 8.5-9.1 14.8-11.3 10.3-3.7 11.8-3.4 19.6-9.9 5.5-5.7 9.5-12.9 14.3-18 5.1-5.5 10-8.1 17.7-6.9 8.1 1.2 15.1 6.8 21.9 16l19.6 35.6c9.5 19.9 43.1 48.4 41 68.9zm-1.4-25.9c-4.1-6.6-9.6-13.6-14.4-19.6 7.1 0 14.2-2.2 16.7-8.9 2.3-6.2 0-14.9-7.4-24.9-13.5-18.2-38.3-32.5-38.3-32.5-13.5-8.4-21.1-18.7-24.6-29.9s-3-23.3-.3-35.2c5.2-22.9 18.6-45.2 27.2-59.2 2.3-1.7.8 3.2-8.7 20.8-8.5 16.1-24.4 53.3-2.6 82.4.6-20.7 5.5-41.8 13.8-61.5 12-27.4 37.3-74.9 39.3-112.7 1.1.8 4.6 3.2 6.2 4.1 4.6 2.7 8.1 6.7 12.6 10.3 12.4 10 28.5 9.2 42.4 1.2 6.2-3.5 11.2-7.5 15.9-9 9.9-3.1 17.8-8.6 22.3-15 7.7 30.4 25.7 74.3 37.2 95.7 6.1 11.4 18.3 35.5 23.6 64.6 3.3-.1 7 .4 10.9 1.4 13.8-35.7-11.7-74.2-23.3-84.9-4.7-4.6-4.9-6.6-2.6-6.5 12.6 11.2 29.2 33.7 35.2 59 2.8 11.6 3.3 23.7.4 35.7 16.4 6.8 35.9 17.9 30.7 34.8-2.2-.1-3.2 0-4.2 0 3.2-10.1-3.9-17.6-22.8-26.1-19.6-8.6-36-8.6-38.3 12.5-12.1 4.2-18.3 14.7-21.4 27.3-2.8 11.2-3.6 24.7-4.4 39.9-.5 7.7-3.6 18-6.8 29-32.1 22.9-76.7 32.9-114.3 7.2zm257.4-11.5c-.9 16.8-41.2 19.9-63.2 46.5-13.2 15.7-29.4 24.4-43.6 25.5s-26.5-4.8-33.7-19.3c-4.7-11.1-2.4-23.1 1.1-36.3 3.7-14.2 9.2-28.8 9.9-40.6.8-15.2 1.7-28.5 4.2-38.7 2.6-10.3 6.6-17.2 13.7-21.1.3-.2.7-.3 1-.5.8 13.2 7.3 26.6 18.8 29.5 12.6 3.3 30.7-7.5 38.4-16.3 9-.3 15.7-.9 22.6 5.1 9.9 8.5 7.1 30.3 17.1 41.6 10.6 11.6 14 19.5 13.7 24.6zM173.3 148.7c2 1.9 4.7 4.5 8 7.1 6.6 5.2 15.8 10.6 27.3 10.6 11.6 0 22.5-5.9 31.8-10.8 4.9-2.6 10.9-7 14.8-10.4s5.9-6.3 3.1-6.6-2.6 2.6-6 5.1c-4.4 3.2-9.7 7.4-13.9 9.8-7.4 4.2-19.5 10.2-29.9 10.2s-18.7-4.8-24.9-9.7c-3.1-2.5-5.7-5-7.7-6.9-1.5-1.4-1.9-4.6-4.3-4.9-1.4-.1-1.8 3.7 1.7 6.5z"],
+    "instagram": [448, 512, [], "brands", "M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"],
+    "facebook": [512, 512, [], "brands", "M512 256C512 114.6 397.4 0 256 0S0 114.6 0 256C0 376 82.7 476.8 194.2 504.5V334.2H141.4V256h52.8V222.3c0-87.1 39.4-127.5 125-127.5c16.2 0 44.2 3.2 55.7 6.4V172c-6-.6-16.5-1-29.6-1c-42 0-58.2 15.9-58.2 57.2V256h83.6l-14.4 78.2H287V510.1C413.8 494.8 512 386.9 512 256h0z"],
+    "safari": [512, 512, [], "brands", "M274.69,274.69l-37.38-37.38L166,346ZM256,8C119,8,8,119,8,256S119,504,256,504,504,393,504,256,393,8,256,8ZM411.85,182.79l14.78-6.13A8,8,0,0,1,437.08,181h0a8,8,0,0,1-4.33,10.46L418,197.57a8,8,0,0,1-10.45-4.33h0A8,8,0,0,1,411.85,182.79ZM314.43,94l6.12-14.78A8,8,0,0,1,331,74.92h0a8,8,0,0,1,4.33,10.45l-6.13,14.78a8,8,0,0,1-10.45,4.33h0A8,8,0,0,1,314.43,94ZM256,60h0a8,8,0,0,1,8,8V84a8,8,0,0,1-8,8h0a8,8,0,0,1-8-8V68A8,8,0,0,1,256,60ZM181,74.92a8,8,0,0,1,10.46,4.33L197.57,94a8,8,0,1,1-14.78,6.12l-6.13-14.78A8,8,0,0,1,181,74.92Zm-63.58,42.49h0a8,8,0,0,1,11.31,0L140,128.72A8,8,0,0,1,140,140h0a8,8,0,0,1-11.31,0l-11.31-11.31A8,8,0,0,1,117.41,117.41ZM60,256h0a8,8,0,0,1,8-8H84a8,8,0,0,1,8,8h0a8,8,0,0,1-8,8H68A8,8,0,0,1,60,256Zm40.15,73.21-14.78,6.13A8,8,0,0,1,74.92,331h0a8,8,0,0,1,4.33-10.46L94,314.43a8,8,0,0,1,10.45,4.33h0A8,8,0,0,1,100.15,329.21Zm4.33-136h0A8,8,0,0,1,94,197.57l-14.78-6.12A8,8,0,0,1,74.92,181h0a8,8,0,0,1,10.45-4.33l14.78,6.13A8,8,0,0,1,104.48,193.24ZM197.57,418l-6.12,14.78a8,8,0,0,1-14.79-6.12l6.13-14.78A8,8,0,1,1,197.57,418ZM264,444a8,8,0,0,1-8,8h0a8,8,0,0,1-8-8V428a8,8,0,0,1,8-8h0a8,8,0,0,1,8,8Zm67-6.92h0a8,8,0,0,1-10.46-4.33L314.43,418a8,8,0,0,1,4.33-10.45h0a8,8,0,0,1,10.45,4.33l6.13,14.78A8,8,0,0,1,331,437.08Zm63.58-42.49h0a8,8,0,0,1-11.31,0L372,383.28A8,8,0,0,1,372,372h0a8,8,0,0,1,11.31,0l11.31,11.31A8,8,0,0,1,394.59,394.59ZM286.25,286.25,110.34,401.66,225.75,225.75,401.66,110.34ZM437.08,331h0a8,8,0,0,1-10.45,4.33l-14.78-6.13a8,8,0,0,1-4.33-10.45h0A8,8,0,0,1,418,314.43l14.78,6.12A8,8,0,0,1,437.08,331ZM444,264H428a8,8,0,0,1-8-8h0a8,8,0,0,1,8-8h16a8,8,0,0,1,8,8h0A8,8,0,0,1,444,264Z"],
+    "google": [488, 512, [], "brands", "M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"],
+    "npm": [576, 512, [], "brands", "M288 288h-32v-64h32v64zm288-128v192H288v32H160v-32H0V160h576zm-416 32H32v128h64v-96h32v96h32V192zm160 0H192v160h64v-32h64V192zm224 0H352v128h64v-96h32v96h32v-96h32v96h32V192z"],
+    "bluetooth-b": [320, 512, [], "brands", "M196.48 260.023l92.626-103.333L143.125 0v206.33l-86.111-86.111-31.406 31.405 108.061 108.399L25.608 368.422l31.406 31.405 86.111-86.111L145.84 512l148.552-148.644-97.912-103.333zm40.86-102.996l-49.977 49.978-.338-100.295 50.315 50.317zM187.363 313.04l49.977 49.978-50.315 50.316.338-100.294z"],
+    // Some Aliases
+    "vr": "vr-cardboard",
+    "sticky-note": "note-sticky",
+    "file-text": "file-lines",
+    "script": "scroll",
+    "save": "floppy-disk",
+    "media": "photo-film",
+    "arrows-up-down-left-right": "arrows",
+    "rotate-forward": "rotate-right",
+    "rotate-back": "rotate-left",
+    "cc": "closed-captioning",
+    "asl": "hands-asl-interpreting",
+    "smile": "face-smile",
+    "hand-rock": "hand-back-fist"
+}
 
 export { LX };

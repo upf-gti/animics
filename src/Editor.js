@@ -81,11 +81,17 @@ class Editor {
 
         this.editorArea = new LX.Area({id: "editor-area", width: "100%", height: "100%"});
         animics.mainArea.attach(this.editorArea);
+
+        this.theme = {
+            dark: { background: 0x272727, grid: 0x272727, gridOpacity: 0.2 }, 
+            light: { background: 0xa0a0a0, grid: 0xffffff, gridOpacity: 0.8 }
+        }
     }
 
     enable() {
         this.enabled = true;
         this.editorArea.root.classList.remove("hidden");
+        this.resize();
     }
 
     disable() {
@@ -98,6 +104,7 @@ class Editor {
     async init(settings, showGuide = true) {
         
         this.createScene();
+        
         this.disable()
         await this.initCharacters();
 
@@ -110,14 +117,14 @@ class Editor {
 
         await this.processPendingResources(settings.pendingResources);
         this.gui.init(showGuide);
-        
+
         this.enable();
         this.bindEvents();
         
-        UTILS.hideLoading();
-
         this.animate();
-
+        
+        UTILS.hideLoading();
+        
         window.onbeforeunload =  (e) => {
             if(!this.currentAnimation || !this.loadedAnimations[this.currentAnimation]) {
                 return;
@@ -134,20 +141,28 @@ class Editor {
         const canvasArea = this.gui.canvasArea;
         const [CANVAS_WIDTH, CANVAS_HEIGHT] = canvasArea.size;
 
+        const theme = "dark";
         // Create scene
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color( 0xa0a0a0 );
-        scene.fog = new THREE.Fog( 0xa0a0a0, 10, 50 );
+        scene.background = new THREE.Color(this.theme[theme].background);
+        // scene.fog = new THREE.Fog( 0xa0a0a0, 10, 50 );
         window.scene = scene;
 
-        const grid = new THREE.GridHelper(300, 300, 0x101010, 0x555555 );
+        // const grid = new THREE.GridHelper(300, 300, 0x101010, 0x555555 );
+        const grid = new THREE.GridHelper( 10, 10 );
         grid.name = "Grid";
+        grid.material.color.set( this.theme[theme].grid);
+        grid.material.opacity = this.theme[theme].gridOpacity;
         scene.add(grid);
         window.GridHelper = THREE.GridHelper;
 
-        const ground = new THREE.Mesh( new THREE.PlaneGeometry( 100, 100 ), new THREE.MeshPhongMaterial( { color: 0x353535, depthWrite: false } ) );
-        ground.rotation.x = - Math.PI / 2;
+        const groundGeo = new THREE.PlaneGeometry(10, 10);
+        const groundMat = new THREE.ShadowMaterial({ opacity: 0.2 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
         ground.receiveShadow = true;
+        this.ground = ground;
         scene.add( ground );
         
         // Lights
@@ -194,14 +209,14 @@ class Editor {
         renderer.domElement.setAttribute("tabIndex", 1);
 
         // Camera
-        const camera = new THREE.PerspectiveCamera(60, pixelRatio, 0.1, 1000);
-        camera.position.set(-0.1175218614251044, 1.303585797450244, 1.4343282767035261);
+        const camera = new THREE.PerspectiveCamera(60, pixelRatio, 0.01, 1000);
+        camera.position.set(0, 1.303585797450244, 1.4343282767035261);
         
         window.camera = camera;
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.minDistance = 0.5;
         controls.maxDistance = 5;
-        controls.target.set(-0.20428114060514568, 1.0667066120801934, -0.017019104933513607);
+        controls.target.set(0, 1.0667066120801934, -0.017019104933513607);
         controls.update();  
 
         // Orientation helper
@@ -210,7 +225,6 @@ class Editor {
         });
 
         canvasArea.root.appendChild(orientationHelper.domElement);
-        orientationHelper.domElement.style.display = "none";
         orientationHelper.addEventListener("click", (result) => {
             const side = result.normal.multiplyScalar(4);
             if(side.x != 0 || side.z != 0) side.y =controls.target.y;
@@ -548,14 +562,16 @@ class Editor {
 
         this.editorArea.root.addEventListener( 'keydown', (e) => {
             switch ( e.key ) {
-                case " ": // Spacebar - Play/Stop animation       
-                    if(e.target.constructor.name != 'HTMLInputElement') {
-                        e.preventDefault();
-                        e.stopImmediatePropagation();
-
-                        const playElement = this.editorArea.root.querySelector("[title = Play]");
-                        if ( playElement ){ 
-                            playElement.children[0].click();
+                case " ": // Spacebar - Play/Stop animation 
+                    if( !e.ctrlKey ){
+                        if(e.target.constructor.name != 'HTMLInputElement') {
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+    
+                            const playElement = this.gui.menubar.getButton("Play");
+                            if ( playElement ){ 
+                                playElement.children[0].children[0].click();
+                            }
                         }
                     }
                 break;
@@ -631,8 +647,11 @@ class Editor {
 
         requestAnimationFrame(this.animate.bind(this));
 
-        this.render();
-        this.update(this.clock.getDelta());
+        const dt = this.clock.getDelta();
+        if (this.enabled){
+            this.render();
+            this.update(dt);
+        }
 
     }
 
@@ -863,7 +882,7 @@ class Editor {
             default:
                 const json = this.generateBML();
                 if( !json ) {
-                    return;  
+                    return [];  
                 }
 
                 let clipName = (name || json.name) + '.bml';
@@ -1120,7 +1139,7 @@ class KeyframeEditor extends Editor {
             await new Promise(r => setTimeout(r, 1000));            
         }        
 
-        this.setBoneSize(0.05);
+        this.setBoneSize(0.12);
     }
     
     loadNNSkeleton() {
@@ -1175,7 +1194,7 @@ class KeyframeEditor extends Editor {
                             }
                             else {
                                 this.loadAnimation( file.name, file.animation );
-                                resolve(file.animaiton);
+                                resolve(file.animation);
                             }
                             UTILS.hideLoading();
                         });
@@ -1541,7 +1560,7 @@ class KeyframeEditor extends Editor {
                 boneSrc.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 );
                 invWorldQuat.invert();
     
-                // world mediapipe phalange direction to local space
+                // world mediapipe bone direction to local space
                 dirPred.subVectors( landmarkTrg, landmarkSrc );
                 dirPred.applyQuaternion( invWorldQuat ).normalize();
     
@@ -1551,7 +1570,7 @@ class KeyframeEditor extends Editor {
                 // move bone to predicted direction
                 qq.setFromUnitVectors( dirBone, dirPred );
                 boneSrc.quaternion.multiply( qq );
-                getTwistQuaternion( qq, dirBone, twist ); // remove twist from phalanges
+                getTwistQuaternion( qq, dirBone, twist ); // remove undesired twist from bone
                 boneSrc.quaternion.multiply( twist.invert() ).normalize();
             }
         }
@@ -1560,11 +1579,11 @@ class KeyframeEditor extends Editor {
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
-            const boneHand = isLeft? skeleton.bones[ 12 ]:  skeleton.bones[ 36 ];
-            const boneMid = isLeft? skeleton.bones[ 21 ]:  skeleton.bones[ 45 ];
-            // const boneThumbd = isLeft? skeleton.bones[ 13 ]:  skeleton.bones[ 53 ];
-            const bonePinky = isLeft? skeleton.bones[ 29 ]:  skeleton.bones[ 37 ];
-            const boneIndex = isLeft? skeleton.bones[ 17 ]:  skeleton.bones[ 49 ];
+            const boneHand = isLeft? skeleton.bones[ 12 ] : skeleton.bones[ 36 ];
+            const boneMid = isLeft? skeleton.bones[ 21 ] : skeleton.bones[ 45 ];
+            // const boneThumbd = isLeft? skeleton.bones[ 13 ] : skeleton.bones[ 53 ];
+            const bonePinky = isLeft? skeleton.bones[ 29 ] : skeleton.bones[ 37 ];
+            const boneIndex = isLeft? skeleton.bones[ 17 ] : skeleton.bones[ 49 ];
     
             boneHand.updateWorldMatrix( true, false );
     
@@ -1944,6 +1963,7 @@ class KeyframeEditor extends Editor {
     setVideoVisibility( visibility, needsMirror = false ){ // TO DO
         if(visibility && this.getCurrentAnimation().type == "video") {
             this.gui.showVideoOverlay(needsMirror);
+            this.gui.computeVideoArea( this.getCurrentAnimation().rect ?? { left:0, top:0, width: 1, height: 1 } );
         }
         else {
             this.gui.hideVideoOverlay();
@@ -2090,10 +2110,10 @@ class KeyframeEditor extends Editor {
 
                 this.activeTimeline = this.gui.keyFramesTimeline;
                 this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().skeletonAnimation, false );
-                this.activeTimeline.show();
-
+                
                 currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
+                this.activeTimeline.show();
                 break;
 
             default:                   
@@ -2263,8 +2283,8 @@ class KeyframeEditor extends Editor {
         this.gizmo.mustUpdate = true;
         this.gui.updateSkeletonPanel();
         
-        if ( this.gui.tree ){ 
-            this.gui.tree.select(this.selectedBone)
+        if ( this.gui.treeWidget ){ 
+            this.gui.treeWidget.innerTree.select(this.selectedBone);
         }
     }
 
@@ -2665,7 +2685,7 @@ class ScriptEditor extends Editor {
                         else {
                             UTILS.hideLoading()
                             this.gui.prompt = new LX.Dialog("Import animation" , ( panel ) => {
-                                panel.addText("", "There is already an animation. What do you want to do?", null, {disabled: true});
+                                panel.addTextArea("", "There is already an animation. What do you want to do?", null, {disabled: true,  className: "nobg"});
                                 panel.sameLine(3);
                                 panel.addButton(null, "Replace", () => { 
                                     this.clearAllTracks(false);
