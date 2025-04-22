@@ -161,13 +161,13 @@ iframe {
 
 .section-title:before {
   content: "[";
-  color: var(--global-selected);
+  color: var(--global-color-accent);
   padding-right: 10px;
 }
 
 .section-title:after {
   content: "]";
-  color: var(--global-selected);
+  color: var(--global-color-accent);
   padding-left: 10px;
 }
 
@@ -197,7 +197,7 @@ iframe {
   bottom: 10px;
   -webkit-transform: translateX(-50%);
   transform: translateX(-50%);
-  background-color: var(--global-selected);
+  background-color: var(--global-color-accent);
 }
 
 .subtitle {
@@ -263,7 +263,7 @@ iframe {
 }
 
 .btn-common {
-  background-image: linear-gradient(65deg, var(--global-selected-dark) 0, var(--global-selected) 100%)!important;
+  background-image: linear-gradient(65deg, var(--global-color-accent-dark) 0, var(--global-color-accent) 100%)!important;
   box-shadow: 0 8px 16px rgba(77, 80, 255, 0.25);
   position: relative;
   z-index: 1;
@@ -272,7 +272,7 @@ iframe {
 
 .btn-common:hover {
   color: #fff;
-  background-image: linear-gradient(65deg, var(--global-selected-dark) 0, var(--global-selected) 100%)!important;
+  background-image: linear-gradient(65deg, var(--global-color-accent-dark) 0, var(--global-color-accent) 100%)!important;
   box-shadow: 0 8px 16px rgba(77, 80, 255, 0.3);
   transition: all .2s ease-in-out;
   -moz-transition: all .2s ease-in-out;
@@ -287,8 +287,8 @@ iframe {
 }
 
 .btn-border:hover {
-  color: var(--global-selected);
-  border-color: var(--global-selected)!important;
+  color: var(--global-color-accent);
+  border-color: var(--global-color-accent)!important;
   transform: scale(1.01);
 
   /* background-color: rgba(255, 255, 255, 0.2); */
@@ -300,7 +300,7 @@ iframe {
 }
 
 .btn-fill:hover {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .btn-lg {
@@ -319,7 +319,7 @@ button:focus {
 }
 
 .icon-close, .icon-check {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .bg-drack {
@@ -354,7 +354,7 @@ a.back-to-top i {
   height: 40px;
   line-height: 40px;
   color: #fff;
-  background-image: linear-gradient(65deg, var(--global-selected-dark) 0, var(--global-selected) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent-dark) 0, var(--global-color-accent) 100%);
   border-radius: 30px;
   text-align: center;
   transition: all 0.2s ease-in-out;
@@ -400,7 +400,7 @@ a.back-to-top:hover, a.back-to-top:focus {
   margin: 0 auto;
   width: 15%;
   height: 15%;
-  background-color: var(--global-selected);
+  background-color: var(--global-color-accent);
   border-radius: 100%;
   -webkit-animation: sk-circleBounceDelay 1.2s infinite ease-in-out both;
   animation: sk-circleBounceDelay 1.2s infinite ease-in-out both;
@@ -683,17 +683,17 @@ a.back-to-top:hover, a.back-to-top:focus {
 }
 
 .top-nav-collapse .navbar-nav .nav-link:hover {
-  color: var(--global-selected) !important;
+  color: var(--global-color-accent) !important;
 }
 
 .top-nav-collapse .navbar-nav li.active a.nav-link {
-  color: var(--global-selected) !important;
+  color: var(--global-color-accent) !important;
 }
 
 .navbar-expand-lg .navbar-toggler {
   background: transparent;
-  border: 1px solid var(--global-selected);
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  border: 1px solid var(--global-color-accent);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -735,7 +735,7 @@ a.back-to-top:hover, a.back-to-top:focus {
   margin-left: -10px;
   width: 15px;
   height: 2px;
-  background: var(--global-selected);
+  background: var(--global-color-accent);
   -webkit-transform: scale3d(0, 1, 1);
   -moz-transform: scale3d(0, 1, 1);
   transform: scale3d(0, 1, 1);
@@ -759,7 +759,7 @@ a.back-to-top:hover, a.back-to-top:focus {
 .navbar-expand-lg .navbar-nav li a:hover,
 .navbar-expand-lg .navbar-nav li .active > a,
 .navbar-expand-lg .navbar-nav li a:focus {
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -768,7 +768,7 @@ a.back-to-top:hover, a.back-to-top:focus {
 
 .navbar-expand-lg .navbar-nav .nav-link:focus,
 .navbar-expand-lg .navbar-nav .nav-link:hover {
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text !important;
@@ -790,7 +790,7 @@ a.back-to-top:hover, a.back-to-top:focus {
 }
 
 .navbar li.active a.nav-link {
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text !important;
@@ -878,7 +878,7 @@ a.back-to-top:hover, a.back-to-top:focus {
 .dropdown .dropdown-item:focus,
 .dropdown .dropdown-item:hover,
 .dropdown .dropdown-item.active {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .dropdown-item.active, .dropdown-item:active {
@@ -957,7 +957,7 @@ a.back-to-top:hover, a.back-to-top:focus {
 }
 
 .ready-to-play .title {
-    color: var(--global-selected);
+    color: var(--global-color-accent);
     font-weight: unset;
     padding: 10px;
     font-size: 50px;
@@ -970,7 +970,7 @@ a.back-to-top:hover, a.back-to-top:focus {
 }
 
 .about-content .about-text b {
-  color: var(--global-selected-light);
+  color: var(--global-color-accent-light);
 }
 
 .about-content .about-text h2 {
@@ -1014,7 +1014,7 @@ a.back-to-top:hover, a.back-to-top:focus {
   left: 0;
   top: 7px;
   font-size: 16px;
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .about-content .btn-about {
@@ -1066,7 +1066,7 @@ a.back-to-top:hover, a.back-to-top:focus {
 }
 
 #event-up .event-item .content a {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
   margin-top: 10px;
 }
 
@@ -1092,7 +1092,7 @@ a.back-to-top:hover, a.back-to-top:focus {
 /* 
 .ready-to-play:before {
   content: '';
-  background-image: linear-gradient(0deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(0deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   position: absolute;
   display: block;
   left: 0px;
@@ -1229,7 +1229,7 @@ h1 {
 }
 
 .counter-section .counter .icon {
-  background-image: linear-gradient(0deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(0deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   color: #fff;
   text-align: center;
   line-height: 50px;
@@ -1328,7 +1328,7 @@ h1 {
 .schedule .nav-tabs .nav-item .nav-link:hover {
   border-color: transparent;
   position: relative;
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
 }
 
 .schedule .nav-tabs .nav-item.show .nav-link h4, .schedule .nav-tabs .nav-link.active h4,
@@ -1348,7 +1348,7 @@ h1 {
   bottom: -24px;
   border-width: 12px;
   border-style: solid;
-  border-color: var(--global-selected) transparent transparent transparent;
+  border-color: var(--global-color-accent) transparent transparent transparent;
 }
 
 .schedule .item-text {
@@ -1385,7 +1385,7 @@ h1 {
 }
 
 .schedule .card .schedule-slot-time {
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   color: #fff;
   padding: 38px 28px;
   float: left;
@@ -1452,7 +1452,7 @@ h1 {
 }
 
 .schedule .card-body .location span {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
   margin-right: 5px;
 }
 
@@ -1488,7 +1488,7 @@ h1 {
 }
 
 .accordion .card-header i {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
   width: 40px;
   height: 40px;
   display: inline-block;
@@ -1533,7 +1533,7 @@ h1 {
   padding: 0 12px;
   font-size: 32px;
   vertical-align: middle;
-  background-image: linear-gradient(0deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(0deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1610,7 +1610,7 @@ h1 {
 };
 
 .single-intro-text a:hover {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .single-intro-text .count-number {
@@ -1622,7 +1622,7 @@ h1 {
   border-radius: 50%;
   /* -webkit-border-radius: 50%; */
   -ms-border-radius: 50%;
-  background-image: linear-gradient(0deg, var(--global-selected-dark) 0, var(--global-selected) 100%);
+  background-image: linear-gradient(0deg, var(--global-color-accent-dark) 0, var(--global-color-accent) 100%);
   color: #fff;
   display: block;
   text-align: left;
@@ -1636,8 +1636,8 @@ h1 {
 }
 
 .single-intro-text:hover a {
-  color: var(--global-selected);
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  color: var(--global-color-accent);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   /* -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text; */
@@ -1673,7 +1673,7 @@ h1 {
 
 #gallery .gallery-box .overlay-box i {
   background: #ffffff;
-  color: var(--global-selected);
+  color: var(--global-color-accent);
   font-size: 30px;
   width: 50px;
   height: 50px;
@@ -1716,7 +1716,7 @@ h1 {
   padding: 15px;
   border-radius: 4px;
   position: relative;
-  box-shadow: inset 0px 0px 5px var(--global-selected-dark);
+  box-shadow: inset 0px 0px 5px var(--global-color-accent-dark);
   transition: all 0.3s ease-in-out 0s;
   -moz-transition: all 0.3s ease-in-out 0s;
   -webkit-transition: all 0.3s ease-in-out 0s;
@@ -1724,10 +1724,10 @@ h1 {
 }
 
 .action-item:hover {
-  box-shadow: inset 0px 0px 8px var(--global-selected-dark);
-  color: var(--global-selected)!important;
+  box-shadow: inset 0px 0px 8px var(--global-color-accent-dark);
+  color: var(--global-color-accent)!important;
   cursor: pointer;
-  filter: drop-shadow(1px 3px 4px var(--global-selected-dark));
+  filter: drop-shadow(1px 3px 4px var(--global-color-accent-dark));
 }
 
 .action-item .action-img {
@@ -1791,7 +1791,7 @@ h1 {
   color: #fff;
   width: 60px;
   height: 60px;
-  background: var(--global-selected);
+  background: var(--global-color-accent);
   display: block;
   border-radius: 0px;
   line-height: 60px;
@@ -1849,7 +1849,7 @@ h1 {
 }
 
 .action-item .info-text h3 a:hover {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .action-item .info-text p {
@@ -1868,7 +1868,7 @@ h1 {
 }
 
 .action-item.drop {
-  border: 1px dashed var(--global-selected);
+  border: 1px dashed var(--global-color-accent);
 }
 
 .blog-item {
@@ -1907,7 +1907,7 @@ h1 {
   position: absolute;
   top: -25px;
   left: 42%;
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   color: #ffffff;
   display: block;
   font-size: 26px;
@@ -1940,7 +1940,7 @@ h1 {
 }
 
 .blog-item .descr h3 a:hover {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .blog-item .meta-tags {
@@ -1956,7 +1956,7 @@ h1 {
 
 .blog-item .meta-tags span i {
   margin-right: 5px;
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .blog-item .meta-tags span a {
@@ -1964,7 +1964,7 @@ h1 {
 }
 
 .blog-item .meta-tags span a:hover {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .blog-item:hover {
@@ -2016,7 +2016,7 @@ h1 {
 }
 
 .contact-item .contact-info h3 {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
   font-size: 18px;
   margin-bottom: 10px;
 }
@@ -2070,7 +2070,7 @@ h1 {
 .container-form .form-wrapper .form-control:focus {
   color: #212121;
   background-color: #fff;
-  border-color: var(--global-selected);
+  border-color: var(--global-color-accent);
   box-shadow: none;
   outline: 0;
 }
@@ -2111,7 +2111,7 @@ h1 {
 }
 
 .form-control:focus {
-  border-color: var(--global-selected);
+  border-color: var(--global-color-accent);
   box-shadow: none;
   outline: 0;
 }
@@ -2145,7 +2145,7 @@ h1 {
   padding: 0 12px;
   font-size: 28px;
   vertical-align: middle;
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 #contact-text ul li span {
@@ -2185,7 +2185,7 @@ footer {
 }
 
 .site-info a:hover {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 .social-icons-footer ul {
@@ -2252,7 +2252,7 @@ footer {
 }
 
 .link-list li a:hover {
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 /* Subscribe Form */
@@ -2306,7 +2306,7 @@ footer {
 
 .subscribe-inner .form-control:focus {
   color: #212121;
-  border-color: var(--global-selected);
+  border-color: var(--global-color-accent);
   outline: 0;
 }
 
@@ -2335,7 +2335,7 @@ footer {
 }
 
 #count .count-wrapper {
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   border-radius: 4px;
   box-shadow: 0px 4px 25px 0px rgba(0, 0, 0, 0.08);
   margin-bottom: -35px;
@@ -2423,7 +2423,7 @@ footer {
 
 #pricing .price-block-wrapper .icon i {
   font-size: 60px;
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 #pricing .price-block-wrapper .colmun-title h5 {
@@ -2443,7 +2443,7 @@ footer {
 
 #pricing .price-block-wrapper .price h2 {
   font-size: 38px;
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -2487,7 +2487,7 @@ footer {
 #pricing .price-block-wrapper .pricing-list ul li i {
   margin-right: 7px;
   font-size: 12px;
-  color: var(--global-selected);
+  color: var(--global-color-accent);
 }
 
 #pricing .price-block-wrapper .btn i {
@@ -2500,7 +2500,7 @@ footer {
 }
 
 #pricing .active {
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   box-shadow: 0 16px 48px #E2E8ED;
 }
 
@@ -2572,7 +2572,7 @@ footer {
 }
 
 #hero-area .contents .icon i {
-  background-image: linear-gradient(65deg, var(--global-selected) 0, var(--global-selected-light) 100%);
+  background-image: linear-gradient(65deg, var(--global-color-accent) 0, var(--global-color-accent-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
