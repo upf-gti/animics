@@ -52,10 +52,13 @@
 }
 
 :root[data-strictVP="false"] .lexmenubar {
-	max-width: 1400px;
-	justify-self: center;
+	/* max-width: 1400px; */
 	background: none;
+	display: flex;
+	justify-content: space-between;
+	padding-inline: 10px;
 }
+
 
 .lexfooter > div {
 	max-width: 1400px;

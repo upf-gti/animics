@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="description" content="" />
+        <meta name="author" content="" />
+        <title>Animics</title>
+        <link rel="icon" type="image/x-icon" href="data/imgs/animics_monster.png" />
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css?family=Merriweather+Sans:400,700" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css?family=Merriweather:400,300,300italic,400italic,700,700italic" rel="stylesheet" type="text/css" />
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/SimpleLightbox/2.1.0/simpleLightbox.min.css" rel="stylesheet" />
+
+		<!-- <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui@0.1.46/build/lexgui.css"> -->
+		<link rel="stylesheet" href="./src/libs/lexgui/build/lexgui.css">
+		<link rel="stylesheet" href="css/style.css">
+    </head>
+
+	<script src="src/libs/image-map-highlighter.js"></script>
+
+	<script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+	<script type="importmap">
+			{
+				"imports": {
+					"three": "https://cdn.skypack.dev/three@0.136",
+					
+					"lexgui": "./src/libs/lexgui/build/lexgui.module.js",
+					"lexgui/components/": "./src/libs/lexgui/build/components/"
+				}
+			}
+	</script>
+
+	<script  type="text/javascript" src="./src/libs/jszip.min.js"></script>
+	
+	<script type="module" src="src/CustomLibs.js"></script>
+	<script type="text/javascript" src="src/timelineClips.js"></script>
+	
+	<script  type="module" src="./src/libs/lexgui/LexGUI.patches.js"></script>
+	<script type="module">
+
+		import { Animics } from './src/Animics.js'
+		import { UTILS } from './src/Utils.js'
+		import { LX } from 'lexgui';
+
+		let area = LX.init( { strictViewport: false, rootClass: "" } );
+
+		// Menubar
+		{
+			const menubar = area.addMenubar( m => {
+				m.setButtonImage("Animics", "data/imgs/animics_logo_name.png", () => { window.location = window.location }, { float: "left" })				
+				const buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2", "", m.root);
+
+				const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto fg-primary border hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
+				signupButton.tabIndex = "1";
+				signupButton.role = "button";
+				signupButton.listen( "click", () => {} );			
+				
+				const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
+				loginButton.tabIndex = "1";
+				loginButton.role = "button";
+				loginButton.listen( "click", () => {} );
+
+			});
+
+
+			area = menubar.siblingArea;
+			area.root.style.placeContent = "center";
+			area.root.classList.add( "hidden" );
+		}
+
+		{
+			let swapValue = document.documentElement.getAttribute("data-theme") == "dark";
+			const sidebar = area.addSidebar( m => {
+				// m.group( "Projects", { icon: "fa fa-plus", callback: (groupName, event) => { console.log(groupName) }} );
+				m.add( "Home", { icon: "fa fa-house" /*,collapsable: false*/ } );
+				m.add( "Documentation", { icon: "fa fa-book" });
+				m.add( "Documentation/Keyframe Animation", { icon: "fa fa-cube", callback:  () => { window.open( "docs/keyframe_animation.html" , "_blank" ) } } );
+				m.add( "Documentation/Script Animation", { icon: "fa fa-cube", callback:  () => { window.open( "docs/script_animation.html" , "_blank" ) } } );
+				m.add( "About", { icon: "fa fa-user", callback: () => {} });
+				
+				m.separator();
+				
+				m.add( "Switch Theme", { icon: "fa fa-sun", callback:  () => {swapValue = !swapValue; LX.setTheme( swapValue ? "light" : "dark" ) }})
+				// m.add( "TÀNDEM", { callback: () => {} } );
+			}, { /* collapseToIcons: false, skipFooter: true, skipHeader: true,*/
+				filter: false,
+				headerTitle: "ANIMICS",
+				// headerSubtitle: LX.version,
+				headerImage: "./data/imgs/monster.png",
+				// header: customHeader,
+				footerTitle: "TÀNDEM",
+				// footerSubtitle: "alexroco.30@gmail.com",
+				footerImage: "./data/imgs/tandem_monster.png",
+				// footer: customFooter,
+				onHeaderPressed: (e) => { console.log( "onHeaderPressed" ) }, 
+				onFooterPressed: (e, element) => {
+					new LX.DropdownMenu( element, [
+						"Pages",
+						{ name: "Main", callback: () => {} },
+						{ name: "Animics", callback: () => {} },
+						{ name: "Performs", callback: () => {} },
+						null,
+						"Social Media",						
+						{ name: "Github", link: "https://github.com/upf-gti/", icon:"github" },
+						{ name: "Twitter", link: "https://x.com/gti_upf/", icon: "x-twitter" },
+						{ name: "Discord", link: "https://discord.gg/9YGrGjnycj", icon: "discord" }
+					], { side: "right", align: "end" });
+				}
+			});
+		}
+		const content = LX.makeContainer( ["100%", "100%"], "bg-secondary flex flex-col p-6 rounded-lg", "", area );
+
+		{
+			const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6", "", content );
+			const keyframeContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
+			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Keyframe Animation", keyframeContent );
+			const keyframeItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", keyframeContent );
+			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>Empty project</p>`, keyframeItems );
+			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>From video/s</p>`, keyframeItems );
+			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>Real-time capture</p>`, keyframeItems );
+
+			const scriptContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
+			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Script Animation", scriptContent );
+			const scriptItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", scriptContent );
+			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>Empty project</p>`, scriptItems );
+
+			const fileContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
+			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Edit Animation", fileContent );
+			const fileItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", fileContent );
+			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>From file/s</p>`, fileItems );
+
+		}
+
+		{
+			const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4", "", content );
+			LX.makeContainer( ["auto", "auto"], "font-bold", "Projects", projectsContent );
+			const projectItems = LX.makeContainer( ["100%", "auto"], "flex flex-col", "", projectsContent );
+			
+			LX.makeContainer( ["720px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `<img class="rounded-xl" src="./docs/editStation.png"><p>Untitled project</p><p class="text-sm">Last modified 08/04/2025</p>`, projectItems );
+		}
+
+
+		const footer = new LX.Footer( {
+			className: "border-top",
+			parent: LX.root,
+			
+			credits: `2021-${ new Date().getUTCFullYear() } GTI - UPF | Developed within <a href="https://signon-project.eu/" target="_blank">SignON</a> and EMERALD EU H2020 projects.<br>Released under the Apache 2.0 License.`,
+			socials: [
+				{ title: "Github", link: "https://github.com/upf-gti/", icon: `<i class="fa-brands fa-github"></i>` },
+				{ title: "X/Twitter", link: "https://x.com/gti_upf/", icon: `<i class="fa-brands fa-x-twitter"></i>` },
+				{ title: "Discord", link: "https://discord.gg/9YGrGjnycj", icon: `<i class="fa-brands fa-discord"></i>` }
+			]
+		} );
+
+		const footerCreditsSocials = footer.root.querySelector( ".credits-and-socials" );
+		footerCreditsSocials.innerHTML = `<img src="data/imgs/GTIlogo.png" width="180px" style="filter:invert(0.5)" draggable="false">` + footerCreditsSocials.innerHTML;
+
+		const body = area.root;
+
+		const keyframeBtn = document.getElementById("keyframe-project");
+		// const videoBtn = document.getElementById("video-project");
+		// const webcamBtn = document.getElementById("webcam-project");
+
+		const scriptBtn = document.getElementById("script-project");
+		const importBtn = document.getElementById("import");
+		// const importScriptBtn = document.getElementById("import-script");
+
+		// Wait until the session is loaded
+		UTILS.makeLoading("Loading application, please wait");
+		const animics = new Animics();
+		await animics.loadSession();
+		UTILS.hideLoading();
+		body.classList.remove("hidden");
+
+		const startAnimics = (settings) => {
+			const loadingAnim = UTILS.makeLoading("Starting Animics");
+			loadingAnim.onfinish = () => {
+				// Manually resetting lexgui
+				LX.root.innerHTML = "";
+				LX.main_area = new LX.Area( { id: 'mainarea' } );
+				LX.setStrictViewport( true );
+				LX.doAsync( () => animics.init(settings), 150 );
+			};			
+			window.global = {app: animics};
+		}
+		
+		const onLoadFiles = function( files ){
+			if(!files || !files.length) { 
+				return null; 
+			}
+			
+			let mode = null;
+			let resultFiles = [];
+			
+			const animExtensions = ['bvh','bvhe', 'glb'];
+			const scriptExtensions = ['json', 'bml', 'sigml'];
+
+			// First valid file will determine the mode. Following files must be of the same format
+			for( let i = 0; i < files.length; ++i ) {
+				// MIME type is video
+				if( files[i].type.startsWith("video/") ) {
+					if ( !mode ) { 
+						mode = "keyframe"; 
+					}
+					
+					if ( mode == "keyframe" ) {			
+						resultFiles.push( files[i] );
+					}
+					continue;
+				}
+
+				// other valid file formats
+				const extension = UTILS.getExtension(files[i].name).toLowerCase();
+								
+				if( animExtensions.includes(extension) ) {
+					if ( !mode ) {
+						mode = "keyframe";
+					}
+					
+					if ( mode == "keyframe") {
+						resultFiles.push( files[i] );
+					}
+				}
+
+				if( scriptExtensions.includes(extension) ) {
+					if ( !mode ) {
+						mode = "script";
+					}
+
+					if ( mode == "script") {
+						resultFiles.push( files[i] );
+					}
+				}
+			}
+
+			if ( resultFiles.length ) {
+				return startAnimics({ mode, pendingResources: resultFiles});
+			}	
+				
+			alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
+			return null;
+		}
+
+		// Keyframe mode
+		keyframeBtn.addEventListener("click", () => {
+			startAnimics({mode: "keyframe"});
+		});
+
+		// Script mode
+		scriptBtn.addEventListener("click", () => {
+			startAnimics({mode: "script"});
+		});
+
+		// Import resurces 
+		importBtn.addEventListener("click", () => {
+    		const input = document.createElement('input');
+    		input.type = 'file';
+    		input.click();
+    		input.onchange = (event) => { 
+				onLoadFiles( event.currentTarget.files);
+				// startAnimics({pendingResources: event.currentTarget.files})
+			};
+		});
+
+		body.ondragover = () => {return false};
+		body.ondragend = () => {return false};
+		body.ondrop = (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if ( onLoadFiles( event.dataTransfer.files ) ){
+				body.ondrop = null;
+			}
+		};
+	</script>
+
+    <body >
+		<!-- Modals -->
+		<div id="loading" class="modal hidden" style="opacity: 1; z-index: 1040">
+			<div>
+				<p>Loading application, please wait</p>
+				<img class="loading-icon" src="data/imgs/monster.png" width="50" height="50" draggable="false">
+			</div>
+		</div>	
+    </body>
+	
+	
+	
+</html>
