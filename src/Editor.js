@@ -1613,49 +1613,182 @@ class KeyframeEditor extends Editor {
             qq.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
             boneHand.quaternion.multiply( qq ).normalize();
         }
-    
+
+        /* TODO
+            Consider moving the constraints direclty into the mediapipe landmarks. 
+            This would avoid unnecessary recomputations of constraints between different avatars.
+            Changes would be baked already in the mediapipe landmarks
+        */       
         function computeQuatPhalange( skeleton, bindQuats, handLandmarks, isLeft = false ){
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
-            let bonePhalanges = isLeft ? 
+            const bonePhalanges = isLeft ? 
             [ 13,14,15,16,    17,18,19,20,    21,22,23,24,    25,26,27,28,    29,30,31,32 ] :
             [ 53,54,55,56,    49,50,51,52,    45,46,47,48,    41,42,43,44,    37,38,39,40 ];
     
-            let _ignoreVec3 = new THREE.Vector3();
+            let tempVec3_1 = new THREE.Vector3();
+            let tempVec3_2 = new THREE.Vector3();
             let invWorldQuat = new THREE.Quaternion();
-            let phalangeDirPred = new THREE.Vector3();
-            let phalangeDirBone = new THREE.Vector3();
-            let qq = new THREE.Quaternion();
-            let twist = new THREE.Quaternion();
-
-            //handlandmarks[0] == wrist, handlandmarks[1:4] = thumb, handlandmarks[5:8] = index, etc 
-            //bonePhalanges[0:3] = thumb, bonePhalanges[4:7] = index, etc 
-            for(let i = 1; i < handLandmarks.length; ++i ){
-                if ( i % 4 == 0 ){ continue; } // tip of fingers does not need quaternion
-                
-                let boneSrc = skeleton.bones[ bonePhalanges[ i-1 ] ];
-                let boneTrg = skeleton.bones[ bonePhalanges[ i ] ];
-                let landmark = i;
-                boneSrc.quaternion.copy( bindQuats[ bonePhalanges[ i-1 ] ] );
-                boneSrc.updateWorldMatrix( true, false );
     
-                boneSrc.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 );
-                invWorldQuat.invert();
-    
-                // world mediapipe phalange direction to local space
-                phalangeDirPred.subVectors( handLandmarks[landmark+1], handLandmarks[landmark] ); // world space
-                phalangeDirPred.applyQuaternion( invWorldQuat ).normalize(); // local phalange direction space
-    
-                // avatar bone local space direction
-                phalangeDirBone.copy( boneTrg.position ).normalize();
-    
-                // move bone to predicted direction
-                qq.setFromUnitVectors( phalangeDirBone, phalangeDirPred );
-                getTwistQuaternion( qq, phalangeDirBone, twist ); // remove twist from phalanges
-                boneSrc.quaternion.multiply( qq ).multiply( twist.invert() ).normalize();
+            tempVec3_1.subVectors(handLandmarks[5], handLandmarks[0]).normalize();
+            tempVec3_2.subVectors(handLandmarks[17], handLandmarks[0]).normalize();
+            const handForward = (new THREE.Vector3()).addScaledVector(tempVec3_1,0.5).addScaledVector(tempVec3_2,0.5);
+            const handNormal = (new THREE.Vector3()).crossVectors(tempVec3_2,tempVec3_1).normalize();
+            const handSide = (new THREE.Vector3()).crossVectors(handNormal,handForward).normalize();
+            if ( isLeft ){
+                handNormal.multiplyScalar(-1);
+                handSide.multiplyScalar(-1);
             }
-        }
+    
+            const prevForward = new THREE.Vector3();
+            const prevNormal = new THREE.Vector3();
+            const prevSide = new THREE.Vector3();
+    
+            const maxLateralDeviation = 0.174; // cos(80º)
+    
+            // for each finger (and thumb)
+            for( let f = 1; f < handLandmarks.length; f+=4){
+    
+                // fingers can slightly move laterally. Compute the mean lateral movement of the finger
+                let meanSideDeviation = 0;
+                tempVec3_1.subVectors(handLandmarks[f+1], handLandmarks[f+0]).normalize();
+                meanSideDeviation += handSide.dot(tempVec3_1) * 1/3;
+                const fingerBend = handNormal.dot(tempVec3_1);
+                tempVec3_1.subVectors(handLandmarks[f+2], handLandmarks[f+1]).normalize();
+                meanSideDeviation += handSide.dot(tempVec3_1) * 1/3;
+                tempVec3_1.subVectors(handLandmarks[f+3], handLandmarks[f+2]).normalize();
+                meanSideDeviation += handSide.dot(tempVec3_1) * 1/3;
+                
+                if (Math.abs(meanSideDeviation) > maxLateralDeviation){
+                    meanSideDeviation = (meanSideDeviation < 0) ? -maxLateralDeviation : maxLateralDeviation;
+                }
+                if ( fingerBend < 0){ // the more the finger is bended, the less it can be moved sideways
+                    meanSideDeviation *= 1+fingerBend;
+                }
+                const quatLatDev = new THREE.Quaternion();
+                quatLatDev.setFromAxisAngle( handNormal, Math.acos(meanSideDeviation) - Math.PI*0.5);
+                // end of lateral computations
+    
+                // phalanges can bend. Thus, reference vectors need to be with respect to the last phalange (or the base of the hand)
+                prevForward.copy(handForward);
+                prevSide.copy(handSide);
+                prevNormal.copy(handNormal);
+    
+                // for each phalange of each finger (and thumb)
+                for( let i = 0; i < 3; ++i){
+                    const boneSrc = skeleton.bones[ bonePhalanges[ f + i-1 ] ];
+                    const boneTrg = skeleton.bones[ bonePhalanges[ f + i ] ];
+                    const landmark = f + i;
+                    boneSrc.quaternion.copy( bindQuats[ bonePhalanges[ f+i-1 ] ] );
+                    boneSrc.updateWorldMatrix( true, false );
+        
+                    boneSrc.matrixWorld.decompose( tempVec3_1, invWorldQuat, tempVec3_1 );
+                    invWorldQuat.invert();
+        
+                    // world mediapipe phalange direction
+                    let v_phalange = new THREE.Vector3();
+                    v_phalange.subVectors( handLandmarks[landmark+1], handLandmarks[landmark] ).normalize();
+    
+                    // fingers (no thumb)
+                    if ( f > 4 ){
+                        // remove all lateral deviation (later will add the allowed one)
+                        v_phalange.addScaledVector(handSide, -v_phalange.dot(handSide));
+                        if (v_phalange.length() < 0.0001 ){
+                            v_phalange.copy(prevForward);
+                        }else{
+                            v_phalange.normalize();
+                        }
+    
+                        // prevForward and prevNormal do not have any lateral deviation
+                        const dotForward = v_phalange.dot(prevForward);
+                        const dotNormal = v_phalange.dot(prevNormal);
+                        
+                        // finger cannot bend uppwards
+                        if (dotNormal > 0){
+                            v_phalange.copy( prevForward );
+                        }else{
+                            const limitForward = -0.76; // cos 40º
+                            const limitNormal = -0.64; // sin 40º
+                            // too much bending, restrict it (set default bended direction)
+                            if ( dotForward < limitForward ){ 
+                                v_phalange.set(0,0,0);
+                                v_phalange.addScaledVector( prevForward, limitForward);
+                                v_phalange.addScaledVector( prevNormal, limitNormal);
+                            }
+                        }
+        
+                        v_phalange.normalize();
+                
+                        prevNormal.crossVectors( v_phalange, handSide ).normalize();
+                        prevForward.copy(v_phalange); // without any lateral deviation
+    
+                        // apply lateral deviation (not as simple as adding side*meanSideDeviation)
+                        v_phalange.applyQuaternion(quatLatDev);
+                    }
+                    else {
+                        // thumb
+                        if (i==0){
+                            // base of thumb
+                            const dotthumb = v_phalange.dot(handNormal);
+                            const mint = -0.45;
+                            const maxt = 0.0;
+                            if ( dotthumb > maxt || dotthumb < mint ){
+                                const clampDot = Math.max(mint, Math.min(maxt, dotthumb));
+                                v_phalange.addScaledVector(handNormal, -dotthumb + clampDot);
+                            }
+                            prevForward.copy(handForward);
+                            prevSide.copy(handNormal); // swap
+                            prevNormal.copy(handSide); // swap
+                            if ( isLeft ){
+                                prevNormal.multiplyScalar(-1);                            
+                            }
+                        }
+                        else{
+                            // other thumb bones
+                            // remove lateral deviation
+                            v_phalange.addScaledVector(prevSide, -v_phalange.dot(prevSide));
+                            
+                            // cannot bend on that direction
+                            const dotNormal = v_phalange.dot(prevNormal);
+                            if (dotNormal > 0){
+                                v_phalange.addScaledVector(prevNormal, -dotNormal)
+                            }        
+                        }
+    
+                        v_phalange.normalize();
+        
+                        if (v_phalange.length() < 0.0001 ){
+                            v_phalange.copy(prevForward);
+                        }
+        
+                        // update previous directions with the current ones
+                        if ( isLeft ){
+                            prevNormal.crossVectors( v_phalange, prevSide ).normalize();
+                            prevSide.crossVectors( prevNormal, v_phalange ).normalize();
+                            prevForward.copy(v_phalange);
+                        }else{
+                            prevNormal.crossVectors( prevSide, v_phalange ).normalize();
+                            prevSide.crossVectors( v_phalange, prevNormal ).normalize();
+                            prevForward.copy(v_phalange);
+                        }
+                    }
+    
+                    // world phalange direction to local space
+                    v_phalange.applyQuaternion( invWorldQuat ).normalize();
+        
+                    // avatar bone local space direction
+                    let phalange_p = boneTrg.position.clone().normalize();
+        
+                    // move bone to predicted direction
+                    const rot = new THREE.Quaternion();
+                    const twist = new THREE.Quaternion();
+                    rot.setFromUnitVectors( phalange_p, v_phalange );
+                    getTwistQuaternion( rot, phalange_p, twist ); // remove undesired twist from phalanges
+                    boneSrc.quaternion.multiply( rot ).multiply( twist.invert() ).normalize();
+                }// end of phalange for
+            } // end of finger 'for'
+        };
 
         skeleton.pose(); // bind pose
 
