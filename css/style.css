@@ -24,10 +24,6 @@
 
 /* ----- Lexgui style overrides ----- */
 
-/* Remove tmp utilities on update lexgui */
-.fg-white { color: white !important }
-.bg-blur { --background-color: var(--global-blur-background); background-color: var(--background-color)!important }
-
 .hover\:scale:hover {
 	transform: scale(1.1);
 	transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19);
