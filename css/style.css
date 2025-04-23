@@ -28,6 +28,11 @@
 .fg-white { color: white !important }
 .bg-blur { --background-color: var(--global-blur-background); background-color: var(--background-color)!important }
 
+.hover\:scale:hover {
+	transform: scale(1.1);
+	transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19);
+}
+
 .lexmenubar {
 	background: none;
 	display: flex;
@@ -41,6 +46,7 @@
 .lexfooter .credits-and-socials {
 	display: flex;
 	justify-content: space-around;
+	padding-inline: 0;
 }
 
 .lexfooter .credits-and-socials i {
@@ -48,8 +54,19 @@
 	font-size: 22px;
 }
 
+.lexfooter .social {
+	display: flex;
+}
+
 .lexfooter p {
     font-size: var(--global-font-size-sm);
+	white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 1;
+	line-clamp: 1;
 }
 
 .lexcombobuttons .lexbutton.combo.selected {
@@ -59,36 +76,6 @@
 }
 
 /* ----- End of lexGUI overrides ----- */
-
-/* Large Desktops (1440px+) */
-@media screen and (max-width: 1440px) {
-    
-}
-
-/* Small Desktops & Large Tablets (1200px - 1439px) */
-@media screen and (max-width: 1200px) {
-    
-}
-
-/* Tablets & Small Laptops (992px - 1199px) */
-@media screen and (max-width: 992px) {
-    
-}
-
-/* Large Phones & Small Tablets (768px - 991px) */
-@media screen and (max-width: 768px) {
-    
-}
-
-/* Small Phones (576px - 767px) */
-@media screen and (max-width: 576px) {
-    
-}
-
-/* Extra Small Phones (< 375px) */
-@media screen and (max-width: 375px) {
-    
-}
 
 canvas {
 	outline: none !important;
