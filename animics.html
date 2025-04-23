@@ -43,13 +43,15 @@
 		import { UTILS } from './src/Utils.js'
 		import { LX } from 'lexgui';
 
-		let area = LX.init( { strictViewport: false, rootClass: "" } );
+		let area = LX.init( { rootClass: "" } );
 
 		// Menubar
 		{
 			const menubar = area.addMenubar( m => {
+
 				m.setButtonImage("Animics", "data/imgs/animics_logo_name.png", () => { window.location = window.location }, { float: "left" })				
-				const buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2", "", m.root);
+
+				const buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2 ml-auto", "", m.root);
 
 				const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto fg-primary border hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
 				signupButton.tabIndex = "1";
@@ -62,7 +64,6 @@
 				loginButton.listen( "click", () => {} );
 
 			});
-
 
 			area = menubar.siblingArea;
 			area.root.style.placeContent = "center";
@@ -83,7 +84,8 @@
 				
 				m.add( "Switch Theme", { icon: "fa fa-sun", callback:  () => {swapValue = !swapValue; LX.setTheme( swapValue ? "light" : "dark" ) }})
 				// m.add( "TÀNDEM", { callback: () => {} } );
-			}, { /* collapseToIcons: false, skipFooter: true, skipHeader: true,*/
+			}, { 
+				/* collapseToIcons: false, skipFooter: true, skipHeader: true,*/
 				filter: false,
 				headerTitle: "ANIMICS",
 				// headerSubtitle: LX.version,
@@ -109,60 +111,75 @@
 				}
 			});
 		}
-		const content = LX.makeContainer( ["100%", "100%"], "bg-secondary flex flex-col p-6 rounded-lg", "", area );
+
+		const content = LX.makeContainer( ["100%", "100%"], "relative flex flex-col px-1", "", area );
+		const mainContent = LX.makeContainer( ["100%", "calc(100% - 70px)"], "main-content bg-secondary flex flex-col p-6 rounded-lg", "", content );
 
 		{
-			const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6", "", content );
+			const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6 overflow-scroll", "", mainContent );
 			
 			const keyframeContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
 			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Keyframe Animation", keyframeContent );
 			const keyframeItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", keyframeContent );
 			
-			const emptyItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
-			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-circle-plus"></i><p class="text-sm text-center px-4 fg-tertiary ">Create from scratch</p>`, emptyItem );
+			const emptyItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-3", `<i style="font-size: xxx-large;" class="fa-solid fa-circle-plus"></i><p class="text-sm text-center px-4 fg-tertiary ">Create from scratch</p>`, emptyItem );
 			LX.makeContainer( ["auto", "auto"], "", `<p>Empty project</p>`, emptyItem );
 			emptyItem.id = "keyframe-project";
 
-			const videoItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
-			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-clapperboard"></i><p class="text-sm text-center px-4 fg-tertiary ">Upload video/s</p>`, videoItem );
+			const videoItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center rounded-lg shadow-lg gap-3", `<i style="font-size: xxx-large;" class="fa-solid fa-clapperboard"></i><p class="text-sm text-center px-4 fg-tertiary ">Upload video/s</p>`, videoItem );
 			LX.makeContainer( ["auto", "auto"], "", `<p>From video/s</p>`, videoItem );
 			videoItem.id = "video-project";
 
-			const webcamItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
-			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-camera"></i><p class="text-sm text-center px-4 fg-tertiary ">Record yourself</p>`, webcamItem );
+			const webcamItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center rounded-lg shadow-lg gap-3", `<i style="font-size: xxx-large;" class="fa-solid fa-camera"></i><p class="text-sm text-center px-4 fg-tertiary ">Record yourself</p>`, webcamItem );
 			LX.makeContainer( ["auto", "auto"], "", `<p>Real-time capture</p>`, webcamItem );
 			webcamItem.id = "webcam-project";
 
 			const scriptContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
 			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Script Animation", scriptContent );
 			const scriptItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", scriptContent );
-			const emptyScriptItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, scriptItems );
-			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-circle-plus"></i><p class="text-sm text-center px-4 fg-tertiary ">Create from scratch</p>`, emptyScriptItem );
+			const emptyScriptItem = LX.makeContainer( ["230px", "auto"], "flex flex-col  gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, scriptItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-3", `<i style="font-size: xxx-large;" class="fa-solid fa-circle-plus"></i><p class="text-sm text-center px-4 fg-tertiary ">Create from scratch</p>`, emptyScriptItem );
 			LX.makeContainer( ["auto", "auto"], "", `<p>Empty project</p>`, emptyScriptItem );
 			emptyScriptItem.id = "script-project";
 
 			const fileContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
 			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Edit Animation", fileContent );
 			const fileItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", fileContent );
-			const fileItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, fileItems );
-			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-folder-open"></i><p class="text-sm text-center px-4 fg-tertiary ">Upload .bvh, .bvhe, .bml, .sigml or .json file/s</p>`, fileItem );
+			const fileItem = LX.makeContainer( ["230px", "auto"], "flex flex-col  gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, fileItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-3", `<i style="font-size: xxx-large;" class="fa-solid fa-folder-open"></i><p class="text-sm text-center px-4 fg-tertiary ">Upload .bvh, .bvhe, .bml, .sigml or .json file/s</p>`, fileItem );
 			LX.makeContainer( ["auto", "auto"], "", `<p>Drop file/s</p>`, fileItem );
 			fileItem.id = "import";
 		}
 
 		{
-			const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4", "", content );
+			const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4 overflow-scroll", "", mainContent );
 			LX.makeContainer( ["auto", "auto"], "font-bold", "Projects", projectsContent );
-			const projectItems = LX.makeContainer( ["100%", "auto"], "flex flex-col", "", projectsContent );
+			const projectItems = LX.makeContainer( ["100%", "auto"], "grid gap-4 p-4", "", projectsContent );
+			projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
 			
-			LX.makeContainer( ["720px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `<img class="rounded-xl" src="./docs/editStation.png"><p>Untitled project</p><p class="text-sm fg-tertiary">Last modified 08/04/2025</p>`, projectItems );
+			const makeProjectItem = ( projectName, modifyDate ) => {
+				LX.makeContainer( ["auto", "auto"], "flex flex-col gap-3 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `
+				<img class="rounded-xl" src="./docs/editStation.png">
+				<div class="flex flex-col gap-1">
+					<p>${ projectName }</p>
+					<p class="text-sm fg-tertiary">Last modified ${ modifyDate }</p>
+				</div>`, projectItems );
+			}
+
+			makeProjectItem("Untitled Project", "08/04/2025" );
+			makeProjectItem("First Animation", "22/04/2025" );
+			makeProjectItem("A Project Name", "22/04/2025" );
+			makeProjectItem("No More Ideas", "22/04/2025" );
+			makeProjectItem("Sign Animations", "22/04/2025" );
+			makeProjectItem("Video Animation", "22/04/2025" );
 		}
 
-
 		const footer = new LX.Footer( {
-			className: "border-top",
-			parent: LX.root,
-			
+			className: "left-0 bottom-0 absolute",
+			parent: content,
 			credits: `2021-${ new Date().getUTCFullYear() } GTI - UPF | Developed within <a href="https://signon-project.eu/" target="_blank">SignON</a> and EMERALD EU H2020 projects.<br>Released under the Apache 2.0 License.`,
 			socials: [
 				{ title: "Github", link: "https://github.com/upf-gti/", icon: `<i class="fa-brands fa-github"></i>` },
