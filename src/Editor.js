@@ -125,6 +125,10 @@ class Editor {
         
         UTILS.hideLoading();
         
+        if(settings.capture) {
+            this.captureVideo();
+        }
+
         window.onbeforeunload =  (e) => {
             if(!this.currentAnimation || !this.loadedAnimations[this.currentAnimation]) {
                 return;

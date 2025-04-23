@@ -113,23 +113,41 @@
 
 		{
 			const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6", "", content );
+			
 			const keyframeContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
 			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Keyframe Animation", keyframeContent );
 			const keyframeItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", keyframeContent );
-			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>Empty project</p>`, keyframeItems );
-			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>From video/s</p>`, keyframeItems );
-			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>Real-time capture</p>`, keyframeItems );
+			
+			const emptyItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-circle-plus"></i><p class="text-sm text-center px-4 fg-tertiary ">Create from scratch</p>`, emptyItem );
+			LX.makeContainer( ["auto", "auto"], "", `<p>Empty project</p>`, emptyItem );
+			emptyItem.id = "keyframe-project";
+
+			const videoItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-clapperboard"></i><p class="text-sm text-center px-4 fg-tertiary ">Upload video/s</p>`, videoItem );
+			LX.makeContainer( ["auto", "auto"], "", `<p>From video/s</p>`, videoItem );
+			videoItem.id = "video-project";
+
+			const webcamItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-camera"></i><p class="text-sm text-center px-4 fg-tertiary ">Record yourself</p>`, webcamItem );
+			LX.makeContainer( ["auto", "auto"], "", `<p>Real-time capture</p>`, webcamItem );
+			webcamItem.id = "webcam-project";
 
 			const scriptContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
 			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Script Animation", scriptContent );
 			const scriptItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", scriptContent );
-			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>Empty project</p>`, scriptItems );
+			const emptyScriptItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, scriptItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-circle-plus"></i><p class="text-sm text-center px-4 fg-tertiary ">Create from scratch</p>`, emptyScriptItem );
+			LX.makeContainer( ["auto", "auto"], "", `<p>Empty project</p>`, emptyScriptItem );
+			emptyScriptItem.id = "script-project";
 
 			const fileContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
 			LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Edit Animation", fileContent );
 			const fileItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", fileContent );
-			LX.makeContainer( ["256px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", `<img class="rounded-lg" src="./docs/editStation.png"><p>From file/s</p>`, fileItems );
-
+			const fileItem = LX.makeContainer( ["230px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, fileItems );
+			LX.makeContainer( ["200px", "150px"], "flex flex-col justify-center items-center content-center rounded-lg shadow-lg gap-2", `<i style="font-size: xxx-large;" class="fa-solid fa-folder-open"></i><p class="text-sm text-center px-4 fg-tertiary ">Upload .bvh, .bvhe, .bml, .sigml or .json file/s</p>`, fileItem );
+			LX.makeContainer( ["auto", "auto"], "", `<p>Drop file/s</p>`, fileItem );
+			fileItem.id = "import";
 		}
 
 		{
@@ -137,7 +155,7 @@
 			LX.makeContainer( ["auto", "auto"], "font-bold", "Projects", projectsContent );
 			const projectItems = LX.makeContainer( ["100%", "auto"], "flex flex-col", "", projectsContent );
 			
-			LX.makeContainer( ["720px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `<img class="rounded-xl" src="./docs/editStation.png"><p>Untitled project</p><p class="text-sm">Last modified 08/04/2025</p>`, projectItems );
+			LX.makeContainer( ["720px", "auto"], "flex flex-col gap-2 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `<img class="rounded-xl" src="./docs/editStation.png"><p>Untitled project</p><p class="text-sm fg-tertiary">Last modified 08/04/2025</p>`, projectItems );
 		}
 
 
@@ -159,12 +177,11 @@
 		const body = area.root;
 
 		const keyframeBtn = document.getElementById("keyframe-project");
-		// const videoBtn = document.getElementById("video-project");
-		// const webcamBtn = document.getElementById("webcam-project");
+		const videoBtn = document.getElementById("video-project");
+		const webcamBtn = document.getElementById("webcam-project");
 
 		const scriptBtn = document.getElementById("script-project");
 		const importBtn = document.getElementById("import");
-		// const importScriptBtn = document.getElementById("import-script");
 
 		// Wait until the session is loaded
 		UTILS.makeLoading("Loading application, please wait");
@@ -247,6 +264,20 @@
 			startAnimics({mode: "keyframe"});
 		});
 
+		videoBtn.addEventListener("click", () => {
+    		const input = document.createElement('input');
+    		input.type = 'file';
+    		input.click();
+    		input.onchange = (event) => { 
+				onLoadFiles( event.currentTarget.files);
+				// startAnimics({pendingResources: event.currentTarget.files})
+			};
+		});
+
+		webcamBtn.addEventListener("click", () => {
+			startAnimics({mode: "keyframe", capture: true});
+		});
+
 		// Script mode
 		scriptBtn.addEventListener("click", () => {
 			startAnimics({mode: "script"});
@@ -263,9 +294,23 @@
 			};
 		});
 
-		body.ondragover = () => {return false};
-		body.ondragend = () => {return false};
+		const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-blur","", body );
+		dropOver.classList.add("hidden");
+		
+		body.ondragenter = ( event ) => {
+			event.preventDefault();
+			dropOver.classList.remove("hidden");
+			return false
+		};
+
+		body.ondragend = ( event ) => {
+			event.preventDefault();
+			dropOver.classList.add("hidden");
+			return false
+		};
+
 		body.ondrop = (event) => {
+			dropOver.classList.add("hidden");
 			event.preventDefault();
 			event.stopPropagation();
 			if ( onLoadFiles( event.dataTransfer.files ) ){
