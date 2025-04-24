@@ -1434,7 +1434,10 @@ a svg, svg path {
 
 .lexwidget .lextext.formlabel {
     margin-left: 8px;
-    margin-bottom: -12px;
+    margin-bottom: -6px;
+    font-weight: 500;
+    padding: 0;
+    font-size: var(--global-font-size-sm);
 }
 
 .lexwidget .lextext.outline {
@@ -4851,6 +4854,7 @@ ul.lexassetscontent {
 .lexassetscontent li .lexassettitle {
     position: absolute;
     width: 100%;
+    height: 24px;
     bottom: 0px;
     -webkit-text-size-adjust: 100%;
     font-size: var(--global-font-size);
@@ -4859,12 +4863,11 @@ ul.lexassetscontent {
     text-align: center;
     box-sizing: border-box;
     display: block;
-    height: 20px;
     padding: 0.1em;
-    padding-top: 0.15em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    align-content: center;
     background-color: var(--global-intense-background);
     transition: all 0.1s;
     z-index: 1;

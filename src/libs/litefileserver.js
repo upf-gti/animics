@@ -941,6 +941,22 @@ Session.prototype.getFileInfo = function( fullpath, on_complete )
     });
 }
 
+Session.prototype.getLastFiles = function( on_complete )
+{
+	return this.request( this.server_url,{ action: "files/getLastFiles" }, function(resp){
+		if(on_complete)
+			on_complete(resp.data, resp);
+	});
+}
+
+Session.prototype.getFilesTree = function( fullpath, on_complete )
+{
+    return this.request( this.server_url,{ action: "files/getFilesTree", fullpath: fullpath }, function(resp){
+        if(on_complete)
+            on_complete(resp.data, resp);
+    });
+}
+
 
 /**
 * Uploads a file to the server (it allows to send other info too like preview)

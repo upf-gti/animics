@@ -42,9 +42,17 @@
 		import { Animics } from './src/Animics.js'
 		import { UTILS } from './src/Utils.js'
 		import { LX } from 'lexgui';
+		
+		// Wait until the session is loaded
+		UTILS.makeLoading("Loading application, please wait");
+		const animics = new Animics();
+		await animics.loadSession();		
 
 		let area = LX.init( { rootClass: "" } );
 
+		let signupButton = null;
+		let loginButton = null;
+		let userButton = null;
 		// Menubar
 		{
 			const menubar = area.addMenubar( m => {
@@ -53,22 +61,39 @@
 
 				const buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2 ml-auto", "", m.root);
 
-				const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto fg-primary border hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
+				signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto fg-primary border hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
 				signupButton.tabIndex = "1";
 				signupButton.role = "button";
 				signupButton.listen( "click", () => {} );			
 				
-				const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
+				loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
 				loginButton.tabIndex = "1";
 				loginButton.role = "button";
-				loginButton.listen( "click", () => {} );
+				loginButton.listen( "click", () => {
+					showLoginModal();
+				} );
+				
+				userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.remoteFileSystem.session.user.username, buttonsContainer );
+				userButton.tabIndex = "1";
+				userButton.role = "button";
+				userButton.listen( "click", () => {
+					new LX.DropdownMenu( userButton, [
+						
+						{ name: "Go to Database", icon: "server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
+						{ name: "Refresh", icon: "rotate-left", callback: () => {} },
+						null,
+						{ name: "Logout", icon: "log-out", callback: () => {logout()} },
+						
+					], { side: "bottom", align: "end" });
+				} );									
 
+				checkSession();
 			});
-
 			area = menubar.siblingArea;
 			area.root.style.placeContent = "center";
 			area.root.classList.add( "hidden" );
 		}
+					
 
 		{
 			let swapValue = document.documentElement.getAttribute("data-theme") == "dark";
@@ -164,20 +189,26 @@
 			const projectItems = LX.makeContainer( ["100%", "auto"], "grid gap-4", "", projectsContent );
 			projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
 			
-			const makeProjectItem = ( projectName, modifyDate, imgSource ) => {
-				const item = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `
+			const projectText = LX.makeContainer( ["auto", "auto"],"text-md fg-secondary", "<p> Login to see your last projects. </p>", projectsContent);
+
+			window._makeProjectItem = ( item ) => {
+				projectText.classList.add("hidden");
+				const itemContainer = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `
 				<div class="rounded-xl w-full overflow-hidden">
-					<img class="w-full hover:scale" style="object-fit:cover" src="${ imgSource }">
+					<img class="w-full hover:scale" style="object-fit:cover" src="${ item.img || "./docs/editStation.png"} ">
 				</div>
 				<div class="flex flex-row justify-between px-1">
 					<div class="flex flex-col gap-0.5">
-						<p>${ projectName }</p>
-						<p class="text-sm fg-tertiary">Last modified ${ modifyDate }</p>
+						<p>${ item.filename }</p>
+						<p class="text-sm fg-tertiary">Last modified ${ item.timestamp }</p>
 					</div>
 					<a class="px-2 py-1 rounded-lg lexicon fa-solid fa-ellipsis-vertical"></a>
 				</div>
 				`, projectItems );
-				const optionsIcon = item.querySelector( ".lexicon" );
+				itemContainer.addEventListener( "click", () => {
+					onLoadFiles([{name: item.filename, fullpath: item.unit + "/" + item.folder + "/" + item.filename, type: "application/json"}]);
+				})
+				const optionsIcon = itemContainer.querySelector( ".lexicon" );
 				optionsIcon.listen( "click", () => {
 					new LX.DropdownMenu( optionsIcon, [
 						{ name: "Duplicate", icon: "copy", callback: () => {} },
@@ -187,12 +218,12 @@
 				} );
 			}
 
-			makeProjectItem("Untitled Project", "08/04/2025", "./docs/editStation.png" );
-			makeProjectItem("First Animation", "22/04/2025", "./docs/editStation.png" );
-			makeProjectItem("A Project Name", "22/04/2025", "./docs/editStation.png" );
-			makeProjectItem("No More Ideas", "22/04/2025", "./docs/editStation.png" );
-			makeProjectItem("Sign Animations", "22/04/2025", "./docs/editStation.png" );
-			makeProjectItem("Video Animation", "22/04/2025", "./docs/editStation.png" );
+			// makeProjectItem("Untitled Project", "08/04/2025", "./docs/editStation.png" );
+			// makeProjectItem("First Animation", "22/04/2025", "./docs/editStation.png" );
+			// makeProjectItem("A Project Name", "22/04/2025", "./docs/editStation.png" );
+			// makeProjectItem("No More Ideas", "22/04/2025", "./docs/editStation.png" );
+			// makeProjectItem("Sign Animations", "22/04/2025", "./docs/editStation.png" );
+			// makeProjectItem("Video Animation", "22/04/2025", "./docs/editStation.png" );
 		}
 
 		const footer = new LX.Footer( {
@@ -211,19 +242,15 @@
 
 		const body = area.root;
 
+		UTILS.hideLoading();
+		body.classList.remove("hidden");
+
 		const keyframeBtn = document.getElementById("keyframe-project");
 		const videoBtn = document.getElementById("video-project");
 		const webcamBtn = document.getElementById("webcam-project");
 
 		const scriptBtn = document.getElementById("script-project");
 		const importBtn = document.getElementById("import");
-
-		// Wait until the session is loaded
-		UTILS.makeLoading("Loading application, please wait");
-		const animics = new Animics();
-		await animics.loadSession();
-		UTILS.hideLoading();
-		body.classList.remove("hidden");
 
 		const startAnimics = (settings) => {
 			const loadingAnim = UTILS.makeLoading("Starting Animics");
@@ -352,6 +379,62 @@
 				body.ondrop = null;
 			}
 		};
+
+		function showLoginModal() {
+			let prompt = new LX.Dialog("Login", (p) => {
+				
+				const formData = { Username: "", Password: { value: "", type: "password" } };
+				p.addForm("Test form", formData, (value, event) => {
+					animics.remoteFileSystem.login(value.Username, value.Password, (session, response) => {
+						if(response.status == 1) {
+							// animics.changeLoginButton(session.user.username);
+							// const folders = animics.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
+							// animics.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
+							
+							checkSession();
+							prompt.close();
+							prompt = null;
+						}
+						else {                           
+							//refresh(p, response.msg || "Can't connect to the server. Try again!");
+						}
+					});
+				}, { primaryActionName: "Login", secondaryActionName: "Sign Up", secondaryActionCallback: () =>{}} ) // this.showCreateAccountDialog({username, password});});
+				
+				
+			}, {modal: true, closable: true} )
+		}
+
+		function logout() {
+       
+            animics.remoteFileSystem.logout(() => {
+                animics.remoteFileSystem.login("guest", "guest", () => {                    
+					checkSession();
+                })
+
+            }); 
+    	}
+
+		function checkSession() {
+			if(!animics.remoteFileSystem.session || !animics.remoteFileSystem.session.user || animics.remoteFileSystem.session.user.username == "guest") {
+				signupButton.classList.remove("hidden");
+				loginButton.classList.remove("hidden");
+				userButton.classList.add("hidden");
+			}
+			else {
+				signupButton.classList.add("hidden");
+				loginButton.classList.add("hidden");
+				userButton.classList.remove("hidden");
+				userButton.innerHTML = animics.remoteFileSystem.session.user.username;
+				// put name
+				animics.remoteFileSystem.session.getLastFiles((files) => {
+					for(const data of files) {
+						
+						window._makeProjectItem( data );
+					}
+				})
+			}
+		}
 	</script>
 
     <body >
