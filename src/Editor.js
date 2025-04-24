@@ -16,9 +16,7 @@ import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
 
-
 import { LX } from "lexgui"
-import { Quaternion, Vector3 } from "./libs/three.module.js";
 
 // const MapNames = await import('../data/mapnames.json', {assert: { type: 'json' }});
 const MapNames = await (await fetch('./data/mapnames.json')).json();
@@ -115,8 +113,9 @@ class Editor {
             UTILS.makeLoading("Preparing scene...");
         }
 
-        await this.processPendingResources(settings.pendingResources);
         this.gui.init(showGuide);
+
+        await this.processPendingResources(settings.pendingResources);
 
         this.enable();
         this.bindEvents();
@@ -1978,6 +1977,7 @@ class KeyframeEditor extends Editor {
         mixer.clipAction(bindedAnim.mixerBodyAnimation).setEffectiveWeight(1.0).play();
         
         // set timeline animations
+        this.gui.onChangeAnimation(bindedAnim);
         this.setTimeline(this.animationMode);
         this.gizmo.updateBones();
         // mixer.setTime(0);
@@ -2221,7 +2221,6 @@ class KeyframeEditor extends Editor {
                 this.animationMode = this.animationModes.FACE;
                 this.gui.curvesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                 this.activeTimeline = this.gui.curvesTimeline;
-                this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().auAnimation, false );
                 this.activeTimeline.show();
                 currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 if( !this.selectedAU ) {
@@ -2241,9 +2240,7 @@ class KeyframeEditor extends Editor {
                     this.gizmo.enable();
                 }
 
-                this.activeTimeline = this.gui.keyFramesTimeline;
-                this.activeTimeline.setAnimationClip( this.getCurrentBindedAnimation().skeletonAnimation, false );
-                
+                this.activeTimeline = this.gui.keyFramesTimeline;                
                 currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
                 this.activeTimeline.show();

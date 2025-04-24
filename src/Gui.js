@@ -97,7 +97,11 @@ class Gui {
         menubar.add("Project/");
         menubar.add("Project/New animation", {icon: "fa fa-plus", callback: () => {
             this.editor.loadAnimation("animation" + Math.floor( performance.now()*1000 ).toString(), {});
-            this.updateAnimationPanel();
+            if ( this.onChangeAnimation ){
+                this.onChangeAnimation( this.editor.getCurrentBindedAnimation() );
+            }else{
+                this.updateAnimationPanel();
+            }
         }});
 
         menubar.add("Project/Import animations", {icon: "fa fa-file-import"});
@@ -982,8 +986,7 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
             onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
-                    this.editor.bindAnimationToCharacter(v);
-                    this.updateAnimationPanel();
+                    this.editor.bindAnimationToCharacter(v); // already updates gui
                 }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
                 
             },
@@ -1161,8 +1164,7 @@ class KeyframesGui extends Gui {
         this.curvesTimeline = new LX.CurvesTimeline("Action Units", {
             onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
-                    this.editor.bindAnimationToCharacter(v);
-                    this.updateAnimationPanel();
+                    this.editor.bindAnimationToCharacter(v); // already updates gui
                 }, {signal: "@on_animation_loaded"})
             },
             onChangeLoopMode: (loop) => {
@@ -1296,13 +1298,12 @@ class KeyframesGui extends Gui {
         this.updateAnimationPanel( );
 
         //create tabs
-        const tabs = bottom.addTabs({fit: true});
+        const tabs = this.bodyFaceTabs = bottom.addTabs({fit: true});
 
         const bodyArea = new LX.Area({id: 'Body'});  
         const faceArea = new LX.Area({id: 'Face'});  
         tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.BODY)
-            // this.updatePropagationWindowCurve();
             this.propagationWindow.setTimeline( this.keyFramesTimeline );
         }}  );
         
@@ -1310,7 +1311,6 @@ class KeyframesGui extends Gui {
         tabs.add( "Face", faceArea, { onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.FACE); 
             this.selectActionUnitArea(this.editor.getSelectedActionUnit());
-            // this.updatePropagationWindowCurve();
             this.propagationWindow.setTimeline( this.curvesTimeline );
             this.imageMap.resize();
         } });
@@ -1323,7 +1323,7 @@ class KeyframesGui extends Gui {
         faceBottom.root.style.height = "50%";
         faceBottom.root.classList.add("overflow-y-auto");
         this.createFacePanel(faceTop);
-        this.createActionUnitsPanel(faceBottom);
+        this.createActionUnitsPanel();
 
         bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
@@ -1336,6 +1336,14 @@ class KeyframesGui extends Gui {
                 faceTop.onresize(e);
             }
         }
+    }
+
+    // updates the necessary elements of the gui to adjust to the new animation
+    onChangeAnimation( animation ){
+        this.keyFramesTimeline.setAnimationClip( animation.skeletonAnimation, false );
+        this.curvesTimeline.setAnimationClip( animation.auAnimation, false );
+        this.updateAnimationPanel();
+        this.createActionUnitsPanel(); // need to update the panel's available blendshapes
     }
 
     updateAnimationPanel( options = {}) {
@@ -1358,7 +1366,7 @@ class KeyframesGui extends Gui {
         widgets.onRefresh(options);
     }
 
-    createFacePanel(area, itemSelected, options = {}) {
+    createFacePanel(area) {
 
         const padding = 16;
         const container = document.createElement("div");
@@ -1503,12 +1511,24 @@ class KeyframesGui extends Gui {
 
     }
 
-    createActionUnitsPanel(root) {
-        let tabs = root.addTabs({fit:true});
+    createActionUnitsPanel() {
+        const baseArea = this.bodyFaceTabs.tabs.Face.sections[1]; // take bottom area of Face tab
+
+        // clear area before redoing all sliders
+        while (baseArea.root.firstChild) {
+            baseArea.root.removeChild(baseArea.root.lastChild);
+          }
+        baseArea.sections=[];
+
+        // now start building the content
+        const tabs = baseArea.addTabs({fit:true});
+        const animation = this.curvesTimeline.animationClip;
+        if ( !animation ){
+            return;
+        }
+
         let areas = {};
         
-        const animation = this.curvesTimeline.animationClip;
-
         for(let i in this.editor.mapNames) {
             for(let item in this.faceAreas) {
                 let toCompare = this.faceAreas[item].toLowerCase().split(" ");
@@ -1728,15 +1748,15 @@ class KeyframesGui extends Gui {
             widgets.clear();
 
             const boneSelected = this.editor.currentCharacter.skeletonHelper.bones[this.editor.gizmo.selectedBone];
-
-            if(boneSelected) {
+            const animationClip = this.keyFramesTimeline.animationClip;
+            if(boneSelected && animationClip ) {
 
                 const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
                 
                 let trackType = this.editor.getGizmoMode();
                 let tracks = null;
                 if(this.keyFramesTimeline.selectedItems.length) {
-                    tracks = this.keyFramesTimeline.animationClip.tracksPerItem[this.keyFramesTimeline.selectedItems[0]];
+                    tracks = animationClip.tracksPerItem[this.keyFramesTimeline.selectedItems[0]];
                 }
 
                 let active = this.editor.getGizmoMode();
