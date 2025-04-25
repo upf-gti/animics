@@ -188,8 +188,10 @@
 			LX.makeContainer( ["auto", "auto"], "font-bold", "Projects", projectsContent );
 			const projectItems = LX.makeContainer( ["100%", "auto"], "grid gap-4", "", projectsContent );
 			projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
-			
+			projectItems.id = "project-items-container";
+
 			const projectText = LX.makeContainer( ["auto", "auto"],"text-md fg-secondary", "<p> Login to see your last projects. </p>", projectsContent);
+			projectText.id = "project-text";
 
 			window._makeProjectItem = ( item ) => {
 				projectText.classList.add("hidden");
@@ -216,6 +218,7 @@
 						{ name: "Delete", icon: "trash-can" }
 					], { side: "bottom", align: "start" });
 				} );
+
 			}
 
 			// makeProjectItem("Untitled Project", "08/04/2025", "./docs/editStation.png" );
@@ -358,16 +361,21 @@
 
 		const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-blur","", body );
 		dropOver.classList.add("hidden");
-		
+
 		body.ondragenter = ( event ) => {
+	
 			event.preventDefault();
+			event.stopImmediatePropagation();
 			dropOver.classList.remove("hidden");
 			return false
 		};
 
-		body.ondragend = ( event ) => {
+		window.ondragleave = ( event ) => {
 			event.preventDefault();
-			dropOver.classList.add("hidden");
+			event.stopImmediatePropagation();
+			if (event.clientX === 0 && event.clientY === 0) {
+				dropOver.classList.add("hidden");
+			}
 			return false
 		};
 
@@ -384,20 +392,18 @@
 			let prompt = new LX.Dialog("Login", (p) => {
 				
 				const formData = { Username: "", Password: { value: "", type: "password" } };
-				p.addForm("Test form", formData, (value, event) => {
+				p.addForm("Login", formData, (value, event) => {
 					animics.remoteFileSystem.login(value.Username, value.Password, (session, response) => {
 						if(response.status == 1) {
-							// animics.changeLoginButton(session.user.username);
-							// const folders = animics.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
-							// animics.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
 							
-							checkSession();
-							prompt.close();
-							prompt = null;
+							checkSession();							
 						}
 						else {                           
 							//refresh(p, response.msg || "Can't connect to the server. Try again!");
+							LX.popup(response.msg || "Can't connect to the server. Try again!", "Error");
 						}
+						prompt.close();
+						prompt = null;
 					});
 				}, { primaryActionName: "Login", secondaryActionName: "Sign Up", secondaryActionCallback: () =>{}} ) // this.showCreateAccountDialog({username, password});});
 				
@@ -420,6 +426,13 @@
 				signupButton.classList.remove("hidden");
 				loginButton.classList.remove("hidden");
 				userButton.classList.add("hidden");
+				const projectsContent = document.getElementById("project-items-container");
+				if(projectsContent) {
+					projectsContent.innerHTML = "";
+					const projectText = document.getElementById("project-text");
+					projectText.classList.remove("hidden");
+				}
+
 			}
 			else {
 				signupButton.classList.add("hidden");
