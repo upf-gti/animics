@@ -82,7 +82,7 @@ class Gui {
     /** Create menu bar */
     createMenubar(area) {
 
-        this.menubar = area.addMenubar([
+        const menuEntries = [
             {
                 name: "Project",
                 submenu: [
@@ -116,7 +116,6 @@ class Gui {
                             {
                                 name: "Shortcuts",
                                 icon: "Keyboard",
-                                disabled: true,
                                 submenu: [
                                     {
                                         name: "Play-Pause", kbd: "SPACE"
@@ -140,9 +139,24 @@ class Gui {
                 ]
             },
             {
-
+                name: "View",
+                submenu: [
+                    { name: "Theme", submenu: [
+                        { name: "Light", icon: "Sun", callback: () => this.setColorTheme("light") },
+                        { name: "Dark", icon: "Moon", callback: () => this.setColorTheme("dark") }
+                    ] }
+                ]
             }
-        ]);
+        ]
+
+        if(this.showVideo) {
+            menuEntries[ 1 ].submenu.push({ name: "Show video", type: "checkbox", checked: this.showVideo, callback: (v) => {
+                this.editor.setVideoVisibility( v );
+                this.showVideo = v;
+            }});
+        }
+
+        this.menubar = area.addMenubar(menuEntries);
         const menubar = this.menubar;     
         
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
@@ -152,21 +166,10 @@ class Gui {
         } )
         
         const colorScheme = document.documentElement.getAttribute( "data-theme" );
-        menubar.setButtonImage("Animics", colorScheme == "light" ? "data/imgs/animics_logo_lightMode.png" : "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});   
-        
+        menubar.setButtonImage("Animics", colorScheme == "light" ? "data/imgs/animics_logo_lightMode.png" : "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});
 
-    //TO DO
-        menubar.add("View/Theme");
-        menubar.add("View/Theme/Dark", { icon: "Moon", callback: () => this.setColorTheme("dark") } );
-        menubar.add("View/Theme/Light", { icon: "Sun", callback: () => this.setColorTheme("light") } );
-        if(this.showVideo) {
-            menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
-                this.editor.setVideoVisibility( v );
-                this.showVideo = v;
-            }});
-        }
-
-        this.onCreateMenuBar(menubar);
+        // TODO
+        // this.onCreateMenuBar(menubar);
         
         menubar.addButtons( [
             {
@@ -208,28 +211,29 @@ class Gui {
                 }
             }
         ]);
+        
         const user = this.editor.remoteFileSystem.session ? this.editor.remoteFileSystem.session.user : "" ;
         const loginName = (!user || user.username == "guest") ? "Login" : user.username;
-        menubar.add( loginName, {
-            callback: () => {
-                const session = this.editor.remoteFileSystem.session;
-                
-                const username = session ? session.user.username : "guest";
-                if( this.prompt && this.prompt.root.checkVisibility() ) {
-                    return;
-                }
-                if( username != "guest" ) {
-                    this.showLogoutModal();
-                }
-                else {
-                    this.showLoginModal();
-                }                
-            },
-        },
-        {float:"right"});
-        const button = document.getElementById( loginName );
-        button.id = "login";
-        menubar.setButtonIcon("Github", "Github", () => { window.open("https://github.com/upf-gti/animics") }, {float:"right"});
+
+        const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-1 ml-auto fg-primary hover:bg-mix self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
+        loginButton.tabIndex = "1";
+        loginButton.id = "login";
+        loginButton.role = "button";
+        loginButton.listen( "click", () => {
+            const session = this.editor.remoteFileSystem.session;
+            const username = session ? session.user.username : "guest";
+            if( this.prompt && this.prompt.root.checkVisibility() ) {
+                return;
+            }
+            if( username != "guest" ) {
+                this.showLogoutModal();
+            }
+            else {
+                this.showLoginModal();
+            }       
+        } );
+
+        menubar.setButtonIcon("Github", "Github@solid", () => { window.open("https://github.com/upf-gti/animics") }, {float:"right"});
     }
 
     importFiles() {
@@ -1787,7 +1791,7 @@ class KeyframesGui extends Gui {
                 
                 widgets.branch("Gizmo", { icon:"Axis3DArrows", settings: (e) => this.openSettings( 'gizmo' ) });
                 
-                widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool(), nameWidth: "50%", width: "100%"});
+                widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool()});
                 
                 if( this.editor.getGizmoTool() == "Joint" ){
                     
@@ -1854,10 +1858,10 @@ class KeyframesGui extends Gui {
                     else if(trackType == "scale") {
                         this.editor.setGizmoMode("Scale");
                     }
-                    widgets.addComboButtons( "Mode", _Modes, { selected: this.editor.getGizmoMode(), nameWidth: "50%", width: "100%"});
+                    widgets.addComboButtons( "Mode", _Modes, { selected: this.editor.getGizmoMode()});
 
                     const _Spaces = [{value: "Local", callback: (v,e) =>  this.editor.setGizmoSpace(v)}, {value: "World", callback: (v,e) =>  this.editor.setGizmoSpace(v)}]
-                    widgets.addComboButtons( "Space", _Spaces, { selected: this.editor.getGizmoSpace(), nameWidth: "50%", width: "100%"});
+                    widgets.addComboButtons( "Space", _Spaces, { selected: this.editor.getGizmoSpace()});
                 }
 
                 if ( this.editor.getGizmoTool() == "Follow" ){
@@ -1874,7 +1878,7 @@ class KeyframesGui extends Gui {
                         modesValues.push( {value:"Single", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
                     }
 
-                    widgets.addComboButtons( "Mode", modesValues, {selected: current, nameWidth: "50%", width: "100%"});
+                    widgets.addComboButtons( "Mode", modesValues, {selected: current});
                     this.editor.setGizmoIkMode( current );
                 }
                 

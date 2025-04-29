@@ -52,10 +52,10 @@ function createMenuBar( area ) {
     userButton.listen( "click", () => {
         new LX.DropdownMenu( userButton, [
             
-            { name: "Go to Database", icon: "server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
-            { name: "Refresh", icon: "rotate-left", callback: () => {} },
+            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
+            { name: "Refresh", icon: "RotateCcw", callback: () => {} },
             null,
-            { name: "Logout", icon: "log-out", callback: () => { _logout() } },
+            { name: "Logout", icon: "LogOut", callback: () => { _logout() } },
             
         ], { side: "bottom", align: "end" });
     } );									
@@ -72,7 +72,7 @@ function createMenuBar( area ) {
 function createSideBar( area ) {
     let swapValue = document.documentElement.getAttribute("data-theme") == "dark";
     const sidebar = area.addSidebar( m => {
-        // m.group( "Projects", { icon: "fa fa-plus", callback: (groupName, event) => { console.log(groupName) }} );
+        // m.group( "Projects", { icon: "Plus", callback: (groupName, event) => { console.log(groupName) }} );
         m.add( "Home", { icon: "House" /*,collapsable: false*/ } );
         m.add( "Documentation", { icon: "BookOpen" });
         m.add( "Documentation/Keyframe Animation", { xicon: "", callback:  () => { window.open( "docs/keyframe_animation.html" , "_blank" ) } } );
@@ -97,15 +97,16 @@ function createSideBar( area ) {
         onHeaderPressed: (e) => { console.log( "onHeaderPressed" ) }, 
         onFooterPressed: (e, element) => {
             new LX.DropdownMenu( element, [
-                "Pages",
+               "Pages",
                 { name: "Main", callback: () => {} },
                 { name: "Animics", callback: () => {} },
                 { name: "Performs", callback: () => {} },
                 null,
-                "Social Media",						
-                { name: "Github", link: "https://github.com/upf-gti/", icon:"github" },
-                { name: "Twitter", link: "https://x.com/gti_upf/", icon: "x-twitter" },
-                { name: "Discord", link: "https://discord.gg/9YGrGjnycj", icon: "discord" }
+                { name: "Social Media", submenu: [
+                    { name: "Github", link: "https://github.com/upf-gti/", icon:"Github@solid" },
+                    { name: "Twitter", link: "https://x.com/gti_upf/", icon: "X-Twitter" },
+                    { name: "Discord", link: "https://discord.gg/9YGrGjnycj", icon: "Discord" }
+                ]}
             ], { side: "right", align: "end" });
         }
     });
@@ -224,9 +225,9 @@ function _makeProjectItem( item ) {
     const optionsIcon = itemContainer.querySelector( ".lexicon" );
     optionsIcon.listen( "click", () => {
         new LX.DropdownMenu( optionsIcon, [
-            { name: "Duplicate", icon: "copy", callback: () => {} },
+            { name: "Duplicate", icon: "Copy", callback: () => {} },
             null,
-            { name: "Delete", icon: "trash-can" }
+            { name: "Delete", icon: "Trash2" }
         ], { side: "bottom", align: "start" });
     } );
 
@@ -264,7 +265,7 @@ function createFooter() {
         parent: content,
         credits: `2021-${ new Date().getUTCFullYear() } GTI - UPF | Developed within <a href="https://signon-project.eu/" target="_blank">SignON</a> and EMERALD EU H2020 projects. Released under the Apache 2.0 License.`,
         socials: [
-            { title: "Github", link: "https://github.com/upf-gti/", icon: `Github` },
+            { title: "Github", link: "https://github.com/upf-gti/", icon: `Github@solid` },
             { title: "X/Twitter", link: "https://x.com/gti_upf/", icon: `X-Twitter` },
             { title: "Discord", link: "https://discord.gg/9YGrGjnycj", icon: `Discord` }
         ]
@@ -417,8 +418,6 @@ function onLoadFiles( files ) {
     alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
     return null;
 }
-
-
 
 function showLoginModal() {
     let prompt = new LX.Dialog("Login", (p) => {
