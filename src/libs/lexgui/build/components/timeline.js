@@ -162,7 +162,7 @@ class Timeline {
 
         const playbtn = header.addButton("playBtn", '', (value, event) => {
            this.changeState();
-        }, { buttonClass: "accept", title: "Play", hideName: true, icon: "fa-solid fa-play", swap: "fa-solid fa-pause" });
+        }, { buttonClass: "accept", title: "Play", hideName: true, icon: "Play@solid", swap: "Pause@solid" });
         playbtn.root.setState(this.playing, true);
 
         header.addBlank("0.05em", "auto");
@@ -172,13 +172,13 @@ class Timeline {
             if ( this.onStateStop ){
                 this.onStateStop();
             }
-        }, { buttonClass: "accept", title: "Stop", hideName: true, icon: "fa-solid fa-stop" });
+        }, { buttonClass: "accept", title: "Stop", hideName: true, icon: "Stop@solid" });
 
         header.addBlank("0.05em", "auto");
 
         header.addButton("loopBtn", '', ( value, event ) => {
             this.setLoopMode(!this.loop);
-        }, { selectable: true, selected: this.loop, title: 'Loop', hideName: true, icon: "fa-solid fa-rotate" });
+        }, { selectable: true, selected: this.loop, title: 'Loop', hideName: true, icon: "RefreshCw" });
         
         if( this.onCreateControlsButtons ){
             this.onCreateControlsButtons( header );
@@ -238,7 +238,7 @@ class Timeline {
 
         if( this.onShowOptimizeMenu )
         {
-            header.addButton(null, "", (value, event) => {this.onShowOptimizeMenu(event)}, { title: "Optimize", icon:"fa-solid fa-filter" });
+            header.addButton(null, "", (value, event) => {this.onShowOptimizeMenu(event)}, { title: "Optimize", icon:"Filter" });
         }
         header.addBlank("0.05em", "auto");
 
@@ -259,7 +259,7 @@ class Timeline {
                         root.remove();
                     }
                 })
-            }, { title: "Settings", icon: "fa-solid fa-gear" })
+            }, { title: "Settings", icon: "Settings" })
         }
 
         header.clearQueue( buttonContainerEnd );
@@ -285,9 +285,9 @@ class Timeline {
         
         if( !this.disableNewTracks ) 
         {
-            panel.addButton("addTrackBtn", '<i class = "fa-solid fa-plus"></i>', (value, event) => {
+            panel.addButton("addTrackBtn", '', (value, event) => {
                 this.addNewTrack();
-            }, { hideName: true, title: "Add Track" });
+            }, { hideName: true, title: "Add Track", icon: "Plus" });
         }
         panel.endLine();
 
@@ -315,20 +315,20 @@ class Timeline {
 
                     t.children.push({'id': id, 'skipVisibility': this.skipVisibility, visible: track.active, /*selected: track.isSelected,*/ 'children':[], actions : this.skipLock ? null : [{
                         'name':'Lock edition',
-                        'icon': 'fa-solid '+ (track.locked ? 'fa-lock' : 'fa-lock-open'),                       
+                        'icon': ''+ (track.locked ? 'Lock' : 'LockOpen'),                       
                         'callback': (node, el) => {
                             // TO DO (apply functionality)
-                            let value = el.classList.contains('fa-lock');
+                            let value = el.classList.contains('Lock');
                          
                             if(value) {
                                 el.title = 'Lock edition';
-                                el.classList.remove('fa-lock');
-                                el.classList.add('fa-lock-open');    
+                                el.classList.remove('Lock');
+                                el.classList.add('LockOpen');    
                             }
                             else {
                                 el.title = 'Unlock edition';
-                                el.classList.remove('fa-lock-open');
-                                el.classList.add('fa-lock');                                 
+                                el.classList.remove('LockOpen');
+                                el.classList.add('Lock');                                 
                             }
                             let tracks = tracksPerItem[node.parent.id];
                             let type = node.id.replaceAll(node.parent.id, "").replaceAll(" (", "").replaceAll(")","");
@@ -2811,9 +2811,9 @@ class ClipsTimeline extends Timeline {
 
         if(!this.disableNewTracks) 
         {
-            panel.addButton("addTrackBtn", '<i class = "fa-solid fa-plus"></i>', (value, event) => {
+            panel.addButton("addTrackBtn", '', (value, event) => {
                 this.addNewTrack();
-            }, { hideName: true, title: "Add Track" });
+            }, { hideName: true, title: "Add Track", icon: "Plus" });
         }
         panel.endLine();
 

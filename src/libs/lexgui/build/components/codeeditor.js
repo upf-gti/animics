@@ -276,7 +276,7 @@ class CodeEditor {
             this.explorer = panel.addTree( null, sceneData, {
                 filter: false,
                 rename: false,
-                skip_default_icon: true,
+                skipDefaultIcon: true,
                 onevent: (event) => {
                     switch(event.type) {
                         // case LX.TreeEvent.NODE_SELECTED:
@@ -317,7 +317,7 @@ class CodeEditor {
         this.base_area = area;
         this.area = new LX.Area( { className: "lexcodeeditor", height: "100%", skipAppend: true } );
 
-        this.skipCodeInfo = options.skipInfo ?? false;
+        this.skipInfo = options.skipInfo ?? false;
         this.disableEdition = options.disableEdition ?? false;
 
         this.tabs = this.area.addTabs( { onclose: (name) => {
@@ -341,6 +341,18 @@ class CodeEditor {
 
         // Full editor
         area.root.classList.add('codebasearea');
+
+        const observer = new MutationObserver((e) => {
+            if( e[0].attributeName == "style" )
+            {
+                this.resize();
+            }
+        });
+
+        observer.observe( area.root.parentNode, {
+            attributes: true,
+            attributeFilter: ['class', 'style'],
+        });
 
         // Code area
         this.tabs.area.root.classList.add( 'codetabsarea' );
@@ -491,9 +503,9 @@ class CodeEditor {
 
                 searchPanel.sameLine( 4 );
                 searchPanel.addText( null, "", null, { placeholder: "Find" } );
-                searchPanel.addButton( null, "up", () => this.search( null, true ), { icon: "fa fa-arrow-up" } );
-                searchPanel.addButton( null, "down", () => this.search(), { icon: "fa fa-arrow-down" } );
-                searchPanel.addButton( null, "x", this.hideSearchBox.bind( this ), { icon: "fa fa-xmark" } );
+                searchPanel.addButton( null, "up", () => this.search( null, true ), { icon: "ArrowUp" } );
+                searchPanel.addButton( null, "down", () => this.search(), { icon: "ArrowDown" } );
+                searchPanel.addButton( null, "x", this.hideSearchBox.bind( this ), { icon: "X" } );
 
                 box.querySelector( 'input' ).addEventListener( 'keyup', e => {
                     if( e.key == 'Escape' ) this.hideSearchBox();
@@ -671,7 +683,9 @@ class CodeEditor {
                     this.cursorToPosition( cursor, deleteFromPosition );
 
                     if( this.useAutoComplete )
+                    {
                         this.showAutoCompleteBox( 'foo', cursor );
+                    }
                 }
                 else if( this.code.lines[ ln - 1 ] != undefined ) {
 
@@ -1217,6 +1231,12 @@ class CodeEditor {
             this.cursorToPosition( cursor, ( cursor.position + new_lines[ 0 ].length ) );
             this.processLine( lidx );
         }
+
+        this.resize( null, ( scrollWidth, scrollHeight ) => {
+            var viewportSizeX = ( this.codeScroller.clientWidth + this.getScrollLeft() ) - CodeEditor.LINE_GUTTER_WIDTH; // Gutter offset
+            if( ( cursor.position * this.charWidth ) >= viewportSizeX )
+                this.setScrollLeft( this.code.lines[ lidx ].length * this.charWidth );
+        } );
     }
 
     loadFile( file, options = {} ) {
@@ -1241,7 +1261,7 @@ class CodeEditor {
                 };
 
                 const ext = this.languages[ options.language ] ?. ext;
-                this.addExplorerItem( { 'id': name, 'skipVisibility': true, 'icon': this._getFileIcon( name, ext ) } );
+                this.addExplorerItem( { id: name, skipVisibility: true, icon: this._getFileIcon( name, ext ) } );
                 this.explorer.innerTree.frefresh( name );
             }
             else
@@ -1453,7 +1473,7 @@ class CodeEditor {
         }
     }
 
-    _changeLanguage( lang, override = false ) {
+    _changeLanguage( lang, langExtension, override = false ) {
 
         this.code.language = lang;
         this.highlight = lang;
@@ -1466,7 +1486,7 @@ class CodeEditor {
         this._updateDataInfoPanel( "@highlight", lang );
         this.processLines();
 
-        const ext = this.languages[ lang ].ext;
+        const ext = langExtension ?? this.languages[ lang ].ext;
         const icon = this._getFileIcon( null, ext );
 
         // Update tab icon
@@ -1475,10 +1495,10 @@ class CodeEditor {
             tab.firstChild.remove();
             console.assert( tab != undefined );
             var iconEl;
-            if( icon.includes( 'fa-' ) )
+            if( !icon.includes( '.' ) ) // Not a file
             {
-                iconEl = document.createElement( 'i' );
-                iconEl.className = icon;
+                const classes = icon.split( ' ' );
+                iconEl = LX.makeIcon( classes[ 0 ], { svgClass: classes.slice( 0 ).join( ' ' ) } );
             } else
             {
                 iconEl = document.createElement( 'img' );
@@ -1512,7 +1532,7 @@ class CodeEditor {
             {
                 if( langExtension.indexOf( ext ) > -1 )
                 {
-                    return this._changeLanguage( l );
+                    return this._changeLanguage( l, ext );
                 }
             }
             else
@@ -1530,7 +1550,7 @@ class CodeEditor {
 
     _createPanelInfo() {
 
-        if( !this.skipCodeInfo )
+        if( !this.skipInfo )
         {
             let panel = new LX.Panel({ className: "lexcodetabinfo", width: "calc(100%)", height: "auto" });
 
@@ -1554,7 +1574,7 @@ class CodeEditor {
                     for( const lang of Object.keys( this.languages ) )
                     {
                         m.add( lang, v => {
-                            this._changeLanguage( v, true )
+                            this._changeLanguage( v, null, true )
                         } );
                     }
                 });
@@ -1606,12 +1626,20 @@ class CodeEditor {
             }
         }
 
-        return extension == "html" ? "fa-solid fa-code orange" :
-            extension == "css" ? "fa-solid fa-hashtag dodgerblue" :
-            extension == "xml" ? "fa-solid fa-rss orange" :
-            extension == "bat" ? "fa-brands fa-windows lightblue" :
-            [ 'js', 'py', 'json', 'cpp', 'hpp', 'rs', 'md' ].indexOf( extension ) > -1 ? "images/" + extension + ".png" :
-            !isNewTabButton ? "fa-solid fa-align-left gray" : undefined;
+        return extension == "html" ? "Code orange" :
+            extension == "css" ? "Hash dodgerblue" :
+            extension == "xml" ? "Rss orange" :
+            extension == "bat" ? "Windows lightblue" :
+            extension == "json" ? "Braces fg-primary" :
+            extension == "js" ? "Js goldenrod" :
+            extension == "py" ? "Python munsellblue" :
+            extension == "rs" ? "Rust fg-primary" :
+            extension == "md" ? "Markdown fg-primary" :
+            extension == "cpp" ? "CPlusPlus pictonblue" :
+            extension == "hpp" ? "CPlusPlus heliotrope" :
+            extension == "c" ? "C pictonblue" :
+            extension == "h" ? "C heliotrope" :
+            !isNewTabButton ? "AlignLeft gray" : undefined;
     }
 
     _onNewTab( e ) {
@@ -1721,7 +1749,7 @@ class CodeEditor {
 
         if( this.explorer && !isNewTabButton )
         {
-            this.addExplorerItem( { 'id': name, 'skipVisibility': true, 'icon': tabIcon } );
+            this.addExplorerItem( { id: name, skipVisibility: true, icon: tabIcon } );
             this.explorer.innerTree.frefresh( name );
         }
 
@@ -1782,7 +1810,7 @@ class CodeEditor {
 
                 if( tabData.options.language )
                 {
-                    this._changeLanguage( tabData.options.language, true );
+                    this._changeLanguage( tabData.options.language, null, true );
                 }
                 else
                 {
@@ -2464,14 +2492,20 @@ class CodeEditor {
         const numViewportChars = Math.floor( ( this.codeScroller.clientWidth - CodeEditor.LINE_GUTTER_WIDTH ) / this.charWidth );
         if( maxLineLength >= numViewportChars && maxLineLength != this._lastMaxLineLength )
         {
-            this.resize( maxLineLength );
-            this.setScrollLeft( 1e4 );
+            this.resize( maxLineLength, () => {
+                if( cursor.position > numViewportChars )
+                {
+                    this.setScrollLeft( cursor.position * this.charWidth );
+                }
+            } );
         }
 
         // Manage autocomplete
 
         if( this.useAutoComplete )
+        {
             this.showAutoCompleteBox( key, cursor );
+        }
     }
 
     async _pasteContent( cursor ) {
@@ -2497,11 +2531,12 @@ class CodeEditor {
 
         let text_to_copy = "";
 
-        if( !cursor.selection ) {
+        if( !cursor.selection )
+        {
             text_to_copy = "\n" + this.code.lines[ cursor.line ];
         }
-        else {
-
+        else
+        {
             // Some selections don't depend on mouse up..
             if( cursor.selection ) cursor.selection.invertIfNecessary();
 
@@ -2531,7 +2566,8 @@ class CodeEditor {
 
         this._addUndoStep( cursor, true );
 
-        if( !cursor.selection ) {
+        if( !cursor.selection )
+        {
             text_to_cut = "\n" + this.code.lines[ cursor.line ];
             this.code.lines.splice( lidx, 1 );
             this.processLines();
@@ -2539,8 +2575,8 @@ class CodeEditor {
             if( this.code.lines[ lidx ] == undefined )
                 this.lineUp( cursor );
         }
-        else {
-
+        else
+        {
             // Some selections don't depend on mouse up..
             if( cursor.selection ) cursor.selection.invertIfNecessary();
 
@@ -3735,7 +3771,7 @@ class CodeEditor {
         this.setScrollBarValue( 'vertical' );
     }
 
-    resize( pMaxLength ) {
+    resize( pMaxLength, onResize ) {
 
         setTimeout( () => {
 
@@ -3750,6 +3786,11 @@ class CodeEditor {
             this.codeSizer.style.minHeight = scrollHeight + "px";
 
             this.resizeScrollBars();
+
+            if( onResize )
+            {
+                onResize( scrollWidth, scrollHeight );
+            }
 
         }, 10 );
     }
@@ -3933,7 +3974,7 @@ class CodeEditor {
 
     runScript( code ) {
 
-        var script = document.createElement( 'script' );
+        const script = document.createElement( 'script' );
         script.type = 'module';
         script.innerHTML = code;
         // script.src = url[ i ] + ( version ? "?version=" + version : "" );
@@ -4018,16 +4059,14 @@ class CodeEditor {
             var pre = document.createElement( 'pre' );
             this.autocomplete.appendChild( pre );
 
-            var icon = document.createElement( 'a' );
+            var icon = "Type";
 
             if( this._mustHightlightWord( s, CodeEditor.utils ) )
-                icon.className = "fa fa-cube";
+                icon = "Box";
             else if( this._mustHightlightWord( s, CodeEditor.types ) )
-                icon.className = "fa fa-code";
-            else
-                icon.className = "fa fa-font";
+                icon = "Code";
 
-            pre.appendChild( icon );
+            pre.appendChild( LX.makeIcon( icon, { iconClass: "mr-1", svgClass: "xs" } ) );
 
             pre.addEventListener( 'click', () => {
                 this.autoCompleteWord( s );
@@ -4078,6 +4117,8 @@ class CodeEditor {
         const isActive = this.isAutoCompleteActive;
         this.isAutoCompleteActive = false;
         this.autocomplete.classList.remove( 'show' );
+        this.autocomplete.innerHTML = ""; // Clear all suggestions
+
         return isActive != this.isAutoCompleteActive;
     }
 
@@ -4111,7 +4152,9 @@ class CodeEditor {
     _getSelectedAutoComplete() {
 
         if( !this.isAutoCompleteActive )
-        return;
+        {
+            return;
+        }
 
         for( let i = 0; i < this.autocomplete.childElementCount; ++i )
         {
@@ -4120,7 +4163,13 @@ class CodeEditor {
             {
                 var word = "";
                 for( let childSpan of child.childNodes )
+                {
+                    if( childSpan.constructor != HTMLSpanElement )
+                    {
+                        continue;
+                    }
                     word += childSpan.innerHTML;
+                }
 
                 return [ word, i ]; // Get text of the span inside the 'pre' element
             }
@@ -4382,7 +4431,7 @@ class CodeEditor {
 
     _updateDataInfoPanel( signal, value ) {
 
-        if( !this.skipCodeInfo )
+        if( !this.skipInfo )
         {
             if( this.cursors.childElementCount > 1 )
             {

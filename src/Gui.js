@@ -82,7 +82,67 @@ class Gui {
     /** Create menu bar */
     createMenubar(area) {
 
-        this.menubar = area.addMenubar();
+        this.menubar = area.addMenubar([
+            {
+                name: "Project",
+                submenu: [
+                    {
+                        name: "New animation",
+                        icon: "Plus",
+                        callback: () => {
+                            this.editor.loadAnimation("animation" + Math.floor( performance.now()*1000 ).toString(), {});
+                            this.updateAnimationPanel();
+                        }
+                    },
+                    {
+                        name: "Import animations",
+                        icon: "FileInput",
+                        submenu: [
+                            { 
+                                name: "From disk", icon: "FileInput", callback: () => this.importFiles(),
+                                kbd: "CTRL+O"
+                            },
+                            {
+                                name: "From database",
+                                icon: "Database",
+                                callback: () => this.createServerClipsDialog(),
+                                kbd: "CTRL+I"
+                            }
+                        ]
+                    },
+                    {
+                        name: "Timeline",
+                        submenu: [
+                            {
+                                name: "Shortcuts",
+                                icon: "Keyboard",
+                                disabled: true,
+                                submenu: [
+                                    {
+                                        name: "Play-Pause", kbd: "SPACE"
+                                    },
+                                    {
+                                        name:"Zoom", kbd: "Hold LSHIFT+Wheel"
+                                    },
+                                    {
+                                        name: "Scroll", kbd: "Wheel"
+                                    },
+                                    {
+                                        name: "Move timeline", kbd: "Left Click+Drag"
+                                    }
+                                ]
+                            },
+                            {
+                                name: "Clear tracks", callback: () => this.editor.clearAllTracks()
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+
+            }
+        ]);
         const menubar = this.menubar;     
         
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
@@ -94,30 +154,11 @@ class Gui {
         const colorScheme = document.documentElement.getAttribute( "data-theme" );
         menubar.setButtonImage("Animics", colorScheme == "light" ? "data/imgs/animics_logo_lightMode.png" : "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});   
         
-        menubar.add("Project/");
-        menubar.add("Project/New animation", {icon: "fa fa-plus", callback: () => {
-            this.editor.loadAnimation("animation" + Math.floor( performance.now()*1000 ).toString(), {});
-            this.updateAnimationPanel();
-        }});
 
-        menubar.add("Project/Import animations", {icon: "fa fa-file-import"});
-        menubar.add("Project/Import animations/From disk", {icon: "fa fa-file-import", callback: () => this.importFiles(), short: "CTRL+O"});
-        menubar.add("Project/Import animations/From database", {icon: "fa fa-server", callback: () => this.createServerClipsDialog(), short: "CTRL+I"})
-
-
-        menubar.add("Timeline/");
-
-        menubar.add("Timeline/Shortcuts", { icon: "fa fa-keyboard", disabled: true });
-        menubar.add("Timeline/Shortcuts/Play-Pause", { short: "SPACE" });
-        menubar.add("Timeline/Shortcuts/Zoom", { short: "Hold LSHIFT+Wheel" });
-        menubar.add("Timeline/Shortcuts/Scroll", { short: "Wheel" });
-        menubar.add("Timeline/Shortcuts/Move timeline", { short: "Left Click+Drag" });
-
-        menubar.add("Timeline/Clear tracks", { callback: () => this.editor.clearAllTracks() });
-
+    //TO DO
         menubar.add("View/Theme");
-        menubar.add("View/Theme/Dark", { icon: "fa-solid fa-moon", callback: () => this.setColorTheme("dark") } );
-        menubar.add("View/Theme/Light", { icon: "fa-solid fa-sun", callback: () => this.setColorTheme("light") } );
+        menubar.add("View/Theme/Dark", { icon: "Moon", callback: () => this.setColorTheme("dark") } );
+        menubar.add("View/Theme/Light", { icon: "Sun", callback: () => this.setColorTheme("light") } );
         if(this.showVideo) {
             menubar.add("View/Show video", { type: "checkbox", checked: this.showVideo, callback: (v) => {
                 this.editor.setVideoVisibility( v );
@@ -130,8 +171,8 @@ class Gui {
         menubar.addButtons( [
             {
                 title: "Play",
-                icon: "fa-solid fa-play",
-                swap: "fa-solid fa-pause",
+                icon: "Play@solid",
+                swap: "Pause@solid",
                 callback:  (event, swapValue) => { 
                     if(this.editor.state ) {
                         this.editor.pause();    
@@ -146,7 +187,7 @@ class Gui {
             },
             {
                 title: "Stop",
-                icon: "fa-solid fa-stop",
+                icon: "Stop@solid",
                 callback:  (event) => { 
 
                     this.editor.stop();
@@ -161,7 +202,7 @@ class Gui {
                 title: 'Animation loop',
                 selectable: true,
                 selected: this.editor.animLoop,
-                icon: 'fa-solid fa-rotate',
+                icon: 'RefreshCw',
                 callback: (event) =>  {
                     this.updateLoopModeGui( !this.editor.animLoop );
                 }
@@ -188,7 +229,7 @@ class Gui {
         {float:"right"});
         const button = document.getElementById( loginName );
         button.id = "login";
-        menubar.setButtonIcon("Github", "fa-brands fa-github", () => { window.open("https://github.com/upf-gti/animics") }, {float:"right"});
+        menubar.setButtonIcon("Github", "Github", () => { window.open("https://github.com/upf-gti/animics") }, {float:"right"});
     }
 
     importFiles() {
@@ -428,7 +469,7 @@ class Gui {
                 {
                     name: 'Skin',
                     property: 'showSkin',
-                    icon: 'fa-solid fa-user-xmark',
+                    icon: 'UserX',
                     selectable: true,
                     callback: (v) =>  {
                         editor.showSkin = !editor.showSkin;
@@ -440,7 +481,7 @@ class Gui {
                 {
                     name: 'Skeleton',
                     property: 'showSkeleton',
-                    icon: 'fa-solid fa-bone',
+                    icon: 'Bone@solid',
                     selectable: true,
                     selected: true,
                     callback: (v) =>  {
@@ -459,7 +500,7 @@ class Gui {
                     {
                         name: 'Joints',
                         property: 'boneUseDepthBuffer',
-                        icon: 'fa-solid fa-circle-nodes',
+                        icon: 'CircleNodes',
                         selectable: true,
                         selected: true,
                         callback: (v) =>  {
@@ -476,7 +517,7 @@ class Gui {
             {
                 name: 'GUI',
                 property: 'showGUI',
-                icon: 'fa-solid fa-table-cells',
+                icon: 'Grid',
                 selectable: true,
                 selected: true,
                 callback: (v, e) => {
@@ -724,21 +765,21 @@ class KeyframesGui extends Gui {
 
     onCreateMenuBar( menubar ) {    
         
-        menubar.add("Project/Generate animations", {icon: "fa-solid fa-hands-asl-interpreting"});
-        menubar.add("Project/Generate animations/From webcam", {icon: "fa fa-camera", callback: () => this.editor.captureVideo()});
-        menubar.add("Project/Generate animations/From videos", {icon: "fa fa-photo-film", callback: () => this.importFiles(), short: "CTRL+O"});
+        menubar.add("Project/Generate animations", {icon: "HandsAslInterpreting"});
+        menubar.add("Project/Generate animations/From webcam", {icon: "Webcam", callback: () => this.editor.captureVideo()});
+        menubar.add("Project/Generate animations/From videos", {icon: "Film", callback: () => this.importFiles(), short: "CTRL+O"});
        
         // Export (download) animation
-        menubar.add("Project/Export animations", {short: "CTRL+E", icon: "fa fa-download", callback: () => {            
+        menubar.add("Project/Export animations", {short: "CTRL+E", icon: "Download", callback: () => {            
             this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
         }});
        
-        menubar.add("Project/Export videos & landmarks", {icon: "fa fa-file-video", callback: () => this.showExportVideosDialog() });
+        menubar.add("Project/Export videos & landmarks", {icon: "FileVideo", callback: () => this.showExportVideosDialog() });
 
         // Save animation in server
-        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa fa-upload"});
+        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "Save"});
 
-        menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
+        menubar.add("Project/Preview in PERFORMS", {icon: "StreetView",  callback: () => this.editor.showPreview() });
         
         menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
         menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
@@ -991,7 +1032,7 @@ class KeyframesGui extends Gui {
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
-                }, {icon: 'fa-solid fa-trash', width: "40px"});                
+                }, {icon: 'Trash2', width: "40px"});                
             },
             onChangeLoopMode: (loop) => {
                 this.updateLoopModeGui( loop );
@@ -1744,7 +1785,7 @@ class KeyframesGui extends Gui {
                 const toolsValues = [ {value:"Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }, {value:"Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }] ;
                 const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
                 
-                widgets.branch("Gizmo", { icon:"fa-solid fa-chart-scatter-3d", settings: (e) => this.openSettings( 'gizmo' ) });
+                widgets.branch("Gizmo", { icon:"Axis3DArrows", settings: (e) => this.openSettings( 'gizmo' ) });
                 
                 widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool(), nameWidth: "50%", width: "100%"});
                 
@@ -1865,7 +1906,7 @@ class KeyframesGui extends Gui {
                 };
 
 
-                widgets.branch("Bone", { icon: "fa-solid fa-bone" });
+                widgets.branch("Bone", { icon: "Bone@solid" });
                 widgets.addText("Name", boneSelected.name, null, {disabled: true});
                 widgets.addText("Num tracks", numTracks ?? 0, null, {disabled: true});
 
@@ -2305,14 +2346,14 @@ class ScriptGui extends Gui {
     onCreateMenuBar( menubar ) {
         
         // Export (download) animation
-        menubar.add("Project/Export animations", {short: "CTRL+E", icon: "fa fa-download", callback: () => {            
+        menubar.add("Project/Export animations", {short: "CTRL+E", icon: "Download", callback: () => {            
             this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
         }});
 
         // Save animation in server
-        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "fa-solid fa-upload"});
+        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "Save"});
 
-        menubar.add("Project/Preview in PERFORMS", {icon: "fa fa-street-view",  callback: () => this.editor.showPreview() });
+        menubar.add("Project/Preview in PERFORMS", {icon: "StreetView",  callback: () => this.editor.showPreview() });
         
         menubar.add("Timeline/Shortcuts/Move clips", { short: "Hold CTRL" });
         menubar.add("Timeline/Shortcuts/Add clips", { short: "Right Click" });
@@ -2349,7 +2390,7 @@ class ScriptGui extends Gui {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
-                }, {icon: 'fa-solid fa-trash', width: "40px"});
+                }, {icon: 'Trash2', width: "40px"});
                 
             },
             onChangeLoopMode: (loop) => {
@@ -2830,18 +2871,18 @@ class ScriptGui extends Gui {
             widgets.widgets_per_row = 1;
             // this.clipPanel.branch(clip.constructor.name.match(/[A-Z][a-z]+|[0-9]+/g).join(" "));
 
-            let icon = "fa-solid fa-child-reaching";
+            let icon = "ChildReaching";
 
             if(clip.constructor.name.includes("Face")) 
-                icon = "fa-solid fa-face-smile"
+                icon = "Smile"
             else if(clip.constructor.name.includes("Mouthing")) 
-                icon = "fa-solid fa-comment-dots";
+                icon = "MessageCircleMore";
             else if(clip.constructor.name.includes("Head"))
-                icon = "fa-solid fa-user-large";
+                icon = "User";
             else if(clip.constructor.name.includes("Gaze"))
-                icon = "fa-solid fa-eye";
+                icon = "Eye";
             else if(clip.constructor.name.includes("Super")) 
-                icon = "fa-solid fa-clapperboard";
+                icon = "ClapperboardClosed";
 
             let clipName = clip.constructor.name.includes("Super") ? "Glossa Clip" : clip.constructor.name.match(/[A-Z][a-z]+|[0-9]+/g).join(" ");
             widgets.addTitle(clipName, {icon} );
@@ -2900,7 +2941,7 @@ class ScriptGui extends Gui {
                 }
             }
             widgets.merge()
-            widgets.branch("Time", {icon: "fa-solid fa-clock"});
+            widgets.branch("Time", {icon: "Clock"});
 	
             widgets.addNumber("Start", clip.start.toFixed(2), (v) =>
             {     
@@ -2952,7 +2993,7 @@ class ScriptGui extends Gui {
 
             if(clip.fadein!= undefined && clip.fadeout!= undefined)  {
                 widgets.merge();
-                widgets.branch("Sync points", {icon: "fa-solid fa-chart-line"});
+                widgets.branch("Sync points", {icon: "SplinePointer"});
                 widgets.addTextArea(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true,  className: "nobg"});
                 const syncvalues = [];
                 
@@ -3763,7 +3804,7 @@ class ScriptGui extends Gui {
             {
                 name: 'GUI',
                 property: 'showGUI',
-                icon: 'fa-solid fa-table-cells',
+                icon: 'Grid',
                 selectable: true,
                 selected: true,
                 callback: (v, e) => {

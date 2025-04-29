@@ -43,14 +43,14 @@ class VideoProcessor {
         const [videoEditorArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
         this.menubar = videoEditorArea.addMenubar( m => {
             // m.setButtonImage("Animics", "data/imgs/animics_logo.png", () => this.cancelProcess(), {float: "left"});   
-            m.setButtonIcon("Return", "fa-solid fa-circle-arrow-left", () => this.cancelProcess(), {float: "left"});
+            m.setButtonIcon("Return", "ArrowLeftCircle", () => this.cancelProcess(), {float: "left"});
         });
 
         // Add show/hide right panel button (expand/reduce panel area)
         videoEditorArea.addOverlayButtons([{
             selectable: true,
             selected: true,
-            icon: "fa-solid fa-info",
+            icon: "Info",
             name: "Properties",
             callback: (v, e) => {
                 if(this.processorArea.splitExtended) {
@@ -328,7 +328,7 @@ class VideoProcessor {
                     else {
                         this.recording = false;
                     }
-                }, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-stop", className: "captureButton colored"});
+                }, {id:"stop_capture_btn", width: "100px", icon: "Stop@solid", className: "captureButton colored"});
                 
                 this.buttonsPanel.addButton(null, "Cancel", () => {
                     this.recording = false;
@@ -338,7 +338,7 @@ class VideoProcessor {
 
                     this.createCaptureArea();
 
-                }, {id:"stop_capture_btn", width: "100px", icon: "fa-solid fa-rotate-left", className: "captureButton colored"});
+                }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", className: "captureButton colored"});
             }
         }, {id:"start_capture_btn", width: "100px", className: "captureButton colored"});
       

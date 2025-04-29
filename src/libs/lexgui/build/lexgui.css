@@ -170,26 +170,46 @@
     background: #aaaaaa;
 }
 
+/* default app layout (editor-like) */
+
 html,
 body {
     width: 100%;
     height: 100%;
-    overflow: hidden;
-    /* no general overflow in desktop app  */
     margin: 0;
     padding: 0;
+    overflow: hidden;
     font-family: var(--global-font);
     background-color: var(--global-color-primary);
+}
+
+#lexroot {
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    outline: none;
+}
+
+/* document layout (scrolling page) */
+
+:root[data-layout="document"] #lexroot {
+    bottom: unset;
+}
+
+:root[data-layout="document"], :root[data-layout="document"] body {
+    overflow-y: auto;
 }
 
 *,
 *::before,
 *::after {
     box-sizing: border-box;
-}
-
-:root[data-strictVP="false"] {
-    overflow-y: auto;
 }
 
 blockquote, dd, dl, figure, h1, h2, h3, h4, h5, h6, hr, p, pre {
@@ -295,7 +315,11 @@ body.noevents * {
 .orange { color: orange }
 .gray { color: gray }
 .dodgerblue { color: dodgerblue }
+.munsellblue { color: #0093af }
+.pictonblue { color: #45B1E8 }
 .lightblue { color: #5aa8f7 }
+.goldenrod { color: goldenrod }
+.heliotrope { color: #d460ff }
 
 svg.xs { width: var(--svg-size-xs); height: var(--svg-size-xs); }
 svg.sm { width: var(--svg-size-sm); height: var(--svg-size-sm); }
@@ -304,34 +328,12 @@ svg.xl { width: var(--svg-size-xl); height: var(--svg-size-xl); }
 svg.xxl { width: var(--svg-size-xxl); height: var(--svg-size-xxl); }
 
 #modal {
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    position: absolute;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    position: fixed;
     z-index: 99;
     opacity: 1;
-    transition: opacity 0.2s ease-in;
-}
-
-#lexroot {
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    position: absolute;
-    outline: none;
-}
-
-:root[data-strictVP="false"] #lexroot {
-    bottom: unset;
+    transition: opacity 0.15s ease-in;
 }
 
 .leximage {
@@ -368,12 +370,17 @@ svg.xxl { width: var(--svg-size-xxl); height: var(--svg-size-xxl); }
     background-color: var(--global-color-secondary);
 }
 
-svg, svg path {
+svg {
     width: 1rem;
     height: 1rem;
-    --color: var(--global-text-secondary);
-    stroke: var(--color);
+    color: var(--global-text-secondary);
+    stroke: currentColor;
     display: block;
+}
+
+svg path {
+    color: inherit;
+    stroke: inherit;
 }
 
 a svg, svg path {
@@ -381,7 +388,7 @@ a svg, svg path {
 }
 
 .lexicon:hover svg, .lexicon:hover svg path {
-    --color: var(--global-text-primary) !important;
+    color: var(--global-text-primary) !important;
 }
 
 /* Notifications */
@@ -525,38 +532,6 @@ a svg, svg path {
     display: flex;
 }
 
-.commandbar .gs-header {
-    width: 100%;
-    height: 44px;
-    display: flex;
-    padding: 6px;
-}
-
-.commandbar a {
-    color: var(--global-text-secondary);
-    padding: 10px;
-    background-color: var(--global-color-tertiary);
-    border-top-left-radius: 6px;
-    border-bottom-left-radius: 6px;
-    font-size: var(--global-font-size-sm);
-}
-
-.commandbar input {
-    width: 100%;
-    flex: 50%;
-    background: none;
-    border-top-right-radius: 6px;
-    border-bottom-right-radius: 6px;
-    color: var(--global-text-secondary);
-    background-color: var(--global-color-tertiary);
-    outline: none;
-    border: none;
-    font-family: var(--global-font);
-    font-size: var(--global-font-size);
-    line-height: 23px;
-    font-weight: 600;
-}
-
 .commandbar .lexarea {
     background: none !important;
 }
@@ -572,38 +547,22 @@ a svg, svg path {
 }
 
 .commandbar .searchitembox .searchitem {
-    padding: 10px;
-    padding-left: 50px;
+    padding: 6px;
+    padding-left: 48px;
     color: var(--global-text-primary);
     font-size: var(--global-font-size);
-    line-height: 15px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
 }
 
-.commandbar .searchitembox .searchitem a {
-    padding: 0px;
+.commandbar .searchitembox .searchitem svg:not(.separator) {
     margin-left: -28px;
-    margin-top: 2px;
-    color: var(--global-color-accent-light);
-    float: left;
-}
-
-.commandbar .searchitembox .searchitem i {
-    width: 12px;
-    font-size: var(--global-font-size-sm);
-    margin-right: 8px;
-    margin-top: -2px;
-    vertical-align: middle;
-}
-
-.commandbar .searchitembox .searchitem img {
-    width: 12px;
-    margin-right: 4px;
-    margin-top: -2px;
-    vertical-align: middle;
+    margin-right: 12px;
 }
 
 .commandbar .searchitembox .searchitem .lang-ext {
+    margin-left: 4px;
     color: #676e75;
     font-size: var(--global-font-size);
 }
@@ -677,10 +636,8 @@ a svg, svg path {
     font-size: var(--global-font-size);
 }
 
-.lexfooter .social {
-    text-align: right;
-    margin-block-start: 1em;
-    margin-block-end: 1em;
+.lexfooter .credits-and-socials p {
+    font-size: var(--global-font-size-sm);
 }
 
 @media (max-width: 768px) {
@@ -689,37 +646,9 @@ a svg, svg path {
         text-align: center;
     }
 
-    .lexfooter .social {
-        text-align: center;
+    .lexfooter .socials {
+        justify-content: center;
     }
-}
-
-.lexfooter .social svg {
-    max-width: 28px;
-    max-height: 28px;
-    transition: all .2s ease-in-out;
-}
-
-.lexfooter .social a {
-    max-width: 28px;
-    max-height: 28px;
-    color: var(--global-text-secondary);
-    margin-right: 6px;
-    vertical-align: -webkit-baseline-middle;
-    vertical-align: middle;
-}
-
-.lexfooter .social a a {
-    font-size: var(--global-font-size-xxl);
-}
-
-.lexfooter a:hover {
-    color: var(--global-color-accent-light);
-}
-
-.lexfooter svg:hover {
-    fill: var(--global-color-accent-light);
-    stroke: var(--global-color-accent-light);
 }
 
 .lexfooter hr {
@@ -932,7 +861,7 @@ a svg, svg path {
     padding: 0.2rem;
     padding-inline: 0.5rem;
     border-radius: 0.4rem;
-    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     animation-duration: 400ms;
 	animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 	will-change: transform, opacity;
@@ -1015,6 +944,75 @@ a svg, svg path {
 	animation-name: slideRightAndFade;
 }
 
+/* Sheet */
+
+.lexsheet {
+    position: fixed;
+    z-index: 150;
+    animation-duration: 400ms;
+	animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+	will-change: transform, opacity;
+}
+
+@keyframes enterBottom {
+	from {
+		opacity: 0;
+		transform: translateY(100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes enterLeft {
+	from {
+		opacity: 0;
+		transform: translateX(-100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@keyframes enterTop {
+	from {
+		opacity: 0;
+		transform: translateY(-100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes enterRight {
+	from {
+		opacity: 0;
+		transform: translateX(100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+.lexsheet[data-side="top"]{
+	animation-name: enterTop;
+}
+
+.lexsheet[data-side="right"]{
+	animation-name: enterRight;
+}
+
+.lexsheet[data-side="bottom"]{
+	animation-name: enterBottom;
+}
+
+.lexsheet[data-side="left"]{
+	animation-name: enterLeft;
+}
 
 /* Dropdown Menu */
 
@@ -1032,6 +1030,7 @@ a svg, svg path {
     padding: 0.2rem;
     border-radius: 6px;
     border: 1px solid #7a797c4f;
+    outline: none;
     animation-duration: 400ms;
 	animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 	will-change: transform, opacity;
@@ -1079,7 +1078,6 @@ a svg, svg path {
 
 .lexdropdownmenuitem a {
     margin-left: auto;
-    margin-right: 4px;
     align-content: center;
     pointer-events: none;
 }
@@ -1358,16 +1356,6 @@ a svg, svg path {
     padding-inline: 0.4rem;
 }
 
-.lexwidget .inputicon {
-    padding: 6px;
-    font-size: var(--global-font-size-xs);
-    align-self: center;
-    text-align: center;
-    margin-left: 4px;
-    position: absolute;
-    z-index: 1;
-}
-
 .lexseparator {
     border-top: 1px solid var(--global-color-secondary);
     border-bottom: 1px solid var(--global-color-tertiary);
@@ -1621,7 +1609,7 @@ a svg, svg path {
 /* Title Widget */
 
 .lextitle {
-    width: fit-content;
+    width: fit-content !important;
     width: -moz-fit-content;
     color: var(--global-text-secondary);
     font-weight: 600;
@@ -1646,13 +1634,6 @@ a svg, svg path {
     margin: 8px;
     height: 24px;
     flex: none;
-}
-
-.lextitle a {
-    margin-top: 0.3em;
-    margin-right: 0.7em;
-    color: var(--global-color-accent-light);
-    font-size: var(--global-font-size-sm);
 }
 
 .lextitle.link {
@@ -1713,7 +1694,7 @@ a svg, svg path {
     border-color: var(--border-color);
 }
 
-.lexbutton:hover:not(.outline) {
+.lexbutton:hover:not(.outline, .bg-none) {
     background-color: color-mix(in srgb, var(--button-color), #000 9%) !important;
 }
 
@@ -2293,15 +2274,12 @@ dialog .lexselect .lexselectoptions {
     display: flex;
     position: relative;
     width: 100%;
+    flex: 1 0 0%;
     border-radius: 4px;
     border: 2px solid var(--global-color-transparent);
     margin-right: 2px;
     background-color: var(--global-color-tertiary);
     transition: 0.1s linear;
-}
-
-.lexvector a.fa-lock {
-    min-width: 12px;
 }
 
 .lexvector .vecbox:hover {
@@ -2310,13 +2288,10 @@ dialog .lexselect .lexselectoptions {
 
 .lexwidget .numberbox .drag-icon,
 .lexwidget .vecbox .drag-icon {
-    position: absolute;
-    width: 2px;
-    right: 1em;
-    top: 25%;
     font-size: var(--global-font-size-sm);
     color: var(--global-text-secondary);
     z-index: 11;
+    margin-right: 0.25rem
 }
 
 .lexvector .vecbox:has(input:focus) {
@@ -2384,7 +2359,8 @@ input[type=number] {
 
 .lexwidget .numberbox {
     width: 100%;
-    display: grid;
+    display: flex;
+    flex-direction: column;
     background-color: var(--global-color-tertiary);
     border: 1px solid var(--global-color-transparent);
     border-radius: 6px;
@@ -2464,10 +2440,6 @@ input[type=number] {
     border-radius: 6px;
     background: #a19dc9;
     cursor: pointer;
-}
-
-.lexwidget .numberbox .drag-icon {
-    right: 0.8em;
 }
 
 /* Range Widget */
@@ -2574,21 +2546,7 @@ input[type=number] {
     top: 50%;
 }
 
-/* Size Widget */
-
-.lexwidget .lexsizecross {
-    color: var(--global-color-accent);
-    font-weight: 800;
-}
-
-.lexwidget .lexunit {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-}
-
-/* Size Widget */
+/* OTP Widget */
 
 .lexotpslot.active {
     border: 1px solid var(--global-text-primary);
@@ -2641,12 +2599,15 @@ input[type=number] {
     border-right: 1px solid #a2a5c36a;
     justify-items: center;
     min-width: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .lextabscontainer.horizontal .tabs {
     border-right: none;
     border-bottom: 1px solid #a2a5c36a;
-    display: flex;
+    flex-direction: row;
 }
 
 .lextabscontainer .widgets {
@@ -2656,37 +2617,10 @@ input[type=number] {
 
 .lextabscontainer .tabs .lextab {
     padding: 4px;
-    margin-bottom: 10px;
     border-radius: 4px;
     color: #8184a264;
     cursor: pointer;
-    margin-right: 4px;
     text-align: center;
-}
-
-.lextabscontainer.horizontal .tabs .lextab {
-    margin-bottom: 0px;
-    margin-right: 10px;
-}
-
-.lextabscontainer.horizontal .tabs .lextab a.withname {
-    margin-left: 6px;
-}
-
-.lextabscontainer .tabs .lextab:hover {
-    color: var(--global-text-primary);
-}
-
-.lextabscontainer .tabs .lextab.last {
-    margin-right: 4px;
-}
-
-.lextabscontainer .tabs .lextab.selected {
-    color: var(--global-text-primary);
-}
-
-.lextabscontainer .tabs .lextab:active {
-    color: var(--global-text-secondary);
 }
 
 /* Data Tree Widget */
@@ -2701,11 +2635,11 @@ input[type=number] {
     font-size: var(--global-font-size);
 }
 
-.lextree .lexnodetree_filter {
+.lextree .lexnodetreefilter {
     background: none !important;
 }
 
-.lextree .lexnodetree_filter:hover {
+.lextree .lexnodetreefilter:hover {
     background: none;
 }
 
@@ -2749,6 +2683,7 @@ input[type=number] {
     user-select: none;
     font-size: var(--global-font-size-lg);
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .lextree ul {
@@ -2807,18 +2742,10 @@ input[type=number] {
 }
 
 .lextree .lextreeitem img {
-    width: 12px;
-    height: 12px;
-    margin-right: 4px;
+    width: 16px;
+    height: 16px;
+    margin-right: 0.5rem;
     vertical-align: middle;
-    margin-top: -1px;
-}
-
-.lextree .lextreeitem .tree-item-icon {
-    width: 12px;
-    height: 12px;
-    margin-right: 6px;
-    font-size: var(--global-font-size-sm);
 }
 
 .lextree .lextreeitem.draggingover {
@@ -2841,10 +2768,6 @@ input[type=number] {
 
 .lextree .lextreeitem a.hierarchy {
     margin-right: 6px;
-}
-
-.lextree .lextreeitem .lexicon {
-    font-size: var(--global-font-size-sm);
 }
 
 /* File Input */
@@ -3032,151 +2955,6 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     margin-top: 0.05em;
 }
 
-.lexmenubox {
-    position: fixed;
-    z-index: 1001;
-    background-color: #111111f3;
-    border: 1px solid #aaaaaa48;
-    border-radius: 6px;
-    transition: all 0.15s cubic-bezier(.42,.97,.52,1.19);
-    transform: translate(-2px, -10px);
-    opacity: 0;
-}
-
-:root[data-theme="light"] .lexmenubox {
-    background-color: #fffffff3;
-    box-shadow: 0px 6px 7px -3px #a7a7a7b7 !important;
-}
-
-.lexmenubox[data-submenu] {
-    transform: translate(-10px, -2px);
-}
-
-.lexmenubox:before {
-    content: "";
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-    border-radius: 6px;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    z-index: -1;
-}
-
-.lexmenubox[data-open]{
-    transform: translate(0, 0);
-    opacity: 1;
-}
-
-.lexmenubox:focus {
-    outline: none;
-}
-
-.lexmenubox .lexmenuboxentry {
-    font-size: var(--global-font-size);
-    width: 100%;
-    color: var(--global-text-primary);
-    padding: 6px;
-    padding-left: 8px;
-    padding-right: 0px;
-    cursor: pointer;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    /* This makes properties like top, left to be relative to parents */
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    -moz-transform: translateZ(0);
-    display: flex;
-    flex-direction: row;
-    align-content: center;
-    justify-content: space-between;
-    position: relative;
-}
-
-.lexmenubox .lexmenuboxentry.disabled {
-    color: var(--global-text-tertiary);
-    cursor: default;
-}
-
-.lexmenubox .lexmenuboxentry:first-child {
-    border-top-right-radius: 5px;
-    border-top-left-radius: 5px;
-}
-
-.lexmenubox .lexmenuboxentry:last-child {
-    border-bottom-right-radius: 5px;
-    border-bottom-left-radius: 5px;
-}
-
-.lexmenubox .lexmenuboxentrycontainer {
-    display: flex;
-    flex-direction: row;
-}
-
-.lexmenubox .lexmenuboxentry .lexentryname {
-    margin-right: 32px;
-}
-
-.lexmenubox .lexmenuboxentry.noicon .lexentryname {
-    margin-left: 10px;
-}
-
-/* normal icons  */
-.lexmenubox .lexmenuboxentry a {
-    font-size: var(--global-font-size-sm);
-    float: left;
-    margin-right: 13px;
-    margin-left: 9px;
-    align-content: center;
-    min-width: 10px;
-}
-
-/* submenu specified arrow  */
-.lexmenubox .lexmenuboxentry a.fa-xs {
-    float: right;
-    margin-right: 8px;
-}
-
-.lexmenubox .lexmenuboxentry:not(.disabled):hover {
-    background-color: var(--global-color-accent);
-    color: #f5f5f5;
-}
-
-.lexmenubox .lexmenuboxentry:active {
-    color: var(--global-text-secondary);
-}
-
-.lexmenubox .lexmenuboxentry input {
-    float: left;
-    margin-right: 28px;
-    margin-left: 5px;
-}
-
-.lexmenubox .lexmenuboxentry:hover input::after {
-    border-color: #f5f5f5;
-}
-
-.lexmenubox .lexseparator {
-    margin: 2px 0 2px;
-    width: 100%;
-    border-color: var(--global-text-tertiary);
-    opacity: 0.25;
-}
-
-.lexmenubox .lexentryshort {
-    font-size: var(--global-font-size-xs);
-    font-weight: bold;
-    text-align: right;
-    float: right;
-    align-content: center;
-    color: var(--global-text-tertiary);
-    margin-right: 12px;
-}
-
 .lexmenubar .lexmenubuttons {
     display: inline-flex;
     background-color: var(--global-color-secondary);
@@ -3268,6 +3046,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     padding: 4px;
     padding-inline: 8px;
     display: flex;
+    gap: 0.5rem;
     cursor: pointer;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -3459,7 +3238,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 }
 
 .lexsidebar .lexsidebarentry.selected svg path {
-    --color: #f4f4f4;
+    color: #f4f4f4;
 }
 
 .lexsidebar .lexsidebarentry:active {
@@ -3587,7 +3366,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 }
 
 .lexsidebar.collapsing .lexsidebarheader svg path {
-    --color: #f4f4f4;
+    color: #f4f4f4;
 }
 
 .lexsidebar .lexsidebarfooter:active, .lexsidebar .lexsidebarheader:active {
@@ -3669,7 +3448,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     height: auto !important;
     justify-content: start;
     gap: 0.35em;
-    z-index: 100;
+    z-index: 95;
     background-color: var(--global-color-secondary);
     margin: 8px;
     padding: 0.25em;
@@ -3879,6 +3658,10 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     transition-timing-function: ease-out;
 }
 
+.lexareatabscontainer:not(.lexcodeeditor) > .lexarea.origin {
+    padding-block: 0.25rem;
+}
+
 .lexareatabscontent.folded {
     max-height: 0px;
 }
@@ -4012,13 +3795,12 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     color: var(--global-text-secondary);
     font-size: var(--global-font-size);
     border-radius: 4px;
-    padding-left: 4px;
-    padding-right: 4px;
-    margin-top: 1px;
-    margin-bottom: 1px;
+    padding-inline: 4px;
+    margin-block: 1px;
     line-height: 22px;
     align-content: center;
-    display: flow-root;
+    display: flex;
+    flex-direction: row;
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
@@ -4072,7 +3854,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 
 .lexarrayitems {
     width: 100%;
-    padding: 6px;
+    padding: 2px;
     color: var(--global-text-secondary);
     font-size: var(--global-font-size);
     margin-top: -1px;
@@ -4080,7 +3862,11 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 }
 
 .lexarrayitems .lexwidgetname {
-    color: var(--global-text-secondary);
+    color: var(--global-text-tertiary);
+    font-size: var(--global-font-size-sm);
+    justify-content: center;
+    margin-right: 0.4rem;
+    font-weight: 600;
 }
 
 /* Tags Widget */
@@ -4163,12 +3949,12 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
-.lextable svg, .lextable svg path {
-    --color: var(--global-text-tertiary);
+.lextable svg {
+    color: var(--global-text-tertiary);
 }
 
 .lextable svg.success, .lextable svg.success path {
-    --color: #42d065 !important;
+    color: #42d065 !important;
 }
 
 .lextable thead {
@@ -4984,8 +4770,10 @@ ul.lexassetscontent {
     margin: 0px !important;
     border: 1px solid #91909036;
     border-right: none;
+    border-bottom: none;
     background-color: var(--global-color-primary) !important;
     transition: none;
+    display: flex !important;
 }
 
 .codebasearea .lexareatab:hover {
@@ -5046,7 +4834,7 @@ ul.lexassetscontent {
 }
 
 .lexcodetabinfo {
-    background-color: light-dark(var(--global-color-tertiary), var(--global-medium-background));
+    background-color: light-dark(var(--global-color-secondary), var(--global-medium-background));
     position: absolute;
     z-index: 3;
     bottom: 0px;
@@ -5061,7 +4849,7 @@ ul.lexassetscontent {
 .lexcodegutter {
     width: 48px;
     height: calc(100% - 65px);
-    background-color: light-dark(var(--global-color-tertiary), var(--global-medium-background));
+    background-color: light-dark(var(--global-color-secondary), var(--global-medium-background));
     margin-top: 31px;
     overflow: hidden;
     position: absolute;
@@ -5069,8 +4857,8 @@ ul.lexassetscontent {
 }
 
 .lexcodeeditor .codetabsarea {
-    height: calc(100% - 80px) !important;
-    background-color: light-dark(var(--global-color-tertiary), var(--global-medium-background));
+    height: calc(100% - 76px) !important;
+    background-color: light-dark(var(--global-color-secondary), var(--global-medium-background));
     overflow: scroll;
 }
 
@@ -5246,8 +5034,12 @@ ul.lexassetscontent {
 .lexcodescrollbar.horizontal {
     width: calc(100% - 58px);
     height: 10px;
-    bottom: 36px;
+    bottom: 47px;
     right: 10px;
+}
+
+.codebasearea:has(.codetabsarea.no-code-info) .lexcodescrollbar.horizontal {
+    bottom: 0px;
 }
 
 .lexcodescrollbar.scrollbar-unused {
@@ -5360,13 +5152,8 @@ ul.lexassetscontent {
     cursor: default;
     height: 22px;
     padding-left: 6px;
-}
-
-.lexcodeeditor .autocomplete pre a {
-    font-size: 11px;
-    margin-top: 4px;
-    margin-right: 6px;
-    margin-left: 2px;
+    display: flex;
+    align-items: center;
 }
 
 .lexcodeeditor .autocomplete pre:hover {
@@ -5490,7 +5277,7 @@ ul.lexassetscontent {
 .cm-bln.markdown { color: #a1d2f0; }  /* builtin */
 
 :root[data-theme="light"] .lexcodeeditor pre.active-line {
-    background-color: #c5c4c4ab;
+    background-color: #e4e0e0ab;
 }
 
 :root[data-theme="light"] .lexcodeeditor.disabled pre.active-line {
@@ -5624,7 +5411,6 @@ ul.lexassetscontent {
     left: 0;
     bottom: 0;
     right: 0;
-    stroke: unset;
 }
 
 .lexgraph .box-selection-svg {
@@ -6093,10 +5879,13 @@ ul.lexassetscontent {
 .hover\:fg-error:hover { color: var(--global-color-error) !important }
 .hover\:fg-warning:hover { color: var(--global-color-warning) !important }
 
+.stroke-none { stroke: none }
+
 /* Layout */
 
 .flex { display: flex }
 .inline-flex { display: inline-flex }
+.flex-fill { flex: 1 0 0% }
 .grid { display: grid }
 .block { display: block }
 .inline-block { display: inline-block }
@@ -6389,6 +6178,7 @@ ul.lexassetscontent {
 .left-0 { left: 0 }
 
 .z-0 { z-index: 0 }
+.z-1 { z-index: 1 }
 .z-10 { z-index: 10 }
 .z-50 { z-index: 50 }
 .z-100 { z-index: 100 }

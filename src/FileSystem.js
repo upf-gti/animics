@@ -339,10 +339,10 @@ class RemoteFileSystem {
                     }
                     const folderData = {id: folder, type: "folder", folder: folder , children: assets, unit: unit, fullpath: "animics/"+ folder };
                     if( folder == "presets" ) {
-                        folderData.icon = "fa fa-tags";
+                        folderData.icon = "Tags";
                     }
                     else if( folder == "signs") {
-                        folderData.icon = "fa fa-hands";
+                        folderData.icon = "HandsAslInterpreting";
                     }
                     foldersData.push( folderData )
                 }
