@@ -1895,7 +1895,7 @@ class KeyframesGui extends Gui {
 
                         let rot = boneSelected.rotation.toArray();
                         rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
-                        widgets.widgets['Rotation (XYZ)'].set( rot, true ); // skip onchange event
+                        widgets.widgets['Rotation (XYZ)'].set( rot.slice(0, 3), true ); // skip onchange event
                     }
                     else if(attribute == 'rotation') {
                         boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
@@ -1926,7 +1926,7 @@ class KeyframesGui extends Gui {
                 this.boneProperties['rotation'] = boneSelected.rotation;
                 let rot = boneSelected.rotation.toArray();
                 rot[0] * UTILS.rad2deg; rot[1] * UTILS.rad2deg; rot[2] * UTILS.rad2deg;
-                widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-euler'});
+                widgets.addVector3('Rotation (XYZ)', rot.slice(0, 3), (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-euler'});
 
                 this.boneProperties['quaternion'] = boneSelected.quaternion;
                 widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: true, precision: 3, className: 'bone-quaternion'});
