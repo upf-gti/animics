@@ -7,22 +7,20 @@
         <meta name="author" content="" />
         <title>Animics</title>
         <link rel="icon" type="image/x-icon" href="data/imgs/animics_monster.png" />
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css" rel="stylesheet" />
+        <!-- <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css" rel="stylesheet" /> -->
         <link href="https://fonts.googleapis.com/css?family=Merriweather+Sans:400,700" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css?family=Merriweather:400,300,300italic,400italic,700,700italic" rel="stylesheet" type="text/css" />
         <link href="https://cdnjs.cloudflare.com/ajax/libs/SimpleLightbox/2.1.0/simpleLightbox.min.css" rel="stylesheet" />
 
-        <!-- <link rel="stylesheet" href="css/template-style.css"> -->
-		<!-- <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui@0.5.8/build/lexgui.css"> -->
+		<!-- <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui@0.5.10/build/lexgui.css"> -->
 		<link rel="stylesheet" href="./src/libs/lexgui/build/lexgui.css">
-		<link rel="stylesheet" type="text/css" href="https://use.fontawesome.com/releases/v6.7.2/css/all.css">
 		<link rel="stylesheet" href="css/style.css">
     </head>
 
 	<script src="src/libs/image-map-highlighter.js"></script>
 
 	<script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
-	<!-- <script type="importmap">
+	<script type="importmap">
 			{
 				"imports": {
 					"three": "https://cdn.skypack.dev/three@0.136",
@@ -31,229 +29,21 @@
 					"lexgui/components/": "./src/libs/lexgui/build/components/"
 				}
 			}
-	</script> -->
-	<script type="importmap">
-		{
-			"imports": {
-				"three": "https://cdn.skypack.dev/three@0.136",
-				
-				"lexgui": "https://cdn.skypack.dev/lexgui@0.5.9/build/lexgui.module.js",
-				"lexgui/components/": "./src/libs/lexgui/build/components/"
-			}
-		}
-</script>
-
-	<script  type="text/javascript" src="./src/libs/jszip.min.js"></script>
-	
-	<script type="module" src="src/CustomLibs.js"></script>
-	<script type="text/javascript" src="src/timelineClips.js"></script>
-	
-	<script  type="module" src="./src/libs/lexgui/LexGUI.patches.js"></script>
-	<script type="module">
-
-		import {Animics} from './src/Animics.js'
-		import {UTILS} from './src/Utils.js'
-
-		const body = document.getElementById("base-page");
-
-		const keyframeBtn = document.getElementById("keyframe-project");
-		// const videoBtn = document.getElementById("video-project");
-		// const webcamBtn = document.getElementById("webcam-project");
-
-		const scriptBtn = document.getElementById("script-project");
-		const importBtn = document.getElementById("import");
-		// const importScriptBtn = document.getElementById("import-script");
-
-		// Wait until the session is loaded
-		UTILS.makeLoading("");
-		const animics = new Animics();
-		await animics.loadSession();
-		UTILS.hideLoading();
-		body.classList.remove("hidden");
-
-		const startAnimics = (settings) => {
-			const loadingAnim = UTILS.makeLoading("Starting Animics");
-			loadingAnim.onfinish = () =>{
-				body.innerHTML = "";				
-				animics.init(settings);
-			};			
-			window.global = {app: animics};
-		}
-		
-		const onLoadFiles = function( files ){
-			if(!files || !files.length) { 
-				return null; 
-			}
-			
-			let mode = null;
-			let resultFiles = [];
-			
-			const animExtensions = ['bvh','bvhe', 'glb'];
-			const scriptExtensions = ['json', 'bml', 'sigml'];
-
-			// First valid file will determine the mode. Following files must be of the same format
-			for( let i = 0; i < files.length; ++i ) {
-				// MIME type is video
-				if( files[i].type.startsWith("video/") ) {
-					if ( !mode ) { 
-						mode = "keyframe"; 
-					}
-					
-					if ( mode == "keyframe" ) {			
-						resultFiles.push( files[i] );
-					}
-					continue;
-				}
-
-				// other valid file formats
-				const extension = UTILS.getExtension(files[i].name).toLowerCase();
-								
-				if( animExtensions.includes(extension) ) {
-					if ( !mode ) {
-						mode = "keyframe";
-					}
-					
-					if ( mode == "keyframe") {
-						resultFiles.push( files[i] );
-					}
-				}
-
-				if( scriptExtensions.includes(extension) ) {
-					if ( !mode ) {
-						mode = "script";
-					}
-
-					if ( mode == "script") {
-						resultFiles.push( files[i] );
-					}
-				}
-			}
-
-			if ( resultFiles.length ) {
-				return startAnimics({ mode, pendingResources: resultFiles});
-			}	
-				
-			alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
-			return null;
-		}
-
-		// Keyframe mode
-		keyframeBtn.addEventListener("click", () => {
-			startAnimics({mode: "keyframe"});
-		});
-
-		// Script mode
-		scriptBtn.addEventListener("click", () => {
-			startAnimics({mode: "script"});
-		});
-    
-		// Import resurces 
-		importBtn.addEventListener("click", () => {
-    		const input = document.createElement('input');
-    		input.type = 'file';
-    		input.click();
-    		input.onchange = (event) => { 
-				onLoadFiles( event.currentTarget.files);
-				// startAnimics({pendingResources: event.currentTarget.files})
-			};
-		});
-
-		body.ondragover = () => {return false};
-		body.ondragend = () => {return false};
-		body.ondrop = (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			if ( onLoadFiles( event.dataTransfer.files ) ){
-				body.ondrop = null;
-			}
-		};
-		
 	</script>
 
-    <body >
-        <!-- Masthead (to change the background image look for div.masthead in the style css)-->
-        <div id="base-page" class="hidden masthead" style="width:100%; height:100%">
-			<div class="container">
-				<div id="init-dialog" class="main-container" >
-					<div class="img-container">
-						<!-- <h1 class="text-white font-weight-bold">Animics</h1> -->
-						<img src = "docs/animics_white.png" width = "760px" draggable="false">
-						<br><br>
-					</div>
-					<div class="btns-container">
-						<p class="">End-to-end system able to generate animations of the signing avatar from user input.</p>
-						<hr class="divider" />
+	<script type="text/javascript" src="./src/libs/jszip.min.js"></script>
+	<script type="module" src="src/CustomLibs.js"></script>
+	<script type="text/javascript" src="src/timelineClips.js"></script>
+	<script type="module" src="./src/libs/lexgui/LexGUI.patches.js"></script>
+	<script type="module" src="Index.js"></script>
 
-						<p class="">Start new animation project based on</p>
-						<!-- <a id="from-file" class="btn">From Video or Animation</a>
-						<a id="new-capture" class="btn">New Capture</a> -->
-						<div class="btns-container">
-							<div>
-								<a id="script-project" class="btn" style="width: 18em;" title="From text instructions">Script animation</a>
-								<a id="keyframe-project" class="btn" style="width: 18em;" title="From video or webcam input">Keyframe animation</a>
-							</div>
-							<p class="" style="margin-right: 1rem; padding:0.5em">or</p>
-							<a id="import" class="btn btn-drag" title="Import video or animation">Import source</a>
-						</div>
-					</div>
-				</div>
-			</div>
-			<footer class="">
-				<div class="navbar">
-					<div style="display: flex; flex-direction: column;">
-						<a class="fs-2 mb-3 icon-link" href="https://www.upf.edu/web/gti">
-							<img src="data/imgs/GTIlogo.png" width="290px" style="filter:invert(0.5)" draggable="false">
-						</a>
-						<div id="mainNav" class="py-2" style="font-size: 0.8rem; background-color: transparent">©️ 2021-2024 GTI - UPF | This application has been developed within the <a class="" href="https://signon-project.eu/" target="_blank">SignON PROJECT</a>. Released under the Apache 2.0 License</div>
-					</div>
-					<div style="display: flex;">
-						<div style="padding: 0 20px;">
-							<h1 class=""><b>APPLICATIONS</b></h1>
-							<a href="https://performs.gti.upf.edu" target="_blank" style="text-decoration: none;">
-								<h3 class="">
-									<img src = "data/imgs/performs_monster.png" width = "25px" draggable="false"> PERFORMS
-								</h3>
-							</a>
-							<a href="https://animics.gti.upf.edu" target="_blank" style="text-decoration: none;">
-								<h3 class="">
-									<img src = "data/imgs/animics_logo.png" width = "25px" draggable="false"> ANIMICS
-								</h3>
-							</a>
-						</div> 
-						<div style="padding: 0 20px;">
-							<h1 class=""><b>MORE INFO</b></h1>
-							<div >
-								<ul class="navbar-nav" style="flex-direction: row; justify-content: center;">
-									<li class="nav-item"><a class=" icon-link" href="https://github.com/upf-gti/"><i class="fa-brands fa-github"></i></a></li>
-									<!-- <li class="nav-item"><a class="bi-youtube fs-2 mb-3 icon-link"></a></li> -->
-									<li class="nav-item"><a class="icon-link" href="https://twitter.com/gti_upf"><i class="fa-brands fa-twitter"></i></a></li>
-								</ul>
-							</div>
-						</div>
-						<div style="padding: 0 20px;">
-							<h1 class=""><b>USED</b></h1>
-							<a href="https://jxarco.github.io/lexgui.js/" target="_blank" style="text-decoration: none;">
-								<h3 class="">
-									<img src = "data/imgs/lexgui.png" draggable="false" style="width:4rem">
-								</h3>
-							</a>
-						</div> 
-					</div> 
-				</div>
-			</footer>
-		
-		</div>
+    <body >
 		<!-- Modals -->
-		<div id="loading" class="loading-modal hidden" style = "opacity: 1; z-index: 1040">
-			<div class="load-7">
+		<div id="loading" class="loading-modal hidden" style="opacity: 1; z-index: 1040">
+			<div>
 				<p>Loading application, please wait</p>
-				<div class="square-holder">
-					<img class="loading-icon" src="data/imgs/monster.png" width="50" height="50" draggable="false">
-				</div>
+				<img class="loading-icon" src="data/imgs/monster.png" width="50" height="50" draggable="false">
 			</div>
 		</div>	
     </body>
-	
-	
-	
 </html>

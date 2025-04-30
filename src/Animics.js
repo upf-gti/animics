@@ -36,8 +36,8 @@ class Animics {
         })
     }
 
-    init(settings = {}) {
-        this.mainArea = LX.init();
+    async init(settings = {}) {
+        this.mainArea = LX.main_area || await LX.init();
 
         const mode = settings.mode;
         switch(mode) {
