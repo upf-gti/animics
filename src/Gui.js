@@ -466,7 +466,7 @@ class Gui {
                 {
                     name: 'Skeleton',
                     property: 'showSkeleton',
-                    icon: 'Bone@solid',
+                    icon: 'Bone',
                     selectable: true,
                     selected: true,
                     callback: (v) =>  {
@@ -1920,7 +1920,7 @@ class KeyframesGui extends Gui {
                 };
 
 
-                widgets.branch("Bone", { icon: "Bone@solid" });
+                widgets.branch("Bone", { icon: "Bone" });
                 widgets.addText("Name", boneSelected.name, null, {disabled: true});
                 widgets.addText("Num tracks", numTracks ?? 0, null, {disabled: true});
 

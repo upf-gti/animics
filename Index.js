@@ -10,13 +10,18 @@ await animics.loadSession();
 
 const area = await LX.init( { rootClass: "" } );
 
+const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-blur z-1","", LX.main_area.root );
+dropOver.classList.add("hidden");
+
 // Menubar
-const menubar = createMenuBar( area );
 const sidebar = createSideBar( area );
+const menubar = createMenuBar( area );
 
 const content = LX.makeContainer( ["100%", "100%"], "relative flex flex-col px-1", "", area );
-createHome( content );
-// createAbout( content )
+const mainContent = LX.makeContainer( ["100%", "100%"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg", "", content );
+
+createHome( mainContent );
+// createAbout( mainContent )
 createFooter();
 
 bindEvents( area );
@@ -65,7 +70,6 @@ function createMenuBar( area ) {
 
     area = menubar.siblingArea;
     area.root.style.placeContent = "center";
-    area.root.classList.add( "hidden" );
     return menubar;
 }
             
@@ -73,15 +77,21 @@ function createSideBar( area ) {
     let swapValue = document.documentElement.getAttribute("data-theme") == "dark";
     const sidebar = area.addSidebar( m => {
         // m.group( "Projects", { icon: "Plus", callback: (groupName, event) => { console.log(groupName) }} );
-        m.add( "Home", { icon: "House" /*,collapsable: false*/ } );
+        m.add( "Home", { icon: "House", callback: () => { createHome(mainContent) } } );
         m.add( "Documentation", { icon: "BookOpen" });
         m.add( "Documentation/Keyframe Animation", { xicon: "", callback:  () => { window.open( "docs/keyframe_animation.html" , "_blank" ) } } );
         m.add( "Documentation/Script Animation", { xicon: "", callback:  () => { window.open( "docs/script_animation.html" , "_blank" ) } } );
-        m.add( "About", { icon: "Info", callback: () => {} });
+        m.add( "About", { icon: "Info", callback: () => { createAbout(mainContent) } });
         
         m.separator();
         
-        m.add( "Switch Theme", { icon: "Sun", callback:  () => {swapValue = !swapValue; LX.setTheme( swapValue ? "light" : "dark" ) }})
+        m.add( "Switch Theme", { icon: "Sun", callback:  () => {
+                swapValue = !swapValue;
+                LX.setTheme( swapValue ? "light" : "dark" ) 
+                const img = document.getElementById("animics-img");
+                img.src = "data/imgs/animics_" + (swapValue ? "black" : "white") + ".png";
+            }
+        })
         // m.add( "TÀNDEM", { callback: () => {} } );
     }, { 
         /* collapseToIcons: false, skipFooter: true, skipHeader: true,*/
@@ -113,9 +123,10 @@ function createSideBar( area ) {
     return sidebar;
 }
 
-function createHome( content ) {
-    const mainContent = LX.makeContainer( ["100%", "calc(100% - 70px)"], "main-content bg-secondary flex flex-col p-6 rounded-lg", "", content );
-    const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6 overflow-scroll", "", mainContent );
+function createHome( mainContent ) {
+    mainContent.innerHTML = "";
+    const padContainer = LX.makeContainer( ["100%", "auto"], "p-6", "", mainContent );
+    const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6 overflow-scroll", "", padContainer );
     headerContent.style.minHeight = "256px";
     
     const keyframeContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
@@ -156,7 +167,7 @@ function createHome( content ) {
     LX.makeContainer( ["auto", "auto"], "", `<p>Drop file/s</p>`, fileItem );
     fileItem.id = "import";
 
-    const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4 overflow-scroll", "", mainContent );
+    const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4 overflow-scroll", "", padContainer );
     LX.makeContainer( ["auto", "auto"], "font-bold", "Projects", projectsContent );
     const projectItems = LX.makeContainer( ["100%", "auto"], "grid gap-4", "", projectsContent );
     projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
@@ -167,34 +178,37 @@ function createHome( content ) {
 
 }
 
-function createAbout( content ) {
-    const mainContent = LX.makeContainer( ["100%", "100%"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg", "", content );
+function createAbout( mainContent ) {
+    mainContent.innerHTML = "";
+   
+    const swapValue = document.documentElement.getAttribute("data-theme") == "dark";
+    const headerContent = LX.makeContainer( ["40%", "300px"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="w-full" style="height:min-content" src="data/imgs/animics_${(swapValue ? "black" : "white")}.png">` , mainContent );
     
-    const headerContent = LX.makeContainer( ["40%", "300px"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",'<img class="w-full" style="height:min-content" src="data/imgs/animics_logo_name.png">' , mainContent );
+    const container = LX.makeContainer( ["100%", "calc(100% - 320px)"], "flex flex-col overflow-scroll items-center",'' , mainContent );
+    
+    const infoContainer = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center py-10",'' , container );
+    infoContainer.style.background = "linear-gradient(0deg, var(--global-color-primary), transparent)";
 
-    
-    const container = LX.makeContainer( ["100%", "calc(100% - 320px)"], "flex flex-col overflow-scroll items-center justify-center",'' , mainContent );
-    container.style.background = "linear-gradient(0deg, black, transparent)";
-    
-    const textContent = LX.makeContainer( ["30%", "100px"], "flex justify-center",`<p class="text-xxl font-light text-center" >Animics is an online application to create and
+    const textContent = LX.makeContainer( ["30%", "auto"], "flex justify-center",`<p class="text-xxl font-light text-center" >Animics is an online application to create and
     edit animations for 3D humanoid characters,
-    focused in Sign Language synthesis.</p>` , container );
+    focused in Sign Language synthesis.</p>` , infoContainer );
 
-    const techContent = LX.makeContainer(["40%", "100px"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , container);
+    const techContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , infoContainer);
     const techText = LX.makeContainer(["auto","auto"], "py-6", `<p>Developed using</p>`, techContent);
+
     const techLinksContent = LX.makeContainer(["auto", "60px"], "flex flex-row justify-center gap-12", `
     <a class="h-full" href="https://chuoling.github.io/mediapipe/"><img class="h-full hover:scale" style="filter:grayscale(1) invert(0.5) brightness(1);" src="https://images.viblo.asia/d70d57f3-6756-47cd-a942-249cc1a7da82.png" alt="Mediapipe"></a>
     <a class="h-full" href="https://threejs.org/"><img class="h-full hover:scale" style="filter:invert(0.5);" src="https://needle.tools/_nuxt/logo-three.CiaNm32y.png" alt="Threejs"></a>
     <a class="h-full" href="https://github.com/jxarco/lexgui.js"><img class="h-full hover:scale" style="filter:grayscale(1) invert(0.5) brightness(1);" src="data/imgs/lexgui.png" alt="Lexgui"></a>`, techContent)
 
-    const fundingContent = LX.makeContainer(["40%", "100px"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , container);
+    const fundingContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , infoContainer);
     const fundingText = LX.makeContainer(["auto","auto"], "py-6", `<p>Funded by</p>`, fundingContent);
     const linksContent = LX.makeContainer(["auto", "80px"], "flex flex-row justify-center gap-12", `
     <a class="h-full" href="https://signon-project.eu/"><img class="h-full hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/marco_SignON.png" alt="SignON"></a>
     <a class="h-full" href="https://www.upf.edu/web/emerald"><img class="h-full hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/marco_EMERALD.png" alt="EMERALD"></a>
     <a class="h-full" href="https://www.upf.edu/web/gti"><img class="h-full py-5 hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/GTIlogo.png" alt="UPF-GTI"></a>`, fundingContent);
 
-    const devContent = LX.makeContainer(["100%", "auto"], "flex flex-col items-center py-5 my-10 bg-primary font-bold", "<h3>Implemented by</h3>" , container);
+    const devContent = LX.makeContainer(["100%", "auto"], "flex flex-col items-center py-10 bg-primary font-bold", "<h3>Implemented by</h3>" , container);
     const peopleItems = LX.makeContainer( ["40%", "auto"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",'' , devContent );
 
     _makePersonItem({name: "Víctor Ubieto Nogales", img: "https://www.upf.edu/documents/115100603/264407312/Victor_cropped.jpg/dd5ee7db-580d-c51c-b499-bbbacbbfbb9e?t=1679569197124", avatar:"https://models.readyplayer.me/671a74b007f4235f6e9adf46.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "victoremilio.ubieto@upf.edu", url:"https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/victor-ubieto-nogales/maximized"}, peopleItems);
@@ -320,10 +334,8 @@ function bindEvents( area ) {
 
     // Drag and Drop
     const body = area.root;
-    const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-blur","", body );
-    dropOver.classList.add("hidden");
 
-    body.ondragenter = ( event ) => {
+    window.ondragenter = ( event ) => {
 
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -340,18 +352,25 @@ function bindEvents( area ) {
         return false
     };
 
-    body.ondrop = (event) => {
+    window.ondrop = (event) => {
         dropOver.classList.add("hidden");
         event.preventDefault();
         event.stopPropagation();
         if ( onLoadFiles( event.dataTransfer.files ) ){
-            body.ondrop = null;
+            window.ondrop = null;
         }
     };
 
 }
 
+function unbindEvents() {
+    window.ondragenter = null;
+    window.ondragleave = null;
+    window.ondrop = null;
+}
+
 function startAnimics(settings) {
+    unbindEvents();
     const loadingAnim = UTILS.makeLoading("Starting Animics");
     loadingAnim.onfinish = () => {
         // Manually resetting lexgui
