@@ -61,7 +61,7 @@ class Gui {
         
     }
 
-    onCreateMenuBar( menubar ) {
+    onCreateMenuBar( entries ) {
 
     }
 
@@ -87,7 +87,7 @@ class Gui {
                 name: "Project",
                 submenu: [
                     {
-                        name: "New animation",
+                        name: "New Animation",
                         icon: "Plus",
                         callback: () => {
                             this.editor.loadAnimation("animation" + Math.floor( performance.now()*1000 ).toString(), {});
@@ -95,53 +95,35 @@ class Gui {
                         }
                     },
                     {
-                        name: "Import animations",
+                        name: "Import Animations",
                         icon: "FileInput",
                         submenu: [
-                            { 
-                                name: "From disk", icon: "FileInput", callback: () => this.importFiles(),
-                                kbd: "CTRL+O"
-                            },
-                            {
-                                name: "From database",
-                                icon: "Database",
-                                callback: () => this.createServerClipsDialog(),
-                                kbd: "CTRL+I"
-                            }
-                        ]
-                    },
-                    {
-                        name: "Timeline",
-                        submenu: [
-                            {
-                                name: "Shortcuts",
-                                icon: "Keyboard",
-                                submenu: [
-                                    {
-                                        name: "Play-Pause", kbd: "SPACE"
-                                    },
-                                    {
-                                        name:"Zoom", kbd: "Hold LSHIFT+Wheel"
-                                    },
-                                    {
-                                        name: "Scroll", kbd: "Wheel"
-                                    },
-                                    {
-                                        name: "Move timeline", kbd: "Left Click+Drag"
-                                    }
-                                ]
-                            },
-                            {
-                                name: "Clear tracks", callback: () => this.editor.clearAllTracks()
-                            }
+                            { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
+                            { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
                         ]
                     }
                 ]
             },
             {
+                name: "Timeline",
+                submenu: [
+                    {
+                        name: "Shortcuts",
+                        icon: "Keyboard",
+                        submenu: [
+                            { name: "Play-Pause", kbd: "SPACE" },
+                            { name:"Zoom", kbd: "Hold LSHIFT+Wheel" },
+                            { name: "Scroll", kbd: "Wheel" },
+                            { name: "Move Timeline", kbd: "Left Click+Drag" }
+                        ]
+                    },
+                    { name: "Clear Tracks", icon: "Trash2", callback: () => this.editor.clearAllTracks() }
+                ]
+            },
+            {
                 name: "View",
                 submenu: [
-                    { name: "Theme", submenu: [
+                    { name: "Theme", icon: "Palette", submenu: [
                         { name: "Light", icon: "Sun", callback: () => this.setColorTheme("light") },
                         { name: "Dark", icon: "Moon", callback: () => this.setColorTheme("dark") }
                     ] }
@@ -150,7 +132,7 @@ class Gui {
         ]
 
         if(this.showVideo) {
-            menuEntries[ 1 ].submenu.push({ name: "Show video", type: "checkbox", checked: this.showVideo, callback: (v) => {
+            menuEntries[ 1 ].submenu.push({ name: "Show Video", type: "checkbox", checked: this.showVideo, callback: (v) => {
                 this.editor.setVideoVisibility( v );
                 this.showVideo = v;
             }});
@@ -168,8 +150,7 @@ class Gui {
         const colorScheme = document.documentElement.getAttribute( "data-theme" );
         menubar.setButtonImage("Animics", colorScheme == "light" ? "data/imgs/animics_logo_lightMode.png" : "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});
 
-        // TODO
-        // this.onCreateMenuBar(menubar);
+        this.onCreateMenuBar(menuEntries);
         
         menubar.addButtons( [
             {
@@ -767,51 +748,71 @@ class KeyframesGui extends Gui {
         this.createVideoOverlay();       
     }
 
-    onCreateMenuBar( menubar ) {    
+    onCreateMenuBar( entries ) {
         
-        menubar.add("Project/Generate animations", {icon: "HandsAslInterpreting"});
-        menubar.add("Project/Generate animations/From webcam", {icon: "Webcam", callback: () => this.editor.captureVideo()});
-        menubar.add("Project/Generate animations/From videos", {icon: "Film", callback: () => this.importFiles(), short: "CTRL+O"});
+        const projectMenu = entries.find( e => e.name == "Project" )?.submenu;
+        console.assert(projectMenu, "Project menu not found" );
+
+        projectMenu.push(
+            null,
+            {
+                name: "Generate Animations", icon: "HandsAslInterpreting", submenu: [
+                    { name: "From Webcam", icon: "Webcam", callback: () => this.editor.captureVideo() },
+                    { name: "From Videos", icon: "Film", callback: () => this.importFiles(), short: "CTRL+O" }
+                ]
+            },
+            // Export (download) animation
+            { name: "Export Animations", icon: "Download", kbd: "CTRL+E", callback: () => {
+                this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
+            } },
+            { name: "Export Videos and Landmarks", icon: "FileVideo", callback: () => this.showExportVideosDialog() },
+            // Save animation in server
+            { name: "Save Animation", icon: "Save", kbd: "CTRL+S", callback: () => this.createSaveDialog() },
+            { name: "Preview in PERFORMS", icon: "StreetView", callback: () => this.editor.showPreview() },
+        );
        
-        // Export (download) animation
-        menubar.add("Project/Export animations", {short: "CTRL+E", icon: "Download", callback: () => {            
-            this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
+        const timelineMenu = entries.find( e => e.name == "Timeline" )?.submenu;
+        console.assert(timelineMenu, "Timeline menu not found" );
+
+        timelineMenu.push( null, { name: "Optimize Tracks", icon: "Filter", callback: () => {
+            // optimize all tracks of current binded animation (if any)
+            this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
+            this.keyFramesTimeline.optimizeTracks();
         }});
-       
-        menubar.add("Project/Export videos & landmarks", {icon: "FileVideo", callback: () => this.showExportVideosDialog() });
 
-        // Save animation in server
-        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "Save"});
+        const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
+        console.assert(shortcutsMenu, "Shortcuts menu not found" );
 
-        menubar.add("Project/Preview in PERFORMS", {icon: "StreetView",  callback: () => this.editor.showPreview() });
+        shortcutsMenu.push(
+            null,
+            "Keys",
+            { name: "Move", kbd: "Hold CTRL" },
+            { name: "Change Value (face)", kbd: "ALT + Left Click + drag" },
+            { name: "Add", kbd: "Right Click" },
+            { name: "Copy", kbd: "CTRL+C" },
+            { name: "Copy", kbd: "Right Click" },
+            { name: "Paste", kbd: "CTRL+V" },
+            { name: "Paste", kbd: "Right Click" },
+            null,
+            { name: "Delete Single", kbd: "DEL" },
+            { name: "Delete Multiple", kbd: "Hold LSHIFT + DEL" },
+            null,
+            { name: "Select Single", kbd: "Left Click" },
+            { name: "Select Multiple", kbd: "Hold LSHIFT" },
+            { name: "Select Box", kbd: "Hold LSHIFT+Drag" },
+            null,
+            { name: "Propagation Window", kbd: "W" },
+        );
         
-        menubar.add("Timeline/Shortcuts/Move keys", { short: "Hold CTRL" });
-        menubar.add("Timeline/Shortcuts/Change value keys (face)", { short: "ALT + Left Click + drag" });
-        menubar.add("Timeline/Shortcuts/Add keys", { short: "Right Click" });
-        menubar.add("Timeline/Shortcuts/Copy keys", { short: "Right Click" });
-        menubar.add("Timeline/Shortcuts/Copy keys", { short: "CTRL+C" });
-        menubar.add("Timeline/Shortcuts/Paste keys", { short: "Right Click" });
-        menubar.add("Timeline/Shortcuts/Paste keys", { short: "CTRL+V" });
-        menubar.add("Timeline/Shortcuts/Delete keys");
-        menubar.add("Timeline/Shortcuts/Delete keys/Single", { short: "DEL" });
-        menubar.add("Timeline/Shortcuts/Delete keys/Multiple", { short: "Hold LSHIFT" });
-        menubar.add("Timeline/Shortcuts/Key selection");
-        menubar.add("Timeline/Shortcuts/Key selection/Single", { short: "Left Click" });
-        menubar.add("Timeline/Shortcuts/Key selection/Multiple", { short: "Hold LSHIFT" });
-        menubar.add("Timeline/Shortcuts/Key selection/Box", { short: "Hold LSHIFT+Drag" });
-        menubar.add("Timeline/Shortcuts/Propagation window/", { short: "W" });
-        menubar.add("Timeline/Optimize all tracks", { callback: () => {
-                // optimize all tracks of current binded animation (if any)
-                this.curvesTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
-                this.keyFramesTimeline.optimizeTracks();
-            }
-        });
+        const viewMenu = entries.find( e => e.name == "View" )?.submenu;
+        console.assert(viewMenu, "View menu not found" );
+        viewMenu.push( null, { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") });
 
-        menubar.add("View/Gizmo settings", { type: "button", callback: (v) => {
-            this.openSettings("gizmo");
-        }});
-             
-        menubar.add("Help/Tutorial", {callback: () => window.open("docs/keyframe_animation.html", "_blank")});        
+        entries.push(
+            { name: "Help", icon: "BookOpen", submenu: [
+                { name: "Tutorial", callback: () => window.open("docs/keyframe_animation.html", "_blank") }
+            ] }
+        );
     }
 
     createBlendShapesInspector(bsNames, options = {}) {
@@ -1036,7 +1037,7 @@ class KeyframesGui extends Gui {
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
-                }, {icon: 'Trash2', width: "40px"});                
+                }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
             onChangeLoopMode: (loop) => {
                 this.updateLoopModeGui( loop );
@@ -2347,35 +2348,54 @@ class ScriptGui extends Gui {
         this.animationPanel = new LX.Panel({id:"animation"});
     }
 
-    onCreateMenuBar( menubar ) {
+    onCreateMenuBar( entries ) {
         
-        // Export (download) animation
-        menubar.add("Project/Export animations", {short: "CTRL+E", icon: "Download", callback: () => {            
-            this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
-        }});
+        const projectMenu = entries.find( e => e.name == "Project" )?.submenu;
+        console.assert(projectMenu, "Project menu not found" );
 
-        // Save animation in server
-        menubar.add("Project/Save animation", {short: "CTRL+S", callback: () => this.createSaveDialog(), icon: "Save"});
+        projectMenu.push(
+            null,
+            // Export (download) animation
+            {
+                name: "Export animations", icon: "Download", kbd: "CTRL+E", callback: () => {
+                    this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
+                }
+            },
+            // Save animation in server
+            { name: "Save animation", icon: "Save", kbd: "CTRL+S", callback: () => this.createSaveDialog() },
+            { name: "Preview in PERFORMS", icon: "StreetView", callback: () => this.editor.showPreview() },
+        );
 
-        menubar.add("Project/Preview in PERFORMS", {icon: "StreetView",  callback: () => this.editor.showPreview() });
-        
-        menubar.add("Timeline/Shortcuts/Move clips", { short: "Hold CTRL" });
-        menubar.add("Timeline/Shortcuts/Add clips", { short: "Right Click" });
-        menubar.add("Timeline/Shortcuts/Add behaviour", { short: "CTRL+B" });
-        menubar.add("Timeline/Shortcuts/Copy clips", { short: "Right Click" });
-        menubar.add("Timeline/Shortcuts/Copy clips", { short: "CTRL+C" });
-        menubar.add("Timeline/Shortcuts/Paste clips", { short: "Right Click" });
-        menubar.add("Timeline/Shortcuts/Paste clips", { short: "CTRL+V" });
-        menubar.add("Timeline/Shortcuts/Delete clips");
-        menubar.add("Timeline/Shortcuts/Delete clips/Single", { short: "DEL" });
-        menubar.add("Timeline/Shortcuts/Delete clips/Multiple", { short: "Hold LSHIFT + DEL" });
-        menubar.add("Timeline/Shortcuts/Clip selection");
-        menubar.add("Timeline/Shortcuts/Clip selection/Single", { short: "Left Click" });
-        menubar.add("Timeline/Shortcuts/Clip selection/Multiple", { short: "Hold LSHIFT" });
-        menubar.add("Timeline/Shortcuts/Clip selection/Box", { short: "Hold LSHIFT+Drag" });
-       
-        menubar.add("Help/Tutorial", {callback: () => window.open("docs/script_animation.html", "_blank")});
-        menubar.add("Help/BML Instructions", {callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank")});   
+        const timelineMenu = entries.find( e => e.name == "Timeline" )?.submenu;
+        console.assert(timelineMenu, "Timeline menu not found" );
+        const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
+        console.assert(shortcutsMenu, "Shortcuts menu not found" );
+
+        shortcutsMenu.push(
+            null,
+            { name: "Add Behaviour", kbd: "CTRL+B" },
+            "Clips",
+            { name: "Move", kbd: "Hold CTRL" },
+            { name: "Add", kbd: "Right Click" },
+            { name: "Copy", kbd: "CTRL+C" },
+            { name: "Copy", kbd: "Right Click" },
+            { name: "Paste", kbd: "CTRL+V" },
+            { name: "Paste", kbd: "Right Click" },
+            null,
+            { name: "Delete Single", kbd: "DEL" },
+            { name: "Delete Multiple", kbd: "Hold LSHIFT + DEL" },
+            null,
+            { name: "Select Single", kbd: "Left Click" },
+            { name: "Select Multiple", kbd: "Hold LSHIFT" },
+            { name: "Select Box", kbd: "Hold LSHIFT+Drag" }
+        );
+
+        entries.push(
+            { name: "Help", icon: "BookOpen", submenu: [
+                { name: "Tutorial", callback: () => window.open("docs/script_animation.html", "_blank") },
+                { name: "BML Instructions", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") }
+            ] }
+        );
     }
 
     delayedUpdateTracks( reset = true ){
@@ -2394,7 +2414,7 @@ class ScriptGui extends Gui {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
-                }, {icon: 'Trash2', width: "40px"});
+                }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
                 
             },
             onChangeLoopMode: (loop) => {

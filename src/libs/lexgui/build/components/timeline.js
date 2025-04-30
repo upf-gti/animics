@@ -197,7 +197,7 @@ class Timeline {
         header.addNumber("Current Time", this.currentTime, (value, event) => {
             this.setTime(value)
         }, {
-            // units: "s", // commented until lexgui is refactored. There is a performance hit while using units
+            units: "s",
             signal: "@on_set_time_" + this.name,
             step: 0.01, min: 0, precision: 3,
             skipSlider: true,
@@ -207,7 +207,7 @@ class Timeline {
         header.addNumber("Duration", + this.duration.toFixed(3), (value, event) => {
             this.setDuration(value, false, false);
         }, {
-            // units: "s", // commented until lexgui is refactored. There is a performance hit while using units
+            units: "s",
             step: 0.01, min: 0,
             signal: "@on_set_duration_" + this.name,
             nameWidth: "auto"
@@ -238,7 +238,7 @@ class Timeline {
 
         if( this.onShowOptimizeMenu )
         {
-            header.addButton(null, "", (value, event) => {this.onShowOptimizeMenu(event)}, { title: "Optimize", icon:"Filter" });
+            header.addButton(null, "", (value, event) => {this.onShowOptimizeMenu(event)}, { tooltip: true, title: "Optimize", icon:"Filter" });
         }
         header.addBlank("0.05em", "auto");
 
@@ -259,7 +259,7 @@ class Timeline {
                         root.remove();
                     }
                 })
-            }, { title: "Settings", icon: "Settings" })
+            }, { title: "Settings", icon: "Settings", tooltip: true })
         }
 
         header.clearQueue( buttonContainerEnd );
