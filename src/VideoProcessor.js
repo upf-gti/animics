@@ -50,7 +50,7 @@ class VideoProcessor {
             selectable: true,
             selected: true,
             icon: "Info",
-            name: "Properties",
+            name: "Estimator",
             callback: (v, e) => {
                 if(this.processorArea.splitExtended) {
                     this.processorArea.reduce();
@@ -190,43 +190,40 @@ class VideoProcessor {
 
     createSidePanel(area, options = {}) {
         /* Create right panel */
-        const panel = this.sidePanel = area.addPanel({id:"Properties"});         
+        LX.makeContainer( ["auto", "50px"], "text-xl p-4", "Estimator", area );
+        const panel = this.sidePanel = area.addPanel({ className: "p-4"});         
             
         if(panel.root.id) {
             panel.addTitle(panel.root.id);
         }
 
         panel.addTitle("Mediapipe");
-        panel.addComboButtons(null, [
-            {
-                value: "On",
-                callback: (v, e) => { this.enableMediapipeOnline(true); }
-            },
-            {
-                value: "Off",
-                callback: (v, e) => { this.enableMediapipeOnline(false); }
-            }
-        ], {selected: "On"});
-                                
+        
+        panel.addToggle("Enable", true, (value, event) => {
+            this.enableMediapipeOnline( value );
+        });                                
 
         // Create expanded AU info area    
         panel.addBlank();
         panel.addTitle("User positioning");
         panel.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto" }) 
         
-        panel.addProgress('Distance to the camera', 0, {min:0, max:1, id: 'progressbar-torso'});
-        panel.addProgress('Left Hand visibility', 0, {min:0, max:1, id: 'progressbar-lefthand'});
-        panel.addProgress('Right Hand visibility', 0, {min:0, max:1, id: 'progressbar-righthand'});
+        panel.addProgress('Distance to the camera', 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, id: 'progressbar-torso'});
+        panel.addProgress('Left Hand visibility', 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, id: 'progressbar-lefthand'});
+        panel.addProgress('Right Hand visibility', 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, id: 'progressbar-righthand'});
         
+        panel.addBlank();
+        panel.addBlank();
         panel.branch("Blendshapes weights");
         for( let name in this.ANIMICS.editor.mapNames ) {
     
-            panel.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, signal: "@on_change_au_" + name});
+            panel.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, signal: "@on_change_au_" + name, className: "px-4"});
         }
         panel.root.style.maxHeight = "calc(100% - 57px)";
         panel.root.style.overflowY = "scroll";
         panel.root.style.flexWrap = "wrap";
     }
+
     // online Mediapipe might make the pc slow. Allow user to disable it. (video processing is not affected. It is offline Mediapipe)
     enableMediapipeOnline( bool ){
         // check app stage
@@ -282,7 +279,7 @@ class VideoProcessor {
             this.processorArea.reduce();
             this.currentResolve(animation);
             this.currentResolve = null;
-        }, {width: "auto", className: "captureButton colored"});//, {width: "100px"});
+        }, {width: "auto", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});//, {width: "100px"});
 
         UTILS.hideLoading();
     }
@@ -327,7 +324,7 @@ class VideoProcessor {
                     else {
                         this.recording = false;
                     }
-                }, {id:"stop_capture_btn", width: "100px", icon: "Stop@solid", className: "captureButton colored"});
+                }, {id:"stop_capture_btn", width: "100px", icon: "Stop@solid", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});
                 
                 this.buttonsPanel.addButton(null, "Cancel", () => {
                     this.recording = false;
@@ -337,9 +334,9 @@ class VideoProcessor {
 
                     this.createCaptureArea();
 
-                }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", className: "captureButton colored"});
+                }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-secondary fg-primary border"});
             }
-        }, {id:"start_capture_btn", width: "100px", className: "captureButton colored"});
+        }, {id:"start_capture_btn", width: "150px", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});
       
     }
 
