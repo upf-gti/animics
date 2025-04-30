@@ -380,27 +380,27 @@ class Gui {
                 from = from || options.selectedFrom || options.from[0];               
                 const buttons = [];
                 for(let i = 0; i < options.from.length; i++) {
-                    buttons.push({ value: options.from[i], callback: (v) => {from = v} });
+                    buttons.push({ value: options.from[i], selected: options.from[i] == from, callback: (v) => {from = v} });
                 }
-                p.addComboButtons("Save from", buttons, {selected: from});
+                p.addComboButtons("Save from", buttons, {});
             }
 
             if( options.folders && options.folders.length ) {
                 folder = folder || options.selectedFolder || options.folders[0];
                 const buttons = [];
                 for(let i = 0; i < options.folders.length; i++) {
-                    buttons.push({ value: options.folders[i], callback: (v) => {folder = v} });
+                    buttons.push({ value: options.folders[i], selected: options.folders[i] == folder, callback: (v) => {folder = v} });
                 }
-                p.addComboButtons("Save in", buttons, {selected: folder});
+                p.addComboButtons("Save in", buttons, {});
             }
 
             if( options.formats && options.formats.length ) {
                 format = format || options.selectedFormat || options.formats[0];
                 const buttons = [];
                 for(let i = 0; i < options.formats.length; i++) {
-                    buttons.push({ value: options.formats[i], callback: (v) => {format = v} });
+                    buttons.push({ value: options.formats[i], selected: options.formats[i] == format, callback: (v) => {format = v} });
                 }
-                p.addComboButtons("Save as", buttons, {selected: format});
+                p.addComboButtons("Save as", buttons, {});
             }            
 
             p.sameLine(2);
@@ -1787,12 +1787,15 @@ class KeyframesGui extends Gui {
 
                 let active = this.editor.getGizmoMode();
 
-                const toolsValues = [ {value:"Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }, {value:"Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} }] ;
+                const toolsValues = [ 
+                    { value: "Joint", selected: this.editor.getGizmoTool() == "Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} },
+                    { value: "Follow", selected: this.editor.getGizmoTool() == "Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} 
+                }];
                 const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
                 
                 widgets.branch("Gizmo", { icon:"Axis3DArrows", settings: (e) => this.openSettings( 'gizmo' ) });
                 
-                widgets.addComboButtons( "Tool", _Tools, {selected: this.editor.getGizmoTool()});
+                widgets.addComboButtons( "Tool", _Tools, { });
                 
                 if( this.editor.getGizmoTool() == "Joint" ){
                     
@@ -1806,6 +1809,7 @@ class KeyframesGui extends Gui {
                         if(tracks[i].type == "position") {
                             const mode = {
                                 value: "Translate", 
+                                selected: this.editor.getGizmoMode() == "Translate",
                                 callback: (v,e) => {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
@@ -1820,7 +1824,8 @@ class KeyframesGui extends Gui {
                         }
                         else if(tracks[i].type == "quaternion" ){ 
                             const mode = {
-                                value: "Rotate", 
+                                value: "Rotate",
+                                selected: this.editor.getGizmoMode() == "Rotate",
                                 callback: (v,e) => {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
@@ -1835,7 +1840,8 @@ class KeyframesGui extends Gui {
                         }
                         else if(tracks[i].type == "scale") {
                             const mode = {
-                                value: "Scale", 
+                                value: "Scale",
+                                selected: this.editor.getGizmoMode() == "Scale",
                                 callback: (v,e) => {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
@@ -1859,10 +1865,13 @@ class KeyframesGui extends Gui {
                     else if(trackType == "scale") {
                         this.editor.setGizmoMode("Scale");
                     }
-                    widgets.addComboButtons( "Mode", _Modes, { selected: this.editor.getGizmoMode()});
+                    widgets.addComboButtons( "Mode", _Modes, { });
 
-                    const _Spaces = [{value: "Local", callback: (v,e) =>  this.editor.setGizmoSpace(v)}, {value: "World", callback: (v,e) =>  this.editor.setGizmoSpace(v)}]
-                    widgets.addComboButtons( "Space", _Spaces, { selected: this.editor.getGizmoSpace()});
+                    const _Spaces = [
+                        { value: "Local", selected: this.editor.getGizmoSpace() == "Local", callback: v =>  this.editor.setGizmoSpace(v)},
+                        { value: "World", selected: this.editor.getGizmoSpace() == "World", callback: v =>  this.editor.setGizmoSpace(v)}
+                    ]
+                    widgets.addComboButtons( "Space", _Spaces, { });
                 }
 
                 if ( this.editor.getGizmoTool() == "Follow" ){
@@ -1870,16 +1879,16 @@ class KeyframesGui extends Gui {
                     let modesValues = [];
                     let current = this.editor.getGizmoIkMode();
                     if ( this.editor.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.LARGECHAIN ) ){
-                        modesValues.push( {value:"Multiple", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
+                        modesValues.push( {value:"Multiple", selected: current == "Multiple", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
                     } else { // default
                         current = "Single";
                     }
 
                     if ( this.editor.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.ONEBONE ) ){
-                        modesValues.push( {value:"Single", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
+                        modesValues.push( {value:"Single", selected: current == "Single", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
                     }
 
-                    widgets.addComboButtons( "Mode", modesValues, {selected: current});
+                    widgets.addComboButtons( "Mode", modesValues, { });
                     this.editor.setGizmoIkMode( current );
                 }
                 
@@ -2768,7 +2777,10 @@ class ScriptGui extends Gui {
             } )
             
             widgets.addSeparator();
-            widgets.addComboButtons("Dominant hand", [{value: "Left", callback: (v) => this.editor.dominantHand = v}, {value:"Right", callback: (v) => this.editor.dominantHand = v}], {selected: this.editor.dominantHand})
+            widgets.addComboButtons("Dominant hand", [
+                { value: "Left", selected: this.editor.dominantHand == "Left", callback: v => this.editor.dominantHand = v },
+                { value: "Right", selected: this.editor.dominantHand == "Right", callback: v => this.editor.dominantHand = v }
+            ], {});
             widgets.addButton(null, "Add behaviour", () => this.createClipsDialog(), {title: "CTRL+K"} )
             widgets.addButton(null, "Add animation", () => this.createServerClipsDialog(), {title: "CTRL+L"} )
             widgets.addSeparator();
