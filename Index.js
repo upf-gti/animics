@@ -18,12 +18,12 @@ const sidebar = createSideBar( area );
 const menubar = createMenuBar( area );
 
 const content = LX.makeContainer( ["100%", "100%"], "relative flex flex-col px-1", "", area );
-const mainContent = LX.makeContainer( ["100%", "100%"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg", "", content );
 
-createHome( mainContent );
+const home = createHome( content );
+const about = createAbout( content );
 createFooter();
-
 bindEvents( area );
+
 UTILS.hideLoading();
 
 const body = area.root;
@@ -75,11 +75,17 @@ function createMenuBar( area ) {
 function createSideBar( area ) {
     const sidebar = area.addSidebar( m => {
         // m.group( "Projects", { icon: "Plus", callback: (groupName, event) => { console.log(groupName) }} );
-        m.add( "Home", { icon: "House", callback: () => { createHome(mainContent) } } );
+        m.add( "Home", { icon: "House", callback: () => { 
+            about.classList.add("hidden");
+            home.classList.remove("hidden");
+         } } );
         m.add( "Documentation", { icon: "BookOpen" });
         m.add( "Documentation/Keyframe Animation", { xicon: "", callback:  () => { window.open( "docs/keyframe_animation.html" , "_blank" ) } } );
         m.add( "Documentation/Script Animation", { xicon: "", callback:  () => { window.open( "docs/script_animation.html" , "_blank" ) } } );
-        m.add( "About", { icon: "Info", callback: () => { createAbout(mainContent) } });
+        m.add( "About", { icon: "Info", callback: () => { 
+            home.classList.add("hidden");
+            about.classList.remove("hidden");
+        } });
         
         m.separator();
         
@@ -123,8 +129,11 @@ function createSideBar( area ) {
     return sidebar;
 }
 
-function createHome( mainContent ) {
-    mainContent.innerHTML = "";
+function createHome( content ) {
+
+    const mainContent = LX.makeContainer( ["100%", "100%"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg", "", content );
+    mainContent.id = "home-container";
+
     const padContainer = LX.makeContainer( ["100%", "auto"], "p-6", "", mainContent );
     const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6 overflow-scroll", "", padContainer );
     headerContent.style.minHeight = "256px";
@@ -176,11 +185,13 @@ function createHome( mainContent ) {
     const projectText = LX.makeContainer( ["auto", "auto"],"text-md fg-secondary", "<p> Login to see your last projects. </p>", projectsContent);
     projectText.id = "project-text";
 
+    return mainContent;
 }
 
-function createAbout( mainContent ) {
-    mainContent.innerHTML = "";
-   
+function createAbout( content ) {
+    const mainContent = LX.makeContainer( ["100%", "100%"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg hidden", "", content );
+    mainContent.id = "about-container";
+    
     const swapValue = LX.getTheme() == "dark";
 
     const headerContent = LX.makeContainer( ["40%", "300px"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="w-full" style="height:min-content" src="data/imgs/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
@@ -217,6 +228,8 @@ function createAbout( mainContent ) {
     _makePersonItem({name: "Jaume Pozo Prades", img: "https://www.upf.edu/image/user_portrait?img_id=183376073&img_id_token=CykVYRbgc1iuesVtnp88oTFB8UA%3D&t=1745944004158", avatar:"https://models.readyplayer.me/671b724b0c8fdad50df16a8d.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "jaume.pozo@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/jaume-pozo-prades/maximized"}, peopleItems);
     _makePersonItem({name: "Carol Del Corral Farrarós", img: "https://www.upf.edu/documents/115100603/264407312/DSCN1914-2.jpg/8d97985d-5e38-0a41-e730-aa2444146fed?t=1679568714469", avatar:"https://models.readyplayer.me/66e848b1356adbb310ece566.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "carolina.delcorral@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/carolina-del-corral/maximized"}, peopleItems);
     _makePersonItem({name: "Alex Rodríguez Corrales", img: "https://www.upf.edu/documents/115100603/0/foto_orla.png/dff9a88c-b762-1f33-466c-c2c1fdd5f07e?t=1680027958307", avatar:"https://models.readyplayer.me/670f9ac8cb251710420882d3.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "alejandro.rodriguez@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/rodriguez-corrales-alejandro/maximized"}, peopleItems);
+    
+    return mainContent;
 }
 
 function _makeProjectItem( item ) {
