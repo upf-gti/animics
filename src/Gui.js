@@ -1590,12 +1590,18 @@ class KeyframesGui extends Gui {
             }
         }
 
+
         for(let area in areas) {
-            let panel = new LX.Panel({id: "au-"+ area});
+
+            const tabContainer = LX.makeContainer( [ "100%", "100%" ], "overflow-hidden flex flex-col" );
+
+            LX.makeContainer( [ "100%", "auto" ], "flex justify-center py-2 text-lg", 
+            area, 
+            tabContainer, 
+            { wordBreak: "break-word", lineHeight: "1.5rem" } );
             
-            panel.clear();
-            panel.addTitle(area, { style: {background: "none", fontSize:"large", margin: "auto"}});
-            panel.addBlank();
+            let panel = new LX.Panel({id: "au-"+ area});
+            tabContainer.appendChild(panel.root);
 
             for(let name in areas[area]) {
                 for(let i = 0; i < animation.tracks.length; i++) {
@@ -1615,7 +1621,7 @@ class KeyframesGui extends Gui {
                 }
             }
                         
-            tabs.add(area, panel, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
+            tabs.add(area, tabContainer, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
                     this.showTimeline();
                     this.editor.setSelectedActionUnit(v);
                     document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
@@ -1775,7 +1781,7 @@ class KeyframesGui extends Gui {
         options.itemSelected = options.itemSelected ?? this.editor.selectedBone;
         this.updateSkeletonPanel();
 
-        }
+    }
 
     updateSkeletonPanel() {
 
