@@ -61,7 +61,7 @@ class Gui {
     }
 
     onCreateMenuBar( entries ) {
-
+        
     }
 
     setColorTheme(scheme = "light"){
@@ -122,11 +122,17 @@ class Gui {
             {
                 name: "View",
                 submenu: [
-                    { name: "Theme", icon: "Palette", submenu: [
-                        { name: "Light", icon: "Sun", callback: () => this.setColorTheme("light") },
-                        { name: "Dark", icon: "Moon", callback: () => this.setColorTheme("dark") }
-                    ] }
+                        { 
+                            name: "Theme", icon: "Palette", 
+                            submenu: [
+                            { name: "Light", icon: "Sun", callback: () => this.setColorTheme("light") },
+                            { name: "Dark", icon: "Moon", callback: () => this.setColorTheme("dark") }
+                        ] 
+                    }
                 ]
+            },
+            {
+                name: "About", submenu: []
             }
         ]
 
@@ -195,9 +201,26 @@ class Gui {
         const user = this.editor.remoteFileSystem.session ? this.editor.remoteFileSystem.session.user : "" ;
         const loginName = (!user || user.username == "guest") ? "Login" : user.username;
 
-        const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-1 ml-auto fg-primary hover:bg-mix self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
+        // const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-1 ml-auto fg-primary hover:bg-mix self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
+        // loginButton.tabIndex = "1";
+        // loginButton.id = "login";
+        // loginButton.role = "button";
+        // loginButton.listen( "click", () => {
+        //     const session = this.editor.remoteFileSystem.session;
+        //     const username = session ? session.user.username : "guest";
+        //     if( this.prompt && this.prompt.root.checkVisibility() ) {
+        //         return;
+        //     }
+        //     if( username != "guest" ) {
+        //         this.showLogoutModal();
+        //     }
+        //     else {
+        //         this.showLoginModal();
+        //     }       
+        // } );
+
+        const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", menubar.root );
         loginButton.tabIndex = "1";
-        loginButton.id = "login";
         loginButton.role = "button";
         loginButton.listen( "click", () => {
             const session = this.editor.remoteFileSystem.session;
@@ -213,7 +236,22 @@ class Gui {
             }       
         } );
 
-        menubar.setButtonIcon("Github", "Github@solid", () => { window.open("https://github.com/upf-gti/animics") }, {float:"right"});
+        loginButton.id = "login-button"
+    
+        const userButton = LX.makeContainer( ["100px", "auto"], "lexcontainer text-lg font-semibold rounded-lg p-2 ml-auto fg-white hover:fg-primary self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
+        userButton.tabIndex = "1";
+        userButton.role = "button";
+        userButton.listen( "click", () => {
+            new LX.DropdownMenu( userButton, [
+                
+                { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
+                { name: "Logout", icon: "LogOut", callback: () => { this.showLogoutModal(); } },
+                
+            ], { side: "bottom", align: "end" });
+        } );									
+        userButton.id = "user-button";
+
+        this.changeLoginButton(loginName);
     }
 
     importFiles() {
@@ -228,8 +266,19 @@ class Gui {
     }
 
     changeLoginButton( username = "Login" ) {
-        const el = document.getElementById("login");
-        el.innerText = username;
+        const loginButton = document.getElementById("login-button");
+        const userButton = document.getElementById("user-button");
+
+        if( username == "Login" || username == "guest") {
+            loginButton.classList.remove("hidden");
+            userButton.innerHTML = "";
+            userButton.classList.add("hidden");
+        }
+        else {
+            loginButton.classList.add("hidden");
+            userButton.classList.remove("hidden");
+            userButton.innerHTML = username;
+        }
     }
 
     showLoginModal() {
@@ -807,10 +856,11 @@ class KeyframesGui extends Gui {
         console.assert(viewMenu, "View menu not found" );
         viewMenu.push( null, { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") });
 
-        entries.push(
-            { name: "Help", icon: "BookOpen", submenu: [
-                { name: "Tutorial", callback: () => window.open("docs/keyframe_animation.html", "_blank") }
-            ] }
+        const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
+        console.assert(aboutMenu, "About menu not found" );
+        aboutMenu.push(
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs/keyframe_animation.html", "_blank")},
+            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
         );
     }
 
@@ -2420,11 +2470,12 @@ class ScriptGui extends Gui {
             { name: "Select Box", kbd: "Hold LSHIFT+Drag" }
         );
 
-        entries.push(
-            { name: "Help", icon: "BookOpen", submenu: [
-                { name: "Tutorial", callback: () => window.open("docs/script_animation.html", "_blank") },
-                { name: "BML Instructions", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") }
-            ] }
+        const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
+        console.assert(aboutMenu, "About menu not found" );
+        aboutMenu.push(
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs/script_animation.html", "_blank")},
+            { name: "BML Instructions", icon: "CodeSquare", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") },
+            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
         );
     }
 

@@ -391,7 +391,7 @@ class VideoEditor {
                     this.video.pause();
                 }
                 this.controlsPanelLeft.refresh();
-            }, { width: '40px', icon: (this.playing ? 'Pause@solid' : 'Play@solid') });
+            }, { width: '40px', icon: (this.playing ? 'Pause@solid' : 'Play@solid'), className: "justify-center"});
 
             this.controlsPanelLeft.addLabel(this.startTimeString, {width: 50});
             this.controlsPanelLeft.endLine();
@@ -402,7 +402,7 @@ class VideoEditor {
 
         this.controlsPanelLeft.refresh();
         controlsLeft.root.style.minWidth = 'fit-content';
-        controlsLeft.attach(this.controlsPanelLeft);
+        controlsLeft.root.classList.add(); controlsLeft.attach(this.controlsPanelLeft);
 
         // Create right controls panel (ens time)
         this.controlsPanelRight = new LX.Panel({className: 'lexcontrolspanel'});

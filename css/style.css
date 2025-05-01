@@ -414,3 +414,11 @@ select option:focus {
   .card-back {
 	transform: rotateY(180deg);
   }
+
+  .card-button {
+	box-shadow: 0 10px 15px rgba(0, 0, 0, 0.25);
+  }
+
+  :root[data-theme="light"] .card-button {
+	box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+  }

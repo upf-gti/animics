@@ -58,6 +58,8 @@ class VideoProcessor {
                 else {
                     this.processorArea.extend();
                 }
+                const box = this.canvasVideo.getBoundingClientRect();
+                this.videoEditor.cropArea.style.left = box.x + "px";
             }
         }], {float: 'tvr'});
 
