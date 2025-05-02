@@ -1,80 +1,115 @@
 # Animics
 
-This web application estimates computer animations from a single-camera input video. It is hosted in this [link](https://animics.gti.upf.edu/).
+<img src="./data/imgs/logos/animics_white.png" height="200" align="right">
 
-## Description
+[**Animics**](https://animics.gti.upf.edu) is a web-based tool for generating 3D character animations, with a strong focus on sign language and embodied communication. It provides two separate workflows — **Script Mode** and **Keyframe Mode** — for building animations either procedurally or from video data.
 
-The first view of the application is a selector of the provided input. It supports pre-recorded videos or the video stream from the webcam. It can also load previously created animations for editing purposes.
+> 🚀 This project is part of **Tàndem**, an open suite of tools for expressive, accessible 3D animation.
 
-<p align="center"> <img src="./docs/inputSelector.png" width="800"> </p>
+---
 
-Loading a video or capturing it live through the webcam redirects the user to the video editing stage. Here the resulting video can be trimmed if desired and/or redo the video by recording it again or uploading a new one. Once the user is fine with the result, the option "Convert Data to 3D Animation" moves the application to the last view.
+## ✨ Features
 
-The last station is a viewer and an editor of the final estimated animation. The application converts the video (2D) into a 3D animation through a diverse set of Machine Learning (ML) techniques. Since the output might not be perfect, the editor allows the user to edit/correct as desired the animation with the help of a timeline and a GUI to move the joints of the skeleton.
+### 🎬 Script Mode: Procedural Sign Language Animation based on phonetic representations
 
-<p align="center"> <img src="./docs/editStation.png" width="800"> </p>
-
-
-Finally, the user can download the animation as a BVH format file to use it in any other applications with different purposes.
+Build animations by combining predefined "clips" generated procedurally from and extended **Behavior Markup Language (BML)** and adapted **Signing Gesture Mark-up Language (SiGML)** instructions. These clips cover both **Manual Features (MF)** and **Non-Manual Features (NMF)** — such as hand gestures, facial expressions, mouthing, gaze, and body posture — synthesized in real-time.
 
 
-## Editor GUI
-
-### Top Bar
-
-It contains (ordered from left to right):
-- The SignON logo linked to the oficial project link
-- The _Project_ button with some editing options
-- The _Timeline_ button with some timeline editing options and shortcuts
-- Play/Pause button
-- Restart button
-
-### Side panel
-The panel on the right is divided into four sections. 
-- The _Skeleton_ heriarchy shows the different bones and their relations. It provides also a quick way to find and select a specific bone by name
-- _Animation Clip_ shows generic information about the animation like the name and duration of the animation. The playback speed can be adjusted through the "speed" slider.
-- _Gizmo_ changes some settings of the rotation tool (the ball on the shoulder of the avatar ). The gear button offers some options such as making the yellow joint points biggers/smaller.
-- _Bone_ offers the possibility of directly modifying the rotation values by writing them instead of using the in-scene tool
-
-### Scene
-The center of the screen shows the scene with the avatar in a pose, determined by the animation frames and the current time in the timeline.
-
-Clicking on a bone (yellow point) selects that joint. The ball with several lines that appears allows the user to rotates that joint in different axes by just clicking and dragging in the desired axis.
-The coloured axes are the typical perpendicular axes: red x-axis, green y-axis and blue z-axis. The outer circle rotates in the same plane as the camera is showing.
-
-<p align="center"> <img src="./docs/rotationTool.png" width=""> </p>
-
-The buttons in the right side (not in the side panel) shows/hides the skeleton (lines) and the joints points for a clearer view
-
-To move the camera position of the scene either left-click and drag in it (not on a bone) to orbit or right-click and drag to move the camera sideways. Scrolling zooms in and out (up to certain limits).
-
-### Timeline
-The timeline located at the bottom of the screen, shows a point for each frame of the animation of the selected bone. Each bone has its own track. Dragging the the timeline moves the current selected time, thus changing the pose in which the avatar is. To modify a frame, a point in the timeline needs to be selected, which will change colour into yellow. When a rotation is performed through the gizmo, the dot will become purple.
-Right clicking in the timeline allows to insert a new frame or deleting an existing one.
-The timeline can be zoomed in and out.
-
-<p align="center"> <img src="./docs/timelineEdit1.png" width=""> </p>
+<img src="./docs/videos/bml_animation.gif" height= "400" style="margin:5px" align="center">
 
 
-## Acknowledgements
+- Based on **SiGML** and **BML**.
+- Animation sequences are constructed through configurable parameters for each action or instruction.
+- Focused on natural, linguistically grounded animation for sign language.
 
-This project makes use of the following libraries:
-- [Three.js](https://github.com/mrdoob/three.js/) - An open-source JavaScript library for creating interactive 3D and 2D graphics in web browsers using WebGL.
-- [Mediapipe](https://github.com/google/mediapipe) - An open-source library from Google for building cross-platform multimodal applied ML pipelines.
-- [Tensorflow.js](https://github.com/tensorflow/tfjs) - A JavaScript library for training and deploying machine learning models in the browser and on Node.js.
-- [Lexgui.js](https://github.com/jxarco/lexgui.js/) - A simple and lightweight GUI library for creating graphical user interfaces for web applications.
+#### 🧠 Public Linguistic Database
 
-We would like to extend our gratitude to the creators and maintainers of these libraries for their invaluable contributions to the open-source community.
+- **1,722 glosses** in **NGT** (Sign Language of the Netherlands).
+- **6,484 phrases** in **LSF-CH** (Swiss version of the French Sign Language).
+- All entries are encoded in **SiGML** and **BML** (as a JSON), and can be used within **Script Mode**.
+- Users can create **their own entries** or integrate **public datasets** to expand the database.
 
+> 📌 *Script Mode and Keyframe Mode are separate workflows and cannot be combined.*
+
+---
+
+### 📹 Keyframe Mode: Pose Extraction from Video
+
+Generate animations from human motion captured in video.
+
+- Record yourself with the **webcam** or upload one or multiple video files.
+- Pose and facial data is extracted using **MediaPipe**:
+  - **Body landmarks**
+  - **Facial Action Units**
+- Data is mapped internally to:
+  - **Skeleton joint rotations**
+  - **Morph target weights** for facial expression control.
+- Includes **Inverse Kinematics (IK)** for precise adjustments. This feature can be toggled on or off.
+- Includes **window-based propagation**, which allows edits made in one frame to automatically influence neighboring frames within a configurable time window. This feature can be toggled on or off.
+
+
+<img src="./docs/imgs/keyframe_animation.png" height= "400" style="margin:5px" align="center">
+
+
+> 📌 *Keyframe Mode and Script Mode are mutually exclusive per animation.*
+
+---
+
+### 💾 Save, Load & Export
+
+- Users can **register and log in** to save their animations (both modes) to the server and **retrieve them later** for further editing.
+- Animations can also be created and exported **without logging in**.
+- Supported export formats:
+
+| Mode            | Formats                                 |
+|-----------------|------------------------------------------|
+| Script Mode     | `BML (JSON)`, `GLB`                      |
+| Keyframe Mode   | `BVH`, `BVHE` (extended BVH with facial), `GLB` |
+| Keyframe Extras | Raw `MediaPipe` data, original `video`   |
+
+---
+
+### 🚀 **Import & Visualize Animations**
+
+- **Import animation files**: Users can import previously saved animation files in both **Script Mode** and **Keyframe Mode** to continue editing or refine them.
+- **Visualize animations in Performs**: Generated animations from both modes can be directly visualized in [Performs](https://github.com/upf-gti/performs), the companion application of the Tàndem suite to play the animations in different avatars, customize the scene and be integrated in other applications.
+
+---
+
+### 🧩 Modular & Friendly UI
+
+- Minimalist, intuitive interface
+- Switch easily between Script and Keyframe modes
+- Real-time animation preview and editing
+
+---
+
+## 🛠️ Technologies Used
+
+- **Frontend**: 
+    - [Lexgui.js](https://github.com/jxarco/lexgui.js/) - A simple and lightweight GUI library for creating graphical user interfaces for web applications.
+    - [Three.js](https://github.com/mrdoob/three.js/) - An open-source JavaScript library for creating interactive 3D and 2D graphics in web browsers using WebGL.
+    - [litefileserver.js](https://github.com/jagenjo/litefilesystem.js) - A front-end and back-end library that allows javascript apps to store resources.
+
+- **Animation Engine** (custom): 
+    - [IK-threejs](https://github.com/upf-gti/IK-threejs) - Custom IK solvers using Three.js.
+    - [retargeting-threejs](https://github.com/upf-gti/retargeting-threejs) - Custom retargeting using Three.js.
+
+- **Pose Estimation**: 
+    - [Mediapipe](https://github.com/google/mediapipe) - An open-source library from Google for building cross-platform multimodal applied ML pipelines.
+
+---
 
 ## Developers
 
 - Víctor Ubieto [@victorubieto](https://github.com/victorubieto)
-- Pablo García [@PZerua](https://github.com/PZerua)
+- Jaume Pozo [@japopra](https://github.com/japopra)
 - Eva Valls [@evallsg](https://github.com/evallsg)
+- Carolina del Corral [@carolinadcf](https://github.com/carolinadcf)
 - Alex Rodríguez [@jxarco](https://github.com/jxarco)
-- Jaume Pozo [@japopra](https://github.com/japopra)  
 
+## Acknowledgements
+We would like to extend our gratitude to the creators and maintainers of these libraries for their invaluable contributions to the open-source community.
 
 ## Support
 
@@ -82,4 +117,4 @@ This project is being developed with partial financial support of:
 
 | EMERALD Project (2023-2026) | SignON Project (2021-2023) |
 | --- | --- |
-| ![miciu](./data/imgs/marco_EMERALD.png) | ![logomaxr](./data/imgs/marco_SignON.png) |
+| ![miciu](./data/imgs/logos/marco_EMERALD.png) | ![logomaxr](./data/imgs/logos/marco_SignON.png) |

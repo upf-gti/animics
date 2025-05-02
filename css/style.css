@@ -156,7 +156,7 @@ canvas {
 	width: 45px;
 	height: 45px;
 	border-radius: 4px;
-	background-image: url("../data/imgs/monster.png");
+	background-image: url("../data/imgs/animics_monster.png");
 	/* #4b9cdb;*/
 	background-size: cover;
 }

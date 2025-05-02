@@ -32,7 +32,6 @@ body.classList.remove("hidden");
 function createMenuBar( area ) {
     
     const menubar = area.addMenubar( [] );
-     // m.setButtonImage("Animics", "data/imgs/animics_logo_name.png", () => { window.location = window.location }, { float: "left" })				
 
     const buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2 ml-auto", "", menubar.root);
 
@@ -74,7 +73,6 @@ function createMenuBar( area ) {
             
 function createSideBar( area ) {
     const sidebar = area.addSidebar( m => {
-        // m.group( "Projects", { icon: "Plus", callback: (groupName, event) => { console.log(groupName) }} );
         m.add( "Home", { icon: "House", callback: () => { 
             about.classList.add("hidden");
             home.classList.remove("hidden");
@@ -94,7 +92,7 @@ function createSideBar( area ) {
                 LX.setTheme( swapValue ? "light" : "dark" ) 
                 const img = document.getElementById("animics-img");
                 if( img ) {
-                    img.src = "data/imgs/animics_" + (swapValue ? "black" : "white") + ".png";
+                    img.src = "data/imgs/logos/animics_" + (swapValue ? "black" : "white") + ".png";
                 }
             }
         })
@@ -104,7 +102,7 @@ function createSideBar( area ) {
         filter: false,
         headerTitle: "ANIMICS",
         // headerSubtitle: LX.version,
-        headerImage: "./data/imgs/monster.png",
+        headerImage: "./data/imgs/animics_monster.png",
         // header: customHeader,
         footerTitle: "TÀNDEM",
         // footerSubtitle: "alexroco.30@gmail.com",
@@ -177,12 +175,12 @@ function createHome( content ) {
     fileItem.id = "import";
 
     const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4 overflow-scroll", "", padContainer );
-    LX.makeContainer( ["auto", "auto"], "font-bold", "Projects", projectsContent );
+    LX.makeContainer( ["auto", "auto"], "font-bold", "Animations", projectsContent );
     const projectItems = LX.makeContainer( ["100%", "auto"], "grid gap-4", "", projectsContent );
     projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
     projectItems.id = "project-items-container";
 
-    const projectText = LX.makeContainer( ["auto", "auto"],"text-md fg-secondary", "<p> Login to see your last projects. </p>", projectsContent);
+    const projectText = LX.makeContainer( ["auto", "auto"],"text-md fg-secondary", "<p> Login to see your last animations. </p>", projectsContent);
     projectText.id = "project-text";
 
     return mainContent;
@@ -194,7 +192,7 @@ function createAbout( content ) {
     
     const swapValue = LX.getTheme() == "dark";
 
-    const headerContent = LX.makeContainer( ["40%", "300px"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="w-full" style="height:min-content" src="data/imgs/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
+    const headerContent = LX.makeContainer( ["40%", "300px"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="w-full" style="height:min-content" src="data/imgs/logos/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
     
     const container = LX.makeContainer( ["100%", "calc(100% - 320px)"], "flex flex-col overflow-scroll items-center",'' , mainContent );
     
@@ -211,23 +209,23 @@ function createAbout( content ) {
     const techLinksContent = LX.makeContainer(["auto", "60px"], "flex flex-row justify-center gap-12", `
     <a class="h-full" href="https://chuoling.github.io/mediapipe/"><img class="h-full hover:scale" style="filter:grayscale(1) invert(0.5) brightness(1);" src="https://images.viblo.asia/d70d57f3-6756-47cd-a942-249cc1a7da82.png" alt="Mediapipe"></a>
     <a class="h-full" href="https://threejs.org/"><img class="h-full hover:scale" style="filter:invert(0.5);" src="https://needle.tools/_nuxt/logo-three.CiaNm32y.png" alt="Threejs"></a>
-    <a class="h-full" href="https://github.com/jxarco/lexgui.js"><img class="h-full hover:scale" style="filter:grayscale(1) invert(0.5) brightness(1);" src="data/imgs/lexgui.png" alt="Lexgui"></a>`, techContent)
+    <a class="h-full" href="https://github.com/jxarco/lexgui.js"><img class="h-full hover:scale" style="filter:grayscale(1) invert(0.5) brightness(1);" src="data/imgs/logos/lexgui.png" alt="Lexgui"></a>`, techContent)
 
     const fundingContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , infoContainer);
     const fundingText = LX.makeContainer(["auto","auto"], "py-6", `<p>Funded by</p>`, fundingContent);
     const linksContent = LX.makeContainer(["auto", "80px"], "flex flex-row justify-center gap-12", `
-    <a class="h-full" href="https://signon-project.eu/"><img class="h-full hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/marco_SignON.png" alt="SignON"></a>
-    <a class="h-full" href="https://www.upf.edu/web/emerald"><img class="h-full hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/marco_EMERALD.png" alt="EMERALD"></a>
-    <a class="h-full" href="https://www.upf.edu/web/gti"><img class="h-full py-5 hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/GTIlogo.png" alt="UPF-GTI"></a>`, fundingContent);
+    <a class="h-full" href="https://signon-project.eu/"><img class="h-full hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_SignON.png" alt="SignON"></a>
+    <a class="h-full" href="https://www.upf.edu/web/emerald"><img class="h-full hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_EMERALD.png" alt="EMERALD"></a>
+    <a class="h-full" href="https://www.upf.edu/web/gti"><img class="h-full py-5 hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/GTIlogo.png" alt="UPF-GTI"></a>`, fundingContent);
 
     const devContent = LX.makeContainer(["100%", "auto"], "flex flex-col items-center py-10 bg-primary font-bold", "<h3>Implemented by</h3>" , container);
     const peopleItems = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",'' , devContent );
 
-    _makePersonItem({name: "Víctor Ubieto Nogales", img: "https://www.upf.edu/documents/115100603/264407312/Victor_cropped.jpg/dd5ee7db-580d-c51c-b499-bbbacbbfbb9e?t=1679569197124", avatar:"https://models.readyplayer.me/671a74b007f4235f6e9adf46.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "victoremilio.ubieto@upf.edu", url:"https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/victor-ubieto-nogales/maximized"}, peopleItems);
-    _makePersonItem({name: "Eva Valls Garolera", img: "https://www.upf.edu/documents/115100603/264407312/unnamed.png/9e17f242-5800-b95d-af77-dd03dbc91b7d?t=1679568161101", avatar:"https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "eva.valls@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/eva-valls-garolera/maximized"}, peopleItems);
-    _makePersonItem({name: "Jaume Pozo Prades", img: "https://www.upf.edu/image/user_portrait?img_id=183376073&img_id_token=CykVYRbgc1iuesVtnp88oTFB8UA%3D&t=1745944004158", avatar:"https://models.readyplayer.me/671b724b0c8fdad50df16a8d.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "jaume.pozo@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/jaume-pozo-prades/maximized"}, peopleItems);
-    _makePersonItem({name: "Carol Del Corral Farrarós", img: "https://www.upf.edu/documents/115100603/264407312/DSCN1914-2.jpg/8d97985d-5e38-0a41-e730-aa2444146fed?t=1679568714469", avatar:"https://models.readyplayer.me/66e848b1356adbb310ece566.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "carolina.delcorral@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/carolina-del-corral/maximized"}, peopleItems);
-    _makePersonItem({name: "Alex Rodríguez Corrales", img: "https://www.upf.edu/documents/115100603/0/foto_orla.png/dff9a88c-b762-1f33-466c-c2c1fdd5f07e?t=1680027958307", avatar:"https://models.readyplayer.me/670f9ac8cb251710420882d3.png?camera=portrait&blendShapes[mouthSmile]=0.2", email: "alejandro.rodriguez@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/rodriguez-corrales-alejandro/maximized"}, peopleItems);
+    _makePersonItem({name: "Víctor Ubieto Nogales", img: "https://www.upf.edu/documents/115100603/264407312/Victor_cropped.jpg/dd5ee7db-580d-c51c-b499-bbbacbbfbb9e?t=1679569197124", avatar:"./docs/imgs/RPM_Victor.png", email: "victoremilio.ubieto@upf.edu", url:"https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/victor-ubieto-nogales/maximized"}, peopleItems);
+    _makePersonItem({name: "Eva Valls Garolera", img: "https://www.upf.edu/documents/115100603/264407312/unnamed.png/9e17f242-5800-b95d-af77-dd03dbc91b7d?t=1679568161101", avatar:"./docs/imgs/RPM_Eva.png", email: "eva.valls@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/eva-valls-garolera/maximized"}, peopleItems);
+    _makePersonItem({name: "Jaume Pozo Prades", img: "https://www.upf.edu/image/user_portrait?img_id=183376073&img_id_token=CykVYRbgc1iuesVtnp88oTFB8UA%3D&t=1745944004158", avatar:"./docs/imgs/RPM_Jaume.png", email: "jaume.pozo@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/jaume-pozo-prades/maximized"}, peopleItems);
+    _makePersonItem({name: "Carol Del Corral Farrarós", img: "https://www.upf.edu/documents/115100603/264407312/DSCN1914-2.jpg/8d97985d-5e38-0a41-e730-aa2444146fed?t=1679568714469", avatar:"./docs/imgs/RPM_Carol.png", email: "carolina.delcorral@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/carolina-del-corral/maximized"}, peopleItems);
+    _makePersonItem({name: "Alex Rodríguez Corrales", img: "https://www.upf.edu/documents/115100603/0/foto_orla.png/dff9a88c-b762-1f33-466c-c2c1fdd5f07e?t=1680027958307", avatar:"./docs/imgs/RPM_Alex.png", email: "alejandro.rodriguez@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/rodriguez-corrales-alejandro/maximized"}, peopleItems);
     
     return mainContent;
 }
@@ -237,9 +235,27 @@ function _makeProjectItem( item ) {
     const projectItems = document.getElementById("project-items-container");
     projectText.classList.add("hidden");
     
+    let extension = item.filename.split('.');
+    extension = extension[extension.length - 1];
+
+    let color = "--global-color-accent";
+    switch(extension) {
+        case "bml": case "sigml":
+            color = "--global-color-success";
+            break;
+        case "glb":
+            color = "--global-color-warning";
+            break;
+    }
+    let div = `<div class="rounded-xl w-full bg-blur flex justify-center items-center overflow-hidden justify-center hover:scale" style="min-height: 130px;">
+       <p class="text-xxl font-extrabold fg-secondary" style="text-shadow: 1px 1px 0px var(${color});">.${extension.toUpperCase()}</p>
+    </div>`
+   if( item.img ) {
+       div = `<img class="w-full hover:scale" style="object-fit:cover" src="${ item.img || "./docs/imgs/editStation.png"} ">`               
+   }
     const itemContainer = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `
-    <div class="rounded-xl w-full overflow-hidden">
-        <img class="w-full hover:scale" style="object-fit:cover" src="${ item.img || "./docs/editStation.png"} ">
+    <div class="rounded-xl w-full overflow-hidden justify-center" style="height:130px;">
+       ${div}
     </div>
     <div class="flex flex-row justify-between px-1">
         <div class="flex flex-col gap-0.5">
@@ -269,10 +285,10 @@ function _makePersonItem( item, container ) {
     <div class="rounded-xl w-full overflow-hidden card">
         <div class="card-inner">
             <div class="card-front">
-                <img class="w-full hover:scale" style="object-fit:cover" src="${ item.avatar || "./docs/editStation.png"} ">
+                <img class="w-full hover:scale" style="object-fit:cover" src="${ item.avatar || "./docs/imgs/editStation.png"} ">
             </div>
             <div class="card-back">
-                <img class="w-full img-top" style="object-fit:cover" src="${ item.img || "./docs/editStation.png"} ">
+                <img class="w-full img-top" style="object-fit:cover" src="${ item.img || "./docs/imgs/editStation.png"} ">
             </div>
         </div>
     </div>
@@ -302,7 +318,7 @@ function createFooter() {
     } );
     
     const footerCreditsSocials = footer.root.querySelector( ".credits-and-socials" );
-    footerCreditsSocials.innerHTML = `<img src="data/imgs/GTIlogo.png" width="150px" style="filter:invert(0.5)" draggable="false">` + footerCreditsSocials.innerHTML;
+    footerCreditsSocials.innerHTML = `<img src="data/imgs/logos/GTIlogo.png" width="150px" style="filter:invert(0.5)" draggable="false">` + footerCreditsSocials.innerHTML;
     return footer;    
 }
 
@@ -512,8 +528,7 @@ function _checkSession() {
         userButton.innerHTML = animics.remoteFileSystem.session.user.username;
         // put name
         animics.remoteFileSystem.session.getLastFiles((files) => {
-            for(const data of files) {
-                
+            for(const data of files) {            
                 _makeProjectItem( data );
             }
         })

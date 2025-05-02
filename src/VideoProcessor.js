@@ -42,7 +42,6 @@ class VideoProcessor {
         // split left area. Top: video editor + selector. Bottom: buttons.
         const [videoEditorArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
         this.menubar = videoEditorArea.addMenubar();
-        // this.menubar.setButtonImage("Animics", "data/imgs/animics_logo.png", () => this.cancelProcess(), {float: "left"});   
         this.menubar.setButtonIcon("Return", "ArrowLeftCircle", () => this.cancelProcess(), {float: "left"});
 
         // Add show/hide right panel button (expand/reduce panel area)

@@ -89,7 +89,7 @@ class Timeline {
         this.mainArea.split({ type: "vertical", sizes: [this.header_offset, "auto"],  resize: false});
 
         // header
-        this.header = new LX.Panel( { id: 'lextimelineheader' } );
+        this.header = new LX.Panel( { id: 'lextimelineheader'} );
         this.mainArea.sections[0].attach( this.header );
         this.updateHeader();
         
@@ -153,7 +153,7 @@ class Timeline {
 
         if( this.name )
         {
-            header.addTitle(this.name );
+            header.addTitle(this.name, { style: { background: "none", fontSize: "18px", fontStyle: "bold", alignItems: "center" } } );
         }
 
         const buttonContainer = LX.makeContainer( ["auto", "100%"], "flex flex-row" );
@@ -265,7 +265,7 @@ class Timeline {
         header.clearQueue( buttonContainerEnd );
         header.addContent( "header-buttons-end", buttonContainerEnd );
 
-        header.endLine( "justify-around" );
+        header.endLine( "justify-between" );
     }
 
     /**
@@ -280,7 +280,7 @@ class Timeline {
         const panel = this.leftPanel;
         
         panel.sameLine( 2 );
-        let titleWidget = panel.addTitle( "Tracks" );
+        let titleWidget = panel.addTitle( "Tracks", { style: { background: "none"}, className: "fg-secondary text-lg font-light px-4"} );
         let title = titleWidget.root;
         
         if( !this.disableNewTracks ) 

@@ -151,11 +151,11 @@ class Gui {
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
             //TO DO delete the current line and uncomment the getButton once lexgui is updated
             // this.menubar.getButton("Animics"); 
-            this.menubar.root.children[0].children[0].children[0].src = value == "light" ? "data/imgs/animics_logo_lightMode.png" : "data/imgs/animics_logo.png";
+            this.menubar.root.children[0].children[0].children[0].src = value == "light" ? "data/imgs/logos/animics_logo_lightMode.png" : "data/imgs/logos/animics_logo.png";
         } )
         
         const colorScheme = document.documentElement.getAttribute( "data-theme" );
-        menubar.setButtonImage("Animics", colorScheme == "light" ? "data/imgs/animics_logo_lightMode.png" : "data/imgs/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});
+        menubar.setButtonImage("Animics", colorScheme == "light" ? "data/imgs/logos/animics_logo_lightMode.png" : "data/imgs/logos/animics_logo.png", () => window.open(window.location.origin).focus(), {float: "left"});
 
         this.onCreateMenuBar(menuEntries);
         
@@ -203,24 +203,6 @@ class Gui {
         const user = this.editor.remoteFileSystem.session ? this.editor.remoteFileSystem.session.user : "" ;
         const loginName = (!user || user.username == "guest") ? "Login" : user.username;
 
-        // const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-1 ml-auto fg-primary hover:bg-mix self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
-        // loginButton.tabIndex = "1";
-        // loginButton.id = "login";
-        // loginButton.role = "button";
-        // loginButton.listen( "click", () => {
-        //     const session = this.editor.remoteFileSystem.session;
-        //     const username = session ? session.user.username : "guest";
-        //     if( this.prompt && this.prompt.root.checkVisibility() ) {
-        //         return;
-        //     }
-        //     if( username != "guest" ) {
-        //         this.showLogoutModal();
-        //     }
-        //     else {
-        //         this.showLoginModal();
-        //     }       
-        // } );
-
         const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", menubar.root );
         loginButton.tabIndex = "1";
         loginButton.role = "button";
@@ -230,12 +212,9 @@ class Gui {
             if( this.prompt && this.prompt.root.checkVisibility() ) {
                 return;
             }
-            if( username != "guest" ) {
-                this.showLogoutModal();
-            }
-            else {
+            if( username == "guest" ) {
                 this.showLoginModal();
-            }       
+            }
         } );
 
         loginButton.id = "login-button"
@@ -247,7 +226,16 @@ class Gui {
             new LX.DropdownMenu( userButton, [
                 
                 { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
-                { name: "Logout", icon: "LogOut", callback: () => { this.showLogoutModal(); } },
+                { name: "Logout", icon: "LogOut", callback: () => { 
+                    this.editor.remoteFileSystem.logout(() => {
+                        this.editor.remoteFileSystem.login("guest", "guest", () => {
+                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
+                            this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
+                        })
+                        this.changeLoginButton();
+        
+                    }); 
+                } },
                 
             ], { side: "bottom", align: "end" });
         } );									
@@ -337,24 +325,6 @@ class Gui {
             this.prompt = null;
         }
   
-    }
-
-    showLogoutModal() {
-        this.prompt = LX.prompt( "Are you sure you want to logout?", "Logout", (v) => {
-            this.editor.remoteFileSystem.logout(() => {
-                this.editor.remoteFileSystem.login("guest", "guest", () => {
-                    const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
-                    this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
-                })
-                this.changeLoginButton();
-
-            }); 
-            this.prompt = null;
-        } , {input: false, accept: "Logout", modal: true})
-        
-        this.prompt.onclose = () => {
-            this.prompt = null;
-        }
     }
 
     showCreateAccountDialog(session = {user: "", password: ""})
@@ -1077,7 +1047,7 @@ class KeyframesGui extends Gui {
     createTimelines( ) {                    
 
         /* Keyframes Timeline */
-        this.keyFramesTimeline = new LX.KeyFramesTimeline("Bones", {
+        this.keyFramesTimeline = new LX.KeyFramesTimeline("Bone", {
             onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v); // already updates gui
@@ -1387,7 +1357,7 @@ class KeyframesGui extends Gui {
     createSidePanel() {
         const [top, bottom] = this.sidePanel.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
        
-        this.animationPanel = new LX.Panel({id:"animation"});
+        this.animationPanel = new LX.Panel({id:"animation", icon: "PersonStanding"});
         top.attach(this.animationPanel);
         this.updateAnimationPanel( );
 
@@ -4053,7 +4023,7 @@ class PropagationWindow {
     }
 
     onOpenConfig(dialog){
-        dialog.addCheckbox("Enable", this.enabler, (v) =>{
+        dialog.addToggle("Enable", this.enabler, (v) =>{
             this.setEnabler(v);
         }, { signal: "@propW_enabler"});
 
