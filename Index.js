@@ -138,43 +138,35 @@ function createHome( content ) {
     const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6 overflow-scroll", "", padContainer );
     headerContent.style.minHeight = "256px";
     
+    const _makeProjectOptionItem = ( icon, innerText, outerText, id, parent ) => {
+        const item = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, parent );
+        LX.makeContainer( ["200px", "auto"], "flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button", `
+            ${LX.makeIcon(icon, {svgClass:"xxxl fg-secondary"}).innerHTML}
+            <p class="text-sm text-center px-4 fg-tertiary ">${ innerText }</p>
+        `, item );
+        LX.makeContainer( ["auto", "auto"], "", `<p>${ outerText }</p>`, item );
+        item.id = id;
+    };
+
     const keyframeContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Keyframe Animation", keyframeContent );
     const keyframeItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", keyframeContent );
     
-    const emptyItem = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
-    LX.makeContainer( ["200px", "auto"], "flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button", `
-        ${LX.makeIcon("CirclePlus", {svgClass:"xxxl fg-secondary"}).innerHTML}
-        <p class="text-sm text-center px-4 fg-tertiary ">Create from scratch</p>
-    `, emptyItem );
-    LX.makeContainer( ["auto", "auto"], "", `<p>Empty project</p>`, emptyItem );
-    emptyItem.id = "keyframe-project";
-
-    const videoItem = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
-    LX.makeContainer( ["200px", "auto"], "flex flex-col py-6 justify-center items-center rounded-lg gap-3 card-button", ` ${LX.makeIcon("ClapperboardClosed@solid", {svgClass:"xxxl fg-secondary"}).innerHTML}<p class="text-sm text-center px-4 fg-tertiary ">Upload video/s</p>`, videoItem );
-    LX.makeContainer( ["auto", "auto"], "", `<p>From video/s</p>`, videoItem );
-    videoItem.id = "video-project";
-
-    const webcamItem = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, keyframeItems );
-    LX.makeContainer( ["200px", "auto"], "flex flex-col py-6 justify-center items-center rounded-lg gap-3 card-button", ` ${LX.makeIcon("Camera@solid", {svgClass:"xxxl fg-secondary"}).innerHTML}<p class="text-sm text-center px-4 fg-tertiary ">Record yourself</p>`, webcamItem );
-    LX.makeContainer( ["auto", "auto"], "", `<p>Real-time capture</p>`, webcamItem );
-    webcamItem.id = "webcam-project";
+    _makeProjectOptionItem( "CirclePlus", "Create from scratch", "Empty project", "keyframe-project", keyframeItems );
+    _makeProjectOptionItem( "ClapperboardClosed@solid", "Upload video/s", "From video/s", "video-project", keyframeItems );
+    _makeProjectOptionItem( "Camera@solid", "Record yourself", "Real-time capture", "webcam-project", keyframeItems );
 
     const scriptContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Script Animation", scriptContent );
     const scriptItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", scriptContent );
-    const emptyScriptItem = LX.makeContainer( ["auto", "auto"], "flex flex-col  gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, scriptItems );
-    LX.makeContainer( ["200px", "auto"], "flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button", ` ${LX.makeIcon("CirclePlus@solid", {svgClass:"xxxl fg-secondary"}).innerHTML}<p class="text-sm text-center px-4 fg-tertiary ">Create from scratch</p>`, emptyScriptItem );
-    LX.makeContainer( ["auto", "auto"], "", `<p>Empty project</p>`, emptyScriptItem );
-    emptyScriptItem.id = "script-project";
+
+    _makeProjectOptionItem( "CirclePlus", "Create from scratch", "Empty project", "script-project", scriptItems );
 
     const fileContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Edit Animation", fileContent );
     const fileItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", fileContent );
-    const fileItem = LX.makeContainer( ["auto", "auto"], "flex flex-col  gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, fileItems );
-    LX.makeContainer( ["200px", "auto"], "flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button", ` ${LX.makeIcon("FolderOpen@solid", {svgClass:"xxxl fg-secondary"}).innerHTML}<p class="text-sm text-center px-4 fg-tertiary ">Upload .bvh, .bvhe, .bml, .sigml or .json file/s</p>`, fileItem );
-    LX.makeContainer( ["auto", "auto"], "", `<p>Drop file/s</p>`, fileItem );
-    fileItem.id = "import";
+
+    _makeProjectOptionItem( "FolderOpen@solid", "Upload .bvh, .bvhe, .bml, .sigml or .json file/s", "Drop file/s", "import", fileItems );
 
     const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4 overflow-scroll", "", padContainer );
     LX.makeContainer( ["auto", "auto"], "font-bold", "Projects", projectsContent );
