@@ -54,6 +54,8 @@ class Gui {
         if(showGuide) {
             this.showGuide();
         }
+
+        this.setColorTheme(LX.getTheme());
     }
 
     showGuide() {
