@@ -90,6 +90,7 @@ class Editor {
         this.enabled = true;
         this.editorArea.root.classList.remove("hidden");
         this.resize();
+        this.activeTimeline.show();
     }
 
     disable() {
@@ -753,15 +754,6 @@ class Editor {
     setAnimationLoop( loop ) {
         this.animLoop = loop;
         // animation loop is handled by update(). AnimationActions are on LoopRepeat Infinity by default
-        // the code below should no longer be necessary. Keeping it just in case for some time
-        // for(let i = 0; i < this.currentCharacter.mixer._actions.length; i++) {
-        //     if( loop ) {
-        //         this.currentCharacter.mixer._actions[i].setLoop(THREE.LoopRepeat, Infinity);
-        //     }
-        //     else {
-        //         this.currentCharacter.mixer._actions[i].setLoop(THREE.LoopRepeat, 1);
-        //     }
-        // }
     }
 
     getCurrentBindedAnimation() {
@@ -791,7 +783,7 @@ class Editor {
         this.camera.aspect = aspect;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(width, height); // SLOW AND MIGHT CRASH THE APP
-
+    
         this.gui.resize(width, height);
     }
 

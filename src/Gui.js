@@ -656,6 +656,7 @@ class Gui {
                 this.propagationWindow.updateCurve(true);
             } // resize
         }
+        this.mainArea._update(); // to update area's this.size attribute
     }
 
     async promptExit() {

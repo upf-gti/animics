@@ -1319,6 +1319,8 @@ class Timeline {
         this.mainArea.sections[1].root.style.height = "calc(100% - "+ this.header_offset + "px)";
 
         let w = size[0] - this.leftPanel.root.clientWidth - 8;
+        this.mainArea.sections[1]._update(); // update area's this.size attribute
+
         this.resizeCanvas();     
     }
 
@@ -1340,7 +1342,6 @@ class Timeline {
     * Show timeline area if it is hidden
     */
     show() {
-        
         this.mainArea.show();
         this.resize();        
         this.updateLeftPanel();
