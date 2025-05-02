@@ -1,6 +1,6 @@
 # Animics
 
-<img src="./data/imgs/logos/animics_white.png" height="200" align="right">
+<img src="./data/imgs/logos/animics_white.png" height="100" align="right">
 
 [**Animics**](https://animics.gti.upf.edu) is a web-based tool for generating 3D character animations, with a strong focus on sign language and embodied communication. It provides two separate workflows — **Script Mode** and **Keyframe Mode** — for building animations either procedurally or from video data.
 
