@@ -280,7 +280,7 @@ class Timeline {
         const panel = this.leftPanel;
         
         panel.sameLine( 2 );
-        let titleWidget = panel.addTitle( "Tracks", { style: { background: "none"}, className: "fg-secondary text-lg font-light px-4"} );
+        let titleWidget = panel.addTitle( "Tracks", { style: { background: "none"}, className: "fg-secondary text-lg px-4"} );
         let title = titleWidget.root;
         
         if( !this.disableNewTracks ) 
@@ -664,7 +664,7 @@ class Timeline {
             ctx.fillStyle = "#222";
             ctx.fillRect( w - 10, 0, 10, h );
 
-            ctx.fillStyle = this.grabbingScroll ? Timeline.FONT_COLOR_PRIMARY : Timeline.FONT_COLOR_QUATERNARY;
+            ctx.fillStyle = this.grabbingScroll ? Timeline.FONT_COLOR_TERTIARY : Timeline.FONT_COLOR_QUATERNARY;
            
             let scrollBarHeight = Math.max( 10, (h-this.topMargin)* (h-this.topMargin)/ this.trackTreesPanel.root.scrollHeight);
             let scrollLoc = this.currentScroll * ( h - this.topMargin - scrollBarHeight ) + this.topMargin;
@@ -950,7 +950,7 @@ class Timeline {
     
 
         if( e.type == "mousedown")	{
-            
+            e.preventDefault();
             this.clickTime = LX.UTILS.getTime();
 
             if(this.trackBulletCallback && e.track)
@@ -1196,8 +1196,7 @@ class Timeline {
                 }
             }
             
-            ctx.fillStyle = clip.color || Timeline.FONT_COLOR_PRIMARY;
-            //ctx.font = "12px" + Timeline.FONT;
+            ctx.fillStyle = Timeline.TRACK_COLOR_PRIMARY;
 
             // Overwrite style and draw clip selection area if it's selected
             ctx.globalAlpha = clip.hidden ? trackAlpha * 0.5 : trackAlpha;
@@ -1216,8 +1215,9 @@ class Timeline {
                 ctx.shadowOffsetY = 0;
 
                 ctx.font = "bold" + Math.floor( trackHeight) + "px " + Timeline.FONT;
-                ctx.fillStyle = "white";
+                ctx.fillStyle = Timeline.FONT_COLOR_PRIMARY;
             }
+            
 
             // Overwrite style with small font size if it's zoomed out
             if( this.pixelsPerSecond < 200) {
@@ -1232,9 +1232,11 @@ class Timeline {
                 ctx.fillText( text, x + (w - textInfo.width)*0.5,  y + offset + trackHeight * 0.5);
             }
 
-            ctx.fillStyle = track.hovered[j] ? "white" : Timeline.FONT_COLOR_PRIMARY;
+            ctx.fillStyle = track.hovered[j] ? "white" : "#f5f5f5"//track.hovered[j] ? "white" : Timeline.FONT_COLOR_QUATERNARY;
+            ctx.strokeStyle = "rgba(125,125,125,0.4)";
+            
             // Draw resize bounding
-            ctx.roundRect(x + w - 8 , y + offset , 8, trackHeight, {tl: 4, bl: 4, tr:4, br:4}, true);           
+            ctx.roundRect(x + w - 8 , y + offset , 8, trackHeight, {tl: 4, bl: 4, tr:4, br:4}, true, true);           
         }
 
         ctx.font = "12px" + Timeline.FONT;
@@ -1358,6 +1360,7 @@ class Timeline {
         Timeline.TRACK_COLOR_QUATERNARY = LX.getThemeColor("global-color-quaternary");
         Timeline.FONT = LX.getThemeColor("global-font");
         Timeline.FONT_COLOR_PRIMARY = LX.getThemeColor("global-text-primary");
+        Timeline.FONT_COLOR_TERTIARY = LX.getThemeColor("global-text-tertiary");
         Timeline.FONT_COLOR_QUATERNARY = LX.getThemeColor("global-text-quaternary");
         
         Timeline.KEYFRAME_COLOR = LX.getThemeColor("lxTimeline-keyframe");
@@ -1377,6 +1380,7 @@ Timeline.TRACK_SELECTED = LX.getThemeColor("global-color-accent");
 Timeline.TRACK_SELECTED_LIGHT = LX.getThemeColor("global-color-accent-light");
 Timeline.FONT = LX.getThemeColor("global-font");
 Timeline.FONT_COLOR_PRIMARY = LX.getThemeColor("global-text-primary");
+Timeline.FONT_COLOR_TERTIARY = LX.getThemeColor("global-text-tertiary");
 Timeline.FONT_COLOR_QUATERNARY = LX.getThemeColor("global-text-quaternary");
 Timeline.TIME_MARKER_COLOR = LX.getThemeColor("global-color-accent");
 Timeline.TIME_MARKER_COLOR_TEXT = "#ffffff";
@@ -2807,7 +2811,7 @@ class ClipsTimeline extends Timeline {
         const panel = this.leftPanel;
 
         panel.sameLine(2);
-        let titleWidget = panel.addTitle("Tracks");
+        let titleWidget = panel.addTitle( "Tracks", { style: { background: "none"}, className: "fg-secondary text-lg px-4"} );
         let title = titleWidget.root;
 
         if(!this.disableNewTracks) 

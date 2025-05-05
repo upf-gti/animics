@@ -190,9 +190,9 @@ function createAbout( content ) {
     
     const swapValue = LX.getTheme() == "dark";
 
-    const headerContent = LX.makeContainer( ["40%", "300px"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="w-full" style="height:min-content" src="data/imgs/logos/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
+    const headerContent = LX.makeContainer( ["auto", "25%"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="h-full" src="data/imgs/logos/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
     
-    const container = LX.makeContainer( ["100%", "calc(100% - 320px)"], "flex flex-col overflow-scroll items-center",'' , mainContent );
+    const container = LX.makeContainer( ["100%", "calc(100% - 25%)"], "flex flex-col overflow-scroll items-center",'' , mainContent );
     
     const infoContainer = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center py-10",'' , container );
     infoContainer.style.background = "linear-gradient(0deg, var(--global-color-primary), transparent)";
