@@ -5,6 +5,8 @@ import { LX } from 'lexgui';
 // Wait until the session is loaded
 UTILS.makeLoading("Loading application, please wait");
 
+let limit = 10, offset = 0;
+
 const animics = new Animics();
 await animics.loadSession();		
 
@@ -28,6 +30,7 @@ UTILS.hideLoading();
 
 const body = area.root;
 body.classList.remove("hidden");
+
 
 function createMenuBar( area ) {
     
@@ -56,7 +59,10 @@ function createMenuBar( area ) {
         new LX.DropdownMenu( userButton, [
             
             { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
-            { name: "Refresh", icon: "RotateCcw", callback: () => {} },
+            { name: "Refresh", icon: "RotateCcw", callback: () => {
+                offset = 0;
+                appendAnimationFiles( true );
+            } },
             null,
             { name: "Logout", icon: "LogOut", callback: () => { _logout() } },
             
@@ -129,10 +135,10 @@ function createSideBar( area ) {
 
 function createHome( content ) {
 
-    const mainContent = LX.makeContainer( ["100%", "100%"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg", "", content );
+    const mainContent = LX.makeContainer( ["100%", "calc(100% - 38px)"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg overflow-y-auto", "", content );
     mainContent.id = "home-container";
 
-    const padContainer = LX.makeContainer( ["100%", "auto"], "p-6", "", mainContent );
+    const padContainer = LX.makeContainer( ["100%", "auto"], "px-6", "", mainContent );
     const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6 overflow-scroll", "", padContainer );
     headerContent.style.minHeight = "256px";
     
@@ -166,9 +172,9 @@ function createHome( content ) {
 
     _makeProjectOptionItem( "FolderOpen@solid", "Upload .bvh, .bvhe, .bml, .sigml or .json file/s", "Drop file/s", "import", fileItems );
 
-    const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4 overflow-scroll", "", padContainer );
+    const projectsContent = LX.makeContainer( ["100%", "auto"], "flex flex-col gap-4 my-6 p-4", "", padContainer );
     LX.makeContainer( ["auto", "auto"], "font-bold", "Animations", projectsContent );
-    const projectItems = LX.makeContainer( ["100%", "auto"], "grid gap-4", "", projectsContent );
+    const projectItems = LX.makeContainer( ["100%", "auto"], "grid gap-4 p-4 overflow-y-auto overflow-x-hidden ", "", projectsContent );
     projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
     projectItems.id = "project-items-container";
 
@@ -179,7 +185,7 @@ function createHome( content ) {
 }
 
 function createAbout( content ) {
-    const mainContent = LX.makeContainer( ["100%", "100%"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg hidden", "", content );
+    const mainContent = LX.makeContainer( ["100%", "calc(100% - 38px)"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg hidden", "", content );
     mainContent.id = "about-container";
     
     const swapValue = LX.getTheme() == "dark";
@@ -245,7 +251,7 @@ function _makeProjectItem( item ) {
    if( item.img ) {
        div = `<img class="w-full hover:scale" style="object-fit:cover" src="${ item.img || "./docs/imgs/editStation.png"} ">`               
    }
-    const itemContainer = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `
+    const itemContainer = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-tertiary hover:scale cursor-pointer", `
     <div class="rounded-xl w-full overflow-hidden justify-center" style="height:130px;">
        ${div}
     </div>
@@ -511,18 +517,39 @@ function _checkSession() {
             const projectText = document.getElementById("project-text");
             projectText.classList.remove("hidden");
         }
-
+        offset=0;
+        limit = 10;
     }
     else {
         signupButton.classList.add("hidden");
         loginButton.classList.add("hidden");
         userButton.classList.remove("hidden");
         userButton.innerHTML = animics.remoteFileSystem.session.user.username;
-        // put name
-        animics.remoteFileSystem.session.getLastFiles((files) => {
-            for(const data of files) {            
-                _makeProjectItem( data );
-            }
-        })
+        appendAnimationFiles();
     }
+}
+
+function appendAnimationFiles( refresh = false) {
+
+    animics.remoteFileSystem.session.getLastFiles(limit, offset, (files) => {
+        const projectItems = document.getElementById("project-items-container");
+        if(projectItems && projectItems.lastChild) {
+            projectItems.lastChild.remove();
+            if(refresh) {
+                projectItems.innerHTML = "";
+            }
+        }
+        for(const data of files) {            
+            _makeProjectItem( data );
+        }
+
+        if(files.length >= limit) {
+            const itemContainer = LX.makeContainer( ["auto", "162px"], "flex flex-col gap-4 p-4 text-md rounded-xl justify-center items-center", ``, projectItems);
+            const loadMoreButton = LX.makeContainer( ["60%", "80px"], "text-md font-medium rounded-lg p-2 bg-accent fg-white border hover:scale self-center content-center text-center cursor-pointer select-none flex flex-col items-center justify-center", `${LX.makeIcon("MoreHorizontal", {svgClass:"xxl fg-white"}).innerHTML} <p class="text-lg">LOAD MORE</p>`, itemContainer );
+            loadMoreButton.tabIndex = "1";
+            loadMoreButton.role = "button";
+            loadMoreButton.listen( "click", () => { offset+=10;_checkSession()} );			
+            loadMoreButton.id = "loadmore-button";
+        }
+    })
 }

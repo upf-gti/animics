@@ -941,9 +941,9 @@ Session.prototype.getFileInfo = function( fullpath, on_complete )
     });
 }
 
-Session.prototype.getLastFiles = function( on_complete )
+Session.prototype.getLastFiles = function( limit, offset, on_complete )
 {
-	return this.request( this.server_url,{ action: "files/getLastFiles" }, function(resp){
+	return this.request( this.server_url,{ action: "files/getLastFiles", limit, offset }, function(resp){
 		if(on_complete)
 			on_complete(resp.data, resp);
 	});
