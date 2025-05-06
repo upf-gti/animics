@@ -735,7 +735,6 @@ class Editor {
     setTime( t, force ) {
 
         // Don't change time if playing
-        // this.gui.currentTime = t;
         if( this.state && !force ) {
             return;
         }
@@ -1281,7 +1280,10 @@ class KeyframeEditor extends Editor {
         }
         
         // Create face animation from mediapipe action units
-        const faceAnimation = this.currentCharacter.blendshapesManager.createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
+        let faceAnimation = this.currentCharacter.blendshapesManager.createAnimationFromActionUnits("faceAnimation", blendshapes); // faceAnimation is an action units clip
+        if ( !faceAnimation.tracks.length ) {
+            faceAnimation = this.currentCharacter.blendshapesManager.createAnimationFromActionUnits("faceAnimation", null); // create an animation with default action units
+        }
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units THREEjs AnimationClip
 
         this.bindAnimationToCharacter(data.name);

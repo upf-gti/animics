@@ -381,7 +381,9 @@ class BlendshapesManager {
         let auTracks = [];
         for(let bs in auValues) {
             let bsname = this.getFormattedTrackName(bs);
-            auTracks.push( new THREE.NumberKeyframeTrack(bsname, times, auValues[bs] ));
+            if ( bsname.length ){
+                auTracks.push( new THREE.NumberKeyframeTrack(bsname, times, auValues[bs] ));
+            }
         }
     
         // use -1 to automatically calculate

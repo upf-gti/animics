@@ -11,8 +11,6 @@ class Gui {
         this.editor = editor;
 
         this.timelineVisible = false;
-        this.currentTime = 0;
-        this.duration = 0;
 
         // Create menu bar
         this.createMenubar(editor.editorArea);
@@ -1152,11 +1150,11 @@ class KeyframesGui extends Gui {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => {
                                 let [id, localTrackIdx, keyIdx, trackIdx] = this.keyFramesTimeline.lastKeyFramesSelected[0];
-                                this.pasteKeyFrameValue(e, this.keyFramesTimeline.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
+                                this.keyFramesTimeline.pasteKeyFrameValue(e, this.keyFramesTimeline.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
                                 this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
                             }
                         }
-                    )
+                    );
                 }
                 actions.push(
                     {
@@ -1997,7 +1995,6 @@ class KeyframesGui extends Gui {
         this.hideCaptureArea();
         
         this.clip = clip || { duration: 1};
-        this.duration =  this.clip.duration;
 
         let boneName = null;
         if(this.editor.currentCharacter.skeletonHelper.bones.length) {
@@ -2787,7 +2784,6 @@ class ScriptGui extends Gui {
         this.clipsTimeline.addClips(clips, this.clipsTimeline.currentTime);
     
         this.clip = this.clipsTimeline.animationClip || clip ;
-        this.duration = this.clip.duration || duration;
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
