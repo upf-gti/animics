@@ -1135,74 +1135,89 @@ class KeyframesGui extends Gui {
         }
 
         
-        this.keyFramesTimeline.showContextMenu =  ( e ) => {
-            
+        // "add" entry needs to set a proper value to the keyframe. This is why the default implementation of showContextMenu is not enough
+        const that = this;
+        this.keyFramesTimeline.showContextMenu = function( e ) {
+            // THIS here means the timeline, not the GUI
             e.preventDefault();
             e.stopPropagation();
-
+    
             let actions = [];
-            //let track = this.NMFtimeline.clip.tracks[0];
-            if(this.keyFramesTimeline.lastKeyFramesSelected && this.keyFramesTimeline.lastKeyFramesSelected.length) {
-                if(this.keyFramesTimeline.lastKeyFramesSelected.length == 1 && this.keyFramesTimeline.clipboard && this.keyFramesTimeline.clipboard.value)
+            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
+                actions.push(
+                    {
+                        title: "Copy",
+                        callback: () => {
+                            this.copySelectedContent();
+                        }
+                    }
+                );
+                actions.push(
+                    {
+                        title: "Delete",
+                        callback: () => {
+                            this.deleteSelectedContent({});
+                        }
+                    }
+                );
+                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value)
                 {
                     actions.push(
                         {
-                            title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
+                            title: "Paste Value",
                             callback: () => {
-                                let [id, localTrackIdx, keyIdx, trackIdx] = this.keyFramesTimeline.lastKeyFramesSelected[0];
-                                this.keyFramesTimeline.pasteKeyFrameValue(e, this.keyFramesTimeline.animationClip.tracksPerItem[id][localTrackIdx], keyIdx);
-                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
+                                this.pasteContentValue();
                             }
                         }
                     );
                 }
-                actions.push(
-                    {
-                        title: "Copy",// + " <i class='bi bi-clipboard-fill float-right'></i>",
-                        callback: () => this.keyFramesTimeline.copySelectedContent()
-                    }
-                )
-                actions.push(
-                    {
-                        title: "Delete",// + " <i class='bi bi-trash float-right'></i>",
-                        callback: () => {
-                            this.keyFramesTimeline.deleteSelectedContent();
-                            this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
-                        }
-                    }
-                )
             }
-            else {
+            else{
+
                 if(!e.track) {
                     return;
                 }
                 
-                let [name, type] = [e.track.name, e.track.type]
-                if(this.boneProperties[type]) {
-                    
+                const type = e.track.type;
+                if(that.boneProperties[type]) {
+                    actions.push(
+                        {
+                            title: "Add Here",
+                            callback: () => {
+                                this.addKeyFrame( e.track, that.boneProperties[type].toArray(), this.xToTime(e.localX) );
+                            }
+                        }
+                    );
                     actions.push(
                         {
                             title: "Add",
                             callback: () => {
-                                this.keyFramesTimeline.addKeyFrame( e.track, this.boneProperties[type].toArray() )
-                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
+                                this.addKeyFrame( e.track, that.boneProperties[type].toArray() );
                             }
                         }
-                    )
-                }
+                    );
 
-                if(this.clipboard && this.clipboard.keyframes)
-                {
-                    actions.push(
-                        {
-                            title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
-                            callback: () => {
-                                this.pasteContent()
-                                this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, -1);
-                            }
+                }    
+            }
+    
+            if(this.clipboard && this.clipboard.keyframes)
+            {
+                actions.push(
+                    {
+                        title: "Paste Here",
+                        callback: () => {
+                            this.pasteContent( this.xToTime(e.localX) );
                         }
-                    )
-                }
+                    }
+                );
+                actions.push(
+                    {
+                        title: "Paste",
+                        callback: () => {
+                            this.pasteContent( this.currentTime );
+                        }
+                    }
+                );
             }
             
             LX.addContextMenu("Options", e, (m) => {
@@ -1210,7 +1225,7 @@ class KeyframesGui extends Gui {
                     m.add(actions[i].title,  actions[i].callback )
                 }
             });
-
+    
         }
 
         this.keyFramesTimeline.onItemUnselected = () => this.editor.gizmo.stop();

@@ -1646,13 +1646,21 @@ class KeyFramesTimeline extends Timeline {
             actions.push(
                 {
                     title: "Add Here",
-                    callback: () => this.addKeyFrame( e.track, 0, this.xToTime(e.localX) )
+                    callback: () => {
+                        const arr = new Float32Array( track.dim );
+                        arr.fill(0);
+                        this.addKeyFrame( e.track, 0, this.xToTime(e.localX) );
+                    }
                 }
             );
             actions.push(
                 {
                     title: "Add",
-                    callback: () => this.addKeyFrame( e.track, 0 )
+                    callback: () => {
+                        const arr = new Float32Array( track.dim );
+                        arr.fill(0);
+                        this.addKeyFrame( e.track, arr );
+                    }
                 }
             );
 
