@@ -25,14 +25,17 @@ class MediaPipe {
     }
 
     async init () {
+
         if( this.loaded ) {
             return new Promise(resolve => resolve());
         }
 
+        const initImage = await createImageBitmap(this.canvas);
+        const loadingPromises = [];
         const vision = await FilesetResolver.forVisionTasks( "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13/wasm" );
         
         if(!this.faceLandmarker) {
-            this.faceLandmarker = await FaceLandmarker.createFromOptions(
+            const p = FaceLandmarker.createFromOptions(
                 vision, 
                 {
                     baseOptions: {
@@ -44,11 +47,18 @@ class MediaPipe {
                     runningMode: 'VIDEO',
                     numFaces: 1
                 }
+            ).then(
+                (faceLandmarker) =>{
+                    this.faceLandmarker = faceLandmarker;
+                    return this.faceLandmarker.detectForVideo(initImage, performance.now());
+                }
             );
+            loadingPromises.push(p);
+
         }
 
         if(!this.handDetector){
-            this.handDetector = await HandLandmarker.createFromOptions(
+            const p = HandLandmarker.createFromOptions(
                 vision,
                 {
                     baseOptions: {
@@ -61,11 +71,17 @@ class MediaPipe {
                     // minPosePresenceConfidence: 0.001,
                     // minPoseDetectionConfidence: 0.001
                 }
+            ).then( 
+                (handDetector)=>{
+                    this.handDetector = handDetector;
+                    return this.handDetector.detectForVideo(initImage, performance.now());
+                } 
             );
+            loadingPromises.push(p);
         }
             
         if(!this.poseDetector){
-            this.poseDetector = await PoseLandmarker.createFromOptions(
+            const p = PoseLandmarker.createFromOptions(
                 vision,
                 {
                     baseOptions: {
@@ -77,17 +93,21 @@ class MediaPipe {
                 // minPosePresenceConfidence: 0.001,
                 // minPoseDetectionConfidence: 0.001
                 }
+            ).then(
+                (poseDetector) => {
+                    this.poseDetector = poseDetector;
+                    return this.poseDetector.detectForVideo(initImage, performance.now());
+                }
             );
+            loadingPromises.push(p);
         }
+
+        await Promise.all( loadingPromises );
 
         if (!this.drawingUtils){ 
             this.drawingUtils = new DrawingUtils( this.canvasCtx ); 
             this.drawingUtils.autoDraw = true;
         }
-        
-        this.drawingUtils.autoDraw = false;
-        await this.processFrame( this.canvas); // force models to load on gpu
-        this.drawingUtils.autoDraw = true;
         
         this.currentVideoProcessing = null;
         
