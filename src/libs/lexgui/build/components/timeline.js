@@ -950,7 +950,8 @@ class Timeline {
     
 
         if( e.type == "mousedown")	{
-            e.preventDefault();
+            // e.preventDefault();
+            
             this.clickTime = LX.UTILS.getTime();
 
             if(this.trackBulletCallback && e.track)
