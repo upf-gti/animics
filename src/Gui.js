@@ -1214,7 +1214,7 @@ class KeyframesGui extends Gui {
         }
 
         this.keyFramesTimeline.onItemUnselected = () => this.editor.gizmo.stop();
-        this.keyFramesTimeline.onUpdateTrack = (idx) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
+        this.keyFramesTimeline.onUpdateTrack = (indices) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
         this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
         this.keyFramesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.clipIdx);}
         this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
@@ -1262,7 +1262,7 @@ class KeyframesGui extends Gui {
             this.editor.setTime(t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
-                this.updateActionUnitsPanel(this.curvesTimeline.animationClip);
+                this.updateActionUnitsPanel(this.curvesTimeline.animationClip, -1);
             }
         }
         this.curvesTimeline.onSetDuration = (t) => { 
@@ -1278,9 +1278,9 @@ class KeyframesGui extends Gui {
         };
 
         this.curvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
-        this.curvesTimeline.onUpdateTrack = (idx) => {
-            this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx); 
-            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx)
+        this.curvesTimeline.onUpdateTrack = (indices) => {
+            this.editor.updateAnimationAction(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1); 
+            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
         }
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
         this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
@@ -1307,7 +1307,7 @@ class KeyframesGui extends Gui {
         }
         this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
-            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? undefined : idx);
+            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? -1 : idx);
         }
         this.curvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.clipIdx);}
 
@@ -1669,8 +1669,8 @@ class KeyframesGui extends Gui {
      * @param {Number} trackIdx if undefined, updates the currently visible tracks only 
      * @returns 
      */
-    updateActionUnitsPanel(animation = this.curvesTimeline.animationClip, trackIdx) {
-        if(trackIdx == undefined) {
+    updateActionUnitsPanel(animation = this.curvesTimeline.animationClip, trackIdx = -1) {
+        if(trackIdx == -1) {
 
             const selectedItems = this.curvesTimeline.selectedItems;
             const tracksPerItem = this.curvesTimeline.animationClip.tracksPerItem;
