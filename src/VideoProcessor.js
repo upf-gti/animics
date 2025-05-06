@@ -126,7 +126,6 @@ class VideoProcessor {
         /* Add the canvas where the Mediapipe results will be drawn*/
         const canvasVideo = this.canvasVideo = document.createElement("canvas");
         canvasVideo.id = "outputVideo";
-        canvasVideo.classList.add("border-animation");
         canvasVideo.style.position = "absolute";
         videoArea.attach(canvasVideo);
 
@@ -237,12 +236,10 @@ class VideoProcessor {
         this.mediapipeOnlineEnabler = !!bool;
         if ( this.mediapipeOnlineEnabler ) {
             this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, { mirror: this.mediapipeOnlineVideo == this.inputVideo && this.mode == "webcam" } );
-            this.mediapipeOnlineVideo.classList.add("hidden");
             this.canvasVideo.classList.remove("hidden");
         }
         else{
             this.mediapipe.stopVideoProcessing();
-            this.mediapipeOnlineVideo.classList.remove("hidden");
             this.canvasVideo.classList.add("hidden");
         }
     }
