@@ -2471,7 +2471,6 @@ class ScriptGui extends Gui {
     createTimelines( ) {
                                
         this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
-           // trackHeight: 30,
             onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
