@@ -17,10 +17,9 @@ class Timeline {
      * @param {string} name = string unique id
      * @param {object} options = {animationClip, selectedItems, position = [0,0], width, height, canvas, trackHeight, skipLock, skipVisibility}
      */
-    constructor( name, options = {} ) {
+    constructor( id, options = {} ) {
 
-        this.name = name ?? '';
-        this.opacity = options.opacity || 1;
+        this.uniqueID = id ?? '';
         this.currentTime = 0;
         this.visualTimeRange = [0,0]; // [start time, end time] - visible range of time. 0 <= time <= duration
         this.visualOriginTime = 0; // time visible at pixel 0. -infinity < time < infinity
@@ -52,19 +51,19 @@ class Timeline {
         this.playing = false;
         this.loop = options.loop ?? true;
 
-        this.canvas = options.canvas ?? document.createElement('canvas');
+        this.canvas = document.createElement('canvas');
         this.canvas.style.width = "100%";
         this.canvas.style.height = "100%";
 
 
         this.duration = 1;
         this.speed = 1;
-        this.size = [ options.width ?? 400, options.height ?? 100 ];
+        this.size = [0.000001, 0.000001];
         
         this.currentScroll = 0; //in percentage
         this.currentScrollInPixels = 0; //in pixels
        
-        this.pixelsPerSecond = Math.max( 0.00001, this.size[0]/1 );
+        this.pixelsPerSecond = 300;
         this.secondsPerPixel = 1 / this.pixelsPerSecond;
         this.selectedItems = options.selectedItems ?? [];
         this.animationClip = options.animationClip ?? null;
@@ -86,6 +85,7 @@ class Timeline {
 
         // main area -- root
         this.mainArea = new LX.Area({className : 'lextimeline'});
+        this.root = this.mainArea.root;
         this.mainArea.split({ type: "vertical", sizes: [this.header_offset, "auto"],  resize: false});
 
         // header
@@ -108,9 +108,9 @@ class Timeline {
         this.trackTreesWidget = null;
         this.updateLeftPanel();
 
-        if(!options.canvas && this.name != '') {
-            this.mainArea.root.id = this.name;
-            this.canvas.id = this.name + '-canvas';
+        if(this.uniqueID != '') {
+            this.root.id = this.uniqueID;
+            this.canvas.id = this.uniqueID + '-canvas';
         }
 
         // Process mouse events
@@ -151,9 +151,9 @@ class Timeline {
         const header = this.header;
         header.sameLine();
 
-        if( this.name )
+        if( this.uniqueID )
         {
-            header.addTitle(this.name, { style: { background: "none", fontSize: "18px", fontStyle: "bold", alignItems: "center" } } );
+            header.addTitle(this.uniqueID, { style: { background: "none", fontSize: "18px", fontStyle: "bold", alignItems: "center" } } );
         }
 
         const buttonContainer = LX.makeContainer( ["auto", "100%"], "flex flex-row gap-1" );
@@ -194,7 +194,7 @@ class Timeline {
             this.setTime(value)
         }, {
             units: "s",
-            signal: "@on_set_time_" + this.name,
+            signal: "@on_set_time_" + this.uniqueID,
             step: 0.01, min: 0, precision: 3,
             skipSlider: true,
             nameWidth: "auto"
@@ -205,7 +205,7 @@ class Timeline {
         }, {
             units: "s",
             step: 0.01, min: 0,
-            signal: "@on_set_duration_" + this.name,
+            signal: "@on_set_duration_" + this.uniqueID,
             nameWidth: "auto"
         });    
 
@@ -213,7 +213,7 @@ class Timeline {
             this.setSpeed(value)
         }, {
             step: 0.01,
-            signal: "@on_set_speed_" + this.name,
+            signal: "@on_set_speed_" + this.uniqueID,
             nameWidth: "auto"
         });
            
@@ -401,7 +401,7 @@ class Timeline {
 
         this.trackTreesPanel.scrollTop = scrollTop;
 
-        if( this.leftPanel.parent.root.classList.contains("hidden") || !this.mainArea.root.parent ){
+        if( this.leftPanel.parent.root.classList.contains("hidden") || !this.root.parentElement ){
             return;
         }
 
@@ -536,7 +536,7 @@ class Timeline {
         // Begin drawing
         ctx.beginPath();
         ctx.fillStyle = Timeline.FONT_COLOR_PRIMARY;
-        ctx.globalAlpha = this.opacity;
+        ctx.globalAlpha = 1;
 
         for( let x = startx; x <= endx; x += tickX )
         {
@@ -566,7 +566,7 @@ class Timeline {
         let canvas = this.canvas;
         let ctx = canvas.getContext("2d");
         let duration = this.duration;
-        ctx.globalAlpha = this.opacity;
+        ctx.globalAlpha = 1;
 
         // Content
         const topMargin = this.topMargin; 
@@ -613,8 +613,8 @@ class Timeline {
         let ctx = this.canvas.getContext("2d");
         ctx.textBaseline = "bottom";
         ctx.font = "11px " + Timeline.FONT;//"11px Calibri";
+        ctx.globalAlpha = 1;
 
-        // this.canvas = ctx.canvas;
         const w = ctx.canvas.width;
         const h = ctx.canvas.height;
 
@@ -637,7 +637,7 @@ class Timeline {
         this.tracksDrawn.length = 0;
 
         // Background
-        ctx.globalAlpha = this.opacity;
+        ctx.globalAlpha = 1;
         ctx.fillStyle = Timeline.TRACK_COLOR_SECONDARY;
         ctx.clearRect(0,0, this.canvas.width, this.canvas.height );
 
@@ -673,7 +673,7 @@ class Timeline {
         if(posx >= 0)
         {
             ctx.strokeStyle = ctx.fillStyle = Timeline.TIME_MARKER_COLOR;
-            ctx.globalAlpha = this.opacity;
+            ctx.globalAlpha = 1;
             ctx.beginPath();
             ctx.moveTo(posx, posy * 0.6); ctx.lineTo(posx, this.canvas.height);//line
             ctx.stroke();
@@ -701,12 +701,12 @@ class Timeline {
         ctx.strokeStyle = ctx.fillStyle = Timeline.FONT_COLOR_PRIMARY;
         ctx.translate( 0, this.topMargin );
         if(this.boxSelection) {
-            ctx.globalAlpha = 0.15 * this.opacity;
+            ctx.globalAlpha = 0.15;
             ctx.fillStyle = Timeline.BOX_SELECTION_COLOR;
             ctx.strokeRect( this.boxSelectionStart[0], this.boxSelectionStart[1], this.boxSelectionEnd[0] - this.boxSelectionStart[0], this.boxSelectionEnd[1] - this.boxSelectionStart[1]);
             ctx.fillRect( this.boxSelectionStart[0], this.boxSelectionStart[1], this.boxSelectionEnd[0] - this.boxSelectionStart[0], this.boxSelectionEnd[1] - this.boxSelectionStart[1]);
             ctx.stroke();
-            ctx.globalAlpha = this.opacity;
+            ctx.globalAlpha = 1;
         }
         ctx.translate( 0, -this.topMargin );
 
@@ -770,7 +770,7 @@ class Timeline {
         this.duration = this.animationClip.duration = v; 
 
         if(updateHeader) {
-            LX.emit( "@on_set_duration_" + this.name, +this.duration.toFixed(2)); // skipcallback = true
+            LX.emit( "@on_set_duration_" + this.uniqueID, +this.duration.toFixed(2)); // skipcallback = true
         }
 
         if( this.onSetDuration && !skipCallback ) 
@@ -794,7 +794,7 @@ class Timeline {
 
     setSpeed(speed, skipCallback = false) {
         this.speed = speed;
-        LX.emit( "@on_set_speed_" + this.name, +this.speed.toFixed(3)); // skipcallback = true
+        LX.emit( "@on_set_speed_" + this.uniqueID, +this.speed.toFixed(3)); // skipcallback = true
         
         if( this.onSetSpeed && !skipCallback) 
             this.onSetSpeed( this.speed );	 
@@ -802,7 +802,7 @@ class Timeline {
 
     setTime(time, skipCallback = false ){
         this.currentTime = Math.max(0,Math.min(time,this.duration));
-        LX.emit( "@on_set_time_" + this.name, +this.currentTime.toFixed(2)); // skipcallback = true
+        LX.emit( "@on_set_time_" + this.uniqueID, +this.currentTime.toFixed(2)); // skipcallback = true
 
         if(this.onSetTime && !skipCallback)
             this.onSetTime(this.currentTime);
@@ -1119,7 +1119,7 @@ class Timeline {
         this.tracksDrawn.push([track, y + treeOffset, trackHeight]);
 
         // Fill track background if it's selected
-        ctx.globalAlpha = 0.2 * this.opacity;
+        ctx.globalAlpha = 0.2;
         ctx.fillStyle = Timeline.TRACK_SELECTED_LIGHT;
         if(track.isSelected) {
             ctx.fillRect(0, y, ctx.canvas.width, trackHeight );    
@@ -1139,8 +1139,6 @@ class Timeline {
         ctx.font = Math.floor( trackHeight * 0.8) + "px" + Timeline.FONT;
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        const trackAlpha = this.opacity;
-
  
         for(var j = 0; j < clips.length; ++j)
         {
@@ -1155,7 +1153,7 @@ class Timeline {
                 continue;
             
             // Overwrite clip color state depending on its state
-            ctx.globalAlpha = trackAlpha;
+            ctx.globalAlpha = 1;
             ctx.fillStyle = clip.clipColor || (track.hovered[j] ? Timeline.KEYFRAME_COLOR_HOVERED : (Timeline.KEYFRAME_COLOR));
             if(track.selected[j] && !clip.clipColor) {
                 ctx.fillStyle = Timeline.TRACK_SELECTED;
@@ -1179,7 +1177,7 @@ class Timeline {
                     ctx.fillStyle = 'rgba(' + color.join(',') + ', 0.8)';
                 }
                 else {
-                    ctx.globalAlpha = 0.8 * this.opacity;
+                    ctx.globalAlpha = 0.8;
                 }
             
                 // Draw fade-in and fade-out
@@ -1194,7 +1192,7 @@ class Timeline {
             ctx.fillStyle = Timeline.TRACK_COLOR_PRIMARY;
 
             // Overwrite style and draw clip selection area if it's selected
-            ctx.globalAlpha = clip.hidden ? trackAlpha * 0.5 : trackAlpha;
+            ctx.globalAlpha = clip.hidden ? 0.5 : 1;
             
             if(track.selected[j] || track.hovered[j]) {
                 ctx.strokeStyle = ctx.shadowColor = track.clips[j].clipColor || Timeline.TRACK_SELECTED;
@@ -1309,9 +1307,10 @@ class Timeline {
      * @method resize
      * @param {*} size
      */
-    resize( size = [this.mainArea.parent.root.clientWidth, this.mainArea.parent.root.clientHeight]) {
+    resize( size = [this.root.parentElement.clientWidth, this.root.parentElement.clientHeight]) {
 
-        this.size = size; 
+        this.size[0] = size[0]; 
+        this.size[1] = size[1]; 
         //this.content_area.setSize([size[0], size[1] - this.header_offset]);
         this.mainArea.sections[1].root.style.height = "calc(100% - "+ this.header_offset + "px)";
 
@@ -1746,13 +1745,13 @@ class KeyFramesTimeline extends Timeline {
 
         
         if(track.isSelected) {
-            ctx.globalAlpha = 0.2 * this.opacity;
+            ctx.globalAlpha = 0.2;
             ctx.fillStyle = Timeline.TRACK_SELECTED;
             ctx.fillRect(0, 0, ctx.canvas.width, trackHeight );
         }
 
         ctx.fillStyle = Timeline.KEYFRAME_COLOR;
-        ctx.globalAlpha = this.opacity;
+        ctx.globalAlpha = 1;
 
         const keyframes = track.times;
 
@@ -1800,7 +1799,7 @@ class KeyFramesTimeline extends Timeline {
             ctx.restore();
         }
 
-        ctx.globalAlpha = this.opacity;
+        ctx.globalAlpha = 1;
     }
 
     // Creates a map for each item -> tracks
@@ -2911,7 +2910,7 @@ class ClipsTimeline extends Timeline {
        
         this.trackTreesPanel.root.scrollTop = scrollTop;
 
-        if(this.leftPanel.parent.root.classList.contains("hidden") || !this.mainArea.root.parent){
+        if(this.leftPanel.parent.root.classList.contains("hidden") || !this.root.parentElement){
             return;
         }
         
@@ -4393,12 +4392,12 @@ class CurvesTimeline extends Timeline {
 
         if(keyframes) {
             if(track.isSelected){
-                ctx.globalAlpha = 0.2 * this.opacity;
+                ctx.globalAlpha = 0.2;
                 ctx.fillStyle = Timeline.TRACK_SELECTED_LIGHT;
                 ctx.fillRect(0, 0, ctx.canvas.width, trackHeight );      
             }
                 
-            ctx.globalAlpha = this.opacity;
+            ctx.globalAlpha = 1;
 
             const defaultPointSize = 5;
             const hoverPointSize = 7;

@@ -1327,8 +1327,8 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.clipIdx);}
 
 
-        this.timelineArea.attach(this.keyFramesTimeline.mainArea);
-        this.timelineArea.attach(this.curvesTimeline.mainArea);
+        this.timelineArea.attach(this.keyFramesTimeline.root);
+        this.timelineArea.attach(this.curvesTimeline.root);
         this.keyFramesTimeline.hide();
         this.curvesTimeline.hide();
     }
