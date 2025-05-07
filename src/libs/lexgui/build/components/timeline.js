@@ -156,7 +156,7 @@ class Timeline {
             header.addTitle(this.name, { style: { background: "none", fontSize: "18px", fontStyle: "bold", alignItems: "center" } } );
         }
 
-        const buttonContainer = LX.makeContainer( ["auto", "100%"], "flex flex-row" );
+        const buttonContainer = LX.makeContainer( ["auto", "100%"], "flex flex-row gap-1" );
 
         header.queue( buttonContainer );
 
@@ -165,16 +165,12 @@ class Timeline {
         }, { buttonClass: "accept", title: "Play", hideName: true, icon: "Play@solid", swap: "Pause@solid" });
         playbtn.root.setState(this.playing, true);
 
-        header.addBlank("0.05em", "auto");
-
         header.addButton("stopBtn", '', (value, event) => {
             this.setState(false, true); // skip callback of set state
             if ( this.onStateStop ){
                 this.onStateStop();
             }
         }, { buttonClass: "accept", title: "Stop", hideName: true, icon: "Stop@solid" });
-
-        header.addBlank("0.05em", "auto");
 
         header.addButton("loopBtn", '', ( value, event ) => {
             this.setLoopMode(!this.loop);
@@ -228,19 +224,17 @@ class Timeline {
         
         // settings buttons - optimize, settings, etc
 
-        const buttonContainerEnd = LX.makeContainer( ["auto", "100%"], "flex flex-row" );
+        const buttonContainerEnd = LX.makeContainer( ["auto", "100%"], "flex flex-row gap-1" );
         header.queue( buttonContainerEnd );
 
         if( this.onCreateSettingsButtons ){
             this.onCreateSettingsButtons( header );
-            header.addBlank("0.05em", "auto");
         }
 
         if( this.onShowOptimizeMenu )
         {
             header.addButton(null, "", (value, event) => {this.onShowOptimizeMenu(event)}, { tooltip: true, title: "Optimize", icon:"Filter" });
         }
-        header.addBlank("0.05em", "auto");
 
         if( this.onShowConfiguration )
         {

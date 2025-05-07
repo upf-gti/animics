@@ -4035,15 +4035,15 @@ class PropagationWindow {
         }, { signal: "@propW_enabler"});
 
         dialog.sameLine();
-        let w = dialog.addNumber("Min (s)", this.leftSide, (v) => {
+        let w = dialog.addNumber("Min", this.leftSide, (v) => {
             this.recomputeGradient( v, this.rightSide );
             this.updateCurve(true);
-        }, {min: 0.001, step: 0.001, signal: "@propW_minT", width:"50%"});
+        }, {min: 0.001, step: 0.001, units: "s", precision: 3, signal: "@propW_minT", width:"50%"});
         w.root.style.paddingLeft = 0;
-        dialog.addNumber("Max (s)", this.rightSide, (v) => {
+        dialog.addNumber("Max", this.rightSide, (v) => {
             this.recomputeGradient( this.leftSide, v );
             this.updateCurve(true);
-        }, {min: 0.001, step: 0.001, signal: "@propW_maxT", width:"50%"});		
+        }, {min: 0.001, step: 0.001, units: "s", precision: 3, signal: "@propW_maxT", width:"50%"});
         dialog.endLine();
 
         dialog.addColor("Color", this.lexguiColor, (value, event) => {
