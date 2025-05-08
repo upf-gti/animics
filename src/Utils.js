@@ -139,13 +139,11 @@ const UTILS = {
 		const loading = document.getElementById("loading");
 		loading.classList.remove("hidden");
 		loading.getElementsByTagName("p")[0].innerText = string;
-		console.log("MAKE LOADING", string);
 		return this.fadeAnimation( loading, opacity, 200, true );
 	},
 
 	hideLoading ( ){
 		const loading = document.getElementById("loading");
-		console.log("HIDE LOADING", loading.getElementsByTagName("p")[0].innerText);
 		const string = loading.getElementsByTagName("p")[0].innerText;
 		if ( loading.classList.contains("hidden") ){
 			loading.style.opacity = 0;
