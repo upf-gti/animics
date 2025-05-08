@@ -246,7 +246,10 @@ class VideoProcessor {
         }
     }
 
-    createTrimArea( options ) {
+    /**
+     * @param {{}} [options={}] enable_redo: true/false to add redo button
+     */
+    createTrimArea( options = {} ) {
         // TRIM VIDEO - be sure that only the sign is recorded
         const recordedVideo = this.mediapipeOnlineVideo = this.recordedVideo;
         const canvasVideo = this.canvasVideo;
@@ -281,16 +284,18 @@ class VideoProcessor {
             this.currentResolve = null;
         }, {width: "auto", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});//, {width: "100px"});
 
-        this.buttonsPanel.addButton(null, "Redo", async () => {
-     
-        this.recording = false;
-        this.mediapipeOnlineVideo = this.inputVideo; 
-
-        this.mediapipe.stopVideoProcessing();
-        this.videoEditor.hideControls();
-        this.prepareWebcamRecording();
-
-        }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-secondary fg-primary border"});
+        if(options.enable_redo) {
+            this.buttonsPanel.addButton(null, "Redo", async () => {
+         
+                this.recording = false;
+                this.mediapipeOnlineVideo = this.inputVideo; 
+    
+                this.mediapipe.stopVideoProcessing();
+                this.videoEditor.hideControls();
+                this.prepareWebcamRecording();
+    
+            }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-secondary fg-primary border"});
+        }
     }
 
     createCaptureArea() {
@@ -469,7 +474,7 @@ class VideoProcessor {
                 if(trimStage) {
                     // directly to trim stage
                     this.currentResolve = resolve;
-                    this.createTrimArea( );
+                    this.createTrimArea( {enable_redo: false} );
                 }
                 else {
                     this.videoEditor.dragCropArea( { clientX: -1, clientY: -1 } );
@@ -709,7 +714,7 @@ class VideoProcessor {
                     const anim = UTILS.makeLoading( "Generating video...");
                     anim.onfinish = () => {
                         this.currentResolve = resolve;
-                        this.createTrimArea( );
+                        this.createTrimArea({enable_redo: true} );
                     }
 
                 }
