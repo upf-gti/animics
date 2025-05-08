@@ -111,7 +111,6 @@ class Editor {
             UTILS.makeLoading("Loading files...");
         }
         else {
-            console.log("PREPARING SCENE");
             UTILS.makeLoading("Preparing scene...");
         }
 
