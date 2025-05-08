@@ -275,33 +275,29 @@ canvas {
 }
 
 .border-animation {
-	border: solid var(--background);
-	border-width: 0.1em;
-	border-radius: 5px;
+	/* border: solid var(--background); */
+	/* border-width: 0.1em; */
+	border-radius: 2px;
 	animation: none;
 }
 
 .border-animation.active {
-	border: solid var(--global-color-accent-light);
-	border-width: 0.1em;
-	border-radius: 5px;
-	animation: capture-animation 2s infinite ease-in-out;
+	/* border: solid var(--global-color-accent-light); */
+	/* border-width: 0.1em; */
+	border-radius: 2px;
+	animation: capture-animation 2s infinite;
+	box-shadow: 0 0 1px 1px var(--global-color-accent);
 }
+
 
 @keyframes capture-animation {
-	from {
-		border: solid var(--global-color-accent-dark);
+	0% {
+	  box-shadow: 0 0 0 0px var(--global-color-accent);
 	}
-
-	50% {
-		border: solid var(--global-color-accent-light);
-		opacity: 0.85;
+	100% {
+	  box-shadow: 0 0 0 10px transparent;
 	}
-
-	to {
-		border: solid var(--global-color-accent-dark);
-	}
-}
+  }
 
 ::-webkit-scrollbar {
 	width: 5px !important;

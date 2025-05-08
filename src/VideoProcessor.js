@@ -163,6 +163,7 @@ class VideoProcessor {
         this.videoEditor.onVideoLoaded = async (video) => {
             // changing to trimming stage
             // stop any current video process ("#inputVideo") and start processing this one ("#recording") which does not need mirror in mediapipe
+            UTILS.hideLoading();
 
             this.mediapipe.setOptions( { autoDraw: true } );
             if ( this.mediapipeOnlineEnabler ) { 
@@ -257,10 +258,6 @@ class VideoProcessor {
         this.videoEditor._loadVideo();
         this.buttonsPanel.clear();
 
-        this.videoEditor.onVideoLoaded = (video) => {
-            UTILS.hideLoading();
-        }
-
         recordedVideo.classList.remove("hidden");
         inputVideo.classList.add("hidden");
         
@@ -284,6 +281,16 @@ class VideoProcessor {
             this.currentResolve = null;
         }, {width: "auto", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});//, {width: "100px"});
 
+        this.buttonsPanel.addButton(null, "Redo", async () => {
+     
+        this.recording = false;
+        this.mediapipeOnlineVideo = this.inputVideo; 
+
+        this.mediapipe.stopVideoProcessing();
+        this.videoEditor.hideControls();
+        this.prepareWebcamRecording();
+
+        }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-secondary fg-primary border"});
     }
 
     createCaptureArea() {
@@ -570,52 +577,9 @@ class VideoProcessor {
             console.log("UserMedia supported");
             UTILS.makeLoading("Loading webcam...");
 
-            const constraints = { video: true, audio: false, width: 1280, height: 720 };
             try {
-                this.createCaptureArea();
-                this.enable();
+                await this.prepareWebcamRecording();
                 
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                const inputVideo = this.inputVideo; // this video will hold the camera stream
-                const canvasVideo = this.canvasVideo; // this canvas will output image, landmarks (and edges)
-                const recordedVideo = this.recordedVideo;
-
-                if( !inputVideo.srcObject ) {
-                    inputVideo.srcObject = stream;
-                }
-
-                inputVideo.onloadedmetadata = ( (e) => {
-
-                    console.log(inputVideo.videoWidth)
-                    console.log(inputVideo.videoHeight);
-                    
-                    const aspect = inputVideo.videoWidth / inputVideo.videoHeight;
-                    
-                    const height = inputVideo.parentElement.clientHeight;
-                    const width = height * aspect;
-
-                    canvasVideo.width  =  recordedVideo.style.width = width;
-                    canvasVideo.height =  recordedVideo.style.height = height;
-                    this.enableMediapipeOnline( this.mediapipeOnlineEnabler );
-
-                    UTILS.hideLoading();
-
-                } );
-                    
-                // setup mediarecorder but do not start it yet (setEvents deals with starting/stopping the recording)
-                // adding codec solves the "incorrect frames added at random times" issue
-                this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm; codecs="vp8"'}); 
-                // this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm; codecs="av01.2.19H.12.0.000.09.16.09.1"'});
-                // this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm'});
-                this.recordedChunks = [];
-                    
-                this.mediaRecorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) {
-                        this.recordedChunks.push(e.data);
-                    }
-                }
-
                 const animation = await this.onWebcamCaptured();
                               
                 // If user cancelled process
@@ -646,6 +610,64 @@ class VideoProcessor {
             on_error();
         }
     }
+    
+    /**
+     * @description Set the webcam stream to the video element and create the mediarecorder, enables mediapipe. Called from processWebcam() and on redo the capture.
+    */
+    async prepareWebcamRecording() {
+
+        this.createCaptureArea();
+        this.enable();
+
+        const constraints = { video: true, audio: false, width: 1280, height: 720 };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        const inputVideo = this.inputVideo; // this video will hold the camera stream
+        const canvasVideo = this.canvasVideo; // this canvas will output image, landmarks (and edges)
+        const recordedVideo = this.recordedVideo;
+
+        if( !inputVideo.srcObject ) {
+            inputVideo.srcObject = stream;
+        }
+
+        inputVideo.onloadedmetadata = ( (e) => {
+
+            inputVideo.play();
+            console.log(inputVideo.videoWidth)
+            console.log(inputVideo.videoHeight);
+            
+            const aspect = inputVideo.videoWidth / inputVideo.videoHeight;
+            
+            const height = inputVideo.parentElement.clientHeight;
+            const width = height * aspect;
+
+            canvasVideo.width  =  recordedVideo.style.width = width;
+            canvasVideo.height =  recordedVideo.style.height = height;
+            this.enableMediapipeOnline( this.mediapipeOnlineEnabler );
+
+            UTILS.hideLoading();
+
+        } );
+            
+        // setup mediarecorder but do not start it yet (setEvents deals with starting/stopping the recording)
+        // adding codec solves the "incorrect frames added at random times" issue
+        let onstop = null;
+        if(this.mediaRecorder) {
+            onstop = this.mediaRecorder.onstop;
+        }
+        this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm; codecs="vp8"'}); 
+        this.mediaRecorder.onstop = onstop;
+        // this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm; codecs="av01.2.19H.12.0.000.09.16.09.1"'});
+        // this.mediaRecorder = new MediaRecorder(inputVideo.srcObject, {mimeType: 'video/webm'});
+        this.recordedChunks = [];
+            
+        this.mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+                this.recordedChunks.push(e.data);
+            }
+        }
+    }
+
     /**
     * @description Processes a webcam video with/out trim stage
     * @param {boolean} [trimStage=true] If true, it redirects to trim stage after loading the video. Otherwise, directly generates the animation data
