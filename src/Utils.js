@@ -139,17 +139,24 @@ const UTILS = {
 		const loading = document.getElementById("loading");
 		loading.classList.remove("hidden");
 		loading.getElementsByTagName("p")[0].innerText = string;
+		console.log("MAKE LOADING", string);
 		return this.fadeAnimation( loading, opacity, 200, true );
 	},
 
 	hideLoading ( ){
 		const loading = document.getElementById("loading");
+		console.log("HIDE LOADING", loading.getElementsByTagName("p")[0].innerText);
+		const string = loading.getElementsByTagName("p")[0].innerText;
 		if ( loading.classList.contains("hidden") ){
 			loading.style.opacity = 0;
 			return;
 		}
 		const anim = this.fadeAnimation( loading, 0, 200, true );
-		anim.onfinish = ()=>{ loading.classList.add("hidden"); }
+		anim.onfinish = ()=>{ 
+			if(string == loading.getElementsByTagName("p")[0].innerText) {
+				loading.classList.add("hidden");
+			}
+		}
 	},
 	
 	// Function to download data to a file

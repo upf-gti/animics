@@ -111,7 +111,6 @@ class VideoProcessor {
         inputVideo.id = "inputVideo";
         inputVideo.classList.add("hidden");
         inputVideo.classList.add("mirror");
-        inputVideo.classList.add("border-animation");
         inputVideo.muted = true;
         videoArea.attach(inputVideo);
 
@@ -127,6 +126,8 @@ class VideoProcessor {
         const canvasVideo = this.canvasVideo = document.createElement("canvas");
         canvasVideo.id = "outputVideo";
         canvasVideo.style.position = "absolute";
+        canvasVideo.classList.add("border-animation");
+
         videoArea.attach(canvasVideo);
 
         // const [leftArea, rightArea] = area.split({sizes:["75%","25%"], minimizable: true});
@@ -256,6 +257,10 @@ class VideoProcessor {
         this.videoEditor._loadVideo();
         this.buttonsPanel.clear();
 
+        this.videoEditor.onVideoLoaded = (video) => {
+            UTILS.hideLoading();
+        }
+
         recordedVideo.classList.remove("hidden");
         inputVideo.classList.add("hidden");
         
@@ -279,7 +284,6 @@ class VideoProcessor {
             this.currentResolve = null;
         }, {width: "auto", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});//, {width: "100px"});
 
-        UTILS.hideLoading();
     }
 
     createCaptureArea() {
@@ -315,6 +319,7 @@ class VideoProcessor {
                 
                 this.buttonsPanel.clear();
                 this.buttonsPanel.addButton(null, "Stop", () => {
+                    
                     this.mediapipe.stopVideoProcessing();
                     if( this.mediaRecorder ) {
                         this.mediaRecorder.stop();
@@ -675,13 +680,16 @@ class VideoProcessor {
                     inputVideo.srcObject.getTracks().forEach(a => a.stop());
                 }
                 inputVideo.srcObject = null;
-                                    
-                UTILS.hideLoading();
                 
                 if(trimStage) {
                     // directly to trim stage
-                    this.currentResolve = resolve;
-                    this.createTrimArea( );
+
+                    const anim = UTILS.makeLoading( "Generating video...");
+                    anim.onfinish = () => {
+                        this.currentResolve = resolve;
+                        this.createTrimArea( );
+                    }
+
                 }
                 else {
                     const animation = await this.generateRawAnimation(video);

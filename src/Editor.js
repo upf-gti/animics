@@ -111,6 +111,7 @@ class Editor {
             UTILS.makeLoading("Loading files...");
         }
         else {
+            console.log("PREPARING SCENE");
             UTILS.makeLoading("Preparing scene...");
         }
 
@@ -123,10 +124,12 @@ class Editor {
         
         this.animate();
         
-        UTILS.hideLoading();
         
         if(settings.capture) {
             this.captureVideo();
+        }
+        else {
+            UTILS.hideLoading();
         }
 
         window.onbeforeunload =  (e) => {
@@ -259,13 +262,14 @@ class Editor {
 
         let modelName = characterName.split("/");
         UTILS.makeLoading("Loading GLTF [" + modelName[modelName.length - 1] +"]...")
+
         // Load the target model (Eva)
         return new Promise( resolve => {
             this.loaderGLB.load(Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb", (gltf) => {
                 const model = gltf.scene;
                 model.name = characterName;
                 model.visible = true;
-                
+
                 let skeleton;
                 let morphTargets = {};
                 let skinnedMeshes = {};

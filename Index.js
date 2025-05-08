@@ -156,7 +156,7 @@ function createHome( content ) {
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Keyframe Animation", keyframeContent );
     const keyframeItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", keyframeContent );
     
-    _makeProjectOptionItem( "CirclePlus", "Create from scratch", "Empty project", "keyframe-project", keyframeItems );
+    _makeProjectOptionItem( "PlusCircle@solid", "Create from scratch", "Empty project", "keyframe-project", keyframeItems );
     _makeProjectOptionItem( "ClapperboardClosed@solid", "Upload video/s", "From video/s", "video-project", keyframeItems );
     _makeProjectOptionItem( "Camera@solid", "Record yourself", "Real-time capture", "webcam-project", keyframeItems );
 
@@ -164,7 +164,7 @@ function createHome( content ) {
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Script Animation", scriptContent );
     const scriptItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", scriptContent );
 
-    _makeProjectOptionItem( "CirclePlus", "Create from scratch", "Empty project", "script-project", scriptItems );
+    _makeProjectOptionItem( "PlusCircle@solid", "Create from scratch", "Empty project", "script-project", scriptItems );
 
     const fileContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Edit Animation", fileContent );
