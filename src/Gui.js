@@ -1327,10 +1327,101 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.clipIdx);}
 
 
+        /* Curves Blendshapes Timeline */
+        this.blendshapesCurvesTimeline = new LX.CurvesTimeline("Action Units", {
+            onCreateBeforeTopBar: (panel) => {
+                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+                    this.editor.bindAnimationToCharacter(v); // already updates gui
+                }, {signal: "@on_animation_loaded"})
+            },
+            onChangeLoopMode: (loop) => {
+                this.updateLoopModeGui( loop );
+            }, 
+            onShowConfiguration: (dialog) => {
+                dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
+                    this.editor.animationFrameRate = v;
+                }, {min: 0, disabled: false});
+                dialog.addNumber("Num items", Object.keys(this.blendshapesCurvesTimeline.animationClip.tracksPerItem).length, null, {disabled: true});
+                dialog.addNumber("Num tracks", this.blendshapesCurvesTimeline.animationClip ? this.blendshapesCurvesTimeline.animationClip.tracks.length : 0, null, {disabled: true});
+                dialog.addNumber("Optimize Threshold", this.blendshapesCurvesTimeline.optimizeThreshold ?? 0.01, v => {
+                        this.blendshapesCurvesTimeline.optimizeThreshold = v;
+                    }, {min: 0, max: 1, step: 0.001, precision: 4}
+                );
+
+                dialog.branch("Propagation Window");
+                // this.propagationWindowConfig(dialog);
+                this.propagationWindow.onOpenConfig(dialog);
+
+                dialog.merge();
+            },
+            disableNewTracks: true
+        });
+
+        this.blendshapesCurvesTimeline.leftPanel.parent.root.style.zIndex = 1;
+        this.blendshapesCurvesTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
+        this.blendshapesCurvesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
+        this.blendshapesCurvesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
+
+        this.blendshapesCurvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
+        this.blendshapesCurvesTimeline.onSetTime = (t) => {
+            this.editor.setTime(t, true);
+            this.propagationWindow.setTime(t);
+            if ( !this.editor.state ){ // update ui if not playing
+                this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, -1);
+            }
+        }
+        this.blendshapesCurvesTimeline.onSetDuration = (t) => { 
+            let currentBinded = this.editor.getCurrentBindedAnimation();
+            if (!currentBinded){ return; }
+            currentBinded.mixerBodyAnimation.duration = t;
+            currentBinded.mixerFaceAnimation.duration = t;
+            currentBinded.auAnimation.duration = t;
+
+            if( this.keyFramesTimeline.duration != t ){
+	            this.keyFramesTimeline.setDuration(t, true, true);			
+			}
+        };
+
+        this.blendshapesCurvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, trackIdx);
+        this.blendshapesCurvesTimeline.onUpdateTrack = (indices) => {
+            this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1); 
+            this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
+        }
+        this.blendshapesCurvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, trackIdx);
+        this.blendshapesCurvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
+        this.blendshapesCurvesTimeline.onSelectKeyFrame = (e, info) => {
+            this.propagationWindow.setTime( this.blendshapesCurvesTimeline.currentTime );
+
+            if(e.button != 2) {
+                this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, info[3]);
+                if ( this.propagationWindow.enabler ){
+                    this.blendshapesCurvesTimeline.unSelectAllKeyFrames();
+                }
+                return false;
+            }
+            return true; // Handled
+        };
+        
+        this.blendshapesCurvesTimeline.onStateChange = (state) => {
+            if(state != this.editor.state) {
+                this.menubar.getButton("Play").children[0].children[0].click();
+            }
+        }
+        this.blendshapesCurvesTimeline.onStateStop = () => {
+            this.menubar.getButton("Stop").children[0].children[0].click();
+        }
+        this.blendshapesCurvesTimeline.onOptimizeTracks = (idx = null) => { 
+            this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, idx);
+            this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, idx < 0 ? -1 : idx);
+        }
+        this.blendshapesCurvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, track.clipIdx);}
+
         this.timelineArea.attach(this.keyFramesTimeline.root);
         this.timelineArea.attach(this.curvesTimeline.root);
+        this.timelineArea.attach(this.blendshapesCurvesTimeline.root);
         this.keyFramesTimeline.hide();
         this.curvesTimeline.hide();
+        this.blendshapesCurvesTimeline.hide();
     }
     
     
@@ -1392,8 +1483,20 @@ class KeyframesGui extends Gui {
             this.imageMap.resize();
         } });
 
-        faceArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
-        const [faceTop, faceBottom] = faceArea.sections;
+        const faceTabs = faceArea.addTabs({fit: true});
+        const auArea = new LX.Area({id: 'auFace'});  
+        const bsArea = new LX.Area({id: 'bsFace'}); 
+
+        faceTabs.add("Action Units", auArea, {selected: true, onSelect: (v,e) => {
+
+        }});
+
+        faceTabs.add("Blendshapes", bsArea, { onSelect: (v,e) => {
+
+        }});
+
+        auArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
+        const [faceTop, faceBottom] = auArea.sections;
         faceTop.root.style.minHeight = "20px";
         faceTop.root.style.height = "50%";
         faceBottom.root.style.minHeight = "20px";
@@ -1676,6 +1779,37 @@ class KeyframesGui extends Gui {
             return;
         }
         this.facePanel.select(area);
+    }
+
+    createBlendshapesPanel() {
+
+        const animation = this.blendshapesCurvesTimeline.animationClip;
+        if ( !animation ){
+            return;
+        }
+        if(!this.editor.currentCharacter || !this.editor.currentCharacter.blendshapeManager) {
+            return;
+        }
+        
+        const panel = new LX.Panel({id: "bsPanel"});
+        const {morphTargetDictionary, skinnedMeshes} = this.editor.currentCharacter.blendshapeManager;
+        for(let i = 0; i < animation.tracks.length; i++) {
+            const track = animation.tracks[i];
+            
+            let frame = this.blendshapesCurvesTimeline.getCurrentKeyFrame(track, this.blendshapesCurvesTimeline.currentTime, 0.1);
+            frame = frame == -1 ? 0 : frame;
+            if( (!this.blendshapesCurvesTimeline.lastKeyFramesSelected.length || this.blendshapesCurvesTimeline.lastKeyFramesSelected[0][2] != frame)) {
+                this.blendshapesCurvesTimeline.selectKeyFrame(track, frame);
+            }
+            const name = track.name;
+            panel.addNumber(name, track.values[frame], (v,e) => {                           
+                //this.editor.updateBlendshapesProperties(name, v);
+            }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ this.blendshapesCurvesTimeline.saveState(track.clipIdx) }});
+            break;
+            
+        }
+        
+
     }
 
     /**
