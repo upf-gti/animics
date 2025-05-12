@@ -585,9 +585,9 @@ class Gizmo {
         const propWindow = this.editor.gui.propagationWindow;
 
         if ( propWindow.enabler ){
-            const tpi = timeline.animationClip.tracksPerItem[bone.name];
+            const tpi = timeline.animationClip.tracksPerGroup[bone.name];
             for( let i = 0; i < tpi.length ; ++i ){
-                if ( tpi[i].type == keyType ){ 
+                if ( tpi[i].id == keyType ){ 
                     track = tpi[i];
                     break;
                 }
@@ -600,7 +600,7 @@ class Gizmo {
             let [name, localTrackIndex, keyFrame] = timeline.lastKeyFramesSelected[0];
             track = timeline.getTrack(timeline.lastKeyFramesSelected[0]);
             // Don't store info if we are using wrong mode for that track
-            if ( bone.name != name || keyType != track.type ) { return; } 
+            if ( bone.name != name || keyType != track.id ) { return; } 
             keyFrameIndex = keyFrame;
         }
 
@@ -618,7 +618,7 @@ class Gizmo {
                 const track = timeline.getTrack([boneToProcess.name, quaternionTrackIdx]);
                 if ( track.dim != 4 ){ continue; } // only quaternions
 
-                this.editor.gui.keyFramesTimeline.saveState( track.clipIdx, i != 1 );
+                this.editor.gui.keyFramesTimeline.saveState( track.trackIdx, i != 1 );
 
                 const tValues = track.values; 
 
@@ -627,14 +627,14 @@ class Gizmo {
                 if ( frame == -1 ){ 
 
                     if ( propWindow.enabler ){
-                        this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, boneToProcess.quaternion);
+                        this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, boneToProcess.quaternion);
                     }
                     frame = timeline.addKeyFrame( track, boneToProcess.quaternion.toArray(), effectorFrameTime );
                 }
                 else{ 
                     
                     if ( propWindow.enabler ){
-                        this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, boneToProcess.quaternion);
+                        this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, boneToProcess.quaternion);
                     }
                     else{
                         const start = 4 * frame;
@@ -648,20 +648,20 @@ class Gizmo {
                 }
 
                 // Update animation interpolants
-                this.editor.updateAnimationAction(this.editor.activeTimeline.animationClip, track.clipIdx );
+                this.editor.updateAnimationAction(this.editor.activeTimeline.animationClip, track.trackIdx );
             }
         }
         else{
             
-            let newValue = bone[ track.type ];
+            let newValue = bone[ track.id ];
             if ( !newValue ){ 
                 return;
             }
 
-            this.editor.gui.keyFramesTimeline.saveState( track.clipIdx );
+            this.editor.gui.keyFramesTimeline.saveState( track.trackIdx );
 
             if ( propWindow.enabler ){
-                this.editor.propagateEdition(this.editor.activeTimeline, track.clipIdx, newValue);
+                this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, newValue);
             }else{
                 const start = track.dim * keyFrameIndex;
                 // supports position and quaternion types
@@ -673,7 +673,7 @@ class Gizmo {
             }
 
             // Update animation interpolants
-            this.editor.updateAnimationAction( this.editor.activeTimeline.animationClip, track.clipIdx );
+            this.editor.updateAnimationAction( this.editor.activeTimeline.animationClip, track.trackIdx );
         }
 
     }

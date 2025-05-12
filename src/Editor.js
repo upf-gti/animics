@@ -2183,7 +2183,7 @@ class KeyframeEditor extends Editor {
                 continue;
             }
 
-            const idx = track.clipIdx; //index of track in the entire animation
+            const idx = track.trackIdx; //index of track in the entire animation
             let value = null;
                 
             if( track.dim == 1 ) {
@@ -2298,7 +2298,7 @@ class KeyframeEditor extends Editor {
                         const track = editedAnimation.tracks[trackIdx];
                         mapTrackIdxs[trackIdx] = [];
 
-                        let bsNames = this.currentCharacter.blendshapesManager.mapNames[track.type];
+                        let bsNames = this.currentCharacter.blendshapesManager.mapNames[track.id];
                         if ( !bsNames ){ 
                             continue; 
                         }
@@ -2406,7 +2406,7 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.setSelectedItems( [this.selectedBone] );
 
         // selectkeyframe at current keyframe if possible
-        let track = this.activeTimeline.animationClip.tracksPerItem[this.selectedBone][0];
+        let track = this.activeTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
         let keyframe = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.1 );
         this.activeTimeline.processCurrentKeyFrame( {}, keyframe, track, null, false );
 
@@ -2650,18 +2650,21 @@ class KeyframeEditor extends Editor {
         // const auAnimation = this.getCurrentBindedAnimation().auAnimation; // activeTimeline.animationClip == auAnimation
         const time = this.activeTimeline.currentTime;
 
-        for(let i = 0; i < this.activeTimeline.tracksDrawn.length; i++) {
-            let info = this.activeTimeline.tracksDrawn[i][0];
-            if(info.type == name && info.active && !info.locked ){
-                const track = this.activeTimeline.animationClip.tracks[info.clipIdx];
+        const visibleItems = this.trackTreesWidget.innerTree.domEl.children[0].children;
+        for(let i = 0; i < visibleItems.length; i++) {
+            const track = visibleItems[i].treeData.trackData;
+            if (!track){
+                continue;
+            }
+            if(track.id == name && track.active && !track.locked ){
 
                 if ( track.times.length <= 0){ continue; }
 
                 if ( this.gui.propagationWindow.enabler ){
-                    this.propagateEdition(this.activeTimeline, track.clipIdx, value);
+                    this.propagateEdition(this.activeTimeline, track.trackIdx, value);
 
                     // Update animation action (mixer) interpolants.
-                    this.updateAnimationAction(this.activeTimeline.animationClip, track.clipIdx );
+                    this.updateAnimationAction(this.activeTimeline.animationClip, track.trackIdx );
                     
                 }else{
                     const frameIdx = this.activeTimeline.getCurrentKeyFrame(track, time, 0.01)
@@ -2671,7 +2674,7 @@ class KeyframeEditor extends Editor {
                         track.edited[frameIdx] = true;               
 
                         // Update animation action (mixer) interpolants.
-                        this.updateAnimationAction(this.activeTimeline.animationClip, track.clipIdx );
+                        this.updateAnimationAction(this.activeTimeline.animationClip, track.trackIdx );
                     } 
                 }
                 return true;
