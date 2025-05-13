@@ -2176,10 +2176,11 @@ class KeyframeEditor extends Editor {
             return;
         }
 
-        for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
+        const visibleElements = this.trackTreesWidget.innerTree.domEl.children[0].children;
+        for( let i = 0; i < visibleElements.length; ++i ) {
 
-            const track = this.activeTimeline.animationClip.tracks[i];
-            if( this.activeTimeline.selectedItems.indexOf(track.name) < 0 ) {
+            const track = visibleElements[i].treeData.trackData; 
+            if( !track ) { // is a group title
                 continue;
             }
 
@@ -2189,17 +2190,16 @@ class KeyframeEditor extends Editor {
             if( track.dim == 1 ) {
                 value = 0;        
             }
-            else {
+            else if ( track.dim == 4 ){
                 value = [0,0,0,1];
-            }            
+            }
+            else{
+                value = [0,0,1];
+            }
 
             this.activeTimeline.clearTrack(idx, value);
                 
             this.updateAnimationAction(this.activeTimeline.animationClip, idx);
-            
-            if(this.activeTimeline.onPreProcessTrack) {
-                this.activeTimeline.onPreProcessTrack( track, track.idx );
-            }
         }
     }
     
@@ -2333,7 +2333,7 @@ class KeyframeEditor extends Editor {
                         // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
                         // _clip is the same clip (pointer) sent in mixer.clipAction. 
 
-                        if( track.active ) {
+                        if( track.active && track.times.length ) {
                             interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = track.times;
                             interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = track.values; 
                         }
@@ -2346,7 +2346,7 @@ class KeyframeEditor extends Editor {
                                 // TO DO optimize if necessary
                                 let skeleton =this.currentCharacter.skeletonHelper.skeleton;
                                 let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
-                                let boneIdx = findIndexOfBoneByName(skeleton, track.name);
+                                let boneIdx = findIndexOfBoneByName(skeleton, track.groupId); // TODO check this track.name. It should not work
                                 let parentIdx = findIndexOfBone(skeleton, skeleton.bones[boneIdx].parent);
                                 let localBind = invMats[boneIdx].clone().invert();
 
@@ -2359,8 +2359,11 @@ class KeyframeEditor extends Editor {
                                 if( track.dim == 4 ) {
                                     interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = q.toArray();//[0,0,0,1];
                                 }
-                                else {
+                                else if ( track.id == "position" ){
                                     interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = p.toArray();//[0,0,0];
+                                }
+                                else{
+                                    interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = s.toArray();//[0,0,0];
                                 }
                             } 
 
@@ -2980,13 +2983,7 @@ class ScriptEditor extends Editor {
             for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
 
                 const track = this.activeTimeline.animationClip.tracks[i];
-                const idx = track.idx;
-                
-                this.activeTimeline.clearTrack(idx);
-            
-                if( this.activeTimeline.onPreProcessTrack ) {
-                    this.activeTimeline.onPreProcessTrack( track, track.idx );
-                }
+                this.activeTimeline.clearTrack(track.trackIdx);
             }
             this.updateTracks();
             this.gui.updateClipPanel();

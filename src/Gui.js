@@ -1119,9 +1119,11 @@ class KeyframesGui extends Gui {
 
             if(e.button != 2) {
                 //this.editor.gizmo.mustUpdate = true
+                const track = this.keyFramesTimeline.animationClip.tracks[info[0]];
+                this.editor.gizmo._setBoneById(this.editor.gizmo.selectedBone);
+                this.editor.setGizmoMode(track ? track.id : "rotate");
                 this.editor.gizmo.update(true);
                 this.updateSkeletonPanel();
-                this.editor.gizmo._setBoneById( this.editor.gizmo.selectedBone );
                 if ( this.propagationWindow.enabler ){
                     this.keyFramesTimeline.unSelectAllKeyFrames();
                 }
@@ -1228,10 +1230,9 @@ class KeyframesGui extends Gui {
     
         }
 
-        this.keyFramesTimeline.onItemUnselected = () => this.editor.gizmo.stop();
+        this.keyFramesTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.stop(); } }
         this.keyFramesTimeline.onUpdateTrack = (indices) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
-        this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
-        this.keyFramesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.trackIdx);}
+        this.keyFramesTimeline.onSetTrackState = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.trackIdx);}
         this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
         }
@@ -1298,7 +1299,6 @@ class KeyframesGui extends Gui {
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
         }
         this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
-        this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.curvesTimeline.onSelectKeyFrame = (e, info) => {
             this.propagationWindow.setTime( this.curvesTimeline.currentTime );
 
@@ -1324,7 +1324,7 @@ class KeyframesGui extends Gui {
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? -1 : idx);
         }
-        this.curvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.trackIdx);}
+        this.curvesTimeline.onSetTrackState = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.trackIdx);}
 
 
         this.timelineArea.attach(this.keyFramesTimeline.root);
@@ -1645,7 +1645,7 @@ class KeyframesGui extends Gui {
                     if(track.groupId == area && track.id == name) {
                         let frame = this.curvesTimeline.getCurrentKeyFrame(track, this.curvesTimeline.currentTime, 0.1);
                         frame = frame == -1 ? 0 : frame;
-                        if( (!this.curvesTimeline.lastKeyFramesSelected.length || this.curvesTimeline.lastKeyFramesSelected[0][2] != frame)) {
+                        if( (!this.curvesTimeline.lastKeyFramesSelected.length || this.curvesTimeline.lastKeyFramesSelected[0][1] != frame)) {
                             this.curvesTimeline.selectKeyFrame(track, frame);
                         }
 
@@ -1703,16 +1703,15 @@ class KeyframesGui extends Gui {
         }
 
         const track = animation.tracks[trackIdx];
-        let name = track.id;
         let frame = 0;
-        if(this.curvesTimeline.lastKeyFramesSelected.length && this.curvesTimeline.lastKeyFramesSelected[0][0] == name) {
-            frame = this.curvesTimeline.lastKeyFramesSelected[0][2];
+        if(this.curvesTimeline.lastKeyFramesSelected.length && this.curvesTimeline.lastKeyFramesSelected[0][0] == trackIdx) {
+            frame = this.curvesTimeline.lastKeyFramesSelected[0][1];
         } 
         else {            
             frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
         }
         if( frame > -1 ){
-            LX.emit("@on_change_" + name, track.values[frame]);
+            LX.emit("@on_change_" + track.id, track.values[frame]);
         }
     }
 
@@ -1765,7 +1764,7 @@ class KeyframesGui extends Gui {
                     case LX.TreeEvent.NODE_VISIBILITY:
                         const tracksInItem = this.keyFramesTimeline.animationClip.tracksPerGroup[event.node.id];
                         for( let i = 0; i < tracksInItem.length; ++i ){
-                            this.keyFramesTimeline.changeTrackVisibility(tracksInItem[i].trackIdx, event.value);
+                            this.keyFramesTimeline.setTrackState(tracksInItem[i].trackIdx, event.value);
                         }
                         console.log(event.node.id + " visibility: " + event.value); 
                         break;
@@ -1834,13 +1833,13 @@ class KeyframesGui extends Gui {
             const animationClip = this.keyFramesTimeline.animationClip;
             if(boneSelected && animationClip ) {
 
-                const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
-                
-                let trackType = this.editor.getGizmoMode();
-                let tracks = null;
-                if(this.keyFramesTimeline.selectedItems.length) {
-                    tracks = animationClip.tracksPerGroup[this.keyFramesTimeline.selectedItems[0]];
+                const tracks = this.keyFramesTimeline.getTracksGroup(boneSelected.name); 
+                if ( !tracks || !tracks.length ){
+                    return;
                 }
+                const numTracks = tracks.length;
+
+                let trackType = this.editor.getGizmoMode();
 
                 let active = this.editor.getGizmoMode();
 
@@ -1859,7 +1858,7 @@ class KeyframesGui extends Gui {
                     let _Modes = [];
                     
                     for(let i = 0; i < tracks.length; i++) {
-                        if(this.keyFramesTimeline.lastKeyFramesSelected.length && this.keyFramesTimeline.lastKeyFramesSelected[0][1] == tracks[i].idx) {
+                        if(this.keyFramesTimeline.lastKeyFramesSelected.length && this.keyFramesTimeline.lastKeyFramesSelected[0][0] == tracks[i].trackIdx) {
                             trackType = tracks[i].id;                            
                         }
 
@@ -2000,32 +1999,6 @@ class KeyframesGui extends Gui {
         widgets.onRefresh();
     }
     /** ------------------------------------------------------------ */
-
-    loadKeyframeClip( clip, callback ) {
-
-        this.hideCaptureArea();
-        
-        this.clip = clip || { duration: 1};
-
-        let boneName = null;
-        if(this.editor.currentCharacter.skeletonHelper.bones.length) {
-            boneName = this.editor.currentCharacter.skeletonHelper.bones[0].name;
-        }
-
-        let tracks = [];
-        for(let i = 0; i < this.clip.tracks.length; i++) {
-            if(this.clip.tracks[i].name.includes("position") && i > 0)
-                continue;
-            tracks.push(this.clip.tracks[i]);
-        }
-        this.clip.tracks = tracks;
-
-        this.keyFramesTimeline.setAnimationClip(this.clip);
-        this.keyFramesTimeline.setSelectedItems([boneName]);
-
-        if(callback)
-            callback();
-    }
 
     createSaveDialog() {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
@@ -2589,7 +2562,7 @@ class ScriptGui extends Gui {
                         }
                     }
                 )
-                if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.idx == this.clipsTimeline.lastClipsSelected[0][0]) {
+                if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
                     let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
                     if(clip.type == "glossa") {                        
                         actions.push(

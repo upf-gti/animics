@@ -30,7 +30,6 @@ class Gizmo {
                 return;
             }
             this.updateTracks();
-            const bone = this.skeleton.bones[this.selectedBone] ? this.skeleton.bones[this.selectedBone].name : "";
             this.editor.gui.updateSkeletonPanel();
         } );
 
@@ -440,7 +439,7 @@ class Gizmo {
 
                 case 'w':
                     const bone = this.skeleton.bones[this.selectedBone];
-                    if(timeline.getNumTracks(bone) < 2) // only rotation
+                    if(timeline.getTracksGroup(bone.name).length < 2) // only rotation
                         return;
                     this.setTool( Gizmo.Tools.JOINT );
                     this.setMode( "translate" );
@@ -597,10 +596,10 @@ class Gizmo {
             if(timeline.getNumKeyFramesSelected() != 1)
                 return;
             
-            let [name, localTrackIndex, keyFrame] = timeline.lastKeyFramesSelected[0];
-            track = timeline.getTrack(timeline.lastKeyFramesSelected[0]);
+            const [trackIdx, keyFrame] = timeline.lastKeyFramesSelected[0];
+            track = timeline.animationClip.tracks[trackIdx];
             // Don't store info if we are using wrong mode for that track
-            if ( bone.name != name || keyType != track.id ) { return; } 
+            if ( bone.name != track.groupId || keyType != track.id ) { return; }
             keyFrameIndex = keyFrame;
         }
 
@@ -613,9 +612,10 @@ class Gizmo {
             
             for( let i = 1; i < chain.length; ++i ){
                 const boneToProcess = this.skeleton.bones[chain[i]];
-                const quaternionTrackIdx = ( timeline.getNumTracks(boneToProcess) > 1 ) ? 1 : 0;
+                const groupTracks = timeline.getTracksGroup(boneToProcess.name);
+                const quaternionTrackIdx = ( timeline.getTracksGroup(boneToProcess.name).length > 1 ) ? 1 : 0; // localindex
                 
-                const track = timeline.getTrack([boneToProcess.name, quaternionTrackIdx]);
+                const track = groupTracks[quaternionTrackIdx];
                 if ( track.dim != 4 ){ continue; } // only quaternions
 
                 this.editor.gui.keyFramesTimeline.saveState( track.trackIdx, i != 1 );
@@ -699,9 +699,9 @@ class Gizmo {
     }
 
     setMode( mode ) {
-        if ( this.toolSelected == Gizmo.Tools.JOINT ){ 
-            this.mode = mode;
-            this.transform.setMode( mode );
+        if ( this.toolSelected == Gizmo.Tools.JOINT ){
+            this.mode = Gizmo.ModeLUT[mode] ?? "rotate";
+            this.transform.setMode( this.mode );
             return true;
         }
 
@@ -771,6 +771,15 @@ class Gizmo {
     
 };
 
+
+Gizmo.ModeLUT = {
+    "translate": "translate",
+    "position" : "translate",
+    "scale": "scale",
+    "rotate" : "rotate",
+    "rotation" : "rotate",
+    "quaternion" : "rotate"
+}
 Gizmo.ModeToKeyType = {
     'Translate': 'position',
     'Rotate': 'quaternion',

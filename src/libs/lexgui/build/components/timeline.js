@@ -361,7 +361,7 @@ class Timeline {
 
     /**
      * Finds tracks (wholy and partially) inside the range minY maxY.
-     * Canvas local coordinates.
+     * (Full) Canvas local coordinates.
      * @param {number} minY 
      * @param {number} maxY 
      * @returns array of trackDatas
@@ -637,7 +637,6 @@ class Timeline {
 
         // Selections
         ctx.strokeStyle = ctx.fillStyle = Timeline.FONT_COLOR_PRIMARY;
-        ctx.translate( 0, this.topMargin );
         if(this.boxSelection) {
             ctx.globalAlpha = 0.15;
             ctx.fillStyle = Timeline.BOX_SELECTION_COLOR;
@@ -646,7 +645,6 @@ class Timeline {
             ctx.stroke();
             ctx.globalAlpha = 1;
         }
-        ctx.translate( 0, -this.topMargin );
 
     }
 
@@ -788,6 +786,8 @@ class Timeline {
         let isHoveringTimeBar = localY < this.topMargin && 
                                 localX > (timeX - 6) && localX < (timeX + 6);
 
+        const time = this.xToTime(x, true);
+
         if( isHoveringTimeBar ) {
             this.canvas.style.cursor = "col-resize";
         }
@@ -821,8 +821,6 @@ class Timeline {
             }
             return;
         }
-
-        const time = this.xToTime(x, true);
 
         const is_inside = x >= 0 && x <= this.size[0] &&
                         y >= 0 && y <= this.size[1];
@@ -872,7 +870,7 @@ class Timeline {
             if(e.shiftKey && this.active) {
                 this.boxSelection = true;
                 this.boxSelectionEnd[0] = this.boxSelectionStart[0] = localX; 
-                this.boxSelectionEnd[1] = this.boxSelectionStart[1] = localY - this.topMargin;
+                this.boxSelectionEnd[1] = this.boxSelectionStart[1] = localY;
                 return; // Handled
             }
             else if( e.localY < this.topMargin ){
@@ -897,7 +895,7 @@ class Timeline {
 
             if(e.shiftKey && this.active && this.boxSelection) {
                 this.boxSelectionEnd[0] = localX; 
-                this.boxSelectionEnd[1] = localY - this.topMargin;
+                this.boxSelectionEnd[1] = localY;
                 return; // Handled
             }
             else if(this.grabbing && e.button !=2 && !this.movingKeys ) { // e.buttons != 2 on mousemove needs to be plural
@@ -1612,7 +1610,7 @@ class KeyFramesTimeline extends Timeline {
             }
             // Box selection
             else if(this.boxSelection) {                
-                let tracks = this.getTracksInRange(this.boxSelectionStart[1] + this.topMargin, this.boxSelectionEnd[1] + this.topMargin);
+                let tracks = this.getTracksInRange(this.boxSelectionStart[1], this.boxSelectionEnd[1]);
                 
                 for(let t of tracks) {
                     let keyFrameIndices = this.getKeyFramesInRange(t, 
@@ -1767,6 +1765,7 @@ class KeyFramesTimeline extends Timeline {
         }
 
         // Track.dim == 1:  move keyframes vertically (change values instead of time) 
+        // RELIES ON SORTED ARRAY OF lastKeyFramesSelected
         if ( e.altKey && e.buttons & 0x01 ){
             const tracks = this.animationClip.tracks;
             let lastTrackChanged = -1;
@@ -1782,10 +1781,13 @@ class KeyFramesTimeline extends Timeline {
                 track.values[keyIndex] = Math.max(track.curvesRange[0], Math.min(track.curvesRange[1], value - delta)); // invert delta because of screen y
                 track.edited[keyIndex] = true;
 
-                if ( this.onUpdateTrack && track.trackIdx != lastTrackChanged && lastTrackChanged > -1){
+                if ( this.onUpdateTrack && track.trackIdx != lastTrackChanged && lastTrackChanged > -1){ // do it only once all keyframes of the same track have been modified
                     this.onUpdateTrack( [track.trackIdx] );
-                    lastTrackChanged = track.trackIdx;
                 }
+                lastTrackChanged = track.trackIdx;
+            }
+            if( lastTrackChanged > -1 ){ // do the last update, once the last track has been processed
+                this.onUpdateTrack( [track.trackIdx] );
             }
             return;
         }
@@ -1854,7 +1856,7 @@ class KeyFramesTimeline extends Timeline {
                         if ( !e.track ){ return; }
                         const arr = new Float32Array( e.track.dim );
                         arr.fill(0);
-                        this.addKeyFrame( e.track, 0, this.xToTime(e.localX) );
+                        this.addKeyFrame( e.track, arr, this.xToTime(e.localX) );
                     }
                 }
             );
@@ -2146,8 +2148,7 @@ class KeyFramesTimeline extends Timeline {
         }
 
         if ( trackNameInfo.length > 1 ){
-            groupId = trackNameInfo[0].replaceAll(/[\[\]]/g,"");
-            groupId = groupId.replaceAll("_", " ");
+            groupId = trackNameInfo[0];
             trackId = trackNameInfo[1];
         }else{
             trackId = trackNameInfo[0];
@@ -2731,8 +2732,8 @@ class KeyFramesTimeline extends Timeline {
         const track = this.animationClip.tracks[trackIdx];
 
         // Don't remove by now the first key (and avoid impossible indices)
-        if(index < 1 || index >= track.times.length ) {
-            console.warn("Operation not supported! " + (index==0 ?"[removing first keyframe track]":"[removing invalid keyframe " + index + " from " + track.times.length + "]"));
+        if(index < 0 || index >= track.times.length ) {
+            console.warn("Operation not supported! " + "[removing invalid keyframe " + index + " from " + track.times.length + "]");
             return false;
         }
 
@@ -3158,13 +3159,13 @@ class ClipsTimeline extends Timeline {
             // Box selection
             else if (this.boxSelection){
                 
-                let tracks = this.getTracksInRange(this.boxSelectionStart[1], this.boxSelectionEnd[1], this.secondsPerPixel * 5);
+                let tracks = this.getTracksInRange(this.boxSelectionStart[1], this.boxSelectionEnd[1]);
                 
                 for(let t of tracks) {
                     let clipsIndices = this.getClipsInRange(t, 
                         this.xToTime( this.boxSelectionStart[0] ), 
                         this.xToTime( this.boxSelectionEnd[0] ),
-                        this.secondsPerPixel * 5);
+                        0.000001);
                         
                     if(clipsIndices) {
                         for(let index of clipsIndices)
@@ -3210,7 +3211,6 @@ class ClipsTimeline extends Timeline {
 
             for(let i = 0; i < selectedClips.length; i++)
             {
-                this.movingKeys = false;
                 let [trackIndex, clipIndex] = selectedClips[i];
                 const clip = this.animationClip.tracks[trackIndex].clips[clipIndex];
 
@@ -3231,6 +3231,7 @@ class ClipsTimeline extends Timeline {
                 }
             }
 
+            this.movingKeys = true;
         }
         else if( !track || track && this.getCurrentClip(track, time, 0.001) == -1) { // clicked on empty space
             this.unSelectAllClips();
@@ -3512,7 +3513,7 @@ class ClipsTimeline extends Timeline {
         else if(e.track && e.buttons == 0) { // mouse not dragging, just hovering
 
             this.unHoverAll();
-            let clips = this.getClipsInRange(e.track, time, time, 0.1)
+            let clips = this.getClipsInRange(e.track, time, time, 0.00001);
             if(!e.track.locked && clips) {
                                 
                 this.lastHovered = [e.track.trackIdx, clips[0]];
