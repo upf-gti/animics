@@ -2184,7 +2184,7 @@ class KeyframeEditor extends Editor {
             return;
         }
 
-        const visibleElements = this.trackTreesWidget.innerTree.domEl.children[0].children;
+        const visibleElements = this.activeTimeline.getVisibleItems();
         for( let i = 0; i < visibleElements.length; ++i ) {
 
             const track = visibleElements[i].treeData.trackData; 
@@ -2659,7 +2659,7 @@ class KeyframeEditor extends Editor {
         // const auAnimation = this.getCurrentBindedAnimation().auAnimation; // activeTimeline.animationClip == auAnimation
         const time = this.activeTimeline.currentTime;
 
-        const visibleItems = this.trackTreesWidget.innerTree.domEl.children[0].children;
+        const visibleItems = this.activeTimeline.getVisibleItems();
         for(let i = 0; i < visibleItems.length; i++) {
             const track = visibleItems[i].treeData.trackData;
             if (!track){
