@@ -1052,6 +1052,15 @@ class KeyframesGui extends Gui {
                 }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
                 
             },
+            onCreateAfterTopBar: (panel) =>{
+                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                    this.editor.setPlaybackRate(value);
+                }, {
+                    step: 0.01,
+                    signal: "@on_set_speed",
+                    nameWidth: "auto"
+                });
+            },
             onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
@@ -1095,7 +1104,6 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onStateStop = () => {
             this.menubar.getButton("Stop").children[0].children[0].click();
         }
-        this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.keyFramesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, true);
             this.propagationWindow.setTime(t);
@@ -1245,6 +1253,15 @@ class KeyframesGui extends Gui {
                     this.editor.bindAnimationToCharacter(v); // already updates gui
                 }, {signal: "@on_animation_loaded"})
             },
+            onCreateAfterTopBar: (panel) =>{
+                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                    this.editor.setPlaybackRate(value);
+                }, {
+                    step: 0.01,
+                    signal: "@on_set_speed",
+                    nameWidth: "auto"
+                });
+            },
             onChangeLoopMode: (loop) => {
                 this.updateLoopModeGui( loop );
             }, 
@@ -1273,7 +1290,6 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.curvesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
 
-        this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.curvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, true);
             this.propagationWindow.setTime(t);
@@ -2444,6 +2460,15 @@ class ScriptGui extends Gui {
     createTimelines( ) {
                                
         this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
+            onCreateAfterTopBar: (panel) =>{
+                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                    this.editor.setPlaybackRate(value);
+                }, {
+                    step: 0.01,
+                    signal: "@on_set_speed",
+                    nameWidth: "auto"
+                });
+            },
             onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
@@ -2465,7 +2490,6 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onAddNewTrack = (track, initData) =>{ track.id = "Track " + (this.clipsTimeline.animationClip.tracks.length-1);}
 
         this.clipsTimeline.leftPanel.parent.root.style.zIndex = 1;
-        this.clipsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t, true);
         this.clipsTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();

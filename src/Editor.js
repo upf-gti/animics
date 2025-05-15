@@ -61,6 +61,7 @@ class Editor {
         this.showGUI = true;
         this.showSkin = true; // defines if the model skin has to be rendered
         this.animLoop = true;
+        this.playbackRate = 1;
 
         this.delayedResizeID = null;
         this.delayedResizeTime = 500; //ms
@@ -363,7 +364,7 @@ class Editor {
         this.currentCharacter = this.loadedCharacters[characterName];
         this.scene.add( this.currentCharacter.model );
         this.scene.add( this.currentCharacter.skeletonHelper );
-        this.setPlaybackRate(this.activeTimeline.speed);
+        this.setPlaybackRate(this.playbackRate);
 
         // Gizmo stuff
         if(this.gizmo) {
@@ -539,7 +540,10 @@ class Editor {
 
     setPlaybackRate(v){    
         v = Math.max( 0.0001, v );
+        this.playbackRate = v;
         this.currentCharacter.mixer.timeScale = v;
+
+        LX.emit("@on_set_speed", v ); // skipcallbacks, only update
     }
 
     bindEvents() {
@@ -2109,7 +2113,11 @@ class KeyframeEditor extends Editor {
         if( this.video.sync ) {
             this.video.playbackRate = v; 
         }
+
+        this.playbackRate = v;
         this.currentCharacter.mixer.timeScale = v;
+
+        LX.emit("@on_set_speed", v ); // skipcallbacks, only update
     }
 
     setBoneSize(newSize) {
@@ -2220,7 +2228,6 @@ class KeyframeEditor extends Editor {
         switch(type) {
             case this.animationModes.FACE:
                 this.animationMode = this.animationModes.FACE;
-                this.gui.curvesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                 this.activeTimeline = this.gui.curvesTimeline;
                 this.activeTimeline.show();
                 currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
@@ -2236,7 +2243,6 @@ class KeyframeEditor extends Editor {
                 
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
-                this.gui.keyFramesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                 if( this.gizmo ) {
                     this.gizmo.enable();
                 }
