@@ -1067,9 +1067,6 @@ class KeyframesGui extends Gui {
                     this.updateAnimationPanel();
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
-            onChangeLoopMode: (loop) => {
-                this.updateLoopModeGui( loop );
-            },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
@@ -1095,7 +1092,10 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.keyFramesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.keyFramesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
-
+        
+        this.keyFramesTimeline.onChangeLoopMode = (loop) => {
+                this.updateLoopModeGui( loop );
+        };
         this.keyFramesTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
                 this.menubar.getButton("Play").children[0].children[0].click();
@@ -1262,9 +1262,6 @@ class KeyframesGui extends Gui {
                     nameWidth: "auto"
                 });
             },
-            onChangeLoopMode: (loop) => {
-                this.updateLoopModeGui( loop );
-            }, 
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
@@ -1290,13 +1287,16 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.curvesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
 
+        this.curvesTimeline.onChangeLoopMode = (loop) => {
+                this.updateLoopModeGui( loop );
+        };
         this.curvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip, -1);
             }
-        }
+        };
         this.curvesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             if (!currentBinded){ return; }
@@ -2476,9 +2476,6 @@ class ScriptGui extends Gui {
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
                 
             },
-            onChangeLoopMode: (loop) => {
-                this.updateLoopModeGui( loop );
-            },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
@@ -2490,6 +2487,9 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onAddNewTrack = (track, initData) =>{ track.id = "Track " + (this.clipsTimeline.animationClip.tracks.length-1);}
 
         this.clipsTimeline.leftPanel.parent.root.style.zIndex = 1;
+        this.clipsTimeline.onChangeLoopMode = (loop) => {
+                this.updateLoopModeGui( loop );
+        };
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t, true);
         this.clipsTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
