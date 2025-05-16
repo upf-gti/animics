@@ -1121,7 +1121,7 @@ class KeyframesGui extends Gui {
         };
 
         this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
-        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
+        this.keyFramesTimeline.onDeleteKeyFrames = (trackIdx, indices) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
         this.keyFramesTimeline.onSelectKeyFrame = (e, info) => {
             this.propagationWindow.setTime( this.keyFramesTimeline.currentTime );
 
@@ -1314,7 +1314,7 @@ class KeyframesGui extends Gui {
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1); 
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
         }
-        this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
+        this.curvesTimeline.onDeleteKeyFrames = (trackIdx, tidx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
         this.curvesTimeline.onSelectKeyFrame = (e, info) => {
             this.propagationWindow.setTime( this.curvesTimeline.currentTime );
 
