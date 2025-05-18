@@ -1113,16 +1113,11 @@ class KeyframeEditor extends Editor {
     }
     
     undo() {
-        
-        if(this.activeTimeline.undo) {
-            this.activeTimeline.undo();
-        }
+        this.activeTimeline.undo();
     }
 
     redo() {
-        if(this.activeTimeline.redo) {
-            this.activeTimeline.redo();
-        }
+        this.activeTimeline.redo();
     }
 
     async initCharacters() {
@@ -2417,7 +2412,7 @@ class KeyframeEditor extends Editor {
         // selectkeyframe at current keyframe if possible
         let track = this.activeTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
         let keyframe = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.1 );
-        this.activeTimeline.processCurrentKeyFrame( {}, keyframe, track, null, false );
+        this.activeTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
 
         this.gizmo.setBone(name);
         this.gizmo.mustUpdate = true;
@@ -2755,18 +2750,13 @@ class ScriptEditor extends Editor {
     }
 
     undo() {
-        
-        if( this.activeTimeline.undo ) {
-            this.activeTimeline.undo();
-            this.gui.updateClipPanel();
-        }
+        this.activeTimeline.undo();
+        this.gui.updateClipPanel();
     }
 
     redo() {
-        if( this.activeTimeline.redo ) {
-            this.activeTimeline.redo();
-            this.gui.updateClipPanel();
-        }
+        this.activeTimeline.redo();
+        this.gui.updateClipPanel();
     }
 
     async initCharacters()
