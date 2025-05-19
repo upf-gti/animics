@@ -2957,7 +2957,7 @@ class ScriptEditor extends Editor {
         let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(animation, this.animationFrameRate);
         mixerAnimation.name = this.currentAnimation;
         mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();
-        mixer.setTime(this.activeTimeline.currentTime);
+        mixer.setTime(this.activeTimeline.currentTime / mixer.timeScale);
         
         this.bindedAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation = mixerAnimation;    
     }

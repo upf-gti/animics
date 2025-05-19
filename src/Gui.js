@@ -1159,7 +1159,7 @@ class KeyframesGui extends Gui {
                     {
                         title: "Delete",
                         callback: () => {
-                            this.deleteSelectedContent({});
+                            this.deleteSelectedContent();
                         }
                     }
                 );
@@ -2448,7 +2448,8 @@ class ScriptGui extends Gui {
     /** Create timelines */
     createTimelines( ) {
                                
-        this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
+        this.clipsTimeline = new LX.ClipsTimeline("clipsTimelineId", {
+            title: "Behaviour actions",
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -2508,8 +2509,7 @@ class ScriptGui extends Gui {
             this.delayedUpdateTracks();
         };
 
-        this.clipsTimeline.deleteSelectedContent = () => {
-            this.clipsTimeline.deleteClip(null); // delete selected clips
+        this.clipsTimeline.onDeleteSelectedClips = (selectedContent) => {
             this.editor.updateTracks();
             this.updateClipPanel();
         }
@@ -2582,7 +2582,7 @@ class ScriptGui extends Gui {
                             {
                                 title: "Break down into actions",
                                 callback: () => {
-                                    this.clipsTimeline.deleteSelectedContent();
+                                    this.clipsTimeline.deleteSelectedContent(true); // skip callback
                                     this.mode = ClipModes.Actions;
                                     this.clipsTimeline.addClips(clip.clips, this.clipsTimeline.currentTime);
                                 }
@@ -2941,7 +2941,6 @@ class ScriptGui extends Gui {
                     this.clipsTimeline.setDuration(clip.start + clip.duration);
                 }
                 this.delayedUpdateTracks();
-                this.editor.setTime(this.clipsTimeline.currentTime);
             }
 
             widgets.widgets_per_row = 1;
@@ -3172,7 +3171,8 @@ class ScriptGui extends Gui {
             }
 
             widgets.addButton(null, "Delete", (v, e) => {
-                this.clipsTimeline.deleteClip(this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1]);
+                const selection = this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1];
+                this.clipsTimeline.deleteClip(selection[0], selection[1]);
                 clip = null;  
                 updateTracks(); 
                 this.delayedUpdateTracks();
