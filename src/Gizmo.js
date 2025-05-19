@@ -420,7 +420,7 @@ class Gizmo {
                 this._setBoneById( intersection.index );
                 
                 let boneName = this.skeleton.bones[this.selectedBone].name;
-                this.editor.gui.onSelectItem(boneName);
+                this.editor.setSelectedBone(boneName);
             }
         });
 

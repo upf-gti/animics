@@ -612,9 +612,6 @@ class Gui {
     /** ------------------------------------------------------------ */
 
     /** -------------------- ON EVENTS -------------------- */
-    onSelectItem(item) { // on bone select through canvas gizmo
-        this.treeWidget.innerTree.select(item);
-    }
 
     resize(width, height) {
         //this.timelineArea.setSize([width, null]);
