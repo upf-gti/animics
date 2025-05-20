@@ -2554,13 +2554,13 @@ class ScriptGui extends Gui {
                         title: "Copy",
                         callback: () => this.clipsTimeline.copySelectedContent()
                     }
-                )
+                );
                 actions.push(
                     {
                         title: "Delete",
                         callback: () => this.clipsTimeline.deleteSelectedContent()
                     }
-                )
+                );
                 actions.push(
                     {
                         title: "Create preset",
@@ -2574,7 +2574,7 @@ class ScriptGui extends Gui {
                             // this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
                         }
                     }
-                )
+                );
                 if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
                     let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
                     if(clip.type == "glossa") {                        
@@ -2587,23 +2587,9 @@ class ScriptGui extends Gui {
                                     this.clipsTimeline.addClips(clip.clips, this.clipsTimeline.currentTime);
                                 }
                             }
-                        )
+                        );
                     }
                 }
-                // actions.push(
-                //     {
-                //         title: "Create sign/Local",
-                //         callback: () => {
-                //             this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                //                 if(a[0]<b[0]) 
-                //                     return -1;
-                //                 return 1;
-                //             });
-                //             this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "local");
-                //         }
-                //     }
-                // )
-
                 actions.push(
                     {
                         title: "Create sign",
@@ -2618,7 +2604,7 @@ class ScriptGui extends Gui {
                                 // this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");                            
                         }
                     }
-                )
+                );
             }
             else{
                 actions.push(
@@ -2639,7 +2625,15 @@ class ScriptGui extends Gui {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => this.clipsTimeline.pasteContent()
                         }
-                    )
+                    );
+                    actions.push(
+                        {
+                            title: "Paste Here",
+                            callback: () => {
+                                this.clipsTimeline.pasteContent( this.clipsTimeline.xToTime(e.localX) );
+                            }
+                        }
+                    );
                 }
             }
             
