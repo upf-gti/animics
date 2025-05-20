@@ -1333,15 +1333,12 @@ class KeyframesGui extends Gui {
 
 
         /* Curves Blendshapes Timeline */
-        this.blendshapesCurvesTimeline = new LX.CurvesTimeline("Action Units", {
+        this.blendshapesCurvesTimeline = new LX.KeyFramesTimeline("Action Units", { title: "Action Units",
             onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v); // already updates gui
                 }, {signal: "@on_animation_loaded"})
-            },
-            onChangeLoopMode: (loop) => {
-                this.updateLoopModeGui( loop );
-            }, 
+            },          
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
@@ -1366,7 +1363,7 @@ class KeyframesGui extends Gui {
         this.blendshapesCurvesTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.blendshapesCurvesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.blendshapesCurvesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
-
+        this.blendshapesCurvesTimeline.onChangeLoopMode = (loop) => this.updateLoopModeGui( loop );
         this.blendshapesCurvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.blendshapesCurvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, true);
@@ -1394,17 +1391,12 @@ class KeyframesGui extends Gui {
         }
         this.blendshapesCurvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, trackIdx);
         this.blendshapesCurvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
-        this.blendshapesCurvesTimeline.onSelectKeyFrame = (e, info) => {
+        this.blendshapesCurvesTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.blendshapesCurvesTimeline.currentTime );
-
-            if(e.button != 2) {
-                this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, info[3]);
-                if ( this.propagationWindow.enabler ){
-                    this.blendshapesCurvesTimeline.unSelectAllKeyFrames();
-                }
-                return false;
-            }
-            return true; // Handled
+            this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, selection[0]);
+            if ( this.propagationWindow.enabler ){
+                this.blendshapesCurvesTimeline.unSelectAllKeyFrames();
+            }       
         };
         
         this.blendshapesCurvesTimeline.onStateChange = (state) => {
@@ -1419,7 +1411,7 @@ class KeyframesGui extends Gui {
             this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, idx);
             this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, idx < 0 ? -1 : idx);
         }
-        this.blendshapesCurvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, track.clipIdx);}
+        this.blendshapesCurvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, track.trackIdx);}
 
         this.timelineArea.attach(this.keyFramesTimeline.root);
         this.timelineArea.attach(this.curvesTimeline.root);
@@ -1538,6 +1530,7 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.setAnimationClip( animation.skeletonAnimation, false );
         this.curvesTimeline.setAnimationClip( animation.auAnimation, false );
         this.blendshapesCurvesTimeline.setAnimationClip( animation.bsAnimation, false);
+        this.blendshapesCurvesTimeline.setSelectedItems(Object.keys(animation.bsAnimation.tracks));
         this.updateAnimationPanel();
         this.createActionUnitsPanel(); // need to update the panel's available blendshapes
         this.createBlendshapesPanel( );
@@ -1809,23 +1802,23 @@ class KeyframesGui extends Gui {
 
         for(let i = 0; i < animation.tracks.length; i++) {
             const track = animation.tracks[i];
-            track.clipIdx = i;
-            const name = track.name;
+
+            const name = track.id;
             let frame = this.blendshapesCurvesTimeline.getCurrentKeyFrame(track, this.blendshapesCurvesTimeline.currentTime, 0.1);
             frame = frame == -1 ? 0 : frame;
             if( (!this.blendshapesCurvesTimeline.lastKeyFramesSelected.length || this.blendshapesCurvesTimeline.lastKeyFramesSelected[0][2] != frame)) {
-                this.blendshapesCurvesTimeline.selectKeyFrame(track, frame);
+                this.blendshapesCurvesTimeline.selectKeyFrame(track.trackIdx, frame);
             }
 
             panel.addNumber(name, track.values[frame], (v,e) => {    
                 for(let id in track.data.tracksIds ) {
                     const boundAnimation = this.editor.getCurrentBindedAnimation();
                     const idx = track.data.tracksIds[id];
-                    boundAnimation.tracks[idx];
+                    boundAnimation.bsAnimation.tracks[idx];
                 }
                 this.editor.updateBlendshapesProperties(name, v);
             }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ 
-                this.blendshapesCurvesTimeline.saveState(track.clipIdx)
+                this.blendshapesCurvesTimeline.saveState(track.trackIdx)
              }});
         }
         

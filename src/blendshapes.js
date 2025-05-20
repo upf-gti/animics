@@ -243,8 +243,8 @@ class BlendshapesManager {
                 allMorphTargetDictionary[propertyIndex] = { skinnedMeshes: [nodeName], tracksIds: [i] };
                 newTrack.data = allMorphTargetDictionary[propertyIndex];
             }
-
         }
+        
         // use -1 to automatically calculate
         // the length from the array of tracks
         const length = -1;

@@ -1926,7 +1926,7 @@ class KeyframeEditor extends Editor {
                 bodyAnimation.name = "bodyAnimation";   // mixer
                 skeletonAnimation.name = "bodyAnimation";  // timeline
 
-                if(otherTracks.length) {
+                if(otherTracks.length) { // comes from a bvhe
                     faceAnimation = new THREE.AnimationClip("faceAnimation", bodyAnimation.duration, otherTracks);
                 }
             }
@@ -2065,37 +2065,53 @@ class KeyframeEditor extends Editor {
     /** Validate face animation clip created using Mediapipe 
      * THREEJS AnimationClips CANNOT have tracks with 0 entries
     */
-    validateFaceAnimationClip(clip) {
+    validateFaceAnimationClip( animation ) {
 
-        let tracks = clip.tracks;
+        let tracks = animation.tracks;
         let blendshapes = this.currentCharacter.morphTargets;
 
         let bsCheck = new Array(blendshapes.length);
         bsCheck.fill(false);
 
+        const allMorphTargetDictionary = {};
         // ensure each track has at least one valid entry. Default to current avatar pose
         for( let i = 0; i < tracks.length; ++i ){
-            let t = tracks[i];
-            let trackBSName = t.name.substr(0, t.name.lastIndexOf("."));
-            // Find blendshape index
-            if ( !t.values.length || !t.times.length ){
-                t.times = new Float32Array([0]);
-                // if ( t.name.endsWith(".position") ){ t.values = new Float32Array( bone.position.toArray() ); }
-                // else if ( t.name.endsWith(".quaternion") ){ t.values = new Float32Array( bone.quaternion.toArray() ); }
-                // else if ( t.name.endsWith(".scale") ){ t.values = new Float32Array( bone.scale.toArray() ); }
+            const track = tracks[i];
+            const {propertyIndex, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
+            if(allMorphTargetDictionary[propertyIndex]) {
+                allMorphTargetDictionary[propertyIndex][nodeName] = track;
             }
-
-            // if ( t.name.endsWith(".quaternion") ){ quatCheck[boneIdx] = true; }
-            // if ( t.name.endsWith(".position") && boneIdx==0 ){ posCheck = true; }
+            else {
+                allMorphTargetDictionary[propertyIndex] = { [nodeName] : track };
+            }
         }
 
-        // ensure every blendshape has its track        
-        // for( let i = 0; i < bsCheck.length; ++i ){
-        //     if ( !bsCheck[i] ){
-        //         let track = new THREE.QuaternionKeyframeTrack(bones[i].name + '.quaternion', [0], bones[i].quaternion.toArray());
-        //         clip.tracks.push(track);    
-        //     }
-        // }
+        const defaultTimes = animation && animation.tracks.length ? animation.tracks[0].times : [0];
+        const morphTargetDictionary = this.currentCharacter.morphTargets;
+
+        for( let mesh in morphTargetDictionary ) {
+            const dictionary = morphTargetDictionary[mesh];
+            for( let morph in dictionary ) {
+                let newTrack = null;
+                if( allMorphTargetDictionary[morph]) {
+                        if(allMorphTargetDictionary[morph][mesh]) {
+                            continue;
+                        }                    
+                    const keys = Object.keys(allMorphTargetDictionary[morph]);
+                    const track = allMorphTargetDictionary[morph][keys[0]];
+                    newTrack = new THREE.NumberKeyframeTrack( mesh + ".morphTargetInfluences[" + morph + "]", track.times, track.values);
+                }
+                else {
+                    const values = [];
+                    values.length = defaultTimes.length;
+                    values.fill(0);
+                    newTrack = new THREE.NumberKeyframeTrack( mesh + ".morphTargetInfluences[" + morph + "]", defaultTimes.slice(), values);
+                    allMorphTargetDictionary[morph] = { [mesh] : newTrack};
+                }
+
+                tracks.push(newTrack);
+            }
+        }
     }
 
     setVideoVisibility( visibility, needsMirror = false ){ // TO DO
