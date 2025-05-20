@@ -1936,11 +1936,13 @@ class KeyframeEditor extends Editor {
                 faceAnimation = faceAnimation ? animation.faceAnimation.tracks.concat(faceAnimation.tracks) : animation.faceAnimation;
             }      
             let auAnimation = null;
+            let bsAnimation = null;
+
             if(faceAnimation) {
                                 
                 if(animation.type == "video") {
                     auAnimation = faceAnimation;
-                    faceAnimation = this.currentCharacter.blendshapesManager.createBlendShapesAnimation(animation.blendshapes);
+                    faceAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes);
                 }
                 else {
                     // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
@@ -1956,9 +1958,10 @@ class KeyframeEditor extends Editor {
                 auAnimation = this.gui.curvesTimeline.setAnimationClip( auAnimation, true );
 
                 faceAnimation.name = "faceAnimation";   // mixer
-                auAnimation.name = "faceAnimation";  // timeline
+                auAnimation.name = "faceAnimation";  // action units timeline
                 this.validateFaceAnimationClip(faceAnimation);
-
+                
+                bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline                
             }
             
             if(!this.bindedAnimations[animationName]) {
@@ -1967,7 +1970,7 @@ class KeyframeEditor extends Editor {
             
             this.bindedAnimations[animationName][this.currentCharacter.name] = {
                 source: animationName,
-                skeletonAnimation, auAnimation, // from gui timeline. Main data
+                skeletonAnimation, auAnimation, bsAnimation, // from gui timeline. Main data
                 mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation // for threejs mixer. ALWAYS relies on timeline data
             }
         }
@@ -2208,7 +2211,7 @@ class KeyframeEditor extends Editor {
      * @param {animationModes} type 
      * @returns 
      */
-    setTimeline(type) {
+    setTimeline(type, faceType = "actionunits") {
 
         let currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
         
@@ -2220,18 +2223,26 @@ class KeyframeEditor extends Editor {
         switch(type) {
             case this.animationModes.FACE:
                 this.animationMode = this.animationModes.FACE;
+                if(this.animationMode == type) {
+                    this.activeTimeline.hide();
+                }
                 this.gui.curvesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
-                this.activeTimeline = this.gui.curvesTimeline;
+                if( faceType == "actionunits" ) {
+                    this.activeTimeline = this.gui.curvesTimeline;
+                    this.setSelectedActionUnit(this.selectedAU);                    
+                    if( !this.selectedAU ) {
+                        return;
+                    }
+                }
+                else {
+                    this.activeTimeline = this.gui.blendshapesCurvesTimeline;
+                }
                 this.activeTimeline.show();
                 currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
-                if( !this.selectedAU ) {
-                    return;
-                }
                 if( this.gizmo ) { 
                     this.gizmo.disable();
                 }
 
-                this.setSelectedActionUnit(this.selectedAU);                    
                 break;
                 
             case this.animationModes.BODY:

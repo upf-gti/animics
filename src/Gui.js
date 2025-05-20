@@ -1476,23 +1476,31 @@ class KeyframesGui extends Gui {
         }}  );
         
 
-        tabs.add( "Face", faceArea, { onSelect: (e,v) => {
+        tabs.add( "Face", faceArea, { selected: false, onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.FACE); 
             this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+            
             this.propagationWindow.setTimeline( this.curvesTimeline );
             this.imageMap.resize();
         } });
 
-        const faceTabs = faceArea.addTabs({fit: true});
+        const faceTabs = this.faceTabs = faceArea.addTabs({fit: true});
         const auArea = new LX.Area({id: 'auFace'});  
         const bsArea = new LX.Area({id: 'bsFace'}); 
 
         faceTabs.add("Action Units", auArea, {selected: true, onSelect: (v,e) => {
-
+           this.editor.setTimeline(this.editor.animationModes.FACE, "actionunits"); 
+            this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+            
+            this.propagationWindow.setTimeline( this.curvesTimeline );
+            this.imageMap.resize();
         }});
 
         faceTabs.add("Blendshapes", bsArea, { onSelect: (v,e) => {
-
+            this.editor.setTimeline(this.editor.animationModes.FACE, "blendhsapes"); 
+            
+            this.propagationWindow.setTimeline( this.curvesTimeline );
+            this.imageMap.resize();
         }});
 
         auArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
@@ -1502,8 +1510,10 @@ class KeyframesGui extends Gui {
         faceBottom.root.style.minHeight = "20px";
         faceBottom.root.style.height = "50%";
         faceBottom.root.classList.add("overflow-y-auto");
-        this.createFacePanel(faceTop);
-        this.createActionUnitsPanel();
+        this.createFacePanel( faceTop );
+        this.createActionUnitsPanel( faceBottom );
+
+        this.createBlendshapesPanel( bsArea );
 
         bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
@@ -1522,8 +1532,10 @@ class KeyframesGui extends Gui {
     onChangeAnimation( animation ){
         this.keyFramesTimeline.setAnimationClip( animation.skeletonAnimation, false );
         this.curvesTimeline.setAnimationClip( animation.auAnimation, false );
+        this.blendshapesCurvesTimeline.setAnimationClip( animation.bsAnimation, false);
         this.updateAnimationPanel();
         this.createActionUnitsPanel(); // need to update the panel's available blendshapes
+        this.createBlendshapesPanel( );
     }
 
     updateAnimationPanel( options = {}) {
@@ -1546,7 +1558,7 @@ class KeyframesGui extends Gui {
         widgets.onRefresh(options);
     }
 
-    createFacePanel(area) {
+    createFacePanel( area ) {
 
         const padding = 16;
         const container = document.createElement("div");
@@ -1565,18 +1577,18 @@ class KeyframesGui extends Gui {
         container.appendChild(img);
         
         
-        const map = document.createElement("map");
+        const map = this.auMap = document.createElement("map");
         map.name = "areasmap";
 
         const div = document.createElement("div");
         div.style.position = "fixed";
         const mapHovers = document.createElement("div");
-        for(let area in this.faceAreas) {
+        for(let facePart in this.faceAreas) {
             let maparea = document.createElement("area");
-            maparea.title = this.faceAreas[area];
+            maparea.title = this.faceAreas[facePart];
             maparea.shape = "poly";
-            maparea.name = this.faceAreas[area];
-            switch(this.faceAreas[area]) {
+            maparea.name = this.faceAreas[facePart];
+            switch(this.faceAreas[facePart]) {
                 case "Eye Left":
                     maparea.coords = "305,325,377,316,449,341,452,366,314,377,301,366";
                     break;
@@ -1665,8 +1677,8 @@ class KeyframesGui extends Gui {
                 lineJoin: "round", 
                 lineCap: "round"
             });
+            
             this.highlighter.init();
-           
             this.resize =  () => {
                 var n, m, clen;
                 let newHeight = Math.max( Math.min( area.root.clientWidth / aspectRatio, area.root.clientHeight ) - padding, 0.01 );
@@ -1691,9 +1703,9 @@ class KeyframesGui extends Gui {
 
     }
 
-    createActionUnitsPanel() {
-        const baseArea = this.bodyFaceTabs.tabs.Face.sections[1]; // take bottom area of Face tab
-
+    createActionUnitsPanel( baseArea ) {
+        // const baseArea = this.bodyFaceTabs.tabs.Face.sections[1]; // take bottom area of Face tab
+        baseArea = baseArea || this.faceTabs.tabs["Action Units"].sections[1];
         // clear area before redoing all sliders
         while (baseArea.root.firstChild) {
             baseArea.root.removeChild(baseArea.root.lastChild);
@@ -1781,35 +1793,41 @@ class KeyframesGui extends Gui {
         this.facePanel.select(area);
     }
 
-    createBlendshapesPanel() {
+    createBlendshapesPanel( area ) {
+
+        area = area || this.faceTabs.tabs["Blendshapes"];
+        area.root.innerHTML = "";
 
         const animation = this.blendshapesCurvesTimeline.animationClip;
         if ( !animation ){
             return;
         }
-        if(!this.editor.currentCharacter || !this.editor.currentCharacter.blendshapeManager) {
-            return;
-        }
-        
-        const panel = new LX.Panel({id: "bsPanel"});
-        const {morphTargetDictionary, skinnedMeshes} = this.editor.currentCharacter.blendshapeManager;
+
+        let panel = new LX.Panel({id: "bs-"+ area});
+
         for(let i = 0; i < animation.tracks.length; i++) {
             const track = animation.tracks[i];
-            
+            track.clipIdx = i;
+            const name = track.name;
             let frame = this.blendshapesCurvesTimeline.getCurrentKeyFrame(track, this.blendshapesCurvesTimeline.currentTime, 0.1);
             frame = frame == -1 ? 0 : frame;
             if( (!this.blendshapesCurvesTimeline.lastKeyFramesSelected.length || this.blendshapesCurvesTimeline.lastKeyFramesSelected[0][2] != frame)) {
                 this.blendshapesCurvesTimeline.selectKeyFrame(track, frame);
             }
-            const name = track.name;
-            panel.addNumber(name, track.values[frame], (v,e) => {                           
-                //this.editor.updateBlendshapesProperties(name, v);
-            }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ this.blendshapesCurvesTimeline.saveState(track.clipIdx) }});
-            break;
-            
+
+            panel.addNumber(name, track.values[frame], (v,e) => {    
+                for(let id in track.data.tracksIds ) {
+                    const boundAnimation = this.editor.getCurrentBindedAnimation();
+                    const idx = track.data.tracksIds[id];
+                    boundAnimation.tracks[idx];
+                }
+                this.editor.updateBlendshapesProperties(name, v);
+            }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ 
+                this.blendshapesCurvesTimeline.saveState(track.clipIdx)
+             }});
         }
         
-
+        area.attach(panel);
     }
 
     /**

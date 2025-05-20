@@ -11,7 +11,7 @@ class BlendshapesManager {
     }
     
     // Create THREEJS morph target animation given mediapipe data
-    createBlendShapesAnimation (data, applyRotation = false) {
+    createThreejsAnimation (data, applyRotation = false) {
 
         let clipData = {};
         let times = [];
@@ -214,6 +214,37 @@ class BlendshapesManager {
             }
         }    
 
+        // use -1 to automatically calculate
+        // the length from the array of tracks
+        const length = -1;
+
+        let bsAnimation = new THREE.AnimationClip( "threejsAnimation", length, tracks);
+        return bsAnimation;
+    }
+
+    createBlendshapesAnimation( animation ) {
+
+        const tracks = [];
+        const allMorphTargetDictionary = {};       
+
+        for(let i = 0; i < animation.tracks.length; i++) {
+            const track = animation.tracks[i];
+            
+           const {propertyIndex, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
+           const newTrack = new THREE.NumberKeyframeTrack( propertyIndex, track.times, track.values);
+           tracks.push(newTrack);
+
+           if(allMorphTargetDictionary[propertyIndex]) {
+                allMorphTargetDictionary[propertyIndex].skinnedMeshes.push(nodeName);
+                allMorphTargetDictionary[propertyIndex].tracksIds.push(i);
+                continue;
+            }
+            else {
+                allMorphTargetDictionary[propertyIndex] = { skinnedMeshes: [nodeName], tracksIds: [i] };
+                newTrack.data = allMorphTargetDictionary[propertyIndex];
+            }
+
+        }
         // use -1 to automatically calculate
         // the length from the array of tracks
         const length = -1;
