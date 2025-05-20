@@ -612,9 +612,6 @@ class Gui {
     /** ------------------------------------------------------------ */
 
     /** -------------------- ON EVENTS -------------------- */
-    onSelectItem(item) { // on bone select through canvas gizmo
-        this.treeWidget.innerTree.select(item);
-    }
 
     resize(width, height) {
         //this.timelineArea.setSize([width, null]);
@@ -1052,20 +1049,26 @@ class KeyframesGui extends Gui {
                 }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
                 
             },
+            onCreateAfterTopBar: (panel) =>{
+                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                    this.editor.setPlaybackRate(value);
+                }, {
+                    step: 0.01,
+                    signal: "@on_set_speed",
+                    nameWidth: "auto"
+                });
+            },
             onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
-            onChangeLoopMode: (loop) => {
-                this.updateLoopModeGui( loop );
-            },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
                 }, {min: 0, disabled: false});
-                dialog.addNumber("Num items", Object.keys(this.keyFramesTimeline.animationClip.tracksPerItem).length, null, {disabled: true});
+                dialog.addNumber("Num items", Object.keys(this.keyFramesTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
                 dialog.addNumber("Num tracks", this.keyFramesTimeline.animationClip ? this.keyFramesTimeline.animationClip.tracks.length : 0, null, {disabled: true});
                 dialog.addNumber("Optimize Threshold", this.keyFramesTimeline.optimizeThreshold ?? 0.01, v => {
                         this.keyFramesTimeline.optimizeThreshold = v;
@@ -1086,7 +1089,10 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.keyFramesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.keyFramesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
-
+        
+        this.keyFramesTimeline.onChangeLoopMode = (loop) => {
+                this.updateLoopModeGui( loop );
+        };
         this.keyFramesTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
                 this.menubar.getButton("Play").children[0].children[0].click();
@@ -1095,7 +1101,6 @@ class KeyframesGui extends Gui {
         this.keyFramesTimeline.onStateStop = () => {
             this.menubar.getButton("Stop").children[0].children[0].click();
         }
-        this.keyFramesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.keyFramesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, true);
             this.propagationWindow.setTime(t);
@@ -1113,21 +1118,19 @@ class KeyframesGui extends Gui {
         };
 
         this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
-        this.keyFramesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
-        this.keyFramesTimeline.onSelectKeyFrame = (e, info) => {
+        this.keyFramesTimeline.onDeleteKeyFrames = (trackIdx, indices) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
+        this.keyFramesTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.keyFramesTimeline.currentTime );
 
-            if(e.button != 2) {
-                //this.editor.gizmo.mustUpdate = true
-                this.editor.gizmo.update(true);
-                this.updateSkeletonPanel();
-                this.editor.gizmo._setBoneById( this.editor.gizmo.selectedBone );
-                if ( this.propagationWindow.enabler ){
-                    this.keyFramesTimeline.unSelectAllKeyFrames();
-                }
-                return false;
+            //this.editor.gizmo.mustUpdate = true
+            const track = this.keyFramesTimeline.animationClip.tracks[selection[0]];
+            this.editor.gizmo._setBoneById(this.editor.gizmo.selectedBone);
+            this.editor.setGizmoMode(track ? track.id : "rotate");
+            this.editor.gizmo.update(true);
+            this.updateSkeletonPanel();
+            if ( this.propagationWindow.enabler ){
+                this.keyFramesTimeline.unSelectAllKeyFrames();
             }
-            return true; // Handled
         };
 
         this.keyFramesTimeline.onUnselectKeyFrames = (keyframes) => {
@@ -1156,7 +1159,7 @@ class KeyframesGui extends Gui {
                     {
                         title: "Delete",
                         callback: () => {
-                            this.deleteSelectedContent({});
+                            this.deleteSelectedContent();
                         }
                     }
                 );
@@ -1178,13 +1181,13 @@ class KeyframesGui extends Gui {
                     return;
                 }
                 
-                const type = e.track.type;
+                const type = e.track.id;
                 if(that.boneProperties[type]) {
                     actions.push(
                         {
                             title: "Add Here",
                             callback: () => {
-                                this.addKeyFrame( e.track, that.boneProperties[type].toArray(), this.xToTime(e.localX) );
+                                this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.xToTime(e.localX)] );
                             }
                         }
                     );
@@ -1192,7 +1195,7 @@ class KeyframesGui extends Gui {
                         {
                             title: "Add",
                             callback: () => {
-                                this.addKeyFrame( e.track, that.boneProperties[type].toArray() );
+                                this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
                             }
                         }
                     );
@@ -1228,30 +1231,35 @@ class KeyframesGui extends Gui {
     
         }
 
-        this.keyFramesTimeline.onItemUnselected = () => this.editor.gizmo.stop();
+        this.keyFramesTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.stop(); } }
         this.keyFramesTimeline.onUpdateTrack = (indices) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
-        this.keyFramesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedBone(); };
-        this.keyFramesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.clipIdx);}
+        this.keyFramesTimeline.onSetTrackState = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.trackIdx);}
         this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
         }
         this.editor.activeTimeline = this.keyFramesTimeline;
 
         /* Curves Timeline */
-        this.curvesTimeline = new LX.CurvesTimeline("Action Units", {
+        this.curvesTimeline = new LX.KeyFramesTimeline("Action Units", {
             onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v); // already updates gui
                 }, {signal: "@on_animation_loaded"})
             },
-            onChangeLoopMode: (loop) => {
-                this.updateLoopModeGui( loop );
-            }, 
+            onCreateAfterTopBar: (panel) =>{
+                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                    this.editor.setPlaybackRate(value);
+                }, {
+                    step: 0.01,
+                    signal: "@on_set_speed",
+                    nameWidth: "auto"
+                });
+            },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
                 }, {min: 0, disabled: false});
-                dialog.addNumber("Num items", Object.keys(this.curvesTimeline.animationClip.tracksPerItem).length, null, {disabled: true});
+                dialog.addNumber("Num items", Object.keys(this.curvesTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
                 dialog.addNumber("Num tracks", this.curvesTimeline.animationClip ? this.curvesTimeline.animationClip.tracks.length : 0, null, {disabled: true});
                 dialog.addNumber("Optimize Threshold", this.curvesTimeline.optimizeThreshold ?? 0.01, v => {
                         this.curvesTimeline.optimizeThreshold = v;
@@ -1272,14 +1280,16 @@ class KeyframesGui extends Gui {
         this.curvesTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
         this.curvesTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
 
-        this.curvesTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
+        this.curvesTimeline.onChangeLoopMode = (loop) => {
+                this.updateLoopModeGui( loop );
+        };
         this.curvesTimeline.onSetTime = (t) => {
             this.editor.setTime(t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
                 this.updateActionUnitsPanel(this.curvesTimeline.animationClip, -1);
             }
-        }
+        };
         this.curvesTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
             if (!currentBinded){ return; }
@@ -1297,19 +1307,14 @@ class KeyframesGui extends Gui {
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1); 
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
         }
-        this.curvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
-        this.curvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
-        this.curvesTimeline.onSelectKeyFrame = (e, info) => {
+        this.curvesTimeline.onDeleteKeyFrames = (trackIdx, tidx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
+        this.curvesTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.curvesTimeline.currentTime );
 
-            if(e.button != 2) {
-                this.updateActionUnitsPanel(this.curvesTimeline.animationClip, info[3]);
-                if ( this.propagationWindow.enabler ){
-                    this.curvesTimeline.unSelectAllKeyFrames();
-                }
-                return false;
+            this.updateActionUnitsPanel(this.curvesTimeline.animationClip, selection[0]);
+            if ( this.propagationWindow.enabler ){
+                this.curvesTimeline.unSelectAllKeyFrames();
             }
-            return true; // Handled
         };
         
         this.curvesTimeline.onStateChange = (state) => {
@@ -1324,7 +1329,7 @@ class KeyframesGui extends Gui {
             this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? -1 : idx);
         }
-        this.curvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.clipIdx);}
+        this.curvesTimeline.onSetTrackState = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.trackIdx);}
 
 
         /* Curves Blendshapes Timeline */
@@ -1757,16 +1762,13 @@ class KeyframesGui extends Gui {
             for(let name in areas[area]) {
                 for(let i = 0; i < animation.tracks.length; i++) {
                     const track = animation.tracks[i];
-                    if(track.name == area && track.type == name) {
+                    if(track.groupId == area && track.id == name) {
                         let frame = this.curvesTimeline.getCurrentKeyFrame(track, this.curvesTimeline.currentTime, 0.1);
                         frame = frame == -1 ? 0 : frame;
-                        if( (!this.curvesTimeline.lastKeyFramesSelected.length || this.curvesTimeline.lastKeyFramesSelected[0][2] != frame)) {
-                            this.curvesTimeline.selectKeyFrame(track, frame);
-                        }
 
-                        panel.addNumber(name, track.values[frame], (v,e) => {                           
+                        panel.addNumber(name, track.values.length ? track.values[frame] : 0, (v,e) => {                           
                             this.editor.updateBlendshapesProperties(name, v);
-                        }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ this.curvesTimeline.saveState(track.clipIdx) }});
+                        }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ this.curvesTimeline.saveState(track.trackIdx) }});
                         break;
                     }
                 }
@@ -1840,14 +1842,14 @@ class KeyframesGui extends Gui {
         if(trackIdx == -1) {
 
             const selectedItems = this.curvesTimeline.selectedItems;
-            const tracksPerItem = this.curvesTimeline.animationClip.tracksPerItem;
+            const tracksPerGroup = this.curvesTimeline.animationClip.tracksPerGroup;
             for( let i = 0; i < selectedItems.length; ++i ){
-                const itemTracks = tracksPerItem[selectedItems[i]] || [];
+                const itemTracks = tracksPerGroup[selectedItems[i]] || [];
                 for( let t = 0; t < itemTracks.length; ++t ){
 					const track = itemTracks[t];
                     let frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
                     if ( frame > -1 ){
-                        LX.emit("@on_change_" + track.type, track.values[frame]);
+                        LX.emit("@on_change_" + track.id, track.values[frame]);
                     }
                 }
             }
@@ -1855,16 +1857,15 @@ class KeyframesGui extends Gui {
         }
 
         const track = animation.tracks[trackIdx];
-        let name = track.type;
         let frame = 0;
-        if(this.curvesTimeline.lastKeyFramesSelected.length && this.curvesTimeline.lastKeyFramesSelected[0][0] == name) {
-            frame = this.curvesTimeline.lastKeyFramesSelected[0][2];
+        if(this.curvesTimeline.lastKeyFramesSelected.length && this.curvesTimeline.lastKeyFramesSelected[0][0] == trackIdx) {
+            frame = this.curvesTimeline.lastKeyFramesSelected[0][1];
         } 
         else {            
             frame = this.curvesTimeline.getNearestKeyFrame(track, this.curvesTimeline.currentTime);
         }
         if( frame > -1 ){
-            LX.emit("@on_change_" + name, track.values[frame]);
+            LX.emit("@on_change_" + track.id, track.values[frame]);
         }
     }
 
@@ -1915,9 +1916,9 @@ class KeyframesGui extends Gui {
                         console.log(event.node.id + " is now called " + event.value); 
                         break;
                     case LX.TreeEvent.NODE_VISIBILITY:
-                        const tracksInItem = this.keyFramesTimeline.animationClip.tracksPerItem[event.node.id];
+                        const tracksInItem = this.keyFramesTimeline.animationClip.tracksPerGroup[event.node.id];
                         for( let i = 0; i < tracksInItem.length; ++i ){
-                            this.keyFramesTimeline.changeTrackVisibility(tracksInItem[i].clipIdx, event.value);
+                            this.keyFramesTimeline.setTrackState(tracksInItem[i].trackIdx, event.value);
                         }
                         console.log(event.node.id + " visibility: " + event.value); 
                         break;
@@ -1986,13 +1987,13 @@ class KeyframesGui extends Gui {
             const animationClip = this.keyFramesTimeline.animationClip;
             if(boneSelected && animationClip ) {
 
-                const numTracks = this.keyFramesTimeline.getNumTracks(boneSelected);
-                
-                let trackType = this.editor.getGizmoMode();
-                let tracks = null;
-                if(this.keyFramesTimeline.selectedItems.length) {
-                    tracks = animationClip.tracksPerItem[this.keyFramesTimeline.selectedItems[0]];
+                const tracks = this.keyFramesTimeline.getTracksGroup(boneSelected.name); 
+                if ( !tracks || !tracks.length ){
+                    return;
                 }
+                const numTracks = tracks.length;
+
+                let trackType = this.editor.getGizmoMode();
 
                 let active = this.editor.getGizmoMode();
 
@@ -2011,11 +2012,11 @@ class KeyframesGui extends Gui {
                     let _Modes = [];
                     
                     for(let i = 0; i < tracks.length; i++) {
-                        if(this.keyFramesTimeline.lastKeyFramesSelected.length && this.keyFramesTimeline.lastKeyFramesSelected[0][1] == tracks[i].idx) {
-                            trackType = tracks[i].type;                            
+                        if(this.keyFramesTimeline.lastKeyFramesSelected.length && this.keyFramesTimeline.lastKeyFramesSelected[0][0] == tracks[i].trackIdx) {
+                            trackType = tracks[i].id;                            
                         }
 
-                        if(tracks[i].type == "position") {
+                        if(tracks[i].id == "position") {
                             const mode = {
                                 value: "Translate", 
                                 selected: this.editor.getGizmoMode() == "Translate",
@@ -2023,7 +2024,8 @@ class KeyframesGui extends Gui {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
                                     if( frame > -1 ) {
-                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
+                                        this.keyFramesTimeline.unSelectAllKeyFrames();
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
                                     }
                                     this.editor.setGizmoMode(v); 
                                     widgets.onRefresh();
@@ -2031,15 +2033,16 @@ class KeyframesGui extends Gui {
                             }
                             _Modes.push(mode);
                         }
-                        else if(tracks[i].type == "quaternion" ){ 
+                        else if(tracks[i].id == "quaternion" ){ 
                             const mode = {
                                 value: "Rotate",
                                 selected: this.editor.getGizmoMode() == "Rotate",
                                 callback: (v,e) => {
                                 
-                                    const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
+                                    const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i].trackIdx, this.keyFramesTimeline.currentTime, 0.01); 
                                     if( frame > -1 ) {
-                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
+                                        this.keyFramesTimeline.unSelectAllKeyFrames();
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
                                     }
                                     this.editor.setGizmoMode(v); 
                                     widgets.onRefresh();
@@ -2047,7 +2050,7 @@ class KeyframesGui extends Gui {
                             }
                             _Modes.push(mode);
                         }
-                        else if(tracks[i].type == "scale") {
+                        else if(tracks[i].id == "scale") {
                             const mode = {
                                 value: "Scale",
                                 selected: this.editor.getGizmoMode() == "Scale",
@@ -2055,7 +2058,8 @@ class KeyframesGui extends Gui {
                                 
                                     const frame = this.keyFramesTimeline.getCurrentKeyFrame(tracks[i], this.keyFramesTimeline.currentTime, 0.01); 
                                     if( frame > -1 ) {
-                                        this.keyFramesTimeline.selectKeyFrame(tracks[i], frame);
+                                        this.keyFramesTimeline.unSelectAllKeyFrames();
+                                        this.keyFramesTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
                                     }
                                     this.editor.setGizmoMode(v); 
                                     widgets.onRefresh();
@@ -2152,32 +2156,6 @@ class KeyframesGui extends Gui {
         widgets.onRefresh();
     }
     /** ------------------------------------------------------------ */
-
-    loadKeyframeClip( clip, callback ) {
-
-        this.hideCaptureArea();
-        
-        this.clip = clip || { duration: 1};
-
-        let boneName = null;
-        if(this.editor.currentCharacter.skeletonHelper.bones.length) {
-            boneName = this.editor.currentCharacter.skeletonHelper.bones[0].name;
-        }
-
-        let tracks = [];
-        for(let i = 0; i < this.clip.tracks.length; i++) {
-            if(this.clip.tracks[i].name.includes("position") && i > 0)
-                continue;
-            tracks.push(this.clip.tracks[i]);
-        }
-        this.clip.tracks = tracks;
-
-        this.keyFramesTimeline.setAnimationClip(this.clip);
-        this.keyFramesTimeline.setSelectedItems([boneName]);
-
-        if(callback)
-            callback();
-    }
 
     createSaveDialog() {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
@@ -2622,16 +2600,23 @@ class ScriptGui extends Gui {
     /** Create timelines */
     createTimelines( ) {
                                
-        this.clipsTimeline = new LX.ClipsTimeline("Behaviour actions", {
+        this.clipsTimeline = new LX.ClipsTimeline("clipsTimelineId", {
+            title: "Behaviour actions",
+            onCreateAfterTopBar: (panel) =>{
+                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                    this.editor.setPlaybackRate(value);
+                }, {
+                    step: 0.01,
+                    signal: "@on_set_speed",
+                    nameWidth: "auto"
+                });
+            },
             onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "clearTracks", (value, event) =>  {
                     this.editor.clearAllTracks();     
                     this.updateAnimationPanel();
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
                 
-            },
-            onChangeLoopMode: (loop) => {
-                this.updateLoopModeGui( loop );
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
@@ -2640,8 +2625,13 @@ class ScriptGui extends Gui {
                 dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
             },
         });
+
+        this.clipsTimeline.onAddNewTrack = (track, initData) =>{ track.id = "Track " + (this.clipsTimeline.animationClip.tracks.length-1);}
+
         this.clipsTimeline.leftPanel.parent.root.style.zIndex = 1;
-        this.clipsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
+        this.clipsTimeline.onChangeLoopMode = (loop) => {
+                this.updateLoopModeGui( loop );
+        };
         this.clipsTimeline.onSetTime = (t) => this.editor.setTime(t, true);
         this.clipsTimeline.onSetDuration = (t) => { 
             let currentBinded = this.editor.getCurrentBindedAnimation();
@@ -2671,8 +2661,7 @@ class ScriptGui extends Gui {
             this.delayedUpdateTracks();
         };
 
-        this.clipsTimeline.deleteSelectedContent = () => {
-            this.clipsTimeline.deleteClip(null); // delete selected clips
+        this.clipsTimeline.onDeleteSelectedClips = (selectedContent) => {
             this.editor.updateTracks();
             this.updateClipPanel();
         }
@@ -2717,13 +2706,13 @@ class ScriptGui extends Gui {
                         title: "Copy",
                         callback: () => this.clipsTimeline.copySelectedContent()
                     }
-                )
+                );
                 actions.push(
                     {
                         title: "Delete",
                         callback: () => this.clipsTimeline.deleteSelectedContent()
                     }
-                )
+                );
                 actions.push(
                     {
                         title: "Create preset",
@@ -2737,36 +2726,22 @@ class ScriptGui extends Gui {
                             // this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
                         }
                     }
-                )
-                if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.idx == this.clipsTimeline.lastClipsSelected[0][0]) {
+                );
+                if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
                     let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
                     if(clip.type == "glossa") {                        
                         actions.push(
                             {
                                 title: "Break down into actions",
                                 callback: () => {
-                                    this.clipsTimeline.deleteSelectedContent();
+                                    this.clipsTimeline.deleteSelectedContent(true); // skip callback
                                     this.mode = ClipModes.Actions;
                                     this.clipsTimeline.addClips(clip.clips, this.clipsTimeline.currentTime);
                                 }
                             }
-                        )
+                        );
                     }
                 }
-                // actions.push(
-                //     {
-                //         title: "Create sign/Local",
-                //         callback: () => {
-                //             this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                //                 if(a[0]<b[0]) 
-                //                     return -1;
-                //                 return 1;
-                //             });
-                //             this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "local");
-                //         }
-                //     }
-                // )
-
                 actions.push(
                     {
                         title: "Create sign",
@@ -2781,7 +2756,7 @@ class ScriptGui extends Gui {
                                 // this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");                            
                         }
                     }
-                )
+                );
             }
             else{
                 actions.push(
@@ -2802,7 +2777,15 @@ class ScriptGui extends Gui {
                             title: "Paste",// + " <i class='bi bi-clipboard-fill float-right'></i>",
                             callback: () => this.clipsTimeline.pasteContent()
                         }
-                    )
+                    );
+                    actions.push(
+                        {
+                            title: "Paste Here",
+                            callback: () => {
+                                this.clipsTimeline.pasteContent( this.clipsTimeline.xToTime(e.localX) );
+                            }
+                        }
+                    );
                 }
             }
             
@@ -3104,7 +3087,6 @@ class ScriptGui extends Gui {
                     this.clipsTimeline.setDuration(clip.start + clip.duration);
                 }
                 this.delayedUpdateTracks();
-                this.editor.setTime(this.clipsTimeline.currentTime);
             }
 
             widgets.widgets_per_row = 1;
@@ -3335,7 +3317,8 @@ class ScriptGui extends Gui {
             }
 
             widgets.addButton(null, "Delete", (v, e) => {
-                this.clipsTimeline.deleteClip(this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1]);
+                const selection = this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1];
+                this.clipsTimeline.deleteClip(selection[0], selection[1]);
                 clip = null;  
                 updateTracks(); 
                 this.delayedUpdateTracks();

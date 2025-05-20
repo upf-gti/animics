@@ -61,6 +61,7 @@ class Editor {
         this.showGUI = true;
         this.showSkin = true; // defines if the model skin has to be rendered
         this.animLoop = true;
+        this.playbackRate = 1;
 
         this.delayedResizeID = null;
         this.delayedResizeTime = 500; //ms
@@ -363,7 +364,7 @@ class Editor {
         this.currentCharacter = this.loadedCharacters[characterName];
         this.scene.add( this.currentCharacter.model );
         this.scene.add( this.currentCharacter.skeletonHelper );
-        this.setPlaybackRate(this.activeTimeline.speed);
+        this.setPlaybackRate(this.playbackRate);
 
         // Gizmo stuff
         if(this.gizmo) {
@@ -539,7 +540,10 @@ class Editor {
 
     setPlaybackRate(v){    
         v = Math.max( 0.0001, v );
+        this.playbackRate = v;
         this.currentCharacter.mixer.timeScale = v;
+
+        LX.emit("@on_set_speed", v ); // skipcallbacks, only update
     }
 
     bindEvents() {
@@ -1109,16 +1113,11 @@ class KeyframeEditor extends Editor {
     }
     
     undo() {
-        
-        if(this.activeTimeline.undo) {
-            this.activeTimeline.undo();
-        }
+        this.activeTimeline.undo();
     }
 
     redo() {
-        if(this.activeTimeline.redo) {
-            this.activeTimeline.redo();
-        }
+        this.activeTimeline.redo();
     }
 
     async initCharacters() {
@@ -1961,7 +1960,9 @@ class KeyframeEditor extends Editor {
                 auAnimation.name = "faceAnimation";  // action units timeline
                 this.validateFaceAnimationClip(faceAnimation);
                 
-                bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline                
+                bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
+                bsAnimation = this.gui.blendshapesCurvesTimeline.setAnimationClip(bsAnimation, true);
+                this.gui.blendshapesCurvesTimeline.setSelectedItems(Object.keys(bsAnimation.tracks));
             }
             
             if(!this.bindedAnimations[animationName]) {
@@ -2112,7 +2113,11 @@ class KeyframeEditor extends Editor {
         if( this.video.sync ) {
             this.video.playbackRate = v; 
         }
+
+        this.playbackRate = v;
         this.currentCharacter.mixer.timeScale = v;
+
+        LX.emit("@on_set_speed", v ); // skipcallbacks, only update
     }
 
     setBoneSize(newSize) {
@@ -2179,30 +2184,30 @@ class KeyframeEditor extends Editor {
             return;
         }
 
-        for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
+        const visibleElements = this.activeTimeline.getVisibleItems();
+        for( let i = 0; i < visibleElements.length; ++i ) {
 
-            const track = this.activeTimeline.animationClip.tracks[i];
-            if( this.activeTimeline.selectedItems.indexOf(track.name) < 0 ) {
+            const track = visibleElements[i].treeData.trackData; 
+            if( !track ) { // is a group title
                 continue;
             }
 
-            const idx = track.clipIdx; //index of track in the entire animation
+            const idx = track.trackIdx; //index of track in the entire animation
             let value = null;
                 
             if( track.dim == 1 ) {
                 value = 0;        
             }
-            else {
+            else if ( track.dim == 4 ){
                 value = [0,0,0,1];
-            }            
+            }
+            else{
+                value = [0,0,1];
+            }
 
             this.activeTimeline.clearTrack(idx, value);
                 
             this.updateAnimationAction(this.activeTimeline.animationClip, idx);
-            
-            if(this.activeTimeline.onPreProcessTrack) {
-                this.activeTimeline.onPreProcessTrack( track, track.idx );
-            }
         }
     }
     
@@ -2226,7 +2231,6 @@ class KeyframeEditor extends Editor {
                 if(this.animationMode == type) {
                     this.activeTimeline.hide();
                 }
-                this.gui.curvesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                 if( faceType == "actionunits" ) {
                     this.activeTimeline = this.gui.curvesTimeline;
                     this.setSelectedActionUnit(this.selectedAU);                    
@@ -2247,7 +2251,6 @@ class KeyframeEditor extends Editor {
                 
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
-                this.gui.keyFramesTimeline.setSpeed( this.activeTimeline.speed ); // before activeTimeline is reassigned
                 if( this.gizmo ) {
                     this.gizmo.enable();
                 }
@@ -2309,7 +2312,7 @@ class KeyframeEditor extends Editor {
                         const track = editedAnimation.tracks[trackIdx];
                         mapTrackIdxs[trackIdx] = [];
 
-                        let bsNames = this.currentCharacter.blendshapesManager.mapNames[track.type];
+                        let bsNames = this.currentCharacter.blendshapesManager.mapNames[track.id];
                         if ( !bsNames ){ 
                             continue; 
                         }
@@ -2344,7 +2347,7 @@ class KeyframeEditor extends Editor {
                         // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
                         // _clip is the same clip (pointer) sent in mixer.clipAction. 
 
-                        if( track.active ) {
+                        if( track.active && track.times.length ) {
                             interpolant.parameterPositions = mixerClip.tracks[mapTrackIdx[t]].times = track.times;
                             interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = track.values; 
                         }
@@ -2357,7 +2360,7 @@ class KeyframeEditor extends Editor {
                                 // TO DO optimize if necessary
                                 let skeleton =this.currentCharacter.skeletonHelper.skeleton;
                                 let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
-                                let boneIdx = findIndexOfBoneByName(skeleton, track.name);
+                                let boneIdx = findIndexOfBoneByName(skeleton, track.groupId); // TODO check this track.name. It should not work
                                 let parentIdx = findIndexOfBone(skeleton, skeleton.bones[boneIdx].parent);
                                 let localBind = invMats[boneIdx].clone().invert();
 
@@ -2370,8 +2373,11 @@ class KeyframeEditor extends Editor {
                                 if( track.dim == 4 ) {
                                     interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = q.toArray();//[0,0,0,1];
                                 }
-                                else {
+                                else if ( track.id == "position" ){
                                     interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = p.toArray();//[0,0,0];
+                                }
+                                else{
+                                    interpolant.sampleValues = mixerClip.tracks[mapTrackIdx[t]].values = s.toArray();//[0,0,0];
                                 }
                             } 
 
@@ -2417,14 +2423,14 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.setSelectedItems( [this.selectedBone] );
 
         // selectkeyframe at current keyframe if possible
-        let track = this.activeTimeline.animationClip.tracksPerItem[this.selectedBone][0];
+        let track = this.activeTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
         let keyframe = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.1 );
-        this.activeTimeline.processCurrentKeyFrame( {}, keyframe, track, null, false );
+        this.activeTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
 
         this.gizmo.setBone(name);
         this.gizmo.mustUpdate = true;
+
         this.gui.updateSkeletonPanel();
-        
         if ( this.gui.treeWidget ){ 
             this.gui.treeWidget.innerTree.select(this.selectedBone);
         }
@@ -2661,18 +2667,21 @@ class KeyframeEditor extends Editor {
         // const auAnimation = this.getCurrentBindedAnimation().auAnimation; // activeTimeline.animationClip == auAnimation
         const time = this.activeTimeline.currentTime;
 
-        for(let i = 0; i < this.activeTimeline.tracksDrawn.length; i++) {
-            let info = this.activeTimeline.tracksDrawn[i][0];
-            if(info.type == name && info.active && !info.locked ){
-                const track = this.activeTimeline.animationClip.tracks[info.clipIdx];
+        const visibleItems = this.activeTimeline.getVisibleItems();
+        for(let i = 0; i < visibleItems.length; i++) {
+            const track = visibleItems[i].treeData.trackData;
+            if (!track){
+                continue;
+            }
+            if(track.id == name && track.active && !track.locked ){
 
                 if ( track.times.length <= 0){ continue; }
 
                 if ( this.gui.propagationWindow.enabler ){
-                    this.propagateEdition(this.activeTimeline, track.clipIdx, value);
+                    this.propagateEdition(this.activeTimeline, track.trackIdx, value);
 
                     // Update animation action (mixer) interpolants.
-                    this.updateAnimationAction(this.activeTimeline.animationClip, track.clipIdx );
+                    this.updateAnimationAction(this.activeTimeline.animationClip, track.trackIdx );
                     
                 }else{
                     const frameIdx = this.activeTimeline.getCurrentKeyFrame(track, time, 0.01)
@@ -2682,7 +2691,7 @@ class KeyframeEditor extends Editor {
                         track.edited[frameIdx] = true;               
 
                         // Update animation action (mixer) interpolants.
-                        this.updateAnimationAction(this.activeTimeline.animationClip, track.clipIdx );
+                        this.updateAnimationAction(this.activeTimeline.animationClip, track.trackIdx );
                     } 
                 }
                 return true;
@@ -2754,18 +2763,13 @@ class ScriptEditor extends Editor {
     }
 
     undo() {
-        
-        if( this.activeTimeline.undo ) {
-            this.activeTimeline.undo();
-            this.gui.updateClipPanel();
-        }
+        this.activeTimeline.undo();
+        this.gui.updateClipPanel();
     }
 
     redo() {
-        if( this.activeTimeline.redo ) {
-            this.activeTimeline.redo();
-            this.gui.updateClipPanel();
-        }
+        this.activeTimeline.redo();
+        this.gui.updateClipPanel();
     }
 
     async initCharacters()
@@ -2966,7 +2970,7 @@ class ScriptEditor extends Editor {
         let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(animation, this.animationFrameRate);
         mixerAnimation.name = this.currentAnimation;
         mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();
-        mixer.setTime(this.activeTimeline.currentTime);
+        mixer.setTime(this.activeTimeline.currentTime / mixer.timeScale);
         
         this.bindedAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation = mixerAnimation;    
     }
@@ -2988,13 +2992,7 @@ class ScriptEditor extends Editor {
             for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
 
                 const track = this.activeTimeline.animationClip.tracks[i];
-                const idx = track.idx;
-                
-                this.activeTimeline.clearTrack(idx);
-            
-                if( this.activeTimeline.onPreProcessTrack ) {
-                    this.activeTimeline.onPreProcessTrack( track, track.idx );
-                }
+                this.activeTimeline.clearTrack(track.trackIdx);
             }
             this.updateTracks();
             this.gui.updateClipPanel();
