@@ -2653,6 +2653,56 @@ class ScriptGui extends Gui {
         this.editor.activeTimeline = this.clipsTimeline;
     }
     
+    reorder(){
+        const animationClip = this.clipsTimeline.animationClip;
+        const tracks = animationClip.tracks;
+        let clipGroups = {};
+
+        const oldStateEnabler = this.clipsTimeline.historySaveEnabler;
+        this.clipsTimeline.historySaveEnabler = false;
+
+        for( let t = 0; t < tracks.length; ++t){
+
+            this.clipsTimeline.historySaveEnabler = oldStateEnabler;
+            this.clipsTimeline.saveState(t, t!=0);
+            this.clipsTimeline.historySaveEnabler = false;
+    
+            const clips = tracks[t].clips;
+            for( let c = 0; c < clips.length; ++c ){
+                const clip = clips[c];
+
+                let id = clip.id;
+                if ( clip.properties && clip.properties.hand ){
+                    id += "_" + clip.properties.hand;
+                }
+                const g = clipGroups[id];
+                if ( g ){
+                    g.push(clip);
+                }else{
+                    clipGroups[id] = [clip];
+                }
+            }
+            this.clipsTimeline.clearTrack(t);
+        }
+
+        let groupIds = Object.keys(clipGroups).sort();
+        
+        let firstEmptyTrack = 0;
+        let firstGroupTrack = 0;
+        for( let g = 0; g < groupIds.length; ++g ){
+            const groupClips = clipGroups[groupIds[g]];
+            firstGroupTrack = firstEmptyTrack;
+            for ( let c = 0; c < groupClips.length; ++c ){
+                this.clipsTimeline.addClip(groupClips[c], -1, 0, firstGroupTrack);
+                if ( firstEmptyTrack < tracks.length && tracks[firstEmptyTrack].clips.length > 0 ){
+                    firstEmptyTrack++;
+                }
+            }
+        }
+
+        this.clipsTimeline.historySaveEnabler = oldStateEnabler;
+    }
+
     dataToBMLClips(data, mode) {
         //assuming data.behaviours starts at 0, like it is in "local time"
 
