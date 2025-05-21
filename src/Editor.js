@@ -206,8 +206,8 @@ class Editor {
         renderer.setPixelRatio(pixelRatio);
         renderer.setSize(CANVAS_WIDTH, CANVAS_HEIGHT);
         renderer.outputEncoding = THREE.sRGBEncoding;
-        renderer.gammaInput = true; // applies degamma to textures ( not applied to material.color and roughness, metalnes, etc. Only to colour textures )
-        renderer.gammaOutput = true; // applies gamma after all lighting operations ( which are done in linear space )
+        renderer.encoding = THREE.sRGBEncoding;
+        //renderer.gammaOutput = true; // applies gamma after all lighting operations ( which are done in linear space ) --> deptecated --> With three.js default post-processing, use LinearEncoding and apply a GammaCorrectionShader as the last pass in post
         renderer.shadowMap.enabled = true;
 
         canvasArea.root.appendChild(renderer.domElement);
@@ -1095,6 +1095,7 @@ class KeyframeEditor extends Editor {
                     if( this.gui.propagationWindow.enabler ){
                         this.gui.keyFramesTimeline.unSelectAllKeyFrames();
                         this.gui.curvesTimeline.unSelectAllKeyFrames();
+                        this.gui.blendshapesCurvesTimeline.unSelectAllKeyFrames();
                     }
                 }
             break;
@@ -2316,13 +2317,14 @@ class KeyframeEditor extends Editor {
         }
                      
         const isFaceAnim = editedAnimation.name == "faceAnimation";
+        const name = editedAnimation.name == "bsAnimation" ? "faceAnimation" : editedAnimation.name;
         for( let i = 0; i< mixer._actions.length; i++ ) {
-            if( mixer._actions[i]._clip.name == editedAnimation.name ) { // name == ("bodyAnimation" || "faceAnimation")
+            if( mixer._actions[i]._clip.name == name ) { // name == ("bodyAnimation" || "faceAnimation")
                 const mixerClip = mixer._actions[i]._clip;
                 let mapTrackIdxs = {};
 
                 // If the editedAnimation is an auAnimation, the tracksIdx have to be mapped to the mixerAnimation tracks indices
-                if( isFaceAnim ) {
+                if( editedAnimation.name == "faceAnimation" ) {
                     for( let j = 0; j < trackIdxs.length; j++ ) {
                         const trackIdx = trackIdxs[j];
                         const track = editedAnimation.tracks[trackIdx];
@@ -2345,6 +2347,30 @@ class KeyframeEditor extends Editor {
                             }
                         }
                     }                    
+                }
+                else if( editedAnimation.name == "bsAnimation" ) {
+                    for( let j = 0; j < trackIdxs.length; j++ ) {
+                        const trackIdx = trackIdxs[j];
+                        const track = editedAnimation.tracks[trackIdx];
+                        mapTrackIdxs[trackIdx] = [];
+
+                        let bsNames = this.currentCharacter.blendshapesManager.mapNames[track.id];
+                        if ( !bsNames ){ 
+                            continue; 
+                        }
+                        if(typeof(bsNames) == 'string') {
+                            bsNames = [bsNames];
+                        }
+
+                        for( let b = 0; b < bsNames.length; b++ ) {
+                            for( let t = 0; t < mixerClip.tracks.length; t++ ) {
+                                if( mixerClip.tracks[t].name.includes("[" + bsNames[b] + "]") ) {
+                                    mapTrackIdxs[trackIdx].push(t);
+                                    // break; // do not break, need to check all meshes that contain this blendshape
+                                }
+                            }
+                        }
+                    }
                 }
 
                 for( let j = 0; j < trackIdxs.length; j++ ) {
@@ -2407,6 +2433,113 @@ class KeyframeEditor extends Editor {
         }        
     }
 
+    updateBlendshapesAnimation( bsAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip ) {
+        let mapTrackIdxs = {};
+        const bsEditedTracksIdxs = [];
+        for( let j = 0; j < editedTracksIdxs.length; j++ ) {
+            const eIdx = editedTracksIdxs[j];
+            const eTrack = editedAnimation.tracks[eIdx];
+            mapTrackIdxs[eIdx] = [];
+
+            let bsNames = this.currentCharacter.blendshapesManager.mapNames[eTrack.id];
+            if ( !bsNames ){ 
+                continue; 
+            }
+            if(typeof(bsNames) == 'string') {
+                bsNames = [bsNames];
+            }
+
+            for( let b = 0; b < bsNames.length; b++ ) {
+                for( let t = 0; t < bsAnimation.tracks.length; t++ ) {
+                    if( bsAnimation.tracks[t].id.includes(bsNames[b]) ) {
+                        mapTrackIdxs[eIdx].push(t);
+                        bsAnimation.tracks[t].values = eTrack.values;
+                        bsAnimation.tracks[t].times = eTrack.times;
+                        bsEditedTracksIdxs.push(t)
+                        // break; // do not break, need to check all meshes that contain this blendshape
+                    }
+                }
+            }
+        }        
+        this.updateMixerAnimation(this.getCurrentBindedAnimation().mixerFaceAnimation, bsEditedTracksIdxs, bsAnimation);
+    }
+
+    updateMixerAnimation( mixerAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip ) {
+        // for bones editedAnimation is the timeline skeletonAnimation
+        // for blendshapes editedAnimation is the timeline bsAnimation
+        const mixer = this.currentCharacter.mixer;
+    
+        if( !mixer._actions.length ) {
+            return;
+        }
+    
+        const action = mixer.clipAction(mixerAnimation);
+        const isFaceAnim = mixerAnimation.name == "faceAnimation";
+
+        for( let i = 0; i < editedTracksIdxs.length; i++ ) {
+            const eIdx = editedTracksIdxs[i];
+            const eTrack = editedAnimation.tracks[eIdx]; // track of the edited animation
+            
+            let mIdxs = [ eIdx ];
+            if( eTrack.data && eTrack.data.tracksIds ) { // if the edited animation is the BS animation, the tracks have to be mapped
+                mIdxs = eTrack.data.tracksIds;
+            }
+            
+            if( eTrack.locked || !mIdxs.length ) {
+                continue;
+            }
+
+            for( let t = 0; t < mIdxs.length; t++ ) {
+
+                const trackId = mIdxs[t];
+                const interpolant = action._interpolants[trackId];                                           
+                
+                // THREEJS mixer uses interpolants to drive animations. _clip is only used on animationAction creation. 
+                // _clip is the same clip (pointer) sent in mixer.clipAction. 
+
+                const track = mixerAnimation.tracks[trackId];
+                if( eTrack.active && eTrack.times.length ) {
+                    interpolant.parameterPositions = track.times = eTrack.times;
+                    interpolant.sampleValues = track.values = eTrack.values; 
+                }
+                else {
+                    interpolant.parameterPositions = track.times = [0];
+                    if ( isFaceAnim ) {
+                        interpolant.sampleValues = track.values = [0];
+                    }
+                    else {
+                        // TO DO optimize if necessary
+                        let skeleton =this.currentCharacter.skeletonHelper.skeleton;
+                        let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
+                        let boneIdx = findIndexOfBoneByName(skeleton, track.groupId); // TODO check this track.name. It should not work
+                        let parentIdx = findIndexOfBone(skeleton, skeleton.bones[boneIdx].parent);
+                        let localBind = invMats[boneIdx].clone().invert();
+
+                        if ( parentIdx > -1 ) { 
+                            localBind.premultiply(invMats[parentIdx]); 
+                        }
+                        let p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+                        localBind.decompose( p,q,s );
+                        // assuming quats and position only. Missing Scale
+                        if( track.dim == 4 ) {
+                            interpolant.sampleValues = track.values = q.toArray();//[0,0,0,1];
+                        }
+                        else if ( track.id == "position" ){
+                            interpolant.sampleValues = track.values = p.toArray();//[0,0,0];
+                        }
+                        else{
+                            interpolant.sampleValues = track.values = s.toArray();//[0,0,0];
+                        }
+                    } 
+
+                }
+            }
+        }
+    
+        
+        this.setTime( this.activeTimeline.currentTime );
+        return;               
+    }
     /** -------------------- BONES INTERACTION -------------------- */
     getSelectedBone() {
         const idx = this.gizmo.selectedBone;
@@ -2676,7 +2809,7 @@ class KeyframeEditor extends Editor {
     }
 
     // Update blendshapes properties from the GUI
-    updateBlendshapesProperties(name, value) {
+    updateBlendshapesProperties(name, value, callback) {
         if( this.state ){ return false; }
 
         value = Number(value);
@@ -2697,9 +2830,10 @@ class KeyframeEditor extends Editor {
                     this.propagateEdition(this.activeTimeline, track.trackIdx, value);
 
                     // Update animation action (mixer) interpolants.
-                    this.updateAnimationAction(this.activeTimeline.animationClip, track.trackIdx );
+                    callback( [track.trackIdx] );
                     
-                }else{
+                }
+                else{
                     const frameIdx = this.activeTimeline.getCurrentKeyFrame(track, time, 0.01)
                     if ( frameIdx > -1 ){
                         // Update Action Unit keyframe value of timeline animation
@@ -2707,7 +2841,7 @@ class KeyframeEditor extends Editor {
                         track.edited[frameIdx] = true;               
 
                         // Update animation action (mixer) interpolants.
-                        this.updateAnimationAction(this.activeTimeline.animationClip, track.trackIdx );
+                        callback( [track.trackIdx] );
                     } 
                 }
                 return true;

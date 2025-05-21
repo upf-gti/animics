@@ -648,7 +648,7 @@ class Gizmo {
                 }
 
                 // Update animation interpolants
-                this.editor.updateAnimationAction(this.editor.activeTimeline.animationClip, track.trackIdx );
+                this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerBodyAnimation, [track.trackIdx] );
             }
         }
         else{
@@ -673,7 +673,7 @@ class Gizmo {
             }
 
             // Update animation interpolants
-            this.editor.updateAnimationAction( this.editor.activeTimeline.animationClip, track.trackIdx );
+            this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerBodyAnimation, [track.trackIdx]);
         }
 
     }

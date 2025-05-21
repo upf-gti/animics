@@ -1117,8 +1117,8 @@ class KeyframesGui extends Gui {
 			}
         };
 
-        this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
-        this.keyFramesTimeline.onDeleteKeyFrames = (trackIdx, indices) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, trackIdx);
+        this.keyFramesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateMixerAnimation( this.editor.getCurrentBindedAnimation().mixerBodyAnimation, [trackIdx]);
+        this.keyFramesTimeline.onDeleteKeyFrames = (trackIdx, indices) => this.editor.updateMixerAnimation( this.editor.getCurrentBindedAnimation().mixerBodyAnimation, [trackIdx]);
         this.keyFramesTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.keyFramesTimeline.currentTime );
 
@@ -1232,10 +1232,10 @@ class KeyframesGui extends Gui {
         }
 
         this.keyFramesTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.stop(); } }
-        this.keyFramesTimeline.onUpdateTrack = (indices) => this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
-        this.keyFramesTimeline.onSetTrackState = (track, oldState) => {this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, track.trackIdx);}
+        this.keyFramesTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.getCurrentBindedAnimation().mixerBodyAnimation, indices.length == 1 ? [indices[0]] : []);
+        this.keyFramesTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.getCurrentBindedAnimation().mixerBodyAnimation, [track.trackIdx] );}
         this.keyFramesTimeline.onOptimizeTracks = (idx = null) => { 
-            this.editor.updateAnimationAction(this.keyFramesTimeline.animationClip, idx);
+            this.editor.updateMixerAnimation( this.editor.getCurrentBindedAnimation().mixerBodyAnimation, [idx]);
         }
         this.editor.activeTimeline = this.keyFramesTimeline;
 
@@ -1302,12 +1302,12 @@ class KeyframesGui extends Gui {
 			}
         };
 
-        this.curvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
+        this.curvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateBlendshapesAnimation(this.editor.getCurrentBindedAnimation().bsAnimation, [trackIdx], this.curvesTimeline.animationClip,);
         this.curvesTimeline.onUpdateTrack = (indices) => {
-            this.editor.updateAnimationAction(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1); 
+            this.editor.updateBlendshapesAnimation(this.editor.getCurrentBindedAnimation().bsAnimation, indices.length == 1 ? indices : [], this.curvesTimeline.animationClip); 
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
         }
-        this.curvesTimeline.onDeleteKeyFrames = (trackIdx, tidx) => this.editor.updateAnimationAction(this.curvesTimeline.animationClip, trackIdx);
+        this.curvesTimeline.onDeleteKeyFrames = (trackIdx, tidx) => this.editor.updateBlendshapesAnimation(this.editor.getCurrentBindedAnimation().bsAnimation, [trackIdx], this.curvesTimeline.animationClip,);
         this.curvesTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.curvesTimeline.currentTime );
 
@@ -1326,10 +1326,10 @@ class KeyframesGui extends Gui {
             this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.curvesTimeline.onOptimizeTracks = (idx = null) => { 
-            this.editor.updateAnimationAction(this.curvesTimeline.animationClip, idx);
+            this.editor.updateBlendshapesAnimation(this.editor.getCurrentBindedAnimation().bsAnimation, [idx], this.curvesTimeline.animationClip,);
             this.updateActionUnitsPanel(this.curvesTimeline.animationClip, idx < 0 ? -1 : idx);
         }
-        this.curvesTimeline.onSetTrackState = (track, oldState) => {this.editor.updateAnimationAction(this.curvesTimeline.animationClip, track.trackIdx);}
+        this.curvesTimeline.onSetTrackState = (track, oldState) => {this.editor.updateBlendshapesAnimation(this.editor.getCurrentBindedAnimation().bsAnimation, [track.trackIdx], this.curvesTimeline.animationClip,);}
 
 
         /* Curves Blendshapes Timeline */
@@ -1384,12 +1384,12 @@ class KeyframesGui extends Gui {
 			}
         };
 
-        this.blendshapesCurvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, trackIdx);
+        this.blendshapesCurvesTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerFaceAnimation, [trackIdx]);
         this.blendshapesCurvesTimeline.onUpdateTrack = (indices) => {
-            this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1); 
+            this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerFaceAnimation, indices.length == 1 ? indices : []); 
             this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
         }
-        this.blendshapesCurvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, trackIdx);
+        this.blendshapesCurvesTimeline.onDeleteKeyFrame = (trackIdx, tidx) => this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerFaceAnimation, [trackIdx]);
         this.blendshapesCurvesTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.blendshapesCurvesTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.blendshapesCurvesTimeline.currentTime );
@@ -1408,10 +1408,10 @@ class KeyframesGui extends Gui {
             this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.blendshapesCurvesTimeline.onOptimizeTracks = (idx = null) => { 
-            this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, idx);
+            this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerFaceAnimation, [idx])
             this.updateActionUnitsPanel(this.blendshapesCurvesTimeline.animationClip, idx < 0 ? -1 : idx);
         }
-        this.blendshapesCurvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateAnimationAction(this.blendshapesCurvesTimeline.animationClip, track.trackIdx);}
+        this.blendshapesCurvesTimeline.onChangeTrackVisibility = (track, oldState) => {this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerFaceAnimation, [track.trackIdx]);}
 
         this.timelineArea.attach(this.keyFramesTimeline.root);
         this.timelineArea.attach(this.curvesTimeline.root);
@@ -1496,7 +1496,7 @@ class KeyframesGui extends Gui {
         faceTabs.add("Blendshapes", bsArea, { onSelect: (v,e) => {
             this.editor.setTimeline(this.editor.animationModes.FACE, "blendhsapes"); 
             
-            this.propagationWindow.setTimeline( this.curvesTimeline );
+            this.propagationWindow.setTimeline( this.blendshapesCurvesTimeline );
             this.imageMap.resize();
         }});
 
@@ -1760,7 +1760,7 @@ class KeyframesGui extends Gui {
                         frame = frame == -1 ? 0 : frame;
 
                         panel.addNumber(name, track.values.length ? track.values[frame] : 0, (v,e) => {                           
-                            this.editor.updateBlendshapesProperties(name, v);
+                            this.editor.updateBlendshapesProperties(name, v, (tracksIds) => this.editor.updateBlendshapesAnimation(this.editor.getCurrentBindedAnimation().bsAnimation, tracksIds, this.curvesTimeline.animationClip,));
                         }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ this.curvesTimeline.saveState(track.trackIdx) }});
                         break;
                     }
@@ -1811,12 +1811,12 @@ class KeyframesGui extends Gui {
             }
 
             panel.addNumber(name, track.values[frame], (v,e) => {    
+                const boundAnimation = this.editor.getCurrentBindedAnimation();
                 for(let id in track.data.tracksIds ) {
-                    const boundAnimation = this.editor.getCurrentBindedAnimation();
                     const idx = track.data.tracksIds[id];
-                    boundAnimation.bsAnimation.tracks[idx];
+                    boundAnimation.bsAnimation.tracks[idx][frame] = v;
                 }
-                this.editor.updateBlendshapesProperties(name, v);
+                this.editor.updateBlendshapesProperties(name, v, (tracksIds) => this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, tracksIds));
             }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ 
                 this.blendshapesCurvesTimeline.saveState(track.trackIdx)
              }});
