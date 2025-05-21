@@ -443,7 +443,6 @@ function FaceLexemeClip(o)
 	
 	
 	this._width = 0;
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = FaceLexemeClip.clipColor;
 	
@@ -536,7 +535,7 @@ FaceLexemeClip.prototype.drawClip = function( ctx, w,h, selected, timeline )
 		ctx.globalCompositeOperation = "source-over";
 		
 	}
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24, h/2 + 11/2);
@@ -595,7 +594,6 @@ function FaceFACSClip()
 		side : "BOTH", //[LEFT, RIGHT, BOTH](optional)
 		shift : false
 	}
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = FaceFACSClip.clipColor;
 }
@@ -640,7 +638,7 @@ FaceFACSClip.prototype.drawClip = function( ctx, w,h, selected )
 {
 	ctx.globalCompositeOperation =  "source-over";
 	var textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -723,9 +721,8 @@ function FaceEmotionClip()
 		relax : 0.75,
 		emotion : "HAPPINESS", 
 	}
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
-
+	this.clipColor = FaceEmotionClip.clipColor;
 }
 
 ANIM.registerClipType( FaceEmotionClip );
@@ -763,7 +760,7 @@ FaceEmotionClip.prototype.drawClip = function( ctx, w,h, selected )
 {
 	ctx.globalCompositeOperation =  "source-over";
 	var textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -859,9 +856,8 @@ function FacePresetClip(o)
 	this.clips = [];
 	
 	this._width = 0;
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
-	this.clipColor = "green";
+	this.clipColor = FacePresetClip.clipColor;
 	
 	if(o)
 	this.configure(o);
@@ -1077,7 +1073,7 @@ FacePresetClip.prototype.drawClip = function( ctx, w,h, selected )
 {
 	ctx.globalCompositeOperation =  "source-over";
 	var textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -1184,7 +1180,6 @@ function GazeClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = GazeClip.clipColor;
 }
@@ -1255,7 +1250,7 @@ GazeClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -1356,7 +1351,6 @@ function HeadClip(o)
 
 	this.id = "Head " + this.properties.lexeme;
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = HeadClip.clipColor;
 	this.type = HeadClip.type;
@@ -1424,7 +1418,7 @@ HeadClip.prototype.drawClip = function( ctx, w,h, selected )
 {
 	ctx.font = this.font;
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -1496,7 +1490,6 @@ function ElbowRaiseClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = ElbowRaiseClip.clipColor;
 }
@@ -1561,7 +1554,7 @@ ElbowRaiseClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -1633,7 +1626,7 @@ function ShoulderClip(o)
 	if(o)
 		this.configure(o);
 	this.id = this.id + " " + this.movementType;
-	this.color = "#1a1f23";
+	
 	this.font = "11px Calibri";
 	this.clipColor = ShoulderClip.clipColor;
 }
@@ -1701,7 +1694,7 @@ ShoulderClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -1783,7 +1776,6 @@ function BodyMovementClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = BodyMovementClip.clipColor;
 }
@@ -1842,7 +1834,7 @@ BodyMovementClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -1927,7 +1919,6 @@ function ArmLocationClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = ArmLocationClip.clipColor;
 }
@@ -2056,7 +2047,7 @@ ArmLocationClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -2243,7 +2234,6 @@ function PalmOrientationClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = PalmOrientationClip.clipColor;
 }
@@ -2356,7 +2346,7 @@ PalmOrientationClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -2459,7 +2449,6 @@ function HandOrientationClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = HandOrientationClip.clipColor;
 }
@@ -2587,7 +2576,7 @@ HandOrientationClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -2699,7 +2688,6 @@ function HandshapeClip(o)
 
 	this.applySpecial = (this.properties.specialFingers != "" && this.properties.specialFingers != " ");
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = HandshapeClip.clipColor;
 }
@@ -2794,7 +2782,7 @@ HandshapeClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -2998,7 +2986,6 @@ function HandConstellationClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = HandConstellationClip.clipColor;
 }
@@ -3145,7 +3132,7 @@ HandConstellationClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -3315,7 +3302,6 @@ function DirectedMotionClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = DirectedMotionClip.clipColor;
 }
@@ -3506,7 +3492,7 @@ DirectedMotionClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -3680,7 +3666,6 @@ function CircularMotionClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = CircularMotionClip.clipColor;
 }
@@ -3847,7 +3832,7 @@ CircularMotionClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -4021,7 +4006,6 @@ function WristMotionClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = WristMotionClip.clipColor;
 }
@@ -4081,7 +4065,7 @@ WristMotionClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -4162,7 +4146,6 @@ function FingerplayMotionClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = FingerplayMotionClip.clipColor;
 }
@@ -4262,7 +4245,7 @@ FingerplayMotionClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -4344,7 +4327,6 @@ function MouthingClip(o)
 	if(o)
 		this.configure(o);
 
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = MouthingClip.clipColor;
 }
@@ -4397,7 +4379,7 @@ MouthingClip.prototype.drawClip = function( ctx, w,h, selected )
 	ctx.font = this.font;
 	ctx.globalCompositeOperation =  "source-over";
 	let textInfo = ctx.measureText( this.id );
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24,h * 0.7 );
 }
@@ -4514,7 +4496,6 @@ function SuperClip(o)
 	
 	this.properties = o.properties || {amount: 1};
 	this.clips = [];
-	this.color = "#1a1f23";
 	this.font = "11px Calibri";
 	this.clipColor = SuperClip.clipColor;
 	
@@ -4603,7 +4584,7 @@ SuperClip.prototype.drawClip = function( ctx, w,h, selected, timeline )
 		ctx.globalCompositeOperation = "source-over";
 		
 	}
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.clipColor;
 	
 	if( textInfo.width < (w - 24) )
 		ctx.fillText( this.id, 24, h/2 + 11/2);

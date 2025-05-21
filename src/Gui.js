@@ -2654,9 +2654,21 @@ class ScriptGui extends Gui {
     }
     
     reorder(){
+        const clipTypesOrder = [
+            ANIM.SuperClip, 
+            ANIM.FaceLexemeClip, ANIM.FaceFACSClip, ANIM.FaceEmotionClip, ANIM.FacePresetClip, ANIM.MouthingClip,
+            ANIM.GazeClip, ANIM.HeadClip,  
+            ANIM.ElbowRaiseClip, ANIM.ShoulderClip, ANIM.BodyMovementClip,
+            ANIM.ArmLocationClip,
+            ANIM.DirectedMotionClip, ANIM.CircularMotionClip,
+            ANIM.FingerplayMotionClip, ANIM.WristMotionClip,
+            ANIM.PalmOrientationClip, ANIM.HandOrientationClip, ANIM.HandshapeClip, ANIM.HandConstellationClip
+        ];
+        const sortedList = new Array(clipTypesOrder.length + 1); // extra element to store untyped clips
+        for( let i = 0; i < sortedList.length; ++i){ sortedList[i] = []; }
+
         const animationClip = this.clipsTimeline.animationClip;
         const tracks = animationClip.tracks;
-        let clipGroups = {};
 
         const oldStateEnabler = this.clipsTimeline.historySaveEnabler;
         this.clipsTimeline.historySaveEnabler = false;
@@ -2670,27 +2682,21 @@ class ScriptGui extends Gui {
             const clips = tracks[t].clips;
             for( let c = 0; c < clips.length; ++c ){
                 const clip = clips[c];
-
-                let id = clip.id;
-                if ( clip.properties && clip.properties.hand ){
-                    id += "_" + clip.properties.hand;
+                let index = clipTypesOrder.indexOf(clip.constructor);
+                if ( index == -1 ){ // It is a weird clip
+                    index = clipTypesOrder.length; // add to the end of the list
                 }
-                const g = clipGroups[id];
-                if ( g ){
-                    g.push(clip);
-                }else{
-                    clipGroups[id] = [clip];
-                }
+                sortedList[index].push(clip);
             }
+
             this.clipsTimeline.clearTrack(t);
         }
 
-        let groupIds = Object.keys(clipGroups).sort();
         
         let firstEmptyTrack = 0;
         let firstGroupTrack = 0;
-        for( let g = 0; g < groupIds.length; ++g ){
-            const groupClips = clipGroups[groupIds[g]];
+        for( let g = 0; g < sortedList.length; ++g ){
+            const groupClips = sortedList[g];
             firstGroupTrack = firstEmptyTrack;
             for ( let c = 0; c < groupClips.length; ++c ){
                 this.clipsTimeline.addClip(groupClips[c], -1, 0, firstGroupTrack);
