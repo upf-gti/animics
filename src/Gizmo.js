@@ -64,8 +64,7 @@ class Gizmo {
         // this.ikHelper = null;
         this.ikMode = Gizmo.ToolIkModes.ONEBONE; // this.mode should be the one, but it is used for other purposes in the editor. So we need this variable.
 
-        // Update in first iteration
-        this.mustUpdate = false; //true; 
+        this.mustUpdate = false; 
 
         this.toolSelected = Gizmo.Tools.JOINT;
         this.mode = "rotate";
@@ -458,7 +457,7 @@ class Gizmo {
         //this.ikHelper.update();
                 
         if ( !this.mustUpdate ){
-            if ( this.toolSelected == Gizmo.Tools.IK ){ // make target follow bone when not directly using it
+            if ( this.toolSelected == Gizmo.Tools.IK && !this.transform.dragging ){ // make target follow bone when not directly using it
                 this.ikSetTargetToBone();
             }
             return;

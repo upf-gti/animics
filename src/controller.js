@@ -13,7 +13,6 @@ class BMLController {
         
         this.bmlManager = new BehaviourManager();
         // Update in first iteration
-        this.mustUpdate = false; //true; 
         if(!currentCharacter.morphTargets)
             console.warn("No morph targets to attach Controller!");
         
