@@ -2412,7 +2412,9 @@ class KeyframeEditor extends Editor {
         // selectkeyframe at current keyframe if possible
         let track = this.activeTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
         let keyframe = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.1 );
-        this.activeTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
+        if ( keyframe > -1 ){
+            this.activeTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
+        }
 
         this.gizmo.setBone(name);
         this.gizmo.mustUpdate = true;

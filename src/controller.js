@@ -5,8 +5,6 @@ import { CharacterController } from './libs/bml/CharacterController.js';
 class BMLController {
 
     constructor(currentCharacter, config) {
-
-        this.undoSteps = [];
         
         let ECAcontroller = this.ECAcontroller = new CharacterController( {character: currentCharacter.model, characterConfig: config} );
         ECAcontroller.start({autoblink: false});

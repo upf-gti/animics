@@ -12,7 +12,6 @@ class Gizmo {
         throw("No editor to attach Gizmo!");
 
         this.raycastEnabled = true;
-        this.undoSteps = [];
         let transform = new TransformControls( editor.camera, editor.renderer.domElement );
         window.trans = transform;
         transform.setSpace( 'local' );
@@ -44,37 +43,6 @@ class Gizmo {
             }
             this.mustUpdate = enabled;
             
-
-
-            if(enabled) {
-                if ( this.toolSelected == Gizmo.Tools.IK ){
-                    if ( !this.ikSelectedChain ){
-                        return; 
-                    }
-       
-                    let step = [];
-                    let chain = this.ikSelectedChain.chain;
-                    for ( let i = 1; i < chain.length; ++i){ // effector does not change
-                        const bone = this.skeleton.bones[chain[i]];
-                        step.push( {
-                            boneId: chain[i],
-                            pos: bone.position.toArray(),
-                            quat: bone.quaternion.toArray(),
-                        } );
-                    }
-                    if ( step.length > 0 ){                      
-                        this.undoSteps.push( step );
-                    }
-                }else{
-                    const bone = this.skeleton.bones[this.selectedBone];
-            
-                    this.undoSteps.push( [ {
-                        boneId: this.selectedBone,
-                        pos: bone.position.toArray(),
-                        quat: bone.quaternion.toArray(),
-                    } ] );
-                }
-            }
         });
 
         let scene = editor.scene;
@@ -456,37 +424,6 @@ class Gizmo {
                     this.setTool( Gizmo.Tools.IK );
                     this.editor.gui.updateSkeletonPanel();
                     break;
-    
-                // case 'x':
-                //     transform.showX = ! transform.showX;
-                //     break;
-
-                // case 'y':
-                //     transform.showY = ! transform.showY;
-                //     break;
-
-                case 'z':
-                    if(e.ctrlKey && this.editor.mode != this.editor.editionModes.SCRIPT){
-
-                        if(!this.undoSteps.length)
-                            return;
-                        
-                        const step = this.undoSteps.pop();
-                        for ( let i = 0; i < step.length; ++i){
-                            let bone = this.skeleton.bones[step[i].boneId];
-                            bone.position.fromArray( step[i].pos );
-                            bone.quaternion.fromArray( step[i].quat );
-                        }
-                        this.updateBones();
-                        if ( this.toolSelected == Gizmo.Tools.IK ){ // reset target position
-                            this.ikSetTargetToBone( );
-                        }
-                        this.updateTracks(); // commit results into timeline with propagation
-                    }
-                    // else{
-                    //     transform.showZ = ! transform.showZ;
-                    // }
-                    break;
             }
 
         });
@@ -629,7 +566,7 @@ class Gizmo {
                     if ( propWindow.enabler ){
                         this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, boneToProcess.quaternion);
                     }
-                    frame = timeline.addKeyFrame( track, boneToProcess.quaternion.toArray(), effectorFrameTime );
+                    frame = timeline.addKeyFrames( track.trackIdx, boneToProcess.quaternion.toArray(), [effectorFrameTime] );
                 }
                 else{ 
                     
