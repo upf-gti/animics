@@ -629,7 +629,7 @@ class Gizmo {
                     if ( propWindow.enabler ){
                         this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, boneToProcess.quaternion);
                     }
-                    frame = timeline.addKeyFrame( track, boneToProcess.quaternion.toArray(), effectorFrameTime );
+                    frame = timeline.addKeyFrames( track.trackIdx, boneToProcess.quaternion.toArray(), [effectorFrameTime] );                    
                 }
                 else{ 
                     

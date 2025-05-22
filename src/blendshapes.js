@@ -230,19 +230,19 @@ class BlendshapesManager {
         for(let i = 0; i < animation.tracks.length; i++) {
             const track = animation.tracks[i];
             
-           const {propertyIndex, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
+           const { propertyIndex, nodeName } = THREE.PropertyBinding.parseTrackName( track.name );
            const newTrack = new THREE.NumberKeyframeTrack( propertyIndex, track.times, track.values);
-           tracks.push(newTrack);
-
+           
            if(allMorphTargetDictionary[propertyIndex]) {
-                allMorphTargetDictionary[propertyIndex].skinnedMeshes.push(nodeName);
-                allMorphTargetDictionary[propertyIndex].tracksIds.push(i);
-                continue;
+               allMorphTargetDictionary[propertyIndex].skinnedMeshes.push(nodeName);
+               allMorphTargetDictionary[propertyIndex].tracksIds.push(i);
+               continue;
             }
             else {
                 allMorphTargetDictionary[propertyIndex] = { skinnedMeshes: [nodeName], tracksIds: [i] };
                 newTrack.data = allMorphTargetDictionary[propertyIndex];
             }
+            tracks.push(newTrack);
         }
         
         // use -1 to automatically calculate
@@ -261,13 +261,10 @@ class BlendshapesManager {
         // Extract time and values of each track
         for (let i = 0; i < animation.tracks.length; i++) {
             const track = animation.tracks[i];
-            const targetName = track.name;
-    
+            const {propertyIndex, propertyName, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
             // Check that it's a morph target
-            if (targetName.includes('.morphTargetInfluences')) {
-                const meshName = targetName.split('.morphTargetInfluences[')[0]; // Mesh name
-                const morphTargetName = targetName.split('[')[1].split(']')[0]; // Morph target name
-                if( meshName.includes( "Body" )) {
+            if (propertyName =='morphTargetInfluences') {
+                if( nodeName.includes( "Body" )) {
                     animation.tracks[i].name = animation.tracks[i].name.replace("Body.", "BodyMesh.");
                 }
                 else {
@@ -283,24 +280,38 @@ class BlendshapesManager {
                     
                     // If the morph target is mapped to the AU, assign the weight
                     if ( Array.isArray(mappedMorphs) ) {
-                        if ( mappedMorphs.includes(morphTargetName) ) {
+                        if ( mappedMorphs.includes(propertyIndex) ) {
                             
                             const newName = this.getFormattedTrackName(actionUnit);
-                            if(!newName || trackNames.indexOf( newName ) > -1) {
+                            if(!newName) {
+                                continue;
+                            }
+                            const id = trackNames.indexOf( newName ) ;
+                            if(id > -1) {
+                                auTracks[id].data.blendshapes.push(propertyIndex);
                                 continue;
                             }
                             trackNames.push(newName);
-                            auTracks.push( new THREE.NumberKeyframeTrack(newName, times, values ));
+                            const newTrack = new THREE.NumberKeyframeTrack( newName, times, values );
+                            newTrack.data = { blendshapes: [propertyIndex] };
+                            auTracks.push( newTrack );
                             break;
                         }
-                    } else if (mappedMorphs === morphTargetName) {
+                    } else if (mappedMorphs === propertyIndex) {
 
                         const newName = this.getFormattedTrackName(actionUnit);
-                        if(!newName || trackNames.indexOf( newName ) > -1) {
+                        if(!newName) {
+                            continue;
+                        }
+                        const id = trackNames.indexOf( newName ) ;
+                        if(id > -1) {
+                            auTracks[id].data.blendshapes.push(propertyIndex);
                             continue;
                         }
                         trackNames.push(newName);
-                        auTracks.push( new THREE.NumberKeyframeTrack(newName, times, values ));
+                        const newTrack = new THREE.NumberKeyframeTrack( newName, times, values );
+                        newTrack.data = { blendshapes: [propertyIndex] };
+                        auTracks.push( newTrack );
                         break;
                     }
                 }
