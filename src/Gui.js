@@ -2407,6 +2407,13 @@ class ScriptGui extends Gui {
 
         const timelineMenu = entries.find( e => e.name == "Timeline" )?.submenu;
         console.assert(timelineMenu, "Timeline menu not found" );
+        timelineMenu.push(
+            { name: "Reorder Clips", icon: "Magnet", submenu: [
+                { name: "Type", icon:"Star", callback: () => this.reorderClips(0) },
+                { name: "Type and Handedness", icon: "StarHalf", callback: () => this.reorderClips(1) },
+            ] }
+        );
+
         const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
 
@@ -2436,6 +2443,8 @@ class ScriptGui extends Gui {
             { name: "BML Instructions", icon: "CodeSquare", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") },
             { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
         );
+        
+
     }
 
     delayedUpdateTracks( reset = true ){
@@ -2653,7 +2662,11 @@ class ScriptGui extends Gui {
         this.editor.activeTimeline = this.clipsTimeline;
     }
     
-    reorder(){
+    /**
+     * 
+     * @param {Number} mode 0: type of clip, 1: type and hand 
+     */
+    reorderClips( mode = 0x00 ){
         const clipTypesOrder = [
             ANIM.SuperClip, 
             ANIM.FaceLexemeClip, ANIM.FaceFACSClip, ANIM.FaceEmotionClip, ANIM.FacePresetClip, ANIM.MouthingClip,
@@ -2664,14 +2677,14 @@ class ScriptGui extends Gui {
             ANIM.FingerplayMotionClip, ANIM.WristMotionClip,
             ANIM.PalmOrientationClip, ANIM.HandOrientationClip, ANIM.HandshapeClip, ANIM.HandConstellationClip
         ];
-        const sortedList = new Array(clipTypesOrder.length + 1); // extra element to store untyped clips
-        for( let i = 0; i < sortedList.length; ++i){ sortedList[i] = []; }
 
         const animationClip = this.clipsTimeline.animationClip;
         const tracks = animationClip.tracks;
 
         const oldStateEnabler = this.clipsTimeline.historySaveEnabler;
         this.clipsTimeline.historySaveEnabler = false;
+
+        const groupList = {};
 
         for( let t = 0; t < tracks.length; ++t){
 
@@ -2686,17 +2699,25 @@ class ScriptGui extends Gui {
                 if ( index == -1 ){ // It is a weird clip
                     index = clipTypesOrder.length; // add to the end of the list
                 }
-                sortedList[index].push(clip);
+
+                let id = String.fromCharCode(index + 64);
+                if ( mode && clip.properties && clip.properties.hand ){
+                    id += "_" + clip.properties.hand;
+                }
+                const group = groupList[id];
+                if ( !group ){ groupList[id] = [clip]; }
+                else{ group.push(clip); }
             }
 
             this.clipsTimeline.clearTrack(t);
         }
 
+        const groupListSorted = Object.keys(groupList).sort();
         
         let firstEmptyTrack = 0;
         let firstGroupTrack = 0;
-        for( let g = 0; g < sortedList.length; ++g ){
-            const groupClips = sortedList[g];
+        for( let g = 0; g < groupListSorted.length; ++g ){
+            const groupClips = groupList[groupListSorted[g]];
             firstGroupTrack = firstEmptyTrack;
             for ( let c = 0; c < groupClips.length; ++c ){
                 this.clipsTimeline.addClip(groupClips[c], -1, 0, firstGroupTrack);
@@ -2705,6 +2726,16 @@ class ScriptGui extends Gui {
                 }
             }
         }
+        // for( let g = 0; g < sortedList.length; ++g ){
+        //     const groupClips = sortedList[g];
+        //     firstGroupTrack = firstEmptyTrack;
+        //     for ( let c = 0; c < groupClips.length; ++c ){
+        //         this.clipsTimeline.addClip(groupClips[c], -1, 0, firstGroupTrack);
+        //         if ( firstEmptyTrack < tracks.length && tracks[firstEmptyTrack].clips.length > 0 ){
+        //             firstEmptyTrack++;
+        //         }
+        //     }
+        // }
 
         this.clipsTimeline.historySaveEnabler = oldStateEnabler;
     }
