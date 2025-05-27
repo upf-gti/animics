@@ -1039,10 +1039,11 @@ class KeyframesGui extends Gui {
     }
 
     /** Create timelines */
-    createTimelines( ) {                    
+    createTimelines( ) {
 
         /* Keyframes Timeline */
         this.keyFramesTimeline = new LX.KeyFramesTimeline("Bone", {
+            title: "Bone",
             onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v); // already updates gui
@@ -1050,7 +1051,7 @@ class KeyframesGui extends Gui {
                 
             },
             onCreateAfterTopBar: (panel) =>{
-                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
                 }, {
                     step: 0.01,
@@ -1241,13 +1242,14 @@ class KeyframesGui extends Gui {
 
         /* Curves Timeline */
         this.curvesTimeline = new LX.KeyFramesTimeline("Action Units", {
+            title: "Action Units",
             onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v); // already updates gui
                 }, {signal: "@on_animation_loaded"})
             },
             onCreateAfterTopBar: (panel) =>{
-                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
                 }, {
                     step: 0.01,
@@ -1373,6 +1375,12 @@ class KeyframesGui extends Gui {
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
+        // clear area
+        while ( this.sidePanel.root.children.length ){
+            this.sidePanel.root.children[0].remove();
+        }
+        this.sidePanel.sections = [];
+
         const [top, bottom] = this.sidePanel.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
        
         this.animationPanel = new LX.Panel({id:"animation", icon: "PersonStanding"});
@@ -2460,7 +2468,7 @@ class ScriptGui extends Gui {
         this.clipsTimeline = new LX.ClipsTimeline("clipsTimelineId", {
             title: "Behaviour actions",
             onCreateAfterTopBar: (panel) =>{
-                panel.addNumber("Speedd", + this.editor.playbackRate.toFixed(3), (value, event) => {
+                panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
                 }, {
                     step: 0.01,
