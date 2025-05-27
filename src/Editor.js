@@ -1093,9 +1093,9 @@ class KeyframeEditor extends Editor {
                 if ( !document.activeElement || document.activeElement.value === undefined ){
                     this.gui.propagationWindow.toggleEnabler();
                     if( this.gui.propagationWindow.enabler ){
-                        this.gui.keyFramesTimeline.unSelectAllKeyFrames();
-                        this.gui.curvesTimeline.unSelectAllKeyFrames();
-                        this.gui.blendshapesCurvesTimeline.unSelectAllKeyFrames();
+                        this.gui.skeletonTimeline.unSelectAllKeyFrames();
+                        this.gui.auTimeline.unSelectAllKeyFrames();
+                        this.gui.bsTimeline.unSelectAllKeyFrames();
                     }
                 }
             break;
@@ -1860,11 +1860,11 @@ class KeyframeEditor extends Editor {
         this.currentAnimation = animationName;
 
         if ( animationName != this.currentAnimation ) {
-            this.gui.keyFramesTimeline.unSelectAllKeyFrames();
-            this.gui.keyFramesTimeline.unHoverAll();
-            this.gui.keyFramesTimeline.currentTime = 0;
-            this.gui.curvesTimeline.unSelectAllKeyFrames();
-            this.gui.curvesTimeline.unHoverAll();
+            this.gui.skeletonTimeline.unSelectAllKeyFrames();
+            this.gui.skeletonTimeline.unHoverAll();
+            this.gui.skeletonTimeline.currentTime = 0;
+            this.gui.auTimeline.unSelectAllKeyFrames();
+            this.gui.auTimeline.unHoverAll();
             this.gui.curvesFramesTimeline.currentTime = 0;
         }
 
@@ -1921,8 +1921,8 @@ class KeyframeEditor extends Editor {
                     else{ t.dim = 3; }
                 }
                 // Set keyframe animation to the timeline and get the timeline-formated one
-                skeletonAnimation = this.gui.keyFramesTimeline.setAnimationClip( bodyAnimation, true );
-                this.gui.keyFramesTimeline.setSelectedItems([this.currentCharacter.skeletonHelper.bones[0].name]);
+                skeletonAnimation = this.gui.skeletonTimeline.setAnimationClip( bodyAnimation, true );
+                this.gui.skeletonTimeline.setSelectedItems([this.currentCharacter.skeletonHelper.bones[0].name]);
 
                 bodyAnimation.name = "bodyAnimation";   // mixer
                 skeletonAnimation.name = "bodyAnimation";  // timeline
@@ -1955,15 +1955,15 @@ class KeyframeEditor extends Editor {
 
                 auAnimation.duration = faceAnimation.duration;
                 // Set keyframe animation to the timeline and get the timeline-formated one.
-                auAnimation = this.gui.curvesTimeline.setAnimationClip( auAnimation, true );
+                auAnimation = this.gui.auTimeline.setAnimationClip( auAnimation, true );
 
                 faceAnimation.name = "faceAnimation";   // mixer
                 auAnimation.name = "faceAnimation";  // action units timeline
                 this.validateFaceAnimationClip(faceAnimation);
                 
                 bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
-                bsAnimation = this.gui.blendshapesCurvesTimeline.setAnimationClip(bsAnimation, true);
-                this.gui.blendshapesCurvesTimeline.setSelectedItems(Object.keys(bsAnimation.tracks));
+                bsAnimation = this.gui.bsTimeline.setAnimationClip(bsAnimation, true);
+                this.gui.bsTimeline.setSelectedItems(Object.keys(bsAnimation.tracks));
             }
             
             if(!this.bindedAnimations[animationName]) {
@@ -2260,14 +2260,14 @@ class KeyframeEditor extends Editor {
                     this.activeTimeline.hide();
                 }
                 if( faceType == "actionunits" ) {
-                    this.activeTimeline = this.gui.curvesTimeline;
+                    this.activeTimeline = this.gui.auTimeline;
                     this.setSelectedActionUnit(this.selectedAU);                    
                     if( !this.selectedAU ) {
                         return;
                     }
                 }
                 else {
-                    this.activeTimeline = this.gui.blendshapesCurvesTimeline;
+                    this.activeTimeline = this.gui.bsTimeline;
                 }
                 this.activeTimeline.show();
                 currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
@@ -2283,7 +2283,7 @@ class KeyframeEditor extends Editor {
                     this.gizmo.enable();
                 }
 
-                this.activeTimeline = this.gui.keyFramesTimeline;                
+                this.activeTimeline = this.gui.skeletonTimeline;                
                 currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
                 this.activeTimeline.show();

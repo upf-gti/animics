@@ -354,7 +354,7 @@ class Gizmo {
             throw("No skeleton");
 
         let transform = this.transform;
-        let timeline = this.editor.gui.keyFramesTimeline;
+        let timeline = this.editor.gui.skeletonTimeline;
 
         const canvas = document.getElementById("webgl-canvas");
 
@@ -512,7 +512,7 @@ class Gizmo {
      */
     updateTracks() {
 
-        const timeline = this.editor.gui.keyFramesTimeline;
+        const timeline = this.editor.gui.skeletonTimeline;
         let keyType = Gizmo.ModeToKeyType[ this.editor.getGizmoMode() ];
         let bone = this.skeleton.bones[this.selectedBone]; 
         let track = null;
@@ -554,7 +554,7 @@ class Gizmo {
                 const track = groupTracks[quaternionTrackIdx];
                 if ( track.dim != 4 ){ continue; } // only quaternions
 
-                this.editor.gui.keyFramesTimeline.saveState( track.trackIdx, i != 1 );
+                this.editor.gui.skeletonTimeline.saveState( track.trackIdx, i != 1 );
 
                 const tValues = track.values; 
 
@@ -594,7 +594,7 @@ class Gizmo {
                 return;
             }
 
-            this.editor.gui.keyFramesTimeline.saveState( track.trackIdx );
+            this.editor.gui.skeletonTimeline.saveState( track.trackIdx );
 
             if ( propWindow.enabler ){
                 this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, newValue);
