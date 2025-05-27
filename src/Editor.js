@@ -40,6 +40,7 @@ class Editor {
         this.currentAnimation = "";
         this.loadedAnimations = {}; // loaded animations from mediapipe&NN or BVH
         this.bindedAnimations = {}; // loaded retargeted animations binded to characters
+        this.boundAnimations = {};
         this.animationFrameRate = 30;
 
         this.clock = new THREE.Clock();
@@ -762,9 +763,13 @@ class Editor {
         // animation loop is handled by update(). AnimationActions are on LoopRepeat Infinity by default
     }
 
+    getCurrentBoundAnimation() {
+        const boundAnim = this.boundAnimations[this.currentCharacter.name]; 
+        return boundAnim ? boundAnim[this.currentAnimation] : null;
+    }
     getCurrentBindedAnimation() {
-        const bindedAnim = this.bindedAnimations[this.currentAnimation]; 
-        return bindedAnim ? bindedAnim[this.currentCharacter.name] : null;
+        // const bindedAnim = this.bindedAnimations[this.currentAnimation]; 
+        // return bindedAnim ? bindedAnim[this.currentCharacter.name] : null;
     }
 
     getCurrentAnimation() {
@@ -1053,6 +1058,8 @@ class KeyframeEditor extends Editor {
     constructor( animics ) {
                 
         super(animics);
+
+        this.currentKeyFrameClip = null; // animation shown in the keyframe timelines
 
         this.animationInferenceModes = {NN: 0, M3D: 1}; // either use ML or mediapipe 3d approach to generate an animation (see buildanimation and bindanimation)
         this.inferenceMode = new URLSearchParams(window.location.search).get("inference") == "NN" ? this.animationInferenceModes.NN : this.animationInferenceModes.M3D;
@@ -1842,6 +1849,19 @@ class KeyframeEditor extends Editor {
         return new THREE.AnimationClip( "animation", -1, tracks );
     }
 
+    setGlobalAnimation(){
+        // Remove current animation clip
+        let mixer = this.currentCharacter.mixer;
+        mixer.stopAllAction();
+
+        while(mixer._actions.length){
+            mixer.uncacheClip(mixer._actions[0]._clip); // removes action
+        }
+        this.currentCharacter.skeletonHelper.skeleton.pose(); // for some reason, mixer.stopAllAction makes bone.position and bone.quaternions undefined. Ensure they have some values
+
+        // this.currentAnimation = asdfasdfasdfasdfasdfasdf asdf asd a sdf;
+    }
+
     /**
      * KeyframeEditor: fetches a loaded animation and applies it to the character. The first time an animation is binded, it is processed and saved. Afterwards, this functino just changes between existing animations 
      * @param {String} animationName 
@@ -1857,166 +1877,107 @@ class KeyframeEditor extends Editor {
             return false;
         }
 
-        this.currentAnimation = animationName;
+        bodyAnimation = animation.bodyAnimation;        
+        let skeletonAnimation = null;
+        
+        const otherTracks = []; // blendshapes     
 
-        if ( animationName != this.currentAnimation ) {
-            this.gui.skeletonTimeline.unSelectAllKeyFrames();
-            this.gui.skeletonTimeline.unHoverAll();
-            this.gui.skeletonTimeline.currentTime = 0;
-            this.gui.auTimeline.unSelectAllKeyFrames();
-            this.gui.auTimeline.unHoverAll();
-            this.gui.curvesFramesTimeline.currentTime = 0;
-        }
-
-        // Remove current animation clip
-        let mixer = this.currentCharacter.mixer;
-        mixer.stopAllAction();
-
-        while(mixer._actions.length){
-            mixer.uncacheClip(mixer._actions[0]._clip); // removes action
-        }
-        this.currentCharacter.skeletonHelper.skeleton.pose(); // for some reason, mixer.stopAllAction makes bone.position and bone.quaternions undefined. Ensure they have some values
-
-        // if not yet binded, create it. Otherwise just change to the existing animation
-        if ( !this.bindedAnimations[animationName] || !this.bindedAnimations[animationName][this.currentCharacter.name] ) {
-            bodyAnimation = animation.bodyAnimation;        
-            let skeletonAnimation = null;
-           
-            const otherTracks = []; // blendshapes     
-
-            if(bodyAnimation) {
-                if ( animation.type == "video" && this.inferenceMode == this.animationInferenceModes.M3D ){ // mediapipe3d animation inference algorithm
-                    bodyAnimation = this.createBodyAnimationFromWorldLandmarks( animation.bodyAnimation, this.currentCharacter.skeletonHelper.skeleton );
-                } 
-                else { // bvh (and old ML system) retarget an existing animation
-                    const tracks = [];
-                    // Remove position changes (only keep i == 0, hips)
-                    for (let i = 0; i < bodyAnimation.tracks.length; i++) {
-                        if(bodyAnimation.tracks[i].constructor == THREE.NumberKeyframeTrack ) {
-                            otherTracks.push(bodyAnimation.tracks[i]);
-                            continue;
-                        }
-                        if(i && bodyAnimation.tracks[i].name.includes('position')) {
-                            continue;
-                        }
-                        tracks.push(bodyAnimation.tracks[i]);
-                        tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
+        if(bodyAnimation) {
+            if ( animation.type == "video" && this.inferenceMode == this.animationInferenceModes.M3D ){ // mediapipe3d animation inference algorithm
+                bodyAnimation = this.createBodyAnimationFromWorldLandmarks( animation.bodyAnimation, this.currentCharacter.skeletonHelper.skeleton );
+            } 
+            else { // bvh (and old ML system) retarget an existing animation
+                const tracks = [];
+                // Remove position changes (only keep i == 0, hips)
+                for (let i = 0; i < bodyAnimation.tracks.length; i++) {
+                    if(bodyAnimation.tracks[i].constructor == THREE.NumberKeyframeTrack ) {
+                        otherTracks.push(bodyAnimation.tracks[i]);
+                        continue;
                     }
-
-                    bodyAnimation.tracks = tracks;            
-                    let skeleton = animation.skeleton ?? this.nnSkeleton;
-                    
-                    // Retarget NN animation              
-                    // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
-                    let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true } ); // both skeletons use their native bind pose
-                    bodyAnimation = retargeting.retargetAnimation(bodyAnimation);                    
+                    if(i && bodyAnimation.tracks[i].name.includes('position')) {
+                        continue;
+                    }
+                    tracks.push(bodyAnimation.tracks[i]);
+                    tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
                 }
 
-                this.validateBodyAnimationClip(bodyAnimation);
-
-                // set track value dimensions. Necessary for the timeline
-                for( let i = 0; i < bodyAnimation.tracks.length; ++i ){
-                    let t = bodyAnimation.tracks[i]; 
-                    if ( t.name.endsWith(".quaternion") ){ t.dim = 4; }
-                    else{ t.dim = 3; }
-                }
-                // Set keyframe animation to the timeline and get the timeline-formated one
-                skeletonAnimation = this.gui.skeletonTimeline.setAnimationClip( bodyAnimation, true );
-                this.gui.skeletonTimeline.setSelectedItems([this.currentCharacter.skeletonHelper.bones[0].name]);
-
-                bodyAnimation.name = "bodyAnimation";   // mixer
-                skeletonAnimation.name = "bodyAnimation";  // timeline
-
-                if(otherTracks.length) { // comes from a bvhe
-                    faceAnimation = new THREE.AnimationClip("faceAnimation", bodyAnimation.duration, otherTracks);
-                }
-            }
+                bodyAnimation.tracks = tracks;            
+                let skeleton = animation.skeleton ?? this.nnSkeleton;
                 
-            if( animation.faceAnimation ) {
-                faceAnimation = faceAnimation ? animation.faceAnimation.tracks.concat(faceAnimation.tracks) : animation.faceAnimation;
-            }      
-            let auAnimation = null;
-            let bsAnimation = null;
-
-            if(faceAnimation) {
-                                
-                if(animation.type == "video") {
-                    auAnimation = faceAnimation;
-                    faceAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes);
-                }
-                else {
-                    // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
-                    auAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
-                }
-                // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
-                for( let i = 0; i < auAnimation.tracks.length; ++i ){
-                    auAnimation.tracks[i].dim = 1;
-                }
-
-                auAnimation.duration = faceAnimation.duration;
-                // Set keyframe animation to the timeline and get the timeline-formated one.
-                auAnimation = this.gui.auTimeline.setAnimationClip( auAnimation, true );
-
-                faceAnimation.name = "faceAnimation";   // mixer
-                auAnimation.name = "faceAnimation";  // action units timeline
-                this.validateFaceAnimationClip(faceAnimation);
-                
-                bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
-                bsAnimation = this.gui.bsTimeline.setAnimationClip(bsAnimation, true);
-                this.gui.bsTimeline.setSelectedItems(Object.keys(bsAnimation.tracks));
+                // Retarget NN animation              
+                // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
+                let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true } ); // both skeletons use their native bind pose
+                bodyAnimation = retargeting.retargetAnimation(bodyAnimation);                    
             }
-            
-            if(!this.bindedAnimations[animationName]) {
-                this.bindedAnimations[animationName] = {};
+
+            this.validateBodyAnimationClip(bodyAnimation);
+
+            // set track value dimensions. Necessary for the timeline
+            for( let i = 0; i < bodyAnimation.tracks.length; ++i ){
+                let t = bodyAnimation.tracks[i]; 
+                if ( t.name.endsWith(".quaternion") ){ t.dim = 4; }
+                else{ t.dim = 3; }
             }
-            
-            this.bindedAnimations[animationName][this.currentCharacter.name] = {
-                source: animationName,
-                skeletonAnimation, auAnimation, bsAnimation, // from gui timeline. Main data
-                mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation // for threejs mixer. ALWAYS relies on timeline data
+            // Set keyframe animation to the timeline and get the timeline-formated one
+            skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( bodyAnimation );
+
+            bodyAnimation.name = "bodyAnimation";   // mixer
+            skeletonAnimation.name = "bodyAnimation";  // timeline
+
+            if(otherTracks.length) { // comes from a bvhe
+                faceAnimation = new THREE.AnimationClip("faceAnimation", bodyAnimation.duration, otherTracks);
             }
         }
+            
+        if( animation.faceAnimation ) {
+            faceAnimation = faceAnimation ? animation.faceAnimation.tracks.concat(faceAnimation.tracks) : animation.faceAnimation;
+        }      
+        let auAnimation = null;
+        let bsAnimation = null;
+
+        if(faceAnimation) {
+                            
+            if(animation.type == "video") {
+                auAnimation = faceAnimation;
+                faceAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes);
+            }
+            else {
+                // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
+                auAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
+            }
+            // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
+            for( let i = 0; i < auAnimation.tracks.length; ++i ){
+                auAnimation.tracks[i].dim = 1;
+            }
+
+            auAnimation.duration = faceAnimation.duration;
+            // Set keyframe animation to the timeline and get the timeline-formated one.
+            auAnimation = this.gui.auTimeline.instantiateAnimationClip( auAnimation );
+
+            faceAnimation.name = "faceAnimation";   // mixer
+            auAnimation.name = "faceAnimation";  // action units timeline
+            this.validateFaceAnimationClip(faceAnimation);
+            
+            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
+            bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation ); // generate default animationclip or process the user's one;
+        }
+        
+        const boundAnimation = {
+            source: animation,
+            skeletonAnimation, auAnimation, bsAnimation, // from gui timeline. Main data
+            mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation // for threejs mixer. ALWAYS relies on timeline data
+        }
+
+        boundAnimation.start = 0;
+        boundAnimation.duration = boundAnimation.skeletonAnimation.duration;
+        boundAnimation.id = animationName;
+        this.gui.globalTimeline.addClip(boundAnimation);
 
         // set mixer animations
-        let bindedAnim = this.bindedAnimations[animationName][this.currentCharacter.name];
-        mixer.clipAction(bindedAnim.mixerFaceAnimation).setEffectiveWeight(1.0).play(); // already handles nulls and undefineds
-        mixer.clipAction(bindedAnim.mixerBodyAnimation).setEffectiveWeight(1.0).play();
+        const mixer = this.currentCharacter.mixer;
+        mixer.clipAction(boundAnimation.mixerFaceAnimation).setEffectiveWeight(1.0).play(); // already handles nulls and undefineds
+        mixer.clipAction(boundAnimation.mixerBodyAnimation).setEffectiveWeight(1.0).play();
         
-        // set timeline animations
-        this.gui.onChangeAnimation(bindedAnim);
-        this.setTimeline(this.animationMode);
-        this.gizmo.updateBones();
-        // mixer.setTime(0);
-
-        if ( animation.type == "video" ) {
-            this.video.sync = true;
-            this.setVideoVisibility(true);
-            this.video.onloadeddata = () =>{
-                this.video.currentTime = Math.max( this.video.startTime, Math.min( this.video.endTime, this.activeTimeline.currentTime ) );
-                        
-                this.video.click();
-                const event = new Event("mouseup");
-                
-                if( animation.rect ) {
-                    event.rect = animation.rect;
-                }
-                
-                this.video.parentElement.dispatchEvent(event);
-                if ( this.activeTimeline.playing ){
-                    this.video.play();
-                }            
-            }
-            this.video.src = animation.videoURL;
-            this.video.startTime = animation.startTime ?? 0;
-            this.video.endTime = animation.endTime ?? 1;
-        }
-        else {
-            
-            this.video.sync = false;
-            
-            this.setVideoVisibility(false);
-        }
-
         return true;
     }
 
@@ -2116,9 +2077,9 @@ class KeyframeEditor extends Editor {
     }
 
     setVideoVisibility( visibility, needsMirror = false ){ // TO DO
-        if(visibility && this.getCurrentAnimation().type == "video") {
+        if(visibility && this.currentKeyFrameClip && this.currentKeyFrameClip.source.type == "video") {
             this.gui.showVideoOverlay(needsMirror);
-            this.gui.computeVideoArea( this.getCurrentAnimation().rect ?? { left:0, top:0, width: 1, height: 1 } );
+            this.gui.computeVideoArea( this.currentKeyFrameClip.source.rect ?? { left:0, top:0, width: 1, height: 1 } );
         }
         else {
             this.gui.hideVideoOverlay();
@@ -2190,7 +2151,7 @@ class KeyframeEditor extends Editor {
 
     onSetTime( t ) {
         // Update video
-        if( this.getCurrentAnimation().type == "video" ) {
+        if( this.currentKeyFrameClip.source.type == "video" ) {
             this.video.currentTime = this.video.startTime + t;
         }
         this.gizmo.updateBones();
@@ -2223,7 +2184,7 @@ class KeyframeEditor extends Editor {
             }
 
             this.activeTimeline.clearTrack(idx, value);
-            const animationData = this.getCurrentBindedAnimation();
+            const animationData = this.currentKeyFrameClip;
             switch( this.activeTimeline.animationClip.name ) {
                 case "bodyAnimation":
                     this.updateMixerAnimation(animationData.mixerBodyAnimation, [idx]);
@@ -2390,7 +2351,7 @@ class KeyframeEditor extends Editor {
                 }
             }
         }        
-        this.updateMixerAnimation(this.getCurrentBindedAnimation().mixerFaceAnimation, bsEditedTracksIdxs, bsAnimation);
+        this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, bsEditedTracksIdxs, bsAnimation);
     }
 
        /**

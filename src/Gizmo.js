@@ -584,7 +584,7 @@ class Gizmo {
                 }
 
                 // Update animation interpolants
-                this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerBodyAnimation, [track.trackIdx] );
+                this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx] );
             }
         }
         else{
@@ -609,7 +609,7 @@ class Gizmo {
             }
 
             // Update animation interpolants
-            this.editor.updateMixerAnimation(this.editor.getCurrentBindedAnimation().mixerBodyAnimation, [track.trackIdx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx]);
         }
 
     }
