@@ -2010,7 +2010,7 @@ class Tabs {
                 this.thumb.style.transition = "none";
                 this.thumb.style.transform = "translate( " + ( tabEl.childIndex * tabEl.offsetWidth ) + "px )";
                 this.thumb.style.width = ( tabEl.offsetWidth ) + "px";
-                flushCss( this.thumb );
+                LX.UTILS.flushCss( this.thumb );
                 this.thumb.style.transition = transition;
             });
 
@@ -6399,7 +6399,7 @@ class Area {
                 const opacity = getComputedStyle( area2.root ).opacity;
                 area2.root.classList.remove( e.animationName + "-" + type );
                 area2.root.style.opacity = opacity;
-                LX.flushCss( area2.root );
+                LX.UTILS.flushCss( area2.root );
             });
 
             this.splitBar.addEventListener("contextmenu", e => {
@@ -9260,7 +9260,7 @@ class Dial extends Widget {
         this.onResize = ( rect ) => {
             const realNameWidth = ( this.root.domName?.style.width ?? "0px" );
             container.style.width = `calc( 100% - ${ realNameWidth })`;
-            LX.flushCss( container );
+            LX.UTILS.flushCss( container );
             dialInstance.element.style.height = dialInstance.element.offsetWidth + "px";
             dialInstance.canvas.width = dialInstance.element.offsetWidth;
             container.style.width = dialInstance.element.offsetWidth + "px";
@@ -11764,7 +11764,7 @@ class Table extends Widget {
                         v.style.transform = ``;
                         v.style.transition = `none`;
                     } );
-                    LX.flushCss( fromRow );
+                    LX.UTILS.flushCss( fromRow );
 
                     if( movePending )
                     {
