@@ -1,4 +1,3 @@
-import { MiniGLTFLoader } from "./loaders/GLTFLoader.js";
 
 /*
 	Some utils
@@ -80,24 +79,6 @@ const UTILS = {
 		}
 		return list;
 	},
-
-	loadGLTF(animationFile, onLoaded) {
-        const modelName = animationFile.split("/");
-        this.makeLoading("Loading GLTF [" + modelName[modelName.length - 1] +"]...")
-        const gltfLoader = new MiniGLTFLoader();
-
-        // if(typeof(Worker) !== 'undefined') {
-        //     const worker = new Worker("src/workers/loader.js?filename=" + animationFile, { type: "module" });
-        //     worker.onmessage = function (event) {
-        //         gltfLoader.parse(event.data, animationFile, onLoaded);
-        //         worker.terminate();
-        //     };
-        // } else {
-            // browser does not support Web Workers
-            // call regular load function
-            gltfLoader.load( animationFile, onLoaded );
-        // }
-    },
 
 	/**
 	 * 

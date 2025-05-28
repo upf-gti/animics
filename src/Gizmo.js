@@ -1,6 +1,6 @@
 import * as THREE from 'three';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { ShaderChunk } from "./Utils.js";
-import { TransformControls } from './controls/TransformControls.js';
 import { CCDIKSolver, FABRIKSolver } from "./IKSolver.js"
 import { IKHelper } from "./IKHelper.js"
 
@@ -46,7 +46,7 @@ class Gizmo {
         });
 
         let scene = editor.scene;
-        scene.add( transform );
+        scene.add( transform.getHelper() );
 
         this.camera = editor.camera;
         this.scene = scene;
@@ -494,10 +494,12 @@ class Gizmo {
         const geometry = this.bonePoints.geometry;
         const positionAttribute = geometry.getAttribute( 'position' );
         const colors = [];
-        // const color = new THREE.Color(0x364964); // new THREE.Color(0.9, 0.9, 0.3);
-        // const colorSelected = new THREE.Color(0x5f88c9);
-        const color = new THREE.Color("#0170D9");
-        const colorSelected = new THREE.Color("#fc9f00");
+
+        // CSS works in srgb. These colors are in srgb. At some point between three.136 and three.176, 
+        // they made Color setHex (internal in the constructor) to default inputs as srgb and automatically transform them to linear.
+        // bonepoints is using custom shaders, which do not apply gamma. This is why the color needs a convertLineaToSRGB to be chromatically correct  
+        const color = new THREE.Color("#0170D9").convertLinearToSRGB();
+        const colorSelected = new THREE.Color("#fc9f00").convertLinearToSRGB();
 
         for ( let i = 0, l = positionAttribute.count; i < l; i ++ ) {
             (i != this.selectedBone ? color : colorSelected).toArray( colors, i * 3 );

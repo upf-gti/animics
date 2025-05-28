@@ -17,7 +17,7 @@ import {
 	WebGLRenderer
 } from './three.module.js';
 
-import { OrbitControls } from '../controls/OrbitControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 /**
  * Creates a THREE interactive "Cube" or Rotation Helper like those found in most of the editing programs.
