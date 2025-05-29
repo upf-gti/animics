@@ -69,7 +69,7 @@ class Gizmo {
         this.toolSelected = Gizmo.Tools.JOINT;
         this.mode = "rotate";
 
-        this.enabled = true;
+        this.enabled = false;
     }
 
     begin(skeletonHelper) {
@@ -392,6 +392,9 @@ class Gizmo {
 
         canvas.addEventListener( 'keydown', e => {
 
+            if ( !this.editor.currentKeyFrameClip ){
+                return;
+            }
             switch ( e.key ) {
 
                 case 'q':
@@ -565,14 +568,14 @@ class Gizmo {
                 if ( frame == -1 ){ 
 
                     if ( propWindow.enabler ){
-                        this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, boneToProcess.quaternion);
+                        this.editor.propagateEdition(this.editor.gui.skeletonTimeline, track.trackIdx, boneToProcess.quaternion);
                     }
                     frame = timeline.addKeyFrames( track.trackIdx, boneToProcess.quaternion.toArray(), [effectorFrameTime] );                    
                 }
                 else{ 
                     
                     if ( propWindow.enabler ){
-                        this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, boneToProcess.quaternion);
+                        this.editor.propagateEdition(this.editor.gui.skeletonTimeline, track.trackIdx, boneToProcess.quaternion);
                     }
                     else{
                         const start = 4 * frame;
@@ -599,7 +602,7 @@ class Gizmo {
             this.editor.gui.skeletonTimeline.saveState( track.trackIdx );
 
             if ( propWindow.enabler ){
-                this.editor.propagateEdition(this.editor.activeTimeline, track.trackIdx, newValue);
+                this.editor.propagateEdition(this.editor.gui.skeletonTimeline, track.trackIdx, newValue);
             }else{
                 const start = track.dim * keyFrameIndex;
                 // supports position and quaternion types

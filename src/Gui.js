@@ -592,8 +592,7 @@ class Gui {
 
     drawTimeline(currentTimeline) {
 
-        if(this.timelineVisible){ currentTimeline.draw(); } 
-        this.globalTimeline.draw();       
+        if(this.timelineVisible){ currentTimeline.draw(); }
     }
 
     showTimeline() {
@@ -618,7 +617,6 @@ class Gui {
         //this.timelineArea.setSize([width, null]);
         if ( this.editor.activeTimeline ) { 
             this.editor.activeTimeline.resize();
-            this.globalTimeline.resize();
             if( this.propagationWindow ) {
                 this.propagationWindow.updateCurve(true);
             } // resize
@@ -1055,8 +1053,6 @@ class KeyframesGui extends Gui {
                 });
             },
         });
-        this.timelineArea.attach(this.globalTimeline.root);
-        this.globalTimeline.show();
 
         this.globalTimeline.cloneClips = function(clipsToClone, timeOffset){
             const cloned = JSON.parse( JSON.stringify( clipsToClone ) );
@@ -1064,7 +1060,16 @@ class KeyframesGui extends Gui {
                 const c = cloned[i];
                 c.mixerFaceAnimation = clipsToClone[i].mixerFaceAnimation.clone(); // create new uuid
                 c.mixerBodyAnimation = clipsToClone[i].mixerBodyAnimation.clone(); // create new uuid
+                c.start = (c.start ?? 0) + timeOffset;
+                if (c.hasOwnProperty("fadein") ){
+                    c.fadein += timeOffset;
+                }
+                if (c.hasOwnProperty("fadeout") ){
+                    c.fadeout += timeOffset;
+                }
             }
+
+            return cloned;
         }
 
         this.globalTimeline.onDeleteSelectedClips = (deletedClips) =>{
@@ -1092,6 +1097,8 @@ class KeyframesGui extends Gui {
                     const editor = this.editor;
                     editor.currentKeyFrameClip = animation;
                     
+                    const localTime = Math.max(0, Math.min( animation.duration, this.globalTimeline.currentTime - animation.start ) );
+                    this.editor.setTime( animation.start + localTime );
                     this.skeletonTimeline.setAnimationClip(animation.skeletonAnimation, false);
                     this.skeletonTimeline.setSelectedItems([editor.selectedBone]);
                     this.auTimeline.setAnimationClip(animation.auAnimation, false);
@@ -1099,10 +1106,9 @@ class KeyframesGui extends Gui {
                     this.bsTimeline.setAnimationClip(animation.bsAnimation, false);
                     this.bsTimeline.setSelectedItems(Object.keys(animation.bsAnimation.tracks));
 
+                    this.editor.setTimeline(this.editor.animationModes.BODY);
+                    this.propagationWindow.setTimeline( this.skeletonTimeline );
                     this.createSidePanel();
-                    this.globalTimeline.hide();
-                    this.skeletonTimeline.show();
-
 
                     if ( sourceAnimation.type == "video" ) {
                         const video = this.editor.video;
@@ -1134,6 +1140,15 @@ class KeyframesGui extends Gui {
             }
         }
 
+        this.globalTimeline.onUpdateTrack = this.globalTimeline.onContentMoved = (indices) => {
+            // this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : []);
+            console.log(indices);
+        }
+        this.globalTimeline.onAddNewTrack = (track, initData) =>{ track.id = "Track " + (this.globalTimeline.animationClip.tracks.length-1);}
+
+        this.globalTimeline.onSetTime = (t) => {
+            this.editor.setTime(t, true);
+        }
 
 
         /* Keyframes Timeline */
@@ -1198,11 +1213,11 @@ class KeyframesGui extends Gui {
             this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.skeletonTimeline.onSetTime = (t) => {
-            this.editor.setTime(t, true);
+            this.editor.setTime(this.editor.currentKeyFrameClip.start + t, true);
             this.propagationWindow.setTime(t);
         }
         this.skeletonTimeline.onSetDuration = (t) => { 
-            let currentBinded = this.editor.currentKeyFrameClip;
+            const currentBinded = this.editor.currentKeyFrameClip;
             if (!currentBinded){ return; }
             currentBinded.mixerBodyAnimation.duration = t;
             currentBinded.mixerFaceAnimation.duration = t;
@@ -1214,7 +1229,10 @@ class KeyframesGui extends Gui {
 	            this.bsTimeline.setDuration(t, true, true);
 			}
 
-            this.editor.currentKeyFrameClip.duration = t;
+            currentBinded.duration = t;
+            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            }
         };
 
         this.skeletonTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx]);
@@ -1338,7 +1356,6 @@ class KeyframesGui extends Gui {
         this.skeletonTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [idx]);
         }
-        this.editor.activeTimeline = this.skeletonTimeline;
 
         /* Curves Timeline */
         this.auTimeline = new LX.KeyFramesTimeline("Action Units", {
@@ -1386,10 +1403,10 @@ class KeyframesGui extends Gui {
                 this.updateLoopModeGui( loop );
         };
         this.auTimeline.onSetTime = (t) => {
-            this.editor.setTime(t, true);
+            this.editor.setTime(this.editor.currentKeyFrameClip.start + t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
-                this.editor.updateFacePropertiesPanel(this.auTimeline.animationClip, -1);
+                this.editor.updateFacePropertiesPanel(this.auTimeline, -1);
             }
         };
         this.auTimeline.onSetDuration = (t) => { 
@@ -1405,21 +1422,23 @@ class KeyframesGui extends Gui {
 	            this.bsTimeline.setDuration(t, true, true);
 			}
 
-            this.editor.currentKeyFrameClip.duration = t;
-
+            currentBinded.duration = t;
+            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            }
         };
 
         this.auTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, [trackIdx], this.auTimeline.animationClip);
         this.auTimeline.onUpdateTrack = (indices) => {
             this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, indices.length == 1 ? indices : [], this.auTimeline.animationClip); 
-            this.editor.updateFacePropertiesPanel(this.auTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
+            this.editor.updateFacePropertiesPanel(this.auTimeline, indices.length == 1 ? indices[0] : -1);
         }
         this.auTimeline.onDeleteKeyFrames = (trackIdx, tidx) => this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, [trackIdx], this.auTimeline.animationClip);
         this.auTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.auTimeline.currentTime );
 
             if ( this.auTimeline.lastKeyFramesSelected.length < 2 ){
-                this.editor.updateFacePropertiesPanel(this.auTimeline.animationClip, selection[0]);
+                this.editor.updateFacePropertiesPanel(this.auTimeline, selection[0]);
             }
 
             if ( this.propagationWindow.enabler ){
@@ -1437,7 +1456,7 @@ class KeyframesGui extends Gui {
         }
         this.auTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, [idx], this.auTimeline.animationClip);
-            this.editor.updateFacePropertiesPanel(this.auTimeline.animationClip, idx < 0 ? -1 : idx);
+            this.editor.updateFacePropertiesPanel(this.auTimeline, idx < 0 ? -1 : idx);
         }
         this.auTimeline.onSetTrackState = (track, oldState) => {this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, [track.trackIdx], this.auTimeline.animationClip);}
 
@@ -1484,10 +1503,10 @@ class KeyframesGui extends Gui {
         this.bsTimeline.onChangeLoopMode = (loop) => this.updateLoopModeGui( loop );
         this.bsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.bsTimeline.onSetTime = (t) => {
-            this.editor.setTime(t, true);
+            this.editor.setTime(this.editor.currentKeyFrameClip.start + t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
-                this.editor.updateFacePropertiesPanel(this.bsTimeline.animationClip, -1);
+                this.editor.updateFacePropertiesPanel(this.bsTimeline, -1);
             }
         }
         this.bsTimeline.onSetDuration = (t) => { 
@@ -1503,24 +1522,26 @@ class KeyframesGui extends Gui {
 	            this.auTimeline.setDuration(t, true, true);
 			}
 
-            this.editor.currentKeyFrameClip.duration = t;
-
+            currentBinded.duration = t;
+            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            }
         };
 
         this.bsTimeline.onContentMoved = (trackIdx, keyframeIdx)=> {
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx]);
             this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation,  [trackIdx]);
-            this.editor.updateFacePropertiesPanel(this.bsTimeline.animationClip, [trackIdx]);
+            this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
         }
         this.bsTimeline.onUpdateTrack = (indices) => {
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : []);
             this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, indices);
-            this.editor.updateFacePropertiesPanel(this.bsTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
+            this.editor.updateFacePropertiesPanel(this.bsTimeline, indices.length == 1 ? indices[0] : -1);
         }
         this.bsTimeline.onDeleteKeyFrame = (trackIdx, tidx) => {
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx]);
             this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, indices);
-            this.editor.updateFacePropertiesPanel(this.bsTimeline.animationClip, indices.length == 1 ? indices[0] : -1);
+            this.editor.updateFacePropertiesPanel(this.bsTimeline, indices.length == 1 ? indices[0] : -1);
         }
         this.bsTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.bsTimeline.onSelectKeyFrame = (selection) => {
@@ -1528,7 +1549,7 @@ class KeyframesGui extends Gui {
 
             // TO DO UPDATE BLENDSHAPES PANEL
             if ( this.bsTimeline.lastKeyFramesSelected.length < 2){   
-                this.editor.updateFacePropertiesPanel(this.bsTimeline.animationClip, selection[0]);
+                this.editor.updateFacePropertiesPanel(this.bsTimeline, selection[0]);
             }
             if ( this.propagationWindow.enabler ){
                 this.bsTimeline.unSelectAllKeyFrames();
@@ -1546,16 +1567,20 @@ class KeyframesGui extends Gui {
         this.bsTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [idx]);
             this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, [idx]);
-            this.editor.updateFacePropertiesPanel(this.bsTimeline.animationClip, idx < 0 ? -1 : idx);
+            this.editor.updateFacePropertiesPanel(this.bsTimeline, idx < 0 ? -1 : idx);
         }
         this.bsTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx]);}
 
+        this.timelineArea.attach(this.globalTimeline.root);
         this.timelineArea.attach(this.skeletonTimeline.root);
         this.timelineArea.attach(this.auTimeline.root);
         this.timelineArea.attach(this.bsTimeline.root);
         this.skeletonTimeline.hide();
         this.auTimeline.hide();
         this.bsTimeline.hide();
+        this.globalTimeline.show();
+        this.editor.activeTimeline = this.globalTimeline;
+
     }
     
     
@@ -1671,13 +1696,13 @@ class KeyframesGui extends Gui {
 
     // updates the necessary elements of the gui to adjust to the new animation
     onChangeAnimation( animation ){
-        this.skeletonTimeline.setAnimationClip( animation.skeletonAnimation, false );
-        this.auTimeline.setAnimationClip( animation.auAnimation, false );
-        this.bsTimeline.setAnimationClip( animation.bsAnimation, false);
-        this.bsTimeline.setSelectedItems(Object.keys(animation.bsAnimation.tracks));
-        this.updateAnimationPanel();
-        this.createActionUnitsPanel(); // need to update the panel's available blendshapes
-        this.createBlendshapesPanel( );
+        // this.skeletonTimeline.setAnimationClip( animation.skeletonAnimation, false );
+        // this.auTimeline.setAnimationClip( animation.auAnimation, false );
+        // this.bsTimeline.setAnimationClip( animation.bsAnimation, false);
+        // this.bsTimeline.setSelectedItems(Object.keys(animation.bsAnimation.tracks));
+        // this.updateAnimationPanel();
+        // this.createActionUnitsPanel(); // need to update the panel's available blendshapes
+        // this.createBlendshapesPanel( );
     }
 
     updateAnimationPanel( options = {}) {

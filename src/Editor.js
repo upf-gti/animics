@@ -732,7 +732,6 @@ class Editor {
 
     pause() {
         this.state = !this.state;
-        // this.activeTimeline.active = !this.activeTimeline.active;
         if( this.state ) {
             this.onPlay();
         }
@@ -1336,6 +1335,15 @@ class KeyframeEditor extends Editor {
             faceAnimation.from = "";
         }
         
+        // fix duration of body and face animations 
+        let duration = 1;
+        if ( animationData && ( animationData.skeletonAnim || animationData.blendshapesAnim ) ){ // empty animation? default duration to 1
+            duration = Math.max(bodyAnimation.duration, faceAnimation.duration);
+        }
+        bodyAnimation.duration = duration;
+        faceAnimation.duration = duration;
+
+
         let extensionIdx = name.lastIndexOf(".");
         if ( extensionIdx == -1 ){ // no extension
             extensionIdx = name.length; 
@@ -1346,8 +1354,8 @@ class KeyframeEditor extends Editor {
             name: name,
             saveName: saveName,
             export: true,
-            bodyAnimation: bodyAnimation ?? new THREE.AnimationClip( "bodyAnimation", -1, [] ), // THREEjs AnimationClip
-            faceAnimation: faceAnimation ?? new THREE.AnimationClip( "faceAnimation", -1, [] ), // THREEjs AnimationClip
+            bodyAnimation: bodyAnimation ?? new THREE.AnimationClip( "bodyAnimation", 1, [] ), // THREEjs AnimationClip
+            faceAnimation: faceAnimation ?? new THREE.AnimationClip( "faceAnimation", 1, [] ), // THREEjs AnimationClip
             skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
             type: "bvh"
         };
@@ -1908,7 +1916,9 @@ class KeyframeEditor extends Editor {
                 // Retarget NN animation              
                 // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
                 let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true } ); // both skeletons use their native bind pose
-                bodyAnimation = retargeting.retargetAnimation(bodyAnimation);                    
+                const oldDuration = bodyAnimation.duration;
+                bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+                bodyAnimation.duration = oldDuration;
             }
 
             this.validateBodyAnimationClip(bodyAnimation);
@@ -1960,6 +1970,7 @@ class KeyframeEditor extends Editor {
             this.validateFaceAnimationClip(faceAnimation);
             
             bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
+            bsAnimation.duration = faceAnimation.duration;
             bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation ); // generate default animationclip or process the user's one;
         }
         
@@ -2152,8 +2163,8 @@ class KeyframeEditor extends Editor {
 
     onSetTime( t ) {
         // Update video
-        if( this.currentKeyFrameClip.source.type == "video" ) {
-            this.video.currentTime = this.video.startTime + t;
+        if( this.currentKeyFrameClip && this.currentKeyFrameClip.source.type == "video" ) {
+            this.video.currentTime = this.video.startTime + t - currentKeyFrameClip.start;
         }
         this.gizmo.updateBones();
     }
@@ -2163,7 +2174,8 @@ class KeyframeEditor extends Editor {
             return;
         }
 
-        const visibleElements = this.activeTimeline.getVisibleItems();
+        const timeline = this.activeTimeline;
+        const visibleElements = timeline.getVisibleItems();
         for( let i = 0; i < visibleElements.length; ++i ) {
 
             const track = visibleElements[i].treeData.trackData; 
@@ -2171,33 +2183,23 @@ class KeyframeEditor extends Editor {
                 continue;
             }
 
-            const idx = track.trackIdx; //index of track in the entire animation
-            let value = null;
-                
-            if( track.dim == 1 ) {
-                value = 0;        
-            }
-            else if ( track.dim == 4 ){
-                value = [0,0,0,1];
-            }
-            else{
-                value = [0,0,1];
-            }
+            timeline.clearTrack(track.trackIdx);
+            if ( timeline != this.gui.globalTimeline ){
 
-            this.activeTimeline.clearTrack(idx, value);
-            const animationData = this.currentKeyFrameClip;
-            switch( this.activeTimeline.animationClip.name ) {
-                case "bodyAnimation":
-                    this.updateMixerAnimation(animationData.mixerBodyAnimation, [idx]);
-                    break;
-                case "faceAnimation":
-                    this.updateBlendshapesAnimation(animationData.bsAnimation, [id]);
-                    break;
+                const animationData = timeline.animationClip;
+                switch( animationData.name ) {
+                    case "bodyAnimation":
+                        this.updateMixerAnimation(animationData.mixerBodyAnimation, [track.trackIdx]);
+                        break;
+                    case "faceAnimation":
+                        this.updateBlendshapesAnimation(animationData.bsAnimation, [id]);
+                        break;
                     case "bsAnimation":
-                    this.updateMixerAnimation(animationData.mixerFaceAnimation, [idx]);
-                    this.updateActionUnitsAnimation(animationData.auAnimation, [id]);
-                    break;
-            }    
+                        this.updateMixerAnimation(animationData.mixerFaceAnimation, [track.trackIdx]);
+                        this.updateActionUnitsAnimation(animationData.auAnimation, [id]);
+                        break;
+                }
+            }
         }
     }
     
@@ -2207,20 +2209,15 @@ class KeyframeEditor extends Editor {
      * @returns 
      */
     setTimeline(type, faceType = "actionunits") {
-
-        let currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
-        
+       
         // hide previous timeline
-        if(this.activeTimeline && this.animationMode != type) {
+        if(this.activeTimeline) {
             this.activeTimeline.hide();
         }
 
         switch(type) {
             case this.animationModes.FACE:
                 this.animationMode = this.animationModes.FACE;
-                if(this.animationMode == type) {
-                    this.activeTimeline.hide();
-                }
                 if( faceType == "actionunits" ) {
                     this.activeTimeline = this.gui.auTimeline;
                     this.setSelectedActionUnit(this.selectedAU);                    
@@ -2231,8 +2228,6 @@ class KeyframeEditor extends Editor {
                 else {
                     this.activeTimeline = this.gui.bsTimeline;
                 }
-                this.activeTimeline.show();
-                currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 if( this.gizmo ) { 
                     this.gizmo.disable();
                 }
@@ -2246,55 +2241,58 @@ class KeyframeEditor extends Editor {
                 }
 
                 this.activeTimeline = this.gui.skeletonTimeline;                
-                currentTime = Math.min( currentTime, this.activeTimeline.animationClip.duration );
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
-                this.activeTimeline.show();
                 break;
 
-            default:                   
+            default:
                 break;
         }
         
-        this.activeTimeline.currentTime = currentTime;
-        this.setTime(currentTime, true);
-        this.activeTimeline.updateHeader();
+        this.activeTimeline.show();
+        this.activeTimeline.setTime(this.currentTime - this.currentKeyFrameClip.start, true);
     }
 
     /**
      * 
-     * @param {animation} animation 
-     * @param {Number} trackIdx if undefined, updates the currently visible tracks only 
+     * @param {KeyFramestimeline} timeline will fetch the clip from the timeline.  
+     * @param {Number} trackIdx if -1, updates the currently visible tracks only 
      * @returns 
      */
-    updateFacePropertiesPanel(animation = this.activeTimeline.animationClip, trackIdx = -1) {
+    updateFacePropertiesPanel(timeline, trackIdx = -1) {
         if(!this.activeTimeline) {
             return;
         }
+
+        // update all visible tracks
         if(trackIdx == -1) {
 
-            const selectedItems = this.activeTimeline.selectedItems;
-            const tracksPerGroup = this.activeTimeline.animationClip.tracksPerGroup;
-            for( let i = 0; i < selectedItems.length; ++i ){
-                const itemTracks = tracksPerGroup[selectedItems[i]] || [selectedItems[i]];
-                for( let t = 0; t < itemTracks.length; ++t ){
-					const track = itemTracks[t];
-                    let frame = this.activeTimeline.getNearestKeyFrame(track, this.activeTimeline.currentTime);
-                    if ( frame > -1 ){
-                        LX.emit("@on_change_" + track.id, track.values[frame]);
-                    }
+            // timeline.selectedItems has ungrouped tracks and gorup names, but not tracks in the group. They must be fetched with tracksPerGroup
+            // visibleItems contains ungrouped tracks, group ids and grouped tracks. If group id, no trackData will be present
+            const visibleItems = timeline.getVisibleItems(); 
+            for( let i = 0; i < visibleItems.length; ++i ){
+                const track = visibleItems[i].treeData.trackData;
+                if ( !track ){
+                    continue;
+                }
+                const frame = this.activeTimeline.getNearestKeyFrame(track, timeline.currentTime);
+                if ( frame > -1 ){
+                    LX.emit("@on_change_" + track.id, track.values[frame]);
                 }
             }
+
             return;
         }
 
-        const track = animation.tracks[trackIdx];
+        // update only selected (or nearby) keyframe
+        const track = timeline.animationClip.tracks[trackIdx];
         let frame = 0;
-        if(this.activeTimeline.lastKeyFramesSelected.length && this.activeTimeline.lastKeyFramesSelected[0][0] == trackIdx) {
-            frame = this.activeTimeline.lastKeyFramesSelected[0][1];
+        if(timeline.lastKeyFramesSelected.length && timeline.lastKeyFramesSelected[0][0] == trackIdx) {
+            frame = timeline.lastKeyFramesSelected[0][1];
         } 
         else {            
-            frame = this.activeTimeline.getNearestKeyFrame(track, this.activeTimeline.currentTime);
+            frame = timeline.getNearestKeyFrame(track, timeline.currentTime);
         }
+
         if( frame > -1 ){
             LX.emit("@on_change_" + track.id, track.values[frame]);
         }
@@ -2437,7 +2435,7 @@ class KeyframeEditor extends Editor {
         }
     
         
-        this.setTime( this.activeTimeline.currentTime );
+        this.setTime( this.currentTime );
         return;               
     }
     /** -------------------- BONES INTERACTION -------------------- */
@@ -2463,19 +2461,17 @@ class KeyframeEditor extends Editor {
         if(!this.gizmo)
         throw("No gizmo attached to scene");
     
-        if(this.animationMode != this.animationModes.BODY) {
-            this.setTimeline(this.animationModes.BODY);
-            return; // will call again setSelectedBone
-        }
         this.selectedBone = name;
 
-        this.activeTimeline.setSelectedItems( [this.selectedBone] );
+        this.gui.skeletonTimeline.setSelectedItems( [this.selectedBone] );
 
         // selectkeyframe at current keyframe if possible
-        let track = this.activeTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
-        let keyframe = this.activeTimeline.getCurrentKeyFrame(track, this.activeTimeline.currentTime, 0.1 );
-        if ( keyframe > -1 ){
-            this.activeTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
+        const track = this.gui.skeletonTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
+        if ( track ){
+            const keyframe = this.gui.skeletonTimeline.getCurrentKeyFrame(track, this.gui.skeletonTimeline.currentTime, 0.1 );
+            if ( keyframe > -1 ){
+                this.gui.skeletonTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
+            }
         }
 
         this.gizmo.setBone(name);
@@ -2583,14 +2579,14 @@ class KeyframeEditor extends Editor {
     setSelectedActionUnit(au) {
 
         if(this.animationMode != this.animationModes.FACE) {
-            this.setTimeline(this.animationModes.FACE);
+            this.setTimeline(this.animationModes.FACE); // set auTimeline
         }
-        this.activeTimeline.setSelectedItems([au]);
+        this.gui.auTimeline.setSelectedItems([au]);
         if(this.selectedAU == au) {
             return;
         }
         this.selectedAU = au;
-        this.setTime(this.activeTimeline.currentTime);
+        this.setTime(this.currentTime);
         
     }
 
@@ -2749,6 +2745,7 @@ class KeyframeEditor extends Editor {
                 return true;
             }
         }
+        
     }
 
     /** ------------------------ Generate formatted data --------------------------*/
@@ -2988,22 +2985,8 @@ class ScriptEditor extends Editor {
         this.bindedAnimations[animationName][this.currentCharacter.name] = { mixerAnimation: null };
     
         this.updateMixerAnimation( animation.scriptAnimation );
-        this.setTimeline();
         this.gui.updateAnimationPanel();
         return true;
-    }
-
-    /**
-     * set timeline to active timeline (show timeline) 
-     * @returns 
-     */
-    setTimeline() {
-
-        const currentTime = this.activeTimeline ? this.activeTimeline.currentTime : 0;
-        this.activeTimeline = this.gui.clipsTimeline;
-        this.activeTimeline.currentTime = currentTime;
-        this.setTime(currentTime, true);
-        this.activeTimeline.updateHeader();
     }
 
     /**
