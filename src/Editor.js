@@ -37,6 +37,9 @@ class Editor {
         this.currentCharacter = null;
         this.loadedCharacters = {};
                 
+        this.currentTime = 0; // global time 
+        this.startTimeOffset = 0; // global start time of sub animations, useful for keyframe mode. Script ignores it
+
         this.currentAnimation = "";
         this.loadedAnimations = {}; // loaded animations from mediapipe&NN or BVH
         this.bindedAnimations = {}; // loaded retargeted animations binded to characters
@@ -66,8 +69,6 @@ class Editor {
 
         this.delayedResizeID = null;
         this.delayedResizeTime = 500; //ms
-
-        this.currentTime = 0;
 
         this.ANIMICS = animics;
         this.remoteFileSystem = animics.remoteFileSystem;
@@ -682,15 +683,14 @@ class Editor {
 
     update( dt ) {
 
-        if ( this.currentTime > this.activeTimeline.duration ) {
-            this.currentTime = this.activeTimeline.currentTime = 0.0;
+        if ( this.currentTime > (this.startTimeOffset + this.activeTimeline.duration) ) {
             this.onAnimationEnded();
         }
 
         if ( this.currentCharacter.mixer && this.state ) {
             this.currentCharacter.mixer.update( dt );
             this.currentTime = this.currentCharacter.mixer.time;
-            this.activeTimeline.setTime( this.currentTime, true );
+            this.activeTimeline.setTime( this.currentTime - this.startTimeOffset, true );
         }
        
         this.onUpdate( dt );
@@ -703,7 +703,7 @@ class Editor {
             if ( this.video.sync && this.video.paused ) { 
                 this.video.play();
             }
-            this.setTime(0.0, true);
+            this.setTime(this.startTimeOffset, true);
         } 
         else {
             this.stop();
@@ -722,11 +722,10 @@ class Editor {
     stop() {
         this.state = false;
         
-        let t = 0.0;
-        this.setTime( 0 );
-        this.activeTimeline.currentTime = t;
-        this.activeTimeline.onSetTime( t );
-        
+        let t = this.startTimeOffset;
+        this.setTime( t );
+        this.activeTimeline.setTime( 0 );
+
         this.onStop();
     }
 
@@ -740,6 +739,7 @@ class Editor {
         }
     }
 
+    // global time
     setTime( t, force ) {
 
         // Don't change time if playing
@@ -748,8 +748,8 @@ class Editor {
         }
 
         const duration = this.activeTimeline.animationClip.duration;
-        
-        t = Math.clamp( t, 0, duration - 0.001 );
+        t = Math.clamp( t, this.startTimeOffset, this.startTimeOffset + duration - 0.001 );
+
         // mixer computes time * timeScale. We actually want to set the raw animation (track) time, without any timeScale 
         this.currentCharacter.mixer.setTime( t / this.currentCharacter.mixer.timeScale ); //already calls mixer.update
         this.currentCharacter.mixer.update(0); // BUG: for some reason this is needed. Otherwise, after sme timeline edition + optimization, weird things happen
@@ -1087,7 +1087,7 @@ class KeyframeEditor extends Editor {
         // Create GUI
         this.gui = new KeyframesGui(this);
 
-        this.animationModes = {FACE: 0, BODY: 1};
+        this.animationModes = {GLOBAL: 0, BODY: 1, FACEBS: 2, FACEAU: 3 };
         this.animationMode = this.animationModes.BODY;
 
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", children: []}]}];
@@ -2158,7 +2158,7 @@ class KeyframeEditor extends Editor {
             }
         }
         this.gui.setBoneInfoState( !this.state );
-        this.gui.propagationWindow.setTime( this.currentTime );
+        this.gui.propagationWindow.setTime( this.currentTime - this.startTimeOffset );
     }
 
     onSetTime( t ) {
@@ -2208,7 +2208,7 @@ class KeyframeEditor extends Editor {
      * @param {animationModes} type 
      * @returns 
      */
-    setTimeline(type, faceType = "actionunits") {
+    setTimeline(type) {
        
         // hide previous timeline
         if(this.activeTimeline) {
@@ -2216,40 +2216,52 @@ class KeyframeEditor extends Editor {
         }
 
         switch(type) {
-            case this.animationModes.FACE:
-                this.animationMode = this.animationModes.FACE;
-                if( faceType == "actionunits" ) {
-                    this.activeTimeline = this.gui.auTimeline;
-                    this.setSelectedActionUnit(this.selectedAU);                    
-                    if( !this.selectedAU ) {
-                        return;
-                    }
-                }
-                else {
-                    this.activeTimeline = this.gui.bsTimeline;
-                }
+            case this.animationModes.FACEBS:
+                this.animationMode = this.animationModes.FACEBS;
+                this.activeTimeline = this.gui.bsTimeline;
+
                 if( this.gizmo ) { 
                     this.gizmo.disable();
                 }
-
                 break;
+
+            case this.animationModes.FACEAU:
+                this.animationMode = this.animationModes.FACEAU;
+                this.activeTimeline = this.gui.auTimeline;
+                this.setSelectedActionUnit(this.selectedAU);                    
                 
+                if( this.gizmo ) { 
+                    this.gizmo.disable();
+                }
+                break;
+               
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
+                this.activeTimeline = this.gui.skeletonTimeline;                
+                this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
+
                 if( this.gizmo ) {
                     this.gizmo.enable();
                 }
-
-                this.activeTimeline = this.gui.skeletonTimeline;                
-                this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
                 break;
 
             default:
+                this.gui.skeletonTimeline.hide();
+                this.gui.auTimeline.hide();
+                this.gui.bsTimeline.hide();
+                this.gui.globalTimeline.setTime(this.currentTime, true);
+                this.gui.globalTimeline.show();
+                this.startTimeOffset = 0;
+                this.currentKeyFrameClip = null;
+                this.activeTimeline = this.gui.globalTimeline;
+                if( this.gizmo ) { 
+                    this.gizmo.disable();
+                }
                 break;
         }
         
+        this.activeTimeline.setTime(this.currentTime - this.startTimeOffset, true);
         this.activeTimeline.show();
-        this.activeTimeline.setTime(this.currentTime - this.currentKeyFrameClip.start, true);
     }
 
     /**
@@ -2259,10 +2271,7 @@ class KeyframeEditor extends Editor {
      * @returns 
      */
     updateFacePropertiesPanel(timeline, trackIdx = -1) {
-        if(!this.activeTimeline) {
-            return;
-        }
-
+        
         // update all visible tracks
         if(trackIdx == -1) {
 
@@ -2274,7 +2283,7 @@ class KeyframeEditor extends Editor {
                 if ( !track ){
                     continue;
                 }
-                const frame = this.activeTimeline.getNearestKeyFrame(track, timeline.currentTime);
+                const frame = timeline.getNearestKeyFrame(track, timeline.currentTime);
                 if ( frame > -1 ){
                     LX.emit("@on_change_" + track.id, track.values[frame]);
                 }
@@ -2578,9 +2587,6 @@ class KeyframeEditor extends Editor {
 
     setSelectedActionUnit(au) {
 
-        if(this.animationMode != this.animationModes.FACE) {
-            this.setTimeline(this.animationModes.FACE); // set auTimeline
-        }
         this.gui.auTimeline.setSelectedItems([au]);
         if(this.selectedAU == au) {
             return;
@@ -2869,7 +2875,7 @@ class ScriptEditor extends Editor {
                         const animation = file.animation;
 
                         if( empty ) {
-                            this.activeTimeline.currentTime = 0;
+                            this.activeTimeline.setTime(0, true);
                             this.clipName = animation.name;
                             this.gui.loadBMLClip( animation );
                             this.loadAnimation( file.name, animation );
@@ -2885,7 +2891,7 @@ class ScriptEditor extends Editor {
                                 panel.addButton(null, "Replace", () => { 
                                     this.clearAllTracks(false);
                                     this.clipName = animation.name;
-                                    this.activeTimeline.currentTime = 0;
+                                    this.activeTimeline.setTime(0, true);
                                     this.gui.loadBMLClip( animation );
                                     this.loadAnimation( file.name, animation );
                                     this.gui.prompt.close();
@@ -2962,7 +2968,7 @@ class ScriptEditor extends Editor {
         }
 
         if ( animationName != this.currentAnimation ) {
-            this.gui.clipsTimeline.currentTime = 0;
+            this.gui.clipsTimeline.setTime(0, true);
             this.gui.clipsTimeline.unSelectAllClips();
             this.gui.clipsTimeline.unHoverAll();
         }
@@ -3005,7 +3011,7 @@ class ScriptEditor extends Editor {
         let mixerAnimation = this.currentCharacter.bmlManager.createAnimationFromBML(animation, this.animationFrameRate);
         mixerAnimation.name = this.currentAnimation;
         mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();
-        mixer.setTime(this.activeTimeline.currentTime / mixer.timeScale);
+        mixer.setTime(this.currentTime / mixer.timeScale);
         
         this.bindedAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation = mixerAnimation;    
     }

@@ -1094,18 +1094,21 @@ class KeyframesGui extends Gui {
                 if ( clipIdx != -1 ){
                     const animation = track.clips[clipIdx];
                     const sourceAnimation = animation.source;
-                    const editor = this.editor;
-                    editor.currentKeyFrameClip = animation;
+                    this.editor.currentKeyFrameClip = animation;
                     
-                    const localTime = Math.max(0, Math.min( animation.duration, this.globalTimeline.currentTime - animation.start ) );
-                    this.editor.setTime( animation.start + localTime );
+                    const localTime = Math.max(0, Math.min( animation.duration, this.editor.currentTime - animation.start ) );
+                    this.editor.startTimeOffset = animation.start;
                     this.skeletonTimeline.setAnimationClip(animation.skeletonAnimation, false);
-                    this.skeletonTimeline.setSelectedItems([editor.selectedBone]);
+                    this.skeletonTimeline.setTime(localTime, true);
+                    this.skeletonTimeline.setSelectedItems([this.editor.selectedBone]);
                     this.auTimeline.setAnimationClip(animation.auAnimation, false);
-                    this.auTimeline.setSelectedItems([editor.selectedAU]);
+                    this.auTimeline.setSelectedItems([this.editor.selectedAU]);
+                    this.auTimeline.setTime(localTime, true);
                     this.bsTimeline.setAnimationClip(animation.bsAnimation, false);
                     this.bsTimeline.setSelectedItems(Object.keys(animation.bsAnimation.tracks));
-
+                    this.bsTimeline.setTime(localTime, true);
+                    
+                    this.editor.setTime( animation.start + localTime );
                     this.editor.setTimeline(this.editor.animationModes.BODY);
                     this.propagationWindow.setTimeline( this.skeletonTimeline );
                     this.createSidePanel();
@@ -1131,7 +1134,6 @@ class KeyframesGui extends Gui {
                         video.endTime = sourceAnimation.endTime ?? 1;
                     }
                     else {
-                        
                         this.editor.video.sync = false;
                         this.editor.setVideoVisibility(false);
                     }
@@ -1154,12 +1156,13 @@ class KeyframesGui extends Gui {
         /* Keyframes Timeline */
         this.skeletonTimeline = new LX.KeyFramesTimeline("Bone", {
             title: "Bone",
-            onCreateBeforeTopBar: (panel) => {
-                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
-                    this.editor.bindAnimationToCharacter(v); // already updates gui
-                }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
+            // onCreateBeforeTopBar: (panel) => {
+            //     // panel.addButton
+            //     panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+            //         this.editor.bindAnimationToCharacter(v); // already updates gui
+            //     }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
                 
-            },
+            // },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -1170,9 +1173,14 @@ class KeyframesGui extends Gui {
                 });
             },
             onCreateSettingsButtons: (panel) => {
+                const closebtn = panel.addButton( null, "X", (e,v) =>{ 
+                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
+                    this.createSidePanel();
+                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
+                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
-                    this.updateAnimationPanel();
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
             onShowConfiguration: (dialog) => {
@@ -1213,7 +1221,7 @@ class KeyframesGui extends Gui {
             this.menubar.getButton("Stop").children[0].children[0].click();
         }
         this.skeletonTimeline.onSetTime = (t) => {
-            this.editor.setTime(this.editor.currentKeyFrameClip.start + t, true);
+            this.editor.setTime(this.editor.startTimeOffset + t, true);
             this.propagationWindow.setTime(t);
         }
         this.skeletonTimeline.onSetDuration = (t) => { 
@@ -1374,6 +1382,17 @@ class KeyframesGui extends Gui {
                     nameWidth: "auto"
                 });
             },
+            onCreateSettingsButtons: (panel) => {
+                const closebtn = panel.addButton( null, "X", (e,v) =>{ 
+                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
+                    this.createSidePanel();
+                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
+                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+
+                panel.addButton("", "Clear track/s", (value, event) =>  {
+                    this.editor.clearAllTracks();
+                }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
+            },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
@@ -1403,7 +1422,7 @@ class KeyframesGui extends Gui {
                 this.updateLoopModeGui( loop );
         };
         this.auTimeline.onSetTime = (t) => {
-            this.editor.setTime(this.editor.currentKeyFrameClip.start + t, true);
+            this.editor.setTime(this.editor.startTimeOffset + t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
                 this.editor.updateFacePropertiesPanel(this.auTimeline, -1);
@@ -1477,6 +1496,17 @@ class KeyframesGui extends Gui {
                     nameWidth: "auto"
                 });
             },
+            onCreateSettingsButtons: (panel) => {
+                const closebtn = panel.addButton( null, "X", (e,v) =>{ 
+                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
+                    this.createSidePanel();
+                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
+                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+
+                panel.addButton("", "Clear track/s", (value, event) =>  {
+                    this.editor.clearAllTracks();     
+                }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
+            },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
@@ -1503,7 +1533,7 @@ class KeyframesGui extends Gui {
         this.bsTimeline.onChangeLoopMode = (loop) => this.updateLoopModeGui( loop );
         this.bsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.bsTimeline.onSetTime = (t) => {
-            this.editor.setTime(this.editor.currentKeyFrameClip.start + t, true);
+            this.editor.setTime(this.editor.startTimeOffset + t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
                 this.editor.updateFacePropertiesPanel(this.bsTimeline, -1);
@@ -1630,6 +1660,10 @@ class KeyframesGui extends Gui {
         top.attach(this.animationPanel);
         this.updateAnimationPanel( );
 
+        if ( this.editor.activeTimeline == this.globalTimeline ){
+            return;
+        }
+        
         //create tabs
         const tabs = this.bodyFaceTabs = bottom.addTabs({fit: true});
 
@@ -1642,11 +1676,7 @@ class KeyframesGui extends Gui {
         
 
         tabs.add( "Face", faceArea, { selected: false, onSelect: (e,v) => {
-            this.editor.setTimeline(this.editor.animationModes.FACE); 
-            this.selectActionUnitArea(this.editor.getSelectedActionUnit());
-            
-            this.propagationWindow.setTimeline( this.auTimeline );
-            this.imageMap.resize();
+            this.faceTabs.select("Action Units");
         } });
 
         const faceTabs = this.faceTabs = faceArea.addTabs({fit: true});
@@ -1654,7 +1684,7 @@ class KeyframesGui extends Gui {
         const bsArea = new LX.Area({id: 'bsFace'}); 
 
         faceTabs.add("Action Units", auArea, {selected: true, onSelect: (v,e) => {
-            this.editor.setTimeline(this.editor.animationModes.FACE, "actionunits");
+            this.editor.setTimeline(this.editor.animationModes.FACEAU);
             this.createActionUnitsPanel();
             this.selectActionUnitArea(this.editor.getSelectedActionUnit());
             
@@ -1663,7 +1693,7 @@ class KeyframesGui extends Gui {
         }});
 
         faceTabs.add("Blendshapes", bsArea, { onSelect: (v,e) => {
-            this.editor.setTimeline(this.editor.animationModes.FACE, "blendhsapes"); 
+            this.editor.setTimeline(this.editor.animationModes.FACEBS); 
             
             this.propagationWindow.setTimeline( this.bsTimeline );
             this.imageMap.resize();
@@ -1714,10 +1744,10 @@ class KeyframesGui extends Gui {
             widgets.clear();
             widgets.addTitle("Animation");
 
-            let anim = this.editor.currentKeyFrameClip;
+            let anim = this.editor.currentKeyFrameClip ?? this.globalTimeline.animationClip;
             let id = anim ? anim.id : "";
             widgets.addText("Name", id || "", (v) =>{ 
-                anim.id = v; 
+                anim.id = v;
             } )
 
             widgets.addSeparator();
