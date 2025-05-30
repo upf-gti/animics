@@ -2167,6 +2167,8 @@ class KeyframeEditor extends Editor {
             this.video.currentTime = this.video.startTime + t - currentKeyFrameClip.start;
         }
         this.gizmo.updateBones();
+
+        this.globalClipMixerManagement();
     }
 
     clearAllTracks() {
@@ -2262,6 +2264,27 @@ class KeyframeEditor extends Editor {
         
         this.activeTimeline.setTime(this.currentTime - this.startTimeOffset, true);
         this.activeTimeline.show();
+    }
+
+    globalClipMixerManagement(){
+        const mixer = this.currentCharacter.mixer;
+        const anim = this.gui.globalTimeline.animationClip;
+        for( let t = 0; t < anim.tracks.length; ++t ){
+            const track = anim.tracks[t];
+            for( let c = 0; c < track.clips.length; ++c ){
+                const clip = track.clips[c];
+                const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
+                actionBody.reset().play();
+                actionBody.clampWhenFinished = false;
+                actionBody.loop = THREE.LoopOnce;
+                actionBody.startAt(clip.start);
+                const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
+                actionFace.reset().play();
+                actionFace.clampWhenFinished = false;
+                actionFace.loop = THREE.LoopOnce;
+                actionFace.startAt(clip.start);
+            }
+        }
     }
 
     /**
@@ -2418,7 +2441,7 @@ class KeyframeEditor extends Editor {
                         // TO DO optimize if necessary
                         let skeleton =this.currentCharacter.skeletonHelper.skeleton;
                         let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
-                        let boneIdx = findIndexOfBoneByName(skeleton, eTrack.groupId); // TODO check this track.name. It should not work
+                        let boneIdx = findIndexOfBoneByName(skeleton, eTrack.groupId);
                         let parentIdx = findIndexOfBone(skeleton, skeleton.bones[boneIdx].parent);
                         let localBind = invMats[boneIdx].clone().invert();
 

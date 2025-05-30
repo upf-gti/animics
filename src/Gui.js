@@ -1054,10 +1054,46 @@ class KeyframesGui extends Gui {
             },
         });
 
+        // TODO make it prettier and/or move cloning to timeline
         this.globalTimeline.cloneClips = function(clipsToClone, timeOffset){
             const cloned = JSON.parse( JSON.stringify( clipsToClone ) );
             for( let i = 0; i < cloned.length; ++i ){
+                const sourceClip = clipsToClone[i];
                 const c = cloned[i];
+                c.source = sourceClip.source; // copy reference
+                let tpg = c.skeletonAnimation.tracksPerGroup;
+                for( let groupId in tpg ){
+                    const arr = tpg[groupId];
+                    for( let ti = 0; ti < arr.length; ++ti ){
+                        arr[ti] = c.skeletonAnimation.tracks[ arr[ti].trackIdx ]; // redo references
+                    }
+                }
+                c.skeletonAnimation.tracks.forEach((t,ti,arr) => { 
+                    t.times = sourceClip.skeletonAnimation.tracks[ti].times.slice();
+                    t.values = sourceClip.skeletonAnimation.tracks[ti].values.slice();
+                } );
+                tpg = c.auAnimation.tracksPerGroup;
+                for( let groupId in tpg ){
+                    const arr = tpg[groupId];
+                    for( let ti = 0; ti < arr.length; ++ti ){
+                        arr[ti] = c.auAnimation.tracks[ arr[ti].trackIdx ]; // redo references
+                    }
+                }
+                c.auAnimation.tracks.forEach((t,ti,arr) => { 
+                    t.times = sourceClip.auAnimation.tracks[ti].times.slice();
+                    t.values = sourceClip.auAnimation.tracks[ti].values.slice();
+                } );
+                tpg = c.bsAnimation.tracksPerGroup;
+                for( let groupId in tpg ){
+                    const arr = tpg[groupId];
+                    for( let ti = 0; ti < arr.length; ++ti ){
+                        arr[ti] = c.bsAnimation.tracks[ arr[ti].trackIdx ]; // redo references
+                    }
+                }
+                c.bsAnimation.tracks.forEach((t,ti,arr) => { 
+                    t.times = sourceClip.bsAnimation.tracks[ti].times.slice();
+                    t.values = sourceClip.bsAnimation.tracks[ti].values.slice();
+                } );
                 c.mixerFaceAnimation = clipsToClone[i].mixerFaceAnimation.clone(); // create new uuid
                 c.mixerBodyAnimation = clipsToClone[i].mixerBodyAnimation.clone(); // create new uuid
                 c.start = (c.start ?? 0) + timeOffset;
