@@ -2164,11 +2164,13 @@ class KeyframeEditor extends Editor {
     onSetTime( t ) {
         // Update video
         if( this.currentKeyFrameClip && this.currentKeyFrameClip.source.type == "video" ) {
-            this.video.currentTime = this.video.startTime + t - currentKeyFrameClip.start;
+            this.video.currentTime = this.video.startTime + t - this.currentKeyFrameClip.start;
         }
+        
+        this.globalAnimMixerManagement(this.currentCharacter.mixer, this.gui.globalTimeline.animationClip);
+
         this.gizmo.updateBones();
 
-        this.globalClipMixerManagement();
     }
 
     clearAllTracks() {
@@ -2259,32 +2261,37 @@ class KeyframeEditor extends Editor {
                 if( this.gizmo ) { 
                     this.gizmo.disable();
                 }
+                this.video.sync = false;
+                this.setVideoVisibility(false);
                 break;
         }
+
+
         
         this.activeTimeline.setTime(this.currentTime - this.startTimeOffset, true);
         this.activeTimeline.show();
     }
 
-    globalClipMixerManagement(){
-        const mixer = this.currentCharacter.mixer;
-        const anim = this.gui.globalTimeline.animationClip;
-        for( let t = 0; t < anim.tracks.length; ++t ){
-            const track = anim.tracks[t];
+    globalAnimMixerManagement(mixer, animation){
+        for( let t = 0; t < animation.tracks.length; ++t ){
+            const track = animation.tracks[t];
             for( let c = 0; c < track.clips.length; ++c ){
                 const clip = track.clips[c];
-                const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
-                actionBody.reset().play();
-                actionBody.clampWhenFinished = false;
-                actionBody.loop = THREE.LoopOnce;
-                actionBody.startAt(clip.start);
-                const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
-                actionFace.reset().play();
-                actionFace.clampWhenFinished = false;
-                actionFace.loop = THREE.LoopOnce;
-                actionFace.startAt(clip.start);
+                this.globalAnimMixerManagementSingleClip(mixer, clip);
             }
         }
+    }
+    globalAnimMixerManagementSingleClip(mixer, clip){
+        const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
+        actionBody.reset().play();
+        actionBody.clampWhenFinished = false;
+        actionBody.loop = THREE.LoopOnce;
+        actionBody.startAt(clip.start);
+        const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
+        actionFace.reset().play();
+        actionFace.clampWhenFinished = false;
+        actionFace.loop = THREE.LoopOnce;
+        actionFace.startAt(clip.start);
     }
 
     /**

@@ -335,6 +335,7 @@ function bindEvents( area ) {
     videoBtn.addEventListener("click", () => {
         const input = document.createElement('input');
         input.type = 'file';
+        input.multiple = true;
         input.click();
         input.onchange = (event) => { 
             onLoadFiles( event.currentTarget.files);
@@ -355,6 +356,7 @@ function bindEvents( area ) {
     importBtn.addEventListener("click", () => {
         const input = document.createElement('input');
         input.type = 'file';
+        input.multiple = true;
         input.click();
         input.onchange = (event) => { 
             onLoadFiles( event.currentTarget.files);

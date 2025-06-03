@@ -136,13 +136,6 @@ class Gui {
             }
         ]
 
-        if(this.showVideo) {
-            menuEntries[ 1 ].submenu.push({ name: "Show Video", type: "checkbox", checked: this.showVideo, callback: (v) => {
-                this.editor.setVideoVisibility( v );
-                this.showVideo = v;
-            }});
-        }
-
         this.menubar = area.addMenubar(menuEntries);
         const menubar = this.menubar;     
         
@@ -573,20 +566,6 @@ class Gui {
             }
         }, { id: 'settings-dialog', close: true, width: 380, height: 210, scroll: false, draggable: true});
     }
-         
-    setBoneInfoState( enabled ) {
-
-        let gizmoMode = this.editor.getGizmoMode();
-
-        let w = this.bonePanel.get("Position");
-        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Translate") }); }
-
-        w = this.bonePanel.get("Rotation (XYZ)");
-        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Rotate")}); }
-
-        w = this.bonePanel.get("Scale");
-        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Scale")}); }
-    }
 
     /** -------------------- TIMELINE -------------------- */
 
@@ -739,7 +718,7 @@ class KeyframesGui extends Gui {
         
         super(editor);
         this.mode = ClipModes.Keyframes;
-        this.showVideo = false;
+        this.showVideo = true; // menu option, whether to show video overlay (if any exists)
         this.skeletonScroll = 0;
 
         this.inputVideo = null;
@@ -790,12 +769,21 @@ class KeyframesGui extends Gui {
         const timelineMenu = entries.find( e => e.name == "Timeline" )?.submenu;
         console.assert(timelineMenu, "Timeline menu not found" );
 
-        timelineMenu.push( null, { name: "Optimize Tracks", icon: "Filter", callback: () => {
-            // optimize all tracks of current binded animation (if any)
-            this.auTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
-            this.skeletonTimeline.optimizeTracks();
-        }});
+        this.showVideo = this.showVideo ?? true; // menu option, whether to show video overlay (if any exists)
 
+        timelineMenu.push( 
+            null, 
+            { name: "Optimize Tracks", icon: "Filter", callback: () => {
+                // optimize all tracks of current binded animation (if any)
+                this.auTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
+                this.skeletonTimeline.optimizeTracks();
+            }},
+            { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
+                this.showVideo = v;
+                this.editor.setVideoVisibility( v );
+            }}
+        );
+        
         const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
 
@@ -1152,7 +1140,7 @@ class KeyframesGui extends Gui {
                     if ( sourceAnimation.type == "video" ) {
                         const video = this.editor.video;
                         video.sync = true;
-                        this.editor.setVideoVisibility(true);
+                        this.editor.setVideoVisibility(this.showVideo);
                         video.onloadeddata = () =>{
                             video.currentTime = Math.max( video.startTime, Math.min( video.endTime, 0 ) );
                                     
@@ -1178,9 +1166,12 @@ class KeyframesGui extends Gui {
             }
         }
 
-        this.globalTimeline.onUpdateTrack = this.globalTimeline.onContentMoved = (indices) => {
+        this.globalTimeline.onUpdateTrack = (indices) => {
             // this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : []);
             console.log(indices);
+        }
+        this.globalTimeline.onContentMoved = (clip, deltaTime) => {
+            this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
         }
         this.globalTimeline.onAddNewTrack = (track, initData) =>{ track.id = "Track " + (this.globalTimeline.animationClip.tracks.length-1);}
 
@@ -1758,6 +1749,24 @@ class KeyframesGui extends Gui {
                 faceTop.onresize(e);
             }
         }
+    }
+
+    setBoneInfoState( enabled ) {
+
+        if ( !this.editor.currentKeyFrameClip ){ 
+            return;
+        }
+
+        const gizmoMode = this.editor.getGizmoMode();
+
+        let w = this.bonePanel.get("Position");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Translate") }); }
+
+        w = this.bonePanel.get("Rotation (XYZ)");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Rotate")}); }
+
+        w = this.bonePanel.get("Scale");
+        if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Scale")}); }
     }
 
     // updates the necessary elements of the gui to adjust to the new animation
