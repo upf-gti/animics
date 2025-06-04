@@ -1,0 +1,37 @@
+<script type="text/javascript">
+
+    MAKE_HEADER("Side Panel", "h1", "side-panel");
+
+    INSERT_IMAGE(`./imgs/side-panel/side-panels.png`, "Side Panel");
+
+    MAKE_PARAGRAPH(`The side panel is located at the right side of the screen. This panel first displays the current animation save name, which will be used as its file name when exporting the animation. The rest of the panel is devoted to the features offered by each of the animation modes: <b>body</b> and <b>face</b>.`);
+
+    MAKE_HEADER("Body Panel", "h2", "body-panel");
+    MAKE_PARAGRAPH(`Displays three main elements:`);
+    MAKE_BULLET_LIST([
+        `The <b>bone hierarchy</b> shows all available bones. A bone can be selected by clicking on its entry (as well as clicking in the 3D scene).`,
+        `<b>Gizmo</b> features:
+        <ul>
+            <li>Tool <b>Joint</b>: It applies changes only to the selected bone. This mode is present in all bones.</li>
+                <ul>
+                    <li>Mode: Translate, Scale and Rotate</li>
+                    <li>Space: Local or World</li>
+                </ul>
+            <li>Tool <b>Follow</b>: This tool makes the selected bone follow a target (moved by the user) and forces bones in the chain to adapt to that change. E.g. moving the wrist will make all arm bones follow and adapt its rotation. It modifies existing keyframes and creates new ones for the chained bones. The hips (root bone of the skeleton) does not provide this tool.</li>
+            <ul>
+                <li>Mode:</li>
+                <ul>
+                    <li>Multiple: affects all bones of the chain This mode is only available for “large” chains such as arms, fingers, legs and spine</li>
+                    <li>Single: only applies to the chain consisting of the current bone and its parent.</li>
+                </ul>
+            </ul>
+            <li><b>Snap</b>: Either to allow continuous or a staircased edition. E.g. a snapped rotation would rotate either 0 or 5 degrees, but not 2.3.</li>
+        </ul>`,
+        `<b>Bone</b> features all attributes of the bone: position, scale and rotation (both in Euler angles and Quaternion).`
+    ]);
+
+    INSERT_IMAGE(`./imgs/side-panel/gizmo-features.png`, "Body Panel");
+
+    MAKE_HEADER("Face Panel", "h2", "face-panel");
+    MAKE_PARAGRAPH(`Displays the action units of the current selected group. Groups can be changed by clicking the face areas. Each action unit is represented by a slider that modifies the currently selected keyframe (or the closest one inside a threshold).`);
+</script>

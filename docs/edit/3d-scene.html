@@ -1,0 +1,29 @@
+<script type="text/javascript">
+
+    MAKE_HEADER("3D Scene", "h1", "3d-scene");
+
+    MAKE_PARAGRAPH(`This is where the 3D avatar and animations will be displayed. The scene is interactable and several properties can be modified.`);
+    MAKE_LINE_BREAK();
+
+    MAKE_PARAGRAPH(`The <b>viewing point (camera)</b> can be adjusted with the mouse:`);
+    MAKE_BULLET_LIST([
+        `<i>Left click + drag:</i> orbits (rotates) the camera around a fixed target point.`,
+        `<i>Right click + drag:</i> pans (moves) the camera and the fixed target point.`,
+        `<i>Mouse wheel:</i> zooms in and out.`
+    ]);
+
+    MAKE_PARAGRAPH(`The scene also displays a <b>gizmo</b> tool when the skeletal (body) animation is selected.
+                    <i>Left-click + drag</i> with the mouse on the tool to use it. The gizmo allows you to edit
+                    the selected keyframe (there must be only one keyframe selected) of a bone by rotating, scaling or translating it.`
+    );
+    INSERT_IMAGE("./imgs/3d-scene/gizmo-tools.png", "Gizmo tools");
+
+    MAKE_PARAGRAPH(`A modification can be <b>undone</b> and <b>redone</b> using the keyboard shortcuts <i>ctrl+z</i> and <i>ctrl+y</i> respectively.`);
+    MAKE_LINE_BREAK();
+
+    MAKE_PARAGRAPH(`The <b>current selected bone</b> can be changed through the scene by left-clicking on the desired joint circle. It can also be changed through the hierarchy displayed in the side panel.`);
+    INSERT_IMAGE("./imgs/3d-scene/selected-bone.png", "Selected bone");
+
+    MAKE_PARAGRAPH(`In the case of animation generation, the <b>video</b> (either uploaded or recorded) will be displayed in this area. It can be resized (lower right corner of the video) and displaced (any point inside the video area) using the left mouse button.`);
+
+</script>
