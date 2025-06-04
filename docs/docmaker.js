@@ -35,6 +35,26 @@ function MAKE_PARAGRAPH( string, sup )
     mainContainer.appendChild( paragraph );
 }
 
+function MAKE_NOTE( string, title = "Note")
+{
+    console.assert(string);
+
+    let note = document.createElement('div');
+    note.className = "note";
+
+    let header = document.createElement('div');
+    header.className = "note-header";
+    header.appendChild(LX.makeIcon("NotepadText"));
+    header.innerHTML += "<b>" + title + "</b>";
+    
+    let body = document.createElement('div');
+    body.className = "note-body";
+    body.innerHTML = string;
+    
+    note.appendChild( header );
+    note.appendChild( body );
+    mainContainer.appendChild( note );
+}
 
 function MAKE_CODE( text )
 {
@@ -175,6 +195,18 @@ function MAKE_BULLET_LIST( list )
     mainContainer.appendChild( ul );
 }
 
+function MAKE_NUMBER_LIST( list )
+{
+    console.assert(list && list.length > 0);
+    let ol = document.createElement('ol');
+    for( var el of list ) {
+        let li = document.createElement('li');
+        li.innerHTML = el;
+        ol.appendChild( li );
+    }
+    mainContainer.appendChild( ol );
+}
+
 function ADD_CODE_LIST_ITEM( item, target )
 {
     target = target ?? window.listQueued;
@@ -284,4 +316,16 @@ function INSERT_IMAGE( src, caption = "" )
     img.src = src;
     img.alt = caption;
     mainContainer.appendChild( img );
+}
+
+function INSERT_VIDEO( src, caption = "", controls = true, autoplay = false )
+{
+    let video = document.createElement('video');
+    video.src = src;
+    video.controls = controls;
+    video.autoplay = autoplay;
+    if (autoplay) video.muted = true;
+    video.loop = true;
+    video.alt = caption;
+    mainContainer.appendChild( video );
 }
