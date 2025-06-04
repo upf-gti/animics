@@ -40,10 +40,10 @@ class Editor {
         this.currentTime = 0; // global time 
         this.startTimeOffset = 0; // global start time of sub animations, useful for keyframe mode. Script ignores it
 
-        this.currentAnimation = "";
         this.loadedAnimations = {}; // loaded animations from mediapipe&NN or BVH
         this.bindedAnimations = {}; // loaded retargeted animations binded to characters
         this.boundAnimations = {};
+        this.currentAnimation = ""; // current bound animation
         this.animationFrameRate = 30;
 
         this.clock = new THREE.Clock();
@@ -135,9 +135,6 @@ class Editor {
         }
 
         window.onbeforeunload =  (e) => {
-            if(!this.currentAnimation || !this.loadedAnimations[this.currentAnimation]) {
-                return;
-            }
             e.preventDefault();
             e.returnValue = "";
             window.stop();
@@ -764,12 +761,8 @@ class Editor {
     }
 
     getCurrentBoundAnimation() {
-        const boundAnim = this.boundAnimations[this.currentCharacter.name]; 
-        return boundAnim ? boundAnim[this.currentAnimation] : null;
-    }
-    getCurrentBindedAnimation() {
-        // const bindedAnim = this.bindedAnimations[this.currentAnimation]; 
-        // return bindedAnim ? bindedAnim[this.currentCharacter.name] : null;
+        const boundAnim = this.boundAnimations[this.currentAnimation]; 
+        return boundAnim ? boundAnim[this.currentCharacter.name] : null;
     }
 
     getCurrentAnimation() {
@@ -1882,7 +1875,7 @@ class KeyframeEditor extends Editor {
     }
 
     /**
-     * KeyframeEditor: fetches a loaded animation and applies it to the character. The first time an animation is binded, it is processed and saved. Afterwards, this functino just changes between existing animations 
+     * KeyframeEditor: fetches a loaded animation and applies it to the character.
      * @param {String} animationName 
      */
     bindAnimationToCharacter(animationName) {
@@ -2203,9 +2196,6 @@ class KeyframeEditor extends Editor {
 
             timeline.clearTrack(track.trackIdx);
             if ( timeline != this.gui.globalTimeline ){
-
-                this.animationMode = this.animationModes.FACEBS;
-
                 switch( this.animationMode ) {
                     case this.animationModes.BODY:
                         this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx]);
@@ -2792,7 +2782,6 @@ class KeyframeEditor extends Editor {
         if( this.state ){ return false; }
 
         value = Number(value);
-        // const auAnimation = this.getCurrentBindedAnimation().auAnimation; // activeTimeline.animationClip == auAnimation
         const time = this.activeTimeline.currentTime;
 
         const visibleItems = this.activeTimeline.getVisibleItems();
@@ -3075,7 +3064,12 @@ class ScriptEditor extends Editor {
         if( !this.bindedAnimations[animationName] ) {
             this.bindedAnimations[animationName] = {};
         }
-        this.bindedAnimations[animationName][this.currentCharacter.name] = { mixerAnimation: null };
+        this.bindedAnimations[animationName][this.currentCharacter.name] = { 
+            mixerAnimation: null,
+
+            source: animation,
+            id: animationName,
+        };
     
         this.updateMixerAnimation( animation.scriptAnimation );
         this.gui.updateAnimationPanel();

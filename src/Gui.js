@@ -1,4 +1,5 @@
 import { UTILS } from "./Utils.js";
+import * as THREE from "three";
 import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
 import 'lexgui/components/timeline.js';
@@ -1343,7 +1344,7 @@ class KeyframesGui extends Gui {
                         {
                             title: "Add Here",
                             callback: () => {
-                                this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.xToTime(e.localX)] );
+                                this.addKeyFrames( e.track.trackIdx,[0,0,0,1] /*that.boneProperties[type].toArray()*/, [this.xToTime(e.localX)] );
                             }
                         }
                     );
@@ -1397,11 +1398,11 @@ class KeyframesGui extends Gui {
         /* Curves Timeline */
         this.auTimeline = new LX.KeyFramesTimeline("Action Units", {
             title: "Action Units",
-            onCreateBeforeTopBar: (panel) => {
-                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
-                    this.editor.bindAnimationToCharacter(v); // already updates gui
-                }, {signal: "@on_animation_loaded"})
-            },
+            // onCreateBeforeTopBar: (panel) => {
+            //     panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+            //         this.editor.bindAnimationToCharacter(v); // already updates gui
+            //     }, {signal: "@on_animation_loaded"})
+            // },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -1512,11 +1513,11 @@ class KeyframesGui extends Gui {
         /* Curves Blendshapes Timeline */
         this.bsTimeline = new LX.KeyFramesTimeline("Blendshapes", { 
             title: "Blendshapes",
-            onCreateBeforeTopBar: (panel) => {
-                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
-                    this.editor.bindAnimationToCharacter(v); // already updates gui
-                }, {signal: "@on_animation_loaded"})
-            },
+            // onCreateBeforeTopBar: (panel) => {
+            //     panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+            //         this.editor.bindAnimationToCharacter(v); // already updates gui
+            //     }, {signal: "@on_animation_loaded"})
+            // },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -1708,7 +1709,22 @@ class KeyframesGui extends Gui {
 
                 p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
                     clip.clipColor = v;
-                })
+                });
+
+                p.branch("Clip Blending");
+                p.addSelect("Blend Mode", ["Normal", "Additive" ], clip.blendMode == THREE.NormalAnimationBlendMode ? "Normal" : "Additive", (value, event) => {
+                    this.editor.setKeyframeClipBlendMode( clip, value == "Normal" ? THREE.NormalAnimationBlendMode : THREE.AdditiveAnimationBlendMode, true );
+                    this.createSidePanel();
+                });
+
+                if ( clip.blendMode == THREE.AdditiveAnimationBlendMode ){
+                    p.addButton(null, "Subtract first frame pose", null, { buttonClass: "error dashed" });
+                    p.addButton(null, "Subtract bind pose", null, { buttonClass: "error dashed" });
+
+                }
+                p.merge();
+
+
                 bottom.attach(p);
             }
             return;
