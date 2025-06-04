@@ -31,6 +31,34 @@ class Gizmo {
             this.updateTracks();
             this.editor.gui.updateSkeletonPanel();
         } );
+        
+        transform.addEventListener( 'mouseDown', e => {
+
+            if(this.selectedBone == -1){
+                return;
+            }
+
+            /*
+                Save current state of bones for this keyframeClip.
+                Since multiple animation might be overlapping, quaternion/position/scale cannot be fetched directly from the scene and plugged in to the track.
+                A delta must be computed and applied to the track. This also allows for normal and additive animations.
+
+                This assumes that while gizmo is clicked, the selected keyframe and the propagation window cannot change. 
+            */
+            const mouseDownState = [];
+            const chain = this.toolSelected == Gizmo.Tools.IK ? this.ikSelectedChain.chain : [this.selectedBone];
+            for( let i = 0; i < chain.length; ++i ){
+                const bone = this.skeleton.bones[chain[i]];
+                mouseDownState.push({
+                    boneIdx: chain[i],
+                    quaternion: bone.quaternion.clone(),
+                    position: bone.position.clone(),
+                    scale: bone.scale.clone(),
+                });
+            }
+
+            this.mouseDownState = mouseDownState;
+        } );
 
         transform.addEventListener( 'dragging-changed', e => {
             const enabled = e.value;
@@ -518,21 +546,15 @@ class Gizmo {
     updateTracks() {
 
         const timeline = this.editor.gui.skeletonTimeline;
-        let keyType = Gizmo.ModeToKeyType[ this.editor.getGizmoMode() ];
-        let bone = this.skeleton.bones[this.selectedBone]; 
+        const propWindow = this.editor.gui.propagationWindow;
+        const keyType = Gizmo.ModeToKeyType[ this.editor.getGizmoMode() ];
+        const bone = this.skeleton.bones[this.selectedBone]; 
         let track = null;
         let keyFrameIndex = -1; // only used if no propagation 
-        const propWindow = this.editor.gui.propagationWindow;
 
         if ( propWindow.enabler ){
-            const tpi = timeline.animationClip.tracksPerGroup[bone.name];
-            for( let i = 0; i < tpi.length ; ++i ){
-                if ( tpi[i].id == keyType ){ 
-                    track = tpi[i];
-                    break;
-                }
-            }
-            if ( track == null ){ return; }
+            track = timeline.getTrack(keyType, bone.name);
+            if ( !track ){ return; }
         }else{
             if(timeline.getNumKeyFramesSelected() != 1)
                 return;
@@ -551,8 +573,13 @@ class Gizmo {
             const effectorFrameTime = propWindow.enabler ? propWindow.time : track.times[ keyFrameIndex ];
             const chain = this.ikSelectedChain.chain;
             
+            const deltaQuat = new THREE.Quaternion();
+            const tempQuat = new THREE.Quaternion();
+
             for( let i = 1; i < chain.length; ++i ){
                 const boneToProcess = this.skeleton.bones[chain[i]];
+                deltaQuat.copy(this.mouseDownState[i].quaternion).invert().premultiply(boneToProcess.quaternion);
+
                 const groupTracks = timeline.getTracksGroup(boneToProcess.name);
                 const quaternionTrackIdx = ( timeline.getTracksGroup(boneToProcess.name).length > 1 ) ? 1 : 0; // localindex
                 
@@ -563,29 +590,55 @@ class Gizmo {
 
                 const tValues = track.values; 
 
-                // find nearest frame or create one if too far
                 let frame = timeline.getCurrentKeyFrame( track, effectorFrameTime, 0.008 );
-                if ( frame == -1 ){ 
-
-                    if ( propWindow.enabler ){
-                        this.editor.propagateEdition(this.editor.gui.skeletonTimeline, track.trackIdx, boneToProcess.quaternion);
-                    }
-                    frame = timeline.addKeyFrames( track.trackIdx, boneToProcess.quaternion.toArray(), [effectorFrameTime] );                    
-                }
-                else{ 
+                
+                // if keyframe does not exist, create one with proper values
+                if ( frame == -1 ){
+                    frame = timeline.addKeyFrames( track.trackIdx, boneToProcess.quaternion.toArray(), [effectorFrameTime] )[0]; // ignore quaternion value. It is overwriten below
                     
-                    if ( propWindow.enabler ){
-                        this.editor.propagateEdition(this.editor.gui.skeletonTimeline, track.trackIdx, boneToProcess.quaternion);
-                    }
-                    else{
-                        const start = 4 * frame;
-                        tValues[start] =  boneToProcess.quaternion.x;
-                        tValues[start+1] =boneToProcess.quaternion.y;
-                        tValues[start+2] =boneToProcess.quaternion.z;
-                        tValues[start+3] =boneToProcess.quaternion.w;
-                        track.edited[ frame ] = true;
+                    const q1 = new THREE.Quaternion();
+                    if ( track.times.length > 1 ){
+                        // slerp between two keyframes
+                        let prevframe = frame == 0 ? 1 : (frame-1);
+                        let postframe = frame == (track.times.length-1) ? prevframe : (frame+1);
 
+                        let t = track.times[postframe] - track.times[prevframe];
+                        t = t <= 0.000001 ? 0 : ((effectorFrameTime-track.times[prevframe]) / t);
+
+                        const q2 = new THREE.Quaternion();
+                        q1.fromArray( track.values, prevframe );
+                        q2.fromArray( track.values, postframe );
+                        q1.slerp(q2, t);
+
+                    }else{
+                        // the new keyframe is the only one in this track. Set default values 
+                        if( this.editor.currentKeyFrameClip.blendMode == THREE.NormalAnimationBlendMode ){
+                            this.skeleton.boneInverses[chain[i]].clone().invert().decompose(new THREE.Vector3(),q1,new THREE.Vector3());
+                        }else{
+                            q1.set(0,0,0,1);
+                        }
                     }
+
+                    let curframe = frame * 4;
+                    track.values[ curframe++ ] = q1.x;
+                    track.values[ curframe++ ] = q1.y;
+                    track.values[ curframe++ ] = q1.z;
+                    track.values[ curframe ] = q1.w;
+                }
+
+                // add the delta to the current (and neigbhouring) keyframe
+                if ( propWindow.enabler ){
+                    this.editor.propagateEdition(this.editor.gui.skeletonTimeline, track.trackIdx, deltaQuat, true);
+                }else{
+
+                    const start = 4 * frame;
+                    tempQuat.fromArray( tValues, start );
+                    tempQuat.premultiply( deltaQuat );
+                    tValues[start] =  tempQuat.x;
+                    tValues[start+1] =tempQuat.y;
+                    tValues[start+2] =tempQuat.z;
+                    tValues[start+3] =tempQuat.w;
+                    track.edited[ frame ] = true;
                 }
 
                 // Update animation interpolants
@@ -594,22 +647,30 @@ class Gizmo {
         }
         else{
             
-            let newValue = bone[ track.id ];
-            if ( !newValue ){ 
-                return;
-            }
-
             this.editor.gui.skeletonTimeline.saveState( track.trackIdx );
 
+            let deltaValue;
+            if ( track.dim == 4 ){
+                deltaValue = this.mouseDownState[0].quaternion.clone().invert().premultiply(bone.quaternion);
+            }else{ // dim == 3
+                deltaValue = bone[ keyType ].clone().sub( this.mouseDownState[0][ keyType ] );
+            }
+
+
             if ( propWindow.enabler ){
-                this.editor.propagateEdition(this.editor.gui.skeletonTimeline, track.trackIdx, newValue);
+                this.editor.propagateEdition(this.editor.gui.skeletonTimeline, track.trackIdx, deltaValue, true);
             }else{
                 const start = track.dim * keyFrameIndex;
                 // supports position and quaternion types
-                newValue = newValue.toArray();
-                for( let i = 0; i < newValue.length; ++i ) {
-                    track.values[ start + i ] = newValue[i];
+                deltaValue = deltaValue.toArray();
+                if ( track.dim == 4 ){
+                    THREE.Quaternion.multiplyQuaternionsFlat( track.values, start, track.values, start, deltaValue, 0);
+                }else{ // dim == 3
+                    track.values[start++] += deltaValue[0];
+                    track.values[start++] += deltaValue[1];
+                    track.values[start] += deltaValue[2];
                 }
+    
                 track.edited[keyFrameIndex] = true;
             }
 

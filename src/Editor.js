@@ -1977,12 +1977,16 @@ class KeyframeEditor extends Editor {
         const boundAnimation = {
             source: animation,
             skeletonAnimation, auAnimation, bsAnimation, // from gui timeline. Main data
-            mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation // for threejs mixer. ALWAYS relies on timeline data
-        }
+            mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation, // for threejs mixer. ALWAYS relies on timeline data
 
-        boundAnimation.start = 0;
-        boundAnimation.duration = boundAnimation.skeletonAnimation.duration;
-        boundAnimation.id = animationName;
+            start: 0,
+            duration: skeletonAnimation.duration,
+            id: animationName,
+            clipColor: LX.getThemeColor("global-color-accent"),
+            blendMode: THREE.NormalAnimationBlendMode
+        }
+        this.setKeyframeClipBlendMode( boundAnimation, THREE.NormalAnimationBlendMode, false );
+
         this.gui.globalTimeline.addClip(boundAnimation);
 
         // set mixer animations
@@ -2190,17 +2194,18 @@ class KeyframeEditor extends Editor {
             timeline.clearTrack(track.trackIdx);
             if ( timeline != this.gui.globalTimeline ){
 
-                const animationData = timeline.animationClip;
-                switch( animationData.name ) {
-                    case "bodyAnimation":
-                        this.updateMixerAnimation(animationData.mixerBodyAnimation, [track.trackIdx]);
+                this.animationMode = this.animationModes.FACEBS;
+
+                switch( this.animationMode ) {
+                    case this.animationModes.BODY:
+                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx]);
                         break;
-                    case "faceAnimation":
-                        this.updateBlendshapesAnimation(animationData.bsAnimation, [id]);
+                    case this.animationModes.FACEAU:
+                        this.updateBlendshapesAnimation(this.currentKeyFrameClip.bsAnimation, [id]);
                         break;
-                    case "bsAnimation":
-                        this.updateMixerAnimation(animationData.mixerFaceAnimation, [track.trackIdx]);
-                        this.updateActionUnitsAnimation(animationData.auAnimation, [id]);
+                    case this.animationModes.FACEBS:
+                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx]);
+                        this.updateActionUnitsAnimation(this.currentKeyFrameClip.auAnimation, [id]);
                         break;
                 }
             }
@@ -2272,7 +2277,7 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.show();
     }
 
-    globalAnimMixerManagement(mixer, animation){
+    globalAnimMixerManagement(mixer, animation, rebuildActions = false){
         for( let t = 0; t < animation.tracks.length; ++t ){
             const track = animation.tracks[t];
             for( let c = 0; c < track.clips.length; ++c ){
@@ -2281,7 +2286,7 @@ class KeyframeEditor extends Editor {
             }
         }
     }
-    globalAnimMixerManagementSingleClip(mixer, clip){
+    globalAnimMixerManagementSingleClip(mixer, clip, rebuildActions = false ){
         const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
         actionBody.reset().play();
         actionBody.clampWhenFinished = false;
@@ -2292,6 +2297,22 @@ class KeyframeEditor extends Editor {
         actionFace.clampWhenFinished = false;
         actionFace.loop = THREE.LoopOnce;
         actionFace.startAt(clip.start);
+    }
+
+    setKeyframeClipBlendMode(clip, threejsBlendMode, updateMixer = true){
+        if( updateMixer ){
+            // uncache all actions of this clip, if they exist, before changing blendmode
+            this.currentCharacter.mixer.uncacheClip(clip.mixerBodyAnimation); 
+            this.currentCharacter.mixer.uncacheClip(clip.mixerFaceAnimation); 
+        }
+        const blendMode = threejsBlendMode ?? THREE.NormalAnimationBlendMode;
+        clip.mixerBodyAnimation.blendMode = blendMode; 
+        clip.mixerFaceAnimation.blendMode = blendMode;
+        clip.blendMode = blendMode;
+
+        if ( updateMixer ){
+            this.globalAnimMixerManagementSingleClip(this.currentCharacter.mixer, clip);
+        }
     }
 
     /**
@@ -2445,27 +2466,37 @@ class KeyframeEditor extends Editor {
                         interpolant.sampleValues = track.values = [0];
                     }
                     else {
-                        // TO DO optimize if necessary
-                        let skeleton =this.currentCharacter.skeletonHelper.skeleton;
-                        let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
-                        let boneIdx = findIndexOfBoneByName(skeleton, eTrack.groupId);
-                        let parentIdx = findIndexOfBone(skeleton, skeleton.bones[boneIdx].parent);
-                        let localBind = invMats[boneIdx].clone().invert();
 
-                        if ( parentIdx > -1 ) { 
-                            localBind.premultiply(invMats[parentIdx]); 
-                        }
-                        let p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
-                        localBind.decompose( p,q,s );
-                        // assuming quats and position only. Missing Scale
-                        if( track.dim == 4 ) {
-                            interpolant.sampleValues = track.values = q.toArray();//[0,0,0,1];
-                        }
-                        else if ( track.id == "position" ){
-                            interpolant.sampleValues = track.values = p.toArray();//[0,0,0];
-                        }
-                        else{
-                            interpolant.sampleValues = track.values = s.toArray();//[0,0,0];
+                        if ( this.currentKeyFrameClip.blendMode == THREE.AdditiveAnimationBlendMode ){
+                            if( track.dim == 4 ) {
+                                interpolant.sampleValues = track.values = [0,0,0,1];
+                            }
+                            else {
+                                interpolant.sampleValues = track.values = [0,0,0];
+                            }
+                        }else{
+                            // TO DO optimize if necessary
+                            let skeleton =this.currentCharacter.skeletonHelper.skeleton;
+                            let invMats = this.currentCharacter.skeletonHelper.skeleton.boneInverses;
+                            let boneIdx = findIndexOfBoneByName(skeleton, eTrack.groupId);
+                            let parentIdx = findIndexOfBone(skeleton, skeleton.bones[boneIdx].parent);
+                            let localBind = invMats[boneIdx].clone().invert();
+    
+                            if ( parentIdx > -1 ) { 
+                                localBind.premultiply(invMats[parentIdx]); 
+                            }
+                            let p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+                            localBind.decompose( p,q,s );
+                            // assuming quats and position only. Missing Scale
+                            if( track.dim == 4 ) {
+                                interpolant.sampleValues = track.values = q.toArray();//[0,0,0,1];
+                            }
+                            else if ( track.id == "position" ){
+                                interpolant.sampleValues = track.values = p.toArray();//[0,0,0];
+                            }
+                            else{
+                                interpolant.sampleValues = track.values = s.toArray();//[0,0,0];
+                            }
                         }
                     } 
 
@@ -2631,61 +2662,65 @@ class KeyframeEditor extends Editor {
      * It computes delta values which are weighted and added to each keyframe inside the window
      * @param {obj} timeline 
      * @param {int} trackIdx 
-     * @param {quat || vec3 || number} newValue 
+     * @param {quat || vec3 || number} newValue
+     * @param {boolean} isDelta whether newValue is a delta or the final value. The latter will compute the proper delta based on the track's information 
      */
-    propagateEdition( timeline, trackIdx, newValue ){
+    propagateEdition( timeline, trackIdx, newValue, isDelta = false ){
         const propWindow = this.gui.propagationWindow;
         const time = propWindow.time;
         const track = timeline.animationClip.tracks[trackIdx];
         const values = track.values;
         const times = track.times;
-        let prevFrame = timeline.getNearestKeyFrame(track, time, -1);
-        let postFrame = timeline.getNearestKeyFrame(track, time, 1);
-        prevFrame = prevFrame == -1 ? 0 : prevFrame; // assuming length > 0 
-        postFrame = postFrame == -1 ? prevFrame : postFrame; // assuming length > 0 
-
+        
+        // which keyframes need to be modified
         let minFrame = timeline.getNearestKeyFrame(track, time - propWindow.leftSide, 1);
         let maxFrame = timeline.getNearestKeyFrame(track, time + propWindow.rightSide, -1);
         minFrame = minFrame == -1 ? times.length : minFrame;
         maxFrame = maxFrame == -1 ? 0 : maxFrame;
+        
+        let delta = newValue;
 
-        let delta;
-        let t = prevFrame == postFrame ? 1 : (time-track.times[prevFrame])/(track.times[postFrame]-track.times[prevFrame]);
-        if ( track.dim == 4 ){
-            let prevQ = new THREE.Quaternion(values[prevFrame*4],values[prevFrame*4+1],values[prevFrame*4+2],values[prevFrame*4+3]);
-            let postQ = new THREE.Quaternion(values[postFrame*4],values[postFrame*4+1],values[postFrame*4+2],values[postFrame*4+3]);
-            delta = new THREE.Quaternion();
+        if ( !isDelta ){
+            let prevFrame = timeline.getNearestKeyFrame(track, time, -1);
+            let postFrame = timeline.getNearestKeyFrame(track, time, 1);
+            prevFrame = prevFrame == -1 ? 0 : prevFrame; // assuming length > 0 
+            postFrame = postFrame == -1 ? prevFrame : postFrame; // assuming length > 0 
 
-            //nlerp
-            let bsign = ( prevQ.x * postQ.x + prevQ.y * postQ.y + prevQ.z * postQ.z + prevQ.w * postQ.w ) < 0 ? -1 : 1;    
-            delta.x = prevQ.x * (1-t) + bsign * postQ.x * t;
-            delta.y = prevQ.y * (1-t) + bsign * postQ.y * t;
-            delta.z = prevQ.z * (1-t) + bsign * postQ.z * t;
-            delta.w = prevQ.w * (1-t) + bsign * postQ.w * t;
-            delta.normalize();
-
-            delta.invert();
-            delta.premultiply(newValue);
+            let t = prevFrame == postFrame ? 1 : (time-track.times[prevFrame])/(track.times[postFrame]-track.times[prevFrame]);
+            if ( track.dim == 4 ){
+                let prevQ = new THREE.Quaternion(values[prevFrame*4],values[prevFrame*4+1],values[prevFrame*4+2],values[prevFrame*4+3]);
+                let postQ = new THREE.Quaternion(values[postFrame*4],values[postFrame*4+1],values[postFrame*4+2],values[postFrame*4+3]);
+                delta = new THREE.Quaternion();
+                
+                //nlerp
+                let bsign = ( prevQ.x * postQ.x + prevQ.y * postQ.y + prevQ.z * postQ.z + prevQ.w * postQ.w ) < 0 ? -1 : 1;    
+                delta.x = prevQ.x * (1-t) + bsign * postQ.x * t;
+                delta.y = prevQ.y * (1-t) + bsign * postQ.y * t;
+                delta.z = prevQ.z * (1-t) + bsign * postQ.z * t;
+                delta.w = prevQ.w * (1-t) + bsign * postQ.w * t;
+                delta.normalize();
+                
+                delta.invert();
+                delta.premultiply(newValue);
+            }
+            else if ( track.dim == 3 ){
+                delta = new THREE.Vector3();
+                delta.x = newValue.x -( values[prevFrame*3] * (1-t) + values[postFrame*3] * t ); 
+                delta.y = newValue.y -( values[prevFrame*3+1] * (1-t) + values[postFrame*3+1] * t ); 
+                delta.z = newValue.z -( values[prevFrame*3+2] * (1-t) + values[postFrame*3+2] * t ); 
+            }
+            else if ( track.dim == 1 ){
+                delta = newValue - (values[prevFrame] * (1-t) + values[postFrame] * t);
+            }
         }
-
-        if ( track.dim == 3 ){
-            delta = new THREE.Vector3();
-            delta.x = newValue.x -( values[prevFrame*3] * (1-t) + values[postFrame*3] * t ); 
-            delta.y = newValue.y -( values[prevFrame*3+1] * (1-t) + values[postFrame*3+1] * t ); 
-            delta.z = newValue.z -( values[prevFrame*3+2] * (1-t) + values[postFrame*3+2] * t ); 
-        }
-
-        if ( track.dim == 1 ){
-            delta = newValue - (values[prevFrame] * (1-t) + values[postFrame] * t);
-        }
-
+        
         let gradIdx = -1;
         let maxGradient=[1.0001, 0];
         let g0 = [0,0];
         let g1 = propWindow.gradient[0];
         const minTime = time - propWindow.leftSide;
         for( let i = minFrame; i <= maxFrame; ++i ){
-            t = (times[i] - minTime) / (propWindow.leftSide + propWindow.rightSide); // normalize time in window 
+            let t = (times[i] - minTime) / (propWindow.leftSide + propWindow.rightSide); // normalize time in window 
             
             // find next valid gradient interval
             while( t > g1[0] ){
@@ -2713,8 +2748,8 @@ class KeyframeEditor extends Editor {
   
     _applyDeltaQuaternion( track, keyframe, delta, t ){
         const dim = track.dim;
-        const newDelta = new THREE.Quaternion;
-        const source = new THREE.Quaternion;
+        const newDelta = new THREE.Quaternion();
+        const source = new THREE.Quaternion();
 
         // nlerp( {0,0,0,1}, deltaQuat, t )
         let neighbourhood = delta.w < 0 ? -1 : 1;

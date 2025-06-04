@@ -489,24 +489,7 @@ class Gui {
                             editor.gizmo.stop();
                     }
                 }
-            ];
-
-            if( editor.gizmo ) {
-                canvasButtons.push(
-                    {
-                        name: 'Joints',
-                        property: 'boneUseDepthBuffer',
-                        icon: 'CircleNodes',
-                        selectable: true,
-                        selected: true,
-                        callback: (v) =>  {
-                            if(editor.gizmo ) {
-                                editor.gizmo.bonePoints.material.depthTest = !editor.gizmo.bonePoints.material.depthTest;
-                            }
-                        }
-                    }
-                );
-            }            
+            ];       
         }
         
         canvasButtons = [...canvasButtons,
@@ -1171,12 +1154,31 @@ class KeyframesGui extends Gui {
             console.log(indices);
         }
         this.globalTimeline.onContentMoved = (clip, deltaTime) => {
+            clip.mixerBodyAnimation.duration = clip.duration;
+            clip.mixerFaceAnimation.duration = clip.duration;
             this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
         }
         this.globalTimeline.onAddNewTrack = (track, initData) =>{ track.id = "Track " + (this.globalTimeline.animationClip.tracks.length-1);}
 
         this.globalTimeline.onSetTime = (t) => {
             this.editor.setTime(t, true);
+        }
+        this.globalTimeline.onChangeLoopMode = (loop) => {
+            this.updateLoopModeGui( loop );
+        };
+        this.globalTimeline.onStateChange = (state) => {
+            if(state != this.editor.state) {
+                this.menubar.getButton("Play").children[0].children[0].click();
+            }
+        }
+        this.globalTimeline.onStateStop = () => {
+            this.menubar.getButton("Stop").children[0].children[0].click();
+        }
+
+        this.globalTimeline.onSelectClip = (clip) => {
+            if ( clip ){
+                this.createSidePanel();
+            }
         }
 
 
@@ -1687,10 +1689,32 @@ class KeyframesGui extends Gui {
         top.attach(this.animationPanel);
         this.updateAnimationPanel( );
 
+        // SIDE PANEL FOR GLOBAL TIMELINE
         if ( this.editor.activeTimeline == this.globalTimeline ){
+            this.sidePanel.onresize = null;
+
+            if ( this.globalTimeline.lastClipsSelected.length == 1 ){
+                const clip = this.globalTimeline.lastClipsSelected[0][2]; // [trackidx, clipidx, clip]
+                const p = new LX.Panel({id:"keyframeclip"});
+                p.addTitle("Clip");
+
+                // keyframe clip title
+                LX.makeContainer( [ "100%", "auto" ], "flex justify-center py-2 text-lg", 
+                    clip.id,
+                    p, 
+                    { wordBreak: "break-word", lineHeight: "1.5rem" }
+                );
+
+                p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
+                    clip.clipColor = v;
+                })
+                bottom.attach(p);
+            }
             return;
         }
         
+        // SIDE PANEL FOR KEYFRAME CLIP
+
         //create tabs
         const tabs = this.bodyFaceTabs = bottom.addTabs({fit: true});
 
@@ -1743,7 +1767,6 @@ class KeyframesGui extends Gui {
         this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
         
-
         this.sidePanel.onresize = (e)=>{
             if (faceTop.onresize){
                 faceTop.onresize(e);
