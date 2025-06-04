@@ -2633,7 +2633,7 @@ class KeyFramesTimeline extends Timeline {
      * 
      * @param {int} trackIdx 
      * @param {array} newValues array of values for each keyframe. It should be a flat array of size track.dim*numKeyframes. Check ADDKEY_VALUESINARRAYS flag
-     * @param {array of numbers} newTimes 
+     * @param {array of numbers} newTimes must be ordered ascendently
      * @param {number} timeOffset 
      * @param {int} flags     
      *      KeyFramesTimeline.ADDKEY_VALUESINARRAYS: if set, newValues is an array of arrays, one for each entry [ [1,2,3], [5,6,7] ]. Times is still a flat array of values [ 0, 0.2 ]
@@ -2656,8 +2656,7 @@ class KeyFramesTimeline extends Timeline {
 
         let newIdx = newTimes.length-1;
         let oldIdx = trackTimes.length-1;
-
-        let t1 = performance.now();
+        let resultIndices = [];
         if ( KeyFramesTimeline.ADDKEY_VALUESINARRAYS & flags ){
             
             for( let i = times.length-1; i > -1; --i ){
@@ -2672,6 +2671,8 @@ class KeyFramesTimeline extends Timeline {
                     track.hovered.splice(oldIdx+1, 0, false);
                     track.selected.splice(oldIdx+1, 0, false);
                     track.edited.splice(oldIdx+1, 0, true);
+
+                    resultIndices.push(i);
                     continue;
                 }
                 
@@ -2695,6 +2696,8 @@ class KeyFramesTimeline extends Timeline {
                     track.hovered.splice(oldIdx+1, 0, false);
                     track.selected.splice(oldIdx+1, 0, false);
                     track.edited.splice(oldIdx+1, 0, true);
+
+                    resultIndices.push(i);
                     continue;
                 }
                 
@@ -2715,8 +2718,11 @@ class KeyFramesTimeline extends Timeline {
             this.setDuration(newTimes[newTimes.length - 1] + timeOffset);
         }
 
-        if(this.onUpdateTrack)
+        if(this.onUpdateTrack){
             this.onUpdateTrack( [trackIdx] );
+        }
+
+        return resultIndices;
     }
 
     deleteSelectedContent(skipCallback = false) {
@@ -3802,7 +3808,7 @@ class ClipsTimeline extends Timeline {
         else if ( trackIdx < 0 ){ // find first free track slot
             for(let i = searchStartTrackIdx; i < this.animationClip.tracks.length; i++) {
                 let clipInCurrentSlot = this.animationClip.tracks[i].clips.find( t => { 
-                    return LX.UTILS.compareThresholdRange(newStart, clip.start + clip.duration, t.start, t.start+t.duration);                
+                    return LX.compareThresholdRange(newStart, clip.start + clip.duration, t.start, t.start+t.duration);
                 });
     
                 if(!clipInCurrentSlot){
@@ -3877,9 +3883,10 @@ class ClipsTimeline extends Timeline {
             if ( c == 0 ){ // last search failed, move one track down and check again
                 ++baseTrackIdx; 
                 currTrackIdx = baseTrackIdx;
+
                 while ( currTrackIdx >= tracks.length ){ this.addNewTrack(null, false); }
-                let clipsInCurrentSlot = tracks[baseTrackIdx].clips.find( t => { return LX.UTILS.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
-                
+                let clipsInCurrentSlot = tracks[baseTrackIdx].clips.find( t => { return LX.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
+
                 // reset search
                 if (clipsInCurrentSlot){ 
                     c = -1;
@@ -3891,19 +3898,19 @@ class ClipsTimeline extends Timeline {
             }else{
 
                 // check if it fits in current track
-                let clipsInCurrentSlot = tracks[currTrackIdx].clips.find( t => { return LX.UTILS.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
+                let clipsInCurrentSlot = tracks[currTrackIdx].clips.find( t => { return LX.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
                 
                 // check no previous added clips are in the way
                 for( let i = c-1; i > -1; --i ){
                     if ( clipTrackIdxs[i] != currTrackIdx || clipsInCurrentSlot ){ break; }
-                    clipsInCurrentSlot = LX.UTILS.compareThresholdRange(clipStart, clipEnd, clips[i].start + offsetTime, clips[i].start + offsetTime + clips[i].duration);
+                    clipsInCurrentSlot = LX.compareThresholdRange(clipStart, clipEnd, clips[i].start + offsetTime, clips[i].start + offsetTime + clips[i].duration);
                 }
 
                 // check if it fits in the next track
                 if ( clipsInCurrentSlot ){
                     ++currTrackIdx;
                     if ( currTrackIdx >= tracks.length ){ this.addNewTrack(null, false); }
-                    clipsInCurrentSlot = tracks[currTrackIdx].clips.find( t => { return LX.UTILS.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
+                    clipsInCurrentSlot = tracks[currTrackIdx].clips.find( t => { return LX.compareThresholdRange(clipStart, clipEnd, t.start, t.start+t.duration); });
                 }
                 
                 // reset search
@@ -4362,20 +4369,7 @@ CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, rad
     }
 }
 
-LX.UTILS.HexToRgb = (hex) => {
-    var c;
-    if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
-        c= hex.substring(1).split('');
-        if(c.length== 3){
-            c= [c[0], c[0], c[1], c[1], c[2], c[2]];
-        }
-        c= '0x'+c.join('');
-        return [(c>>16)&255, (c>>8)&255, c&255];
-    }
-    throw new Error('Bad Hex');
-}
-
-LX.UTILS.concatTypedArray = (arrays, ArrayType) => {
+LX.concatTypedArray = (arrays, ArrayType) => {
     let size = arrays.reduce((acc,arr) => acc + arr.length, 0);
     let result = new ArrayType( size ); // generate just one array
     let offset = 0;
