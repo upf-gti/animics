@@ -145,6 +145,13 @@
 
         }, {
             headerTitle: "Animics Docs",
+            headerSubtitle:
+                await getLastCommitDate('upf-gti', 'animics', 'docs')
+                    .then(date => 'Last Updated on ' + formatDate(date))
+                    .catch(err => {
+                        console.error(err);
+                        '';
+                    }),
             headerImage: "../data/imgs/animics_monster.png",
             footerTitle: "TÀNDEM",
             footerImage: "../data/imgs/tandem_monster.png",
@@ -183,6 +190,36 @@
 
         let params = new URLSearchParams(document.location.search);
         loadPage((params.get("p") ?? "getting-started") + ".html", false);
+
+        // get the last commit date
+        async function getLastCommitDate(owner, repo, branch) {
+            const url = `https://api.github.com/repos/${owner}/${repo}/commits/${branch}`;
+
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/vnd.github.v3+json',
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`GitHub API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const commitDate = data.commit.committer.date;
+
+            return commitDate;
+        }
+
+        // Format the date to DD/MM/YYYY
+        function formatDate(isoDateStr) {
+            const date = new Date(isoDateStr);
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+            const year = date.getUTCFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
     </script>
 </body>
 
