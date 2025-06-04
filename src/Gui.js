@@ -1510,7 +1510,8 @@ class KeyframesGui extends Gui {
 
 
         /* Curves Blendshapes Timeline */
-        this.bsTimeline = new LX.KeyFramesTimeline("Blendshapes", { title: "Blendshapes",
+        this.bsTimeline = new LX.KeyFramesTimeline("Blendshapes", { 
+            title: "Blendshapes",
             onCreateBeforeTopBar: (panel) => {
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
                     this.editor.bindAnimationToCharacter(v); // already updates gui

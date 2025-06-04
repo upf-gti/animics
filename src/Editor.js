@@ -1120,11 +1120,21 @@ class KeyframeEditor extends Editor {
         }
     }
     
-    undo() {
+    undo() {  
+        if ( !this.activeTimeline.historyUndo.length ){
+            LX.toast(`${this.activeTimeline.timelineTitle} Undo`, `No more changes to undo. Remaining Undo steps: ${this.activeTimeline.historyUndo.length} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+        }else{
+            LX.toast(`${this.activeTimeline.timelineTitle} Undo`, `Remaining Undo steps: ${this.activeTimeline.historyUndo.length-1} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+        }
         this.activeTimeline.undo();
     }
 
     redo() {
+        if ( !this.activeTimeline.historyRedo.length ){
+            LX.toast(`${this.activeTimeline.timelineTitle} Redo`, `No more changes to Redo. Remaining Redo steps: ${this.activeTimeline.historyRedo.length} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+        }else{
+            LX.toast(`${this.activeTimeline.timelineTitle} Redo`, `Remaining Redo steps: ${this.activeTimeline.historyRedo.length-1} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+        }
         this.activeTimeline.redo();
     }
 
@@ -2883,11 +2893,23 @@ class ScriptEditor extends Editor {
     }
 
     undo() {
+        
+        if ( !this.activeTimeline.historyUndo.length ){
+            LX.toast(`${this.activeTimeline.timelineTitle} Undo`, `No more changes to undo. Remaining Undo steps: ${this.activeTimeline.historyUndo.length} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+        }else{
+            LX.toast(`${this.activeTimeline.timelineTitle} Undo`, `Remaining Undo steps: ${this.activeTimeline.historyUndo.length-1} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+        }
         this.activeTimeline.undo();
         this.gui.updateClipPanel();
     }
 
     redo() {
+        if ( !this.activeTimeline.historyRedo.length ){
+            LX.toast(`${this.activeTimeline.timelineTitle} Redo`, `No more changes to Redo. Remaining Redo steps: ${this.activeTimeline.historyRedo.length} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+        }else{
+            LX.toast(`${this.activeTimeline.timelineTitle} Redo`, `Remaining Redo steps: ${this.activeTimeline.historyRedo.length-1} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+        }
+
         this.activeTimeline.redo();
         this.gui.updateClipPanel();
     }
