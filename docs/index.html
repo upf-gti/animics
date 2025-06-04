@@ -1,0 +1,189 @@
+<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+    <title>Animics Docs</title>
+    <link rel="stylesheet" href="../src/libs/lexgui/build/lexgui.css">
+    <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="docmaker.js"></script>
+    <link rel="icon" type="image/x-icon" href="../data/imgs/logos/animics_favicon.png" />
+    <script type="importmap">
+        {
+          "imports": {
+                "lexgui": "../src/libs/lexgui/build/lexgui.module.js",
+                "lexgui/components/": "../src/libs/lexgui/build/components/"
+          }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="content"></div>
+    <script type="module">
+
+        import { LX } from 'lexgui';
+        import 'lexgui/components/codeeditor.js';
+
+        window.LX = LX;
+
+        const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
+        const content = document.getElementById('content');
+        const oldScripts = [];
+
+        SET_DOM_TARGET(content);
+
+        window.loadPage = function (page, addToHistory = true) {
+            fetch(page)
+                .then(response => response.text())
+                .then(html => {
+
+                    content.parentElement.scrollTop = 0;
+
+                    oldScripts.forEach(script => script.remove());
+
+                    const tempDiv = document.createElement("div");
+                    tempDiv.innerHTML = html;
+
+                    const scripts = tempDiv.querySelectorAll("script");
+                    scripts.forEach(script => script.remove());
+
+                    content.innerHTML = tempDiv.innerHTML;
+
+                    scripts.forEach(script => {
+                        const newScript = document.createElement("script");
+                        newScript.type = script.type;
+                        if (script.src) {
+                            newScript.src = script.src; // external scripts
+                            newScript.onload = () => console.log(`Loaded: ${script.src}`);
+                        } else {
+                            newScript.textContent = script.textContent; // inline scripts
+                        }
+                        document.body.prepend(newScript);
+                        oldScripts.push(newScript);
+                    });
+
+                    if (addToHistory) {
+                        history.pushState({ page }, "", `?p=${page.replace(".html", "")}`);
+                    }
+                })
+                .catch(() => content.innerHTML = "<p>Error loading content.</p>");
+        }
+
+        window.__addInteractiveCodeExample = function (content, widgetName, onPanel) {
+
+            const area = new LX.Area({ className: "flex flex-col gap-3 docs", skipAppend: true, height: "auto" });
+            content.appendChild(area.root);
+            const panel = window.__panel = area.addPanel();
+            panel.branch(widgetName);
+            onPanel(panel);
+
+            const runCode = () => {
+                const script = document.createElement('script');
+                script.type = 'module';
+                script.innerHTML = `
+                    const panel = window.__panel;
+                    panel.clear();
+                    panel.branch("${widgetName}");
+                    ${codeEditor.getText()}
+                `;
+                script.async = false;
+                document.getElementsByTagName('head')[0].appendChild(script);
+            }
+
+            const codeArea = new LX.Area({ className: "rounded overflow-hidden", skipAppend: true, height: "auto" });
+            area.attach(codeArea.root);
+            const codeEditor = new LX.CodeEditor(codeArea, { name: `${widgetName.toLowerCase().replace(/\s/g, '_')}.js`, onrun: runCode, skipInfo: true, allowAddScripts: false, language: "JavaScript" });
+
+            let code = onPanel.toString();
+            let lines = code.split('\n').slice(1, -1);
+            code = lines.map(line => line.substr(12)).join('\n');
+            codeEditor.setText(code, "JavaScript");
+
+            const runButton = new LX.Button(null, "Run", (value, event) => {
+                runCode();
+            }, { buttonClass: "contrast" });
+            area.attach(runButton.root);
+        }
+
+        window.addEventListener("popstate", function (event) {
+            if (event.state?.page) {
+                loadPage(event.state.page, false);
+            }
+        });
+
+        // Init library and get main area
+        let area = await LX.init({ rootClass: "wrapper" });
+
+        const open = (url, target, name, dom, event) => {
+            if (event) event.preventDefault();
+            if (target) {
+                window.open(url, target);
+            }
+            else {
+                loadPage(url);
+            }
+        }
+
+        const sidebar = area.addSidebar(m => {
+            m.group("Manual");
+            m.add("Getting Started", { callback: open.bind(this, "getting-started.html", null) });
+            m.add("Generate Animations", { callback: open.bind(this, "generate-animations.html", null) });
+            m.add("Upload Animations", { callback: open.bind(this, "upload-animations.html", null) });
+
+            m.separator();
+            m.group("Edit Animations");
+
+            m.add("Edit Animations", { callback: open.bind(this, "edit-animations.html", null) });
+            for (const w of ["Top Menu", "3D Scene", "Timeline", "Side Panel"]) {
+                const url = w.toLowerCase().replace(/\s/g, '-') + ".html";
+                m.add("Editor Zones/" + w, { callback: open.bind(this, "edit/" + url, null) });
+
+                LX.registerCommandbarEntry(w, open.bind(this, "edit/" + url, null));
+            }
+
+        }, {
+            headerTitle: "Animics Docs",
+            headerImage: "../data/imgs/animics_monster.png",
+            footerTitle: "TÀNDEM",
+            footerImage: "../data/imgs/tandem_monster.png",
+            collapsable: false,
+            onHeaderPressed: (e) => { console.log("onHeaderPressed") },
+            onFooterPressed: (e, element) => {
+                new LX.DropdownMenu(element, [
+                    "Pages",
+                    { name: "Main", callback: () => { } },
+                    { name: "Animics", callback: () => { } },
+                    { name: "Performs", callback: () => { } },
+                    null,
+                    {
+                        name: "Social Media", submenu: [
+                            { name: "Github", link: "https://github.com/upf-gti/", icon: "Github@solid" },
+                            { name: "Twitter", link: "https://x.com/gti_upf/", icon: "X-Twitter" },
+                            { name: "Discord", link: "https://discord.gg/9YGrGjnycj", icon: "Discord" }
+                        ]
+                    }
+                ], { side: "right", align: "end" });
+            }
+        });
+
+        const menubar = sidebar.siblingArea.addMenubar();
+        const starterTheme = LX.getTheme();
+
+        menubar.addButtons([{
+            title: "Change Theme",
+            icon: starterTheme == "dark" ? "Moon" : "Sun",
+            swap: starterTheme == "dark" ? "Sun" : "Moon",
+            callback: (value, event) => { LX.switchTheme() }
+        }]);
+
+        menubar.siblingArea.root.style.overflowY = "scroll";
+        menubar.siblingArea.root.appendChild(content);
+
+        let params = new URLSearchParams(document.location.search);
+        loadPage((params.get("p") ?? "getting-started") + ".html", false);
+    </script>
+</body>
+
+</html>
