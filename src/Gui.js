@@ -372,20 +372,20 @@ class Gui {
         let folder = null;
         let from = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
-            const animations = this.editor.loadedAnimations;
-            for( let animationName in animations ) { // animationName is of the source anim (not the bind)
-                let animation = animations[animationName]; 
-                p.sameLine();
-                p.addCheckbox(animationName, animation.export, (v) => animation.export = v, {hideName: true, label: ""});
-                p.addLabel(animationName, {width:"30%"});
-                p.addBlank("1rem");
-                p.addText(animationName, animation.saveName, (v) => {
-                    animation.saveName = v; 
-                    if ( this.editor.currentAnimation == animationName ){
-                        this.updateAnimationPanel(); // update name display
-                    }
-                }, {placeholder: "...", width:"55%", hideName: true} );
-                p.endLine();
+            
+            const animations = this.editor.boundAnimations;
+            for( let animationName in animations ){
+                const a = animations[animationName][this.editor.currentCharacter.name];
+                if ( a ){
+                    p.sameLine();
+                    p.addCheckbox(animationName, !!a.export, (v) => a.export = v, {hideName: true, label: ""});
+                    p.addLabel(animationName, {width:"30%"});
+                    p.addBlank("1rem");
+                    p.addText(animationName, a.id, (v) => {
+                        this.editor.renameGlobalAnimation(a.id, v);
+                    }, {placeholder: "...", width:"55%", hideName: true} );
+                    p.endLine();
+                }
             }
 
             if ( options.from && options.from.length ) {
@@ -413,7 +413,11 @@ class Gui {
                     buttons.push({ value: options.formats[i], selected: options.formats[i] == format, callback: (v) => {format = v} });
                 }
                 p.addComboButtons("Save as", buttons, {});
-            }            
+            }
+
+            p.addNumber("Framerate (fps)", this.editor.animationFrameRate, (v) => {
+                this.editor.animationFrameRate = v;
+            }, {min: 1, disabled: false})
 
             p.sameLine(2);
             let b = p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true} );
@@ -434,7 +438,7 @@ class Gui {
                 
             }, { buttonClass: "accent", hideName: true });
             b.root.style.width = "50%";
-        }, options);
+        }, {modal: true});
 
         // Focus text prompt
         if( options.input !== false ) {
@@ -1214,10 +1218,7 @@ class KeyframesGui extends Gui {
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
             onShowConfiguration: (dialog) => {
-                dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
-                    this.editor.animationFrameRate = v;
-                }, {min: 0, disabled: false});
-                dialog.addNumber("Num items", Object.keys(this.skeletonTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
+                dialog.addNumber("Num bones", Object.keys(this.skeletonTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
                 dialog.addNumber("Num tracks", this.skeletonTimeline.animationClip ? this.skeletonTimeline.animationClip.tracks.length : 0, null, {disabled: true});
                 dialog.addNumber("Optimize Threshold", this.skeletonTimeline.optimizeThreshold ?? 0.01, v => {
                         this.skeletonTimeline.optimizeThreshold = v;
@@ -1419,10 +1420,7 @@ class KeyframesGui extends Gui {
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
             onShowConfiguration: (dialog) => {
-                dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
-                    this.editor.animationFrameRate = v;
-                }, {min: 0, disabled: false});
-                dialog.addNumber("Num items", Object.keys(this.auTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
+                dialog.addNumber("Num Action Units", Object.keys(this.auTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
                 dialog.addNumber("Num tracks", this.auTimeline.animationClip ? this.auTimeline.animationClip.tracks.length : 0, null, {disabled: true});
                 dialog.addNumber("Optimize Threshold", this.auTimeline.optimizeThreshold ?? 0.01, v => {
                         this.auTimeline.optimizeThreshold = v;
@@ -1528,10 +1526,7 @@ class KeyframesGui extends Gui {
                     this.editor.clearAllTracks();     
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
-            onShowConfiguration: (dialog) => {
-                dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
-                    this.editor.animationFrameRate = v;
-                }, {min: 0, disabled: false});                
+            onShowConfiguration: (dialog) => {             
                 dialog.addNumber("Num tracks", this.bsTimeline.animationClip ? this.bsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
                 dialog.addNumber("Optimize Threshold", this.bsTimeline.optimizeThreshold ?? 0.01, v => {
                         this.bsTimeline.optimizeThreshold = v;

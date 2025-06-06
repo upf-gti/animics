@@ -1228,7 +1228,7 @@ class KeyframeEditor extends Editor {
             }
             newName = countName;
         }else{
-            if (!this.boundAnimations[newName] || !this.boundAnimations[newName][characterName]){
+            if (this.boundAnimations[newName] && this.boundAnimations[newName][characterName]){
                 return null;
             }
         }
