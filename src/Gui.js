@@ -526,7 +526,7 @@ class Gui {
                         this.showTimeline();
                         this.sidePanel.parentArea.reduce();  
                         const currentAnim = this.editor.getCurrentAnimation();
-                        if ( currentAnim && currentAnim.type == "video" ){
+                        if ( currentAnim && currentAnim.type == "video" && this.showVideo ){
                             this.showVideoOverlay();
                         }
                     }                  
@@ -1015,6 +1015,13 @@ class KeyframesGui extends Gui {
         /* Global Timeline */
         this.globalTimeline = new LX.ClipsTimeline( "globalTimeline", {
             title: "Animation",
+            onCreateBeforeTopBar: (panel) => {
+                // panel.addButton
+                panel.addSelect("Animation", Object.keys(this.editor.boundAnimations), this.editor.currentAnimation, (v)=> {
+                    this.editor.setGlobalAnimation(v); // already updates gui
+                }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
+                
+            },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -1186,13 +1193,6 @@ class KeyframesGui extends Gui {
         /* Keyframes Timeline */
         this.skeletonTimeline = new LX.KeyFramesTimeline("Bone", {
             title: "Bone",
-            // onCreateBeforeTopBar: (panel) => {
-            //     // panel.addButton
-            //     panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
-            //         this.editor.bindAnimationToCharacter(v); // already updates gui
-            //     }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
-                
-            // },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -1398,11 +1398,6 @@ class KeyframesGui extends Gui {
         /* Curves Timeline */
         this.auTimeline = new LX.KeyFramesTimeline("Action Units", {
             title: "Action Units",
-            // onCreateBeforeTopBar: (panel) => {
-            //     panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
-            //         this.editor.bindAnimationToCharacter(v); // already updates gui
-            //     }, {signal: "@on_animation_loaded"})
-            // },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -1513,11 +1508,6 @@ class KeyframesGui extends Gui {
         /* Curves Blendshapes Timeline */
         this.bsTimeline = new LX.KeyFramesTimeline("Blendshapes", { 
             title: "Blendshapes",
-            // onCreateBeforeTopBar: (panel) => {
-            //     panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
-            //         this.editor.bindAnimationToCharacter(v); // already updates gui
-            //     }, {signal: "@on_animation_loaded"})
-            // },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -1687,7 +1677,7 @@ class KeyframesGui extends Gui {
 
         const [top, bottom] = this.sidePanel.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
        
-        this.animationPanel = new LX.Panel({id:"animation", icon: "PersonStanding"});
+        this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
         top.attach(this.animationPanel);
         this.updateAnimationPanel( );
 
@@ -1827,13 +1817,34 @@ class KeyframesGui extends Gui {
 
             o = o || {};
             widgets.clear();
-            widgets.addTitle("Animation");
 
-            let anim = this.editor.currentKeyFrameClip ?? this.globalTimeline.animationClip;
-            let id = anim ? anim.id : "";
-            widgets.addText("Name", id || "", (v) =>{ 
-                anim.id = v;
-            } )
+            if (this.editor.currentKeyFrameClip){
+                widgets.addTitle( "Keyframe Clip" );
+                const anim = this.editor.currentKeyFrameClip;
+                widgets.addText("Clip Name", anim.id, (v) =>{ 
+                    anim.id = v;
+                } )
+
+            }else{
+                widgets.addTitle( "Animation" );
+                const anim = this.globalTimeline.animationClip;
+                widgets.addText("Name", anim.id || "", (v) =>{ 
+                    if ( v.length == 0 ){
+                        this.animationPanel.widgets["Name"].set(this.editor.currentAnimation, true); // skipCallback
+                        return;
+                    }
+
+                    if ( this.editor.currentAnimation == v ){
+                        return;
+                    }
+
+                    let newName = this.editor.renameGlobalAnimation(this.editor.currentAnimation, v, true);
+                    if ( newName != v ){
+                        this.animationPanel.widgets["Name"].set(newName, true); // skipCallback
+                        LX.toast("Animation Rename Issue", `\"${v}\" already exists. Renamed to \"${newName}\"`, { timeout: 7000 } );
+                    }
+                } );
+            }
 
             widgets.addSeparator();
         }
@@ -3290,11 +3301,27 @@ class ScriptGui extends Gui {
             widgets.addTitle("Animation");
 
             const animation = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
-            let saveName = animation ? animation.saveName : "";
-            widgets.addText("Name", saveName || "", (v) =>{ 
-                animation.saveName = v; 
-            } )
-            
+            widgets.addText("Name", animation.name, (v) =>{ 
+                    if ( this.editor.loadedAnimations[v] && v != anim.name ){
+                        LX.toast("Animation Rename: Another animation with this name already exists", null, { timeout: 7000 } );
+                        // there already is an existing animation with this name
+                    }else{
+                        const oldName = anim.id;
+                        const newName = v;
+                        const bound = this.editor.boundAnimations[oldName];
+                        this.editor.boundAnimations[newName] = bound;
+                        for( let avatarname in bound ){
+                            bound[avatarname].id = newName;
+                        }
+                        delete this.editor.boundAnimations[oldName];
+                        
+                        this.editor.loadedAnimations[newName] = this.editor.loadedAnimations[oldName];
+                        delete this.editor.loadedAnimations[oldName];
+
+                        this.editor.currentAnimation = newName;
+                    }
+            } );
+
             widgets.addSeparator();
             widgets.addComboButtons("Dominant hand", [
                 { value: "Left", selected: this.editor.dominantHand == "Left", callback: v => this.editor.dominantHand = v },

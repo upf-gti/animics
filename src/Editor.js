@@ -152,7 +152,6 @@ class Editor {
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(this.theme[theme].background);
         // scene.fog = new THREE.Fog( 0xa0a0a0, 10, 50 );
-        window.scene = scene;
 
         // const grid = new THREE.GridHelper(300, 300, 0x101010, 0x555555 );
         const grid = new THREE.GridHelper( 10, 10 );
@@ -160,7 +159,6 @@ class Editor {
         grid.material.color.set( this.theme[theme].grid);
         grid.material.opacity = this.theme[theme].gridOpacity;
         scene.add(grid);
-        window.GridHelper = THREE.GridHelper;
 
         const groundGeo = new THREE.PlaneGeometry(10, 10);
         const groundMat = new THREE.ShadowMaterial({ opacity: 0.2 });
@@ -219,7 +217,6 @@ class Editor {
         const camera = new THREE.PerspectiveCamera(60, pixelRatio, 0.01, 1000);
         camera.position.set(0, 1.303585797450244, 1.4343282767035261);
         
-        window.camera = camera;
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.minDistance = 0.5;
         controls.maxDistance = 5;
@@ -543,7 +540,7 @@ class Editor {
         this.playbackRate = v;
         this.currentCharacter.mixer.timeScale = v;
 
-        LX.emit("@on_set_speed", v ); // skipcallbacks, only update
+        LX.emit("@on_set_speed", v ); // skipcallbacks, only visual update
     }
 
     bindEvents() {
@@ -1161,9 +1158,107 @@ class KeyframeEditor extends Editor {
         });
     }
 
+    /**
+     * 
+     * @param {string} name 
+     * @param {int} mode
+     *      -1: overwrite any existing animation with that name for the current character
+     *      0: exact unique name. If it already exists, it does not create an animation
+     *      1: adds an incrementing number if a match is found for that animation for that character 
+     */
+    createGlobalAnimation( name, mode = 0 ){
+
+        const characterName = this.currentCharacter.name;
+
+        if (mode == 1){
+            let count = 1;
+            let countName = name;
+            while( this.boundAnimations[countName] && this.boundAnimations[countName][characterName] ){
+                countName = name + ` (${count++})`;
+            }
+            name = countName;
+        }
+        else if (mode == 0){
+            if (this.boundAnimations[name] && this.boundAnimations[name][characterName]){
+                return null;
+            }
+        }
+
+        if ( !this.boundAnimations[name] ){
+            this.boundAnimations[name] = {};
+        }
+        const animationClip = this.gui.globalTimeline.instantiateAnimationClip({ id: name });
+        this.boundAnimations[name][characterName] = animationClip;
+
+        return animationClip;
+    }
+
+    setGlobalAnimation( name ){
+        let alreadyExisted = true;
+        if (!this.boundAnimations[name] || !this.boundAnimations[name][this.currentCharacter.name]){
+            this.createGlobalAnimation(name, -1);
+            alreadyExisted = false;
+        }
+
+        const mixer = this.currentCharacter.mixer;
+        mixer.stopAllAction();
+        while( mixer._actions.length ){
+            mixer.uncacheClip( mixer._actions[0]._clip );
+        }
+
+        this.gui.globalTimeline.setAnimationClip( this.boundAnimations[name][this.currentCharacter.name], false );
+        this.currentAnimation = name;
+        this.currentKeyFrameClip = null;
+        this.globalAnimMixerManagement(mixer, this.boundAnimations[name][this.currentCharacter.name], true);
+        this.gui.createSidePanel();
+        this.gui.globalTimeline.updateHeader(); // a bit of an overkill
+
+        return alreadyExisted;
+    }
+
+    renameGlobalAnimation( currentName, newName, findSuitableName = false ){
+
+        const characterName = this.currentCharacter.name;
+
+        if (findSuitableName){
+            let count = 1;
+            let countName = newName;
+            while( this.boundAnimations[countName] && this.boundAnimations[countName][characterName] ){
+                countName = newName + ` (${count++})`;
+            }
+            newName = countName;
+        }else{
+            if (!this.boundAnimations[newName] || !this.boundAnimations[newName][characterName]){
+                return null;
+            }
+        }
+
+        if ( !this.boundAnimations[newName] ){
+            this.boundAnimations[newName] = {};
+        }
+
+        const bound = this.boundAnimations[currentName];
+        this.boundAnimations[newName] = bound;
+        for( let avatarname in bound ){
+            bound[avatarname].id = newName;
+        }
+        delete this.boundAnimations[currentName];
+
+        if ( this.currentAnimation == currentName ){
+            this.currentAnimation = newName;
+        }
+
+        this.gui.globalTimeline.updateHeader(); // a bit of an overkill
+
+        return newName;
+    }
+
     async processPendingResources( resources ) {
+        
         if( !resources ) {
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
+            
+            this.setGlobalAnimation( "new animation" );
             this.loadAnimation("new animation", {} );
             return true;
         }
@@ -1195,11 +1290,15 @@ class KeyframeEditor extends Editor {
                         this.fileToAnimation(files[i], (file) => {
                             if( file.animation.constructor == Array ) { //glb animations
                                 for(let f = 0; f < file.animation.length; f++ ) {
+                                    this.createGlobalAnimation( file.animation[f].name, -1 ); // overwrite any existing animation with this name
+                                    this.setGlobalAnimation( file.animation[f].name );
                                     this.loadAnimation( file.animation[f].name, file.animation[f] );
                                 }
                                 resolve(file.animation[0]);
                             }
                             else {
+                                this.createGlobalAnimation( file.name, -1 ); // overwrite any existing animation with this name
+                                this.setGlobalAnimation( file.name );
                                 this.loadAnimation( file.name, file.animation );
                                 resolve(file.animation);
                             }
@@ -1222,6 +1321,8 @@ class KeyframeEditor extends Editor {
 
             const promise = new Promise((resolve) => {
                 for( let i = 0; i < animations.length; i++ ) {
+                    this.createGlobalAnimation( animations[i].name, -1 ); // overwrite any existing animation with this name
+                    this.setGlobalAnimation( animations[i].name );
                     this.buildAnimation(animations[i]);
                 }
                 resolve();
@@ -1243,6 +1344,8 @@ class KeyframeEditor extends Editor {
         if( !animation ) {
             return;
         }
+        this.createGlobalAnimation( animation.name, -1 ); // overwrite any existing animation with this name
+        this.setGlobalAnimation( animation.name );
         this.buildAnimation(animation);
         
     }
@@ -1859,19 +1962,6 @@ class KeyframeEditor extends Editor {
         }
 
         return new THREE.AnimationClip( "animation", -1, tracks );
-    }
-
-    setGlobalAnimation(){
-        // Remove current animation clip
-        let mixer = this.currentCharacter.mixer;
-        mixer.stopAllAction();
-
-        while(mixer._actions.length){
-            mixer.uncacheClip(mixer._actions[0]._clip); // removes action
-        }
-        this.currentCharacter.skeletonHelper.skeleton.pose(); // for some reason, mixer.stopAllAction makes bone.position and bone.quaternions undefined. Ensure they have some values
-
-        // this.currentAnimation = asdfasdfasdfasdfasdfasdf asdf asd a sdf;
     }
 
     /**

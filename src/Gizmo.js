@@ -666,9 +666,9 @@ class Gizmo {
                 if ( track.dim == 4 ){
                     THREE.Quaternion.multiplyQuaternionsFlat( track.values, start, track.values, start, deltaValue, 0);
                 }else{ // dim == 3
-                    track.values[start++] += deltaValue[0];
-                    track.values[start++] += deltaValue[1];
-                    track.values[start] += deltaValue[2];
+                    track.values[start] += deltaValue[0];
+                    track.values[start + 1] += deltaValue[1];
+                    track.values[start + 2] += deltaValue[2];
                 }
     
                 track.edited[keyFrameIndex] = true;
