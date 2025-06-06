@@ -180,7 +180,6 @@ code.inline.desc {
 	margin: 16px 0;
 	font-size: 0.95rem;
 	color: var(--global-text-secondary);
-
 	box-shadow: 0 1px 3px var(--global-color-tertiary);
 }
 
@@ -203,6 +202,11 @@ code.inline.desc {
 .note-body {
 	padding: 12px;
 	line-height: 1.5;
+}
+
+.hover\:scale:hover {
+	transform: scale(1.02);
+	transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19);
 }
 
 @media all and (min-width: 1700px) {

@@ -875,6 +875,10 @@ a svg, svg path {
 /* Generic Popover */
 
 .lexpopover {
+    background-color: var(--global-color-primary);
+    border-radius: 0.5rem;
+    border: 1px solid #7a797c4f;
+    padding: 0.25rem;
     position: fixed;
     left: 0px;
     top: 0px;
@@ -1542,11 +1546,8 @@ a svg, svg path {
     width: 256px;
     display: flex;
     flex-direction: column;
-    padding: 0.2rem;
-    border-radius: 0.5rem;
-    border: 1px solid #7a797c4f;
-    padding: 0.5rem;
     gap: 0.5rem;
+    padding: 0.25rem;
 }
 
 .lexcolorpicker input.lextext {
@@ -1771,7 +1772,7 @@ a svg, svg path {
 
 .lexcombobuttons .lexbutton.combo {
     display: flex;
-    padding: 0.45em 1.25em;
+    padding: 0.35em 1em;
     transition: 0.2s;
     --button-color: var(--global-color-tertiary);
 }
@@ -3937,6 +3938,10 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 
 /* Table Widget */
 
+.lextable {
+    overflow-x: scroll;
+}
+
 .lextable table {
     width: 100%;
     border: 1px solid;
@@ -3998,6 +4003,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     padding-block: 2px;
     cursor: pointer;
     transition: all 0.1s linear;
+    white-space: nowrap;
     background-color: var(--global-color-tertiary);
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -5871,6 +5877,12 @@ ul.lexassetscontent {
 .hover\:fg-success:hover { color: var(--global-color-success) !important }
 .hover\:fg-error:hover { color: var(--global-color-error) !important }
 .hover\:fg-warning:hover { color: var(--global-color-warning) !important }
+
+.hover\:scale-xs:hover { transform: scale(1.01); transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19); }
+.hover\:scale-sm:hover { transform: scale(1.025); transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19); }
+.hover\:scale-md:hover { transform: scale(1.05); transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19); }
+.hover\:scale-bg:hover { transform: scale(1.1); transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19); }
+.hover\:scale-xl:hover { transform: scale(1.25); transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19); }
 
 .stroke-none { stroke: none }
 

@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Animics Docs</title>
     <link rel="stylesheet" href="../src/libs/lexgui/build/lexgui.css">
     <link rel="stylesheet" href="style.css">
@@ -131,14 +131,11 @@
             m.add("Getting Started", { callback: open.bind(this, "getting-started.html", null) });
             m.add("Generate Animations", { callback: open.bind(this, "generate-animations.html", null) });
             m.add("Upload Animations", { callback: open.bind(this, "upload-animations.html", null) });
-
-            m.separator();
-            m.group("Edit Animations");
-
+            
             m.add("Edit Animations", { callback: open.bind(this, "edit-animations.html", null) });
             for (const w of ["Top Menu", "3D Scene", "Timeline", "Side Panel"]) {
                 const url = w.toLowerCase().replace(/\s/g, '-') + ".html";
-                m.add("Editor Zones/" + w, { callback: open.bind(this, "edit/" + url, null) });
+                m.add("Edit Animations/" + w, { callback: open.bind(this, "edit/" + url, null) });
 
                 LX.registerCommandbarEntry(w, open.bind(this, "edit/" + url, null));
             }

@@ -46,14 +46,39 @@ function MAKE_NOTE( string, title = "Note")
     header.className = "note-header";
     header.appendChild(LX.makeIcon("NotepadText"));
     header.innerHTML += "<b>" + title + "</b>";
-    
+
     let body = document.createElement('div');
     body.className = "note-body";
     body.innerHTML = string;
-    
-    note.appendChild( header );
-    note.appendChild( body );
-    mainContainer.appendChild( note );
+
+    note.appendChild(header);
+    note.appendChild(body);
+    mainContainer.appendChild(note);
+}
+
+function MAKE_CARDS(title, subtitle, cards) {
+    console.assert(cards && cards.length > 0);
+
+    const cardsContent = LX.makeContainer(["100%", "auto"], "flex flex-col gap-4 my-6 p-4", "", mainContainer);
+    LX.makeContainer(["auto", "auto"], "text-xxl font-bold", title, cardsContent);
+    if (subtitle) {
+        LX.makeContainer(["auto", "auto"], "text-xl", subtitle, cardsContent);
+    }
+
+    const projectItems = LX.makeContainer(["100%", "auto"], "grid gap-2 p-1 overflow-y-auto overflow-x-hidden ", "", cardsContent);
+    projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
+    projectItems.id = "project-items-container";
+
+    if (projectItems && projectItems.lastChild) {
+        projectItems.lastChild.remove();
+        if (refresh) {
+            projectItems.innerHTML = "";
+        }
+    }
+    for (const data of cards) {
+        _makeProjectItem(data);
+    }
+
 }
 
 function MAKE_CODE( text )
@@ -327,5 +352,38 @@ function INSERT_VIDEO( src, caption = "", controls = true, autoplay = false )
     if (autoplay) video.muted = true;
     video.loop = true;
     video.alt = caption;
-    mainContainer.appendChild( video );
+    mainContainer.appendChild(video);
+}
+
+
+function _makeProjectItem(item) {
+    const projectItems = document.getElementById("project-items-container");
+
+    let color = "--global-color-accent";
+
+    let imageContainer = `<div class="rounded-xl w-full bg-blur flex justify-center items-center overflow-hidden justify-center hover:scale" style="min-height: 130px;">
+            <p class="text-xl font-extrabold fg-secondary" style="text-shadow: 1px 1px 0px var(${color});">${item.title}</p>
+        </div>`
+    if (item.img) {
+        imageContainer = `<img class="w-full hover:scale" style="object-fit:cover" src="${item.img || "./docs/imgs/editStation.png"} ">`
+    }
+
+    const itemContainer = LX.makeContainer(["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-tertiary hover:scale cursor-pointer", `
+        <div class="rounded-xl w-full overflow-hidden justify-center" style="height:130px;">
+            ${imageContainer}
+        </div>
+        <div class="flex flex-row justify-between px-1" style="align-items: center;">
+            <div class="flex flex-col gap-0.5">
+                <p class="text-xl font-bold fg-secondary">${item.title}</p>
+                <p>${item.description ? item.description : ""}</p>
+            </div>
+            ` + LX.makeIcon("ArrowRight").innerHTML +
+        `</div>
+    `, projectItems);
+
+    itemContainer.addEventListener("click", () => {
+        loadPage(item.link);
+    });
+
+
 }
