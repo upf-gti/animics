@@ -1290,15 +1290,15 @@ class KeyframeEditor extends Editor {
                         this.fileToAnimation(files[i], (file) => {
                             if( file.animation.constructor == Array ) { //glb animations
                                 for(let f = 0; f < file.animation.length; f++ ) {
-                                    this.createGlobalAnimation( file.animation[f].name, -1 ); // overwrite any existing animation with this name
-                                    this.setGlobalAnimation( file.animation[f].name );
+                                    const globalAnim = this.createGlobalAnimation( file.animation[f].name, 1 ); // find new name if it already exists
+                                    this.setGlobalAnimation( globalAnim.id );
                                     this.loadAnimation( file.animation[f].name, file.animation[f] );
                                 }
                                 resolve(file.animation[0]);
                             }
                             else {
-                                this.createGlobalAnimation( file.name, -1 ); // overwrite any existing animation with this name
-                                this.setGlobalAnimation( file.name );
+                                const globalAnim = this.createGlobalAnimation( file.name, 1 ); // find new name if it already exists
+                                this.setGlobalAnimation( globalAnim.id );
                                 this.loadAnimation( file.name, file.animation );
                                 resolve(file.animation);
                             }
@@ -1321,8 +1321,8 @@ class KeyframeEditor extends Editor {
 
             const promise = new Promise((resolve) => {
                 for( let i = 0; i < animations.length; i++ ) {
-                    this.createGlobalAnimation( animations[i].name, -1 ); // overwrite any existing animation with this name
-                    this.setGlobalAnimation( animations[i].name );
+                    const globalAnim = this.createGlobalAnimation( animations[i].name, 1 ); // find new name if it already exists
+                    this.setGlobalAnimation( globalAnim.id );
                     this.buildAnimation(animations[i]);
                 }
                 resolve();
@@ -1344,14 +1344,22 @@ class KeyframeEditor extends Editor {
         if( !animation ) {
             return;
         }
-        this.createGlobalAnimation( animation.name, -1 ); // overwrite any existing animation with this name
-        this.setGlobalAnimation( animation.name );
-        this.buildAnimation(animation);
-        
+
+        const globalAnim = this.createGlobalAnimation( animation.name, 1 ); // find new name if it already exists
+        this.setGlobalAnimation( globalAnim.name );
+        this.buildAnimation(animation);        
     }
 
     /**Create face and body animations from mediapipe and load character*/
-    buildAnimation(data) {
+    buildAnimation(data, bindToCurrentGlobal = true) {
+
+        // ensure unique name
+        let count = 1;
+        let countName = data.name;
+        while( this.loadedAnimations[countName] ){
+            countName = data.name + ` (${count++})`;
+        }
+        data.name = countName;
 
         this.loadedAnimations[data.name] = data;
         this.loadedAnimations[data.name].type = "video";
@@ -1402,11 +1410,15 @@ class KeyframeEditor extends Editor {
         }
         this.loadedAnimations[data.name].faceAnimation = faceAnimation; // action units THREEjs AnimationClip
 
-        this.bindAnimationToCharacter(data.name);
+        if ( bindToCurrentGlobal ){   
+            this.bindAnimationToCharacter(data.name);
+        }
+
+        return data.name;
     }
 
     // load animation from bvh or bvhe file
-    loadAnimation(name, animationData) {
+    loadAnimation(name, animationData, bindToCurrentGlobal = true) {
 
         let skeleton = null;
         let bodyAnimation = null;
@@ -1449,24 +1461,27 @@ class KeyframeEditor extends Editor {
         bodyAnimation.duration = duration;
         faceAnimation.duration = duration;
 
-
-        let extensionIdx = name.lastIndexOf(".");
-        if ( extensionIdx == -1 ){ // no extension
-            extensionIdx = name.length; 
+        // ensure unique name
+        let count = 1;
+        let countName = name;
+        while( this.loadedAnimations[countName] ){
+            countName = name + ` (${count++})`;
         }
-        let saveName = name.slice(0,extensionIdx);
+        name = countName;
 
         this.loadedAnimations[name] = {
             name: name,
-            saveName: saveName,
-            export: true,
             bodyAnimation: bodyAnimation ?? new THREE.AnimationClip( "bodyAnimation", 1, [] ), // THREEjs AnimationClip
             faceAnimation: faceAnimation ?? new THREE.AnimationClip( "faceAnimation", 1, [] ), // THREEjs AnimationClip
             skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
             type: "bvh"
         };
 
-        this.bindAnimationToCharacter(name);
+        if ( bindToCurrentGlobal ){
+            this.bindAnimationToCharacter(name);
+        }
+
+        return name;
     }
 
     /**
