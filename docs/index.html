@@ -1,19 +1,18 @@
-<!DOCTYPE html
-    PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>Animics Docs</title>
-    <link rel="stylesheet" href="../src/libs/lexgui/build/lexgui.css">
+    <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui/build/lexgui.css">
     <link rel="stylesheet" href="style.css">
     <script type="text/javascript" src="docmaker.js"></script>
     <link rel="icon" type="image/x-icon" href="../data/imgs/logos/animics_favicon.png" />
     <script type="importmap">
         {
           "imports": {
-                "lexgui": "../src/libs/lexgui/build/lexgui.module.js",
-                "lexgui/components/": "../src/libs/lexgui/build/components/"
+            "lexgui": "https://cdn.skypack.dev/lexgui/build/lexgui.module.js",
+            "lexgui/components/": "https://cdn.skypack.dev/lexgui/build/components/"
           }
         }
     </script>
@@ -115,32 +114,19 @@
 
         // Init library and get main area
         let area = await LX.init({ rootClass: "wrapper" });
+        let menubar = null;
 
-        const open = (url, target, name, dom, event) => {
-            if (event) event.preventDefault();
-            if (target) {
-                window.open(url, target);
+        const starterTheme = LX.getTheme();
+        const menubarButtons = [
+            {
+                title: "Change Theme",
+                icon: starterTheme == "dark" ? "Moon" : "Sun",
+                swap: starterTheme == "dark" ? "Sun" : "Moon",
+                callback:  (value, event) => { LX.switchTheme() }
             }
-            else {
-                loadPage(url);
-            }
-        }
+        ];
 
-        const sidebar = area.addSidebar(m => {
-            m.group("Manual");
-            m.add("Getting Started", { callback: open.bind(this, "getting-started.html", null) });
-            m.add("Generate Animations", { callback: open.bind(this, "generate-animations.html", null) });
-            m.add("Upload Animations", { callback: open.bind(this, "upload-animations.html", null) });
-            
-            m.add("Edit Animations", { callback: open.bind(this, "edit-animations.html", null) });
-            for (const w of ["Top Menu", "3D Scene", "Timeline", "Side Panel"]) {
-                const url = w.toLowerCase().replace(/\s/g, '-') + ".html";
-                m.add("Edit Animations/" + w, { callback: open.bind(this, "edit/" + url, null) });
-
-                LX.registerCommandbarEntry(w, open.bind(this, "edit/" + url, null));
-            }
-
-        }, {
+        const sidebarOptions = {
             headerTitle: "Animics Docs",
             headerSubtitle:
                 await getLastCommitDate('upf-gti', 'animics', 'docs')
@@ -152,7 +138,6 @@
             headerImage: "../data/imgs/animics_monster.png",
             footerTitle: "TÀNDEM",
             footerImage: "../data/imgs/tandem_monster.png",
-            collapsable: false,
             onHeaderPressed: (e) => { console.log("onHeaderPressed") },
             onFooterPressed: (e, element) => {
                 new LX.DropdownMenu(element, [
@@ -169,18 +154,68 @@
                         ]
                     }
                 ], { side: "right", align: "end" });
+            },
+            collapsed: false,
+            collapsable: false,
+            displaySelected: true
+        };
+
+        const open = ( url, target, name, dom, event ) => {
+            if( event ) event.preventDefault();
+            if( target )
+            {
+                window.open( url, target );
             }
-        });
+            else
+            {
+                loadPage( url );
+            }
+            if( window.__currentSheet )
+            {
+                window.__currentSheet.destroy();
+            }
+        }
 
-        const menubar = sidebar.siblingArea.addMenubar();
-        const starterTheme = LX.getTheme();
+        const sidebarCallback = m => {
+            m.group("Manual");
+            m.add("Getting Started", { callback: open.bind(this, "getting-started.html", null) });
+            m.add("Generate Animations", { callback: open.bind(this, "generate-animations.html", null) });
+            m.add("Upload Animations", { callback: open.bind(this, "upload-animations.html", null) });
 
-        menubar.addButtons([{
-            title: "Change Theme",
-            icon: starterTheme == "dark" ? "Moon" : "Sun",
-            swap: starterTheme == "dark" ? "Sun" : "Moon",
-            callback: (value, event) => { LX.switchTheme() }
-        }]);
+            m.add("Edit Animations", { callback: open.bind(this, "edit-animations.html", null) });
+            for (const w of ["Top Menu", "3D Scene", "Timeline", "Side Panel"]) {
+                const url = w.toLowerCase().replace(/\s/g, '-') + ".html";
+                m.add("Edit Animations/" + w, { callback: open.bind(this, "edit/" + url, null) });
+
+                LX.registerCommandbarEntry(w, open.bind(this, "edit/" + url, null));
+            }
+
+        };
+
+        if( mobile )
+        {
+            menubar = area.addMenubar();
+
+            const sheetArea = new LX.Area({ skipAppend: true });
+            sheetArea.addSidebar( sidebarCallback, sidebarOptions );
+
+            menubarButtons.splice( 0, 0,
+                {
+                    title: "Menu",
+                    icon: "PanelLeft",
+                    callback: (value, event) => {
+                        window.__currentSheet = new LX.Sheet("256px", [ sheetArea ] );
+                    }
+                }
+            );
+        }
+        else
+        {
+            const sidebar = area.addSidebar( sidebarCallback, sidebarOptions );
+            menubar = sidebar.siblingArea.addMenubar();
+        }
+
+        menubar.addButtons( menubarButtons );
 
         menubar.siblingArea.root.style.overflowY = "scroll";
         menubar.siblingArea.root.appendChild(content);
