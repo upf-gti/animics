@@ -79,6 +79,8 @@ class Editor {
         this.video = document.createElement( "video" );
         this.video.startTime = 0;
         this.video.sync = false; // If TRUE, synchronize video with animation. BVH/e always FALSE
+        this.video.muted = true;
+
 
         this.editorArea = new LX.Area({id: "editor-area", width: "100%", height: "100%"});
         animics.mainArea.attach(this.editorArea);
@@ -1254,11 +1256,12 @@ class KeyframeEditor extends Editor {
     }
 
     async processPendingResources( resources ) {
-        
+        this.setGlobalAnimation("new animation"); // TODO remove
+
         if( !resources ) {
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
             
-            this.setGlobalAnimation( "new animation" );
+            // this.setGlobalAnimation( "new animation" );
             this.loadAnimation("new animation", {} );
             return true;
         }
@@ -1290,15 +1293,17 @@ class KeyframeEditor extends Editor {
                         this.fileToAnimation(files[i], (file) => {
                             if( file.animation.constructor == Array ) { //glb animations
                                 for(let f = 0; f < file.animation.length; f++ ) {
-                                    const globalAnim = this.createGlobalAnimation( file.animation[f].name, 1 ); // find new name if it already exists
-                                    this.setGlobalAnimation( globalAnim.id );
+                                    // TODO uncomment
+                                    // const globalAnim = this.createGlobalAnimation( file.animation[f].name, 1 ); // find new name if it already exists
+                                    // this.setGlobalAnimation( globalAnim.id );
                                     this.loadAnimation( file.animation[f].name, file.animation[f] );
                                 }
                                 resolve(file.animation[0]);
                             }
                             else {
-                                const globalAnim = this.createGlobalAnimation( file.name, 1 ); // find new name if it already exists
-                                this.setGlobalAnimation( globalAnim.id );
+                                // TODO uncomment
+                                // const globalAnim = this.createGlobalAnimation( file.name, 1 ); // find new name if it already exists
+                                // this.setGlobalAnimation( globalAnim.id );
                                 this.loadAnimation( file.name, file.animation );
                                 resolve(file.animation);
                             }
@@ -1321,8 +1326,9 @@ class KeyframeEditor extends Editor {
 
             const promise = new Promise((resolve) => {
                 for( let i = 0; i < animations.length; i++ ) {
-                    const globalAnim = this.createGlobalAnimation( animations[i].name, 1 ); // find new name if it already exists
-                    this.setGlobalAnimation( globalAnim.id );
+                    // TODO uncomment
+                    // const globalAnim = this.createGlobalAnimation( animations[i].name, 1 ); // find new name if it already exists
+                    // this.setGlobalAnimation( globalAnim.id );
                     this.buildAnimation(animations[i]);
                 }
                 resolve();
@@ -1345,8 +1351,9 @@ class KeyframeEditor extends Editor {
             return;
         }
 
-        const globalAnim = this.createGlobalAnimation( animation.name, 1 ); // find new name if it already exists
-        this.setGlobalAnimation( globalAnim.name );
+        // TODO uncomment
+        // const globalAnim = this.createGlobalAnimation( animation.name, 1 ); // find new name if it already exists
+        // this.setGlobalAnimation( globalAnim.name );
         this.buildAnimation(animation);        
     }
 

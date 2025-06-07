@@ -1138,7 +1138,7 @@ class KeyframesGui extends Gui {
                         this.editor.setVideoVisibility(this.showVideo);
                         video.onloadeddata = () =>{
                             video.currentTime = Math.max( video.startTime, Math.min( video.endTime, 0 ) );
-                                    
+                            video.muted = true;
                             video.click();
                             const event = new Event("mouseup");
                             
@@ -1682,6 +1682,7 @@ class KeyframesGui extends Gui {
 
             if ( this.globalTimeline.lastClipsSelected.length == 1 ){
                 const clip = this.globalTimeline.lastClipsSelected[0][2]; // [trackidx, clipidx, clip]
+                const clipTrack = this.globalTimeline.lastClipsSelected[0][0];
                 const p = new LX.Panel({id:"keyframeclip"});
                 p.addTitle("Clip");
 
@@ -1698,13 +1699,62 @@ class KeyframesGui extends Gui {
 
                 p.branch("Clip Blending");
                 p.addSelect("Blend Mode", ["Normal", "Additive" ], clip.blendMode == THREE.NormalAnimationBlendMode ? "Normal" : "Additive", (value, event) => {
-                    this.editor.setKeyframeClipBlendMode( clip, value == "Normal" ? THREE.NormalAnimationBlendMode : THREE.AdditiveAnimationBlendMode, true );
-                    this.createSidePanel();
+                    let blendMode = value == "Normal" ? THREE.NormalAnimationBlendMode : THREE.AdditiveAnimationBlendMode;
+                    if ( blendMode != clip.blendMode ){
+                        this.globalTimeline.saveState(clipTrack);
+                        this.editor.setKeyframeClipBlendMode( clip, blendMode, true );
+                        this.createSidePanel();
+                    }
                 });
 
                 if ( clip.blendMode == THREE.AdditiveAnimationBlendMode ){
                     p.addButton(null, "Subtract first frame pose", null, { buttonClass: "error dashed" });
-                    p.addButton(null, "Subtract bind pose", null, { buttonClass: "error dashed" });
+                    p.addButton(null, "Subtract bind pose", (v,e)=>{
+                        this.globalTimeline.saveState(clipTrack);
+                        let skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
+                        let skeletonclip = clip.skeletonAnimation;
+                        skeleton.pose();
+
+                        const groups = skeletonclip.tracksPerGroup;
+                        for( let i = 0; i < skeleton.bones.length; ++i ){
+                            const bone = skeleton.bones[i];
+                            let tracks = groups[bone.name];
+                            for( let t = 0; t < tracks.length; ++t ){
+                                const values = tracks[t].values;
+
+                                switch( tracks[t].id ){
+                                    case "scale": 
+                                        for(let v = 0; v < values.length; ){
+                                            values[v] = values[v] - bone.scale.x; v++;
+                                            values[v] = values[v] - bone.scale.y; v++;
+                                            values[v] = values[v] - bone.scale.z; v++;
+                                        }
+                                    break;
+                                    case "position": 
+                                        for(let v = 0; v < values.length; ){
+                                            values[v] = values[v] - bone.position.x; v++; 
+                                            values[v] = values[v] - bone.position.y; v++;
+                                            values[v] = values[v] - bone.position.z; v++;
+                                        }
+                                    break;
+                                    case "quaternion": 
+                                        let q = new THREE.Quaternion();
+                                        for(let v = 0; v < values.length; v+= 4){
+                                            q.fromArray(values, v);
+                                            // localOffset = invBind * q = inv( invq * bind )
+                                            q.invert().multiply(bone.quaternion).invert();
+                                            values[v] = q.x;
+                                            values[v+1] = q.y;
+                                            values[v+2] = q.z;
+                                            values[v+3] = q.w;
+                                        }
+                                    break;
+                                }
+                            }
+                        }
+                        this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                        this.editor.setTime(this.editor.currentTime);
+                    }, { buttonClass: "error dashed" });
 
                 }
                 p.merge();
@@ -1806,24 +1856,24 @@ class KeyframesGui extends Gui {
     }
 
     updateAnimationPanel( options = {}) {
-        let widgets = this.animationPanel;
+        let panel = this.animationPanel;
 
-        widgets.onRefresh = (o) => {
+        panel.onRefresh = (o) => {
 
             o = o || {};
-            widgets.clear();
+            panel.clear();
 
             if (this.editor.currentKeyFrameClip){
-                widgets.addTitle( "Keyframe Clip" );
+                panel.addTitle( "Keyframe Clip" );
                 const anim = this.editor.currentKeyFrameClip;
-                widgets.addText("Clip Name", anim.id, (v) =>{ 
+                panel.addText("Clip Name", anim.id, (v) =>{ 
                     anim.id = v;
                 } )
 
             }else{
-                widgets.addTitle( "Animation" );
+                panel.addTitle( "Animation" );
                 const anim = this.globalTimeline.animationClip;
-                widgets.addText("Name", anim.id || "", (v) =>{ 
+                panel.addText("Name", anim.id || "", (v) =>{ 
                     if ( v.length == 0 ){
                         this.animationPanel.widgets["Name"].set(this.editor.currentAnimation, true); // skipCallback
                         return;
@@ -1839,11 +1889,15 @@ class KeyframesGui extends Gui {
                         LX.toast("Animation Rename Issue", `\"${v}\" already exists. Renamed to \"${newName}\"`, { timeout: 7000 } );
                     }
                 } );
+
+                panel.addButton(null, "Add Clip", (v,e)=>{
+                    // TODO open table or alike displaying all loaded animations
+                }, { buttonClass: "accent" });
             }
 
-            widgets.addSeparator();
+            panel.addSeparator();
         }
-        widgets.onRefresh(options);
+        panel.onRefresh(options);
     }
 
     createFacePanel(area) {
