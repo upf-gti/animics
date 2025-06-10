@@ -1112,51 +1112,7 @@ class KeyframesGui extends Gui {
                 const clipIdx = this.globalTimeline.getClipOnTime(track, this.globalTimeline.xToTime(localX), 0.001);
                 if ( clipIdx != -1 ){
                     const animation = track.clips[clipIdx];
-                    const sourceAnimation = animation.source;
-                    this.editor.currentKeyFrameClip = animation;
-                    
-                    const localTime = Math.max(0, Math.min( animation.duration, this.editor.currentTime - animation.start ) );
-                    this.editor.startTimeOffset = animation.start;
-                    this.skeletonTimeline.setAnimationClip(animation.skeletonAnimation, false);
-                    this.skeletonTimeline.setTime(localTime, true);
-                    this.skeletonTimeline.setSelectedItems([this.editor.selectedBone]);
-                    this.auTimeline.setAnimationClip(animation.auAnimation, false);
-                    this.auTimeline.setSelectedItems([this.editor.selectedAU]);
-                    this.auTimeline.setTime(localTime, true);
-                    this.bsTimeline.setAnimationClip(animation.bsAnimation, false);
-                    this.bsTimeline.setSelectedItems(Object.keys(animation.bsAnimation.tracks));
-                    this.bsTimeline.setTime(localTime, true);
-                    
-                    this.editor.setTime( animation.start + localTime );
-                    this.editor.setTimeline(this.editor.animationModes.BODY);
-                    this.propagationWindow.setTimeline( this.skeletonTimeline );
-                    this.createSidePanel();
-
-                    if ( sourceAnimation.type == "video" ) {
-                        const video = this.editor.video;
-                        video.sync = true;
-                        this.editor.setVideoVisibility(this.showVideo);
-                        video.onloadeddata = () =>{
-                            video.currentTime = Math.max( video.startTime, Math.min( video.endTime, 0 ) );
-                            video.muted = true;
-                            video.click();
-                            const event = new Event("mouseup");
-                            
-                            if( sourceAnimation.rect ) {
-                                event.rect = sourceAnimation.rect;
-                            }
-                            
-                            video.parentElement.dispatchEvent(event);
-                        }
-                        video.src = sourceAnimation.videoURL;
-                        video.startTime = sourceAnimation.startTime ?? 0;
-                        video.endTime = sourceAnimation.endTime ?? 1;
-                    }
-                    else {
-                        this.editor.video.sync = false;
-                        this.editor.setVideoVisibility(false);
-                    }
-
+                    this.setKeyframeClip(animation);
                 }
             }
         }
@@ -1207,8 +1163,7 @@ class KeyframesGui extends Gui {
             },
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
-                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
-                    this.createSidePanel();
+                    this.setKeyframeClip(null);
                 }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
                 closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
 
@@ -1409,8 +1364,7 @@ class KeyframesGui extends Gui {
             },
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
-                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
-                    this.createSidePanel();
+                    this.setKeyframeClip(null);
                 }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
                 closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
 
@@ -1516,8 +1470,7 @@ class KeyframesGui extends Gui {
             },
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
-                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
-                    this.createSidePanel();
+                    this.setKeyframeClip(null);
                 }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
                 closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
 
@@ -1627,6 +1580,60 @@ class KeyframesGui extends Gui {
         this.editor.activeTimeline = this.globalTimeline;
 
     }
+
+    setKeyframeClip(clip){
+        if (!clip){
+            this.editor.setTimeline(this.editor.animationModes.GLOBAL);
+            this.editor.currentKeyFrameClip = null;
+            this.createSidePanel();
+            return;
+        }
+
+        const sourceAnimation = clip.source;
+        this.editor.currentKeyFrameClip = clip;
+        
+        const localTime = Math.max(0, Math.min( clip.duration, this.editor.currentTime - clip.start ) );
+        this.editor.startTimeOffset = clip.start;
+        this.skeletonTimeline.setAnimationClip(clip.skeletonAnimation, false);
+        this.skeletonTimeline.setTime(localTime, true);
+        this.skeletonTimeline.setSelectedItems([this.editor.selectedBone]);
+        this.auTimeline.setAnimationClip(clip.auAnimation, false);
+        this.auTimeline.setSelectedItems([this.editor.selectedAU]);
+        this.auTimeline.setTime(localTime, true);
+        this.bsTimeline.setAnimationClip(clip.bsAnimation, false);
+        this.bsTimeline.setSelectedItems(Object.keys(clip.bsAnimation.tracks));
+        this.bsTimeline.setTime(localTime, true);
+        
+        this.editor.setTime( clip.start + localTime );
+        this.editor.setTimeline(this.editor.animationModes.BODY);
+        this.propagationWindow.setTimeline( this.skeletonTimeline );
+        this.createSidePanel();
+
+        if ( sourceAnimation.type == "video" ) {
+            const video = this.editor.video;
+            video.sync = true;
+            this.editor.setVideoVisibility(this.showVideo);
+            video.onloadeddata = () =>{
+                video.currentTime = Math.max( video.startTime, Math.min( video.endTime, 0 ) );
+                video.muted = true;
+                video.click();
+                const event = new Event("mouseup");
+                
+                if( sourceAnimation.rect ) {
+                    event.rect = sourceAnimation.rect;
+                }
+                
+                video.parentElement.dispatchEvent(event);
+            }
+            video.src = sourceAnimation.videoURL;
+            video.startTime = sourceAnimation.startTime ?? 0;
+            video.endTime = sourceAnimation.endTime ?? 1;
+        }
+        else {
+            this.editor.video.sync = false;
+            this.editor.setVideoVisibility(false);
+        }
+    }
     
     
     changeCaptureGUIVisivility(hidden) {
@@ -1683,7 +1690,7 @@ class KeyframesGui extends Gui {
                 const clip = this.globalTimeline.lastClipsSelected[0][2]; // [trackidx, clipidx, clip]
                 const clipTrack = this.globalTimeline.lastClipsSelected[0][0];
                 const p = new LX.Panel({id:"keyframeclip"});
-                p.addTitle("Clip");
+                p.addTitle("Keyframe Clip");
 
                 p.addText("Clip Name", clip.id, (v) =>{
                     clip.id = v;
@@ -1692,6 +1699,10 @@ class KeyframesGui extends Gui {
                 p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
                     clip.clipColor = v;
                 });
+
+                p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
+                    this.setKeyframeClip(clip);
+                }, { buttonClass: "accent" });
 
                 p.branch("Clip Blending");
                 p.addSelect("Blend Mode", ["Normal", "Additive" ], clip.blendMode == THREE.NormalAnimationBlendMode ? "Normal" : "Additive", (value, event) => {
@@ -1865,6 +1876,10 @@ class KeyframesGui extends Gui {
                 panel.addText("Clip Name", anim.id, (v) =>{ 
                     anim.id = v;
                 } )
+
+                panel.addButton(null, "Return to global animation", (v,e)=>{
+                    this.setKeyframeClip(null);
+                }, { buttonClass: "error" });
 
             }else{
                 panel.addTitle( "Animation" );
