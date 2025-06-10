@@ -1161,11 +1161,10 @@ class KeyframesGui extends Gui {
             }
         }
 
-        this.globalTimeline.onUpdateTrack = (indices) => {
-            // this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : []);
-            console.log(indices);
-        }
         this.globalTimeline.onContentMoved = (clip, deltaTime) => {
+            clip.skeletonAnimation.duration = clip.duration;
+            clip.auAnimation.duration = clip.duration;
+            clip.bsAnimation.duration = clip.duration;
             clip.mixerBodyAnimation.duration = clip.duration;
             clip.mixerFaceAnimation.duration = clip.duration;
             this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
@@ -1686,12 +1685,9 @@ class KeyframesGui extends Gui {
                 const p = new LX.Panel({id:"keyframeclip"});
                 p.addTitle("Clip");
 
-                // keyframe clip title
-                LX.makeContainer( [ "100%", "auto" ], "flex justify-center py-2 text-lg", 
-                    clip.id,
-                    p, 
-                    { wordBreak: "break-word", lineHeight: "1.5rem" }
-                );
+                p.addText("Clip Name", clip.id, (v) =>{
+                    clip.id = v;
+                } )
 
                 p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
                     clip.clipColor = v;
