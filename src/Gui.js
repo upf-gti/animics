@@ -1439,6 +1439,17 @@ class KeyframesGui extends Gui {
             if ( this.propagationWindow.enabler ){
                 this.auTimeline.unSelectAllKeyFrames();
             }
+
+            // Highlight panel slider
+            const elements = document.getElementsByClassName("bg-accent");
+            for(let el of elements) {
+                el.classList.remove("bg-accent");
+            }
+            const el = document.querySelector(`[title='${this.auTimeline.animationClip.tracks[selection[0]].id}']`);
+
+            if(el) {
+                el.parentElement.classList.add("bg-accent");
+            }
         };
         
         this.auTimeline.onStateChange = (state) => {
@@ -1536,22 +1547,33 @@ class KeyframesGui extends Gui {
             this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, indices);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, indices.length == 1 ? indices[0] : -1);
         }
-        this.bsTimeline.onDeleteKeyFrame = (trackIdx, tidx) => {
+        this.bsTimeline.onDeleteKeyFrames = (trackIdx, tidx) => {
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx]);
-            this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, indices);
-            this.editor.updateFacePropertiesPanel(this.bsTimeline, indices.length == 1 ? indices[0] : -1);
+            this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, [trackIdx]);
+            this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
         }
+        
         this.bsTimeline.onGetSelectedItem = () => { return this.editor.getSelectedActionUnit(); };
         this.bsTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.bsTimeline.currentTime );
 
-            // TO DO UPDATE BLENDSHAPES PANEL
             if ( this.bsTimeline.lastKeyFramesSelected.length < 2){   
                 this.editor.updateFacePropertiesPanel(this.bsTimeline, selection[0]);
             }
             if ( this.propagationWindow.enabler ){
                 this.bsTimeline.unSelectAllKeyFrames();
-            }       
+            }
+            
+            // Highlight panel slider
+            const elements = document.getElementsByClassName("bg-accent");
+            for(let el of elements) {
+                el.classList.remove("bg-accent");
+            }
+            const el = document.querySelector(`[title='${this.bsTimeline.animationClip.tracks[selection[0]].id}']`);
+
+            if(el) {
+                el.parentElement.classList.add("bg-accent");
+            }     
         };
         
         this.bsTimeline.onStateChange = (state) => {
@@ -1782,11 +1804,21 @@ class KeyframesGui extends Gui {
         tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.BODY)
             this.propagationWindow.setTimeline( this.skeletonTimeline );
+            this.editor.showSkeleton = this.editor.showSkeleton;
+            let skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
+            skeleton.visible = this.editor.showSkeleton;
+            this.editor.scene.getObjectByName('GizmoPoints').visible = this.editor.showSkeleton;
+            if(!this.editor.showSkeleton) 
+                this.editor.gizmo.stop();
         }}  );
         
 
         tabs.add( "Face", faceArea, { selected: false, onSelect: (e,v) => {
             this.faceTabs.select("Action Units");
+            let skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
+            skeleton.visible = false;
+            this.editor.scene.getObjectByName('GizmoPoints').visible = false;
+            this.editor.gizmo.stop();
         } });
 
         const faceTabs = this.faceTabs = faceArea.addTabs({fit: true});
@@ -2169,10 +2201,12 @@ class KeyframesGui extends Gui {
 
             panel.addNumber(name, track.values[frame], (v,e) => {    
                 const boundAnimation = this.editor.currentKeyFrameClip;
-                for(let id in track.data.tracksIds ) {
-                    const idx = track.data.tracksIds[id];
-                    boundAnimation.bsAnimation.tracks[idx][frame] = v;
-                }
+                // let frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
+                //     frame = frame == -1 ? 0 : frame;
+                // for(let id in track.data.tracksIds ) {
+                //     const idx = track.data.tracksIds[id];
+                //     boundAnimation.bsAnimation.tracks[idx][frame] = v;
+                // }
                 this.editor.updateBlendshapesProperties(name, v, (tracksIds) => {
                     this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, tracksIds);
                     this.editor.updateActionUnitsAnimation(this.auTimeline.animationClip, tracksIds);

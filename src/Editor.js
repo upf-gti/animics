@@ -2480,8 +2480,8 @@ class KeyframeEditor extends Editor {
             for( let t = 0; t < auAnimation.tracks.length; t++ ) {
                 if( auAnimation.tracks[t].data && auAnimation.tracks[t].data.blendshapes.includes(eTrack.id) ) {
                     auEditedTracksIdxs.push(t);
-                    auAnimation.tracks[t].values = eTrack.values;
-                    auAnimation.tracks[t].times = eTrack.times;
+                    auAnimation.tracks[t].values = new Float32Array(eTrack.values);
+                    auAnimation.tracks[t].times = new Float32Array(eTrack.times);
                     //LX.emit("@on_cahnge"+ auAnimation.tracks[t].id);
                     //this.gui.updateActionUnitsPanel(auAnimation, t);
                     // break; // do not break, need to check all meshes that contain this blendshape
@@ -2510,8 +2510,8 @@ class KeyframeEditor extends Editor {
                 for( let t = 0; t < bsAnimation.tracks.length; t++ ) {
                     if( bsAnimation.tracks[t].id.includes(bsNames[b]) ) {
                         mapTrackIdxs[eIdx].push(t);
-                        bsAnimation.tracks[t].values = eTrack.values;
-                        bsAnimation.tracks[t].times = eTrack.times;
+                        bsAnimation.tracks[t].values = new Float32Array(eTrack.values);
+                        bsAnimation.tracks[t].times = new Float32Array(eTrack.times);
                         bsAnimation.tracks[t].active = eTrack.active;
                         bsEditedTracksIdxs.push(t);
                         const track = bsAnimation.tracks[t];
@@ -2569,8 +2569,8 @@ class KeyframeEditor extends Editor {
 
                 const track = mixerAnimation.tracks[trackId];
                 if( eTrack.active && eTrack.times.length ) {
-                    interpolant.parameterPositions = track.times = eTrack.times;
-                    interpolant.sampleValues = track.values = eTrack.values; 
+                    interpolant.parameterPositions = track.times = new Float32Array(eTrack.times);
+                    interpolant.sampleValues = track.values = new Float32Array(eTrack.values);
                 }
                 else {
                     interpolant.parameterPositions = track.times = [0];
