@@ -1700,9 +1700,21 @@ class KeyframesGui extends Gui {
         this.sidePanel.sections = [];
 
         const [top, bottom] = this.sidePanel.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-       
+        const [animSide, tabsSide] = bottom.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
+        const panelTabs = this.panelTabs = top.addTabs({fit: true});
+        const animationArea = new LX.Area({id: 'Animation'});
+        const characterArea = new LX.Area({id: 'Character'});
+
+        panelTabs.add( "Animation", bottom, {selected: true, onSelect: (e,v) => {
+            
+        }});
+        
+        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {
+            
+        }});
+
         this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
-        top.attach(this.animationPanel);
+        animSide.attach(this.animationPanel);
         this.updateAnimationPanel( );
 
         // SIDE PANEL FOR GLOBAL TIMELINE
@@ -1824,7 +1836,7 @@ class KeyframesGui extends Gui {
                 p.merge();
 
 
-                bottom.attach(p);
+                tabsSide.attach(p);
             }
             return;
         }
@@ -1832,7 +1844,7 @@ class KeyframesGui extends Gui {
         // SIDE PANEL FOR KEYFRAME CLIP
 
         //create tabs
-        const tabs = this.bodyFaceTabs = bottom.addTabs({fit: true});
+        const tabs = this.bodyFaceTabs = tabsSide.addTabs({fit: true});
 
         const bodyArea = new LX.Area({id: 'Body'});  
         const faceArea = new LX.Area({id: 'Face'});  
@@ -1847,46 +1859,91 @@ class KeyframesGui extends Gui {
                 this.editor.gizmo.stop();
         }}  );
         
-
+        
         tabs.add( "Face", faceArea, { selected: false, onSelect: (e,v) => {
-            this.faceTabs.select("Action Units");
+            //this.faceTabs.select("Action Units");
             let skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
             skeleton.visible = false;
             this.editor.scene.getObjectByName('GizmoPoints').visible = false;
             this.editor.gizmo.stop();
+            this.imageMap.resize();
         } });
 
-        const faceTabs = this.faceTabs = faceArea.addTabs({fit: true});
-        const auArea = new LX.Area({id: 'auFace'});  
-        const bsArea = new LX.Area({id: 'bsFace'}); 
-
-        faceTabs.add("Action Units", auArea, {selected: true, onSelect: (v,e) => {
-            this.editor.setTimeline(this.editor.animationModes.FACEAU);
-            this.createActionUnitsPanel();
-            this.selectActionUnitArea(this.editor.getSelectedActionUnit());
-            
-            this.propagationWindow.setTimeline( this.auTimeline );
-            this.imageMap.resize();
-        }});
-
-        faceTabs.add("Blendshapes", bsArea, { onSelect: (v,e) => {
-            this.editor.setTimeline(this.editor.animationModes.FACEBS); 
-            
-            this.propagationWindow.setTimeline( this.bsTimeline );
-            this.imageMap.resize();
-        }});
-
+        const panel = faceArea.addPanel();
+       
+        const auArea = new LX.Area({id: 'auFace'});             
         auArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
         const [faceTop, faceBottom] = auArea.sections;
-        faceTop.root.style.minHeight = "20px";
-        faceTop.root.style.height = "50%";
-        faceBottom.root.style.minHeight = "20px";
-        faceBottom.root.style.height = "50%";
-        faceBottom.root.classList.add("overflow-y-auto");
-        this.createFacePanel( faceTop );
-        this.createActionUnitsPanel( faceBottom );
 
-        this.createBlendshapesPanel( bsArea );
+        const bsArea = new LX.Area({id: 'bsFace'}); 
+
+        panel.addTabSections("Edition Mode", [
+            {
+                name: "Action Units", icon: "ScanFace",
+                onCreate: p => {
+                    p.addTitle("Action Units", { style: { background: "none", fontSize: "15px" } });
+                    faceTop.root.style.minHeight = "20px";
+                    faceTop.root.style.height = "50%";
+                    faceBottom.root.style.minHeight = "20px";
+                    faceBottom.root.style.height = "50%";
+                    faceBottom.root.classList.add("overflow-y-auto");
+                    this.createFacePanel( faceTop );
+                    this.createActionUnitsPanel( faceBottom );
+                    p.queuedContainer.appendChild(auArea.root);
+                    if(this.imageMap) {
+                        this.imageMap.resize();
+                    }
+                },
+                onSelect: p => {
+                    this.editor.setTimeline(this.editor.animationModes.FACEAU);
+                    this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+                    
+                    this.propagationWindow.setTimeline( this.auTimeline );
+                }
+            },
+            {
+                name: "Blendshapes", icon: "SlidersHorizontal",
+                onCreate: p => {
+                    p.addTitle("Blendshapes", { style: { background: "none", fontSize: "15px" } });
+                    this.createBlendshapesPanel( bsArea );
+                    p.queuedContainer.appendChild(bsArea.root);
+                },
+                onSelect: p => {
+                    this.editor.setTimeline(this.editor.animationModes.FACEBS); 
+            
+                    this.propagationWindow.setTimeline( this.bsTimeline );
+                    this.imageMap.resize();
+                }
+            }
+        ], { vertical: true, height : "100%" });
+
+        // faceTabs.add("Action Units", auArea, {selected: true, onSelect: (v,e) => {
+        //     this.editor.setTimeline(this.editor.animationModes.FACEAU);
+        //     this.createActionUnitsPanel();
+        //     this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+            
+        //     this.propagationWindow.setTimeline( this.auTimeline );
+        //     this.imageMap.resize();
+        // }});
+
+        // faceTabs.add("Blendshapes", bsArea, { onSelect: (v,e) => {
+        //     this.editor.setTimeline(this.editor.animationModes.FACEBS); 
+            
+        //     this.propagationWindow.setTimeline( this.bsTimeline );
+        //     this.imageMap.resize();
+        // }});
+
+        // auArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
+        // const [faceTop, faceBottom] = auArea.sections;
+        // faceTop.root.style.minHeight = "20px";
+        // faceTop.root.style.height = "50%";
+        // faceBottom.root.style.minHeight = "20px";
+        // faceBottom.root.style.height = "50%";
+        // faceBottom.root.classList.add("overflow-y-auto");
+        // this.createFacePanel( faceTop );
+        //this.createActionUnitsPanel( faceBottom );
+
+        // this.createBlendshapesPanel( bsArea );
 
         bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
@@ -1948,7 +2005,8 @@ class KeyframesGui extends Gui {
                     this.setKeyframeClip(null);
                 }, { buttonClass: "error" });
 
-            }else{
+            }
+            else{
                 panel.addTitle( "Animation" );
                 const anim = this.globalTimeline.animationClip;
                 panel.addText("Name", anim.id || "", (v) =>{ 
@@ -2134,33 +2192,14 @@ class KeyframesGui extends Gui {
         baseArea.sections=[];
 
         // now start building the content
+        
         const tabs = baseArea.addTabs({fit:true});
         const animation = this.auTimeline.animationClip;
         if ( !animation ){
             return;
         }
-
-        let areas = this.editor.mapNames.parts;
         
-        // for(let i in this.editor.mapNames.mediapipeMap) {
-        //     for(let item in this.faceAreas) {
-        //         let toCompare = this.faceAreas[item].toLowerCase().split(" ");
-        //         let found = true;
-        //         for(let j = 0; j < toCompare.length; j++) {
-    
-        //             if(!i.toLowerCase().includes(toCompare[j])) {
-        //                 found = false;
-        //                 break;
-        //             }
-        //         }
-        //         if(found)
-        //         {
-        //             if(!areas[this.faceAreas[item]])
-        //                 areas[this.faceAreas[item]] = {};
-        //             areas[this.faceAreas[item]][i] =  this.editor.mapNames.mediapipeMap[i];
-        //         }
-        //     }
-        // }
+        const areas = this.editor.mapNames.parts;
 
         for(let area in areas) {
 

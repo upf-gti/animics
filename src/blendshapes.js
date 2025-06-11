@@ -340,74 +340,74 @@ class BlendshapesManager {
     }
 
     // Convert THREEJS morph target animation into Mediapipe names format
-    createMediapipeAnimation(animation) {
-        const auTracks = [];
-        const trackNames = [];
+    // createMediapipeAnimation(animation) {
+    //     const auTracks = [];
+    //     const trackNames = [];
 
-        // Extract time and values of each track
-        for (let i = 0; i < animation.tracks.length; i++) {
-            const track = animation.tracks[i];
-            const {propertyIndex, propertyName, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
-            // Check that it's a morph target
-            if (propertyName =='morphTargetInfluences') {
-                if( nodeName.includes( "Body" )) {
-                    animation.tracks[i].name = animation.tracks[i].name.replace("Body.", "BodyMesh.");
-                }
-                else {
-                    continue;
-                }
+    //     // Extract time and values of each track
+    //     for (let i = 0; i < animation.tracks.length; i++) {
+    //         const track = animation.tracks[i];
+    //         const {propertyIndex, propertyName, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
+    //         // Check that it's a morph target
+    //         if (propertyName =='morphTargetInfluences') {
+    //             if( nodeName.includes( "Body" )) {
+    //                 animation.tracks[i].name = animation.tracks[i].name.replace("Body.", "BodyMesh.");
+    //             }
+    //             else {
+    //                 continue;
+    //             }
 
-                const times = track.times;
-                const values = track.values;
+    //             const times = track.times;
+    //             const values = track.values;
 
-                // Search the AU mapped to this morph target
-                for ( let actionUnit in this.mapNames ) {
-                    const mappedMorphs = this.mapNames[actionUnit];
+    //             // Search the AU mapped to this morph target
+    //             for ( let actionUnit in this.mapNames ) {
+    //                 const mappedMorphs = this.mapNames[actionUnit];
                     
-                    // If the morph target is mapped to the AU, assign the weight
-                    if ( Array.isArray(mappedMorphs) ) {
-                        if ( mappedMorphs.includes(propertyIndex) ) {
+    //                 // If the morph target is mapped to the AU, assign the weight
+    //                 if ( Array.isArray(mappedMorphs) ) {
+    //                     if ( mappedMorphs.includes(propertyIndex) ) {
                             
-                            const newName = this.getFormattedTrackName(actionUnit);
-                            if(!newName) {
-                                continue;
-                            }
-                            const id = trackNames.indexOf( newName ) ;
-                            if(id > -1) {
-                                auTracks[id].data.blendshapes.push(propertyIndex);
-                                continue;
-                            }
-                            trackNames.push(newName);
-                            const newTrack = new THREE.NumberKeyframeTrack( newName, times, values );
-                            newTrack.data = { blendshapes: [propertyIndex] };
-                            auTracks.push( newTrack );
-                            break;
-                        }
-                    } else if (mappedMorphs === propertyIndex) {
+    //                         const newName = this.getFormattedTrackName(actionUnit);
+    //                         if(!newName) {
+    //                             continue;
+    //                         }
+    //                         const id = trackNames.indexOf( newName ) ;
+    //                         if(id > -1) {
+    //                             auTracks[id].data.blendshapes.push(propertyIndex);
+    //                             continue;
+    //                         }
+    //                         trackNames.push(newName);
+    //                         const newTrack = new THREE.NumberKeyframeTrack( newName, times, values );
+    //                         newTrack.data = { blendshapes: [propertyIndex] };
+    //                         auTracks.push( newTrack );
+    //                         break;
+    //                     }
+    //                 } else if (mappedMorphs === propertyIndex) {
 
-                        const newName = this.getFormattedTrackName(actionUnit);
-                        if(!newName) {
-                            continue;
-                        }
-                        const id = trackNames.indexOf( newName ) ;
-                        if(id > -1) {
-                            auTracks[id].data.blendshapes.push(propertyIndex);
-                            continue;
-                        }
-                        trackNames.push(newName);
-                        const newTrack = new THREE.NumberKeyframeTrack( newName, times, values );
-                        newTrack.data = { blendshapes: [propertyIndex] };
-                        auTracks.push( newTrack );
-                        break;
-                    }
-                }
-            }
-        }
+    //                     const newName = this.getFormattedTrackName(actionUnit);
+    //                     if(!newName) {
+    //                         continue;
+    //                     }
+    //                     const id = trackNames.indexOf( newName ) ;
+    //                     if(id > -1) {
+    //                         auTracks[id].data.blendshapes.push(propertyIndex);
+    //                         continue;
+    //                     }
+    //                     trackNames.push(newName);
+    //                     const newTrack = new THREE.NumberKeyframeTrack( newName, times, values );
+    //                     newTrack.data = { blendshapes: [propertyIndex] };
+    //                     auTracks.push( newTrack );
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        const length = -1;
+    //     const length = -1;
 
-        return new THREE.AnimationClip( animation.name ?? "auAnimation", length, auTracks);
-    }
+    //     return new THREE.AnimationClip( animation.name ?? "auAnimation", length, auTracks);
+    // }
 
      // Convert THREEJS morph target animation into AU names format
     createAUAnimation(animation) {
@@ -420,8 +420,11 @@ class BlendshapesManager {
             const {propertyIndex, propertyName, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
             // Check that it's a morph target
             if (propertyName =='morphTargetInfluences') {
-                if( nodeName.includes( "Body" )) {
+                if( nodeName.includes( "Body" ) ) {
                     animation.tracks[i].name = animation.tracks[i].name.replace("Body.", "BodyMesh.");
+                }
+                else if( nodeName.includes( "Head" ) ) {
+
                 }
                 else {
                     continue;
@@ -529,8 +532,9 @@ class BlendshapesManager {
 
     createEmptyAUAnimation(name) {
         let names = {}
-        for(let name in this.mapNames) {
-            names[name] = 0;
+        for(let area in this.mapNames.parts) {
+            this.mapNames.parts[area].map(x => names[x] = 0);
+            //names[name] = 0;
         }
         names.dt = 0;
         let data = [names];
