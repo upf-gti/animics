@@ -1041,6 +1041,11 @@ class Editor {
     processPendingResources(resources) {} // Abstract
 }
 
+
+/**
+ * This editor uses loadedAnimations to store loaded files and video-animations. 
+ * The global animations are stored in boundAnimations, each avatar having its own animationClip as keyframes are meaningful only to a single avatar
+ */
 class KeyframeEditor extends Editor { 
     
     constructor( animics ) {
@@ -2094,6 +2099,7 @@ class KeyframeEditor extends Editor {
             duration: skeletonAnimation.duration,
             fadeinType: KeyframeEditor.FADETYPE_NONE,
             fadeoutType: KeyframeEditor.FADETYPE_NONE,
+            weight: 1, // not the current weight, but the overall weight the clip should have when playing
 
             id: animationName,
             clipColor: LX.getThemeColor("global-color-accent"),
@@ -2467,8 +2473,8 @@ class KeyframeEditor extends Editor {
             }
             weight = 1-weight;
         }
-        this.currentCharacter.mixer.clipAction( clip.mixerBodyAnimation ).setEffectiveWeight( weight );
-        this.currentCharacter.mixer.clipAction( clip.mixerFaceAnimation ).setEffectiveWeight( weight );
+        this.currentCharacter.mixer.clipAction( clip.mixerBodyAnimation ).setEffectiveWeight( weight * clip.weight );
+        this.currentCharacter.mixer.clipAction( clip.mixerFaceAnimation ).setEffectiveWeight( weight * clip.weight );
     }
 
     setKeyframeClipBlendMode(clip, threejsBlendMode, updateMixer = true){
@@ -3017,6 +3023,10 @@ class KeyframeEditor extends Editor {
     }
 }
 
+/**
+ * This editor uses loadedAnimations to store global animations  
+ * The boundAnimations variable stores only the mixer clips for each avatar. As BML is universal, there is no need for each avatar to hold its own bml animation
+ */
 class ScriptEditor extends Editor { 
     constructor( animics ) {
         super(animics);

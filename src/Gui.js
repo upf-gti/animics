@@ -1729,6 +1729,12 @@ class KeyframesGui extends Gui {
 
                 p.branch("Clip Blending");
 
+                p.addNumber( "Weight", clip.weight, (v,e) => { 
+                    clip.weight = v; 
+                    this.editor.computeKeyframeClipWeight(clip);
+                    this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
+                }, {min: 0, max: 1, step: 0.001 });
+
                 const fadetable = ["None","Linear","Quadratic","Sinusoid"]; 
                 p.addSelect("Fade In Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeinType], (v,e) =>{
                     if ( clip.fadeinType == KeyframeEditor.FADETYPE_NONE ){
@@ -1739,7 +1745,9 @@ class KeyframesGui extends Gui {
                     if ( clip.fadeinType == KeyframeEditor.FADETYPE_NONE ){
                         delete clip.fadein;
                     }
+                    this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
                 } );
+
                 p.addSelect("Fade Out Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeoutType], (v,e) =>{
                     if ( clip.fadeoutType == KeyframeEditor.FADETYPE_NONE ){
                         clip.fadeout = clip.start + 0.75 * clip.duration;
@@ -1749,8 +1757,9 @@ class KeyframesGui extends Gui {
                     if ( clip.fadeoutType == KeyframeEditor.FADETYPE_NONE ){
                         delete clip.fadeout;
                     }
+                    this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
                 } );
-                
+
 
                 p.addSelect("Blend Mode", ["Normal", "Additive" ], clip.blendMode == THREE.NormalAnimationBlendMode ? "Normal" : "Additive", (value, event) => {
                     let blendMode = value == "Normal" ? THREE.NormalAnimationBlendMode : THREE.AdditiveAnimationBlendMode;
