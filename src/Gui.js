@@ -86,24 +86,7 @@ class Gui {
         const menuEntries = [
             {
                 name: "Project",
-                submenu: [
-                    {
-                        name: "New Animation",
-                        icon: "Plus",
-                        callback: () => {
-                            this.editor.loadAnimation("animation" + Math.floor( performance.now()*1000 ).toString(), {});
-                            this.updateAnimationPanel();
-                        }
-                    },
-                    {
-                        name: "Import Animations",
-                        icon: "FileInput",
-                        submenu: [
-                            { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
-                            { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
-                        ]
-                    }
-                ]
+                submenu: [ ]
             },
             {
                 name: "Timeline",
@@ -735,16 +718,44 @@ class KeyframesGui extends Gui {
         const projectMenu = entries.find( e => e.name == "Project" )?.submenu;
         console.assert(projectMenu, "Project menu not found" );
 
-        projectMenu.push(
+        projectMenu.push( 
+            {
+                name: "New Global Animation",
+                icon: "Plus",
+                callback: () => {
+                    const animClip = this.editor.createGlobalAnimation("new animation", 1);
+                    this.editor.setGlobalAnimation( animClip.id );
+                }
+            },
             null,
+            "Clips",
+            {
+                name: "Empty clip",
+                icon: "PenTool",
+                callback: () =>{
+                    // TODO empty clip probably does not need to have an entry in loadedAnimations
+                    // however, not adding it might generate bugs. Some elements expect a clip to have a source
+                    this.editor.loadAnimation("empty clip", {} ); 
+                }
+            },
+            {
+                name: "Import Animations",
+                icon: "FileInput",
+                submenu: [
+                    { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
+                    { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
+                ]
+            },
             {
                 name: "Generate Animations", icon: "HandsAslInterpreting", submenu: [
                     { name: "From Webcam", icon: "Webcam", callback: () => this.editor.captureVideo() },
                     { name: "From Videos", icon: "Film", callback: () => this.importFiles(), short: "CTRL+O" }
                 ]
             },
+            null,
+
             // Export (download) animation
-            { name: "Export Animations", icon: "Download", kbd: "CTRL+E", callback: () => {
+            { name: "Export Global Animations", icon: "Download", kbd: "CTRL+E", callback: () => {
                 this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
             } },
             { name: "Export Videos and Landmarks", icon: "FileVideo", callback: () => this.showExportVideosDialog() },
@@ -2926,6 +2937,28 @@ class ScriptGui extends Gui {
         console.assert(projectMenu, "Project menu not found" );
 
         projectMenu.push(
+            {
+                name: "New Animation",
+                icon: "Plus",
+                callback: () => {
+                    let count = 1;
+                    let countName = "new animation";
+                    while( this.editor.loadedAnimations[countName] ){
+                        countName = `new animation (${count++})`; 
+                    }
+                    this.editor.loadAnimation(countName, {});
+                    this.updateAnimationPanel();
+                }
+            },
+            null,
+            {
+                name: "Import Animations",
+                icon: "FileInput",
+                submenu: [
+                    { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
+                    { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
+                ]
+            },
             null,
             // Export (download) animation
             {

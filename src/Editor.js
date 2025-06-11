@@ -3141,7 +3141,7 @@ class ScriptEditor extends Editor {
 
     async processPendingResources( resources ) {
         if( !resources ) {
-            this.loadAnimation("New animation", {});
+            this.loadAnimation("new animation", {});
             return true;
         }
         
