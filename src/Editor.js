@@ -2411,7 +2411,7 @@ class KeyframeEditor extends Editor {
         }
 
 
-        
+        this.activeTimeline.setState(this.state, true); // skipcallback
         this.activeTimeline.setTime(this.currentTime - this.startTimeOffset, true);
         this.activeTimeline.show();
     }
