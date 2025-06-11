@@ -913,55 +913,58 @@ class KeyframesGui extends Gui {
     showExportVideosDialog() {
 
         let animations = this.editor.loadedAnimations;
-        let toExport = {}; // need to sepparate bvh anims from video anims (just in case)
+        let availableAnimations = []; // need to sepparate bvh anims from video anims (just in case)
+        let availableVideoTypes = [];
         for ( let aName in animations ){
             if ( animations[aName].type == "video" ){
-                toExport[ aName ] = animations[aName];
+                availableAnimations.push([ aName,  animations[aName].videoExtension, (animations[aName].endTime - animations[aName].startTime).toFixed(3) ]);
+                if ( availableVideoTypes.indexOf(animations[aName].videoExtension) == -1 ){
+                    availableVideoTypes.push(animations[aName].videoExtension);
+                }
             }
         }
-
-        if( !Object.keys(toExport).length ) {
+        if( !availableAnimations.length ) {
             LX.popup("There aren't videos or landmarks to export!", "", {position: [ "10px", "50px"], timeout: 5000})
             return;
         }
 
         const zip = new JSZip();
 
-        const options = { modal : true };
+        const options = { modal : true, width: "auto" };
         const dialog = this.prompt = new LX.Dialog("Export videos and Mediapipe data", p => {
-            
-            // animation elements
-            for( let aName in toExport ) {
-                const anim = toExport[aName];
-                p.sameLine();
-                p.addCheckbox(" ", anim.export, (v) => anim.export = v);//, {minWidth:"100px"});
-                p.addText(aName, anim.name, (v) => {
-                    toExport[aName].name = v;
-                }, {placeholder: "...", minWidth:"200px"} );
-                p.endLine();
-            }
+
+            let table = p.addTable(null, {
+                    head: ["Name",  "Video Format", "Duration (s)"],
+                    body: availableAnimations
+                },
+                {
+                    selectable: true,
+                    sortable: true,
+                    toggleColumns: true,
+                    filter: "Name",
+                    customFilters: [ {name: "Video Formats", options: availableVideoTypes } ]
+                }
+            );
 
             // accept / cancel
             p.sameLine(2);
-            p.addButton("", options.accept || "Download", async (v, e) => { 
+            p.addButton(null, "Download", async (v, e) => { 
                 e.stopPropagation();
                 
                 UTILS.makeLoading( "Preparing files...", 0.5 );
                 const promises = [];
 
-                for( let aName in toExport ) {
-                    const animation = toExport[aName];
-                    if ( !animation.export ) {
-                        continue;
-                    }
+                let toExport = table.getSelectedRows();
+                for( let i = 0; i < toExport.length; ++i ){
+                    const animation = this.editor.loadedAnimations[toExport[i][0]];
                     const saveName = animation.name + animation.videoExtension;
 
                     // prepare videos so they can be downloaded
                     const promise = fetch( animation.videoURL )
-                        .then( r => r.blob() )
-                        .then( blob => UTILS.blobToBase64(blob) )
-                        .then( binaryData => zip.file(saveName, binaryData, {base64:true} ) );
-                    
+                    .then( r => r.blob() )
+                    .then( blob => UTILS.blobToBase64(blob) )
+                    .then( binaryData => zip.file(saveName, binaryData, {base64:true} ) );
+
                     promises.push( promise );
 
                     // include landmarks in zip
@@ -994,14 +997,10 @@ class KeyframesGui extends Gui {
                 el.click();
                 UTILS.hideLoading();
 
-            }, { buttonClass: "accent" });
-            
-            p.addButton("", "Cancel", () => {
-                if(options.on_cancel) {
-                    options.on_cancel();
-                }
+            }, { buttonClass: "accent", width: "50%" });
+            p.addButton(null, "Cancel", () => {
                 dialog.close();
-            });
+            }, { width: "50%" });
 
         }, options);
 
