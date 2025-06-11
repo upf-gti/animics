@@ -41,8 +41,7 @@ class Editor {
         this.startTimeOffset = 0; // global start time of sub animations, useful for keyframe mode. Script ignores it
 
         this.loadedAnimations = {}; // loaded animations from mediapipe&NN or BVH
-        this.bindedAnimations = {}; // loaded retargeted animations binded to characters
-        this.boundAnimations = {};
+        this.boundAnimations = {}; // global animations for each character, containing its mixer animations
         this.currentAnimation = ""; // current bound animation
         this.animationFrameRate = 30;
 
@@ -802,6 +801,7 @@ class Editor {
         this.gui.resize(width, height);
     }
     
+    // TODO FIX WITH NEW SYSTEM OF MULTICLIP
     export(animsToExport = null, type = null, download = true, name = null) {
         let files = [];
         if(!animsToExport) {
@@ -817,18 +817,18 @@ class Editor {
 
                 for(let a in animsToExport) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
                     const animation = animsToExport[a];
-                    const bindedAnim = this.bindedAnimations[animation.name][this.currentCharacter.name];
+                    const boundAnim = this.boundAnimations[animation.name][this.currentCharacter.name];
                     let animSaveName = animation.saveName;
                     
                     let tracks = []; 
-                    if(bindedAnim.mixerBodyAnimation) {
-                        tracks = tracks.concat( bindedAnim.mixerBodyAnimation.tracks );
+                    if(boundAnim.mixerBodyAnimation) {
+                        tracks = tracks.concat( boundAnim.mixerBodyAnimation.tracks );
                     }
-                    if(bindedAnim.mixerFaceAnimation) {
-                        tracks = tracks.concat( bindedAnim.mixerFaceAnimation.tracks );
+                    if(boundAnim.mixerFaceAnimation) {
+                        tracks = tracks.concat( boundAnim.mixerFaceAnimation.tracks );
                     }
-                    if(bindedAnim.mixerAnimation) {
-                        tracks = tracks.concat( bindedAnim.mixerAnimation.tracks );
+                    if(boundAnim.mixerAnimation) {
+                        tracks = tracks.concat( boundAnim.mixerAnimation.tracks );
                     }
 
                     options.animations.push( new THREE.AnimationClip( animSaveName, -1, tracks ) );
@@ -849,7 +849,7 @@ class Editor {
 
                 for( let a in animsToExport ) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
                     const animation = animsToExport[a];
-                    const bindedAnim = this.bindedAnimations[animation.name][this.currentCharacter.name];
+                    const boundAnim = this.boundAnimations[animation.name][this.currentCharacter.name];
                                         
                     // Check if it already has extension
                     let clipName = name || animation.saveName;
@@ -857,11 +857,11 @@ class Editor {
                     let bvh = "";
                     // Add the extension
                     if(type == 'BVH') {
-                        bvh = this.generateBVH( bindedAnim, skeleton );
+                        bvh = this.generateBVH( boundAnim, skeleton );
                         clipName += '.bvh';
                     }
                     else if(type == 'BVH extended') {
-                        bvh = this.generateBVHE( bindedAnim, skeleton );
+                        bvh = this.generateBVHE( boundAnim, skeleton );
                         clipName += '.bvhe';
                     }
 
@@ -2998,12 +2998,12 @@ class KeyframeEditor extends Editor {
 
     /** ------------------------ Generate formatted data --------------------------*/
 
-    generateBVH( bindedAnim, skeleton ) {
+    generateBVH( boundAnim, skeleton ) {
         let bvhPose = "";
-        let bodyAction = this.currentCharacter.mixer.existingAction(bindedAnim.mixerBodyAnimation);
+        let bodyAction = this.currentCharacter.mixer.existingAction(boundAnim.mixerBodyAnimation);
         
-        if( !bodyAction && bindedAnim.mixerBodyAnimation ) {
-            bodyAction = this.currentCharacter.mixer.clipAction(bindedAnim.mixerBodyAnimation);     
+        if( !bodyAction && boundAnim.mixerBodyAnimation ) {
+            bodyAction = this.currentCharacter.mixer.clipAction(boundAnim.mixerBodyAnimation);     
         }
         
         bvhPose = BVHExporter.export(bodyAction, skeleton, this.animationFrameRate);
@@ -3011,10 +3011,10 @@ class KeyframeEditor extends Editor {
         return bvhPose;
     }
 
-    generateBVHE( bindedAnim, skeleton ) {
-        const bvhPose = this.generateBVH( bindedAnim, skeleton );
+    generateBVHE( boundAnim, skeleton ) {
+        const bvhPose = this.generateBVH( boundAnim, skeleton );
         let bvhFace = "";
-        let faceAction = this.currentCharacter.mixer.existingAction(bindedAnim.mixerFaceAnimation);
+        let faceAction = this.currentCharacter.mixer.existingAction(boundAnim.mixerFaceAnimation);
 
         if( faceAction ) {
             bvhFace += BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets, this.animationFrameRate);            
@@ -3214,7 +3214,7 @@ class ScriptEditor extends Editor {
     }
 
     /**
-     * ScriptEditor: fetches a loaded animation and applies it to the character. The first time an animation is binded, it is processed and saved. Afterwards, this functino just changes between existing animations 
+     * ScriptEditor: fetches a loaded animation and applies it to the character. The first time an animation is bound, it is processed and saved. Afterwards, this functino just changes between existing animations 
      * @param {String} animationName 
     */    
     bindAnimationToCharacter( animationName ) {
@@ -3243,10 +3243,10 @@ class ScriptEditor extends Editor {
         
         animation.scriptAnimation.name = animationName;
         
-        if( !this.bindedAnimations[animationName] ) {
-            this.bindedAnimations[animationName] = {};
+        if( !this.boundAnimations[animationName] ) {
+            this.boundAnimations[animationName] = {};
         }
-        this.bindedAnimations[animationName][this.currentCharacter.name] = { 
+        this.boundAnimations[animationName][this.currentCharacter.name] = { 
             mixerAnimation: null,
 
             source: animation,
@@ -3276,7 +3276,7 @@ class ScriptEditor extends Editor {
         mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();
         mixer.setTime(this.currentTime / mixer.timeScale);
         
-        this.bindedAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation = mixerAnimation;    
+        this.boundAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation = mixerAnimation;    
     }
     
     updateTracks() {
@@ -3361,17 +3361,17 @@ class ScriptEditor extends Editor {
         return json;
     }
     
-    generateBVH( bindedAnim, skeleton ) {
-        const action = this.currentCharacter.mixer.clipAction(bindedAnim.mixerAnimation);
+    generateBVH( boundAnim, skeleton ) {
+        const action = this.currentCharacter.mixer.clipAction(boundAnim.mixerAnimation);
         if(!action) {
             return "";
         }
         return BVHExporter.export(action, skeleton, this.animationFrameRate); 
     }
 
-    generateBVHE( bindedAnim, skeleton) {
-        const bvhPose = this.generateBVH( bindedAnim, skeleton );
-        const action = this.currentCharacter.mixer.clipAction(bindedAnim.mixerAnimation);
+    generateBVHE( boundAnim, skeleton) {
+        const bvhPose = this.generateBVH( boundAnim, skeleton );
+        const action = this.currentCharacter.mixer.clipAction(boundAnim.mixerAnimation);
         
         let bvhFace = "";
         if( action ) {

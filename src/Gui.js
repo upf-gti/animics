@@ -763,7 +763,7 @@ class KeyframesGui extends Gui {
         timelineMenu.push( 
             null, 
             { name: "Optimize Tracks", icon: "Filter", callback: () => {
-                // optimize all tracks of current binded animation (if any)
+                // optimize all tracks of current bound animation (if any)
                 this.auTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
                 this.skeletonTimeline.optimizeTracks();
             }},
@@ -1211,10 +1211,10 @@ class KeyframesGui extends Gui {
             this.propagationWindow.setTime(t);
         }
         this.skeletonTimeline.onSetDuration = (t) => { 
-            const currentBinded = this.editor.currentKeyFrameClip;
-            if (!currentBinded){ return; }
-            currentBinded.mixerBodyAnimation.duration = t;
-            currentBinded.mixerFaceAnimation.duration = t;
+            const currentClip = this.editor.currentKeyFrameClip;
+            if (!currentClip){ return; }
+            currentClip.mixerBodyAnimation.duration = t;
+            currentClip.mixerFaceAnimation.duration = t;
 
             if( this.auTimeline.duration != t ){
 	            this.auTimeline.setDuration(t, true, true);
@@ -1223,9 +1223,9 @@ class KeyframesGui extends Gui {
 	            this.bsTimeline.setDuration(t, true, true);
 			}
 
-            currentBinded.duration = t;
-            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
-                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            currentClip.duration = t;
+            if ( currentClip.start + currentClip.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentClip.start + currentClip.duration, true, true );
             }
         };
 
@@ -1406,10 +1406,10 @@ class KeyframesGui extends Gui {
             }
         };
         this.auTimeline.onSetDuration = (t) => { 
-            let currentBinded = this.editor.currentKeyFrameClip;
-            if (!currentBinded){ return; }
-            currentBinded.mixerBodyAnimation.duration = t;
-            currentBinded.mixerFaceAnimation.duration = t;
+            let currentClip = this.editor.currentKeyFrameClip;
+            if (!currentClip){ return; }
+            currentClip.mixerBodyAnimation.duration = t;
+            currentClip.mixerFaceAnimation.duration = t;
 
             if( this.skeletonTimeline.duration != t ){
 	            this.skeletonTimeline.setDuration(t, true, true);			
@@ -1418,9 +1418,9 @@ class KeyframesGui extends Gui {
 	            this.bsTimeline.setDuration(t, true, true);
 			}
 
-            currentBinded.duration = t;
-            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
-                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            currentClip.duration = t;
+            if ( currentClip.start + currentClip.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentClip.start + currentClip.duration, true, true );
             }
         };
 
@@ -1520,10 +1520,10 @@ class KeyframesGui extends Gui {
             }
         }
         this.bsTimeline.onSetDuration = (t) => { 
-            let currentBinded = this.editor.currentKeyFrameClip;
-            if (!currentBinded){ return; }
-            currentBinded.mixerBodyAnimation.duration = t;
-            currentBinded.mixerFaceAnimation.duration = t;
+            let currentClip = this.editor.currentKeyFrameClip;
+            if (!currentClip){ return; }
+            currentClip.mixerBodyAnimation.duration = t;
+            currentClip.mixerFaceAnimation.duration = t;
 
             if( this.skeletonTimeline.duration != t ){
 	            this.skeletonTimeline.setDuration(t, true, true);			
@@ -1532,9 +1532,9 @@ class KeyframesGui extends Gui {
 	            this.auTimeline.setDuration(t, true, true);
 			}
 
-            currentBinded.duration = t;
-            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
-                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            currentClip.duration = t;
+            if ( currentClip.start + currentClip.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentClip.start + currentClip.duration, true, true );
             }
         };
 
