@@ -20,6 +20,18 @@ import { LX } from "lexgui"
 
 // const MapNames = await import('../data/mapnames.json', {assert: { type: 'json' }});
 const MapNames = await (await fetch('./data/mapnames.json')).json();
+let json = null
+try {
+    const response = await fetch('https://resources.gti.upf.edu/3Dcharacters/ReadyVictor/ReadyVictor.json');
+    if (!response.ok) {
+      throw new Error(`Response status: ${response.status}`);
+    }
+
+    json = await response.json();
+    console.log(json);
+  } catch (error) {
+    console.error(error.message);
+  }
 // Correct negative blenshapes shader of ThreeJS
 // THREE.ShaderChunk[ 'morphnormal_vertex' ] = "#ifdef USE_MORPHNORMALS\n	objectNormal *= morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		for ( int i = 0; i < MORPHTARGETS_COUNT; i ++ ) {\n	    objectNormal += getMorph( gl_VertexID, i, 1, 2 ) * morphTargetInfluences[ i ];\n		}\n	#else\n		objectNormal += morphNormal0 * morphTargetInfluences[ 0 ];\n		objectNormal += morphNormal1 * morphTargetInfluences[ 1 ];\n		objectNormal += morphNormal2 * morphTargetInfluences[ 2 ];\n		objectNormal += morphNormal3 * morphTargetInfluences[ 3 ];\n	#endif\n#endif";
 // THREE.ShaderChunk[ 'morphtarget_pars_vertex' ] = "#ifdef USE_MORPHTARGETS\n	uniform float morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		uniform float morphTargetInfluences[ MORPHTARGETS_COUNT ];\n		uniform sampler2DArray morphTargetsTexture;\n		uniform vec2 morphTargetsTextureSize;\n		vec3 getMorph( const in int vertexIndex, const in int morphTargetIndex, const in int offset, const in int stride ) {\n			float texelIndex = float( vertexIndex * stride + offset );\n			float y = floor( texelIndex / morphTargetsTextureSize.x );\n			float x = texelIndex - y * morphTargetsTextureSize.x;\n			vec3 morphUV = vec3( ( x + 0.5 ) / morphTargetsTextureSize.x, y / morphTargetsTextureSize.y, morphTargetIndex );\n			return texture( morphTargetsTexture, morphUV ).xyz;\n		}\n	#else\n		#ifndef USE_MORPHNORMALS\n			uniform float morphTargetInfluences[ 8 ];\n		#else\n			uniform float morphTargetInfluences[ 4 ];\n		#endif\n	#endif\n#endif";
@@ -32,7 +44,7 @@ class Editor {
     
     constructor( animics ) {
         
-        this.character = "Eva";
+        this.character = "ReadyVictor";
 
         this.currentCharacter = null;
         this.loadedCharacters = {};
@@ -1066,7 +1078,7 @@ class KeyframeEditor extends Editor {
 
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
-        this.selectedBone = "mixamorig_Hips";
+        this.selectedBone = null;
         
         if ( this.inferenceMode == this.animationInferenceModes.NN ){
             this.nn = new NN("data/ML/model.json");
@@ -1075,7 +1087,7 @@ class KeyframeEditor extends Editor {
 
         this.retargeting = null;
         
-        this.mapNames = MapNames.map_llnames[this.character];
+        this.mapNames = {characterMap: json.faceController.blendshapeMap, mediapipeMap: MapNames.mediapipe, parts:  MapNames.parts};
 
         // Create GUI
         this.gui = new KeyframesGui(this);
@@ -1145,7 +1157,7 @@ class KeyframeEditor extends Editor {
         while(!this.loadedCharacters[this.character] || ( !this.nnSkeleton && this.inferenceMode == this.animationInferenceModes.NN ) ) {
             await new Promise(r => setTimeout(r, 1000));            
         }        
-
+        this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
         this.setBoneSize(0.12);
     }
     
@@ -1452,7 +1464,7 @@ class KeyframeEditor extends Editor {
             animationData.blendshapesAnim.name = "faceAnimation";       
             faceAnimation = animationData.blendshapesAnim.clip;
             // // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
-            // faceAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
+            // faceAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
         }
         else { // Otherwise, create empty face animation
             // faceAnimation = THREE.AnimationClip.CreateFromMorphTargetSequence('BodyMesh', this.currentCharacter.model.getObjectByName("BodyMesh").geometry.morphAttributes.position, 24, false);
@@ -2065,12 +2077,13 @@ class KeyframeEditor extends Editor {
         if(faceAnimation) {
                             
             if(animation.type == "video") {
-                auAnimation = faceAnimation;
-                faceAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes);
+                const parsedAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes);
+                faceAnimation = parsedAnimation.bsAnimation;
+                auAnimation = parsedAnimation.auAnimation || faceAnimation;
             }
             else {
                 // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
-                auAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
+                auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
             }
             // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
             for( let i = 0; i < auAnimation.tracks.length; ++i ){
@@ -2564,25 +2577,25 @@ class KeyframeEditor extends Editor {
             const eTrack = editedAnimation.tracks[eIdx];
             mapTrackIdxs[eIdx] = [];
 
-            let bsNames = this.currentCharacter.blendshapesManager.mapNames[eTrack.id];
+            let bsNames = this.currentCharacter.blendshapesManager.mapNames.characterMap[eTrack.id];
             if ( !bsNames ){ 
                 continue; 
             }
             if(typeof(bsNames) == 'string') {
-                bsNames = [bsNames];
+                bsNames = [[bsNames, 1.0]];
             }
 
             for( let b = 0; b < bsNames.length; b++ ) {
                 for( let t = 0; t < bsAnimation.tracks.length; t++ ) {
-                    if( bsAnimation.tracks[t].id.includes(bsNames[b]) ) {
+                    if( bsNames[b].includes(bsAnimation.tracks[t].id) ) {
                         mapTrackIdxs[eIdx].push(t);
-                        bsAnimation.tracks[t].values = new Float32Array(eTrack.values);
+                        bsAnimation.tracks[t].values = new Float32Array(eTrack.values.map(v => v * bsNames[b][1]));
                         bsAnimation.tracks[t].times = new Float32Array(eTrack.times);
                         bsAnimation.tracks[t].active = eTrack.active;
                         bsEditedTracksIdxs.push(t);
                         const track = bsAnimation.tracks[t];
                         const frame = this.activeTimeline.getNearestKeyFrame(track, this.activeTimeline.currentTime);
-                        LX.emit("@on_change_"+ track.id, track.values[frame]);
+                        LX.emit("@on_change_"+ track.id, track.values[frame]* bsNames[b][1]);
                         // break; // do not break, need to check all meshes that contain this blendshape
                     }
                 }

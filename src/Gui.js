@@ -2140,27 +2140,27 @@ class KeyframesGui extends Gui {
             return;
         }
 
-        let areas = {};
+        let areas = this.editor.mapNames.parts;
         
-        for(let i in this.editor.mapNames) {
-            for(let item in this.faceAreas) {
-                let toCompare = this.faceAreas[item].toLowerCase().split(" ");
-                let found = true;
-                for(let j = 0; j < toCompare.length; j++) {
+        // for(let i in this.editor.mapNames.mediapipeMap) {
+        //     for(let item in this.faceAreas) {
+        //         let toCompare = this.faceAreas[item].toLowerCase().split(" ");
+        //         let found = true;
+        //         for(let j = 0; j < toCompare.length; j++) {
     
-                    if(!i.toLowerCase().includes(toCompare[j])) {
-                        found = false;
-                        break;
-                    }
-                }
-                if(found)
-                {
-                    if(!areas[this.faceAreas[item]])
-                        areas[this.faceAreas[item]] = {};
-                    areas[this.faceAreas[item]][i] =  this.editor.mapNames[i];
-                }
-            }
-        }
+        //             if(!i.toLowerCase().includes(toCompare[j])) {
+        //                 found = false;
+        //                 break;
+        //             }
+        //         }
+        //         if(found)
+        //         {
+        //             if(!areas[this.faceAreas[item]])
+        //                 areas[this.faceAreas[item]] = {};
+        //             areas[this.faceAreas[item]][i] =  this.editor.mapNames.mediapipeMap[i];
+        //         }
+        //     }
+        // }
 
         for(let area in areas) {
 
@@ -2174,7 +2174,8 @@ class KeyframesGui extends Gui {
             let panel = new LX.Panel({id: "au-"+ area});
             tabContainer.appendChild(panel.root);
 
-            for(let name in areas[area]) {
+            for(let id in areas[area]) {
+                const name = areas[area][id];
                 for(let i = 0; i < animation.tracks.length; i++) {
                     const track = animation.tracks[i];
                     if(track.groupId == area && track.id == name) {
