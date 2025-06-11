@@ -3303,10 +3303,10 @@ class ClipsTimeline extends Timeline {
                 const track = this.animationClip.tracks[this.lastClipsSelected[0][0]]; 
                 let clip = track.clips[this.lastClipsSelected[0][1]];
                 if( this.dragClipMode == "fadein" ) {
-                    clip.fadein = Math.min(Math.max(clip.fadein + delta, clip.start), clip.fadeout);
+                    clip.fadein = Math.min(Math.max(clip.fadein + delta, clip.start), clip.fadeout ?? (clip.start+clip.duration) );
                 }
                 else if( this.dragClipMode == "fadeout" ) {
-                    clip.fadeout = Math.max(Math.min(clip.fadeout + delta, clip.start+clip.duration), clip.fadein);
+                    clip.fadeout = Math.max(Math.min(clip.fadeout + delta, clip.start+clip.duration), clip.fadein ?? clip.start );
                 }
                 else if( this.dragClipMode == "duration" ) {
                     let duration = Math.max(0, clip.duration + delta);
@@ -3721,7 +3721,7 @@ class ClipsTimeline extends Timeline {
                     const fadeinX = this.pixelsPerSecond * (clip.fadein - clip.start);
                     ctx.roundRect(x, y + offset, fadeinX, trackHeight, {tl: 5, bl: 5, tr:0, br:0}, true);
                 }
-                if ( clip.fadein != undefined ){
+                if ( clip.fadeout != undefined ){
                     const fadeoutX = this.pixelsPerSecond * (clip.start + clip.duration - (clip.fadeout));
                     ctx.roundRect( x + w - fadeoutX, y + offset, fadeoutX, trackHeight, {tl: 0, bl: 0, tr:5, br:5}, true);
                 }

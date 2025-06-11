@@ -4,6 +4,7 @@ import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
 import 'lexgui/components/timeline.js';
 import { Gizmo } from "./Gizmo.js";
+import { KeyframeEditor } from "./Editor.js";
 
 class Gui {
 
@@ -762,7 +763,7 @@ class KeyframesGui extends Gui {
         timelineMenu.push( 
             null, 
             { name: "Optimize Tracks", icon: "Filter", callback: () => {
-                // optimize all tracks of current binded animation (if any)
+                // optimize all tracks of current bound animation (if any)
                 this.auTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
                 this.skeletonTimeline.optimizeTracks();
             }},
@@ -1112,60 +1113,15 @@ class KeyframesGui extends Gui {
                 const clipIdx = this.globalTimeline.getClipOnTime(track, this.globalTimeline.xToTime(localX), 0.001);
                 if ( clipIdx != -1 ){
                     const animation = track.clips[clipIdx];
-                    const sourceAnimation = animation.source;
-                    this.editor.currentKeyFrameClip = animation;
-                    
-                    const localTime = Math.max(0, Math.min( animation.duration, this.editor.currentTime - animation.start ) );
-                    this.editor.startTimeOffset = animation.start;
-                    this.skeletonTimeline.setAnimationClip(animation.skeletonAnimation, false);
-                    this.skeletonTimeline.setTime(localTime, true);
-                    this.skeletonTimeline.setSelectedItems([this.editor.selectedBone]);
-                    this.auTimeline.setAnimationClip(animation.auAnimation, false);
-                    this.auTimeline.setSelectedItems([this.editor.selectedAU]);
-                    this.auTimeline.setTime(localTime, true);
-                    this.bsTimeline.setAnimationClip(animation.bsAnimation, false);
-                    this.bsTimeline.setSelectedItems(Object.keys(animation.bsAnimation.tracks));
-                    this.bsTimeline.setTime(localTime, true);
-                    
-                    this.editor.setTime( animation.start + localTime );
-                    this.editor.setTimeline(this.editor.animationModes.BODY);
-                    this.propagationWindow.setTimeline( this.skeletonTimeline );
-                    this.createSidePanel();
-
-                    if ( sourceAnimation.type == "video" ) {
-                        const video = this.editor.video;
-                        video.sync = true;
-                        this.editor.setVideoVisibility(this.showVideo);
-                        video.onloadeddata = () =>{
-                            video.currentTime = Math.max( video.startTime, Math.min( video.endTime, 0 ) );
-                            video.muted = true;
-                            video.click();
-                            const event = new Event("mouseup");
-                            
-                            if( sourceAnimation.rect ) {
-                                event.rect = sourceAnimation.rect;
-                            }
-                            
-                            video.parentElement.dispatchEvent(event);
-                        }
-                        video.src = sourceAnimation.videoURL;
-                        video.startTime = sourceAnimation.startTime ?? 0;
-                        video.endTime = sourceAnimation.endTime ?? 1;
-                    }
-                    else {
-                        this.editor.video.sync = false;
-                        this.editor.setVideoVisibility(false);
-                    }
-
+                    this.setKeyframeClip(animation);
                 }
             }
         }
 
-        this.globalTimeline.onUpdateTrack = (indices) => {
-            // this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : []);
-            console.log(indices);
-        }
         this.globalTimeline.onContentMoved = (clip, deltaTime) => {
+            clip.skeletonAnimation.duration = clip.duration;
+            clip.auAnimation.duration = clip.duration;
+            clip.bsAnimation.duration = clip.duration;
             clip.mixerBodyAnimation.duration = clip.duration;
             clip.mixerFaceAnimation.duration = clip.duration;
             this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
@@ -1208,8 +1164,7 @@ class KeyframesGui extends Gui {
             },
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
-                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
-                    this.createSidePanel();
+                    this.setKeyframeClip(null);
                 }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
                 closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
 
@@ -1256,10 +1211,10 @@ class KeyframesGui extends Gui {
             this.propagationWindow.setTime(t);
         }
         this.skeletonTimeline.onSetDuration = (t) => { 
-            const currentBinded = this.editor.currentKeyFrameClip;
-            if (!currentBinded){ return; }
-            currentBinded.mixerBodyAnimation.duration = t;
-            currentBinded.mixerFaceAnimation.duration = t;
+            const currentClip = this.editor.currentKeyFrameClip;
+            if (!currentClip){ return; }
+            currentClip.mixerBodyAnimation.duration = t;
+            currentClip.mixerFaceAnimation.duration = t;
 
             if( this.auTimeline.duration != t ){
 	            this.auTimeline.setDuration(t, true, true);
@@ -1268,9 +1223,9 @@ class KeyframesGui extends Gui {
 	            this.bsTimeline.setDuration(t, true, true);
 			}
 
-            currentBinded.duration = t;
-            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
-                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            currentClip.duration = t;
+            if ( currentClip.start + currentClip.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentClip.start + currentClip.duration, true, true );
             }
         };
 
@@ -1410,8 +1365,7 @@ class KeyframesGui extends Gui {
             },
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
-                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
-                    this.createSidePanel();
+                    this.setKeyframeClip(null);
                 }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
                 closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
 
@@ -1452,10 +1406,10 @@ class KeyframesGui extends Gui {
             }
         };
         this.auTimeline.onSetDuration = (t) => { 
-            let currentBinded = this.editor.currentKeyFrameClip;
-            if (!currentBinded){ return; }
-            currentBinded.mixerBodyAnimation.duration = t;
-            currentBinded.mixerFaceAnimation.duration = t;
+            let currentClip = this.editor.currentKeyFrameClip;
+            if (!currentClip){ return; }
+            currentClip.mixerBodyAnimation.duration = t;
+            currentClip.mixerFaceAnimation.duration = t;
 
             if( this.skeletonTimeline.duration != t ){
 	            this.skeletonTimeline.setDuration(t, true, true);			
@@ -1464,9 +1418,9 @@ class KeyframesGui extends Gui {
 	            this.bsTimeline.setDuration(t, true, true);
 			}
 
-            currentBinded.duration = t;
-            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
-                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            currentClip.duration = t;
+            if ( currentClip.start + currentClip.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentClip.start + currentClip.duration, true, true );
             }
         };
 
@@ -1528,8 +1482,7 @@ class KeyframesGui extends Gui {
             },
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
-                    this.editor.setTimeline(this.editor.animationModes.GLOBAL);
-                    this.createSidePanel();
+                    this.setKeyframeClip(null);
                 }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
                 closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
 
@@ -1567,10 +1520,10 @@ class KeyframesGui extends Gui {
             }
         }
         this.bsTimeline.onSetDuration = (t) => { 
-            let currentBinded = this.editor.currentKeyFrameClip;
-            if (!currentBinded){ return; }
-            currentBinded.mixerBodyAnimation.duration = t;
-            currentBinded.mixerFaceAnimation.duration = t;
+            let currentClip = this.editor.currentKeyFrameClip;
+            if (!currentClip){ return; }
+            currentClip.mixerBodyAnimation.duration = t;
+            currentClip.mixerFaceAnimation.duration = t;
 
             if( this.skeletonTimeline.duration != t ){
 	            this.skeletonTimeline.setDuration(t, true, true);			
@@ -1579,9 +1532,9 @@ class KeyframesGui extends Gui {
 	            this.auTimeline.setDuration(t, true, true);
 			}
 
-            currentBinded.duration = t;
-            if ( currentBinded.start + currentBinded.duration > this.globalTimeline.animationClip.duration ){
-                this.globalTimeline.setDuration( currentBinded.start + currentBinded.duration, true, true );
+            currentClip.duration = t;
+            if ( currentClip.start + currentClip.duration > this.globalTimeline.animationClip.duration ){
+                this.globalTimeline.setDuration( currentClip.start + currentClip.duration, true, true );
             }
         };
 
@@ -1650,6 +1603,60 @@ class KeyframesGui extends Gui {
         this.editor.activeTimeline = this.globalTimeline;
 
     }
+
+    setKeyframeClip(clip){
+        if (!clip){
+            this.editor.setTimeline(this.editor.animationModes.GLOBAL);
+            this.editor.currentKeyFrameClip = null;
+            this.createSidePanel();
+            return;
+        }
+
+        const sourceAnimation = clip.source;
+        this.editor.currentKeyFrameClip = clip;
+        
+        const localTime = Math.max(0, Math.min( clip.duration, this.editor.currentTime - clip.start ) );
+        this.editor.startTimeOffset = clip.start;
+        this.skeletonTimeline.setAnimationClip(clip.skeletonAnimation, false);
+        this.skeletonTimeline.setTime(localTime, true);
+        this.skeletonTimeline.setSelectedItems([this.editor.selectedBone]);
+        this.auTimeline.setAnimationClip(clip.auAnimation, false);
+        this.auTimeline.setSelectedItems([this.editor.selectedAU]);
+        this.auTimeline.setTime(localTime, true);
+        this.bsTimeline.setAnimationClip(clip.bsAnimation, false);
+        this.bsTimeline.setSelectedItems(Object.keys(clip.bsAnimation.tracks));
+        this.bsTimeline.setTime(localTime, true);
+        
+        this.editor.setTime( clip.start + localTime );
+        this.editor.setTimeline(this.editor.animationModes.BODY);
+        this.propagationWindow.setTimeline( this.skeletonTimeline );
+        this.createSidePanel();
+
+        if ( sourceAnimation.type == "video" ) {
+            const video = this.editor.video;
+            video.sync = true;
+            this.editor.setVideoVisibility(this.showVideo);
+            video.onloadeddata = () =>{
+                video.currentTime = Math.max( video.startTime, Math.min( video.endTime, 0 ) );
+                video.muted = true;
+                video.click();
+                const event = new Event("mouseup");
+                
+                if( sourceAnimation.rect ) {
+                    event.rect = sourceAnimation.rect;
+                }
+                
+                video.parentElement.dispatchEvent(event);
+            }
+            video.src = sourceAnimation.videoURL;
+            video.startTime = sourceAnimation.startTime ?? 0;
+            video.endTime = sourceAnimation.endTime ?? 1;
+        }
+        else {
+            this.editor.video.sync = false;
+            this.editor.setVideoVisibility(false);
+        }
+    }
     
     
     changeCaptureGUIVisivility(hidden) {
@@ -1706,20 +1713,54 @@ class KeyframesGui extends Gui {
                 const clip = this.globalTimeline.lastClipsSelected[0][2]; // [trackidx, clipidx, clip]
                 const clipTrack = this.globalTimeline.lastClipsSelected[0][0];
                 const p = new LX.Panel({id:"keyframeclip"});
-                p.addTitle("Clip");
+                p.addTitle("Keyframe Clip");
 
-                // keyframe clip title
-                LX.makeContainer( [ "100%", "auto" ], "flex justify-center py-2 text-lg", 
-                    clip.id,
-                    p, 
-                    { wordBreak: "break-word", lineHeight: "1.5rem" }
-                );
+                p.addText("Clip Name", clip.id, (v) =>{
+                    clip.id = v;
+                } )
 
                 p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
                     clip.clipColor = v;
                 });
 
+                p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
+                    this.setKeyframeClip(clip);
+                }, { buttonClass: "accent" });
+
                 p.branch("Clip Blending");
+
+                p.addNumber( "Weight", clip.weight, (v,e) => { 
+                    clip.weight = v; 
+                    this.editor.computeKeyframeClipWeight(clip);
+                    this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
+                }, {min: 0, max: 1, step: 0.001 });
+
+                const fadetable = ["None","Linear","Quadratic","Sinusoid"]; 
+                p.addSelect("Fade In Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeinType], (v,e) =>{
+                    if ( clip.fadeinType == KeyframeEditor.FADETYPE_NONE ){
+                        clip.fadein = clip.start + 0.25 * clip.duration;
+                    }
+                    clip.fadeinType = fadetable.indexOf(v);
+                    this.editor.computeKeyframeClipWeight(clip);
+                    if ( clip.fadeinType == KeyframeEditor.FADETYPE_NONE ){
+                        delete clip.fadein;
+                    }
+                    this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
+                } );
+
+                p.addSelect("Fade Out Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeoutType], (v,e) =>{
+                    if ( clip.fadeoutType == KeyframeEditor.FADETYPE_NONE ){
+                        clip.fadeout = clip.start + 0.75 * clip.duration;
+                    }
+                    clip.fadeoutType = fadetable.indexOf(v);
+                    this.editor.computeKeyframeClipWeight(clip);
+                    if ( clip.fadeoutType == KeyframeEditor.FADETYPE_NONE ){
+                        delete clip.fadeout;
+                    }
+                    this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
+                } );
+
+
                 p.addSelect("Blend Mode", ["Normal", "Additive" ], clip.blendMode == THREE.NormalAnimationBlendMode ? "Normal" : "Additive", (value, event) => {
                     let blendMode = value == "Normal" ? THREE.NormalAnimationBlendMode : THREE.AdditiveAnimationBlendMode;
                     if ( blendMode != clip.blendMode ){
@@ -1779,6 +1820,7 @@ class KeyframesGui extends Gui {
                     }, { buttonClass: "error dashed" });
 
                 }
+
                 p.merge();
 
 
@@ -1901,6 +1943,10 @@ class KeyframesGui extends Gui {
                 panel.addText("Clip Name", anim.id, (v) =>{ 
                     anim.id = v;
                 } )
+
+                panel.addButton(null, "Return to global animation", (v,e)=>{
+                    this.setKeyframeClip(null);
+                }, { buttonClass: "error" });
 
             }else{
                 panel.addTitle( "Animation" );
