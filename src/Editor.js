@@ -818,7 +818,7 @@ class Editor {
                 for(let a in animsToExport) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
                     const animation = animsToExport[a];
                     const boundAnim = this.boundAnimations[animation.name][this.currentCharacter.name];
-                    let animSaveName = animation.saveName;
+                    let animSaveName = animation.name;
                     
                     let tracks = []; 
                     if(boundAnim.mixerBodyAnimation) {
@@ -852,7 +852,7 @@ class Editor {
                     const boundAnim = this.boundAnimations[animation.name][this.currentCharacter.name];
                                         
                     // Check if it already has extension
-                    let clipName = name || animation.saveName;
+                    let clipName = name || animation.name;
 
                     let bvh = "";
                     // Add the extension
@@ -1221,17 +1221,15 @@ class KeyframeEditor extends Editor {
 
     renameGlobalAnimation( currentName, newName, findSuitableName = false ){
 
-        const characterName = this.currentCharacter.name;
-
         if (findSuitableName){
             let count = 1;
             let countName = newName;
-            while( this.boundAnimations[countName] && this.boundAnimations[countName][characterName] ){
+            while( this.boundAnimations[countName] ){
                 countName = newName + ` (${count++})`;
             }
             newName = countName;
         }else{
-            if (this.boundAnimations[newName] && this.boundAnimations[newName][characterName]){
+            if ( this.boundAnimations[newName] ){
                 return null;
             }
         }
@@ -1361,6 +1359,17 @@ class KeyframeEditor extends Editor {
     /**Create face and body animations from mediapipe and load character*/
     buildAnimation(data, bindToCurrentGlobal = true) {
 
+        
+        let videoExtensionIdx = data.name.lastIndexOf(".");
+        let videoExtension;
+        if( videoExtensionIdx == -1 || videoExtensionIdx == (data.name.length-1)){
+            videoExtension = "webm";
+            videoExtension = data.name.length;
+        }else{
+            videoExtension = data.name.slice(videoExtensionIdx);
+        }
+        data.name = data.name.slice(0, videoExtensionIdx);
+
         // ensure unique name
         let count = 1;
         let countName = data.name;
@@ -1371,13 +1380,8 @@ class KeyframeEditor extends Editor {
 
         this.loadedAnimations[data.name] = data;
         this.loadedAnimations[data.name].type = "video";
+        this.loadedAnimations[data.name].videoExtension = videoExtension;
         this.loadedAnimations[data.name].export = true;
-
-        let extensionIdx = data.name.lastIndexOf(".");
-        if ( extensionIdx == -1 ){ // no extension
-            extensionIdx = data.name.length; 
-        }
-        this.loadedAnimations[data.name].saveName = data.name.slice(0,extensionIdx);
 
         let {landmarks, blendshapes} = data ?? {};
 
@@ -3095,6 +3099,46 @@ class ScriptEditor extends Editor {
         // }  
     }
 
+    renameGlobalAnimation( currentName, newName, findSuitableName = false ){
+
+        if (findSuitableName){
+            let count = 1;
+            let countName = newName;
+            while( this.boundAnimations[countName] ){ // boundAnimations and loadedAnimations should have the same keys: the animation names
+                countName = newName + ` (${count++})`;
+            }
+            newName = countName;
+        }else{
+            if (this.boundAnimations[newName] ){
+                return null;
+            }
+        }
+
+        if ( !this.boundAnimations[newName] ){
+            this.boundAnimations[newName] = {};
+        }
+
+        const bound = this.boundAnimations[currentName];
+        this.boundAnimations[newName] = bound;
+        for( let avatarname in bound ){
+            bound[avatarname].id = newName;
+        }
+        delete this.boundAnimations[currentName];
+
+
+        this.loadedAnimations[newName] = this.loadedAnimations[currentName];
+        this.loadedAnimations[newName].name = newName;
+        this.loadedAnimations[newName].scriptAnimation.id = newName;
+        delete this.loadedAnimations[currentName];
+
+
+        if ( this.currentAnimation == currentName ){
+            this.currentAnimation = newName;
+        }
+
+        return newName;
+    }
+
     async processPendingResources( resources ) {
         if( !resources ) {
             this.loadAnimation("New animation", {});
@@ -3191,19 +3235,15 @@ class ScriptEditor extends Editor {
 
     loadAnimation(name, animationData) { 
 
-        let saveName = "";
-
-        if ( name ) {
-            let extensionIdx = name.lastIndexOf(".");
-            if ( extensionIdx == -1 ){ // no extension
-                extensionIdx = name.length; 
-            }
-            saveName = name.slice(0,extensionIdx);
+        let count = 1;
+        let countName = name;
+        while ( this.loadedAnimations[name] ){
+            countName = name + ` (${count++})`;
         }
+        name = countName;
 
         this.loadedAnimations[name] = {
             name: name,
-            saveName: saveName,
             export: true,
             inputAnimation: animationData, // bml file imported. This needs to be converted by the timeline's setAnimationClip.
             scriptAnimation: null, // if null, bind will take care. 
@@ -3317,7 +3357,7 @@ class ScriptEditor extends Editor {
         const json =  {
             behaviours: [],
             //indices: [],
-            name : animation ? animation.saveName : "BML animation",
+            name : animation ? animation.name : "BML animation",
             duration: data ? data.duration : 0,
         }
 

@@ -524,9 +524,7 @@ class Gui {
                         }
                         this.hideTimeline();
                         this.sidePanel.parentArea.extend();
-                        this.hideVideoOverlay();
-                        
-                        
+                        this.hideVideoOverlay();                       
                     } else {
                         this.showTimeline();
                         this.sidePanel.parentArea.reduce();  
@@ -937,8 +935,8 @@ class KeyframesGui extends Gui {
                 const anim = toExport[aName];
                 p.sameLine();
                 p.addCheckbox(" ", anim.export, (v) => anim.export = v);//, {minWidth:"100px"});
-                p.addText(aName, anim.saveName, (v) => {
-                    toExport[aName].saveName = v;
+                p.addText(aName, anim.name, (v) => {
+                    toExport[aName].name = v;
                 }, {placeholder: "...", minWidth:"200px"} );
                 p.endLine();
             }
@@ -956,9 +954,7 @@ class KeyframesGui extends Gui {
                     if ( !animation.export ) {
                         continue;
                     }
-                    let extension = aName.lastIndexOf(".");
-                    extension = extension == -1 ? ".webm" : aName.slice(extension);
-                    const saveName = animation.saveName + extension;
+                    const saveName = animation.name + animation.videoExtension;
 
                     // prepare videos so they can be downloaded
                     const promise = fetch( animation.videoURL )
@@ -983,7 +979,7 @@ class KeyframesGui extends Gui {
                         } 
                     );
 
-                    zip.file( animation.saveName + ".json", data );
+                    zip.file( animation.name + ".json", data );
                 }
 
                 dialog.close();
@@ -4460,7 +4456,7 @@ class ScriptGui extends Gui {
     }
 
     createExportBMLDialog() {
-        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export(null, "", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )  
+        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export(null, "", true, v), {input: this.editor.getCurrentAnimation().name, required: true} )  
     }
 
     showSourceCode (asset) {
