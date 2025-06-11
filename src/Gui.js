@@ -3459,23 +3459,13 @@ class ScriptGui extends Gui {
 
             const animation = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
             widgets.addText("Name", animation.name, (v) =>{ 
-                    if ( this.editor.loadedAnimations[v] && v != anim.name ){
+                    if( v.length == 0){
+                        LX.toast("Animation Rename: name cannot be empty", null, { timeout: 7000 } );
+                    }
+                    else if ( this.editor.loadedAnimations[v] && v != animation.name ){
                         LX.toast("Animation Rename: Another animation with this name already exists", null, { timeout: 7000 } );
-                        // there already is an existing animation with this name
                     }else{
-                        const oldName = anim.id;
-                        const newName = v;
-                        const bound = this.editor.boundAnimations[oldName];
-                        this.editor.boundAnimations[newName] = bound;
-                        for( let avatarname in bound ){
-                            bound[avatarname].id = newName;
-                        }
-                        delete this.editor.boundAnimations[oldName];
-                        
-                        this.editor.loadedAnimations[newName] = this.editor.loadedAnimations[oldName];
-                        delete this.editor.loadedAnimations[oldName];
-
-                        this.editor.currentAnimation = newName;
+                        this.editor.renameGlobalAnimation(animation.name, v);
                     }
             } );
 
