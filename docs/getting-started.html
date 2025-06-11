@@ -8,9 +8,18 @@
 
     MAKE_HEADER("Landing Page", "h2", "init");
     MAKE_PARAGRAPH(`There are multiple ways you can create an animation using Animics. After starting the application, the browser window should look like this:`);
-    INSERT_IMAGE(`./imgs/landing-page.png`, "landing page");
-    MAKE_PARAGRAPH(`From here you can create a new animation from scratch, or generate it from a video or via real-time capture through the corresponding buttons. You can also drag and drop compatible files, videos or already created keyframe animations.`);
+    INSERT_IMAGE(`./imgs/landing-page-login.jpg`, "landing page");
+
+    MAKE_PARAGRAPH(`From here you can create a new animation in different ways through the corresponding buttons:`);
+    MAKE_BULLET_LIST([
+        `Create a new project from scratch`,
+        `Generate from video(s)`,
+        `Generate via real-time capture (webcam)`,
+        `Upload an existing animation file`
+    ]);
+    MAKE_PARAGRAPH(`You can also drag and drop compatible files, videos or already created keyframe animations.`);
     MAKE_LINE_BREAK();
+
     MAKE_PARAGRAPH(`In the bottom section you can see your recent projects. You must be logged in to access this feature.`);
     MAKE_LINE_BREAK();
 
