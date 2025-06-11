@@ -4,6 +4,7 @@ import { LX } from 'lexgui';
 import 'lexgui/components/codeeditor.js';
 import 'lexgui/components/timeline.js';
 import { Gizmo } from "./Gizmo.js";
+import { KeyframeEditor } from "./Editor.js";
 
 class Gui {
 
@@ -1727,6 +1728,30 @@ class KeyframesGui extends Gui {
                 }, { buttonClass: "accent" });
 
                 p.branch("Clip Blending");
+
+                const fadetable = ["None","Linear","Quadratic","Sinusoid"]; 
+                p.addSelect("Fade In Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeinType], (v,e) =>{
+                    if ( clip.fadeinType == KeyframeEditor.FADETYPE_NONE ){
+                        clip.fadein = clip.start + 0.25 * clip.duration;
+                    }
+                    clip.fadeinType = fadetable.indexOf(v);
+                    this.editor.computeKeyframeClipWeight(clip);
+                    if ( clip.fadeinType == KeyframeEditor.FADETYPE_NONE ){
+                        delete clip.fadein;
+                    }
+                } );
+                p.addSelect("Fade Out Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeoutType], (v,e) =>{
+                    if ( clip.fadeoutType == KeyframeEditor.FADETYPE_NONE ){
+                        clip.fadeout = clip.start + 0.75 * clip.duration;
+                    }
+                    clip.fadeoutType = fadetable.indexOf(v);
+                    this.editor.computeKeyframeClipWeight(clip);
+                    if ( clip.fadeoutType == KeyframeEditor.FADETYPE_NONE ){
+                        delete clip.fadeout;
+                    }
+                } );
+                
+
                 p.addSelect("Blend Mode", ["Normal", "Additive" ], clip.blendMode == THREE.NormalAnimationBlendMode ? "Normal" : "Additive", (value, event) => {
                     let blendMode = value == "Normal" ? THREE.NormalAnimationBlendMode : THREE.AdditiveAnimationBlendMode;
                     if ( blendMode != clip.blendMode ){
@@ -1786,6 +1811,7 @@ class KeyframesGui extends Gui {
                     }, { buttonClass: "error dashed" });
 
                 }
+
                 p.merge();
 
 

@@ -688,8 +688,6 @@ class Editor {
             this.currentTime = this.currentCharacter.mixer.time;
             this.activeTimeline.setTime( this.currentTime - this.startTimeOffset, true );
         }
-       
-        this.onUpdate( dt );
     }
 
     onAnimationEnded() {
@@ -718,8 +716,7 @@ class Editor {
     stop() {
         this.state = false;
         
-        let t = this.startTimeOffset;
-        this.setTime( t );
+        this.setTime( this.startTimeOffset );
         this.activeTimeline.setTime( 0 );
 
         this.onStop();
@@ -1033,7 +1030,6 @@ class Editor {
     onKeyDown( event ) {} // Abstract
     redo() {}
     undo() {}
-    onUpdate( dt ) {} // Abstract
     onPlay() {} // Abstract
     onStop() {} // Abstract
     onPause() {} // Abstract
@@ -2096,19 +2092,21 @@ class KeyframeEditor extends Editor {
 
             start: 0,
             duration: skeletonAnimation.duration,
+            fadeinType: KeyframeEditor.FADETYPE_NONE,
+            fadeoutType: KeyframeEditor.FADETYPE_NONE,
+
             id: animationName,
             clipColor: LX.getThemeColor("global-color-accent"),
             blendMode: THREE.NormalAnimationBlendMode
         }
         this.setKeyframeClipBlendMode( boundAnimation, THREE.NormalAnimationBlendMode, false );
 
-        this.gui.globalTimeline.addClip(boundAnimation);
-
-        // set mixer animations
         const mixer = this.currentCharacter.mixer;
-        mixer.clipAction(boundAnimation.mixerFaceAnimation).setEffectiveWeight(1.0).play(); // already handles nulls and undefineds
-        mixer.clipAction(boundAnimation.mixerBodyAnimation).setEffectiveWeight(1.0).play();
+        this.globalAnimMixerManagementSingleClip(mixer, boundAnimation);
+
+        this.gui.globalTimeline.addClip(boundAnimation);
         
+        this.setTime(this.currentTime); // update mixer state
         return true;
     }
 
@@ -2236,11 +2234,34 @@ class KeyframeEditor extends Editor {
         this.gizmo.raycaster.params.Points.threshold = newSize/10;
     }
 
-    onUpdate(dt) {
+    // OVERRIDE
+    update( dt ) {
+
+        if ( this.currentTime > (this.startTimeOffset + this.activeTimeline.duration) ) {
+            this.onAnimationEnded();
+        }
+
+        if ( this.currentCharacter.mixer && this.state ) {
+
+            const tracks = this.gui.globalTimeline.animationClip.tracks;
+            for(let i = 0; i < tracks.length; ++i ){
+                const clips = tracks[i].clips;
+                for(let c = 0; c < clips.length; ++c ){
+                    this.computeKeyframeClipWeight(clips[c]);
+                }
+            }
+
+            this.currentCharacter.mixer.update( dt );
+            this.currentTime = this.currentCharacter.mixer.time;
+            this.activeTimeline.setTime( this.currentTime - this.startTimeOffset, true );
+        }
+
+
         // the user increased the duration of the animation but the video is trimmed. Keep it paused at endTime until loop        
         if ( this.video.sync && this.video.currentTime >= this.video.endTime ) {
             this.video.pause(); // stop video on last frame until loop
         }
+
         this.gizmo.update(this.state, dt);        
     }
 
@@ -2409,6 +2430,45 @@ class KeyframeEditor extends Editor {
         actionFace.clampWhenFinished = false;
         actionFace.loop = THREE.LoopOnce;
         actionFace.startAt(clip.start);
+        
+        this.computeKeyframeClipWeight(clip);
+    }
+
+    static FADETYPE_NONE = 0;
+    static FADETYPE_LINEAR = 1;
+    static FADETYPE_QUADRATIC = 2;
+    static FADETYPE_SINUSOID = 3;
+
+    computeKeyframeClipWeight(clip){
+        let weight = 1;
+        if( this.currentTime < clip.start || this.currentTime > (clip.start+clip.duration) ){
+            weight =  0;
+        }
+        else if ( clip.fadeinType && this.currentTime < clip.fadein ){
+            weight = ( this.currentTime - clip.start ) / (clip.fadein - clip.start);
+            switch( clip.fadeinType ){
+                case KeyframeEditor.FADETYPE_QUADRATIC:
+                    weight = weight * weight;
+                    break;
+                case KeyframeEditor.FADETYPE_SINUSOID:
+                    weight = Math.sin( weight * Math.PI - Math.PI * 0.5 ) * 0.5 + 0.5;
+                    break;
+            }
+        }
+        else if ( clip.fadeoutType && this.currentTime > clip.fadeout ){
+            weight = ( this.currentTime - clip.fadeout ) / (clip.start + clip.duration - clip.fadeout);
+            switch( clip.fadeoutType ){
+                case KeyframeEditor.FADETYPE_QUADRATIC:
+                    weight = weight * weight;
+                    break;
+                case KeyframeEditor.FADETYPE_SINUSOID:
+                    weight = Math.sin( weight * Math.PI - Math.PI * 0.5 ) * 0.5 + 0.5;
+                    break;
+            }
+            weight = 1-weight;
+        }
+        this.currentCharacter.mixer.clipAction( clip.mixerBodyAnimation ).setEffectiveWeight( weight );
+        this.currentCharacter.mixer.clipAction( clip.mixerFaceAnimation ).setEffectiveWeight( weight );
     }
 
     setKeyframeClipBlendMode(clip, threejsBlendMode, updateMixer = true){
