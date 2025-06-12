@@ -573,35 +573,6 @@ class Gui {
         this.mainArea._update(); // to update area's this.size attribute
     }
 
-    async promptExit() {
-        this.prompt = await new LX.Dialog("Exit confirmation", (p) => {
-            p.addTextArea(null, "Be sure you have exported the animation. If you exit now, your data will be lost. How would you like to proceed?", null, {disabled: true});
-            p.addButton(null, "Export", () => {
-                p.clear();
-                p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
-                p.addButton(null, "Export extended BVH", () => this.editor.export(null, "BVH extended"), { buttonClass: "accent" });
-                if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-                    p.addButton( null, "Export BML", () => this.editor.export(null, ""), { buttonClass: "accent" });
-                }
-                p.addButton( null, "Export GLB", () => this.editor.export(null, "GLB"), { buttonClass: "accent" });
-            });
-            p.addButton(null, "Discard", () => {
-
-            });
-            p.addButton(null, "Cancel", () => {
-                return;
-            });
-
-        }, {
-            onclose: (root) => {
-            
-                root.remove();
-                this.prompt = null;
-            }
-        }, {modal: true, closable: true});
-        return this.prompt;
-    }
-
     showClearTracksConfirmation(callback) {
         this.prompt = new LX.prompt("Are you sure you want to delete all the tracks? You won't be able to restore the animation.", "Clear all tracks", callback, {input:false},  
         {
@@ -2927,8 +2898,6 @@ class ScriptGui extends Gui {
         this.mode = ClipModes.Actions;
         this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
         this.delayedUpdateTime = 500; //ms
-
-        this.animationPanel = new LX.Panel({id:"animation"});
     }
 
     onCreateMenuBar( entries ) {
@@ -3025,6 +2994,13 @@ class ScriptGui extends Gui {
                                
         this.clipsTimeline = new LX.ClipsTimeline("clipsTimelineId", {
             title: "Behaviour actions",
+            onCreateBeforeTopBar: (panel) => {
+                // panel.addButton
+                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+                    this.editor.setGlobalAnimation(v); // already updates gui
+                }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
+                
+            },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -3122,7 +3098,6 @@ class ScriptGui extends Gui {
             e.stopPropagation();
 
             let actions = [];
-            //let track = this.NMFtimeline.clip.tracks[0];
             if(this.clipsTimeline.lastClipsSelected.length) {
                 actions.push(
                     {
@@ -3426,20 +3401,20 @@ class ScriptGui extends Gui {
 
     loadBMLClip(clip) {         
         let {clips, duration} = this.dataToBMLClips(clip, this.mode);
-
         this.clipsTimeline.addClips(clips, this.clipsTimeline.currentTime);
-    
-        this.clip = this.clipsTimeline.animationClip || clip ;
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
 
-        const area = new LX.Area({className: "sidePanel", id: 'panel', scroll: true});  
-        this.sidePanel.attach(area);
+        while ( this.sidePanel.root.children.length ){
+            this.sidePanel.root.children[0].remove();
+        }
+        this.sidePanel.sections = [];
 
-        const [top, bottom] = area.split({type: "vertical", resize: false, sizes: "auto"});
+        const [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
         
+        this.animationPanel = new LX.Panel({id:"animation"});
         top.attach(this.animationPanel);
         this.clipPanel = new LX.Panel({id:"bml-clip"});
         bottom.attach(this.clipPanel);
@@ -3466,6 +3441,7 @@ class ScriptGui extends Gui {
                         LX.toast("Animation Rename: Another animation with this name already exists", null, { timeout: 7000 } );
                     }else{
                         this.editor.renameGlobalAnimation(animation.name, v);
+                        this.clipsTimeline.updateHeader();
                     }
             } );
 

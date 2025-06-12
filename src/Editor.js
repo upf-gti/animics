@@ -836,7 +836,7 @@ class Editor {
                 let model = this.currentCharacter.mixer._root.getChildByName('Armature');
 
                 this.GLTFExporter.parse(model, 
-                    ( gltf ) => UTILS.download(gltf, (name || this.clipName || "animations") + '.glb', 'arraybuffer' ), // called when the gltf has been generated
+                    ( gltf ) => UTILS.download(gltf, (name || "animations") + '.glb', 'arraybuffer' ), // called when the gltf has been generated
                     ( error ) => { console.log( 'An error happened:', error ); }, // called when there is an error in the generation
                     options
                 );
@@ -3099,6 +3099,71 @@ class ScriptEditor extends Editor {
         // }  
     }
 
+        /**
+     * 
+     * @param {string} name 
+     * @param {int} mode
+     *      -1: overwrite any existing animation with that name for the current character
+     *      0: exact unique name. If it already exists, it does not create an animation
+     *      1: adds an incrementing number if a match is found for that animation for that character 
+     */
+    // createGlobalAnimation( name, mode = 0 ){
+
+    //     const characterName = this.currentCharacter.name;
+
+    //     if (mode == 1){
+    //         let count = 1;
+    //         let countName = name;
+    //         while( this.loadedAnimations[countName] ){
+    //             countName = name + ` (${count++})`;
+    //         }
+    //         name = countName;
+    //     }
+    //     else if (mode == 0){
+    //         if (this.boundAnimations[name] && this.boundAnimations[name][characterName]){
+    //             return null;
+    //         }
+    //     }
+
+    //     if ( !this.boundAnimations[name] ){
+    //         this.boundAnimations[name] = {};
+    //     }
+    //     const animationClip = this.gui.globalTimeline.instantiateAnimationClip({ id: name });
+    //     this.boundAnimations[name][characterName] = animationClip;
+
+    //     return animationClip;
+    // }
+
+    setGlobalAnimation( name ){
+
+        if( !this.loadedAnimations[name] ){
+            return false;
+        }
+
+        const mixer = this.currentCharacter.mixer;
+        mixer.stopAllAction();
+        while( mixer._actions.length ){
+            mixer.uncacheClip( mixer._actions[0]._clip );
+        }
+
+        this.gui.clipsTimeline.setTime(0, true);
+        this.gui.clipsTimeline.unselectAllElements();
+
+        this.gui.clipsTimeline.setAnimationClip( this.loadedAnimations[name].scriptAnimation, false );
+        this.currentAnimation = name;
+
+        if (!this.boundAnimations[name] || !this.boundAnimations[name][this.currentCharacter]){
+            this.bindAnimationToCharacter( name );
+        }else{
+            this.updateMixerAnimation( this.loadedAnimations[name].scriptAnimation );
+        }
+
+        this.gui.createSidePanel();
+        this.gui.clipsTimeline.updateHeader();
+
+        return true;
+    }
+
     renameGlobalAnimation( currentName, newName, findSuitableName = false ){
 
         if (findSuitableName){
@@ -3178,7 +3243,6 @@ class ScriptEditor extends Editor {
 
                         if( empty ) {
                             this.activeTimeline.setTime(0, true);
-                            this.clipName = animation.name;
                             this.gui.loadBMLClip( animation );
                             this.loadAnimation( file.name, animation );
 
@@ -3192,7 +3256,6 @@ class ScriptEditor extends Editor {
                                 panel.sameLine(3);
                                 panel.addButton(null, "Replace", () => { 
                                     this.clearAllTracks(false);
-                                    this.clipName = animation.name;
                                     this.activeTimeline.setTime(0, true);
                                     this.gui.loadBMLClip( animation );
                                     this.loadAnimation( file.name, animation );
@@ -3242,15 +3305,18 @@ class ScriptEditor extends Editor {
         }
         name = countName;
 
+        // implicit setglobalAnimation
+        const animationClip = this.gui.clipsTimeline.setAnimationClip({id: name}, true); //generate empty animation 
+        this.gui.loadBMLClip(animationData); // process bml and add clips
+
         this.loadedAnimations[name] = {
             name: name,
             export: true,
-            inputAnimation: animationData, // bml file imported. This needs to be converted by the timeline's setAnimationClip.
-            scriptAnimation: null, // if null, bind will take care. 
+            scriptAnimation: animationClip,  
             type: "script"
         };
-
-        this.bindAnimationToCharacter( name );        
+        this.gui.clipsTimeline.updateHeader();
+        this.setGlobalAnimation( name );        
     }
 
     /**
@@ -3265,27 +3331,10 @@ class ScriptEditor extends Editor {
             return false;
         }
 
-        if ( animationName != this.currentAnimation ) {
-            this.gui.clipsTimeline.setTime(0, true);
-            this.gui.clipsTimeline.unSelectAllClips();
-            this.gui.clipsTimeline.unHoverAll();
-        }
-
-        this.currentAnimation = animationName;
-
-        // create timeline animation for the first time
-        if ( !animation.scriptAnimation ){
-            this.gui.clipsTimeline.setAnimationClip(null, true); //generate empty animation 
-            animation.scriptAnimation = this.gui.clipsTimeline.animationClip;
-            this.gui.loadBMLClip(animation.inputAnimation); // process bml and add clips
-            delete animation.inputAnimation;
-        }
-        
-        animation.scriptAnimation.name = animationName;
-        
         if( !this.boundAnimations[animationName] ) {
             this.boundAnimations[animationName] = {};
         }
+        
         this.boundAnimations[animationName][this.currentCharacter.name] = { 
             mixerAnimation: null,
 
