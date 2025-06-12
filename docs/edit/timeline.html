@@ -2,7 +2,12 @@
 
     MAKE_HEADER("Timeline", "h1", "timeline");
 
-    MAKE_PARAGRAPH(`The timeline consists of three main parts: the <b>timeline attributes</b> at the top; the <b>current tracks</b> being shown on the left; and the <b>keyframes</b> of each track in the center.`);
+    MAKE_PARAGRAPH(`The timeline consists of three main parts:`);
+    MAKE_BULLET_LIST([
+        `<b>Timeline attributes</b> at the top`,
+        `<b>Current tracks</b> on the left`,
+        `<b>Keyframes</b> of each track in the center area`
+    ]);
 
     INSERT_IMAGE("./imgs/timeline/timeline-body.png", "Timeline Body");
     INSERT_IMAGE("./imgs/timeline/timeline-face.png", "Timeline Face");
