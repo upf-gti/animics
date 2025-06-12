@@ -60,7 +60,7 @@ const BVHExporter = {
     quatToEulerString: function(q) {
         let euler = new THREE.Euler();
         euler.setFromQuaternion(q);
-        return THREE.Math.radToDeg(euler.x).toFixed(6) + " " + THREE.Math.radToDeg(euler.y).toFixed(6) + " " + THREE.Math.radToDeg(euler.z).toFixed(6) + " ";
+        return THREE.MathUtils.radToDeg(euler.x).toFixed(6) + " " + THREE.MathUtils.radToDeg(euler.y).toFixed(6) + " " + THREE.MathUtils.radToDeg(euler.z).toFixed(6) + " ";
     },
 
     posToString: function(p) {

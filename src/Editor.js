@@ -805,7 +805,7 @@ class Editor {
     export(animsToExport = null, type = null, download = true, name = null) {
         let files = [];
         if(!animsToExport) {
-            animsToExport = [this.getCurrentAnimation()];
+            animsToExport = [this.currentAnimation];
         }
 
         switch(type){
@@ -815,23 +815,22 @@ class Editor {
                     animations: []
                 };
 
-                for(let a in animsToExport) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
-                    const animation = animsToExport[a];
-                    const boundAnim = this.boundAnimations[animation.name][this.currentCharacter.name];
-                    let animSaveName = animation.name;
+                for(let a in animsToExport) {
+                    const animationName = animsToExport[a];
+                    const boundAnim = this.boundAnimations[animationName][this.currentCharacter.name];
                     
                     let tracks = []; 
-                    if(boundAnim.mixerBodyAnimation) {
+                    if(boundAnim.mixerBodyAnimation) { // script Editor
                         tracks = tracks.concat( boundAnim.mixerBodyAnimation.tracks );
                     }
-                    if(boundAnim.mixerFaceAnimation) {
+                    if(boundAnim.mixerFaceAnimation) { // keyframe Editor
                         tracks = tracks.concat( boundAnim.mixerFaceAnimation.tracks );
                     }
-                    if(boundAnim.mixerAnimation) {
+                    if(boundAnim.mixerAnimation) { // script Editor
                         tracks = tracks.concat( boundAnim.mixerAnimation.tracks );
                     }
 
-                    options.animations.push( new THREE.AnimationClip( animSaveName, -1, tracks ) );
+                    options.animations.push( new THREE.AnimationClip( animationName, -1, tracks ) );
                 }
                 let model = this.currentCharacter.mixer._root.getChildByName('Armature');
 
@@ -848,11 +847,11 @@ class Editor {
                 const fileType = "text/plain";
 
                 for( let a in animsToExport ) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
-                    const animation = animsToExport[a];
-                    const boundAnim = this.boundAnimations[animation.name][this.currentCharacter.name];
+                    const animationName = animsToExport[a];
+                    const boundAnim = this.boundAnimations[animationName][this.currentCharacter.name];
                                         
                     // Check if it already has extension
-                    let clipName = name || animation.name;
+                    let clipName = animationName;
 
                     let bvh = "";
                     // Add the extension
@@ -875,18 +874,22 @@ class Editor {
                 break;
             }
             default:
-                const json = this.generateBML();
-                if( !json ) {
-                    return [];  
-                }
+                for( let a in animsToExport ) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
+                    const animationName = animsToExport[a];
 
-                let clipName = (name || json.name) + '.bml';
-                const fileType = "application/json";
-                if( download ) {
-                    UTILS.download(JSON.stringify(json), clipName, fileType);
-                }
-                else {
-                    files.push( {name: clipName, data: UTILS.dataToFile(JSON.stringify(json), clipName, fileType)} );
+                    const json = this.generateBML(animationName);
+                    if( !json ) {
+                        continue;  
+                    }
+
+                    let clipName = (json.name || animationName || name ) + '.bml';
+                    const fileType = "application/json";
+                    if( download ) {
+                        UTILS.download(JSON.stringify(json), clipName, fileType);
+                    }
+                    else {
+                        files.push( {name: clipName, data: UTILS.dataToFile(JSON.stringify(json), clipName, fileType)} );
+                    }
                 }
                 break;
     
@@ -1016,7 +1019,7 @@ class Editor {
         }
         else {
             this.gui.showExportAnimationsDialog("Preview animations", () => {
-                const files = this.export(this.getAnimationsToExport(), "BVH extended", false);
+                const files = this.export(info.selectedAnimations, "BVH extended", false);
                 const data = {type: "bvhe", data: files};
                 openPreview(data);
             })            
@@ -1105,7 +1108,7 @@ class KeyframeEditor extends Editor {
                     event.preventDefault();
                     event.stopImmediatePropagation();
                     this.gui.showExportAnimationsDialog("Export animations", ( info ) => {
-                        this.export( this.getAnimationsToExport(), info.format );
+                        this.export( info.selectedAnimations, info.format );
                     }, {formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
                 }
             break;
@@ -3052,7 +3055,7 @@ class ScriptEditor extends Editor {
                     event.preventDefault();
                     event.stopImmediatePropagation();
                     this.gui.showExportAnimationsDialog("Export animations", ( info ) => {
-                        this.export( this.getAnimationsToExport(), info.format );
+                        this.export( info.selectedAnimations, info.format );
                     }, {formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
                 }
             break;
@@ -3146,7 +3149,6 @@ class ScriptEditor extends Editor {
             mixer.uncacheClip( mixer._actions[0]._clip );
         }
 
-        this.gui.clipsTimeline.setTime(0, true);
         this.gui.clipsTimeline.unselectAllElements();
 
         this.gui.clipsTimeline.setAnimationClip( this.loadedAnimations[name].scriptAnimation, false );
@@ -3402,8 +3404,8 @@ class ScriptEditor extends Editor {
         }
     }
 
-    generateBML() {
-        const animation = this.getCurrentAnimation();
+    generateBML( animationName = null ) {
+        const animation = animationName ? this.loadedAnimations[animationName] : this.getCurrentAnimation();
         const data = animation.scriptAnimation;
 
         const json =  {

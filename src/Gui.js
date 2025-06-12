@@ -357,20 +357,9 @@ class Gui {
         let from = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             
-            const animations = this.editor.boundAnimations;
-            for( let animationName in animations ){
-                const a = animations[animationName][this.editor.currentCharacter.name];
-                if ( a ){
-                    p.sameLine();
-                    p.addCheckbox(animationName, !!a.export, (v) => a.export = v, {hideName: true, label: ""});
-                    p.addLabel(animationName, {width:"30%"});
-                    p.addBlank("1rem");
-                    p.addText(animationName, a.id, (v) => {
-                        this.editor.renameGlobalAnimation(a.id, v);
-                    }, {placeholder: "...", width:"55%", hideName: true} );
-                    p.endLine();
-                }
-            }
+            const availableTable = this.createAvailableAnimationsTable();
+            p.attach( availableTable );
+
 
             if ( options.from && options.from.length ) {
                 from = from || options.selectedFrom || options.from[0];               
@@ -404,9 +393,8 @@ class Gui {
             }, {min: 1, disabled: false})
 
             p.sameLine(2);
-            let b = p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true} );
-            b.root.style.width = "50%";
-            b = p.addButton("exportOk", options.accept || "OK", (v, e) => { 
+            p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true, width: "50%"} );
+            p.addButton("exportOk", options.accept || "OK", (v, e) => { 
                 e.stopPropagation();
                 if(options.required && value === '') {
 
@@ -415,14 +403,15 @@ class Gui {
                 }
                 else {
                     if( callback ) {
-                        callback({format, folder, from});
+                        let selectedAnimations = [];
+                        availableTable.getSelectedRows().forEach((v)=>{ selectedAnimations.push(v[0]) });
+                        callback({selectedAnimations, format, folder, from});
                     }
                     dialog.close() ;
                 }
                 
-            }, { buttonClass: "accent", hideName: true });
-            b.root.style.width = "50%";
-        }, {modal: true});
+            }, { buttonClass: "accent", hideName: true, width: "50%" });
+        }, {modal: true, size: ["auto", "auto"]});
 
         // Focus text prompt
         if( options.input !== false ) {
@@ -727,7 +716,7 @@ class KeyframesGui extends Gui {
 
             // Export (download) animation
             { name: "Export Global Animations", icon: "Download", kbd: "CTRL+E", callback: () => {
-                this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
+                this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( info.selectedAnimations, info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
             } },
             { name: "Export Videos and Landmarks", icon: "FileVideo", callback: () => this.showExportVideosDialog() },
             // Save animation in server
@@ -2520,11 +2509,39 @@ class KeyframesGui extends Gui {
     }
     /** ------------------------------------------------------------ */
 
+    createAvailableAnimationsTable(){
+
+        const animations = this.editor.boundAnimation;
+        let availableAnimations = [];
+        for ( let aName in animations ){
+            if ( !animations[aName][this.currentCharacter.name] ){
+                continue;
+            }
+            let numClips = 0;
+            animations[aName][this.currentCharacter.name].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
+            availableAnimations.push([ aName, numClips, animations[aName][this.currentCharacter.name].duration.toFixed(3) ]);
+        }
+
+        let table = new LX.Table(null, {
+                head: ["Name",  "Num. Clips", "Duration (s)"],
+                body: availableAnimations
+            },
+            {
+                selectable: true,
+                sortable: true,
+                toggleColumns: true,
+                filter: "Name",
+                // TODO add a row icon to modify the animations name
+            }
+        );
+        return table;
+    }
+
     createSaveDialog() {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = (location,) => {
-                const animations = this.editor.export(this.editor.getAnimationsToExport(), info.format, false);
+                const animations = this.editor.export(info.selectedAnimations, info.format, false);
                 for( let i = 0; i < animations.length; i++ ) {
                     
                     this.editor.uploadData( animations[i].name, animations[i].data, "clips", location, () => {
@@ -2932,7 +2949,7 @@ class ScriptGui extends Gui {
             // Export (download) animation
             {
                 name: "Export animations", icon: "Download", kbd: "CTRL+E", callback: () => {
-                    this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
+                    this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( info.selectedAnimations, info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
                 }
             },
             // Save animation in server
@@ -3432,7 +3449,7 @@ class ScriptGui extends Gui {
             widgets.clear();
             widgets.addTitle("Animation");
 
-            const animation = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
+            const animation = this.editor.loadedAnimations[this.editor.currentAnimation] ?? {};
             widgets.addText("Name", animation.name, (v) =>{ 
                     if( v.length == 0){
                         LX.toast("Animation Rename: name cannot be empty", null, { timeout: 7000 } );
@@ -3829,11 +3846,36 @@ class ScriptGui extends Gui {
 
     }
 
+    createAvailableAnimationsTable(){
+
+        const animations = this.editor.loadedAnimations;
+        let availableAnimations = [];
+        for ( let aName in animations ){
+            let numClips = 0;
+            animations[aName].scriptAnimation.tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
+            availableAnimations.push([ aName, numClips , animations[aName].scriptAnimation.duration.toFixed(3) ]);
+        }
+
+        let table = new LX.Table(null, {
+                head: ["Name",  "Num. Clips", "Duration (s)"],
+                body: availableAnimations
+            },
+            {
+                selectable: true,
+                sortable: true,
+                toggleColumns: true,
+                filter: "Name",
+                // TODO add a row icon to modify the animations name
+            }
+        );
+        return table;
+    }
+
     createSaveDialog( folder ) {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = ( location ) => {
-                let animations = this.editor.export(this.editor.getAnimationsToExport(), info.format, false);
+                let animations = this.editor.export(info.selectedAnimations, info.format, false);
                 if(info.from == "Selected clips") {
                     this.clipsTimeline.lastClipsSelected.sort((a,b) => {
                         if( a[0]<b[0] ) {
@@ -4451,10 +4493,6 @@ class ScriptGui extends Gui {
                     break;
             }
         })
-    }
-
-    createExportBMLDialog() {
-        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export(null, "", true, v), {input: this.editor.getCurrentAnimation().name, required: true} )  
     }
 
     showSourceCode (asset) {
