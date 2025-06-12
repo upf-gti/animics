@@ -1359,11 +1359,11 @@ class KeyframeEditor extends Editor {
     /**Create face and body animations from mediapipe and load character*/
     buildAnimation(data, bindToCurrentGlobal = true) {
 
-        
+        // get extension of videos so exporting will be easier
         let videoExtensionIdx = data.name.lastIndexOf(".");
         let videoExtension;
         if( videoExtensionIdx == -1 || videoExtensionIdx == (data.name.length-1)){
-            videoExtension = "webm";
+            videoExtension = ".webm";
             videoExtension = data.name.length;
         }else{
             videoExtension = data.name.slice(videoExtensionIdx);
@@ -3219,7 +3219,6 @@ class ScriptEditor extends Editor {
 
     async loadFiles( files ) {
         const formats = ['json', 'bml', 'sigml'];
-        const resultFiles = [];
         const promises = [];
         
         for(let i = 0; i < files.length; ++i){
@@ -3242,41 +3241,40 @@ class ScriptEditor extends Editor {
                         const animation = file.animation;
 
                         if( empty ) {
-                            this.activeTimeline.setTime(0, true);
-                            this.gui.loadBMLClip( animation );
+                            const lastAnimation = this.currentAnimation;
+                            delete this.loadedAnimations[lastAnimation];
+                            delete this.boundAnimations[lastAnimation];
                             this.loadAnimation( file.name, animation );
-
                             resolve(file.animation);
                             UTILS.hideLoading();
                         }
                         else {
                             UTILS.hideLoading()
                             this.gui.prompt = new LX.Dialog("Import animation" , ( panel ) => {
-                                panel.addTextArea("", "There is already an animation. What do you want to do?", null, {disabled: true,  className: "nobg"});
+                                panel.addTextArea("", "There is already an animation. What do you want to do?", null, {hideName: true, disabled: true, resize: false, fitHeight: true, className: "nobg"});
                                 panel.sameLine(3);
-                                panel.addButton(null, "Replace", () => { 
-                                    this.clearAllTracks(false);
-                                    this.activeTimeline.setTime(0, true);
-                                    this.gui.loadBMLClip( animation );
+                                panel.addButton(null, "New animation", () => { 
                                     this.loadAnimation( file.name, animation );
                                     this.gui.prompt.close();
                                     resolve(file.animation);
                                     UTILS.hideLoading();
-                                }, { buttonClass: "accept" });
+                                }, { buttonClass: "accent", width: "33%" });
 
                                 panel.addButton(null, "Concatenate", () => { 
                                     this.gui.loadBMLClip( animation );
+                                    this.updateMixerAnimation( this.loadedAnimations[this.currentAnimation].scriptAnimation );
+                                    this.setTime(this.currentTime); // force a mixer.update
                                     this.gui.prompt.close();
                                     resolve(file.animation);
                                     UTILS.hideLoading();
 
-                                }, { buttonClass: "accept" });
+                                }, { buttonClass: "accent", width: "33%" });
 
                                 panel.addButton(null, "Cancel", () => { 
                                     this.gui.prompt.close();
                                     resolve();
                                     UTILS.hideLoading();
-                                });
+                                }, { width: "33%" });
                             })
                         }
                     } );
@@ -3296,11 +3294,16 @@ class ScriptEditor extends Editor {
         return Promise.all( promises );
     }
 
-    loadAnimation(name, animationData) { 
+    loadAnimation(name, animationData) {
+
+        let extensionIdx = name.lastIndexOf(".");
+        if ( extensionIdx != -1 ){
+            name = name.substr(0, extensionIdx);
+        }
 
         let count = 1;
         let countName = name;
-        while ( this.loadedAnimations[name] ){
+        while ( this.loadedAnimations[countName] ){
             countName = name + ` (${count++})`;
         }
         name = countName;
@@ -3312,7 +3315,7 @@ class ScriptEditor extends Editor {
         this.loadedAnimations[name] = {
             name: name,
             export: true,
-            scriptAnimation: animationClip,  
+            scriptAnimation: animationClip, 
             type: "script"
         };
         this.gui.clipsTimeline.updateHeader();
