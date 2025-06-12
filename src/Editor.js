@@ -44,7 +44,7 @@ class Editor {
     
     constructor( animics ) {
         
-        this.character = "ReadyVictor";
+        this.character = "";
 
         this.currentCharacter = null;
         this.loadedCharacters = {};
@@ -100,6 +100,16 @@ class Editor {
             dark: { background: 0x272727, grid: 0x272727, gridOpacity: 0.2 }, 
             light: { background: 0xa0a0a0, grid: 0xffffff, gridOpacity: 0.8 }
         }
+
+        
+        this.avatarOptions = {
+            "Eva": [Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.glb', Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.json', 0, Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.png'],
+            "Witch": [Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.glb', Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.json', 0, Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.png'],
+            "Kevin": [Editor.RESOURCES_PATH+'Kevin/Kevin.glb', Editor.RESOURCES_PATH+'Kevin/Kevin.json', 0, Editor.RESOURCES_PATH+'Kevin/Kevin.png'],
+            "Ada": [Editor.RESOURCES_PATH+'Ada/Ada.glb', Editor.RESOURCES_PATH+'Ada/Ada.json',0, Editor.RESOURCES_PATH+'Ada/Ada.png'],
+            "Victor": [Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.glb', Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.json',0, Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.png'],
+            "Ready Eva": ['https://models.readyplayer.me/66e30a18eca8fb70dcadde68.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva_v3.json',0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
+        }
     }
 
     enable() {
@@ -121,7 +131,9 @@ class Editor {
         this.createScene();
         
         this.disable()
-        await this.initCharacters();
+        
+        const modelToLoad = [Editor.RESOURCES_PATH + 'Eva_Low/Eva_Low.glb', Editor.RESOURCES_PATH + 'Eva_Low/Eva_Low.json', (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), 0 ), "Eva" ];
+        await this.initCharacters(modelToLoad);
 
         if( settings.pendingResources ) {
             UTILS.makeLoading("Loading files...");
@@ -257,10 +269,10 @@ class Editor {
         this.orientationHelper = orientationHelper;
     }
 
-    async initCharacters() {
+    async initCharacters(modelToLoad) {
       
         // Load current character
-        await this.loadCharacter(this.character);
+        await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
         
         // while(!this.loadedCharacters[this.character] ) {
         //     await new Promise(r => setTimeout(r, 1000));            
@@ -268,14 +280,19 @@ class Editor {
 
     }
 
-    async loadCharacter(characterName) {
+    async loadCharacter(modelFilePath, configFile, modelRotation, characterName, callback = null, onerror = null) {
 
-        let modelName = characterName.split("/");
-        UTILS.makeLoading("Loading GLTF [" + modelName[modelName.length - 1] +"]...")
+        if(modelFilePath.includes("models.readyplayer.me")) {
+            modelFilePath+= "?morphTargets=ARKit"
+        }
 
+        this.character = characterName;
+
+        UTILS.makeLoading("Loading GLTF [" + this.character +"]...")
+        //Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb"
         // Load the target model (Eva)
         return new Promise( resolve => {
-            this.loaderGLB.load(Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb", (gltf) => {
+            this.loaderGLB.load(modelFilePath, async (gltf) => {
                 const model = gltf.scene;
                 model.name = characterName;
                 model.visible = true;
@@ -317,6 +334,28 @@ class Editor {
                     name: characterName, model, morphTargets, skinnedMeshes, mixer, skeletonHelper
                 };
                
+                if (configFile) {
+                    // Read the file if it's a URL
+                    if(typeof(configFile) == 'string') {                    
+                        const response = await fetch( configFile );
+                        
+                        if(response.ok) {
+                            const text = await response.text()                       
+                            
+                            let config = JSON.parse( text );
+                            config._filename = configFile;
+                            this.loadedCharacters[characterName].config = config;
+                            this.mapNames.characterMap = config.faceController.blendshapeMap;
+                        }
+                    }
+                    else {
+                        // Set the config file data if it's an object
+                        const config = configFile;
+                        this.loadedCharacters[characterName].config = config;
+                        this.mapNames.characterMap = config.faceController.blendshapeMap;
+                    }
+                }
+
                 if( this.isScriptMode() ) {
                     let eyesTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffff00 , depthWrite: false }) );
                     eyesTarget.name = "eyesTarget";
@@ -339,19 +378,28 @@ class Editor {
                     model.neckTarget = neckTarget;
     
                     skeletonHelper.visible = false;
-                    fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
-                        const config = JSON.parse( text );
-                        this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
-                        this.changeCharacter(characterName);
-                        resolve();
-                    })
+                    
+                    this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
+                    
+                    // fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
+                    //     const config = JSON.parse( text );
+                    //     this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
+                    //     this.changeCharacter(characterName);
+                    //     resolve();
+                    // })
                 }
                 else {
-                    this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
-                    this.changeCharacter(characterName);
-                    resolve();
+                    this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, {parts: this.mapNames.parts, mediapipe: this.mapNames.mediapipe, characterMap: (this.loadedCharacters[characterName].config ? this.loadedCharacters[characterName].config.faceController.blendshapeMap : this.mapNames.characterMap)});
+                
                 }
-    
+                
+                this.changeCharacter(characterName);
+                
+                resolve();
+                if (callback) {
+                    callback();
+                }
+                
             });
         })
     }
@@ -360,7 +408,8 @@ class Editor {
         // Check if the character is already loaded
         if( !this.loadedCharacters[characterName] ) {
             console.warn(characterName + " not loaded");
-            await this.loadCharacter(characterName);
+            const modelToLoad = this.avatarOptions[characterName];
+            await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], characterName);
             return;
         }
 
@@ -380,7 +429,7 @@ class Editor {
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
         }
-        
+        this.gui.createAvatarsPanel();
         UTILS.hideLoading();
     }
 
@@ -1143,12 +1192,12 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.redo();
     }
 
-    async initCharacters() {
+    async initCharacters( modelToLoad ) {
         // Create gizmo
         this.gizmo = new Gizmo(this);
 
         // Load current character
-        await this.loadCharacter(this.character);
+        await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
         
         if ( this.inferenceMode == this.animationInferenceModes.NN ) {
             this.loadNNSkeleton();
@@ -2577,7 +2626,7 @@ class KeyframeEditor extends Editor {
             const eTrack = editedAnimation.tracks[eIdx];
             mapTrackIdxs[eIdx] = [];
 
-            let bsNames = this.currentCharacter.blendshapesManager.mapNames.characterMap[eTrack.id];
+            let bsNames = this.currentCharacter.config ? this.currentCharacter.config.faceController.blendshapeMap[eTrack.id] : this.currentCharacter.blendshapesManager.mapNames.characterMap[eTrack.id];
             if ( !bsNames ){ 
                 continue; 
             }

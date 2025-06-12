@@ -171,7 +171,7 @@ function createHome( content ) {
     mainContent.id = "home-container";
 
     const padContainer = LX.makeContainer( ["100%", "auto"], "px-6", "", mainContent );
-    const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-10 my-6 overflow-scroll", "", padContainer );
+    const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-10 p-4 my-6 overflow-scroll", "", padContainer );
     headerContent.style.minHeight = "256px";
     
     const _makeProjectOptionItem = ( icon, innerText, outerText, id, parent ) => {

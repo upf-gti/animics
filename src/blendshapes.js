@@ -432,7 +432,7 @@ class BlendshapesManager {
 
                 const times = track.times;
                 const values = track.values;
-
+                
                 // Search the AU mapped to this morph target
                 for ( let actionUnit in this.mapNames.characterMap ) {
                     const mappedMorphs = this.mapNames.characterMap[actionUnit];
