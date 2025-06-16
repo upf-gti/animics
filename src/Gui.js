@@ -747,7 +747,7 @@ class Gui {
         // p.sameLine();
         let avatars = [];
         const _makeProjectOptionItem = ( icon, outerText, id, parent, selected = false ) => {
-            const item = LX.makeContainer( ["fit-content", "auto"], `flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, parent );
+            const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, parent );
             const card = LX.makeContainer( ["200px", "auto"], `flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button card-color`, `
                <img src="${icon}" height="120px">
             `, item );
@@ -774,7 +774,8 @@ class Gui {
             });
 
         };
-        const avatarContainer = LX.makeContainer( ["100%", "auto"], "flex flex-wrap justify-center gap-3", "" );
+        const avatarContainer = LX.makeContainer( ["100%", "auto"], "grid gap-2", "" );
+        avatarContainer.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
         for(let avatar in this.editor.avatarOptions) {
             _makeProjectOptionItem(this.editor.avatarOptions[avatar][3] ?? GUI.THUMBNAIL, avatar, avatar, avatarContainer, avatar == this.editor.currentCharacter.model.name);
            
@@ -2128,6 +2129,8 @@ class KeyframesGui extends Gui {
                     this.setKeyframeClip(clip);
                 }, { buttonClass: "accent" });
 
+                p.addBlank();
+
                 p.branch("Clip Blending");
 
                 p.addNumber( "Weight", clip.weight, (v,e) => { 
@@ -2261,11 +2264,16 @@ class KeyframesGui extends Gui {
 
         const panel = faceArea.addPanel();
         // panel.root.style.maxHeight= "100vh";
-        const auArea = new LX.Area({id: 'auFace'});             
+
+        // Alex: This hacky offset corresponds to Title Widget inside the tabs.
+        // Its height its not checked when computing final heights/scroll stuff (to fix in Lexgui)
+        const titleOffset = 36;
+
+        const auArea = new LX.Area({id: 'auFace', height: `calc(100% - ${ titleOffset }px)`});
         auArea.split({type: "vertical", sizes: ["auto", "auto"], resize: true});
         const [faceTop, faceBottom] = auArea.sections;
 
-        const bsArea = new LX.Area({id: 'bsFace'}); 
+        const bsArea = new LX.Area({id: 'bsFace', height: `calc(100% - ${ titleOffset }px)`});
 
         panel.addTabSections("Edition Mode", [
             {
@@ -2366,9 +2374,9 @@ class KeyframesGui extends Gui {
                     anim.id = v;
                 } )
 
-                panel.addButton(null, "Return to global animation", (v,e)=>{
+                panel.addButton(null, LX.makeIcon("Undo2", { svgClass: "fg-white" }).innerHTML + "Return to global animation", (v,e)=>{
                     this.setKeyframeClip(null);
-                }, { buttonClass: "error" });
+                }, { buttonClass: "error fg-white" });
 
             }
             else{
@@ -2655,7 +2663,7 @@ class KeyframesGui extends Gui {
                     this.editor.updateActionUnitsAnimation(this.auTimeline.animationClip, tracksIds);
                 });
                 
-            }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ 
+            }, {nameWidth: "40%", min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: () => {
                 this.bsTimeline.saveState(track.trackIdx)
              }});
         }
