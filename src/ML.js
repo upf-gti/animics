@@ -126,7 +126,7 @@ class NN {
             // Compute lerp for all frames
             for (let i = blank0; i <= blank1; i++) {
                 quatData[i] = quatData[i].map( (v, idx) => {
-                    return THREE.Math.lerp(prevFrame[idx], nextFrame[idx], (i-blank0+1)*divisions );
+                    return THREE.MathUtils.lerp(prevFrame[idx], nextFrame[idx], (i-blank0+1)*divisions );
                 } );
             }
         }

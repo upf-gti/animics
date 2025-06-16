@@ -85,24 +85,7 @@ class Gui {
         const menuEntries = [
             {
                 name: "Project",
-                submenu: [
-                    {
-                        name: "New Animation",
-                        icon: "Plus",
-                        callback: () => {
-                            this.editor.loadAnimation("animation" + Math.floor( performance.now()*1000 ).toString(), {});
-                            this.updateAnimationPanel();
-                        }
-                    },
-                    {
-                        name: "Import Animations",
-                        icon: "FileInput",
-                        submenu: [
-                            { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
-                            { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
-                        ]
-                    }
-                ]
+                submenu: [ ]
             },
             {
                 name: "Timeline",
@@ -373,20 +356,9 @@ class Gui {
         let from = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             
-            const animations = this.editor.boundAnimations;
-            for( let animationName in animations ){
-                const a = animations[animationName][this.editor.currentCharacter.name];
-                if ( a ){
-                    p.sameLine();
-                    p.addCheckbox(animationName, !!a.export, (v) => a.export = v, {hideName: true, label: ""});
-                    p.addLabel(animationName, {width:"30%"});
-                    p.addBlank("1rem");
-                    p.addText(animationName, a.id, (v) => {
-                        this.editor.renameGlobalAnimation(a.id, v);
-                    }, {placeholder: "...", width:"55%", hideName: true} );
-                    p.endLine();
-                }
-            }
+            const availableTable = this.createAvailableAnimationsTable();
+            p.attach( availableTable );
+
 
             if ( options.from && options.from.length ) {
                 from = from || options.selectedFrom || options.from[0];               
@@ -420,9 +392,8 @@ class Gui {
             }, {min: 1, disabled: false})
 
             p.sameLine(2);
-            let b = p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true} );
-            b.root.style.width = "50%";
-            b = p.addButton("exportOk", options.accept || "OK", (v, e) => { 
+            p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true, width: "50%"} );
+            p.addButton("exportOk", options.accept || "OK", (v, e) => { 
                 e.stopPropagation();
                 if(options.required && value === '') {
 
@@ -431,14 +402,15 @@ class Gui {
                 }
                 else {
                     if( callback ) {
-                        callback({format, folder, from});
+                        let selectedAnimations = [];
+                        availableTable.getSelectedRows().forEach((v)=>{ selectedAnimations.push(v[0]) });
+                        callback({selectedAnimations, format, folder, from});
                     }
                     dialog.close() ;
                 }
                 
-            }, { buttonClass: "accent", hideName: true });
-            b.root.style.width = "50%";
-        }, {modal: true});
+            }, { buttonClass: "accent", hideName: true, width: "50%" });
+        }, {modal: true, size: ["auto", "auto"]});
 
         // Focus text prompt
         if( options.input !== false ) {
@@ -523,9 +495,7 @@ class Gui {
                         }
                         this.hideTimeline();
                         this.sidePanel.parentArea.extend();
-                        this.hideVideoOverlay();
-                        
-                        
+                        this.hideVideoOverlay();                       
                     } else {
                         this.showTimeline();
                         this.sidePanel.parentArea.reduce();  
@@ -589,35 +559,6 @@ class Gui {
             } // resize
         }
         this.mainArea._update(); // to update area's this.size attribute
-    }
-
-    async promptExit() {
-        this.prompt = await new LX.Dialog("Exit confirmation", (p) => {
-            p.addTextArea(null, "Be sure you have exported the animation. If you exit now, your data will be lost. How would you like to proceed?", null, {disabled: true});
-            p.addButton(null, "Export", () => {
-                p.clear();
-                p.addText("File name", this.editor.clipName, (v) => this.editor.clipName = v);
-                p.addButton(null, "Export extended BVH", () => this.editor.export(null, "BVH extended"), { buttonClass: "accent" });
-                if(this.editor.mode == this.editor.editionModes.SCRIPT) {
-                    p.addButton( null, "Export BML", () => this.editor.export(null, ""), { buttonClass: "accent" });
-                }
-                p.addButton( null, "Export GLB", () => this.editor.export(null, "GLB"), { buttonClass: "accent" });
-            });
-            p.addButton(null, "Discard", () => {
-
-            });
-            p.addButton(null, "Cancel", () => {
-                return;
-            });
-
-        }, {
-            onclose: (root) => {
-            
-                root.remove();
-                this.prompt = null;
-            }
-        }, {modal: true, closable: true});
-        return this.prompt;
     }
 
     showClearTracksConfirmation(callback) {
@@ -1118,17 +1059,45 @@ class KeyframesGui extends Gui {
         const projectMenu = entries.find( e => e.name == "Project" )?.submenu;
         console.assert(projectMenu, "Project menu not found" );
 
-        projectMenu.push(
+        projectMenu.push( 
+            {
+                name: "New Global Animation",
+                icon: "Plus",
+                callback: () => {
+                    const animClip = this.editor.createGlobalAnimation("new animation", 1);
+                    this.editor.setGlobalAnimation( animClip.id );
+                }
+            },
             null,
+            "Clips",
+            {
+                name: "Empty clip",
+                icon: "PenTool",
+                callback: () =>{
+                    // TODO empty clip probably does not need to have an entry in loadedAnimations
+                    // however, not adding it might generate bugs. Some elements expect a clip to have a source
+                    this.editor.loadAnimation("empty clip", {} ); 
+                }
+            },
+            {
+                name: "Import Animations",
+                icon: "FileInput",
+                submenu: [
+                    { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
+                    { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
+                ]
+            },
             {
                 name: "Generate Animations", icon: "HandsAslInterpreting", submenu: [
                     { name: "From Webcam", icon: "Webcam", callback: () => this.editor.captureVideo() },
                     { name: "From Videos", icon: "Film", callback: () => this.importFiles(), short: "CTRL+O" }
                 ]
             },
+            null,
+
             // Export (download) animation
-            { name: "Export Animations", icon: "Download", kbd: "CTRL+E", callback: () => {
-                this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
+            { name: "Export Global Animations", icon: "Download", kbd: "CTRL+E", callback: () => {
+                this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( info.selectedAnimations, info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
             } },
             { name: "Export Videos and Landmarks", icon: "FileVideo", callback: () => this.showExportVideosDialog() },
             // Save animation in server
@@ -1296,57 +1265,58 @@ class KeyframesGui extends Gui {
     showExportVideosDialog() {
 
         let animations = this.editor.loadedAnimations;
-        let toExport = {}; // need to sepparate bvh anims from video anims (just in case)
+        let availableAnimations = []; // need to sepparate bvh anims from video anims (just in case)
+        let availableVideoTypes = [];
         for ( let aName in animations ){
             if ( animations[aName].type == "video" ){
-                toExport[ aName ] = animations[aName];
+                availableAnimations.push([ aName,  animations[aName].videoExtension, (animations[aName].endTime - animations[aName].startTime).toFixed(3) ]);
+                if ( availableVideoTypes.indexOf(animations[aName].videoExtension) == -1 ){
+                    availableVideoTypes.push(animations[aName].videoExtension);
+                }
             }
         }
-
-        if( !Object.keys(toExport).length ) {
+        if( !availableAnimations.length ) {
             LX.popup("There aren't videos or landmarks to export!", "", {position: [ "10px", "50px"], timeout: 5000})
             return;
         }
 
         const zip = new JSZip();
 
-        const options = { modal : true };
+        const options = { modal : true, width: "auto" };
         const dialog = this.prompt = new LX.Dialog("Export videos and Mediapipe data", p => {
-            
-            // animation elements
-            for( let aName in toExport ) {
-                const anim = toExport[aName];
-                p.sameLine();
-                p.addCheckbox(" ", anim.export, (v) => anim.export = v);//, {minWidth:"100px"});
-                p.addText(aName, anim.saveName, (v) => {
-                    toExport[aName].saveName = v;
-                }, {placeholder: "...", minWidth:"200px"} );
-                p.endLine();
-            }
+
+            let table = p.addTable(null, {
+                    head: ["Name",  "Video Format", "Duration (s)"],
+                    body: availableAnimations
+                },
+                {
+                    selectable: true,
+                    sortable: true,
+                    toggleColumns: true,
+                    filter: "Name",
+                    customFilters: [ {name: "Video Formats", options: availableVideoTypes } ]
+                }
+            );
 
             // accept / cancel
             p.sameLine(2);
-            p.addButton("", options.accept || "Download", async (v, e) => { 
+            p.addButton(null, "Download", async (v, e) => { 
                 e.stopPropagation();
                 
                 UTILS.makeLoading( "Preparing files...", 0.5 );
                 const promises = [];
 
-                for( let aName in toExport ) {
-                    const animation = toExport[aName];
-                    if ( !animation.export ) {
-                        continue;
-                    }
-                    let extension = aName.lastIndexOf(".");
-                    extension = extension == -1 ? ".webm" : aName.slice(extension);
-                    const saveName = animation.saveName + extension;
+                let toExport = table.getSelectedRows();
+                for( let i = 0; i < toExport.length; ++i ){
+                    const animation = this.editor.loadedAnimations[toExport[i][0]];
+                    const saveName = animation.name + animation.videoExtension;
 
                     // prepare videos so they can be downloaded
                     const promise = fetch( animation.videoURL )
-                        .then( r => r.blob() )
-                        .then( blob => UTILS.blobToBase64(blob) )
-                        .then( binaryData => zip.file(saveName, binaryData, {base64:true} ) );
-                    
+                    .then( r => r.blob() )
+                    .then( blob => UTILS.blobToBase64(blob) )
+                    .then( binaryData => zip.file(saveName, binaryData, {base64:true} ) );
+
                     promises.push( promise );
 
                     // include landmarks in zip
@@ -1364,7 +1334,7 @@ class KeyframesGui extends Gui {
                         } 
                     );
 
-                    zip.file( animation.saveName + ".json", data );
+                    zip.file( animation.name + ".json", data );
                 }
 
                 dialog.close();
@@ -1379,14 +1349,10 @@ class KeyframesGui extends Gui {
                 el.click();
                 UTILS.hideLoading();
 
-            }, { buttonClass: "accent" });
-            
-            p.addButton("", "Cancel", () => {
-                if(options.on_cancel) {
-                    options.on_cancel();
-                }
+            }, { buttonClass: "accent", width: "50%" });
+            p.addButton(null, "Cancel", () => {
                 dialog.close();
-            });
+            }, { width: "50%" });
 
         }, options);
 
@@ -2954,11 +2920,39 @@ class KeyframesGui extends Gui {
     }
     /** ------------------------------------------------------------ */
 
+    createAvailableAnimationsTable(){
+
+        const animations = this.editor.boundAnimation;
+        let availableAnimations = [];
+        for ( let aName in animations ){
+            if ( !animations[aName][this.currentCharacter.name] ){
+                continue;
+            }
+            let numClips = 0;
+            animations[aName][this.currentCharacter.name].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
+            availableAnimations.push([ aName, numClips, animations[aName][this.currentCharacter.name].duration.toFixed(3) ]);
+        }
+
+        let table = new LX.Table(null, {
+                head: ["Name",  "Num. Clips", "Duration (s)"],
+                body: availableAnimations
+            },
+            {
+                selectable: true,
+                sortable: true,
+                toggleColumns: true,
+                filter: "Name",
+                // TODO add a row icon to modify the animations name
+            }
+        );
+        return table;
+    }
+
     createSaveDialog() {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = (location,) => {
-                const animations = this.editor.export(this.editor.getAnimationsToExport(), info.format, false);
+                const animations = this.editor.export(info.selectedAnimations, info.format, false);
                 for( let i = 0; i < animations.length; i++ ) {
                     
                     this.editor.uploadData( animations[i].name, animations[i].data, "clips", location, () => {
@@ -3332,8 +3326,6 @@ class ScriptGui extends Gui {
         this.mode = ClipModes.Actions;
         this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
         this.delayedUpdateTime = 500; //ms
-
-        this.animationPanel = new LX.Panel({id:"animation"});
     }
 
     onCreateMenuBar( entries ) {
@@ -3342,11 +3334,33 @@ class ScriptGui extends Gui {
         console.assert(projectMenu, "Project menu not found" );
 
         projectMenu.push(
+            {
+                name: "New Animation",
+                icon: "Plus",
+                callback: () => {
+                    let count = 1;
+                    let countName = "new animation";
+                    while( this.editor.loadedAnimations[countName] ){
+                        countName = `new animation (${count++})`; 
+                    }
+                    this.editor.loadAnimation(countName, {});
+                    this.updateAnimationPanel();
+                }
+            },
+            null,
+            {
+                name: "Import Animations",
+                icon: "FileInput",
+                submenu: [
+                    { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
+                    { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
+                ]
+            },
             null,
             // Export (download) animation
             {
                 name: "Export animations", icon: "Download", kbd: "CTRL+E", callback: () => {
-                    this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( this.editor.getAnimationsToExport(), info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
+                    this.showExportAnimationsDialog("Export animations", ( info ) => this.editor.export( info.selectedAnimations, info.format ), {formats: ["BML", "BVH", "BVH extended", "GLB"]});
                 }
             },
             // Save animation in server
@@ -3408,6 +3422,13 @@ class ScriptGui extends Gui {
                                
         this.clipsTimeline = new LX.ClipsTimeline("clipsTimelineId", {
             title: "Behaviour actions",
+            onCreateBeforeTopBar: (panel) => {
+                // panel.addButton
+                panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
+                    this.editor.setGlobalAnimation(v); // already updates gui
+                }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
+                
+            },
             onCreateAfterTopBar: (panel) =>{
                 panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
                     this.editor.setPlaybackRate(value);
@@ -3505,7 +3526,6 @@ class ScriptGui extends Gui {
             e.stopPropagation();
 
             let actions = [];
-            //let track = this.NMFtimeline.clip.tracks[0];
             if(this.clipsTimeline.lastClipsSelected.length) {
                 actions.push(
                     {
@@ -3809,20 +3829,20 @@ class ScriptGui extends Gui {
 
     loadBMLClip(clip) {         
         let {clips, duration} = this.dataToBMLClips(clip, this.mode);
-
         this.clipsTimeline.addClips(clips, this.clipsTimeline.currentTime);
-    
-        this.clip = this.clipsTimeline.animationClip || clip ;
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
 
-        const area = new LX.Area({className: "sidePanel", id: 'panel', scroll: true});  
-        this.sidePanel.attach(area);
+        while ( this.sidePanel.root.children.length ){
+            this.sidePanel.root.children[0].remove();
+        }
+        this.sidePanel.sections = [];
 
-        const [top, bottom] = area.split({type: "vertical", resize: false, sizes: "auto"});
+        const [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
         
+        this.animationPanel = new LX.Panel({id:"animation"});
         top.attach(this.animationPanel);
         this.clipPanel = new LX.Panel({id:"bml-clip"});
         bottom.attach(this.clipPanel);
@@ -3840,25 +3860,16 @@ class ScriptGui extends Gui {
             widgets.clear();
             widgets.addTitle("Animation");
 
-            const animation = this.editor.getCurrentAnimation() ?? {}; // loadedAnimations[current]
+            const animation = this.editor.loadedAnimations[this.editor.currentAnimation] ?? {};
             widgets.addText("Name", animation.name, (v) =>{ 
-                    if ( this.editor.loadedAnimations[v] && v != anim.name ){
+                    if( v.length == 0){
+                        LX.toast("Animation Rename: name cannot be empty", null, { timeout: 7000 } );
+                    }
+                    else if ( this.editor.loadedAnimations[v] && v != animation.name ){
                         LX.toast("Animation Rename: Another animation with this name already exists", null, { timeout: 7000 } );
-                        // there already is an existing animation with this name
                     }else{
-                        const oldName = anim.id;
-                        const newName = v;
-                        const bound = this.editor.boundAnimations[oldName];
-                        this.editor.boundAnimations[newName] = bound;
-                        for( let avatarname in bound ){
-                            bound[avatarname].id = newName;
-                        }
-                        delete this.editor.boundAnimations[oldName];
-                        
-                        this.editor.loadedAnimations[newName] = this.editor.loadedAnimations[oldName];
-                        delete this.editor.loadedAnimations[oldName];
-
-                        this.editor.currentAnimation = newName;
+                        this.editor.renameGlobalAnimation(animation.name, v);
+                        this.clipsTimeline.updateHeader();
                     }
             } );
 
@@ -4246,11 +4257,36 @@ class ScriptGui extends Gui {
 
     }
 
+    createAvailableAnimationsTable(){
+
+        const animations = this.editor.loadedAnimations;
+        let availableAnimations = [];
+        for ( let aName in animations ){
+            let numClips = 0;
+            animations[aName].scriptAnimation.tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
+            availableAnimations.push([ aName, numClips , animations[aName].scriptAnimation.duration.toFixed(3) ]);
+        }
+
+        let table = new LX.Table(null, {
+                head: ["Name",  "Num. Clips", "Duration (s)"],
+                body: availableAnimations
+            },
+            {
+                selectable: true,
+                sortable: true,
+                toggleColumns: true,
+                filter: "Name",
+                // TODO add a row icon to modify the animations name
+            }
+        );
+        return table;
+    }
+
     createSaveDialog( folder ) {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = ( location ) => {
-                let animations = this.editor.export(this.editor.getAnimationsToExport(), info.format, false);
+                let animations = this.editor.export(info.selectedAnimations, info.format, false);
                 if(info.from == "Selected clips") {
                     this.clipsTimeline.lastClipsSelected.sort((a,b) => {
                         if( a[0]<b[0] ) {
@@ -4868,10 +4904,6 @@ class ScriptGui extends Gui {
                     break;
             }
         })
-    }
-
-    createExportBMLDialog() {
-        this.prompt = LX.prompt("File name", "Export BML animation", (v) => this.editor.export(null, "", true, v), {input: this.editor.getCurrentAnimation().saveName, required: true} )  
     }
 
     showSourceCode (asset) {
