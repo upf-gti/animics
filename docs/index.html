@@ -190,6 +190,7 @@
                 LX.registerCommandbarEntry(w, open.bind(this, "edit/" + url, null));
             }
 
+            m.add("Database", { callback: open.bind(this, "database.html", null) });
         };
 
         if( mobile )
