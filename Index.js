@@ -134,7 +134,10 @@ function createSideBar( area ) {
                     { name: "Discord", link: "https://discord.gg/9YGrGjnycj", icon: "Discord" }
                 ]}
             ], { side: "right", align: "end" });
-        }
+        },
+        collapsed: false,
+        collapsable: false,
+        displaySelected: true
     };
 
 
@@ -153,7 +156,7 @@ function createSideBar( area ) {
                 callback: (value, event) => {
                     window.__currentSheet = new LX.Sheet("256px", [ sheetArea ] );
                 }
-            }])
+            }], { float: "left" })
     }
     else
     {
