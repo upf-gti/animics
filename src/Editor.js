@@ -393,7 +393,7 @@ class Editor {
                 
                 }
                 
-                this.changeCharacter(characterName);
+                await this.changeCharacter(characterName);
                 
                 resolve();
                 if (callback) {
@@ -431,17 +431,49 @@ class Editor {
         }
         this.gui.createAvatarsPanel();
         this.gui.setKeyframeClip(null);
-        debugger;
-        for(let anim in this.loadedAnimations) {
-            if(!this.boundAnimations[anim][characterName]) {
-                this.bindAnimationToCharacter(anim);
-                this.retargetAnimation(anim);
+        this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
+        
+        for(let anim in this.boundAnimations) {
+            if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
+                const characters = Object.keys(this.boundAnimations[anim]);
+                const animation = this.boundAnimations[anim][characters[0]];
+                let newAnimation = Object.assign({}, animation);
+                let tracks = [];
+                for(let i = 0; i < animation.tracks.length; i++) {
+                    const track = animation.tracks[i];
+                    let clips = [];
+                    for( let j = 0; j < track.clips.length; j++) {
+                        const clip = track.clips[j];
+                        let newClip = Object.assign({}, clip);
+                        if(clip.mixerBodyAnimation) {
+                            newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);                            
+                            // Set keyframe animation to the timeline and get the timeline-formated one
+                            newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
+                            newClip.skeletonAnimation.name = "bodyAnimation";  // timeline
+                        }
+                        clips.push(newClip);
+                    }
+                    const newTrack = Object.assign({}, track);
+                    newTrack.clips = clips;
+                    tracks.push(newTrack);
+                }
+                newAnimation.tracks = tracks;
+                this.boundAnimations[anim][characterName] = newAnimation;
+                //this.bindAnimationToCharacter(anim);
+                // const bodyAnimation = this.retargetAnimation(anim);
+                // const animation = Object.assign({}, this.loadedAnimations[anim]);
+                // animation.skeleton.pose()
+                // animation.skeleton = applyTPose(animation.skeleton).skeleton;
+                // this.currentCharacter.skeletonHelper.skeleton.pose();
+                // this.currentCharacter.skeletonHelper.skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
+                // const boundAnimation = this.bindAnimationToCharacter(anim, {animation, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, srcEmbedWorldTransforms: true});
+                this.setGlobalAnimation(anim);
             }
         }
         UTILS.hideLoading();
     }
 
-    retargetAnimation(anim) {
+    retargetAnimation(source, bodyAnimation) {
       
         const currentCharacter = this.currentCharacter;
         this.currentCharacter.skeletonHelper.skeleton.pose();
@@ -454,20 +486,8 @@ class Editor {
             console.warn("T-pose can't be applyied to the TARGET. Automap falied.")
         }
 
-        const sourceBoundAnimations = this.boundAnimations[anim][this.currentCharacter.name];
-        let bodyAnimation = Object.assign({}, sourceBoundAnimations.mixerBodyAnimation);
-        
-        let sourceCharacter = null;
-        for(let character in this.boundAnimations[anim]) {
-            if(character != this.currentCharacter.name) {
-                sourceCharacter = this.loadedCharacters[character];
-                break;
-            }
-        }
-
-        if( !source ) {
-            return;
-        }
+        let sourceCharacter = source.skeleton;
+       
         
         if( bodyAnimation ) {
         
@@ -491,21 +511,21 @@ class Editor {
             bodyAnimation.tracks = tracks;            
             
             
-            sourceCharacter.skeletonHelper.skeleton.pose();
-            const skeleton = applyTPose(sourceCharacter.skeletonHelper.skeleton).skeleton;
+            sourceCharacter.pose();
+            const skeleton = applyTPose(sourceCharacter).skeleton;
             if(skeleton)
             {
-                sourceCharacter.skeletonHelper.skeleton = skeleton;
+                sourceCharacter = skeleton;
             }
             else {
                 console.warn("T-pose can't be applyied to the SOURCE. Automap falied.")
             }            
             
-            let retargeting = new AnimationRetargeting(animation.skeleton, currentCharacter.model, { srcEmbedWorldTransforms: true, trgEmbedWorldTransforms: true, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT } ); // TO DO: change trgUseCurrentPose param
-            bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+            let retargeting = new AnimationRetargeting(sourceCharacter, currentCharacter.model, { srcEmbedWorldTransforms: true, trgEmbedWorldTransforms: true, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT } ); // TO DO: change trgUseCurrentPose param
+            return retargeting.retargetAnimation(bodyAnimation);
         }
     }
-    
+
     fileToAnimation (data, callback)  {
         
         if(data.fullpath) {
@@ -2132,9 +2152,9 @@ class KeyframeEditor extends Editor {
      * KeyframeEditor: fetches a loaded animation and applies it to the character.
      * @param {String} animationName 
      */
-    bindAnimationToCharacter(animationName) {
+    bindAnimationToCharacter(animationName, options = {}) {
         
-        const animation = this.loadedAnimations[animationName];
+        const animation = options.animation || this.loadedAnimations[animationName];
         let faceAnimation = null;
         let bodyAnimation = null;
 
@@ -2172,7 +2192,7 @@ class KeyframeEditor extends Editor {
                 
                 // Retarget NN animation              
                 // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
-                let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true } ); // both skeletons use their native bind pose
+                let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true, srcPoseMode: options.srcPoseMode, trgPoseMode: options.trgPoseMode, srcEmbedWorldTransforms: options.srcEmbedWorldTransforms } ); // both skeletons use their native bind pose
                 const oldDuration = bodyAnimation.duration;
                 bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
                 bodyAnimation.duration = oldDuration;
@@ -2255,7 +2275,7 @@ class KeyframeEditor extends Editor {
         this.gui.globalTimeline.addClip(boundAnimation);
         
         this.setTime(this.currentTime); // update mixer state
-        return true;
+        return boundAnimation;
     }
 
     /** Validate body animation clip created using ML 
