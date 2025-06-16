@@ -10,7 +10,7 @@ import { Gizmo } from "./Gizmo.js";
 import { UTILS } from "./Utils.js"
 import { NN } from "./ML.js"
 import { OrientationHelper } from "./libs/OrientationHelper.js";
-import { AnimationRetargeting, findIndexOfBone, findIndexOfBoneByName } from './retargeting.js'
+import { AnimationRetargeting, findIndexOfBone, findIndexOfBoneByName, applyTPose } from './retargeting.js'
 import { BMLController } from "./controller.js"
 import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
@@ -430,9 +430,82 @@ class Editor {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
         }
         this.gui.createAvatarsPanel();
+        this.gui.setKeyframeClip(null);
+        debugger;
+        for(let anim in this.loadedAnimations) {
+            if(!this.boundAnimations[anim][characterName]) {
+                this.bindAnimationToCharacter(anim);
+                this.retargetAnimation(anim);
+            }
+        }
         UTILS.hideLoading();
     }
 
+    retargetAnimation(anim) {
+      
+        const currentCharacter = this.currentCharacter;
+        this.currentCharacter.skeletonHelper.skeleton.pose();
+        const skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
+        if(skeleton)
+        {
+            currentCharacter.skeletonHelper.skeleton = skeleton;
+        }
+        else {
+            console.warn("T-pose can't be applyied to the TARGET. Automap falied.")
+        }
+
+        const sourceBoundAnimations = this.boundAnimations[anim][this.currentCharacter.name];
+        let bodyAnimation = Object.assign({}, sourceBoundAnimations.mixerBodyAnimation);
+        
+        let sourceCharacter = null;
+        for(let character in this.boundAnimations[anim]) {
+            if(character != this.currentCharacter.name) {
+                sourceCharacter = this.loadedCharacters[character];
+                break;
+            }
+        }
+
+        if( !source ) {
+            return;
+        }
+        
+        if( bodyAnimation ) {
+        
+            let tracks = [];
+            const otherTracks = []; // blendshapes
+            // Remove position changes (only keep i == 0, hips)
+            for (let i = 0; i < bodyAnimation.tracks.length; i++) {
+
+                if(bodyAnimation.tracks[i].constructor.name == THREE.NumberKeyframeTrack.name ) {
+                    otherTracks.push(bodyAnimation.tracks[i]);
+                    continue;
+                }
+                if(i && bodyAnimation.tracks[i].name.includes('position')) {
+                    continue;
+                }
+                tracks.push(bodyAnimation.tracks[i]);
+                tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace(".bones", "");//tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
+            }
+
+            //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+            bodyAnimation.tracks = tracks;            
+            
+            
+            sourceCharacter.skeletonHelper.skeleton.pose();
+            const skeleton = applyTPose(sourceCharacter.skeletonHelper.skeleton).skeleton;
+            if(skeleton)
+            {
+                sourceCharacter.skeletonHelper.skeleton = skeleton;
+            }
+            else {
+                console.warn("T-pose can't be applyied to the SOURCE. Automap falied.")
+            }            
+            
+            let retargeting = new AnimationRetargeting(animation.skeleton, currentCharacter.model, { srcEmbedWorldTransforms: true, trgEmbedWorldTransforms: true, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT } ); // TO DO: change trgUseCurrentPose param
+            bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+        }
+    }
+    
     fileToAnimation (data, callback)  {
         
         if(data.fullpath) {
@@ -3147,14 +3220,10 @@ class ScriptEditor extends Editor {
         this.gui.updateClipPanel();
     }
 
-    async initCharacters()
-    {
+    async initCharacters( modelToLoad ) {
+    
         // Load current character
-        await this.loadCharacter(this.character);
-
-        // while(!this.loadedCharacters[this.character] || !this.loadedCharacters[this.character].bmlManager.ECAcontroller) {
-        //     await new Promise(r => setTimeout(r, 1000));            
-        // }  
+        await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
     }
 
     async processPendingResources( resources ) {

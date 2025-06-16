@@ -754,23 +754,20 @@ class Gui {
 
             let button = null;
             if(selected) {
-                button = new LX.Button(null, "Edit Avatar", (v, e) => {
-                    // e.stopPropagation();
-                    // e.preventDefault();
-                    // e.cancelBubble = true
-                    this.createEditAvatarDialog(v);
+                button = new LX.Button(null, "Edit Avatar", (e) => {
+                    this.createEditAvatarDialog(item.id);
                 } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px", buttonClass: "bg-secondary"} );
-                button.root.style.zIndex = "1000";
+
                 button.root.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    e.cancelBubble = true
-                    this.createEditAvatarDialog(v);
+                  
+                    this.createEditAvatarDialog(item.id);
                 })
             }
-            LX.makeContainer( ["auto", "auto"], "flex items-center", `<p>${ outerText }</p> ${ selected ? button.root.outerHTML : ""}`, item );
+            const flexContainer = LX.makeContainer( ["auto", "auto"], "flex items-center", `<p>${ outerText }</p>`, item );
+            if( selected ) {
+                flexContainer.appendChild(button.root);
+            }
             item.id = id;
-
             
             card.addEventListener("click", (e) => {               
                 this.editor.changeCharacter(item.id);
@@ -779,7 +776,7 @@ class Gui {
         };
         const avatarContainer = LX.makeContainer( ["100%", "auto"], "flex flex-wrap justify-center gap-3", "" );
         for(let avatar in this.editor.avatarOptions) {
-            _makeProjectOptionItem(this.editor.avatarOptions[avatar][3] ?? GUI.THUMBNAIL, avatar, avatar, avatarContainer, avatar == this.editor.currentCharacter.model.name)
+            _makeProjectOptionItem(this.editor.avatarOptions[avatar][3] ?? GUI.THUMBNAIL, avatar, avatar, avatarContainer, avatar == this.editor.currentCharacter.model.name);
            
             // p.sameLine();
             // const pan = new LX.Panel({className: "flex flex-col p-1 justify-center items-center"});
@@ -2085,24 +2082,29 @@ class KeyframesGui extends Gui {
         if(this.panelTabs) {
             this.panelTabs.root.remove();
         }
-        const [top, bottom] = this.sidePanel.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-        const [animSide, tabsSide] = bottom.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-        const panelTabs = this.panelTabs = top.addTabs({fit: true});
-      
+
+        // Animation & Character tabs
+        const panelTabs = this.panelTabs = this.sidePanel.addTabs({fit: true});
+
+        // Animation tab content
+        const animationArea = new LX.Area({id: 'Animation'});
+        const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
+        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {
+            
+        }});
+        this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
+        animSide.attach(this.animationPanel);
+        this.updateAnimationPanel( );
+
+        // Character tab content
         const characterArea = new LX.Area({id: 'Character'});
         const characterPanel = characterArea.addPanel();
         this.createAvatarsPanel( characterPanel ) ;
-        panelTabs.add( "Animation", bottom, {selected: true, onSelect: (e,v) => {
-            
-        }});
         
         panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {
             
         }});
 
-        this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
-        animSide.attach(this.animationPanel);
-        this.updateAnimationPanel( );
 
         // SIDE PANEL FOR GLOBAL TIMELINE
         if ( this.editor.activeTimeline == this.globalTimeline ){
@@ -2307,34 +2309,6 @@ class KeyframesGui extends Gui {
                 }
             }
         ], { vertical: true, height : "100%" });
-
-        // faceTabs.add("Action Units", auArea, {selected: true, onSelect: (v,e) => {
-        //     this.editor.setTimeline(this.editor.animationModes.FACEAU);
-        //     this.createActionUnitsPanel();
-        //     this.selectActionUnitArea(this.editor.getSelectedActionUnit());
-            
-        //     this.propagationWindow.setTimeline( this.auTimeline );
-        //     this.imageMap.resize();
-        // }});
-
-        // faceTabs.add("Blendshapes", bsArea, { onSelect: (v,e) => {
-        //     this.editor.setTimeline(this.editor.animationModes.FACEBS); 
-            
-        //     this.propagationWindow.setTimeline( this.bsTimeline );
-        //     this.imageMap.resize();
-        // }});
-
-        // auArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
-        // const [faceTop, faceBottom] = auArea.sections;
-        // faceTop.root.style.minHeight = "20px";
-        // faceTop.root.style.height = "50%";
-        // faceBottom.root.style.minHeight = "20px";
-        // faceBottom.root.style.height = "50%";
-        // faceBottom.root.classList.add("overflow-y-auto");
-        // this.createFacePanel( faceTop );
-        //this.createActionUnitsPanel( faceBottom );
-
-        // this.createBlendshapesPanel( bsArea );
 
         bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
