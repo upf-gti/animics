@@ -3102,41 +3102,6 @@ class ScriptEditor extends Editor {
         // }  
     }
 
-        /**
-     * 
-     * @param {string} name 
-     * @param {int} mode
-     *      -1: overwrite any existing animation with that name for the current character
-     *      0: exact unique name. If it already exists, it does not create an animation
-     *      1: adds an incrementing number if a match is found for that animation for that character 
-     */
-    // createGlobalAnimation( name, mode = 0 ){
-
-    //     const characterName = this.currentCharacter.name;
-
-    //     if (mode == 1){
-    //         let count = 1;
-    //         let countName = name;
-    //         while( this.loadedAnimations[countName] ){
-    //             countName = name + ` (${count++})`;
-    //         }
-    //         name = countName;
-    //     }
-    //     else if (mode == 0){
-    //         if (this.boundAnimations[name] && this.boundAnimations[name][characterName]){
-    //             return null;
-    //         }
-    //     }
-
-    //     if ( !this.boundAnimations[name] ){
-    //         this.boundAnimations[name] = {};
-    //     }
-    //     const animationClip = this.gui.globalTimeline.instantiateAnimationClip({ id: name });
-    //     this.boundAnimations[name][characterName] = animationClip;
-
-    //     return animationClip;
-    // }
-
     setGlobalAnimation( name ){
 
         if( !this.loadedAnimations[name] ){
