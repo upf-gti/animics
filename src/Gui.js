@@ -1546,8 +1546,7 @@ class KeyframesGui extends Gui {
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
-                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
-                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+                }, { tooltip: true, icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white" });
 
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
@@ -1747,8 +1746,7 @@ class KeyframesGui extends Gui {
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
-                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
-                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+                }, { tooltip: true, icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white" });
 
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();
@@ -1864,8 +1862,7 @@ class KeyframesGui extends Gui {
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
-                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
-                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+                }, { icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white "});
 
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
@@ -2373,11 +2370,9 @@ class KeyframesGui extends Gui {
                 panel.addText("Clip Name", anim.id, (v) =>{ 
                     anim.id = v;
                 } )
-
                 panel.addButton(null, LX.makeIcon("Undo2", { svgClass: "fg-white" }).innerHTML + "Return to global animation", (v,e)=>{
                     this.setKeyframeClip(null);
                 }, { buttonClass: "error fg-white" });
-
             }
             else{
                 panel.addTitle( "Animation" );
