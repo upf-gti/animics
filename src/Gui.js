@@ -148,7 +148,7 @@ class Gui {
                         this.editor.play();
                     }
                     if ( this.editor.activeTimeline ) {
-                        this.editor.activeTimeline.setState( this.editor.state );
+                        this.editor.activeTimeline.setState( this.editor.state, true );
                     };
                 }
             },
@@ -158,9 +158,9 @@ class Gui {
                 callback:  (event) => { 
 
                     this.editor.stop();
-                    this.menubar.getButton("Play").setState(false); 
+                    this.menubar.getButton("Play").setState(false, true); 
                     if ( this.editor.activeTimeline ) {
-                        this.editor.activeTimeline.setState(false);
+                        this.editor.activeTimeline.setState(false, true);
                     };
 
                 }
@@ -470,7 +470,7 @@ class Gui {
             ];       
         }
         
-        canvasButtons = [...canvasButtons,
+        canvasButtons.push(
             {
                 name: 'GUI',
                 property: 'showGUI',
@@ -507,7 +507,7 @@ class Gui {
                     }                  
                 }
             }
-        ]
+        )
         
         area.addOverlayButtons(canvasButtons, { float: "htc" } );
     }
@@ -848,10 +848,7 @@ class KeyframesGui extends Gui {
     computeVideoArea( rect ) {
         const videoRect = this.editor.video.getBoundingClientRect();
         if( !rect ) {
-            rect = this.editor.currentKeyFrameClip.source.rect;
-            if( !rect ) {
-                return;
-            }
+            rect = { left:0, top:0, width: 1, height: 1 };
         }
 
         this.editor.video.style.webkitMask = `linear-gradient(#000 0 0) ${rect.left * videoRect.width}px ${rect.top * videoRect.height}px / ${videoRect.width*rect.width}px ${videoRect.height*rect.height}px, linear-gradient(rgba(0, 0, 0, 0.3) 0 0)`;
@@ -1010,7 +1007,7 @@ class KeyframesGui extends Gui {
             for( let i = 0; i < cloned.length; ++i ){
                 const sourceClip = clipsToClone[i];
                 const c = cloned[i];
-                c.source = sourceClip.source; // copy reference
+                c.source = sourceClip.source; // copy reference (if any)
                 let tpg = c.skeletonAnimation.tracksPerGroup;
                 for( let groupId in tpg ){
                     const arr = tpg[groupId];
@@ -1578,7 +1575,7 @@ class KeyframesGui extends Gui {
             return;
         }
 
-        const sourceAnimation = clip.source;
+        const sourceAnimation = clip.source; // might not exist
         this.editor.currentKeyFrameClip = clip;
         
         const localTime = Math.max(0, Math.min( clip.duration, this.editor.currentTime - clip.start ) );
@@ -1598,7 +1595,7 @@ class KeyframesGui extends Gui {
         this.propagationWindow.setTimeline( this.skeletonTimeline );
         this.createSidePanel();
 
-        if ( sourceAnimation.type == "video" ) {
+        if ( sourceAnimation && sourceAnimation.type == "video" ) {
             const video = this.editor.video;
             video.sync = true;
             this.editor.setVideoVisibility(this.showVideo);

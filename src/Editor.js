@@ -1264,7 +1264,7 @@ class KeyframeEditor extends Editor {
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
             
             // this.setGlobalAnimation( "new animation" );
-            this.loadAnimation("new animation", {} );
+            this.loadAnimation("Empty clip", {} );
             return true;
         }
         
@@ -2219,9 +2219,9 @@ class KeyframeEditor extends Editor {
     }
 
     setVideoVisibility( visibility, needsMirror = false ){ // TO DO
-        if(visibility && this.currentKeyFrameClip && this.currentKeyFrameClip.source.type == "video") {
+        if(visibility && this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video") {
             this.gui.showVideoOverlay(needsMirror);
-            this.gui.computeVideoArea( this.currentKeyFrameClip.source.rect ?? { left:0, top:0, width: 1, height: 1 } );
+            this.gui.computeVideoArea( this.currentKeyFrameClip.source.rect );
         }
         else {
             this.gui.hideVideoOverlay();
@@ -2316,7 +2316,7 @@ class KeyframeEditor extends Editor {
 
     onSetTime( t ) {
         // Update video
-        if( this.currentKeyFrameClip && this.currentKeyFrameClip.source.type == "video" ) {
+        if( this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video" ) {
             this.video.currentTime = this.video.startTime + t - this.currentKeyFrameClip.start;
         }
         
@@ -2412,6 +2412,7 @@ class KeyframeEditor extends Editor {
                 if( this.gizmo ) { 
                     this.gizmo.disable();
                 }
+                
                 this.video.sync = false;
                 this.setVideoVisibility(false);
                 break;
