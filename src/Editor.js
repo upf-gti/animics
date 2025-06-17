@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js' 
+import { GLTFExporter } from './exporters/GLTFExporter.js' 
 import { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
 import { BVHExporter } from "./exporters/BVHExporter.js";
 import { createAnimationFromRotations, createEmptySkeletonAnimation } from "./skeleton.js";
