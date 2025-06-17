@@ -832,7 +832,7 @@ class Editor {
 
                     options.animations.push( new THREE.AnimationClip( animationName, -1, tracks ) );
                 }
-                let model = this.currentCharacter.mixer._root.getChildByName('Armature');
+                let model = this.currentCharacter.mixer._root.getObjectByName('Armature');
 
                 this.GLTFExporter.parse(model, 
                     ( gltf ) => UTILS.download(gltf, (name || "animations") + '.glb', 'arraybuffer' ), // called when the gltf has been generated

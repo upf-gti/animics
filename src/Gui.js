@@ -2511,15 +2511,16 @@ class KeyframesGui extends Gui {
 
     createAvailableAnimationsTable(){
 
-        const animations = this.editor.boundAnimation;
+        const animations = this.editor.boundAnimations;
+        const characterName = this.editor.currentCharacter.name;
         let availableAnimations = [];
         for ( let aName in animations ){
-            if ( !animations[aName][this.currentCharacter.name] ){
+            if ( !animations[aName][characterName] ){
                 continue;
             }
             let numClips = 0;
-            animations[aName][this.currentCharacter.name].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
-            availableAnimations.push([ aName, numClips, animations[aName][this.currentCharacter.name].duration.toFixed(3) ]);
+            animations[aName][characterName].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
+            availableAnimations.push([ aName, numClips, animations[aName][characterName].duration.toFixed(3) ]);
         }
 
         let table = new LX.Table(null, {
