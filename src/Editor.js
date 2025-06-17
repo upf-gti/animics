@@ -437,19 +437,31 @@ class Editor {
             if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
                 const characters = Object.keys(this.boundAnimations[anim]);
                 const animation = this.boundAnimations[anim][characters[0]];
-                let newAnimation = Object.assign({}, animation);
-                let tracks = [];
+                
+                const newAnimation = Object.assign({}, animation);
+                const tracks = [];
+                
                 for(let i = 0; i < animation.tracks.length; i++) {
                     const track = animation.tracks[i];
-                    let clips = [];
+                    const clips = [];
                     for( let j = 0; j < track.clips.length; j++) {
                         const clip = track.clips[j];
-                        let newClip = Object.assign({}, clip);
+                        const newClip = Object.assign({}, clip);
+                        
+                        // Retarget body animation
                         if(clip.mixerBodyAnimation) {
                             newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);                            
                             // Set keyframe animation to the timeline and get the timeline-formated one
                             newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
                             newClip.skeletonAnimation.name = "bodyAnimation";  // timeline
+                        }
+                        if(clip.auAnimation) {
+                           
+                            // newClip.auAnimation = this.gui.auTimeline.instantiateAnimationClip( newClip.auAnimation );                            
+                            newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( newClip.auAnimation ); // blendhsapes timeline            
+                            newClip.bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(newClip.mixerFaceAnimation);
+                            newClip.bsAnimation.duration = newClip.auAnimation.duration;
+                            newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( newClip.bsAnimation ); // generate default animationclip or process the user's one;
                         }
                         clips.push(newClip);
                     }
@@ -469,6 +481,10 @@ class Editor {
                 // const boundAnimation = this.bindAnimationToCharacter(anim, {animation, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, srcEmbedWorldTransforms: true});
                 this.setGlobalAnimation(anim);
             }
+        }
+        // Gizmo stuff
+        if(this.gizmo) {
+            this.gizmo.begin(this.currentCharacter.skeletonHelper);            
         }
         UTILS.hideLoading();
     }

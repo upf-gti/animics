@@ -291,7 +291,7 @@ class BlendshapesManager {
 
                     }
                 }
-                 const newName = this.getFormattedTrackName(au);
+                const newName = this.getFormattedTrackName(au);
                 if(!newName) {
                     continue;
                 }
@@ -589,6 +589,49 @@ class BlendshapesManager {
     
         let auAnimation = new THREE.AnimationClip( name ?? "auAnimation", length, auTracks);
         return auAnimation;
+    }
+
+    createBlendshapesAnimationFromAU ( animation ) {
+
+        const bsTracks = [];
+        const done = {};
+        const times = animation.tracks[0].times;
+        for(let i = 0; i < animation.tracks.length; i++) {
+            const track = animation.tracks[i];
+            for(let mesh in this.skinnedMeshes)
+                {
+                    let bs = this.mapNames.characterMap[track.id];
+                    for(let i = 0; i < bs.length; i++) {
+                        
+                        const mtIdx = this.morphTargetDictionary[mesh][bs[i][0]];
+                        if( mtIdx > -1 ) {
+                            const trackName = this.skinnedMeshes[mesh].name +'.morphTargetInfluences['+ bs[i][0] + ']';
+                            if(done[trackName] != undefined) {
+                                for( let j = 0; j < bsTracks[done[trackName]].values.length; j++) {
+                                    bsTracks[done[trackName]].values[j] += track.values[j] * bs[i][1];
+                                }
+                            }
+                            else {
+                                bsTracks.push( new THREE.NumberKeyframeTrack( trackName, times, track.values.map( v => v*bs[i][1] ) ) );
+                                done[trackName] = bsTracks.length - 1;
+                            }
+                        }
+
+                    }
+                }
+                const newName = this.getFormattedTrackName(track.id);
+                if(!newName) {
+                    continue;
+                }
+          
+        }
+        
+        // use -1 to automatically calculate
+        // the length from the array of tracks
+        const length = -1;
+
+        const bsAnimation = new THREE.AnimationClip( "threejsAnimation", length, bsTracks);
+        return bsAnimation;
     }
 }
 
