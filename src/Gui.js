@@ -568,15 +568,12 @@ class KeyframesGui extends Gui {
     constructor(editor) {
         
         super(editor);
-        this.mode = ClipModes.Keyframes;
         this.showVideo = true; // menu option, whether to show video overlay (if any exists)
         this.skeletonScroll = 0;
 
         this.inputVideo = null;
         this.recordedVideo = null;
         this.canvasVideo = null;
-
-        this.captureMode = editor.mode;
 
         this.faceAreas = {
             "rgb(255,0,255)": "Brow Left",
@@ -1844,9 +1841,6 @@ class KeyframesGui extends Gui {
                     }
                 } );
 
-                panel.addButton(null, "Add Clip", (v,e)=>{
-                    // TODO open table or alike displaying all loaded animations
-                }, { buttonClass: "accent" });
             }
 
             panel.addSeparator();

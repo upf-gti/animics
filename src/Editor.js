@@ -818,14 +818,10 @@ class Editor {
                     const boundAnim = this.boundAnimations[animationName][this.currentCharacter.name];
                     
                     let tracks = []; 
-                    if(boundAnim.mixerBodyAnimation) { // script Editor
-                        tracks = tracks.concat( boundAnim.mixerBodyAnimation.tracks );
-                    }
-                    if(boundAnim.mixerFaceAnimation) { // keyframe Editor
-                        tracks = tracks.concat( boundAnim.mixerFaceAnimation.tracks );
-                    }
                     if(boundAnim.mixerAnimation) { // script Editor
-                        tracks = tracks.concat( boundAnim.mixerAnimation.tracks );
+                        tracks = boundAnim.mixerAnimation.tracks;
+                    }else{
+                        tracks = this.generateExportAnimationData(boundAnim).tracks;
                     }
 
                     options.animations.push( new THREE.AnimationClip( animationName, -1, tracks ) );
@@ -893,7 +889,7 @@ class Editor {
     
         }
         // bvhexport sets avatar to bindpose. Avoid user seeing this
-        this.bindAnimationToCharacter(this.currentAnimation);
+        this.setGlobalAnimation(this.currentAnimation);
         return files;
     }
 
@@ -2997,13 +2993,113 @@ class KeyframeEditor extends Editor {
 
     /** ------------------------ Generate formatted data --------------------------*/
 
+    /**
+     * Computes the AnimationClip that would result from boundAnim through the animationFrameRate
+     * Removes all clips from the mixer. User should call setGlobalAnimation(this.currentAnimation) after this funciton is called
+     *  WARNING: the clip generated reuses the times array for all tracks. Any modification to that array will change for all tracks
+     * @param {object} boundAnim 
+     * @param {int} flags default exports body and face (0x03)
+     *      0x01: include body
+     *      0x02: include face (morphtargets)
+     *           
+     * @returns THREE.AnimationClip
+     */
+    generateExportAnimationData( boundAnim, flags = 0x03 ){
+        const mixer = this.currentCharacter.mixer;
+        mixer.stopAllAction();
+        while( mixer._actions.length ){
+            mixer.uncacheClip( mixer._actions[0]._clip );
+        }
+
+        mixer.setTime( 0 );
+        mixer.timeScale = 1;
+        this.globalAnimMixerManagement( mixer, boundAnim );
+        // remove unnecessary clips. 
+        // TODO: A lot of hardcoding and unnecessary extra work.
+        if ( flags != 0x03 ){
+            for( let i = 0; i < mixer._actions.length; ++i ){
+                if (!(flags & 0x01) && mixer._actions[i]._clip.name == "bodyAnimation" ){
+                    mixer.uncacheClip( mixer._actions[i]._clip );
+                    --i;
+                }
+                if (!(flags & 0x02) && mixer._actions[i]._clip.name == "faceAnimation" ){
+                    mixer.uncacheClip( mixer._actions[i]._clip );
+                    --i;
+                }
+            }
+        }
+        mixer.update( 0 );
+        
+        const numTimestamps = Math.floor( boundAnim.duration * this.animationFrameRate );
+        
+        let times = new Float32Array(numTimestamps);
+        times.forEach( (v,i,arr) =>{ times[i] = i / this.animationFrameRate; } );
+
+        let values = [];
+        for( let i = 0; i < mixer._bindings.length; ++i ){
+            const b = mixer._bindings[i].binding;
+            if ( b.resolvedProperty.isVector3 ){
+                values.push( new Float32Array(numTimestamps * 3) );
+            }
+            else if ( b.resolvedProperty.isQuaternion ){
+                values.push( new Float32Array(numTimestamps * 4) );
+            }
+            else{
+                values.push( new Float32Array(numTimestamps) );
+            }
+        }
+
+        for( let t = 0; t < numTimestamps; ++t ){
+            for( let i = 0; i < mixer._bindings.length; ++i ){
+                const b = mixer._bindings[i].binding;
+                const v = values[i];
+                if ( b.resolvedProperty.isVector3 ){
+                    let index = t * 3;
+                    v[index++] = b.resolvedProperty.x;
+                    v[index++] = b.resolvedProperty.y;
+                    v[index] = b.resolvedProperty.z;
+                }
+                else if ( b.resolvedProperty.isQuaternion ){
+                    let index = t * 4;
+                    v[index++] = b.resolvedProperty.x;
+                    v[index++] = b.resolvedProperty.y;
+                    v[index++] = b.resolvedProperty.z;
+                    v[index] = b.resolvedProperty.w;
+                }
+                else{
+                    v[t] = b.resolvedProperty[b.propertyIndex];
+                }
+            }
+            mixer.update( 1.0 / this.animationFrameRate );
+        }
+
+        // WARNING: reusing times array. Any modification to that array will change for all tracks
+        let tracks = [];
+        for( let i = 0; i < mixer._bindings.length; ++i ){
+            const b = mixer._bindings[i].binding;
+            if ( b.resolvedProperty.isVector3 ){
+                tracks.push( new THREE.VectorKeyframeTrack(b.path, times, values[i]) );
+            }
+            else if ( b.resolvedProperty.isQuaternion ){
+                tracks.push( new THREE.QuaternionKeyframeTrack(b.path, times, values[i]) );
+            }
+            else{
+                tracks.push( new THREE.NumberKeyframeTrack(b.path, times, values[i]) );
+            }
+        }
+
+        mixer.timeScale = this.playbackRate;
+        
+        // better to do this outside, so exporting several animations is more efficient
+        // this.setGlobalAnimation( this.currentAnimation );
+
+        return new THREE.AnimationClip(boundAnim.id, -1, tracks);
+    }
+
     generateBVH( boundAnim, skeleton ) {
         let bvhPose = "";
-        let bodyAction = this.currentCharacter.mixer.existingAction(boundAnim.mixerBodyAnimation);
-        
-        if( !bodyAction && boundAnim.mixerBodyAnimation ) {
-            bodyAction = this.currentCharacter.mixer.clipAction(boundAnim.mixerBodyAnimation);     
-        }
+        const bodyClip = this.generateExportAnimationData( boundAnim, 0x01 );
+        const bodyAction = this.currentCharacter.mixer.clipAction( bodyClip );
         
         bvhPose = BVHExporter.export(bodyAction, skeleton, this.animationFrameRate);
         
@@ -3013,11 +3109,12 @@ class KeyframeEditor extends Editor {
     generateBVHE( boundAnim, skeleton ) {
         const bvhPose = this.generateBVH( boundAnim, skeleton );
         let bvhFace = "";
-        let faceAction = this.currentCharacter.mixer.existingAction(boundAnim.mixerFaceAnimation);
+        // TODO probably could optimize this. It it is doing the generation twice
+        const faceClip = this.generateExportAnimationData( boundAnim, 0x02 );
+        const faceAction = this.currentCharacter.mixer.clipAction( faceClip );
 
-        if( faceAction ) {
-            bvhFace += BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets, this.animationFrameRate);            
-        }
+        bvhFace += BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets, this.animationFrameRate);            
+
         return bvhPose + bvhFace;
     }
 }
