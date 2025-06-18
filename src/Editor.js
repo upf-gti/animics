@@ -124,7 +124,8 @@ class Editor {
 
         this.enable();
         this.bindEvents();
-        
+
+        this.setTimeline(this.animationModes.GLOBAL);
         this.animate();
         
         
@@ -1061,7 +1062,7 @@ class KeyframeEditor extends Editor {
         this.defaultRotationSnapValue = 30; // Degrees
         this.defaultScaleSnapValue = 1;
 
-        this.showSkeleton = true;
+        this.showSkeleton = false;
         this.gizmo = null;
 
         this.applyRotation = false; // head and eyes rotation
@@ -2371,32 +2372,25 @@ class KeyframeEditor extends Editor {
             case this.animationModes.FACEBS:
                 this.animationMode = this.animationModes.FACEBS;
                 this.activeTimeline = this.gui.bsTimeline;
-
-                if( this.gizmo ) { 
-                    this.gizmo.disable();
-                }
+                this.gizmo.disable();
                 break;
 
             case this.animationModes.FACEAU:
                 this.animationMode = this.animationModes.FACEAU;
                 this.activeTimeline = this.gui.auTimeline;
-                this.setSelectedActionUnit(this.selectedAU);                    
-                
-                if( this.gizmo ) { 
-                    this.gizmo.disable();
-                }
+                this.setSelectedActionUnit(this.selectedAU);        
+                this.gizmo.disable();
                 break;
                
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
                 this.activeTimeline = this.gui.skeletonTimeline;                
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
+                this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
+                this.gizmo.enable();
 
-                if( this.gizmo ) {
-                    this.gizmo.enable();
-                }
                 break;
-
+                
             default:
                 this.gui.skeletonTimeline.hide();
                 this.gui.auTimeline.hide();
@@ -2406,9 +2400,9 @@ class KeyframeEditor extends Editor {
                 this.startTimeOffset = 0;
                 this.currentKeyFrameClip = null;
                 this.activeTimeline = this.gui.globalTimeline;
-                if( this.gizmo ) { 
-                    this.gizmo.disable();
-                }
+
+                this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
+                this.gizmo.disable();
                 
                 this.video.sync = false;
                 this.setVideoVisibility(false);

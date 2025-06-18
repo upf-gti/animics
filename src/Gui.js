@@ -28,7 +28,7 @@ class Gui {
         right.id = "sidepanel";
         this.mainArea.splitBar.style.zIndex = right.root.style.zIndex = 1;
         [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
-
+        this.canvasAreaOverlayButtons = null;
         this.sidePanel = right;
    
         //Create timelines (keyframes and clips)
@@ -140,7 +140,7 @@ class Gui {
                 title: "Play",
                 icon: "Play@solid",
                 swap: "Pause@solid",
-                callback:  (event, swapValue) => { 
+                callback:  (swapValue, event) => { 
                     if(this.editor.state ) {
                         this.editor.pause();    
                     }
@@ -155,7 +155,7 @@ class Gui {
             {
                 title: "Stop",
                 icon: "Stop@solid",
-                callback:  (event) => { 
+                callback:  (value, event) => { 
 
                     this.editor.stop();
                     this.menubar.getButton("Play").setState(false, true); 
@@ -170,7 +170,7 @@ class Gui {
                 selectable: true,
                 selected: this.editor.animLoop,
                 icon: 'RefreshCw',
-                callback: (event) =>  {
+                callback: (value, event) =>  {
                     this.updateLoopModeGui( !this.editor.animLoop );
                 }
             }
@@ -431,85 +431,6 @@ class Gui {
         if( this.clipsTimeline ){
             this.clipsTimeline.setLoopMode(loop, true);
         }
-    }
-
-    createSceneUI(area) {
-
-        let editor = this.editor;
-        let canvasButtons = []
-        
-        if(editor.scene.getObjectByName("Armature")) {
-            canvasButtons = [
-                {
-                    name: 'Skin',
-                    property: 'showSkin',
-                    icon: 'UserX',
-                    selectable: true,
-                    callback: (v) =>  {
-                        editor.showSkin = !editor.showSkin;
-                        let model = editor.scene.getObjectByName("Armature");
-                        model.visible = editor.showSkin;
-                        
-                    }
-                },        
-                {
-                    name: 'Skeleton',
-                    property: 'showSkeleton',
-                    icon: 'Bone',
-                    selectable: true,
-                    selected: true,
-                    callback: (v) =>  {
-                        editor.showSkeleton = !editor.showSkeleton;
-                        let skeleton = editor.scene.getObjectByName("SkeletonHelper");
-                        skeleton.visible = editor.showSkeleton;
-                        editor.scene.getObjectByName('GizmoPoints').visible = editor.showSkeleton;
-                        if(!editor.showSkeleton) 
-                            editor.gizmo.stop();
-                    }
-                }
-            ];       
-        }
-        
-        canvasButtons.push(
-            {
-                name: 'GUI',
-                property: 'showGUI',
-                icon: 'Grid',
-                selectable: true,
-                selected: true,
-                callback: (v, e) => {
-                    editor.showGUI = !editor.showGUI;
-
-                    if( editor.scene.getObjectByName('Armature') ) {
-                        editor.scene.getObjectByName('SkeletonHelper').visible = editor.showGUI;
-                    }
-
-                    if( editor.gizmo ) {
-                        editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
-                    }
-
-                    editor.scene.getObjectByName('Grid').visible = editor.showGUI;
-                    
-                    if(!editor.showGUI) {
-                        if(editor.gizmo) {
-                            editor.gizmo.stop();
-                        }
-                        this.hideTimeline();
-                        this.sidePanel.parentArea.extend();
-                        this.hideVideoOverlay();                       
-                    } else {
-                        this.showTimeline();
-                        this.sidePanel.parentArea.reduce();  
-                        const currentAnim = this.editor.getCurrentAnimation();
-                        if ( currentAnim && currentAnim.type == "video" && this.showVideo ){
-                            this.showVideoOverlay();
-                        }
-                    }                  
-                }
-            }
-        )
-        
-        area.addOverlayButtons(canvasButtons, { float: "htc" } );
     }
     
     openSettings( settings ) {
@@ -1802,21 +1723,13 @@ class KeyframesGui extends Gui {
         tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.BODY)
             this.propagationWindow.setTimeline( this.skeletonTimeline );
-            this.editor.showSkeleton = this.editor.showSkeleton;
-            let skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
-            skeleton.visible = this.editor.showSkeleton;
-            this.editor.scene.getObjectByName('GizmoPoints').visible = this.editor.showSkeleton;
-            if(!this.editor.showSkeleton) 
-                this.editor.gizmo.stop();
+            this.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
         }}  );
         
 
         tabs.add( "Face", faceArea, { selected: false, onSelect: (e,v) => {
             this.faceTabs.select("Action Units");
-            let skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
-            skeleton.visible = false;
-            this.editor.scene.getObjectByName('GizmoPoints').visible = false;
-            this.editor.gizmo.stop();
+            this.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
         } });
 
         const faceTabs = this.faceTabs = faceArea.addTabs({fit: true});
@@ -2900,6 +2813,89 @@ class KeyframesGui extends Gui {
             codeEditor._changeLanguage( "JSON" );
                      
         }, { size: ["40%", "600px"], closable: true });
+    }
+
+    setSkeletonVisibility( visibility ){
+
+    }
+
+    createSceneUI(area) {
+
+        let editor = this.editor;
+        let canvasButtons = []
+        
+        if(editor.scene.getObjectByName("Armature")) {
+            canvasButtons = [
+                {
+                    name: 'Skin',
+                    property: 'showSkin',
+                    icon: 'UserX',
+                    selectable: true,
+                    callback: (v) =>  {
+                        editor.showSkin = !editor.showSkin;
+                        let model = editor.scene.getObjectByName("Armature");
+                        model.visible = editor.showSkin;
+                        
+                    }
+                },        
+                {
+                    name: 'Skeleton',
+                    property: 'showSkeleton',
+                    icon: 'Bone',
+                    selectable: true,
+                    selected: false,
+                    callback: (value,event) =>  {
+                        editor.showSkeleton = this.canvasAreaOverlayButtons.buttons["Skeleton"].root.children[0].classList.contains("selected");
+                        let skeleton = editor.scene.getObjectByName("SkeletonHelper");
+                        skeleton.visible = editor.showSkeleton;
+                        editor.scene.getObjectByName('GizmoPoints').visible = editor.showSkeleton;
+                        if(!editor.showSkeleton) 
+                            editor.gizmo.stop();
+                    }
+                }
+            ];       
+        }
+        
+        canvasButtons.push(
+            {
+                name: 'GUI',
+                property: 'showGUI',
+                icon: 'Grid',
+                selectable: true,
+                selected: true,
+                callback: (v, e) => {
+                    editor.showGUI = !editor.showGUI;
+
+                    if( editor.scene.getObjectByName('Armature') ) {
+                        editor.scene.getObjectByName('SkeletonHelper').visible = editor.showGUI;
+                    }
+
+                    if( editor.gizmo ) {
+                        editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
+                    }
+
+                    editor.scene.getObjectByName('Grid').visible = editor.showGUI;
+                    
+                    if(!editor.showGUI) {
+                        if(editor.gizmo) {
+                            editor.gizmo.stop();
+                        }
+                        this.hideTimeline();
+                        this.sidePanel.parentArea.extend();
+                        this.hideVideoOverlay();                       
+                    } else {
+                        this.showTimeline();
+                        this.sidePanel.parentArea.reduce();  
+                        const currentAnim = this.editor.currentKeyFrameClip;
+                        if ( currentAnim && currentAnim.type == "video" && this.showVideo ){
+                            this.showVideoOverlay();
+                        }
+                    }                  
+                }
+            }
+        )
+        
+        this.canvasAreaOverlayButtons = area.addOverlayButtons(canvasButtons, { float: "htc" } );
     }
 }
 
@@ -4566,7 +4562,7 @@ class ScriptGui extends Gui {
             },
     
         ]
-        area.addOverlayButtons(canvasButtons, { float: "htc" } );
+        this.canvasAreaOverlayButtons = area.addOverlayButtons(canvasButtons, { float: "htc" } );
     }
 
     
