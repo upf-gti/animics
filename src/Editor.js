@@ -389,7 +389,7 @@ class Editor {
                     // })
                 }
                 else {
-                    this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, {parts: this.mapNames.parts, mediapipe: this.mapNames.mediapipe, characterMap: (this.loadedCharacters[characterName].config ? this.loadedCharacters[characterName].config.faceController.blendshapeMap : this.mapNames.characterMap)});
+                    this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, {parts: this.mapNames.parts, mediapipeMap: this.mapNames.mediapipeMap, characterMap: (this.loadedCharacters[characterName].config ? this.loadedCharacters[characterName].config.faceController.blendshapeMap : this.mapNames.characterMap)});
                 
                 }
                 
@@ -482,10 +482,7 @@ class Editor {
                 this.setGlobalAnimation(anim);
             }
         }
-        // Gizmo stuff
-        if(this.gizmo) {
-            this.gizmo.begin(this.currentCharacter.skeletonHelper);            
-        }
+        this.gui.createSidePanel();
         UTILS.hideLoading();
     }
 

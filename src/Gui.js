@@ -1953,6 +1953,10 @@ class KeyframesGui extends Gui {
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
             this.editor.currentKeyFrameClip = null;
             this.createSidePanel();
+            this.editor.gizmo.stop();
+            const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
+            skeleton.visible = false;
+            this.editor.scene.getObjectByName('GizmoPoints').visible = false;
             return;
         }
 
@@ -1971,6 +1975,7 @@ class KeyframesGui extends Gui {
         this.bsTimeline.setSelectedItems(Object.keys(clip.bsAnimation.tracks));
         this.bsTimeline.setTime(localTime, true);
         
+        // this.createSidePanel(); // to update
         this.editor.setTime( clip.start + localTime );
         this.editor.setTimeline(this.editor.animationModes.BODY);
         this.propagationWindow.setTimeline( this.skeletonTimeline );
@@ -1999,6 +2004,17 @@ class KeyframesGui extends Gui {
         else {
             this.editor.video.sync = false;
             this.editor.setVideoVisibility(false);
+        }
+
+        
+        if(this.editor.animationMode == this.editor.animationModes.BODY) {
+            const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
+            skeleton.visible = this.editor.showSkeleton;
+            this.editor.scene.getObjectByName('GizmoPoints').visible = this.editor.showSkeleton;
+            this.editor.setSelectedBone(this.editor.selectedBone);
+            if(!this.editor.showSkeleton) {
+                this.editor.gizmo.stop();
+            }
         }
     }
     
@@ -2203,26 +2219,33 @@ class KeyframesGui extends Gui {
 
         const bodyArea = new LX.Area({id: 'Body'});  
         const faceArea = new LX.Area({id: 'Face'});  
-        tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {
+        tabs.add( "Body", bodyArea, {selected: this.editor.animationMode == this.editor.animationModes.BODY, onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.BODY)
             this.propagationWindow.setTimeline( this.skeletonTimeline );
-            this.editor.showSkeleton = this.editor.showSkeleton;
-            let skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
+            const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
             skeleton.visible = this.editor.showSkeleton;
             this.editor.scene.getObjectByName('GizmoPoints').visible = this.editor.showSkeleton;
-            if(!this.editor.showSkeleton) 
+            if(!this.editor.showSkeleton) {
                 this.editor.gizmo.stop();
+            }
         }}  );
         
         
-        tabs.add( "Face", faceArea, { selected: false, onSelect: (e,v) => {
-            //this.faceTabs.select("Action Units");
-            let skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
+        tabs.add( "Face", faceArea, { selected: this.editor.animationMode != this.editor.animationModes.BODY, onSelect: (e,v) => {
+            const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
             skeleton.visible = false;
             this.editor.scene.getObjectByName('GizmoPoints').visible = false;
             this.editor.gizmo.stop();
-            this.imageMap.resize();
-            this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+            if(this.faceTabs.selected == this.editor.animationModes.FACEBS) {
+                this.editor.setTimeline(this.editor.animationModes.FACEBS);
+                this.propagationWindow.setTimeline( this.bsTimeline );
+            }
+            else { // if is in AU mode or is not defined
+                this.imageMap.resize();
+                this.editor.setTimeline(this.editor.animationModes.FACEAU);
+                this.propagationWindow.setTimeline( this.auTimeline );
+                this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+            }
         } });
 
         const panel = faceArea.addPanel();
@@ -2238,7 +2261,7 @@ class KeyframesGui extends Gui {
 
         const bsArea = new LX.Area({id: 'bsFace', height: `calc(100% - ${ titleOffset }px)`});
 
-        panel.addTabSections("Edition Mode", [
+        this.faceTabs = panel.addTabSections("Edition Mode", [
             {
                 name: "Action Units", icon: "ScanFace",
                 onCreate: p => {
@@ -2254,15 +2277,13 @@ class KeyframesGui extends Gui {
                     if(this.imageMap) {
                         this.imageMap.resize();
                     }
-                    this.editor.setTimeline(this.editor.animationModes.FACEAU);                    
-                    this.propagationWindow.setTimeline( this.auTimeline );
-                    
                 },
                 onSelect: p => {
                     this.editor.setTimeline(this.editor.animationModes.FACEAU);
                     this.selectActionUnitArea(this.editor.getSelectedActionUnit());
                     
                     this.propagationWindow.setTimeline( this.auTimeline );
+                    this.faceTabs.selected = this.editor.animationModes.FACEAU;
                 }
             },
             {
@@ -2276,6 +2297,7 @@ class KeyframesGui extends Gui {
                     this.editor.setTimeline(this.editor.animationModes.FACEBS); 
             
                     this.propagationWindow.setTimeline( this.bsTimeline );
+                    this.faceTabs.selected = this.editor.animationModes.FACEBS;
                     //this.imageMap.resize();
                 }
             }
