@@ -45,6 +45,8 @@ class Gui {
         // Canvas UI buttons
         this.createSceneUI(this.canvasArea);
 
+        this.editor.setTimeline();
+
         window.addEventListener("keydown", (event) => {
             if( event.key == "Escape" ) {
                 this.closeDialogs(); 
@@ -1482,7 +1484,6 @@ class KeyframesGui extends Gui {
         this.bsTimeline.hide();
         this.globalTimeline.show();
         this.editor.activeTimeline = this.globalTimeline;
-
     }
 
     setKeyframeClip(clip){
@@ -2503,15 +2504,6 @@ class KeyframesGui extends Gui {
                     return;
                 }
 
-                switch(button) {
-                    case "Add as single clip":
-                        this.mode = ClipModes.Phrase;
-                        break;
-                    case "Breakdown into keyframes":
-                        this.mode = ClipModes.Keyframes;
-                        break;                   
-                }
-                this.skeletonTimeline.onUnselectKeyFrames();
                 asset.animation.name = asset.id;
 
                 dialog.panel.loadingArea.show();
@@ -2530,12 +2522,7 @@ class KeyframesGui extends Gui {
                 },
                 {
                     type: "bvh",
-                    name: 'Add as single clip', 
-                    callback: innerSelect
-                },
-                {
-                    type: "bvh",
-                    name: 'Breakdown into keyframes', 
+                    name: 'Add as a clip', 
                     callback: innerSelect
                 },
                 {
@@ -2545,14 +2532,19 @@ class KeyframesGui extends Gui {
                 },
                 {
                     type: "bvhe",
-                    name: 'Add as single clip', 
+                    name: 'Add as a clip', 
                     callback: innerSelect
-                },
+                },             
                 {
-                    type: "bvhe",
-                    name: 'Breakdown into keyframes', 
+                    type: "glb",
+                    name: 'Add as a clip', 
                     callback: innerSelect
-                },                
+                },             
+                {
+                    type: "gltf",
+                    name: 'Add as a clip', 
+                    callback: innerSelect
+                },             
             ];
 
             if( username != "guest" ) {
@@ -2712,38 +2704,25 @@ class KeyframesGui extends Gui {
                     break;
                 case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                     if(e.item.type != "folder") {
-                        const dialog = new LX.Dialog("Add clip", async ( panel ) => {
-                            if( !e.item.animation ) {
-                                const promise = new Promise((resolve) => {
-                                    this.editor.fileToAnimation(e.item, (file) => {
-                                        if( file ) {
-                                            resolve(file);
-                                        }
-                                        else {
-                                            resolve( null );
-                                        }
-                                    });
-                                })
-                                const parsedFile = await promise;
-                                e.item.animation = parsedFile.animation;
-                                e.item.content = parsedFile.content;
-                            }
+                        if( !e.item.animation ) {
+                            const promise = new Promise((resolve) => {
+                                this.editor.fileToAnimation(e.item, (file) => {
+                                    if( file ) {
+                                        resolve(file);
+                                    }
+                                    else {
+                                        resolve( null );
+                                    }
+                                });
+                            })
+                            const parsedFile = await promise;
+                            e.item.animation = parsedFile.animation;
+                            e.item.content = parsedFile.content;
+                        }
 
-                            panel.addTextArea(null, "How do you want to insert the clip?", null, {disabled:true,  className: "nobg"});
-                            panel.sameLine(2);
-                            panel.addButton(null, "Add as single clip", (v) => { 
-                                dialog.close();
-                                this.mode = ClipModes.Phrase;
-                                this.closeDialogs(); 
-                                onSelectFile(e.item, v);
-                            });
-                            panel.addButton(null, "Breakdown into keyframes", (v) => {
-                                dialog.close();
-                                this.mode = ClipModes.Keyframes;
-                                this.closeDialogs();
-                                onSelectFile(e.item, v);
-                            });
-                        }, { modal: true, closable: true, id: "choice-insert-mode"})
+                        dialog.close();
+                        this.closeDialogs(); 
+                        onSelectFile(e.item, v);
                     }
                     break;
 
@@ -4430,19 +4409,19 @@ class ScriptGui extends Gui {
                                 this.mode = ClipModes.Phrase;
                                 this.closeDialogs();
                                 onSelectFile(e.item, v);
-                            });
+                            }, {width: "33%"});
                             p.addButton(null, "Breakdown into glosses", (v) => {
                                 dialog.close();
                                 this.mode = ClipModes.Glosses;
                                 this.closeDialogs();
                                 onSelectFile(e.item, v);
-                            });
+                            }, {width: "33%"});
                             p.addButton(null, "Breakdown into action clips", (v) => {
                                 dialog.close();
                                 this.mode = ClipModes.Actions;
                                 this.closeDialogs();
                                 onSelectFile(e.item, v);
-                            });
+                            }, {width: "33%"});
                         }, {modal:true, closable: true, id: "choice-insert-mode"})
                     }
                     break;

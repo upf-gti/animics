@@ -125,7 +125,6 @@ class Editor {
         this.enable();
         this.bindEvents();
 
-        this.setTimeline(this.animationModes.GLOBAL);
         this.animate();
         
         
@@ -1048,6 +1047,9 @@ class KeyframeEditor extends Editor {
     constructor( animics ) {
                 
         super(animics);
+        
+        this.animationModes = {GLOBAL: 0, BODY: 1, FACEBS: 2, FACEAU: 3 };
+        this.animationMode = this.animationModes.BODY;
 
         this.currentKeyFrameClip = null; // animation shown in the keyframe timelines
 
@@ -1076,9 +1078,6 @@ class KeyframeEditor extends Editor {
 
         // Create GUI
         this.gui = new KeyframesGui(this);
-
-        this.animationModes = {GLOBAL: 0, BODY: 1, FACEBS: 2, FACEAU: 3 };
-        this.animationMode = this.animationModes.BODY;
 
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", children: []}]}];
     }
@@ -2357,7 +2356,7 @@ class KeyframeEditor extends Editor {
      * @param {animationModes} type 
      * @returns 
      */
-    setTimeline(type) {
+    setTimeline(type = this.animationModes.GLOBAL) {
        
         // hide previous timeline
         if(this.activeTimeline) {
