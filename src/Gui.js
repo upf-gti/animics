@@ -1099,11 +1099,11 @@ class KeyframesGui extends Gui {
         };
         this.globalTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                this.menubar.getButton("Play").children[0].children[0].click();
+                this.menubar.getButton("Play").swap(); // click();
             }
         }
         this.globalTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").children[0].children[0].click();
+            this.menubar.getButton("Stop").setState(true); // click();
         }
 
         this.globalTimeline.onSelectClip = (clip) => {
@@ -1163,11 +1163,11 @@ class KeyframesGui extends Gui {
         };
         this.skeletonTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                this.menubar.getButton("Play").children[0].children[0].click();
+                this.menubar.getButton("Play").swap(); // click();
             }
         }
         this.skeletonTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").children[0].children[0].click();
+            this.menubar.getButton("Stop").setState(true); // click();
         }
         this.skeletonTimeline.onSetTime = (t) => {
             this.editor.setTime(this.editor.startTimeOffset + t, true);
@@ -1418,11 +1418,11 @@ class KeyframesGui extends Gui {
         
         this.auTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                this.menubar.getButton("Play").children[0].children[0].click();
+                this.menubar.getButton("Play").swap(); // click();
             }
         }
         this.auTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").children[0].children[0].click();
+            this.menubar.getButton("Stop").setState(true); // click();
         }
         this.auTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, [idx], this.auTimeline.animationClip);
@@ -1542,11 +1542,11 @@ class KeyframesGui extends Gui {
         
         this.bsTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                this.menubar.getButton("Play").children[0].children[0].click();
+                this.menubar.getButton("Play").swap(); // click();
             }
         }
         this.bsTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").children[0].children[0].click();
+            this.menubar.getButton("Stop").setState(true); // click();
         }
         this.bsTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [idx]);
@@ -3055,11 +3055,11 @@ class ScriptGui extends Gui {
        
         this.clipsTimeline.onStateChange = (state) => {
             if(state != this.editor.state) {
-                this.menubar.getButton("Play").children[0].children[0].click();
+                this.menubar.getButton("Play").swap(); // click();
             }
         }
         this.clipsTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").children[0].children[0].click();
+            this.menubar.getButton("Stop").setState(true); // click();
         }
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 

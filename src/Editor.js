@@ -577,10 +577,7 @@ class Editor {
                             e.preventDefault();
                             e.stopImmediatePropagation();
     
-                            const playElement = this.gui.menubar.getButton("Play");
-                            if ( playElement ){ 
-                                playElement.children[0].children[0].click();
-                            }
+                            this.gui.menubar.getButton("Play").swap(); // click()
                         }
                     }
                 break;
@@ -700,8 +697,8 @@ class Editor {
         } 
         else {
             this.stop();
-			this.gui.menubar.getButton("Play").setState(false);
-            this.activeTimeline.setState(false);
+			this.gui.menubar.getButton("Play").setState(false, true);
+            this.activeTimeline.setState(false, true);
         }
     }
 
