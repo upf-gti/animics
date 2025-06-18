@@ -102,7 +102,7 @@ class Editor {
         }
 
         
-        this.avatarOptions = {
+        this.characterOptions = {
             "Eva": [Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.glb', Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.json', 0, Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.png'],
             "Witch": [Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.glb', Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.json', 0, Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.png'],
             "Kevin": [Editor.RESOURCES_PATH+'Kevin/Kevin.glb', Editor.RESOURCES_PATH+'Kevin/Kevin.json', 0, Editor.RESOURCES_PATH+'Kevin/Kevin.png'],
@@ -408,7 +408,7 @@ class Editor {
         // Check if the character is already loaded
         if( !this.loadedCharacters[characterName] ) {
             console.warn(characterName + " not loaded");
-            const modelToLoad = this.avatarOptions[characterName];
+            const modelToLoad = this.characterOptions[characterName];
             await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], characterName);
             return;
         }
@@ -429,7 +429,7 @@ class Editor {
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
         }
-        this.gui.createAvatarsPanel();
+        this.gui.createCharactersPanel();
         this.gui.setKeyframeClip(null);
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
         
@@ -479,8 +479,8 @@ class Editor {
                 // this.currentCharacter.skeletonHelper.skeleton.pose();
                 // this.currentCharacter.skeletonHelper.skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
                 // const boundAnimation = this.bindAnimationToCharacter(anim, {animation, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, srcEmbedWorldTransforms: true});
-                this.setGlobalAnimation(anim);
             }
+            this.setGlobalAnimation(anim);
         }
         this.gui.createSidePanel();
         UTILS.hideLoading();
@@ -1061,7 +1061,7 @@ class Editor {
                 break;
     
         }
-        // bvhexport sets avatar to bindpose. Avoid user seeing this
+        // bvhexport sets character to bindpose. Avoid user seeing this
         this.bindAnimationToCharacter(this.currentAnimation);
         return files;
     }
@@ -1197,6 +1197,54 @@ class Editor {
         return this.constructor == ScriptEditor;
     }
     
+    openAtelier(name, model, config, fromFile = true, rotation = 0) {
+            
+        let rawConfig = config;
+        if(config && !fromFile) {
+            rawConfig = JSON.parse(JSON.stringify(config));
+            const skeleton = this.currentCharacter.skeleton;
+            const innerLocationToObjects = (locations) => {
+                let result = {};
+                const bindMat4 = new THREE.Matrix4();
+                const bindMat3 = new THREE.Matrix3();
+                for(let part in locations) {
+                    
+                    const obj = [];
+                    const location = locations[part];
+                    let idx = findIndexOfBoneByName( skeleton, location.parent.name );
+                    if ( idx < 0 ){ continue; }
+    
+                    obj.push(location.parent.name);
+                    bindMat4.copy( skeleton.boneInverses[ idx ] ).invert();
+                    obj.push( location.position.clone().applyMatrix4( bindMat4 ) ); // from mesh space to bone local space
+                    
+                    // check direction of distance vector 
+                    if(location.direction) {
+                        bindMat3.setFromMatrix4( bindMat4 );
+                        obj.push( location.direction.clone().applyMatrix3( bindMat3 ) );
+
+                    }    
+                    result[part] = obj;
+                }
+                return result;
+            }
+            rawConfig.bodyController.bodyLocations = innerLocationToObjects(config.bodyController.bodyLocations);
+            rawConfig.bodyController.handLocationsL = innerLocationToObjects(config.bodyController.handLocationsL);
+            rawConfig.bodyController.handLocationsR = innerLocationToObjects(config.bodyController.handLocationsR);
+        }
+        const atelierData = [name, model, rawConfig, rotation];        
+        localStorage.setItem("atelierData", JSON.stringify(atelierData));
+        if(!this._atelier || this._atelier.closed) {
+            this._atelier = window.open(Performs.ATELIER_URL, "Atelier");   
+            this._atelier.postMessage.postMessage(JSON.stringify(atelierData), '*');
+        }
+        else {
+            //this._atelier.location.reload();
+            this._atelier.focus();
+            this._atelier.postMessage.postMessage(JSON.stringify(atelierData), '*');
+        }
+    }
+
     onKeyDown( event ) {} // Abstract
     redo() {}
     undo() {}
@@ -1214,7 +1262,7 @@ class Editor {
 
 /**
  * This editor uses loadedAnimations to store loaded files and video-animations. 
- * The global animations are stored in boundAnimations, each avatar having its own animationClip as keyframes are meaningful only to a single avatar
+ * The global animations are stored in boundAnimations, each character having its own animationClip as keyframes are meaningful only to a single character
  */
 class KeyframeEditor extends Editor { 
     
@@ -1410,8 +1458,8 @@ class KeyframeEditor extends Editor {
 
         const bound = this.boundAnimations[currentName];
         this.boundAnimations[newName] = bound;
-        for( let avatarname in bound ){
-            bound[avatarname].id = newName;
+        for( let charactername in bound ){
+            bound[charactername].id = newName;
         }
         delete this.boundAnimations[currentName];
 
@@ -1828,7 +1876,7 @@ class KeyframeEditor extends Editor {
             boneHead.quaternion.copy( bindQuats[ 5 ] );
             const boneHeadTop = skeleton.bones[ 8 ]; // head top, must be a children of head
             boneHead.updateWorldMatrix( true, false );
-            // avatar bone local space direction
+            // character bone local space direction
             let headBoneDir = boneHeadTop.position.clone().normalize();
     
             // world space
@@ -1883,7 +1931,7 @@ class KeyframeEditor extends Editor {
                 dirPred.subVectors( landmarkTrg, landmarkSrc );
                 dirPred.applyQuaternion( invWorldQuat ).normalize();
     
-                // avatar bone local space direction
+                // character bone local space direction
                 dirBone.copy( boneTrg.position ).normalize();
     
                 // move bone to predicted direction
@@ -1935,7 +1983,7 @@ class KeyframeEditor extends Editor {
 
         /* TODO
             Consider moving the constraints direclty into the mediapipe landmarks. 
-            This would avoid unnecessary recomputations of constraints between different avatars.
+            This would avoid unnecessary recomputations of constraints between different characters.
             Changes would be baked already in the mediapipe landmarks
         */       
         function computeQuatPhalange( skeleton, bindQuats, handLandmarks, isLeft = false ){
@@ -2096,7 +2144,7 @@ class KeyframeEditor extends Editor {
                     // world phalange direction to local space
                     v_phalange.applyQuaternion( invWorldQuat ).normalize();
         
-                    // avatar bone local space direction
+                    // character bone local space direction
                     let phalange_p = boneTrg.position.clone().normalize();
         
                     // move bone to predicted direction
@@ -2303,7 +2351,7 @@ class KeyframeEditor extends Editor {
         quatCheck.fill(false);
         let posCheck = false; //root only
 
-        // ensure each track has at least one valid entry. Default to current avatar pose
+        // ensure each track has at least one valid entry. Default to current character pose
         for( let i = 0; i < tracks.length; ++i ){
             let t = tracks[i];
             let trackBoneName = t.name.substr(0, t.name.lastIndexOf("."));
@@ -2346,7 +2394,7 @@ class KeyframeEditor extends Editor {
         bsCheck.fill(false);
 
         const allMorphTargetDictionary = {};
-        // ensure each track has at least one valid entry. Default to current avatar pose
+        // ensure each track has at least one valid entry. Default to current character pose
         for( let i = 0; i < tracks.length; ++i ){
             const track = tracks[i];
             const {propertyIndex, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
@@ -2542,7 +2590,7 @@ class KeyframeEditor extends Editor {
             case this.animationModes.FACEBS:
                 this.animationMode = this.animationModes.FACEBS;
                 this.activeTimeline = this.gui.bsTimeline;
-
+                this.gui.createSidePanel();  
                 if( this.gizmo ) { 
                     this.gizmo.disable();
                 }
@@ -2551,6 +2599,7 @@ class KeyframeEditor extends Editor {
             case this.animationModes.FACEAU:
                 this.animationMode = this.animationModes.FACEAU;
                 this.activeTimeline = this.gui.auTimeline;
+                this.gui.createSidePanel();  
                 this.setSelectedActionUnit(this.selectedAU);                    
                 
                 if( this.gizmo ) { 
@@ -2560,7 +2609,8 @@ class KeyframeEditor extends Editor {
                
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
-                this.activeTimeline = this.gui.skeletonTimeline;                
+                this.activeTimeline = this.gui.skeletonTimeline;
+                this.gui.createSidePanel();          
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
 
                 if( this.gizmo ) {
@@ -2577,6 +2627,7 @@ class KeyframeEditor extends Editor {
                 this.startTimeOffset = 0;
                 this.currentKeyFrameClip = null;
                 this.activeTimeline = this.gui.globalTimeline;
+                this.gui.createSidePanel();  
                 if( this.gizmo ) { 
                     this.gizmo.disable();
                 }
@@ -3200,7 +3251,7 @@ class KeyframeEditor extends Editor {
 
 /**
  * This editor uses loadedAnimations to store global animations  
- * The boundAnimations variable stores only the mixer clips for each avatar. As BML is universal, there is no need for each avatar to hold its own bml animation
+ * The boundAnimations variable stores only the mixer clips for each character. As BML is universal, there is no need for each character to hold its own bml animation
  */
 class ScriptEditor extends Editor { 
     constructor( animics ) {
@@ -3351,8 +3402,8 @@ class ScriptEditor extends Editor {
 
         const bound = this.boundAnimations[currentName];
         this.boundAnimations[newName] = bound;
-        for( let avatarname in bound ){
-            bound[avatarname].id = newName;
+        for( let charactername in bound ){
+            bound[charactername].id = newName;
         }
         delete this.boundAnimations[currentName];
 

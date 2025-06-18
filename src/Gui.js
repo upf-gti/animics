@@ -640,26 +640,26 @@ class Gui {
         }
     }
 
-    createAvatarsPanel( panel = this.characterPanel ) {
+    createCharactersPanel( panel = this.characterPanel ) {
         if(!panel) {
             return;
         }
         const p = this.characterPanel = panel;
 
         p.clear();
-        p.branch('Avatars');
+        p.branch('Characters');
 
-        p.addButton( "Upload yours", "Upload Avatar", (v) => {
-            this.uploadAvatar((value, config) => {
+        p.addButton( "Upload yours", "Upload Character", (v) => {
+            this.uploadCharacter((value, config) => {
                     
                 if ( !this.editor.loadedCharacters[value] ) {
-                    UTILS.makeLoading( `Loading avatar [ ${value} ]...`);
-                    let modelFilePath = this.editor.avatarOptions[value][0];                    
-                    let configFilePath = this.editor.avatarOptions[value][1];
-                    let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), this.editor.avatarOptions[value][2] ); 
+                    UTILS.makeLoading( `Loading character [ ${value} ]...`);
+                    let modelFilePath = this.editor.characterOptions[value][0];                    
+                    let configFilePath = this.editor.characterOptions[value][1];
+                    let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), this.editor.characterOptions[value][2] ); 
                     this.editor.loadCharacter(modelFilePath, config || configFilePath, modelRotation, value, ()=>{ 
-                        this.editor.changeAvatar(value);
-                        this.createAvatarsPanel(p);
+                        this.editor.changeCharacter(value);
+                        this.createCharactersPanel(p);
                         if(this.editor.currentCharacter.config) {
                           
                             
@@ -671,14 +671,14 @@ class Gui {
                         UTILS.hideLoading();
                     }, (err) => {
                         UTILS.hideLoading();
-                        LX.popup("There was an error loading the avatar", "Avatar not loaded", {width: "30%"});
+                        LX.popup("There was an error loading the character", "Character not loaded", {width: "30%"});
                     } );
                     return;
                 } 
 
                 // use controller if it has been already loaded in the past
                 this.editor.changeCharacter(value);
-                this.createAvatarsPanel(p);
+                this.createCharactersPanel(p);
             });
         } ,{ nameWidth: "100px", icon: "CloudUpload" } );        
       
@@ -686,7 +686,7 @@ class Gui {
 
 
         // p.sameLine();
-        let avatars = [];
+        let characters = [];
         const _makeProjectOptionItem = ( icon, outerText, id, parent, selected = false ) => {
             const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, parent );
             const card = LX.makeContainer( ["200px", "auto"], `flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button card-color`, `
@@ -695,13 +695,13 @@ class Gui {
 
             let button = null;
             if(selected) {
-                button = new LX.Button(null, "Edit Avatar", (e) => {
-                    this.createEditAvatarDialog(item.id);
+                button = new LX.Button(null, "Edit Character", (e) => {
+                    this.createEditCharacterDialog(item.id);
                 } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px", buttonClass: "bg-secondary"} );
 
                 button.root.addEventListener("click", (e) => {
                   
-                    this.createEditAvatarDialog(item.id);
+                    this.createEditCharacterDialog(item.id);
                 })
             }
             const flexContainer = LX.makeContainer( ["auto", "auto"], "flex items-center", `<p>${ outerText }</p>`, item );
@@ -715,87 +715,45 @@ class Gui {
             });
 
         };
-        const avatarContainer = LX.makeContainer( ["100%", "auto"], "grid gap-2", "" );
-        avatarContainer.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
-        for(let avatar in this.editor.avatarOptions) {
-            _makeProjectOptionItem(this.editor.avatarOptions[avatar][3] ?? GUI.THUMBNAIL, avatar, avatar, avatarContainer, avatar == this.editor.currentCharacter.model.name);
+        const characterContainer = LX.makeContainer( ["100%", "auto"], "grid gap-2", "" );
+        characterContainer.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
+        for(let character in this.editor.characterOptions) {
+            _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL, character, character, characterContainer, character == this.editor.currentCharacter.model.name);
            
-            // p.sameLine();
-            // const pan = new LX.Panel({className: "flex flex-col p-1 justify-center items-center"});
-            // const btn = pan.addButton(null, avatar, (value)=> {
-               
-            //     if(this.editor.ECAcontroller) {
-            //         this.editor.ECAcontroller.reset();
-            //     }
-
-            //     // load desired model
-            //     if ( !this.editor.loadedCharacters[value] ) {
-            //         UTILS.makeLoading( `Loading avatar [ ${value} ]...`);
-            //         let modelFilePath = this.editor.avatarOptions[value][0]; 
-            //         let configFilePath = this.editor.avatarOptions[value][1]; 
-            //         let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), this.editor.avatarOptions[value][2] ); 
-            //         this.editor.loadCharacter(modelFilePath, configFilePath, modelRotation, value, ()=>{ 
-            //             this.editor.changeAvatar(value);
-            //             this.createAvatarsPanel(); 
-                        
-            //             UTILS.hideLoading();
-            //         }, (err) => {
-            //             UTILS.hideLoading();
-            //             LX.popup("There was an error loading the avatar", "Avatar not loaded", {width: "30%"});
-            //         } );
-            //         return;
-            //     } 
-    
-            //     // use controller if it has been already loaded in the past
-            //     this.editor.changeAvatar(value);
-            //     this.createAvatarsPanel();
-
-            // }, {img: this.editor.avatarOptions[avatar][3] ?? GUI.THUMBNAIL, className: "justify-center", buttonClass: "rounded-full roundedbtn hover:bg-tertiary"});
-
-            // // btn.root.children[0].style.width = "120px";
-            // if(avatar == this.editor.currentCharacter.model.name) {
-            //     btn.root.children[0].classList.add("selected");
-
-            //     let ebtn = pan.addButton( null, "Edit Avatar", (v) => {
-            //         this.createEditAvatarDialog(v);
-            //     } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px" } );
-            // }
-            avatars.push({ value: avatar, src: this.editor.avatarOptions[avatar][3] ?? GUI.THUMBNAIL});
-            // avatarContainer.appendChild(pan.root);
-            p.root.appendChild(avatarContainer);
-                // p.endLine();
+            characters.push({ value: character, src: this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL});
+            p.root.appendChild(characterContainer);
         }
     }
 
     createImportDialog(type, callback) {
-        let isAvatar = false;
+        let isCharacter = false;
         const dialog = new LX.Dialog(type + " File Detected!", (panel) => {
             panel.sameLine();
-            panel.addButton(null, "Use as Avatar", (v) => { isAvatar = true; dialog.close(); callback(isAvatar); });
-            panel.addButton(null, "Use Animations only", (v) => { isAvatar = false; dialog.close(); callback(isAvatar);})
+            panel.addButton(null, "Use as Character", (v) => { isCharacter = true; dialog.close(); callback(isCharacter); });
+            panel.addButton(null, "Use Animations only", (v) => { isCharacter = false; dialog.close(); callback(isCharacter);})
             panel.endLine();
         })
     }
 
-    uploadAvatar(callback = null) {
+    uploadCharacter(callback = null) {
         let name, model, config;
         let rotation = 0;
         
         let afromFile = true;
         let cfromFile = true;
-        this.avatarDialog = new LX.Dialog("Upload Avatar", panel => {
+        this.characterDialog = new LX.Dialog("Upload Character", panel => {
 
             panel.refresh = () => {
                 panel.clear();
                 
-                let nameWidget = panel.addText("Name Your Avatar", name, (v, e) => {
-                    if (this.editor.avatarOptions[v]) LX.popup("This avatar name is taken. Please, change it.", null, { size: ["300px", "auto"], position: ["45%", "20%"]});
+                let nameWidget = panel.addText("Name Your Character", name, (v, e) => {
+                    if (this.editor.characterOptions[v]) LX.popup("This character name is taken. Please, change it.", null, { size: ["300px", "auto"], position: ["45%", "20%"]});
                     name = v;
                 });
 
                 panel.sameLine();
-                let avatarFile = panel.addFile("Avatar File", (v, e) => {
-                    let files = panel.widgets["Avatar File"].domEl.children[1].files;
+                let characterFile = panel.addFile("Character File", (v, e) => {
+                    let files = panel.widgets["Character File"].domEl.children[1].files;
                     if(!files.length) {
                         return;
                     }
@@ -813,10 +771,10 @@ class Gui {
                 }, {type: "url", nameWidth: "41%"});
 
                 if(!afromFile) {
-                    avatarFile.domEl.classList.add('hidden');
+                    characterFile.domEl.classList.add('hidden');
                 }
 
-                let avatarURL = panel.addText("Avatar URL", model, (v, e) => {
+                let characterURL = panel.addText("Character URL", model, (v, e) => {
                     if(v == model) {
                         return;
                     }
@@ -840,7 +798,7 @@ class Gui {
                         }
                         if(model.includes('models.readyplayer.me')) {
                            
-                            const promptD = LX.prompt("It looks like you’re importing an avatar from a Ready Player Me. Would you like to use the default configuration for this character?\nPlease note that the contact settings may vary. We recommend customizing the settings based on the default to better suit your avatar.", 
+                            const promptD = LX.prompt("It looks like you’re importing an character from a Ready Player Me. Would you like to use the default configuration for this character?\nPlease note that the contact settings may vary. We recommend customizing the settings based on the default to better suit your character.", 
                                                     "Ready Player Me detected!", (value, event)=> {
                                 cfromFile = false;
                                 panel.refresh();
@@ -852,7 +810,7 @@ class Gui {
                     else { LX.popup("Only accepts GLB and GLTF formats!"); }
                 }, {nameWidth: "43%"});
                 if(afromFile) {
-                    avatarURL.domEl.classList.add('hidden');
+                    characterURL.domEl.classList.add('hidden');
                 }
 
                 panel.addComboButtons(null, [
@@ -860,10 +818,10 @@ class Gui {
                         value: "From File",
                         callback: (v, e) => {                            
                             afromFile = true;
-                            if(!avatarURL.domEl.classList.contains('hidden')) {
-                                avatarURL.domEl.classList.add('hidden');          
+                            if(!characterURL.domEl.classList.contains('hidden')) {
+                                characterURL.domEl.classList.add('hidden');          
                             }
-                            avatarFile.domEl.classList.remove('hidden');                                                          
+                            characterFile.domEl.classList.remove('hidden');                                                          
                             panel.refresh();
                         }
                     },
@@ -871,10 +829,10 @@ class Gui {
                         value: "From URL",
                         callback: (v, e) => {
                             afromFile = false;
-                            if(!avatarFile.domEl.classList.contains('hidden')) {
-                                avatarFile.domEl.classList.add('hidden');           
+                            if(!characterFile.domEl.classList.contains('hidden')) {
+                                characterFile.domEl.classList.add('hidden');           
                             }                                               
-                            avatarURL.domEl.classList.remove('hidden');          
+                            characterURL.domEl.classList.remove('hidden');          
                         }
                     }
                 ], {selected: afromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});                
@@ -895,7 +853,7 @@ class Gui {
                         editConfigBtn.classList.remove('hidden');
                     }
                     else { LX.popup("Config file must be a JSON!"); }
-                }, {type: "text", nameWidth: "41%"});
+                }, {type: "text", nameWidth: "100%"});
                 
                 let configURL = panel.addText("Config URL", config ? config._filename : "", async (v, e) => {
                     if(!v) {
@@ -936,7 +894,7 @@ class Gui {
                 const editConfigBtn = panel.addButton(null, "Edit config file", () => {
                     this.editor.openAtelier(name, model, config, true, rotation);
 
-                }, {icon: "fa fa-user-gear", width: "40px"});
+                }, {icon: "UserCog@solid", width: "40px"});
                 
                 if(!config) {
                     editConfigBtn.classList.add('hidden');
@@ -979,25 +937,25 @@ class Gui {
             })
             panel.addButton(null, "Upload", () => {
                 if (name && model) {
-                    if (this.editor.avatarOptions[name]) { LX.popup("This avatar name is taken. Please, change it.", null, { position: ["45%", "20%"]}); return; }
+                    if (this.editor.characterOptions[name]) { LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]}); return; }
                     let thumbnail = GUI.THUMBNAIL;
                     if( model.includes('models.readyplayer.me') ) {
                         model+= '?pose=T&morphTargets=ARKit&lod=1';
                         thumbnail =  "https://models.readyplayer.me/" + name + ".png?background=68,68,68";
                     }
                     if (config) {
-                        this.editor.avatarOptions[name] = [model, config, rotation, thumbnail];               
+                        this.editor.characterOptions[name] = [model, config, rotation, thumbnail];               
                         panel.clear();
-                        this.avatarDialog.root.remove();
-                        this.editor.avatarOptions[name][1] = config._filename;
+                        this.characterDialog.root.remove();
+                        this.editor.characterOptions[name][1] = config._filename;
                         if (callback) callback(name, config);
                     }
                     else {
-                        LX.prompt("Uploading without config file will disable BML animations for this avatar. Do you want to proceed?", "Warning!", (result) => {
-                            this.editor.avatarOptions[name] = [model, null, rotation, thumbnail];
+                        LX.prompt("Uploading without config file will disable BML animations for this character. Do you want to proceed?", "Warning!", (result) => {
+                            this.editor.characterOptions[name] = [model, null, rotation, thumbnail];
                             
                             panel.clear();
-                            this.avatarDialog.root.remove();
+                            this.characterDialog.root.remove();
                             if (callback) callback(name);
                         }, {input: false, on_cancel: () => {}});
                         
@@ -1011,11 +969,198 @@ class Gui {
             panel.root.addEventListener("drop", (v, e) => {
 
                 let files = v.dataTransfer.files;
-                this.onDropAvatarFiles(files);
+                this.onDropCharacterFiles(files);
             })
             
         }
         panel.refresh();
+
+        }, { size: ["40%"], closable: true, onclose: (root) => {  root.remove(); }});
+
+        return name;
+    }
+
+    createEditCharacterDialog() {
+        let name = this.editor.currentCharacter.model.name;
+        this.editCharacter(name, {
+            callback: (newName, rotation, config) => {
+                if(name != newName) {
+                    this.editor.characterOptions[newName] = [ this.editor.characterOptions[name][0], this.editor.characterOptions[name][1], this.editor.characterOptions[name][2], this.editor.characterOptions[name][3]]
+                    delete this.editor.characterOptions[name];
+                    name = newName;
+                    this.editor.currentCharacter.model.name = name;
+                    this.refresh();
+                }
+                this.editor.characterOptions[name][2] = rotation;
+                
+                const modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), rotation ); 
+                this.editor.currentCharacter.model.quaternion.premultiply( modelRotation );
+                if(this.editor.currentCharacter.config && this.editor.currentCharacter.config == config) {
+                    return;
+                }
+                this.editor.currentCharacter.config = config;
+                if(config) {
+                    this.editor.characterOptions[name][1] = config._filename;
+                    // this.editor.scriptApp.onLoadCharacter(this.editor.currentCharacter.model, this.editor.currentCharacter.config, this.editor.currentCharacter.skeleton);
+                    this.editor.currentCharacter.skeleton.pose();
+                    this.editor.scriptApp.ECAcontroller.reset();                        
+                    this.editor.changeMode(Performs.Modes.SCRIPT);
+                    if(this.settingsActive) {
+                        this.createSettingsPanel();             
+                    }
+                    const resetBtn = this.mainArea.sections[0].panels[2].root.querySelector("button[title='Reset pose']");
+                    if(resetBtn) {
+                        resetBtn.classList.remove("hidden");
+                    }
+                }
+
+            }, 
+            name, modelFilePath: this.editor.characterOptions[name][0], modelConfigPath: this.editor.characterOptions[name][1]
+        });
+    }
+
+    editCharacter(name, options = {}) {
+        const data = this.editor.currentCharacter;
+        const callback = options.callback;
+        let config = data.config;
+        let rotation = 0;
+        
+        let fromFile = !config ?? false;
+        this.characterDialog = new LX.Dialog("Edit Character", panel => {
+          
+            panel.refresh = () => {
+                panel.clear();                
+                let nameWidget = panel.addText("Name Your Character", name, (v, e) => {
+                    if (this.editor.characterOptions[v]) LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]});
+                    name = v;
+                });
+
+                panel.sameLine();
+
+                let configFile = panel.addFile("Config File", (v, e) => {
+                    if(!v) {
+                        return;
+                    }
+                    const filename = panel.widgets["Config File"].domEl.children[1].files[0].name;
+                    let extension = filename.split(".");
+                    extension = extension.pop();
+                    if (extension == "json") { 
+                        config = JSON.parse(v); 
+                        config._filename = filename; 
+                    }
+                    else { LX.popup("Config file must be a JSON!"); }
+                }, {type: "text"});
+
+                let configURL = panel.addText("Config URL", config ? config._filename : "", async (v, e) => {
+                    
+                    if(!v) {
+                        return;
+                    }
+                    const path = v.split(".");
+                    let filename = path[path.length-2];
+                    filename = filename.split("/");
+                    filename = filename.pop();
+                    let extension = path[path.length-1];
+                    extension = extension.split("?")[0].toLowerCase();
+                        if (extension == "json") { 
+                            if (extension == "json") { 
+                                try {
+                                    const response = await fetch(v);
+                                    if (!response.ok) {
+                                        throw new Error(`Response status: ${response.status}`);
+                                    }
+                                    config = await response.json();                        
+                                    config._filename = v; 
+                                }
+                                catch (error) {
+                                    LX.popup(error.message, "File error!");
+                                }
+                            }
+                        }
+                    else { LX.popup("Config file must be a JSON!"); }
+                }, {nameWidth: "43%",});
+
+                if( fromFile ) {
+                    configURL.root.classList.add('hidden');
+                } else {
+                    configFile.root.classList.add('hidden');
+                }
+
+                if( config ) {
+                    panel.addButton(null, "Edit config file", () => {
+                        this.editor.openAtelier(name, this.editor.characterOptions[name][0], config, false, rotation);                  
+                    }, {icon: "UserCog@solid", width: "40px"});
+                }
+
+                panel.addComboButtons(null, [
+                    {
+                        value: "From File",
+                        callback: (v, e) => {                            
+                            fromFile = true;
+                            // panel.refresh();
+                            if(!configURL.root.classList.contains('hidden')) {
+                                configURL.root.classList.add('hidden');          
+                            }
+                            configFile.root.classList.remove('hidden');                                                                                  
+                        }
+                    },
+                    {
+                        value: "From URL",
+                        callback: (v, e) => {
+                            fromFile = false;
+                            // panel.refresh();
+                            if(!configFile.root.classList.contains('hidden')) {
+                                configFile.root.classList.add('hidden');           
+                            }                                               
+                            configURL.root.classList.remove('hidden');  
+                        }
+                    }
+                    ]
+                , {selected: fromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});
+                panel.endLine();
+
+                panel.addNumber("Apply Rotation", 0, (v) => {
+                    rotation = v * Math.PI / 180;
+                }, { min: -180, max: 180, step: 1 } );
+                
+                panel.sameLine(2);
+                panel.addButton(null, (config ? "Edit": "Create") + " Config File", () => {
+                    this.editor.openAtelier(name, this.editor.characterOptions[name][0], config, false, rotation);                                       
+                })
+                panel.addButton(null, "Update", () => {
+                    if (name) {
+                    
+                        if (config) {
+                            // this.editor.characterOptions[name][1] = config._filename;
+                            // this.editor.characterOptions[name][2] = rotation;
+                            
+                            panel.clear();
+                            this.characterDialog.root.remove();
+                            if (callback) callback(name, rotation, config);
+                        }
+                        else {
+                            LX.prompt("Uploading without config file will disable BML animations for this character. Do you want to proceed?", "Warning!", (result) => {
+                                // this.editor.characterOptions[name][2] = rotation;
+                                panel.clear();
+                                this.characterDialog.root.remove();
+                                if (callback) callback(name, rotation);
+                            }, {input: false, on_cancel: () => {}});
+                            
+                        }
+                    }
+                    else {
+                        LX.popup("Complete all fields!", null, { position: ["45%", "20%"]});
+                    }
+                });
+
+                // panel.root.addEventListener("drop", (v, e) => {
+
+                //     let files = v.dataTransfer.files;
+                //     this.onDropCharacterFiles(files);
+                // })
+            
+            }
+            panel.refresh();
 
         }, { size: ["40%"], closable: true, onclose: (root) => {  root.remove(); }});
 
@@ -1952,7 +2097,6 @@ class KeyframesGui extends Gui {
         if (!clip){
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
             this.editor.currentKeyFrameClip = null;
-            this.createSidePanel();
             this.editor.gizmo.stop();
             const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
             skeleton.visible = false;
@@ -1975,11 +2119,10 @@ class KeyframesGui extends Gui {
         this.bsTimeline.setSelectedItems(Object.keys(clip.bsAnimation.tracks));
         this.bsTimeline.setTime(localTime, true);
         
-        // this.createSidePanel(); // to update
+        this.editor.animationMode = this.editor.animationModes.BODY;
         this.editor.setTime( clip.start + localTime );
         this.editor.setTimeline(this.editor.animationModes.BODY);
         this.propagationWindow.setTimeline( this.skeletonTimeline );
-        this.createSidePanel();
 
         if ( sourceAnimation.type == "video" ) {
             const video = this.editor.video;
@@ -2079,7 +2222,7 @@ class KeyframesGui extends Gui {
         // Character tab content
         const characterArea = new LX.Area({id: 'Character'});
         const characterPanel = characterArea.addPanel();
-        this.createAvatarsPanel( characterPanel ) ;
+        this.createCharactersPanel( characterPanel ) ;
         
         panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {
             
@@ -2305,7 +2448,7 @@ class KeyframesGui extends Gui {
 
         bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
-        this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.currentCharacter.skeletonHelper.bones[0].name} );
+        this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.selectedBone || this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
         
         this.sidePanel.onresize = (e)=>{
