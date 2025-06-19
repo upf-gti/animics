@@ -256,7 +256,7 @@ class Gui {
             const refresh = (p, msg) => {
                 p.clear();
                 if(msg) {
-                    p.addText(null, msg, null, {disabled: true, warning: true,  className: "nobg"});
+                    p.addText(null, msg, null, {disabled: true, warning: true, className: "nobg"});
                 }
                 p.addText("User", username, (v) => {
                     username = v;
@@ -1671,46 +1671,140 @@ class KeyframesGui extends Gui {
                     if ( blendMode != clip.blendMode ){
                         this.globalTimeline.saveState(clip.trackIdx);
                         this.editor.setKeyframeClipBlendMode( clip, blendMode, true );
+                        this.editor.setTime(this.editor.currentTime); // update mixer
                         this.createSidePanel();
                     }
-                });
+                }, {
+                    on_Normal: (panel) => {
+                        const text = LX.makeContainer( [ "100%", "auto" ], "p-2 whitespace-pre-wrap", 
+                        "To convert an Additive animation to a Normal one, the bind Pose should be added.", 
+                        null, 
+                        { wordBreak: "break-word", lineHeight: "1.5rem" } );
+                        panel.queuedContainer.appendChild( text ); // hack
 
-                if ( clip.blendMode == THREE.AdditiveAnimationBlendMode ){
-                    p.addButton(null, "Subtract first frame pose", null, { buttonClass: "error dashed" });
-                    p.addButton(null, "Subtract bind pose", (v,e)=>{
-                        this.globalTimeline.saveState(clip.trackIdx);
-                        let skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
-                        let skeletonclip = clip.skeletonAnimation;
-                        skeleton.pose();
+                        panel.addButton(null, "Add bind pose", (v,e)=>{
+                            this.globalTimeline.saveState(clip.trackIdx);
+                            const skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
+                            const skeletonclip = clip.skeletonAnimation;
+                            skeleton.pose();
+    
+                            const groups = skeletonclip.tracksPerGroup;
+                            for( let i = 0; i < skeleton.bones.length; ++i ){
+                                const bone = skeleton.bones[i];
+                                let tracks = groups[bone.name];
+                                for( let t = 0; t < tracks.length; ++t ){
+                                    const values = tracks[t].values;
+    
+                                    switch( tracks[t].id ){
+                                        case "scale": 
+                                            for(let v = 0; v < values.length; ){
+                                                values[v] = values[v] + bone.scale.x; v++;
+                                                values[v] = values[v] + bone.scale.y; v++;
+                                                values[v] = values[v] + bone.scale.z; v++;
+                                            }
+                                        break;
+                                        case "position": 
+                                            for(let v = 0; v < values.length; ){
+                                                values[v] = values[v] + bone.position.x; v++; 
+                                                values[v] = values[v] + bone.position.y; v++;
+                                                values[v] = values[v] + bone.position.z; v++;
+                                            }
+                                        break;
+                                        case "quaternion": 
+                                            let q = new THREE.Quaternion();
+                                            for(let v = 0; v < values.length; v+= 4){
+                                                q.fromArray(values, v);
+                                                q.premultiply(bone.quaternion);
+                                                values[v] = q.x;
+                                                values[v+1] = q.y;
+                                                values[v+2] = q.z;
+                                                values[v+3] = q.w;
+                                            }
+                                        break;
+                                    }
+                                }
+                            }
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.setTime(this.editor.currentTime);
+                        }, { buttonClass: "error dashed" });
+                    },
+                    on_Additive: (panel) => {
+                        const text = LX.makeContainer( [ "100%", "auto" ], "p-2 whitespace-pre-wrap", 
+                        "To convert a Normal animation to an Additive one, a pose should be subtracted. Usually subtracting the bind pose is enough.", 
+                        null, 
+                        { wordBreak: "break-word", lineHeight: "1.5rem" } );
+                        panel.queuedContainer.appendChild( text ); // hack
 
-                        const groups = skeletonclip.tracksPerGroup;
-                        for( let i = 0; i < skeleton.bones.length; ++i ){
-                            const bone = skeleton.bones[i];
-                            let tracks = groups[bone.name];
+                        panel.addButton(null, "Subtract bind pose", (v,e)=>{
+                            this.globalTimeline.saveState(clip.trackIdx);
+                            let skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
+                            let skeletonclip = clip.skeletonAnimation;
+                            skeleton.pose();
+    
+                            const groups = skeletonclip.tracksPerGroup;
+                            for( let i = 0; i < skeleton.bones.length; ++i ){
+                                const bone = skeleton.bones[i];
+                                let tracks = groups[bone.name];
+                                for( let t = 0; t < tracks.length; ++t ){
+                                    const values = tracks[t].values;
+    
+                                    switch( tracks[t].id ){
+                                        case "scale": 
+                                            for(let v = 0; v < values.length; ){
+                                                values[v] = values[v] - bone.scale.x; v++;
+                                                values[v] = values[v] - bone.scale.y; v++;
+                                                values[v] = values[v] - bone.scale.z; v++;
+                                            }
+                                        break;
+                                        case "position": 
+                                            for(let v = 0; v < values.length; ){
+                                                values[v] = values[v] - bone.position.x; v++; 
+                                                values[v] = values[v] - bone.position.y; v++;
+                                                values[v] = values[v] - bone.position.z; v++;
+                                            }
+                                        break;
+                                        case "quaternion": 
+                                            let q = new THREE.Quaternion();
+                                            for(let v = 0; v < values.length; v+= 4){
+                                                q.fromArray(values, v);
+                                                // localOffset = invBind * q = inv( invq * bind )
+                                                q.invert().multiply(bone.quaternion).invert();
+                                                values[v] = q.x;
+                                                values[v+1] = q.y;
+                                                values[v+2] = q.z;
+                                                values[v+3] = q.w;
+                                            }
+                                        break;
+                                    }
+                                }
+                            }
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.setTime(this.editor.currentTime);
+                        }, { buttonClass: "error dashed" });
+
+                        panel.addButton(null, "Subtract first frame pose", (v,e) =>{
+                            this.globalTimeline.saveState(clip.trackIdx);
+                            const skeletonclip = clip.skeletonAnimation;
+    
+                            const tracks = skeletonclip.tracks;
                             for( let t = 0; t < tracks.length; ++t ){
                                 const values = tracks[t].values;
 
                                 switch( tracks[t].id ){
-                                    case "scale": 
-                                        for(let v = 0; v < values.length; ){
-                                            values[v] = values[v] - bone.scale.x; v++;
-                                            values[v] = values[v] - bone.scale.y; v++;
-                                            values[v] = values[v] - bone.scale.z; v++;
-                                        }
-                                    break;
-                                    case "position": 
-                                        for(let v = 0; v < values.length; ){
-                                            values[v] = values[v] - bone.position.x; v++; 
-                                            values[v] = values[v] - bone.position.y; v++;
-                                            values[v] = values[v] - bone.position.z; v++;
+                                    case "scale": case "position": 
+                                        for(let v = values.length-1; v > -1; ){
+                                            values[v] = values[v] - values[2]; v--;
+                                            values[v] = values[v] - values[1]; v--;
+                                            values[v] = values[v] - values[0]; v--;
                                         }
                                     break;
                                     case "quaternion": 
                                         let q = new THREE.Quaternion();
-                                        for(let v = 0; v < values.length; v+= 4){
+                                        let q2 = new THREE.Quaternion();
+                                        for(let v = values.length-4; v > -1; v-=4 ){
                                             q.fromArray(values, v);
-                                            // localOffset = invBind * q = inv( invq * bind )
-                                            q.invert().multiply(bone.quaternion).invert();
+                                            q2.fromArray(values, 0);
+                                            q.premultiply(q2.invert());
                                             values[v] = q.x;
                                             values[v+1] = q.y;
                                             values[v+2] = q.z;
@@ -1719,12 +1813,12 @@ class KeyframesGui extends Gui {
                                     break;
                                 }
                             }
-                        }
-                        this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
-                        this.editor.setTime(this.editor.currentTime);
-                    }, { buttonClass: "error dashed" });
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.setTime(this.editor.currentTime);
+                        }, { buttonClass: "error dashed" });
 
-                }
+                    }   
+                });
 
                 p.merge();
 
@@ -3705,7 +3799,7 @@ class ScriptGui extends Gui {
             if(clip.fadein!= undefined && clip.fadeout!= undefined)  {
                 widgets.merge();
                 widgets.branch("Sync points", {icon: "SplinePointer"});
-                widgets.addTextArea(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true,  className: "nobg"});
+                widgets.addTextArea(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true, className: "nobg"});
                 const syncvalues = [];
                 
                 if(clip.fadein != undefined)
