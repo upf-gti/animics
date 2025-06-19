@@ -613,15 +613,14 @@ class KeyframesGui extends Gui {
                 name: "Empty clip",
                 icon: "PenTool",
                 callback: () =>{
-                    // TODO empty clip probably does not need to have an entry in loadedAnimations
-                    // however, not adding it might generate bugs. Some elements expect a clip to have a source
-                    this.editor.loadAnimation("empty clip", {} ); 
+                    this.editor.loadAnimation("empty clip", {}, true, false ); 
                 }
             },
             {
                 name: "Import Animations",
                 icon: "FileInput",
                 submenu: [
+                    { name: "From Loaded Animations", icon: "ListCheck", callback: () => this.showLoadClipsIntoAnimation(), kbd: "CTRL+O" },
                     { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
                     { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
                 ]
@@ -2531,6 +2530,58 @@ class KeyframesGui extends Gui {
         widgets.onRefresh();
     }
     /** ------------------------------------------------------------ */
+
+    showLoadClipsIntoAnimation(){
+        const dialog = this.prompt = new LX.Dialog( "Add Clips From Loaded Animations", p => {
+            const table = this.createLoadedAnimationsTable();
+            p.attach( table );
+
+            p.sameLine(2);
+            p.addButton("Cancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true, width: "50%"} );
+            p.addButton("Ok", "Add", (v, e) => { 
+                e.stopPropagation();
+                let selectedAnimations = table.getSelectedRows();
+                for( let i = 0; i < selectedAnimations.length; ++i ){
+                    this.editor.bindAnimationToCharacter(selectedAnimations[i][0]);
+                }
+                dialog.close() ;
+                
+            }, { buttonClass: "accent", hideName: true, width: "50%" });
+
+        }, {modal: true, size: ["auto", "auto"]});
+
+    }
+
+    createLoadedAnimationsTable(){
+
+        const animations = this.editor.loadedAnimations;
+        let availableAnimations = [];
+        for ( let aName in animations ){
+            let a = animations[aName];
+            switch( a.type ){
+                case "bvh" :
+                    availableAnimations.push( [ a.name, a.fileExtension ?? a.type, a.bodyAnimation.duration ] );
+                    break;
+                case "video" :
+                    availableAnimations.push( [ a.name, a.videoExtension, Math.max( a.endTime - a.startTime, 0 ).toFixed(3) ] );
+                    break;
+            }
+        }
+
+        let table = new LX.Table(null, {
+                head: ["Name",  "Type", "Duration (s)"],
+                body: availableAnimations
+            },
+            {
+                selectable: true,
+                sortable: true,
+                toggleColumns: true,
+                filter: "Name",
+                // TODO add a row icon to modify the animations name
+            }
+        );
+        return table;
+    }
 
     createAvailableAnimationsTable(){
 

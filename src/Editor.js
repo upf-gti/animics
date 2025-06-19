@@ -1257,7 +1257,7 @@ class KeyframeEditor extends Editor {
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
             
             // this.setGlobalAnimation( "new animation" );
-            this.loadAnimation("Empty clip", {} );
+            this.loadAnimation("Empty clip", {}, true, false );
             return true;
         }
         
@@ -1426,7 +1426,7 @@ class KeyframeEditor extends Editor {
     }
 
     // load animation from bvh or bvhe file
-    loadAnimation(name, animationData, bindToCurrentGlobal = true) {
+    loadAnimation(name, animationData, bindToCurrentGlobal = true, addToLoadedList = true) {
 
         let skeleton = null;
         let bodyAnimation = null;
@@ -1469,6 +1469,14 @@ class KeyframeEditor extends Editor {
         bodyAnimation.duration = duration;
         faceAnimation.duration = duration;
 
+        
+        let fileExtension = name.lastIndexOf(".");
+        if ( fileExtension != -1 ){
+            fileExtension = name.slice(fileExtension);
+        }else{
+            fileExtension = "unknown";
+        }
+
         // ensure unique name
         let count = 1;
         let countName = name;
@@ -1482,11 +1490,16 @@ class KeyframeEditor extends Editor {
             bodyAnimation: bodyAnimation ?? new THREE.AnimationClip( "bodyAnimation", 1, [] ), // THREEjs AnimationClip
             faceAnimation: faceAnimation ?? new THREE.AnimationClip( "faceAnimation", 1, [] ), // THREEjs AnimationClip
             skeleton: skeleton ?? this.currentCharacter.skeletonHelper.skeleton,
+            fileExtension: fileExtension,
             type: "bvh"
         };
 
         if ( bindToCurrentGlobal ){
             this.bindAnimationToCharacter(name);
+        }
+
+        if ( !addToLoadedList ){
+            delete this.loadedAnimations[name];
         }
 
         return name;
