@@ -2103,7 +2103,8 @@ class KeyframeEditor extends Editor {
 
             id: animationName,
             clipColor: LX.getThemeColor("global-color-accent"),
-            blendMode: THREE.NormalAnimationBlendMode
+            blendMode: THREE.NormalAnimationBlendMode,
+            active: true
         }
         this.setKeyframeClipBlendMode( boundAnimation, THREE.NormalAnimationBlendMode, false );
 
@@ -2410,7 +2411,7 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.show();
     }
 
-    globalAnimMixerManagement(mixer, animation, rebuildActions = false){
+    globalAnimMixerManagement(mixer, animation, discardInactive = true){
         for( let t = 0; t < animation.tracks.length; ++t ){
             const track = animation.tracks[t];
             for( let c = 0; c < track.clips.length; ++c ){
@@ -2419,13 +2420,21 @@ class KeyframeEditor extends Editor {
             }
         }
     }
-    globalAnimMixerManagementSingleClip(mixer, clip, rebuildActions = false ){
+    globalAnimMixerManagementSingleClip(mixer, clip ){
         const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
+        const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
+        
+        if ( !clip.active ){
+            actionBody.stop();
+            actionFace.stop();
+            return;
+        }
+
         actionBody.reset().play();
         actionBody.clampWhenFinished = false;
         actionBody.loop = THREE.LoopOnce;
         actionBody.startAt(clip.start);
-        const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
+
         actionFace.reset().play();
         actionFace.clampWhenFinished = false;
         actionFace.loop = THREE.LoopOnce;

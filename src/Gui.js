@@ -903,6 +903,7 @@ class KeyframesGui extends Gui {
         /* Global Timeline */
         this.globalTimeline = new LX.ClipsTimeline( "globalTimeline", {
             title: "Animation",
+            skipLock: true,
             onCreateBeforeTopBar: (panel) => {
                 // panel.addButton
                 panel.addSelect("Animation", Object.keys(this.editor.boundAnimations), this.editor.currentAnimation, (v)=> {
@@ -975,6 +976,19 @@ class KeyframesGui extends Gui {
             return cloned;
         }
 
+        this.globalTimeline.onSetTrackState = (track, previousState) =>{
+            if ( track.active == previousState ){ return; }
+
+            for( let i = 0; i < track.clips.length; ++i ){
+                track.clips[i].active = track.active; 
+            }
+            this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation() );
+            
+            if ( this.globalTimeline.lastClipsSelected.length ){ // update toggle
+                this.createSidePanel();
+            }
+        }
+
         this.globalTimeline.onDeleteSelectedClips = (deletedClips) =>{
             for( let i = 0; i < deletedClips.length; ++i ){
                 const c = deletedClips[i];
@@ -1027,9 +1041,7 @@ class KeyframesGui extends Gui {
         }
 
         this.globalTimeline.onSelectClip = (clip) => {
-            if ( clip ){
-                this.createSidePanel();
-            }
+            this.createSidePanel();
         }
 
 
@@ -1592,8 +1604,8 @@ class KeyframesGui extends Gui {
             this.sidePanel.onresize = null;
 
             if ( this.globalTimeline.lastClipsSelected.length == 1 ){
-                const clip = this.globalTimeline.lastClipsSelected[0][2]; // [trackidx, clipidx, clip]
-                const clipTrack = this.globalTimeline.lastClipsSelected[0][0];
+                const clip = this.globalTimeline.lastClipsSelected[0][2];
+
                 const p = new LX.Panel({id:"keyframeclip"});
                 p.addTitle("Keyframe Clip");
 
@@ -1604,6 +1616,17 @@ class KeyframesGui extends Gui {
                 p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
                     clip.clipColor = v;
                 });
+
+                p.addToggle("State", clip.active, (v,e) =>{
+                    if ( !this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ){
+                        p.widgets["State"].set(false, true);
+                        return;
+                    }
+                    clip.active = v;
+                    this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
+                    this.editor.setTime(this.editor.currentTime); // update mixer
+
+                }, { className: "success", label: this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ? "" : "Track is disabled !" });                
 
                 p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
                     this.setKeyframeClip(clip);
@@ -1646,7 +1669,7 @@ class KeyframesGui extends Gui {
                 p.addSelect("Blend Mode", ["Normal", "Additive" ], clip.blendMode == THREE.NormalAnimationBlendMode ? "Normal" : "Additive", (value, event) => {
                     let blendMode = value == "Normal" ? THREE.NormalAnimationBlendMode : THREE.AdditiveAnimationBlendMode;
                     if ( blendMode != clip.blendMode ){
-                        this.globalTimeline.saveState(clipTrack);
+                        this.globalTimeline.saveState(clip.trackIdx);
                         this.editor.setKeyframeClipBlendMode( clip, blendMode, true );
                         this.createSidePanel();
                     }
@@ -1655,7 +1678,7 @@ class KeyframesGui extends Gui {
                 if ( clip.blendMode == THREE.AdditiveAnimationBlendMode ){
                     p.addButton(null, "Subtract first frame pose", null, { buttonClass: "error dashed" });
                     p.addButton(null, "Subtract bind pose", (v,e)=>{
-                        this.globalTimeline.saveState(clipTrack);
+                        this.globalTimeline.saveState(clip.trackIdx);
                         let skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
                         let skeletonclip = clip.skeletonAnimation;
                         skeleton.pose();
@@ -2140,6 +2163,7 @@ class KeyframesGui extends Gui {
         this.treeWidget = skeletonPanel.addTree("Skeleton bones", mytree, { 
             // icons: tree_icons, 
             filter: true,
+            rename: false,
             onevent: (event) => { 
                 console.log(event.string());
     
@@ -2720,9 +2744,8 @@ class KeyframesGui extends Gui {
                             e.item.content = parsedFile.content;
                         }
 
-                        dialog.close();
                         this.closeDialogs(); 
-                        onSelectFile(e.item, v);
+                        onSelectFile(e.item);
                     }
                     break;
 
