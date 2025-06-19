@@ -675,7 +675,7 @@ class Editor {
 
     update( dt ) {
 
-        if ( this.currentTime > (this.startTimeOffset + this.activeTimeline.duration) ) {
+        if ( (this.currentTime + (dt * this.playbackRate) ) > (this.startTimeOffset + this.activeTimeline.duration) ) {
             this.onAnimationEnded();
         }
 
@@ -2244,7 +2244,7 @@ class KeyframeEditor extends Editor {
     // OVERRIDE
     update( dt ) {
 
-        if ( this.currentTime > (this.startTimeOffset + this.activeTimeline.duration) ) {
+        if ( (this.currentTime + (dt * this.playbackRate) ) > (this.startTimeOffset + this.activeTimeline.duration) ) {
             this.onAnimationEnded();
         }
 
