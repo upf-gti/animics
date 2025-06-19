@@ -4000,20 +4000,58 @@ class ScriptGui extends Gui {
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
 
+        // clear area
         while ( this.sidePanel.root.children.length ){
             this.sidePanel.root.children[0].remove();
         }
         this.sidePanel.sections = [];
 
-        const [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
-        
-        this.animationPanel = new LX.Panel({id:"animation"});
-        top.attach(this.animationPanel);
-        this.clipPanel = new LX.Panel({id:"bml-clip"});
-        bottom.attach(this.clipPanel);
+        if(this.panelTabs) {
+            this.panelTabs.root.remove();
+        }
 
+        // Animation & Character tabs
+        const panelTabs = this.panelTabs = this.sidePanel.addTabs({fit: true});
+
+        // Animation tab content
+        const animationArea = new LX.Area({id: 'Animation'});
+        const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
+        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {
+            
+        }});
+
+        this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
+        animSide.attach(this.animationPanel);
         this.updateAnimationPanel( );
+        
+        this.clipPanel = new LX.Panel({id:"bml-clip"});
+        tabsSide.attach(this.clipPanel);
         this.updateClipPanel( );
+        
+        // Character tab content
+        const characterArea = new LX.Area({id: 'Character'});
+        const characterPanel = characterArea.addPanel();
+        this.createCharactersPanel( characterPanel ) ;
+        
+        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {
+            
+        }});
+
+
+        // while ( this.sidePanel.root.children.length ){
+        //     this.sidePanel.root.children[0].remove();
+        // }
+        // this.sidePanel.sections = [];
+
+        // const [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
+        
+        // this.animationPanel = new LX.Panel({id:"animation"});
+        // top.attach(this.animationPanel);
+        // this.clipPanel = new LX.Panel({id:"bml-clip"});
+        // bottom.attach(this.clipPanel);
+
+        // this.updateAnimationPanel( );
+        // this.updateClipPanel( );
     }
 
     updateAnimationPanel( options = {}) {

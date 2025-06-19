@@ -110,6 +110,8 @@ class Editor {
             "Victor": [Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.glb', Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.json',0, Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.png'],
             "Ready Eva": ['https://models.readyplayer.me/66e30a18eca8fb70dcadde68.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva_v3.json',0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
         }
+
+        this.mapNames = {characterMap: json.faceController.blendshapeMap, mediapipeMap: MapNames.mediapipe, parts:  MapNames.parts};
     }
 
     enable() {
@@ -379,7 +381,7 @@ class Editor {
     
                     skeletonHelper.visible = false;
                     
-                    this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
+                    this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , this.loadedCharacters[characterName].config);
                     
                     // fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
                     //     const config = JSON.parse( text );
@@ -430,58 +432,62 @@ class Editor {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
         }
         this.gui.createCharactersPanel();
-        this.gui.setKeyframeClip(null);
-        this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
+        // this.gui.setKeyframeClip(null);
+        // this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
         
         for(let anim in this.boundAnimations) {
             if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
                 const characters = Object.keys(this.boundAnimations[anim]);
                 const animation = this.boundAnimations[anim][characters[0]];
-                
-                const newAnimation = Object.assign({}, animation);
-                const tracks = [];
-                
-                for(let i = 0; i < animation.tracks.length; i++) {
-                    const track = animation.tracks[i];
-                    const clips = [];
-                    for( let j = 0; j < track.clips.length; j++) {
-                        const clip = track.clips[j];
-                        const newClip = Object.assign({}, clip);
-                        
-                        // Retarget body animation
-                        if(clip.mixerBodyAnimation) {
-                            newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);                            
-                            // Set keyframe animation to the timeline and get the timeline-formated one
-                            newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
-                            newClip.skeletonAnimation.name = "bodyAnimation";  // timeline
-                        }
-                        if(clip.auAnimation) {
-                           
-                            // newClip.auAnimation = this.gui.auTimeline.instantiateAnimationClip( newClip.auAnimation );                            
-                            newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( newClip.auAnimation ); // blendhsapes timeline            
-                            newClip.bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(newClip.mixerFaceAnimation);
-                            newClip.bsAnimation.duration = newClip.auAnimation.duration;
-                            newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( newClip.bsAnimation ); // generate default animationclip or process the user's one;
-                        }
-                        clips.push(newClip);
-                    }
-                    const newTrack = Object.assign({}, track);
-                    newTrack.clips = clips;
-                    tracks.push(newTrack);
-                }
-                newAnimation.tracks = tracks;
-                this.boundAnimations[anim][characterName] = newAnimation;
-                //this.bindAnimationToCharacter(anim);
-                // const bodyAnimation = this.retargetAnimation(anim);
-                // const animation = Object.assign({}, this.loadedAnimations[anim]);
-                // animation.skeleton.pose()
-                // animation.skeleton = applyTPose(animation.skeleton).skeleton;
-                // this.currentCharacter.skeletonHelper.skeleton.pose();
-                // this.currentCharacter.skeletonHelper.skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
-                // const boundAnimation = this.bindAnimationToCharacter(anim, {animation, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, srcEmbedWorldTransforms: true});
+                this.setGlobalAnimation(anim);
             }
-            this.setGlobalAnimation(anim);
+            this.updateMixerAnimation( this.loadedAnimations[this.getCurrentAnimation().name].scriptAnimation );
         }
+        
+        //         const newAnimation = Object.assign({}, animation);
+        //         const tracks = [];
+                
+        //         for(let i = 0; i < animation.tracks.length; i++) {
+        //             const track = animation.tracks[i];
+        //             const clips = [];
+        //             for( let j = 0; j < track.clips.length; j++) {
+        //                 const clip = track.clips[j];
+        //                 const newClip = Object.assign({}, clip);
+                        
+        //                 // Retarget body animation
+        //                 if(clip.mixerBodyAnimation) {
+        //                     newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);                            
+        //                     // Set keyframe animation to the timeline and get the timeline-formated one
+        //                     newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
+        //                     newClip.skeletonAnimation.name = "bodyAnimation";  // timeline
+        //                 }
+        //                 if(clip.auAnimation) {
+                           
+        //                     // newClip.auAnimation = this.gui.auTimeline.instantiateAnimationClip( newClip.auAnimation );                            
+        //                     newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( newClip.auAnimation ); // blendhsapes timeline            
+        //                     newClip.bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(newClip.mixerFaceAnimation);
+        //                     newClip.bsAnimation.duration = newClip.auAnimation.duration;
+        //                     newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( newClip.bsAnimation ); // generate default animationclip or process the user's one;
+        //                 }
+        //                 clips.push(newClip);
+        //             }
+        //             const newTrack = Object.assign({}, track);
+        //             newTrack.clips = clips;
+        //             tracks.push(newTrack);
+        //         }
+        //         newAnimation.tracks = tracks;
+        //         this.boundAnimations[anim][characterName] = newAnimation;
+        //         //this.bindAnimationToCharacter(anim);
+        //         // const bodyAnimation = this.retargetAnimation(anim);
+        //         // const animation = Object.assign({}, this.loadedAnimations[anim]);
+        //         // animation.skeleton.pose()
+        //         // animation.skeleton = applyTPose(animation.skeleton).skeleton;
+        //         // this.currentCharacter.skeletonHelper.skeleton.pose();
+        //         // this.currentCharacter.skeletonHelper.skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
+        //         // const boundAnimation = this.bindAnimationToCharacter(anim, {animation, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, srcEmbedWorldTransforms: true});
+        //     }
+        //     this.setGlobalAnimation(anim);
+        // }
         this.gui.createSidePanel();
         UTILS.hideLoading();
     }
@@ -1292,8 +1298,6 @@ class KeyframeEditor extends Editor {
         }
 
         this.retargeting = null;
-        
-        this.mapNames = {characterMap: json.faceController.blendshapeMap, mediapipeMap: MapNames.mediapipe, parts:  MapNames.parts};
 
         // Create GUI
         this.gui = new KeyframesGui(this);
@@ -1379,6 +1383,88 @@ class KeyframeEditor extends Editor {
         });
     }
 
+    async changeCharacter(characterName) {
+        // Check if the character is already loaded
+        if( !this.loadedCharacters[characterName] ) {
+            console.warn(characterName + " not loaded");
+            const modelToLoad = this.characterOptions[characterName];
+            await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], characterName);
+            return;
+        }
+
+        // Remove current character from the scene
+        if(this.currentCharacter) {
+            this.scene.remove(this.currentCharacter.model);
+            this.scene.remove(this.currentCharacter.skeletonHelper);
+        }
+
+        // Add current character to the scene
+        this.currentCharacter = this.loadedCharacters[characterName];
+        this.scene.add( this.currentCharacter.model );
+        this.scene.add( this.currentCharacter.skeletonHelper );
+        this.setPlaybackRate(this.playbackRate);
+
+        // Gizmo stuff
+        if(this.gizmo) {
+            this.gizmo.begin(this.currentCharacter.skeletonHelper);            
+        }
+        this.gui.createCharactersPanel();
+        this.gui.setKeyframeClip(null);
+        this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
+        
+        for(let anim in this.boundAnimations) {
+            if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
+                const characters = Object.keys(this.boundAnimations[anim]);
+                const animation = this.boundAnimations[anim][characters[0]];
+                
+                const newAnimation = Object.assign({}, animation);
+                const tracks = [];
+                
+                for(let i = 0; i < animation.tracks.length; i++) {
+                    const track = animation.tracks[i];
+                    const clips = [];
+                    for( let j = 0; j < track.clips.length; j++) {
+                        const clip = track.clips[j];
+                        const newClip = Object.assign({}, clip);
+                        
+                        // Retarget body animation
+                        if(clip.mixerBodyAnimation) {
+                            newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);                            
+                            // Set keyframe animation to the timeline and get the timeline-formated one
+                            newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
+                            newClip.skeletonAnimation.name = "bodyAnimation";  // timeline
+                        }
+                        if(clip.auAnimation) {
+                           
+                            // newClip.auAnimation = this.gui.auTimeline.instantiateAnimationClip( newClip.auAnimation );                            
+                            newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( newClip.auAnimation ); // blendhsapes timeline            
+                            newClip.bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(newClip.mixerFaceAnimation);
+                            newClip.bsAnimation.duration = newClip.auAnimation.duration;
+                            newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( newClip.bsAnimation ); // generate default animationclip or process the user's one;
+                        }
+                        clips.push(newClip);
+                    }
+                    const newTrack = Object.assign({}, track);
+                    newTrack.clips = clips;
+                    tracks.push(newTrack);
+                }
+                newAnimation.tracks = tracks;
+                this.boundAnimations[anim][characterName] = newAnimation;
+                //this.bindAnimationToCharacter(anim);
+                // const bodyAnimation = this.retargetAnimation(anim);
+                // const animation = Object.assign({}, this.loadedAnimations[anim]);
+                // animation.skeleton.pose()
+                // animation.skeleton = applyTPose(animation.skeleton).skeleton;
+                // this.currentCharacter.skeletonHelper.skeleton.pose();
+                // this.currentCharacter.skeletonHelper.skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
+                // const boundAnimation = this.bindAnimationToCharacter(anim, {animation, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, srcEmbedWorldTransforms: true});
+            }
+            this.setGlobalAnimation(anim);
+        }
+        this.gui.createSidePanel();
+        UTILS.hideLoading();
+    }
+
     /**
      * 
      * @param {string} name 
@@ -1431,6 +1517,7 @@ class KeyframeEditor extends Editor {
         this.currentAnimation = name;
         this.currentKeyFrameClip = null;
         this.globalAnimMixerManagement(mixer, this.boundAnimations[name][this.currentCharacter.name], true);
+        this.setTimeline(this.animationModes.GLOBAL);
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
 
