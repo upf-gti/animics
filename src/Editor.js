@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js' 
+import { GLTFExporter } from './exporters/GLTFExporter.js' 
 import { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
 import { BVHExporter } from "./exporters/BVHExporter.js";
 import { createAnimationFromRotations, createEmptySkeletonAnimation } from "./skeleton.js";
@@ -150,7 +150,7 @@ class Editor {
 
         this.enable();
         this.bindEvents();
-        
+
         this.animate();
         
         
@@ -750,10 +750,7 @@ class Editor {
                             e.preventDefault();
                             e.stopImmediatePropagation();
     
-                            const playElement = this.gui.menubar.getButton("Play");
-                            if ( playElement ){ 
-                                playElement.children[0].children[0].click();
-                            }
+                            this.gui.menubar.getButton("Play").swap(); // click()
                         }
                     }
                 break;
@@ -873,8 +870,8 @@ class Editor {
         } 
         else {
             this.stop();
-			this.gui.menubar.getButton("Play").setState(false);
-            this.activeTimeline.setState(false);
+			this.gui.menubar.getButton("Play").setState(false, true);
+            this.activeTimeline.setState(false, true);
         }
     }
 
@@ -993,19 +990,15 @@ class Editor {
                     const boundAnim = this.boundAnimations[animationName][this.currentCharacter.name];
                     
                     let tracks = []; 
-                    if(boundAnim.mixerBodyAnimation) { // script Editor
-                        tracks = tracks.concat( boundAnim.mixerBodyAnimation.tracks );
-                    }
-                    if(boundAnim.mixerFaceAnimation) { // keyframe Editor
-                        tracks = tracks.concat( boundAnim.mixerFaceAnimation.tracks );
-                    }
                     if(boundAnim.mixerAnimation) { // script Editor
-                        tracks = tracks.concat( boundAnim.mixerAnimation.tracks );
+                        tracks = boundAnim.mixerAnimation.tracks;
+                    }else{
+                        tracks = this.generateExportAnimationData(boundAnim).tracks;
                     }
 
                     options.animations.push( new THREE.AnimationClip( animationName, -1, tracks ) );
                 }
-                let model = this.currentCharacter.mixer._root.getChildByName('Armature');
+                let model = this.currentCharacter.mixer._root.getObjectByName('Armature');
 
                 this.GLTFExporter.parse(model, 
                     ( gltf ) => UTILS.download(gltf, (name || "animations") + '.glb', 'arraybuffer' ), // called when the gltf has been generated
@@ -1067,8 +1060,8 @@ class Editor {
                 break;
     
         }
-        // bvhexport sets character to bindpose. Avoid user seeing this
-        this.bindAnimationToCharacter(this.currentAnimation);
+        // bvhexport sets avatar to bindpose. Avoid user seeing this
+        this.setGlobalAnimation(this.currentAnimation);
         return files;
     }
 
@@ -1275,6 +1268,9 @@ class KeyframeEditor extends Editor {
     constructor( animics ) {
                 
         super(animics);
+        
+        this.animationModes = {GLOBAL: 0, BODY: 1, FACEBS: 2, FACEAU: 3 };
+        this.animationMode = this.animationModes.BODY;
 
         this.currentKeyFrameClip = null; // animation shown in the keyframe timelines
 
@@ -1285,7 +1281,7 @@ class KeyframeEditor extends Editor {
         this.defaultRotationSnapValue = 30; // Degrees
         this.defaultScaleSnapValue = 1;
 
-        this.showSkeleton = true;
+        this.showSkeleton = false;
         this.gizmo = null;
 
         this.applyRotation = false; // head and eyes rotation
@@ -1301,9 +1297,6 @@ class KeyframeEditor extends Editor {
 
         // Create GUI
         this.gui = new KeyframesGui(this);
-
-        this.animationModes = {GLOBAL: 0, BODY: 1, FACEBS: 2, FACEAU: 3 };
-        this.animationMode = this.animationModes.BODY;
 
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", children: []}]}];
     }
@@ -1408,8 +1401,7 @@ class KeyframeEditor extends Editor {
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
         }
-        this.gui.createCharactersPanel();
-        this.gui.setKeyframeClip(null);
+
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
         
         for(let anim in this.boundAnimations) {
@@ -1459,6 +1451,8 @@ class KeyframeEditor extends Editor {
                 // this.currentCharacter.skeletonHelper.skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
                 // const boundAnimation = this.bindAnimationToCharacter(anim, {animation, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, srcEmbedWorldTransforms: true});
             }
+            this.gui.createCharactersPanel();
+            this.gui.setKeyframeClip(null);
             this.setGlobalAnimation(anim);
         }
         this.gui.createSidePanel();
@@ -1566,7 +1560,7 @@ class KeyframeEditor extends Editor {
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
             
             // this.setGlobalAnimation( "new animation" );
-            this.loadAnimation("new animation", {} );
+            this.loadAnimation("Empty clip", {} );
             return true;
         }
         
@@ -2413,7 +2407,8 @@ class KeyframeEditor extends Editor {
 
             id: animationName,
             clipColor: LX.getThemeColor("global-color-accent"),
-            blendMode: THREE.NormalAnimationBlendMode
+            blendMode: THREE.NormalAnimationBlendMode,
+            active: true
         }
         this.setKeyframeClipBlendMode( boundAnimation, THREE.NormalAnimationBlendMode, false );
 
@@ -2522,9 +2517,9 @@ class KeyframeEditor extends Editor {
     }
 
     setVideoVisibility( visibility, needsMirror = false ){ // TO DO
-        if(visibility && this.currentKeyFrameClip && this.currentKeyFrameClip.source.type == "video") {
+        if(visibility && this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video") {
             this.gui.showVideoOverlay(needsMirror);
-            this.gui.computeVideoArea( this.currentKeyFrameClip.source.rect ?? { left:0, top:0, width: 1, height: 1 } );
+            this.gui.computeVideoArea( this.currentKeyFrameClip.source.rect );
         }
         else {
             this.gui.hideVideoOverlay();
@@ -2619,7 +2614,7 @@ class KeyframeEditor extends Editor {
 
     onSetTime( t ) {
         // Update video
-        if( this.currentKeyFrameClip && this.currentKeyFrameClip.source.type == "video" ) {
+        if( this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video" ) {
             this.video.currentTime = this.video.startTime + t - this.currentKeyFrameClip.start;
         }
         
@@ -2666,7 +2661,7 @@ class KeyframeEditor extends Editor {
      * @param {animationModes} type 
      * @returns 
      */
-    setTimeline(type) {
+    setTimeline(type = this.animationModes.GLOBAL) {
        
         // hide previous timeline
         if(this.activeTimeline) {
@@ -2678,20 +2673,16 @@ class KeyframeEditor extends Editor {
                 this.animationMode = this.animationModes.FACEBS;
                 this.activeTimeline = this.gui.bsTimeline;
                 this.gui.createSidePanel();  
-                if( this.gizmo ) { 
-                    this.gizmo.disable();
-                }
+                this.gizmo.disable();
                 break;
 
             case this.animationModes.FACEAU:
                 this.animationMode = this.animationModes.FACEAU;
                 this.activeTimeline = this.gui.auTimeline;
                 this.gui.createSidePanel();  
-                this.setSelectedActionUnit(this.selectedAU);                    
+                this.setSelectedActionUnit(this.selectedAU);           
+                this.gizmo.disable();
                 
-                if( this.gizmo ) { 
-                    this.gizmo.disable();
-                }
                 break;
                
             case this.animationModes.BODY:
@@ -2699,12 +2690,13 @@ class KeyframeEditor extends Editor {
                 this.activeTimeline = this.gui.skeletonTimeline;
                 this.gui.createSidePanel();          
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
-
-                if( this.gizmo ) {
-                    this.gizmo.enable();
+                if( this.gui.canvasAreaOverlayButtons ) {
+                    this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
                 }
-                break;
+                this.gizmo.enable();
 
+                break;
+                
             default:
                 this.gui.skeletonTimeline.hide();
                 this.gui.auTimeline.hide();
@@ -2714,10 +2706,12 @@ class KeyframeEditor extends Editor {
                 this.startTimeOffset = 0;
                 this.currentKeyFrameClip = null;
                 this.activeTimeline = this.gui.globalTimeline;
-                this.gui.createSidePanel();  
-                if( this.gizmo ) { 
-                    this.gizmo.disable();
+                this.gui.createSidePanel();
+                if( this.gui.canvasAreaOverlayButtons ) {
+                    this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
                 }
+                this.gizmo.disable();
+                
                 this.video.sync = false;
                 this.setVideoVisibility(false);
                 break;
@@ -2729,7 +2723,7 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.show();
     }
 
-    globalAnimMixerManagement(mixer, animation, rebuildActions = false){
+    globalAnimMixerManagement(mixer, animation, discardInactive = true){
         for( let t = 0; t < animation.tracks.length; ++t ){
             const track = animation.tracks[t];
             for( let c = 0; c < track.clips.length; ++c ){
@@ -2738,13 +2732,21 @@ class KeyframeEditor extends Editor {
             }
         }
     }
-    globalAnimMixerManagementSingleClip(mixer, clip, rebuildActions = false ){
+    globalAnimMixerManagementSingleClip(mixer, clip ){
         const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
+        const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
+        
+        if ( !clip.active ){
+            actionBody.stop();
+            actionFace.stop();
+            return;
+        }
+
         actionBody.reset().play();
         actionBody.clampWhenFinished = false;
         actionBody.loop = THREE.LoopOnce;
         actionBody.startAt(clip.start);
-        const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
+
         actionFace.reset().play();
         actionFace.clampWhenFinished = false;
         actionFace.loop = THREE.LoopOnce;
@@ -3311,13 +3313,113 @@ class KeyframeEditor extends Editor {
 
     /** ------------------------ Generate formatted data --------------------------*/
 
+    /**
+     * Computes the AnimationClip that would result from boundAnim through the animationFrameRate
+     * Removes all clips from the mixer. User should call setGlobalAnimation(this.currentAnimation) after this funciton is called
+     *  WARNING: the clip generated reuses the times array for all tracks. Any modification to that array will change for all tracks
+     * @param {object} boundAnim 
+     * @param {int} flags default exports body and face (0x03)
+     *      0x01: include body
+     *      0x02: include face (morphtargets)
+     *           
+     * @returns THREE.AnimationClip
+     */
+    generateExportAnimationData( boundAnim, flags = 0x03 ){
+        const mixer = this.currentCharacter.mixer;
+        mixer.stopAllAction();
+        while( mixer._actions.length ){
+            mixer.uncacheClip( mixer._actions[0]._clip );
+        }
+
+        mixer.setTime( 0 );
+        mixer.timeScale = 1;
+        this.globalAnimMixerManagement( mixer, boundAnim );
+        // remove unnecessary clips. 
+        // TODO: A lot of hardcoding and unnecessary extra work.
+        if ( flags != 0x03 ){
+            for( let i = 0; i < mixer._actions.length; ++i ){
+                if (!(flags & 0x01) && mixer._actions[i]._clip.name == "bodyAnimation" ){
+                    mixer.uncacheClip( mixer._actions[i]._clip );
+                    --i;
+                }
+                if (!(flags & 0x02) && mixer._actions[i]._clip.name == "faceAnimation" ){
+                    mixer.uncacheClip( mixer._actions[i]._clip );
+                    --i;
+                }
+            }
+        }
+        mixer.update( 0 );
+        
+        const numTimestamps = Math.floor( boundAnim.duration * this.animationFrameRate );
+        
+        let times = new Float32Array(numTimestamps);
+        times.forEach( (v,i,arr) =>{ times[i] = i / this.animationFrameRate; } );
+
+        let values = [];
+        for( let i = 0; i < mixer._bindings.length; ++i ){
+            const b = mixer._bindings[i].binding;
+            if ( b.resolvedProperty.isVector3 ){
+                values.push( new Float32Array(numTimestamps * 3) );
+            }
+            else if ( b.resolvedProperty.isQuaternion ){
+                values.push( new Float32Array(numTimestamps * 4) );
+            }
+            else{
+                values.push( new Float32Array(numTimestamps) );
+            }
+        }
+
+        for( let t = 0; t < numTimestamps; ++t ){
+            for( let i = 0; i < mixer._bindings.length; ++i ){
+                const b = mixer._bindings[i].binding;
+                const v = values[i];
+                if ( b.resolvedProperty.isVector3 ){
+                    let index = t * 3;
+                    v[index++] = b.resolvedProperty.x;
+                    v[index++] = b.resolvedProperty.y;
+                    v[index] = b.resolvedProperty.z;
+                }
+                else if ( b.resolvedProperty.isQuaternion ){
+                    let index = t * 4;
+                    v[index++] = b.resolvedProperty.x;
+                    v[index++] = b.resolvedProperty.y;
+                    v[index++] = b.resolvedProperty.z;
+                    v[index] = b.resolvedProperty.w;
+                }
+                else{
+                    v[t] = b.resolvedProperty[b.propertyIndex];
+                }
+            }
+            mixer.update( 1.0 / this.animationFrameRate );
+        }
+
+        // WARNING: reusing times array. Any modification to that array will change for all tracks
+        let tracks = [];
+        for( let i = 0; i < mixer._bindings.length; ++i ){
+            const b = mixer._bindings[i].binding;
+            if ( b.resolvedProperty.isVector3 ){
+                tracks.push( new THREE.VectorKeyframeTrack(b.path, times, values[i]) );
+            }
+            else if ( b.resolvedProperty.isQuaternion ){
+                tracks.push( new THREE.QuaternionKeyframeTrack(b.path, times, values[i]) );
+            }
+            else{
+                tracks.push( new THREE.NumberKeyframeTrack(b.path, times, values[i]) );
+            }
+        }
+
+        mixer.timeScale = this.playbackRate;
+        
+        // better to do this outside, so exporting several animations is more efficient
+        // this.setGlobalAnimation( this.currentAnimation );
+
+        return new THREE.AnimationClip(boundAnim.id, -1, tracks);
+    }
+
     generateBVH( boundAnim, skeleton ) {
         let bvhPose = "";
-        let bodyAction = this.currentCharacter.mixer.existingAction(boundAnim.mixerBodyAnimation);
-        
-        if( !bodyAction && boundAnim.mixerBodyAnimation ) {
-            bodyAction = this.currentCharacter.mixer.clipAction(boundAnim.mixerBodyAnimation);     
-        }
+        const bodyClip = this.generateExportAnimationData( boundAnim, 0x01 );
+        const bodyAction = this.currentCharacter.mixer.clipAction( bodyClip );
         
         bvhPose = BVHExporter.export(bodyAction, skeleton, this.animationFrameRate);
         
@@ -3327,11 +3429,12 @@ class KeyframeEditor extends Editor {
     generateBVHE( boundAnim, skeleton ) {
         const bvhPose = this.generateBVH( boundAnim, skeleton );
         let bvhFace = "";
-        let faceAction = this.currentCharacter.mixer.existingAction(boundAnim.mixerFaceAnimation);
+        // TODO probably could optimize this. It it is doing the generation twice
+        const faceClip = this.generateExportAnimationData( boundAnim, 0x02 );
+        const faceAction = this.currentCharacter.mixer.clipAction( faceClip );
 
-        if( faceAction ) {
-            bvhFace += BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets, this.animationFrameRate);            
-        }
+        bvhFace += BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets, this.animationFrameRate);            
+
         return bvhPose + bvhFace;
     }
 }
@@ -3403,41 +3506,6 @@ class ScriptEditor extends Editor {
         // Load current character
         await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
     }
-
-        /**
-     * 
-     * @param {string} name 
-     * @param {int} mode
-     *      -1: overwrite any existing animation with that name for the current character
-     *      0: exact unique name. If it already exists, it does not create an animation
-     *      1: adds an incrementing number if a match is found for that animation for that character 
-     */
-    // createGlobalAnimation( name, mode = 0 ){
-
-    //     const characterName = this.currentCharacter.name;
-
-    //     if (mode == 1){
-    //         let count = 1;
-    //         let countName = name;
-    //         while( this.loadedAnimations[countName] ){
-    //             countName = name + ` (${count++})`;
-    //         }
-    //         name = countName;
-    //     }
-    //     else if (mode == 0){
-    //         if (this.boundAnimations[name] && this.boundAnimations[name][characterName]){
-    //             return null;
-    //         }
-    //     }
-
-    //     if ( !this.boundAnimations[name] ){
-    //         this.boundAnimations[name] = {};
-    //     }
-    //     const animationClip = this.gui.globalTimeline.instantiateAnimationClip({ id: name });
-    //     this.boundAnimations[name][characterName] = animationClip;
-
-    //     return animationClip;
-    // }
 
     setGlobalAnimation( name ){
 

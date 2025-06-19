@@ -388,7 +388,7 @@ class Gizmo {
 
         canvas.addEventListener( 'mousemove', e => {
 
-            if(!this.bonePoints || this.editor.state)
+            if(!this.bonePoints || this.editor.state || !this.editor.currentKeyFrameClip )
             return;
 
             const pointer = new THREE.Vector2(( e.offsetX / canvas.clientWidth ) * 2 - 1, -( e.offsetY / canvas.clientHeight ) * 2 + 1);
