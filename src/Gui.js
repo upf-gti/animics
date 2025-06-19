@@ -2560,7 +2560,7 @@ class KeyframesGui extends Gui {
             let a = animations[aName];
             switch( a.type ){
                 case "bvh" :
-                    availableAnimations.push( [ a.name, a.fileExtension ?? a.type, a.bodyAnimation.duration ] );
+                    availableAnimations.push( [ a.name, a.fileExtension ?? a.type, a.bodyAnimation.duration.toFixed(3) ] );
                     break;
                 case "video" :
                     availableAnimations.push( [ a.name, a.videoExtension, Math.max( a.endTime - a.startTime, 0 ).toFixed(3) ] );
