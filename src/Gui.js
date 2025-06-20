@@ -1043,6 +1043,85 @@ class KeyframesGui extends Gui {
             this.createSidePanel();
         }
 
+        this.globalTimeline.showContextMenu = ( e ) => {
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            let actions = [];
+            if(this.globalTimeline.lastClipsSelected.length) {
+                actions.push(
+                    {
+                        title: "Copy",
+                        callback: () => { this.globalTimeline.copySelectedContent();}
+                    }
+                )
+                actions.push(
+                    {
+                        title: "Delete",
+                        callback: () => {
+                            this.globalTimeline.deleteSelectedContent({});
+                        }
+                    }
+                )
+                actions.push(
+                    { 
+                        title: "Clip State/Enable",
+                        callback: ()=>{
+                            const selected = this.globalTimeline.lastClipsSelected;
+                            const tracks = this.globalTimeline.animationClip.tracks;
+                            for( let i = 0; i < selected.length; ++i ){
+                                if( tracks[ selected[i][0] ].active ){
+                                    selected[i][2].active = true;
+                                    this.editor.globalAnimMixerManagementSingleClip( this.editor.currentCharacter.mixer, selected[i][2] );
+                                }
+                            }
+                            this.editor.setTime(this.editor.currentTime); // update mixer
+                        } 
+                    },
+                    { 
+                        title: "Clip State/Disable", 
+                        callback: ()=>{
+                            const selected = this.globalTimeline.lastClipsSelected;
+                            for( let i = 0; i < selected.length; ++i ){
+                                selected[i][2].active = false;
+                                this.editor.globalAnimMixerManagementSingleClip( this.editor.currentCharacter.mixer, selected[i][2] );
+                            }
+                            this.editor.setTime(this.editor.currentTime); // update mixer
+                        } 
+                    }
+                )
+            }
+            else{
+                
+                if(this.globalTimeline.clipboard)
+                {
+                    actions.push(
+                        {
+                            title: "Paste",
+                            callback: () => {
+                                this.globalTimeline.pasteContent();
+                            }
+                        }
+                    );
+                    actions.push(
+                        {
+                            title: "Paste Here",
+                            callback: () => {
+                                this.globalTimeline.pasteContent( this.globalTimeline.xToTime(e.localX) );
+                            }
+                        }
+                    )
+                }
+            }
+            
+            LX.addContextMenu("Options", e, (m) => {
+                for(let i = 0; i < actions.length; i++) {
+                    m.add(actions[i].title,  actions[i].callback )
+                }
+            });
+
+        }
 
         /* Keyframes Timeline */
         this.skeletonTimeline = new LX.KeyFramesTimeline("Bone", {

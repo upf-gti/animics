@@ -2424,7 +2424,7 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.show();
     }
 
-    globalAnimMixerManagement(mixer, animation, discardInactive = true){
+    globalAnimMixerManagement(mixer, animation){
         for( let t = 0; t < animation.tracks.length; ++t ){
             const track = animation.tracks[t];
             for( let c = 0; c < track.clips.length; ++c ){
