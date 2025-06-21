@@ -1208,9 +1208,11 @@ class KeyframeEditor extends Editor {
         this.gui.globalTimeline.setAnimationClip( this.boundAnimations[name][this.currentCharacter.name], false );
         this.currentAnimation = name;
         this.currentKeyFrameClip = null;
+        this.setTimeline( this.animationModes.GLOBAL );
         this.globalAnimMixerManagement(mixer, this.boundAnimations[name][this.currentCharacter.name], true);
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
+        this.setTime(this.currentTime); // update mixer
 
         return alreadyExisted;
     }
@@ -1251,13 +1253,12 @@ class KeyframeEditor extends Editor {
     }
 
     async processPendingResources( resources ) {
-        this.setGlobalAnimation("new animation"); // TODO remove
-
+        
         if( !resources ) {
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
             
-            // this.setGlobalAnimation( "new animation" );
-            this.loadAnimation("Empty clip", {}, true, false );
+            this.setGlobalAnimation("New Animation");
+            this.loadAnimation("Empty clip", {}, true, false ); // load and bind
             return true;
         }
         
@@ -1287,20 +1288,15 @@ class KeyframeEditor extends Editor {
                     const promise = new Promise((resolve) => {
                         this.fileToAnimation(files[i], (file) => {
                             if( file.animation.constructor == Array ) { //glb animations
+                                let animationNames = [];
                                 for(let f = 0; f < file.animation.length; f++ ) {
-                                    // TODO uncomment
-                                    // const globalAnim = this.createGlobalAnimation( file.animation[f].name, 1 ); // find new name if it already exists
-                                    // this.setGlobalAnimation( globalAnim.id );
-                                    this.loadAnimation( file.animation[f].name, file.animation[f] );
+                                    animationNames.push( this.loadAnimation( file.animation[f].name, file.animation[f], false) ); // only load. Do not bind
                                 }
-                                resolve(file.animation[0]);
+                                resolve(animationNames);
                             }
                             else {
-                                // TODO uncomment
-                                // const globalAnim = this.createGlobalAnimation( file.name, 1 ); // find new name if it already exists
-                                // this.setGlobalAnimation( globalAnim.id );
-                                this.loadAnimation( file.name, file.animation );
-                                resolve(file.animation);
+                                let name = this.loadAnimation( file.name, file.animation, false ); // only load. Do not bind
+                                resolve([name]);
                             }
                             UTILS.hideLoading();
                         });
@@ -1320,13 +1316,11 @@ class KeyframeEditor extends Editor {
             }
 
             const promise = new Promise((resolve) => {
+                let animationNames = [];
                 for( let i = 0; i < animations.length; i++ ) {
-                    // TODO uncomment
-                    // const globalAnim = this.createGlobalAnimation( animations[i].name, 1 ); // find new name if it already exists
-                    // this.setGlobalAnimation( globalAnim.id );
-                    this.buildAnimation(animations[i]);
+                    animationNames.push( this.buildAnimation(animations[i], false) ); // only load. Do not bind
                 }
-                resolve();
+                resolve(animationNames);
             })
             promises.push(promise);
         }
@@ -1336,7 +1330,16 @@ class KeyframeEditor extends Editor {
             UTILS.hideLoading();
         }
 
-        return Promise.all( promises );
+        return Promise.all( promises ).then((results) =>{
+            let allNames = [];
+            for( let i = 0; i < results.length; ++i ){
+                allNames = allNames.concat(results[i]);
+            }
+            if ( allNames.length ){
+                this.gui.showInsertModeAnimationDialog(allNames);
+            }
+            return allNames
+        });
     }
 
     async captureVideo() {
@@ -1346,10 +1349,8 @@ class KeyframeEditor extends Editor {
             return;
         }
 
-        // TODO uncomment
-        // const globalAnim = this.createGlobalAnimation( animation.name, 1 ); // find new name if it already exists
-        // this.setGlobalAnimation( globalAnim.name );
-        this.buildAnimation(animation);        
+        let animationName = this.buildAnimation(animation, false); // only load. Do not bind
+        this.gui.showInsertModeAnimationDialog([animationName]);
     }
 
     /**Create face and body animations from mediapipe and load character*/
@@ -1500,6 +1501,7 @@ class KeyframeEditor extends Editor {
 
         if ( !addToLoadedList ){
             delete this.loadedAnimations[name];
+            // not deleting it from sources of bound animations. TODO decide if this is a bug or feature
         }
 
         return name;
@@ -2003,8 +2005,9 @@ class KeyframeEditor extends Editor {
     /**
      * KeyframeEditor: fetches a loaded animation and applies it to the character.
      * @param {String} animationName 
+     * @param {Object} targetGlobalAnimation where to add the animation. If null, the current global animation is used
      */
-    bindAnimationToCharacter(animationName) {
+    bindAnimationToCharacter(animationName, targetGlobalAnimation = null) {
         
         const animation = this.loadedAnimations[animationName];
         let faceAnimation = null;
@@ -2119,12 +2122,21 @@ class KeyframeEditor extends Editor {
             blendMode: THREE.NormalAnimationBlendMode,
             active: true
         }
-        this.setKeyframeClipBlendMode( boundAnimation, THREE.NormalAnimationBlendMode, false );
 
-        const mixer = this.currentCharacter.mixer;
-        this.globalAnimMixerManagementSingleClip(mixer, boundAnimation);
+        if ( targetGlobalAnimation ){
+            const currentGlobal = this.gui.globalTimeline.animationClip; // this.currentAnimation might be null, but timeline always has a defualt animation
+            this.gui.globalTimeline.setAnimationClip(targetGlobalAnimation, false);
+            this.gui.globalTimeline.addClip(boundAnimation);
+            this.gui.globalTimeline.setAnimationClip(currentGlobal, false);
+        }else{
+            this.gui.globalTimeline.addClip(boundAnimation);
+            
+            const mixer = this.currentCharacter.mixer;
+            this.setKeyframeClipBlendMode( boundAnimation, THREE.NormalAnimationBlendMode, false );
+            this.globalAnimMixerManagementSingleClip(mixer, boundAnimation);
 
-        this.gui.globalTimeline.addClip(boundAnimation);
+        }
+
         
         this.setTime(this.currentTime); // update mixer state
         return true;

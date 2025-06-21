@@ -613,14 +613,16 @@ class KeyframesGui extends Gui {
                 name: "Empty clip",
                 icon: "PenTool",
                 callback: () =>{
-                    this.editor.loadAnimation("empty clip", {}, true, false ); 
+                    this.editor.loadAnimation("Empty clip", {}, true, false ); // create and bind. Do not add to loadedAnimations, as it is meaningless
                 }
             },
+
+            "Load Resources",
             {
                 name: "Import Animations",
                 icon: "FileInput",
                 submenu: [
-                    { name: "From Loaded Animations", icon: "ListCheck", callback: () => this.showLoadClipsIntoAnimation(), kbd: "CTRL+O" },
+                    { name: "From Loaded Animations", icon: "ListCheck", callback: () => this.showInsertFromLoadedAnimations(), kbd: "CTRL+O" },
                     { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
                     { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
                 ]
@@ -1712,11 +1714,11 @@ class KeyframesGui extends Gui {
 
                 p.branch("Clip Blending");
 
-                p.addNumber( "Weight", clip.weight, (v,e) => { 
+                p.addRange( "Intensity", clip.weight, (v,e) => { 
                     clip.weight = v; 
                     this.editor.computeKeyframeClipWeight(clip);
                     this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
-                }, {min: 0, max: 1, step: 0.001 });
+                }, {min: 0, max: 1, step: 0.001, className: "contrast" });
 
                 const fadetable = ["None","Linear","Quadratic","Sinusoid"]; 
                 p.addSelect("Fade In Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeinType], (v,e) =>{
@@ -2608,10 +2610,49 @@ class KeyframesGui extends Gui {
 
         widgets.onRefresh();
     }
-    /** ------------------------------------------------------------ */
 
-    showLoadClipsIntoAnimation(){
-        const dialog = this.prompt = new LX.Dialog( "Add Clips From Loaded Animations", p => {
+    /**
+     * 
+     * @param {Array of String} toInsert name of loadedAnimations to insert 
+     */
+    showInsertModeAnimationDialog( toInsert = [] ){
+        const dialog = new LX.Dialog( "How would you like to insert the imported animations?", p => {
+            p.sameLine(3);
+            p.addButton("Load", toInsert.length == 1 ? "Just load it" : "Just load them", () => {
+                dialog.close();
+            }, {hideName: true, width: "33%"} );
+
+            p.addButton("Clip", toInsert.length == 1 ? "Add as a clip" : "Add as clips", (v, e) => {
+                if ( !this.editor.currentAnimation ){
+                    let lastGlobalAnimation = this.editor.createGlobalAnimation( "New Animation", 1 ); // find suitable name
+                    this.editor.setGlobalAnimation( lastGlobalAnimation.id );
+                }
+
+                for( let i = 0; i < toInsert.length; ++i ){
+                    this.editor.bindAnimationToCharacter( toInsert[i] );
+                }
+                dialog.close() ;
+            }, { buttonClass: "accent", hideName: true, width: "33%" });
+            
+            p.addButton("Animation", toInsert.length == 1 ? "Add as a new animation" : "Add as new animations", (v, e) => { 
+                let lastGlobalAnimation = null;
+                for( let i = 0; i < toInsert.length; ++i ){
+                    lastGlobalAnimation = this.editor.createGlobalAnimation( toInsert[i], 1 ); // find suitable name
+                    this.editor.bindAnimationToCharacter( toInsert[i], lastGlobalAnimation );
+                }
+                if ( lastGlobalAnimation ){
+                    this.editor.setGlobalAnimation( lastGlobalAnimation.id );
+                }
+                dialog.close() ;
+            }, { buttonClass: "accent", hideName: true, width: "33%" });
+            
+
+        }, {modal: true, size: ["auto", "auto"]});
+
+    }
+
+    showInsertFromLoadedAnimations(){
+        const dialog = this.prompt = new LX.Dialog( "Insert from Loaded Animations", p => {
             const table = this.createLoadedAnimationsTable();
             p.attach( table );
 
@@ -2620,11 +2661,14 @@ class KeyframesGui extends Gui {
             p.addButton("Ok", "Add", (v, e) => { 
                 e.stopPropagation();
                 let selectedAnimations = table.getSelectedRows();
+                let animationNames = [];
                 for( let i = 0; i < selectedAnimations.length; ++i ){
-                    this.editor.bindAnimationToCharacter(selectedAnimations[i][0]);
+                    animationNames.push( selectedAnimations[i][0] );
                 }
-                dialog.close() ;
-                
+                dialog.close();
+                if ( animationNames.length ){
+                    this.showInsertModeAnimationDialog( animationNames );
+                }
             }, { buttonClass: "accent", hideName: true, width: "50%" });
 
         }, {modal: true, size: ["auto", "auto"]});
@@ -2747,7 +2791,7 @@ class KeyframesGui extends Gui {
                 if( !asset.animation ) {
                     dialog.close();
                     this.closeDialogs();
-                    LX.popup("The file is empty or has an incorrect format.", "Ops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });
+                    LX.popup("The file is empty or has an incorrect format.", "Oops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });
 
                     return;
                 }
@@ -2755,9 +2799,11 @@ class KeyframesGui extends Gui {
                 asset.animation.name = asset.id;
 
                 dialog.panel.loadingArea.show();
-                this.editor.loadAnimation( asset.id, asset.animation );
+                let animName = this.editor.loadAnimation( asset.id, asset.animation, false ); // only load. Do not bind
                 dialog.panel.loadingArea.hide();
     
+                this.showInsertModeAnimationDialog( [animName] );
+
                 assetViewer.clear();
                 dialog.close();
             }
@@ -3033,10 +3079,6 @@ class KeyframesGui extends Gui {
             codeEditor._changeLanguage( "JSON" );
                      
         }, { size: ["40%", "600px"], closable: true });
-    }
-
-    setSkeletonVisibility( visibility ){
-
     }
 
     createSceneUI(area) {
