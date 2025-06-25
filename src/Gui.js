@@ -2620,7 +2620,7 @@ class KeyframesGui extends Gui {
             p.sameLine(3);
             p.addButton("Load", toInsert.length == 1 ? "Just load it" : "Just load them", () => {
                 dialog.close();
-            }, {hideName: true, width: "33%"} );
+            }, { title: "Just load animations", hideName: true, width: "33%"} );
 
             p.addButton("Clip", toInsert.length == 1 ? "Add as a clip" : "Add as clips", (v, e) => {
                 if ( !this.editor.currentAnimation ){
@@ -2632,9 +2632,9 @@ class KeyframesGui extends Gui {
                     this.editor.bindAnimationToCharacter( toInsert[i] );
                 }
                 dialog.close() ;
-            }, { buttonClass: "accent", hideName: true, width: "33%" });
+            }, { title: "Insert as clips into the current global animation", buttonClass: "accent", hideName: true, width: "33%" });
             
-            p.addButton("Animation", toInsert.length == 1 ? "Add as a new animation" : "Add as new animations", (v, e) => { 
+            p.addButton("Animation", toInsert.length == 1 ? "Add as a new global animation" : "Add as new global animations", (v, e) => { 
                 let lastGlobalAnimation = null;
                 for( let i = 0; i < toInsert.length; ++i ){
                     lastGlobalAnimation = this.editor.createGlobalAnimation( toInsert[i], 1 ); // find suitable name
@@ -2644,7 +2644,7 @@ class KeyframesGui extends Gui {
                     this.editor.setGlobalAnimation( lastGlobalAnimation.id );
                 }
                 dialog.close() ;
-            }, { buttonClass: "accent", hideName: true, width: "33%" });
+            }, { title: "Insert as new global animations", buttonClass: "accent", hideName: true, width: "33%" });
             
 
         }, {modal: true, size: ["auto", "auto"]});
