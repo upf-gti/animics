@@ -120,26 +120,23 @@ class Editor {
 
         this.gui.init(showGuide);
 
-        await this.processPendingResources(settings.pendingResources);
 
         this.enable();
         this.bindEvents();
 
         this.animate();
         
-        
-        if(settings.capture) {
-            this.captureVideo();
-        }
-        else {
-            UTILS.hideLoading();
-        }
-
         window.onbeforeunload =  (e) => {
             e.preventDefault();
             e.returnValue = "";
             window.stop();
             return "Be sure you have exported the animation. If you exit now, your data will be lost."
+        }
+
+        await this.processPendingResources(settings);
+
+        if( !settings.capture ){
+            UTILS.hideLoading();
         }
     }    
 
@@ -652,9 +649,9 @@ class Editor {
     animate() {
 
         requestAnimationFrame(this.animate.bind(this));
-
-        const dt = this.clock.getDelta();
+        
         if (this.enabled){
+            const dt = this.clock.getDelta();
             this.render();
             this.update(dt);
         }
@@ -1252,9 +1249,18 @@ class KeyframeEditor extends Editor {
         return newName;
     }
 
-    async processPendingResources( resources ) {
+    async processPendingResources( settings = {} ) {
+
+        if ( settings.capture ){
+            const loadedName = await this.captureVideo(false);
+            if( loadedName ){
+                this.setGlobalAnimation(loadedName); // assume no animation exists. It is automatically created
+                this.bindAnimationToCharacter(loadedName);
+                return true;
+            }
+        }
         
-        if( !resources ) {
+        if( !settings.pendingResources ) {
             this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
             
             this.setGlobalAnimation("New Animation");
@@ -1262,11 +1268,12 @@ class KeyframeEditor extends Editor {
             return true;
         }
         
-        const loaded = await this.loadFiles(resources);
+        const loaded = await this.loadFiles(settings.pendingResources);
         if( !loaded ) {
             await this.processPendingResources();
             this.gui.highlightSelector();
         }
+        return true;
     }
 
     async loadFiles(files) {
@@ -1342,15 +1349,18 @@ class KeyframeEditor extends Editor {
         });
     }
 
-    async captureVideo() {
-        
+    async captureVideo( showInsertDialog = true ) {
         const animation = await this.ANIMICS.processWebcam();
         if( !animation ) {
-            return;
+            return null;
         }
 
         let animationName = this.buildAnimation(animation, false); // only load. Do not bind
-        this.gui.showInsertModeAnimationDialog([animationName]);
+        if ( showInsertDialog ){
+            this.gui.showInsertModeAnimationDialog([animationName]);
+        }
+
+        return animationName;
     }
 
     /**Create face and body animations from mediapipe and load character*/
@@ -1789,13 +1799,13 @@ class KeyframeEditor extends Editor {
     
             let tempVec3_1 = new THREE.Vector3();
             let tempVec3_2 = new THREE.Vector3();
-            let invWorldQuat = new THREE.Quaternion();
+            const invWorldQuat = new THREE.Quaternion();
     
             tempVec3_1.subVectors(handLandmarks[5], handLandmarks[0]).normalize();
             tempVec3_2.subVectors(handLandmarks[17], handLandmarks[0]).normalize();
-            const handForward = (new THREE.Vector3()).addScaledVector(tempVec3_1,0.5).addScaledVector(tempVec3_2,0.5);
-            const handNormal = (new THREE.Vector3()).crossVectors(tempVec3_2,tempVec3_1).normalize();
-            const handSide = (new THREE.Vector3()).crossVectors(handNormal,handForward).normalize();
+            const handForward = (new THREE.Vector3()).addScaledVector(tempVec3_1,0.5).addScaledVector(tempVec3_2,0.5); // direction of fingers
+            const handNormal = (new THREE.Vector3()).crossVectors(tempVec3_2,tempVec3_1).normalize(); // on right hand and left hand, direction from back of hand outwards
+            const handSide = (new THREE.Vector3()).crossVectors(handNormal,handForward).normalize(); // on right hand, direction from center of hand to thumb side. On left hand, direction form center of hand to pinky side
             if ( isLeft ){
                 handNormal.multiplyScalar(-1);
                 handSide.multiplyScalar(-1);
@@ -1805,8 +1815,10 @@ class KeyframeEditor extends Editor {
             const prevNormal = new THREE.Vector3();
             const prevSide = new THREE.Vector3();
     
-            const maxLateralDeviation = 0.174; // cos(80º)
-    
+            const maxLateralDeviation = Math.cos(60 * Math.PI/180);
+            const latDevQuat = new THREE.Quaternion();
+            const latDevNormal = new THREE.Vector3();
+
             // for each finger (and thumb)
             for( let f = 1; f < handLandmarks.length; f+=4){
     
@@ -1826,8 +1838,6 @@ class KeyframeEditor extends Editor {
                 if ( fingerBend < 0){ // the more the finger is bended, the less it can be moved sideways
                     meanSideDeviation *= 1+fingerBend;
                 }
-                const quatLatDev = new THREE.Quaternion();
-                quatLatDev.setFromAxisAngle( handNormal, Math.acos(meanSideDeviation) - Math.PI*0.5);
                 // end of lateral computations
     
                 // phalanges can bend. Thus, reference vectors need to be with respect to the last phalange (or the base of the hand)
@@ -1842,15 +1852,12 @@ class KeyframeEditor extends Editor {
                     const landmark = f + i;
                     boneSrc.quaternion.copy( bindQuats[ bonePhalanges[ f+i-1 ] ] );
                     boneSrc.updateWorldMatrix( true, false );
-        
-                    boneSrc.matrixWorld.decompose( tempVec3_1, invWorldQuat, tempVec3_1 );
-                    invWorldQuat.invert();
-        
+                
                     // world mediapipe phalange direction
                     let v_phalange = new THREE.Vector3();
                     v_phalange.subVectors( handLandmarks[landmark+1], handLandmarks[landmark] ).normalize();
     
-                    // fingers (no thumb)
+                    // fingers (no thumb). All lateral deviation is removed and added later on
                     if ( f > 4 ){
                         // remove all lateral deviation (later will add the allowed one)
                         v_phalange.addScaledVector(handSide, -v_phalange.dot(handSide));
@@ -1882,9 +1889,11 @@ class KeyframeEditor extends Editor {
                 
                         prevNormal.crossVectors( v_phalange, handSide ).normalize();
                         prevForward.copy(v_phalange); // without any lateral deviation
-    
-                        // apply lateral deviation (not as simple as adding side*meanSideDeviation)
-                        v_phalange.applyQuaternion(quatLatDev);
+
+                        // store lateral deviation rotation axis. As the finger could be bent, the fingerNormal and handNormal do not necessarily match. 
+                        if ( i == 0 ){
+                            latDevNormal.copy( prevNormal );
+                        }
                     }
                     else {
                         // thumb
@@ -1934,6 +1943,9 @@ class KeyframeEditor extends Editor {
                         }
                     }
     
+
+                    boneSrc.matrixWorld.decompose( tempVec3_1, invWorldQuat, tempVec3_1 );
+                    invWorldQuat.invert();
                     // world phalange direction to local space
                     v_phalange.applyQuaternion( invWorldQuat ).normalize();
         
@@ -1947,6 +1959,17 @@ class KeyframeEditor extends Editor {
                     getTwistQuaternion( rot, phalange_p, twist ); // remove undesired twist from phalanges
                     boneSrc.quaternion.multiply( rot ).multiply( twist.invert() ).normalize();
                 }// end of phalange for
+
+                // add lateral deviation for fingers, only on the base bone. Right now, fingers are all in the plane ( Normal x Forward )
+                if( f > 4 ){
+					const boneSrc = skeleton.bones[ bonePhalanges[ f-1 ] ];
+					boneSrc.updateMatrixWorld(true);
+					let q = new THREE.Quaternion();
+					boneSrc.matrixWorld.decompose(tempVec3_1, q, tempVec3_1);
+					latDevNormal.applyQuaternion( q.invert() );
+					latDevQuat.setFromAxisAngle( latDevNormal, (Math.PI-Math.acos(meanSideDeviation)) - Math.PI*0.5);
+					boneSrc.quaternion.multiply(latDevQuat);
+				}
             } // end of finger 'for'
         };
 
@@ -3236,7 +3259,7 @@ class ScriptEditor extends Editor {
             mixer.uncacheClip( mixer._actions[0]._clip );
         }
 
-        this.gui.clipsTimeline.unselectAllElements();
+        this.gui.clipsTimeline.unSelectAllElements();
 
         this.gui.clipsTimeline.setAnimationClip( this.loadedAnimations[name].scriptAnimation, false );
         this.currentAnimation = name;
@@ -3293,14 +3316,14 @@ class ScriptEditor extends Editor {
         return newName;
     }
 
-    async processPendingResources( resources ) {
-        if( !resources ) {
+    async processPendingResources( settings = {} ) {
+        if( !settings.pendingResources ) {
             this.loadAnimation("new animation", {});
             return true;
         }
         
         // TO DO
-        const loaded = await this.loadFiles(resources);
+        const loaded = await this.loadFiles(settings.pendingResources);
         if( !loaded ) {
             await this.processPendingResources();
         }
