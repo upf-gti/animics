@@ -413,7 +413,7 @@ class Gui {
                 }
                 
             }, { buttonClass: "accent", hideName: true, width: "50%" });
-        }, {modal: true, size: ["auto", "auto"]});
+        }, {modal: true, size: ["50%", "auto"]});
 
         // Focus text prompt
         if( options.input !== false ) {
@@ -2615,12 +2615,15 @@ class KeyframesGui extends Gui {
      * 
      * @param {Array of String} toInsert name of loadedAnimations to insert 
      */
-    showInsertModeAnimationDialog( toInsert = [] ){
+    showInsertModeAnimationDialog( toInsert = [], showDoNotInsert = true ){
         const dialog = new LX.Dialog( "How would you like to insert the imported animations?", p => {
-            p.sameLine(3);
-            p.addButton("Load", toInsert.length == 1 ? "Just load it" : "Just load them", () => {
-                dialog.close();
-            }, { title: "Just load animations", hideName: true, width: "33%"} );
+            p.sameLine(showDoNotInsert ? 3 : 2);
+            
+            if( showDoNotInsert ){
+                p.addButton("Load", "Do not insert", () => {
+                    dialog.close();
+                }, { title: "Do not insert neither as clips nor as new global animations", hideName: true, width: "33%"} );
+            }
 
             p.addButton("Clip", toInsert.length == 1 ? "Add as a clip" : "Add as clips", (v, e) => {
                 if ( !this.editor.currentAnimation ){
@@ -2647,7 +2650,7 @@ class KeyframesGui extends Gui {
             }, { title: "Insert as new global animations", buttonClass: "accent", hideName: true, width: "33%" });
             
 
-        }, {modal: true, size: ["auto", "auto"]});
+        }, {modal: true, size: ["50%", "auto"]});
 
     }
 
@@ -2667,11 +2670,11 @@ class KeyframesGui extends Gui {
                 }
                 dialog.close();
                 if ( animationNames.length ){
-                    this.showInsertModeAnimationDialog( animationNames );
+                    this.showInsertModeAnimationDialog( animationNames, false );
                 }
             }, { buttonClass: "accent", hideName: true, width: "50%" });
 
-        }, {modal: true, size: ["auto", "auto"]});
+        }, {modal: true, size: ["50%", "auto"]});
 
     }
 
@@ -2802,7 +2805,7 @@ class KeyframesGui extends Gui {
                 let animName = this.editor.loadAnimation( asset.id, asset.animation, false ); // only load. Do not bind
                 dialog.panel.loadingArea.hide();
     
-                this.showInsertModeAnimationDialog( [animName] );
+                this.showInsertModeAnimationDialog( [animName], false );
 
                 assetViewer.clear();
                 dialog.close();
