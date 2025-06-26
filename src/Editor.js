@@ -672,7 +672,7 @@ class Editor {
 
     update( dt ) {
 
-        if ( (this.currentTime + (dt * this.playbackRate) ) > (this.startTimeOffset + this.activeTimeline.duration) ) {
+        if ( (this.currentTime + (this.state * dt * this.playbackRate) ) >= (this.startTimeOffset + this.activeTimeline.duration) ) {
             this.onAnimationEnded();
         }
 
@@ -1202,11 +1202,13 @@ class KeyframeEditor extends Editor {
             mixer.uncacheClip( mixer._actions[0]._clip );
         }
 
+        this.currentCharacter.skeletonHelper.skeleton.pose(); // this is needed so mixer does Bind Pose when no actions are played
+
         this.gui.globalTimeline.setAnimationClip( this.boundAnimations[name][this.currentCharacter.name], false );
         this.currentAnimation = name;
         this.currentKeyFrameClip = null;
         this.setTimeline( this.animationModes.GLOBAL );
-        this.globalAnimMixerManagement(mixer, this.boundAnimations[name][this.currentCharacter.name], true);
+        this.globalAnimMixerManagement(mixer, this.boundAnimations[name][this.currentCharacter.name]);
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
         this.setTime(this.currentTime); // update mixer
@@ -1453,7 +1455,8 @@ class KeyframeEditor extends Editor {
             animationData.skeletonAnim.clip.name = "bodyAnimation";
             bodyAnimation = animationData.skeletonAnim.clip;
         }
-        else{ // Otherwise create empty body animation 
+        else{ // Otherwise create empty body animation
+            this.currentCharacter.skeletonHelper.skeleton.pose();
             bodyAnimation = createEmptySkeletonAnimation("bodyAnimation", this.currentCharacter.skeletonHelper.bones);
             skeleton = this.currentCharacter.skeletonHelper.skeleton;
         }
@@ -2292,7 +2295,7 @@ class KeyframeEditor extends Editor {
     // OVERRIDE
     update( dt ) {
 
-        if ( (this.currentTime + (dt * this.playbackRate) ) > (this.startTimeOffset + this.activeTimeline.duration) ) {
+        if ( (this.currentTime + (this.state * dt * this.playbackRate) ) >= (this.startTimeOffset + this.activeTimeline.duration) ) {
             this.onAnimationEnded();
         }
 
@@ -2468,7 +2471,7 @@ class KeyframeEditor extends Editor {
             }
         }
     }
-    globalAnimMixerManagementSingleClip(mixer, clip ){
+    globalAnimMixerManagementSingleClip(mixer, clip){
         const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
         const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
         

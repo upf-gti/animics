@@ -614,6 +614,7 @@ class KeyframesGui extends Gui {
                 icon: "PenTool",
                 callback: () =>{
                     this.editor.loadAnimation("Empty clip", {}, true, false ); // create and bind. Do not add to loadedAnimations, as it is meaningless
+                    this.createSidePanel(); // adding a clip unselects the rest. Make sure sidePanel is updated
                 }
             },
 
@@ -2620,9 +2621,9 @@ class KeyframesGui extends Gui {
             p.sameLine(showDoNotInsert ? 3 : 2);
             
             if( showDoNotInsert ){
-                p.addButton("Load", "Do not insert", () => {
+                p.addButton("Load", "Add to loaded animations", () => {
                     dialog.close();
-                }, { title: "Do not insert neither as clips nor as new global animations", hideName: true, width: "33%"} );
+                }, { title: "Do not insert neither as clips nor as new global animations. It can be later fetched, importing it 'from loaded animations'", hideName: true, width:"33%"} );
             }
 
             p.addButton("Clip", toInsert.length == 1 ? "Add as a clip" : "Add as clips", (v, e) => {
@@ -2635,7 +2636,7 @@ class KeyframesGui extends Gui {
                     this.editor.bindAnimationToCharacter( toInsert[i] );
                 }
                 dialog.close() ;
-            }, { title: "Insert as clips into the current global animation", buttonClass: "accent", hideName: true, width: "33%" });
+            }, { title: "Insert as clips into the current global animation", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
             p.addButton("Animation", toInsert.length == 1 ? "Add as a new global animation" : "Add as new global animations", (v, e) => { 
                 let lastGlobalAnimation = null;
@@ -2647,7 +2648,7 @@ class KeyframesGui extends Gui {
                     this.editor.setGlobalAnimation( lastGlobalAnimation.id );
                 }
                 dialog.close() ;
-            }, { title: "Insert as new global animations", buttonClass: "accent", hideName: true, width: "33%" });
+            }, { title: "Insert as new global animations", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
 
         }, {modal: true, size: ["50%", "auto"]});
