@@ -1008,7 +1008,7 @@ class Editor {
             openPreview(data);
         }
         else {
-            this.gui.showExportAnimationsDialog("Preview animations", () => {
+            this.gui.showExportAnimationsDialog("Preview animations", (info) => {
                 const files = this.export(info.selectedAnimations, "BVH extended", false);
                 const data = {type: "bvhe", data: files};
                 openPreview(data);

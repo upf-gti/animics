@@ -615,6 +615,7 @@ class KeyframesGui extends Gui {
                 callback: () =>{
                     this.editor.loadAnimation("Empty clip", {}, true, false ); // create and bind. Do not add to loadedAnimations, as it is meaningless
                     this.createSidePanel(); // adding a clip unselects the rest. Make sure sidePanel is updated
+                    this.editor.setTimeline( this.editor.animationModes.GLOBAL );
                 }
             },
 
@@ -2635,6 +2636,8 @@ class KeyframesGui extends Gui {
                 for( let i = 0; i < toInsert.length; ++i ){
                     this.editor.bindAnimationToCharacter( toInsert[i] );
                 }
+
+                this.editor.setTimeline( this.editor.animationModes.GLOBAL );
                 dialog.close() ;
             }, { title: "Insert as clips into the current global animation", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
@@ -2661,7 +2664,10 @@ class KeyframesGui extends Gui {
             p.attach( table );
 
             p.sameLine(2);
-            p.addButton("Cancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true, width: "50%"} );
+            p.addButton("Cancel", "Cancel", () => {
+                dialog.close();
+            }, {hideName: true, width: "50%"} );
+            
             p.addButton("Ok", "Add", (v, e) => { 
                 e.stopPropagation();
                 let selectedAnimations = table.getSelectedRows();
