@@ -1,0 +1,111 @@
+<script type="text/javascript">
+
+    MAKE_HEADER("Timeline", "h1", "timeline");
+
+    MAKE_PARAGRAPH(`The timeline consists of three main parts:`);
+    MAKE_BULLET_LIST([
+        `<b>Timeline attributes</b> at the top`,
+        `<b>Current tracks</b> on the left`,
+        `<b>Keyframes</b> of each track in the center area`
+    ]);
+
+    INSERT_IMAGE("./imgs/timeline/timeline-body.png", "Timeline Body");
+    INSERT_IMAGE("./imgs/timeline/timeline-face.png", "Timeline Face");
+
+    // TIMELINE ATTRIBUTES SECTION
+    MAKE_HEADER("Timeline Attributes", "h2", "timeline-attributes");
+    MAKE_PARAGRAPH(`They display several timing properties as well as some miscellaneous actions. From left to right:`);
+    MAKE_BULLET_LIST([
+        `Play and stop buttons`,
+        `Loop mode: either to play the animation once or keep replaying it`,
+        `Animation selector: allows the user to switch between the different available animations`,
+        `Current time`,
+        `Duration`,
+        `Playback speed of the animation clip`,
+        `Clear tracks: deletes all keyframes only from the tracks displayed`,
+        `Optimize tracks: processes the current tracks displayed and removes unnecessary keyframes that are similar to their neighbouring ones`,
+        `Configuration properties: the framerate of the exported animation, the optimization threshold and the propagation window properties are display in the menu opened by this button`,
+    ]);
+
+    // CURRENT TRACKS SECTION
+    MAKE_HEADER("Current Tracks", "h2", "current-tracks");
+    MAKE_PARAGRAPH(`It displays:`);
+    MAKE_BULLET_LIST([
+        `<b>Track name:</b> the name of the displayed tracks.`,
+        `<b>Lock button:</b> prevents the timeline from applying any changes to that track.`,
+        `<b>Active button (eye):</b> enables or disables the track.`
+    ]);
+
+    // CENTER AREA SECTION
+    MAKE_HEADER("Center Area", "h2", "center-area");
+
+    // KEYFRAMES SECTION
+    MAKE_HEADER("Keyframes", "h3", "keyframes");
+    MAKE_PARAGRAPH(`The keyframes of each displayed track, the time separators and the propagation window are shown in the centre area of the timeline. This area has several features, all accessible through the mouse and keyboard:`);
+    MAKE_BULLET_LIST([
+        `<b>Left click on time bar</b>: changes current time`,
+        `<b>Left click on a keyframe</b>: selects keyframe
+        <ul>
+            <li>
+                If the shift button is pressed, the keyframe is added to the current selection. Otherwise, the previous selection is discarded.
+            </li>
+        </ul>`,
+        `<b>Ctrl + left click + drag</b>: moves the selected keyframes horizontally`,
+        `<b>Right click</b>: opens the context menu for more options such as copying, pasting or deleting keyframes`,
+        `<b>Space bar (keyboard)</b>: plays-pauses the animation`,
+        `<b>Backspace or delete (keyboard)</b>: removes the selected keyframes`,
+        `<b>W (keyboard)</b>: enables-disables the propagation window`,
+    ]);
+
+    // KEYFRAME STATUS SECTION
+    MAKE_HEADER("Keyframe Status", "h3", "keyframe-status");
+    MAKE_PARAGRAPH(`Keyframes are displayed in various colours, depending on their status:`);
+    MAKE_BULLET_LIST([
+        `<b>Blue:</b> unedited, unselected keyframes`,
+        `<b>Yellow:</b> selected and or hovered`,
+        `<b>Green:</b> edited keyframe`,
+        `<b>Red:</b> locked keyframe`,
+        `<b>Gray:</b> inactive keyframe`,
+    ]);
+
+    MAKE_PARAGRAPH(`Keyframe modifications can be <b>undone</b> and <b>redone</b> using the keyboard shortcuts <i>ctrl+z</i> and <i>ctrl+y</i> respectively.`);
+
+    // PROPAGATION WINDOW SECTION
+    MAKE_HEADER("Propagation Window", "h3", "propagation-window");
+    MAKE_PARAGRAPH(`This tool spreads a modification (rotation, translation and/or scale) across several keyframes through a user-defined propagation curve. It is displayed together with the keyframes and always “centered” at the current time bar. Its usage disables all kinds of keyframe selection.`);
+    INSERT_IMAGE("./imgs/timeline/propagation-window.png", "Propagation Window");
+    MAKE_LINE_BREAK();
+
+    MAKE_PARAGRAPH("To modify the <b>size</b> of the propagation window:");
+    MAKE_BULLET_LIST([
+        `<b>Left click and drag:</b> left limit to change the left size, right limit to change the right size`,
+        `<b>Configuration menu:</b> at the top of the timeline`
+    ]);
+
+    MAKE_PARAGRAPH("To modify the propagation <b>curve</b>:");
+    MAKE_BULLET_LIST([
+        `<b>Double left-click:</b> opens the propagation curve editor`,
+        `<b>Click and drag over a point:</b> moves the selected point`,
+        `<b>Left click on empty space:</b> adds a new point`,
+        `<b>Drag a point outside the window:</b> removes the point`
+    ]);
+
+    // EDITOR ZONES SECTION
+    MAKE_CARDS("Editor Zones", "Learn more about the other zones in the editor.", [
+        {
+            title: "Top Menu",
+            img: "./imgs/keyframe_animation.png",
+            link: "edit/top-menu.html"
+        },
+        {
+            title: "3D Scene",
+            img: "./imgs/3d-scene/selected-bone.png",
+            link: "edit/3d-scene.html"
+        },
+        {
+            title: "Side Panel",
+            img: "./imgs/side-panel/side-panels.png",
+            link: "edit/side-panel.html"
+        }
+    ]);
+</script>

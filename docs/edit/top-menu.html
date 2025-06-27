@@ -1,0 +1,43 @@
+<script type="text/javascript">
+
+    MAKE_HEADER("Top Menu", "h1", "top-menu");
+
+    MAKE_PARAGRAPH(`This area contains multiple options:`);
+
+    MAKE_BULLET_LIST([
+        `<b>Project:</b> This tab contains several entries to create, import, export and save animations.
+        <ul class="square">
+            <li><b>Preview in <a target="_blank"  href="https://performs.gti.upf.edu/">PERFORMS</a></b>: To visualize the resulting animations without any of the editing interface.</li>
+            <li><b>Export Animations:</b> Downloads the selected animations to your disk.</li>
+            <li><b>Save Animations:</b> Uploads the animations to the server.</li>
+            </ul>`
+    ]);
+
+    MAKE_NOTE(`You must be logged in to save clips in your database.`);
+
+    MAKE_BULLET_LIST([
+        `<b>Timeline:</b> See available shortcuts, clear selected bone tracks and optimize all tracks.`,
+        `<b>View:</b> Contains the color theme of the application and gizmo settings.`,
+        `<b>About:</b> Links to documentation and github repository.`,
+        `<b>Play, Stop and loop mode:</b>  Same as the timeline.`,
+        `<b>Login:</b> Allows to access the server to upload and retrieve your animations and projects.`,
+    ]);
+
+    MAKE_CARDS("Editor Zones", "Learn more about the other zones in the editor.", [
+        {
+            title: "3D Scene",
+            img: "./imgs/3d-scene/selected-bone.png",
+            link: "edit/3d-scene.html"
+        },
+        {
+            title: "Timeline",
+            img: "./imgs/timeline/timeline-face.png",
+            link: "edit/timeline.html"
+        },
+        {
+            title: "Side Panel",
+            img: "./imgs/side-panel/side-panels.png",
+            link: "edit/side-panel.html"
+        }
+    ]);
+</script>

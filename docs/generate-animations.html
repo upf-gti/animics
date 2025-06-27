@@ -1,0 +1,59 @@
+<script type="text/javascript">
+
+    MAKE_HEADER("Generate Animations", "h1", "generate-animations");
+
+    MAKE_PARAGRAPH(`There are two ways to generate an animation:`);
+    MAKE_BULLET_LIST([
+        `From a pre-recorded video file`,
+        `Recording yourself using the webcam`
+    ]);
+    MAKE_PARAGRAPH(`You can access this mode through the landing page or once you have entered the editor from the top menu:`);
+    MAKE_CODE(`Project > Generate Animations > From Webcam/From Videos`);
+
+    // WEBCAM SECTION
+    MAKE_HEADER("From Webcam", "h2", "webcam");
+    MAKE_PARAGRAPH(`In case of generating an animation through the real-time capture mode, you will be forwarded to the recording station.`);
+    MAKE_BULLET_LIST([
+        `<b>Start Capture:</b> Click the ${INLINE_CODE("“Record”")} button, the recording will start right away.`,
+        `<b>Stop Capture:</b> Click the ${INLINE_CODE("◼")} button.`,
+        `<b>Repeat Capture:</b> Click the ${INLINE_CODE("↺")} button, either during the recording or once you are done.`
+    ]);
+
+    // TRIMMING STATION SECTION
+    MAKE_HEADER("Trimming Station", "h1", "trimming");
+    MAKE_PARAGRAPH(`Once the video is uploaded or the recording is completed, you will be forwarded to the trimming station. Your window should look something like this:`);
+    INSERT_IMAGE(`./imgs/trimming-station.jpg`, "Trimming Station");
+    MAKE_PARAGRAPH(`Here you can <b>preview, replay and edit</b> the video recorded or uploaded.`);
+
+    // TRIM
+    MAKE_LINE_BREAK();
+    MAKE_PARAGRAPH(`The trimming station has two main functionalities:`);
+    MAKE_HEADER(`Trimming`, "h2", "trimming-functionality");
+    MAKE_PARAGRAPH(`Edit the length of the video by dragging the trim handles in the toolbar:`);
+    INSERT_IMAGE(`https://iili.io/F28jPCG.webp`, "Trimming");
+    
+    // CROP
+    MAKE_HEADER(`Cropping`, "h2", "cropping-functionality");
+    MAKE_PARAGRAPH(`Edit the capture zone:`);
+    MAKE_BULLET_LIST([
+        `<b>Change size:</b> Drag the bottom right corner of the blue rectangle in the video player`,
+        `<b>Change position:</b> Left click in the rectangle and drag it`
+    ]);
+    INSERT_IMAGE(`https://iili.io/F28j4Qs.webp`, "Cropping");
+    MAKE_LINE_BREAK();
+
+    // RIGHT SIDE PANEL SECTION
+    MAKE_HEADER("Right Side Panel", "h2", "right-side-panel");
+    MAKE_PARAGRAPH(`In the right side panel you can:`);
+    MAKE_BULLET_LIST([
+        `Enable/Disable the estimated Mediapipe skeleton preview.`,
+        `Check the pose quality.`,
+        `Preview the face action units (blendshapes) weights.`
+    ]);
+    MAKE_LINE_BREAK();
+
+    MAKE_PARAGRAPH(`To generate the animation and move on to the editor click ${INLINE_CODE("“Convert to animation”")}.`);
+
+    MAKE_NOTE(`In the case of uploading videos on a batch this step will be skipped.`);
+
+</script>

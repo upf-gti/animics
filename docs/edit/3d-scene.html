@@ -1,0 +1,73 @@
+<script type="text/javascript">
+
+    MAKE_HEADER("3D Scene", "h1", "3d-scene");
+
+    MAKE_PARAGRAPH(`This is where the 3D avatar and animations will be displayed. The scene is interactable and several properties can be modified.`);
+
+    // CAMERA CONTROLS SECTION
+    MAKE_HEADER("Navigation Controls", "h2", "navigation-controls");
+    MAKE_PARAGRAPH(`The <b>viewing point (camera)</b> can be adjusted with the mouse:`);
+
+    MAKE_HEADER("Orbit", "h3", "orbit");
+    MAKE_PARAGRAPH("<i>Left click + drag</i> to rotate the camera around a fixed target point.");
+    INSERT_IMAGE(`https://iili.io/Ffv8d6Q.webp`, "Orbit controls");
+    
+    MAKE_HEADER("Pan", "h3", "pan");
+    MAKE_PARAGRAPH("<i>Right click + drag</i> to move the camera and the fixed target point.");
+    INSERT_IMAGE(`https://iili.io/Ffv83FV.webp`, "Pan controls");
+    
+    MAKE_HEADER("Zoom", "h3", "zoom");
+    MAKE_PARAGRAPH("<i>Roll the mouse wheel</i> to zoom in and out.");
+    INSERT_IMAGE(`https://iili.io/Ffv8JMx.webp`, "Zoom controls");
+
+
+    // GIZMO TOOLS SECTION
+    MAKE_HEADER("Gizmo Tools", "h2", "gizmo-tools");
+    MAKE_PARAGRAPH(`The scene also displays a <b>gizmo</b> tool when the skeletal (body) animation is selected.
+                    <i>Left-click + drag</i> with the mouse on the tool to use it. The gizmo allows you to edit
+                    the selected keyframe (there must be only one keyframe selected) of a bone by rotating, scaling or translating it.`
+    );
+    INSERT_IMAGE("./imgs/3d-scene/gizmo-tools.png", "Gizmo tools");
+
+    MAKE_PARAGRAPH(`A modification can be <b>undone</b> and <b>redone</b> using the keyboard shortcuts <i>ctrl+z</i> and <i>ctrl+y</i> respectively.`);
+    MAKE_LINE_BREAK();
+
+    // SELECTED BONE SECTION
+    MAKE_HEADER("Select a Bone", "h2", "select-a-bone");
+    MAKE_PARAGRAPH(`You can change the <b>current selected bone</b> by:`);
+    MAKE_BULLET_LIST([
+        `Left-clicking on the desired joint circle in the scene.`,
+        `Selecting it from the hierarchy displayed in the side panel.`
+    ]);
+    INSERT_IMAGE("./imgs/3d-scene/selected-bone.png", "Selected bone");
+
+    // VIDEO SECTION
+    MAKE_HEADER("Video Display", "h2", "video");
+    MAKE_PARAGRAPH(`In the case of animation generation, the <b>video</b> (either uploaded or recorded) will be displayed in this area.`);
+    MAKE_PARAGRAPH(`Using the left mouse button you can:`);
+    MAKE_BULLET_LIST([
+        `<b>Resize</b> the video by dragging the lower right corner.`,
+        `<b>Displace</b> the video by dragging any point inside the video area.`
+    ]);
+    INSERT_IMAGE(`https://iili.io/FfSDFwJ.webp`, "Video display");
+    
+
+    MAKE_CARDS("Editor Zones", "Learn more about the other zones in the editor.", [
+        {
+            title: "Top Menu",
+            img: "./imgs/keyframe_animation.png",
+            link: "edit/top-menu.html"
+        },
+        {
+            title: "Timeline",
+            img: "./imgs/timeline/timeline-face.png",
+            link: "edit/timeline.html"
+        },
+        {
+            title: "Side Panel",
+            img: "./imgs/side-panel/side-panels.png",
+            link: "edit/side-panel.html"
+        }
+    ]);
+
+</script>
