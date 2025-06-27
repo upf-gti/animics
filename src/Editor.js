@@ -740,8 +740,6 @@ class Editor {
         this.currentCharacter.mixer.setTime( t / this.currentCharacter.mixer.timeScale ); //already calls mixer.update
         this.currentCharacter.mixer.update(0); // BUG: for some reason this is needed. Otherwise, after sme timeline edition + optimization, weird things happen
         this.currentTime = t;
-
-        this.onSetTime(t);
     }
 
     setAnimationLoop( loop ) {
@@ -1026,7 +1024,6 @@ class Editor {
     onPlay() {} // Abstract
     onStop() {} // Abstract
     onPause() {} // Abstract
-    onSetTime() {} // Abstract
     clearAllTracks() {} // Abstract
     updateMixerAnimation(animation, idx, replace = false) {}
     setTimeline(type) {};
@@ -2305,7 +2302,7 @@ class KeyframeEditor extends Editor {
             for(let i = 0; i < tracks.length; ++i ){
                 const clips = tracks[i].clips;
                 for(let c = 0; c < clips.length; ++c ){
-                    this.computeKeyframeClipWeight(clips[c]);
+                    this.computeKeyframeClipWeight(clips[c], this.currentTime);
                 }
             }
 
@@ -2359,16 +2356,29 @@ class KeyframeEditor extends Editor {
         this.gui.propagationWindow.setTime( this.currentTime - this.startTimeOffset );
     }
 
-    onSetTime( t ) {
+    setTime( t, force ) {
+
+        // Don't change time if playing
+        if( this.state && !force ) {
+            return;
+        }
+
+        const duration = this.activeTimeline.animationClip.duration;
+        t = Math.clamp( t, this.startTimeOffset, this.startTimeOffset + duration - 0.001 );
+
+        this.currentTime = t;
+        this.globalAnimMixerManagement(this.currentCharacter.mixer, this.gui.globalTimeline.animationClip);
+        
+        // mixer computes time * timeScale. We actually want to set the raw animation (track) time, without any timeScale 
+        this.currentCharacter.mixer.setTime( t / this.currentCharacter.mixer.timeScale ); //already calls mixer.update
+        this.currentCharacter.mixer.update(0); // BUG: for some reason this is needed. Otherwise, after sme timeline edition + optimization, weird things happen
+
         // Update video
         if( this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video" ) {
             this.video.currentTime = this.video.startTime + t - this.currentKeyFrameClip.start;
         }
         
-        this.globalAnimMixerManagement(this.currentCharacter.mixer, this.gui.globalTimeline.animationClip);
-
         this.gizmo.updateBones();
-
     }
 
     clearAllTracks() {
@@ -2499,13 +2509,13 @@ class KeyframeEditor extends Editor {
     static FADETYPE_QUADRATIC = 2;
     static FADETYPE_SINUSOID = 3;
 
-    computeKeyframeClipWeight(clip){
+    computeKeyframeClipWeight(clip, time = this.currentTime){
         let weight = 1;
-        if( this.currentTime < clip.start || this.currentTime > (clip.start+clip.duration) ){
+        if( time < clip.start || time > (clip.start+clip.duration) ){
             weight =  0;
         }
-        else if ( clip.fadeinType && this.currentTime < clip.fadein ){
-            weight = ( this.currentTime - clip.start ) / (clip.fadein - clip.start);
+        else if ( clip.fadeinType && time < clip.fadein ){
+            weight = ( time - clip.start ) / (clip.fadein - clip.start);
             switch( clip.fadeinType ){
                 case KeyframeEditor.FADETYPE_QUADRATIC:
                     weight = weight * weight;
@@ -2515,8 +2525,8 @@ class KeyframeEditor extends Editor {
                     break;
             }
         }
-        else if ( clip.fadeoutType && this.currentTime > clip.fadeout ){
-            weight = ( this.currentTime - clip.fadeout ) / (clip.start + clip.duration - clip.fadeout);
+        else if ( clip.fadeoutType && time > clip.fadeout ){
+            weight = ( time - clip.fadeout ) / (clip.start + clip.duration - clip.fadeout);
             switch( clip.fadeoutType ){
                 case KeyframeEditor.FADETYPE_QUADRATIC:
                     weight = weight * weight;
@@ -3070,20 +3080,22 @@ class KeyframeEditor extends Editor {
             mixer.uncacheClip( mixer._actions[0]._clip );
         }
 
+        this.currentCharacter.skeletonHelper.skeleton.pose(); // set default pose for the mixer
+
+		this.currentTime = 0; // manual set of time for clip management. WARNING: this creates a mismatch with UI
+        this.globalAnimMixerManagement( mixer, boundAnim ); // set clips
+
         mixer.setTime( 0 );
         mixer.timeScale = 1;
-        this.globalAnimMixerManagement( mixer, boundAnim );
         // remove unnecessary clips. 
         // TODO: A lot of hardcoding and unnecessary extra work.
         if ( flags != 0x03 ){
             for( let i = 0; i < mixer._actions.length; ++i ){
                 if (!(flags & 0x01) && mixer._actions[i]._clip.name == "bodyAnimation" ){
-                    mixer.uncacheClip( mixer._actions[i]._clip );
-                    --i;
+                    mixer._actions[i].stop();
                 }
                 if (!(flags & 0x02) && mixer._actions[i]._clip.name == "faceAnimation" ){
-                    mixer.uncacheClip( mixer._actions[i]._clip );
-                    --i;
+                    mixer._actions[i].stop();
                 }
             }
         }
@@ -3129,7 +3141,16 @@ class KeyframeEditor extends Editor {
                     v[t] = b.resolvedProperty[b.propertyIndex];
                 }
             }
-            mixer.update( 1.0 / this.animationFrameRate );
+
+            const dt = 1.0 / this.animationFrameRate;
+			const tracks = boundAnim.tracks;
+            for(let i = 0; i < tracks.length; ++i ){
+                const clips = tracks[i].clips;
+                for(let c = 0; c < clips.length; ++c ){
+                    this.computeKeyframeClipWeight(clips[c], mixer.time + dt );
+                }
+            }
+            mixer.update( dt );
         }
 
         // WARNING: reusing times array. Any modification to that array will change for all tracks
