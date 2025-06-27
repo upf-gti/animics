@@ -98,9 +98,10 @@ class Gui {
                         icon: "Keyboard",
                         submenu: [
                             { name: "Play-Pause", kbd: "SPACE" },
-                            { name:"Zoom", kbd: "Hold LSHIFT+Wheel" },
+                            { name: "Zoom", kbd: "LSHIFT + Wheel" },
                             { name: "Scroll", kbd: "Wheel" },
-                            { name: "Move Timeline", kbd: "Left Click+Drag" }
+                            { name: "Move Timeline", kbd: "LClick + drag" },
+                            { name: "Context Menu", kbd: "Right Click" }
                         ]
                     },
                     { name: "Clear Tracks", icon: "Trash2", callback: () => this.editor.clearAllTracks() }
@@ -671,20 +672,17 @@ class KeyframesGui extends Gui {
         shortcutsMenu.push(
             null,
             "Keys",
-            { name: "Move", kbd: "Hold CTRL" },
-            { name: "Change Value (face)", kbd: "ALT + Left Click + drag" },
+            { name: "Move", kbd: "CTRL + LClick + drag" },
+            { name: "Change Value (face)", kbd: "ALT + LClick + drag" },
             { name: "Add", kbd: "Right Click" },
             { name: "Copy", kbd: "CTRL+C" },
-            { name: "Copy", kbd: "Right Click" },
             { name: "Paste", kbd: "CTRL+V" },
-            { name: "Paste", kbd: "Right Click" },
             null,
-            { name: "Delete Single", kbd: "DEL" },
-            { name: "Delete Multiple", kbd: "Hold LSHIFT + DEL" },
+            { name: "Delete Selected", kbd: "DEL" },
             null,
             { name: "Select Single", kbd: "Left Click" },
-            { name: "Select Multiple", kbd: "Hold LSHIFT" },
-            { name: "Select Box", kbd: "Hold LSHIFT+Drag" },
+            { name: "Select Multiple", kbd: "LSHIFT + LClick" },
+            { name: "Select Box", kbd: "LSHIFT + LClick + drag" },
             null,
             { name: "Propagation Window", kbd: "W" },
         );
@@ -3238,20 +3236,18 @@ class ScriptGui extends Gui {
         shortcutsMenu.push(
             null,
             { name: "Add Behaviour", kbd: "CTRL+B" },
+            null,
             "Clips",
-            { name: "Move", kbd: "Hold CTRL" },
+            { name: "Move", kbd: "CTRL + LClick + drag" },
             { name: "Add", kbd: "Right Click" },
             { name: "Copy", kbd: "CTRL+C" },
-            { name: "Copy", kbd: "Right Click" },
             { name: "Paste", kbd: "CTRL+V" },
-            { name: "Paste", kbd: "Right Click" },
             null,
-            { name: "Delete Single", kbd: "DEL" },
-            { name: "Delete Multiple", kbd: "Hold LSHIFT + DEL" },
+            { name: "Delete Selected", kbd: "DEL" },
             null,
             { name: "Select Single", kbd: "Left Click" },
-            { name: "Select Multiple", kbd: "Hold LSHIFT" },
-            { name: "Select Box", kbd: "Hold LSHIFT+Drag" }
+            { name: "Select Multiple", kbd: "LSHIFT + LClick" },
+            { name: "Select Box", kbd: "LSHIFT + LClick + Drag" }
         );
 
         const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
