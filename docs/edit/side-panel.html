@@ -1,0 +1,60 @@
+<script type="text/javascript">
+
+    MAKE_HEADER("Side Panel", "h1", "side-panel");
+
+    MAKE_PARAGRAPH(`The side panel is located at the right side of the screen. This panel first displays the current animation save name, which will be used as its file name when exporting the animation. The rest of the panel is devoted to the features offered by each of the animation modes: <b>body</b> and <b>face</b>.`);
+    INSERT_IMAGE(`./imgs/side-panel/side-panels.png`, "Side Panel");
+
+    MAKE_HEADER("Body Panel", "h2", "body-panel");
+    MAKE_PARAGRAPH(`Displays three main elements:`);
+
+    MAKE_HEADER("Bone Hierarchy", "h3", "bone-hierarchy");
+    MAKE_PARAGRAPH(`A list of all available bones in the skeleton. The hierarchy is displayed as a tree, where each bone can be expanded to show its children. The root bone is always at the top of the list. A bone can be selected by clicking on its entry (as well as clicking in the 3D scene).`);
+
+    MAKE_HEADER("Gizmo", "h3", "gizmo");
+    MAKE_PARAGRAPH(`A set of tools to modify the selected bone. The gizmo is displayed as a set of arrows and circles that represent the available transformations: translate, scale and rotate.`);
+    MAKE_BULLET_LIST([
+        `Tool <b>Joint</b>: It applies changes only to the selected bone. This mode is present in all bones.</li>
+        <ul>
+            <li>Mode: Translate, Scale and Rotate</li>
+            <li>Space: Local or World</li>
+        </ul>
+        <li>Tool <b>Follow</b>: This tool makes the selected bone follow a target (moved by the user) and forces bones in the chain to adapt to that change. E.g. moving the wrist will make all arm bones follow and adapt its rotation. It modifies existing keyframes and creates new ones for the chained bones. The hips (root bone of the skeleton) does not provide this tool.</li>
+        <ul>
+            <li>Mode:</li>
+            <ul>
+                <li>Multiple: affects all bones of the chain This mode is only available for “large” chains such as arms, fingers, legs and spine</li>
+                <li>Single: only applies to the chain consisting of the current bone and its parent.</li>
+            </ul>
+        </ul>
+        <li><b>Snap</b>: Either to allow continuous or a staircased edition. E.g. a snapped rotation would rotate either 0 or 5 degrees, but not 2.3.</li>`,
+    ]);
+    INSERT_IMAGE(`./imgs/side-panel/gizmo-features.png`, "Body Panel");
+
+    MAKE_HEADER("Bone", "h3", "bone");
+    MAKE_PARAGRAPH(`A set of attributes that can be modified for the selected bone. The attributes are displayed as a set of sliders and text boxes that allow the user to modify the bone's position, scale and rotation (both in Euler angles and Quaternion). The values can be modified by dragging the sliders or by typing in the text boxes.`);
+
+    // FACE PANEL SECTION
+    MAKE_HEADER("Face Panel", "h2", "face-panel");
+    MAKE_PARAGRAPH(`Displays the action units of the current selected group. Groups can be changed by clicking the face areas. Each action unit is represented by a slider that modifies the currently selected keyframe (or the closest one inside a threshold).`);
+
+    // EDITOR ZONES SECTION
+    MAKE_CARDS("Editor Zones", "Learn more about the other zones in the editor.", [
+        {
+            title: "Top Menu",
+            img: "./imgs/keyframe_animation.png",
+            link: "edit/top-menu.html"
+        },
+        {
+            title: "3D Scene",
+            img: "./imgs/3d-scene/selected-bone.png",
+            link: "edit/3d-scene.html"
+        },
+        {
+            title: "Timeline",
+            img: "./imgs/timeline/timeline-face.png",
+            link: "edit/timeline.html"
+        }
+    ]);
+
+</script>

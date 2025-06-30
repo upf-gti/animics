@@ -991,7 +991,7 @@ class Editor {
                 const waitTime = 500; // ms
                 const maxTries = 100;
                 window.onmessage = (event) =>{ 
-                    if (event.origin == Editor.PERFORMS_PATH){
+                    if (event.origin == URL.parse(Editor.PERFORMS_PATH).origin){ // URL.parse is an overkill, but better be safe, in case performs path changes later on
                         if ( typeof(event.data) == "object" && event.data.appStatus ){
                             for( let i = 0; i < this._realizer.pendingData.length; ++i){
                                 this._realizer.window.postMessage(this._realizer.pendingData[i], "*");
@@ -1052,6 +1052,7 @@ class Editor {
             })            
         }        
     }
+
 
     isScriptMode() {
         return this.constructor == ScriptEditor;

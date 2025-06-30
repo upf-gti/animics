@@ -41,7 +41,8 @@ function createMenuBar( area ) {
     const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto fg-primary border hover:bg-secondary self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
     signupButton.tabIndex = "1";
     signupButton.role = "button";
-    signupButton.listen( "click", () => {} );			
+    signupButton.listen( "click", () => {
+    } );			
     signupButton.id = "signup-button";
 
     const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
@@ -58,7 +59,7 @@ function createMenuBar( area ) {
     userButton.listen( "click", () => {
         new LX.DropdownMenu( userButton, [
             
-            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
+            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.upf.edu/src/", "_blank")} },
             { name: "Refresh", icon: "RotateCcw", callback: () => {
                 offset = 0;
                 appendAnimationFiles( true );
@@ -84,7 +85,7 @@ function createSideBar( area ) {
             home.classList.remove("hidden");
          } } );
         m.add( "Documentation", { icon: "BookOpen" });
-        m.add( "Documentation/Keyframe Animation", { xicon: "", callback:  () => { window.open( "docs/keyframe_animation.html" , "_blank" ) } } );
+        m.add( "Documentation/Keyframe Animation", { xicon: "", callback:  () => { window.open( "docs/" , "_blank" ) } } );
         m.add( "Documentation/Script Animation", { xicon: "", callback:  () => { window.open( "docs/script_animation.html" , "_blank" ) } } );
         m.add( "About", { icon: "Info", callback: () => { 
             home.classList.add("hidden");
@@ -118,15 +119,17 @@ function createSideBar( area ) {
         onFooterPressed: (e, element) => {
             new LX.DropdownMenu( element, [
                "Pages",
-                { name: "Main", callback: () => {} },
-                { name: "Animics", callback: () => {} },
-                { name: "Performs", callback: () => {} },
+                { name: "Main", callback: () => { window.open("https://animics.gti.upf.edu/") } },
+                { name: "Animics", callback: () => { window.open("https://animics.gti.upf.edu/") } },
+                { name: "Performs", callback: () => { window.open("https://performs.gti.upf.edu/") } },
                 null,
-                { name: "Social Media", submenu: [
-                    { name: "Github", link: "https://github.com/upf-gti/", icon:"Github@solid" },
-                    { name: "Twitter", link: "https://x.com/gti_upf/", icon: "X-Twitter" },
-                    { name: "Discord", link: "https://discord.gg/9YGrGjnycj", icon: "Discord" }
-                ]}
+                {
+                    name: "Social Media", submenu: [
+                        { name: "Github", icon: "Github@solid", callback: () => { window.open("https://github.com/upf-gti/") } },
+                        { name: "Twitter", icon: "X-Twitter",  callback: () => { window.open("https://x.com/gti_upf/") }  },
+                        { name: "Discord", icon: "Discord",  callback: () => { window.open("https://discord.gg/9YGrGjnycj") }  }
+                    ]
+                }
             ], { side: "right", align: "end" });
         }
     });
