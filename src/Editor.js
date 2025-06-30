@@ -88,6 +88,12 @@ class Editor {
             dark: { background: 0x272727, grid: 0x272727, gridOpacity: 0.2 }, 
             light: { background: 0xa0a0a0, grid: 0xffffff, gridOpacity: 0.8 }
         }
+
+        this._realizer = {
+            window: null,
+            status: false, // if there is a window, whether it is ready to receive data properly
+            pendingData: [],
+        }
     }
 
     enable() {
@@ -974,24 +980,57 @@ class Editor {
     }
 
     showPreview() {
-        
-        const sendData = (msg) => {
-            if(this.performsApp)
-                this._realizer.postMessage(msg);
-            else {
-                setTimeout(sendData.bind(this, msg), 1000)
-            }
-        }
-        
+                
         const openPreview = (data) => {
 
-            if( !this._realizer || this._realizer.closed ) {
-                this._realizer = window.open(Editor.PERFORMS_PATH, "Preview");
-                setTimeout(() => this._realizer.postMessage(data, "*"), 1000); // wait a while to have the page loaded (onloaded has CORS error)                
+            if( !this._realizer.window || this._realizer.window.closed  ) {
+                this._realizer.window = window.open(Editor.PERFORMS_PATH + "?autoplay=true", "Preview");
+                this._realizer.status = false;
+                this._realizer.pendingData.push(data);
+                this._realizer.openAttemptCount = 0;
+                const waitTime = 500; // ms
+                const maxTries = 100;
+                window.onmessage = (event) =>{ 
+                    if (event.origin == Editor.PERFORMS_PATH){
+                        if ( typeof(event.data) == "object" && event.data.appStatus ){
+                            for( let i = 0; i < this._realizer.pendingData.length; ++i){
+                                this._realizer.window.postMessage(this._realizer.pendingData[i], "*");
+                            }
+                            this._realizer.window.focus();
+                            this._realizer.pendingData.length = 0;
+                            this._realizer.status = true;
+                            window.onmessage = null;
+                        }
+                    }
+                }
+
+                // cannot check status on onmessage because app might not be responsive yet. Need a loop here
+                let wait = () => {
+                    if ( this._realizer.status ){ // message was already completed
+                        return;
+                    }
+                    
+                    if ( this._realizer.openAttemptCount++ > maxTries ){ // something went wrong
+                        window.onmessage = null;
+                        this._realizer.window = null;
+                        this._realizer.status = false;
+                        return;
+                    }
+
+                    this._realizer.window.postMessage({askingStatus: true}, "*");
+                    setTimeout(wait, waitTime);
+                }
+
+                wait();
+                return;
             }
-            else {
-                this._realizer.focus();                
-                this._realizer.postMessage(data, "*");
+            else if ( !this._realizer.status ){
+                // there is an open attempt going on. Push the data and wait for it to complete. 
+                this._realizer.pendingData.push(data); 
+            }
+            else { // window is open and functional
+                this._realizer.window.focus();
+                this._realizer.window.postMessage(data, "*");
             }
         }
          
