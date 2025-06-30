@@ -827,7 +827,7 @@ class KeyframesGui extends Gui {
         const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
         console.assert(aboutMenu, "About menu not found" );
         aboutMenu.push(
-            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs/keyframe_animation.html", "_blank")},
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs", "_blank")},
             { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
         );
     }
