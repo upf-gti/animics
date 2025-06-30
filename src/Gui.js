@@ -2339,7 +2339,7 @@ class KeyframesGui extends Gui {
 
         this.faceTabs = panel.addTabSections("Edition Mode", [
             {
-                name: "Action Units", icon: "ScanFace",
+                name: "Action Units", icon: "ScanFace", selected: this.editor.animationMode == this.editor.animationModes.FACEAU,
                 onCreate: p => {
                     p.addTitle("Action Units", { style: { background: "none", fontSize: "15px" } });
                     faceTop.root.style.minHeight = "20px";
@@ -2360,10 +2360,13 @@ class KeyframesGui extends Gui {
                     
                     this.propagationWindow.setTimeline( this.auTimeline );
                     this.faceTabs.selected = this.editor.animationModes.FACEAU;
+                    if(this.imageMap) {
+                        this.imageMap.resize();
+                    }                    
                 }
             },
             {
-                name: "Blendshapes", icon: "SlidersHorizontal",
+                name: "Blendshapes", icon: "SlidersHorizontal", selected: this.editor.selected == this.editor.animationModes.FACEBS,
                 onCreate: p => {
                     p.addTitle("Blendshapes", { style: { background: "none", fontSize: "15px" } });
                     this.createBlendshapesPanel( bsArea );
@@ -2633,7 +2636,7 @@ class KeyframesGui extends Gui {
 
         for(let area in areas) {
 
-            const tabContainer = LX.makeContainer( [ "100%", "100%" ], "overflow-hidden flex flex-col" );
+            const tabContainer = LX.makeContainer( [ "auto", "100%" ], "overflow-hidden flex flex-col" );
 
             LX.makeContainer( [ "100%", "auto" ], "flex justify-center py-2 text-lg", 
             area, 

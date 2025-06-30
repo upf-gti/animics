@@ -2667,19 +2667,23 @@ class KeyframeEditor extends Editor {
         if(this.activeTimeline) {
             this.activeTimeline.hide();
         }
-
+        const lastMode = this.animationMode;
         switch(type) {
             case this.animationModes.FACEBS:
-                this.animationMode = this.animationModes.FACEBS;
                 this.activeTimeline = this.gui.bsTimeline;
-                this.gui.createSidePanel();  
+                this.animationMode = this.animationModes.FACEBS;
+                if( lastMode != this.animationModes.FACEAU ) {
+                    this.gui.createSidePanel();  
+                }
                 this.gizmo.disable();
                 break;
 
             case this.animationModes.FACEAU:
-                this.animationMode = this.animationModes.FACEAU;
                 this.activeTimeline = this.gui.auTimeline;
-                this.gui.createSidePanel();  
+                this.animationMode = this.animationModes.FACEAU;
+                if( lastMode != this.animationModes.FACEBS ) {
+                    this.gui.createSidePanel();  
+                }  
                 this.setSelectedActionUnit(this.selectedAU);           
                 this.gizmo.disable();
                 
