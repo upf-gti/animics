@@ -2025,6 +2025,7 @@ class KeyframesGui extends Gui {
         if (!clip){
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
             this.editor.currentKeyFrameClip = null;
+            this.createSidePanel();
             // this.editor.gizmo.stop();
             // const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
             // skeleton.visible = false;
@@ -2051,7 +2052,7 @@ class KeyframesGui extends Gui {
         this.editor.setTime( clip.start + localTime );
         this.editor.setTimeline(this.editor.animationModes.BODY);
         this.propagationWindow.setTimeline( this.skeletonTimeline );
-
+        
         if ( sourceAnimation && sourceAnimation.type == "video" ) {
             const video = this.editor.video;
             video.sync = true;
@@ -2076,7 +2077,7 @@ class KeyframesGui extends Gui {
             this.editor.video.sync = false;
             this.editor.setVideoVisibility(false);
         }
-
+        this.createSidePanel();
         
         // if(this.editor.animationMode == this.editor.animationModes.BODY) {
         //     const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
@@ -2129,7 +2130,7 @@ class KeyframesGui extends Gui {
             this.sidePanel.root.children[0].remove();
         }
         this.sidePanel.sections = [];
-
+        this.treeWidget = null;
         if(this.panelTabs) {
             this.panelTabs.root.remove();
         }
@@ -2795,7 +2796,7 @@ class KeyframesGui extends Gui {
         
         let mytree = { 
             id: rootBone.name, 
-            // selected: rootBone.name == this.editor.boneSelected 
+            selected: rootBone.name == this.editor.selectedBone 
         };
         let children = [];
         
@@ -2808,7 +2809,7 @@ class KeyframesGui extends Gui {
                     id: b.name,
                     children: [],
                     closed: true,
-                    // selected: b.name == this.editor.boneSelected
+                    selected: b.name == this.editor.selectedBone
                 }
                 
                 array.push( child );

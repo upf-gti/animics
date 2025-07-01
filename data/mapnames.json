@@ -144,7 +144,245 @@
         "Wink_Right": [],
         "Neck_Tightener": []
     },
-
+    "rpm": 
+    {
+      "Inner_Brow_Raiser": [
+        [
+          "browInnerUp",
+          1]
+      ],
+      "Outer_Brow_Raiser_Left": [
+        [
+          "browOuterUpLeft",
+          1]
+      ],
+      "Outer_Brow_Raiser_Right": [
+        [
+          "browOuterUpRight",
+          1]
+      ],
+      "Brow_Lowerer_Left": [
+        [
+          "browDownLeft",
+          1]
+      ],
+      "Brow_Lowerer_Right": [
+        [
+          "browDownRight",
+          1]
+      ],
+      "Nose_Wrinkler_Left": [
+        [
+          "noseSneerLeft",
+          1]
+      ],
+      "Nose_Wrinkler_Right": [
+        [
+          "noseSneerRight",
+          1]
+      ],
+      "Nostril_Dilator": [],
+      "Nostril_Compressor": [],
+      "Dimpler_Left": [
+        [
+          "mouthDimpleLeft",
+          1]
+      ],
+      "Dimpler_Right": [
+        [
+          "mouthDimpleRight",
+          1]
+      ],
+      "Upper_Lip_Raiser_Left": [
+        [
+          "mouthUpperUpLeft",
+          1]
+      ],
+      "Upper_Lip_Raiser_Right": [
+        [
+          "mouthUpperUpRight",
+          1]
+      ],
+      "Lip_Corner_Puller_Left": [
+        [
+          "mouthSmileLeft",
+          0.38]
+      ],
+      "Lip_Corner_Puller_Right": [
+        [
+          "mouthSmileRight",
+          0.38]
+      ],
+      "Lip_Corner_Depressor_Left": [
+        [
+          "mouthFrownLeft",
+          1]
+      ],
+      "Lip_Corner_Depressor_Right": [
+        [
+          "mouthFrownRight",
+          1]
+      ],
+      "Lower_Lip_Depressor_Left": [
+        [
+          "mouthLowerDownLeft",
+          1]
+      ],
+      "Lower_Lip_Depressor_Right": [
+        [
+          "mouthLowerDownRight",
+          1]
+      ],
+      "Lip_Puckerer_Left": [
+        [
+          "mouthPucker",
+          1]
+      ],
+      "Lip_Puckerer_Right": [],
+      "Lip_Stretcher_Left": [
+        [
+          "mouthStretchLeft",
+          1]
+      ],
+      "Lip_Stretcher_Right": [
+        [
+          "mouthStretchRight",
+          1]
+      ],
+      "Lip_Funneler": [
+        [
+          "mouthFunnel",
+          0.74]
+      ],
+      "Lip_Pressor_Left": [
+        [
+          "mouthPressLeft",
+          1]
+      ],
+      "Lip_Pressor_Right": [
+        [
+          "mouthPressRight",
+          1]
+      ],
+      "Lips_Part": [
+        [
+          "jawOpen",
+          0.08]
+      ],
+      "Lip_Suck_Upper": [
+        [
+          "mouthRollUpper",
+          1]
+      ],
+      "Lip_Suck_Lower": [
+        [
+          "mouthRollLower",
+          1]
+      ],
+      "Lip_Wipe": [],
+      "Tongue_Up": [],
+      "Tongue_Show": [
+        [
+          "tongueOut",
+          1]
+      ],
+      "Tongue_Bulge_Left": [],
+      "Tongue_Bulge_Right": [],
+      "Tongue_Wide": [],
+      "Mouth_Stretch": [
+        [
+          "jawOpen",
+          0.48]
+      ],
+      "Jaw_Drop": [
+        [
+          "jawOpen",
+          1]
+      ],
+      "Jaw_Thrust": [
+        [
+          "jawForward",
+          1]
+      ],
+      "Jaw_Sideways_Left": [
+        [
+          "jawLeft",
+          1]
+      ],
+      "Jaw_Sideways_Right": [
+        [
+          "jawRight",
+          1]
+      ],
+      "Chin_Raiser": [
+        [
+          "mouthClose",
+          0.14]
+      ],
+      "Cheek_Raiser_Left": [
+        [
+          "cheekSquintLeft",
+          1]
+      ],
+      "Cheek_Raiser_Right": [
+        [
+          "cheekSquintRight",
+          1]
+      ],
+      "Cheek_Blow_Left": [
+        [
+          "cheekPuff",
+          0.5]
+      ],
+      "Cheek_Blow_Right": [
+        [
+          "cheekPuff",
+          0.5]
+      ],
+      "Cheek_Suck_Left": [],
+      "Cheek_Suck_Right": [],
+      "Upper_Lid_Raiser_Left": [
+        [
+          "eyeWideLeft",
+          0.42]
+      ],
+      "Upper_Lid_Raiser_Right": [
+        [
+          "eyeWideRight",
+          0.42]
+      ],
+      "Squint_Left": [
+        [
+          "eyeSquintLeft",
+          1]
+      ],
+      "Squint_Right": [
+        [
+          "eyeSquintRight",
+          1]
+      ],
+      "Blink_Left": [
+        [
+          "eyeBlinkLeft",
+          1]
+      ],
+      "Blink_Right": [
+        [
+          "eyeBlinkRight",
+          1]
+      ],
+      "Wink_Left": [
+        [
+          "eyeBlinkLeft",
+          1]
+      ],
+      "Wink_Right": [
+        [
+          "eyeBlinkRight",
+          1]
+      ],
+      "Neck_Tightener": []
+    },
     "map_llnames" : { 
         
         "Eva" : {

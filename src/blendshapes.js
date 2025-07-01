@@ -410,7 +410,7 @@ class BlendshapesManager {
     // }
 
      // Convert THREEJS morph target animation into AU names format
-    createAUAnimation(animation) {
+    createAUAnimation(animation, map = this.mapNames.characterMap) {
         const auTracks = [];
         const trackNames = [];
 
@@ -434,8 +434,8 @@ class BlendshapesManager {
                 const values = track.values;
                 
                 // Search the AU mapped to this morph target
-                for ( let actionUnit in this.mapNames.characterMap ) {
-                    const mappedMorphs = this.mapNames.characterMap[actionUnit];
+                for ( let actionUnit in map ) {
+                    const mappedMorphs = map[actionUnit];
                     
                     // If the morph target is mapped to the AU, assign the weight
                     if ( Array.isArray(mappedMorphs) ) {

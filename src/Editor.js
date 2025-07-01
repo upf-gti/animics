@@ -540,7 +540,7 @@ class Editor {
                 console.warn("T-pose can't be applyied to the SOURCE. Automap falied.")
             }            
             
-            let retargeting = new AnimationRetargeting(sourceCharacter, currentCharacter.model, { srcEmbedWorldTransforms: true, trgEmbedWorldTransforms: true, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT } ); // TO DO: change trgUseCurrentPose param
+            const retargeting = new AnimationRetargeting(sourceCharacter, currentCharacter.model, { srcEmbedWorldTransforms: true, trgEmbedWorldTransforms: true, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT } ); // TO DO: change trgUseCurrentPose param
             return retargeting.retargetAnimation(bodyAnimation);
         }
     }
@@ -2334,9 +2334,10 @@ class KeyframeEditor extends Editor {
                 
                 // Retarget NN animation              
                 // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
-                let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true, srcPoseMode: options.srcPoseMode, trgPoseMode: options.trgPoseMode, srcEmbedWorldTransforms: options.srcEmbedWorldTransforms } ); // both skeletons use their native bind pose
+                // let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true, srcPoseMode: options.srcPoseMode, trgPoseMode: options.trgPoseMode, srcEmbedWorldTransforms: options.srcEmbedWorldTransforms } ); // both skeletons use their native bind pose
                 const oldDuration = bodyAnimation.duration;
-                bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+                // bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+                bodyAnimation = this.retargetAnimation({skeleton}, bodyAnimation);  
                 bodyAnimation.duration = oldDuration;
             }
 
@@ -2375,6 +2376,9 @@ class KeyframeEditor extends Editor {
             else {
                 // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
                 auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
+                if( !auAnimation.tracks.length ) {
+                    auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.rpm);
+                }
             }
             // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
             for( let i = 0; i < auAnimation.tracks.length; ++i ){
@@ -2387,11 +2391,14 @@ class KeyframeEditor extends Editor {
 
             faceAnimation.name = "faceAnimation";   // mixer
             auAnimation.name = "faceAnimation";  // action units timeline
+            faceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation ); 
             this.validateFaceAnimationClip(faceAnimation);
             
-            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
+            // bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
+            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(faceAnimation);
             bsAnimation.duration = faceAnimation.duration;
             bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation ); // generate default animationclip or process the user's one;
+
         }
         
         const boundAnimation = {
@@ -2673,7 +2680,7 @@ class KeyframeEditor extends Editor {
                 this.activeTimeline = this.gui.bsTimeline;
                 this.animationMode = this.animationModes.FACEBS;
                 if( lastMode != this.animationModes.FACEAU ) {
-                    this.gui.createSidePanel();  
+                    // this.gui.createSidePanel();  
                 }
                 this.gizmo.disable();
                 break;
@@ -2682,7 +2689,7 @@ class KeyframeEditor extends Editor {
                 this.activeTimeline = this.gui.auTimeline;
                 this.animationMode = this.animationModes.FACEAU;
                 if( lastMode != this.animationModes.FACEBS ) {
-                    this.gui.createSidePanel();  
+                    // this.gui.createSidePanel();  
                 }  
                 this.setSelectedActionUnit(this.selectedAU);           
                 this.gizmo.disable();
@@ -2692,7 +2699,7 @@ class KeyframeEditor extends Editor {
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
                 this.activeTimeline = this.gui.skeletonTimeline;
-                this.gui.createSidePanel();          
+                // this.gui.createSidePanel();          
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
@@ -2710,7 +2717,7 @@ class KeyframeEditor extends Editor {
                 this.startTimeOffset = 0;
                 this.currentKeyFrameClip = null;
                 this.activeTimeline = this.gui.globalTimeline;
-                this.gui.createSidePanel();
+                // this.gui.createSidePanel();
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
                 }
