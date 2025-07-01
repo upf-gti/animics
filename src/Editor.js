@@ -1249,6 +1249,7 @@ class KeyframeEditor extends Editor {
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
         this.setTime(this.currentTime); // update mixer
+		this.gui.globalTimeline.visualOriginTime = - ( this.gui.globalTimeline.xToTime(100) - this.gui.globalTimeline.xToTime(0) ); // set horizontal scroll to 100 pixels 
 
         return alreadyExisted;
     }
@@ -2407,8 +2408,8 @@ class KeyframeEditor extends Editor {
         t = Math.clamp( t, this.startTimeOffset, this.startTimeOffset + duration - 0.001 );
 
         this.currentTime = t;
-        this.globalAnimMixerManagement(this.currentCharacter.mixer, this.gui.globalTimeline.animationClip);
-        
+        this.globalAnimMixerManagement(this.currentCharacter.mixer, this.gui.globalTimeline.animationClip); // already deals with currentkeyframeclip
+
         // mixer computes time * timeScale. We actually want to set the raw animation (track) time, without any timeScale 
         this.currentCharacter.mixer.setTime( t / this.currentCharacter.mixer.timeScale ); //already calls mixer.update
         this.currentCharacter.mixer.update(0); // BUG: for some reason this is needed. Otherwise, after sme timeline edition + optimization, weird things happen
@@ -2512,7 +2513,49 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.show();
     }
 
-    globalAnimMixerManagement(mixer, animation){
+    globalAnimMixerManagement(mixer, animation, useCurrentKeyframeClipRules = true){
+
+        // when selecting a clip, only certain neighbouring animations should played
+        if ( useCurrentKeyframeClipRules && this.currentKeyFrameClip ){
+            const currentClip = this.currentKeyFrameClip;
+
+            if ( currentClip.blendMode == THREE.AdditiveAnimationBlendMode ){
+                // add all animations
+                for( let t = 0; t < animation.tracks.length; ++t ){
+                    const track = animation.tracks[t];
+                    for( let c = 0; c < track.clips.length; ++c ){
+                        const clip = track.clips[c];
+                        this.globalAnimMixerManagementSingleClip(mixer, clip);
+                    }
+                }
+                
+                // stop actions that are additive. Keep only the selectedKeyFrameClip and all normalBlend animations 
+                for( let i = 0; i < mixer._actions.length; ++i ){
+                    const actionClip = mixer._actions[i]._clip;
+                    if ( actionClip.blendMode == THREE.AdditiveAnimationBlendMode && 
+                         currentClip.mixerBodyAnimation != actionClip && 
+                         currentClip.mixerFaceAnimation != actionClip ){
+                            mixer._actions[i].stop();
+                    }
+                }
+            }else{
+
+                // Normal animations are shown alone. Disable all other clip
+                for( let i = 0; i < mixer._actions.length; ++i ){
+                    const actionClip = mixer._actions[i]._clip;
+                    if ( currentClip.mixerBodyAnimation != actionClip && 
+                         currentClip.mixerFaceAnimation != actionClip ){
+                            mixer._actions[i].stop();
+                    
+                    }
+                }
+                this.globalAnimMixerManagementSingleClip(mixer, currentClip);
+            }
+
+            return;
+        }
+
+        // Displaying globalTimeline. Show all animations in their natural order and state
         for( let t = 0; t < animation.tracks.length; ++t ){
             const track = animation.tracks[t];
             for( let c = 0; c < track.clips.length; ++c ){
@@ -2983,7 +3026,7 @@ class KeyframeEditor extends Editor {
                 delta.normalize();
                 
                 delta.invert();
-                delta.premultiply(newValue);
+                delta.multiply(newValue); // computing delta in local space ( newValue = prevpose * delta )
             }
             else if ( track.dim == 3 ){
                 delta = new THREE.Vector3();
@@ -3028,6 +3071,7 @@ class KeyframeEditor extends Editor {
         }
     }
   
+    // expects delta in local space ( newValue = prevPose * delta )
     _applyDeltaQuaternion( track, keyframe, delta, t ){
         const dim = track.dim;
         const newDelta = new THREE.Quaternion();
@@ -3042,7 +3086,7 @@ class KeyframeEditor extends Editor {
         newDelta.normalize();
 
         source.set(track.values[keyframe * dim], track.values[keyframe * dim + 1], track.values[keyframe * dim + 2], track.values[keyframe * dim + 3]);
-        source.premultiply( newDelta );
+        source.multiply( newDelta );
 
         // write result
         track.values[keyframe * dim] = source.x;
@@ -3123,7 +3167,7 @@ class KeyframeEditor extends Editor {
         this.currentCharacter.skeletonHelper.skeleton.pose(); // set default pose for the mixer
 
 		this.currentTime = 0; // manual set of time for clip management. WARNING: this creates a mismatch with UI
-        this.globalAnimMixerManagement( mixer, boundAnim ); // set clips
+        this.globalAnimMixerManagement( mixer, boundAnim, false ); // set clips. Ignore currentSelecteKeyframeClip
 
         mixer.setTime( 0 );
         mixer.timeScale = 1;
@@ -3336,6 +3380,8 @@ class ScriptEditor extends Editor {
 
         this.gui.createSidePanel();
         this.gui.clipsTimeline.updateHeader();
+        this.gui.clipsTimeline.visualOriginTime = - ( this.gui.clipsTimeline.xToTime(100) - this.gui.clipsTimeline.xToTime(0) ); // set horizontal scroll to 100 pixels 
+
 
         return true;
     }

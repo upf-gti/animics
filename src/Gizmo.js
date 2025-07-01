@@ -578,7 +578,7 @@ class Gizmo {
 
             for( let i = 1; i < chain.length; ++i ){
                 const boneToProcess = this.skeleton.bones[chain[i]];
-                deltaQuat.copy(this.mouseDownState[i].quaternion).invert().premultiply(boneToProcess.quaternion);
+                deltaQuat.copy(this.mouseDownState[i].quaternion).invert().multiply(boneToProcess.quaternion);
 
                 const groupTracks = timeline.getTracksGroup(boneToProcess.name);
                 const quaternionTrackIdx = ( timeline.getTracksGroup(boneToProcess.name).length > 1 ) ? 1 : 0; // localindex
@@ -587,8 +587,6 @@ class Gizmo {
                 if ( track.dim != 4 ){ continue; } // only quaternions
 
                 this.editor.gui.skeletonTimeline.saveState( track.trackIdx, i != 1 );
-
-                const tValues = track.values; 
 
                 let frame = timeline.getCurrentKeyFrame( track, effectorFrameTime, 0.008 );
                 
@@ -606,8 +604,8 @@ class Gizmo {
                         t = t <= 0.000001 ? 0 : ((effectorFrameTime-track.times[prevframe]) / t);
 
                         const q2 = new THREE.Quaternion();
-                        q1.fromArray( track.values, prevframe );
-                        q2.fromArray( track.values, postframe );
+                        q1.fromArray( track.values, prevframe * 4 );
+                        q2.fromArray( track.values, postframe * 4 );
                         q1.slerp(q2, t);
 
                     }else{
@@ -632,12 +630,12 @@ class Gizmo {
                 }else{
 
                     const start = 4 * frame;
-                    tempQuat.fromArray( tValues, start );
-                    tempQuat.premultiply( deltaQuat );
-                    tValues[start] =  tempQuat.x;
-                    tValues[start+1] =tempQuat.y;
-                    tValues[start+2] =tempQuat.z;
-                    tValues[start+3] =tempQuat.w;
+                    tempQuat.fromArray( track.values, start );
+                    tempQuat.multiply( deltaQuat );
+                    track.values[start] =   tempQuat.x;
+                    track.values[start+1] = tempQuat.y;
+                    track.values[start+2] = tempQuat.z;
+                    track.values[start+3] = tempQuat.w;
                     track.edited[ frame ] = true;
                 }
 
@@ -651,7 +649,7 @@ class Gizmo {
 
             let deltaValue;
             if ( track.dim == 4 ){
-                deltaValue = this.mouseDownState[0].quaternion.clone().invert().premultiply(bone.quaternion);
+                deltaValue = this.mouseDownState[0].quaternion.clone().invert().multiply(bone.quaternion); // deltaValue in localspace
             }else{ // dim == 3
                 deltaValue = bone[ keyType ].clone().sub( this.mouseDownState[0][ keyType ] );
             }

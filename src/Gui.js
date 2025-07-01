@@ -1580,14 +1580,17 @@ class KeyframesGui extends Gui {
 
     setKeyframeClip(clip){
         if (!clip){
+            this.editor.currentKeyFrameClip = null; // this before any setTime.
+            this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation());
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
-            this.editor.currentKeyFrameClip = null;
+            this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
             return;
         }
 
         const sourceAnimation = clip.source; // might not exist
         this.editor.currentKeyFrameClip = clip;
+        this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation()); // now that there is a currentKeyframeClip, update mixer actions
         
         const localTime = Math.max(0, Math.min( clip.duration, this.editor.currentTime - clip.start ) );
         this.editor.startTimeOffset = clip.start;
