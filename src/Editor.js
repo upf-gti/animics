@@ -41,7 +41,7 @@ try {
 class Editor {
     static RESOURCES_PATH = "https://resources.gti.upf.edu/3Dcharacters/";
     static PERFORMS_PATH = "https://performs.gti.upf.edu/";
-    static ATELIER_PATH = "https://localhost:5005/index.html"//"https://atelier.gti.upf.edu/";
+    static ATELIER_PATH = "https://atelier.gti.upf.edu/";
     
     constructor( animics ) {
         
