@@ -615,7 +615,7 @@ class KeyframesGui extends Gui {
                 icon: "PenTool",
                 callback: () =>{
                     this.editor.loadAnimation("Empty clip", {}, true, false ); // create and bind. Do not add to loadedAnimations, as it is meaningless
-                    this.createSidePanel(); // adding a clip unselects the rest. Make sure sidePanel is updated
+                    this.createSidePanel(); // adding a clip deselects the rest. Make sure sidePanel is updated
                     this.editor.setTimeline( this.editor.animationModes.GLOBAL );
                 }
             },
@@ -924,7 +924,9 @@ class KeyframesGui extends Gui {
         });
 
         // TODO make it prettier and/or move cloning to timeline
-        this.globalTimeline.cloneClips = function(clipsToClone, timeOffset){
+        this.globalTimeline.cloneClips = function(clipsToClone, timeOffset, cloneReason ){
+
+
             const cloned = JSON.parse( JSON.stringify( clipsToClone ) );
             for( let i = 0; i < cloned.length; ++i ){
                 const sourceClip = clipsToClone[i];
@@ -1217,11 +1219,11 @@ class KeyframesGui extends Gui {
                 this.updateSkeletonPanel();
             }
             if ( this.propagationWindow.enabler ){
-                this.skeletonTimeline.unSelectAllKeyFrames();
+                this.skeletonTimeline.deselectAllKeyFrames();
             }
         };
 
-        this.skeletonTimeline.onUnselectKeyFrames = (keyframes) => {
+        this.skeletonTimeline.onDeselectKeyFrames = (keyframes) => {
             this.editor.gizmo.stop();
         }
 
@@ -1413,7 +1415,7 @@ class KeyframesGui extends Gui {
             }
 
             if ( this.propagationWindow.enabler ){
-                this.auTimeline.unSelectAllKeyFrames();
+                this.auTimeline.deselectAllKeyFrames();
             }
 
             // Highlight panel slider
@@ -1537,7 +1539,7 @@ class KeyframesGui extends Gui {
                 this.editor.updateFacePropertiesPanel(this.bsTimeline, selection[0]);
             }
             if ( this.propagationWindow.enabler ){
-                this.bsTimeline.unSelectAllKeyFrames();
+                this.bsTimeline.deselectAllKeyFrames();
             }
             
             // Highlight panel slider
@@ -2482,7 +2484,7 @@ class KeyframesGui extends Gui {
                                 
                                     const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i], this.skeletonTimeline.currentTime, 0.01); 
                                     if( frame > -1 ) {
-                                        this.skeletonTimeline.unSelectAllKeyFrames();
+                                        this.skeletonTimeline.deselectAllKeyFrames();
                                         this.skeletonTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
                                     }
                                     this.editor.setGizmoMode(v); 
@@ -2499,7 +2501,7 @@ class KeyframesGui extends Gui {
                                 
                                     const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i].trackIdx, this.skeletonTimeline.currentTime, 0.01); 
                                     if( frame > -1 ) {
-                                        this.skeletonTimeline.unSelectAllKeyFrames();
+                                        this.skeletonTimeline.deselectAllKeyFrames();
                                         this.skeletonTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
                                     }
                                     this.editor.setGizmoMode(v); 
@@ -2516,7 +2518,7 @@ class KeyframesGui extends Gui {
                                 
                                     const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i], this.skeletonTimeline.currentTime, 0.01); 
                                     if( frame > -1 ) {
-                                        this.skeletonTimeline.unSelectAllKeyFrames();
+                                        this.skeletonTimeline.deselectAllKeyFrames();
                                         this.skeletonTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
                                     }
                                     this.editor.setGizmoMode(v); 
@@ -4209,7 +4211,7 @@ class ScriptGui extends Gui {
             return;
         const innerSelect = (asset) => {
            
-                that.clipsTimeline.unSelectAllClips();
+                that.clipsTimeline.deselectAllClips();
                 let config = {properties: {hand: this.editor.dominantHand}};
                 switch(asset.type) {
                     case "FaceLexemeClip": case "HeadClip":
@@ -4449,7 +4451,7 @@ class ScriptGui extends Gui {
                         this.mode = ClipModes.Actions;
                         break;
                 }
-                this.clipsTimeline.unSelectAllClips();
+                this.clipsTimeline.deselectAllClips();
                 asset.animation.name = asset.id;
 
                 dialog.panel.loadingArea.show();
@@ -5044,7 +5046,6 @@ class PropagationWindow {
             timeline.movingKeys = false;
             timeline.timeBeforeMove = null;
             timeline.boxSelection = false;
-            // timeline.unSelectAllKeyFrames();
             timeline.unHoverAll();
 
             if ( e.type == "mouseup" ){

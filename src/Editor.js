@@ -799,7 +799,6 @@ class Editor {
         this.gui.resize(width, height);
     }
     
-    // TODO FIX WITH NEW SYSTEM OF MULTICLIP
     export(animsToExport = null, type = null, download = true, name = null) {
         let files = [];
         if(!animsToExport) {
@@ -1123,9 +1122,9 @@ class KeyframeEditor extends Editor {
                 if ( !document.activeElement || document.activeElement.value === undefined ){
                     this.gui.propagationWindow.toggleEnabler();
                     if( this.gui.propagationWindow.enabler ){
-                        this.gui.skeletonTimeline.unSelectAllKeyFrames();
-                        this.gui.auTimeline.unSelectAllKeyFrames();
-                        this.gui.bsTimeline.unSelectAllKeyFrames();
+                        this.gui.skeletonTimeline.deselectAllKeyFrames();
+                        this.gui.auTimeline.deselectAllKeyFrames();
+                        this.gui.bsTimeline.deselectAllKeyFrames();
                     }
                 }
             break;
@@ -3367,7 +3366,7 @@ class ScriptEditor extends Editor {
             mixer.uncacheClip( mixer._actions[0]._clip );
         }
 
-        this.gui.clipsTimeline.unSelectAllElements();
+        this.gui.clipsTimeline.deselectAllElements();
 
         this.gui.clipsTimeline.setAnimationClip( this.loadedAnimations[name].scriptAnimation, false );
         this.currentAnimation = name;
