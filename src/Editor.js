@@ -41,6 +41,7 @@ try {
 class Editor {
     static RESOURCES_PATH = "https://resources.gti.upf.edu/3Dcharacters/";
     static PERFORMS_PATH = "https://performs.gti.upf.edu/";
+    static ATELIER_PATH = "https://localhost:5005/index.html"//"https://atelier.gti.upf.edu/";
     
     constructor( animics ) {
         
@@ -345,15 +346,18 @@ class Editor {
                             const text = await response.text()                       
                             
                             let config = JSON.parse( text );
+                            const rawConfig = JSON.parse( text );
                             config._filename = configFile;
                             this.loadedCharacters[characterName].config = config;
-                            this.mapNames.characterMap = config.faceController.blendshapeMap;
+                            this.loadedCharacters[characterName].rawConfig = rawConfig;
                         }
                     }
                     else {
                         // Set the config file data if it's an object
                         const config = configFile;
                         this.loadedCharacters[characterName].config = config;
+                        this.loadedCharacters[characterName].rawConfig = JSON.parse(JSON.stringify(config));
+
                         this.mapNames.characterMap = config.faceController.blendshapeMap;
                     }
                 }
@@ -381,7 +385,7 @@ class Editor {
     
                     skeletonHelper.visible = false;
                     
-                    this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , this.loadedCharacters[characterName].config);
+                    this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName], this.loadedCharacters[characterName].config);
                     
                     // fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
                     //     const config = JSON.parse( text );
@@ -404,6 +408,15 @@ class Editor {
                 
             });
         })
+    }
+
+    updateCharacter(config) {
+        this.currentCharacter.skeletonHelper.skeleton.pose();
+        if( this.isScriptMode() ) {
+            this.currentCharacter.bmlManager = new BMLController( this.currentCharacter, config);
+            this.currentCharacter.bmlManager.ECAcontroller.start();
+            this.currentCharacter.bmlManager.ECAcontroller.reset();
+        }               
     }
 
     async changeCharacter(characterName) {
@@ -1199,49 +1212,21 @@ class Editor {
     openAtelier(name, model, config, fromFile = true, rotation = 0) {
             
         let rawConfig = config;
-        if(config && !fromFile) {
-            rawConfig = JSON.parse(JSON.stringify(config));
-            const skeleton = this.currentCharacter.skeleton;
-            const innerLocationToObjects = (locations) => {
-                let result = {};
-                const bindMat4 = new THREE.Matrix4();
-                const bindMat3 = new THREE.Matrix3();
-                for(let part in locations) {
-                    
-                    const obj = [];
-                    const location = locations[part];
-                    let idx = findIndexOfBoneByName( skeleton, location.parent.name );
-                    if ( idx < 0 ){ continue; }
-    
-                    obj.push(location.parent.name);
-                    bindMat4.copy( skeleton.boneInverses[ idx ] ).invert();
-                    obj.push( location.position.clone().applyMatrix4( bindMat4 ) ); // from mesh space to bone local space
-                    
-                    // check direction of distance vector 
-                    if(location.direction) {
-                        bindMat3.setFromMatrix4( bindMat4 );
-                        obj.push( location.direction.clone().applyMatrix3( bindMat3 ) );
-
-                    }    
-                    result[part] = obj;
-                }
-                return result;
-            }
-            rawConfig.bodyController.bodyLocations = innerLocationToObjects(config.bodyController.bodyLocations);
-            rawConfig.bodyController.handLocationsL = innerLocationToObjects(config.bodyController.handLocationsL);
-            rawConfig.bodyController.handLocationsR = innerLocationToObjects(config.bodyController.handLocationsR);
-        }
+        
         const atelierData = [name, model, rawConfig, rotation];        
-        localStorage.setItem("atelierData", JSON.stringify(atelierData));
-        if(!this._atelier || this._atelier.closed) {
-            this._atelier = window.open(Performs.ATELIER_URL, "Atelier");   
-            this._atelier.postMessage.postMessage(JSON.stringify(atelierData), '*');
+              
+        const sendData = (data) => {
+
+            if( !this._atelier || this._atelier.closed ) {
+                this._atelier = window.open(Editor.ATELIER_PATH, "Atelier");
+                setTimeout(() => sendData(data), 1000); // wait a while to have the page loaded (onloaded has CORS error)                
+            }
+            else {
+                this._atelier.focus();                
+                setTimeout(() => this._atelier.postMessage(data, "*"), 1000);
+            }
         }
-        else {
-            //this._atelier.location.reload();
-            this._atelier.focus();
-            this._atelier.postMessage.postMessage(JSON.stringify(atelierData), '*');
-        }
+        sendData(JSON.stringify(atelierData));
     }
 
     onKeyDown( event ) {} // Abstract

@@ -572,38 +572,38 @@ class Gui {
         p.clear();
         p.branch('Characters');
 
-        p.addButton( "Upload yours", "Upload Character", (v) => {
-            this.uploadCharacter((value, config) => {
+        // p.addButton( "Upload yours", "Upload Character", (v) => {
+        //     this.uploadCharacter((value, config) => {
                     
-                if ( !this.editor.loadedCharacters[value] ) {
-                    UTILS.makeLoading( `Loading character [ ${value} ]...`);
-                    let modelFilePath = this.editor.characterOptions[value][0];                    
-                    let configFilePath = this.editor.characterOptions[value][1];
-                    let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), this.editor.characterOptions[value][2] ); 
-                    this.editor.loadCharacter(modelFilePath, config || configFilePath, modelRotation, value, ()=>{ 
-                        this.editor.changeCharacter(value);
-                        this.createCharactersPanel(p);
-                        if(this.editor.currentCharacter.config) {
+        //         if ( !this.editor.loadedCharacters[value] ) {
+        //             UTILS.makeLoading( `Loading character [ ${value} ]...`);
+        //             let modelFilePath = this.editor.characterOptions[value][0];                    
+        //             let configFilePath = this.editor.characterOptions[value][1];
+        //             let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), this.editor.characterOptions[value][2] ); 
+        //             this.editor.loadCharacter(modelFilePath, config || configFilePath, modelRotation, value, ()=>{ 
+        //                 this.editor.changeCharacter(value);
+        //                 this.createCharactersPanel(p);
+        //                 if(this.editor.currentCharacter.config) {
                           
                             
-                            const resetBtn = this.mainArea.sections[0].panels[2].root.querySelector("button[title='Reset pose']");
-                            if(resetBtn) {
-                                resetBtn.classList.remove("hidden");
-                            }
-                        }
-                        UTILS.hideLoading();
-                    }, (err) => {
-                        UTILS.hideLoading();
-                        LX.popup("There was an error loading the character", "Character not loaded", {width: "30%"});
-                    } );
-                    return;
-                } 
+        //                     const resetBtn = this.mainArea.sections[0].panels[2].root.querySelector("button[title='Reset pose']");
+        //                     if(resetBtn) {
+        //                         resetBtn.classList.remove("hidden");
+        //                     }
+        //                 }
+        //                 UTILS.hideLoading();
+        //             }, (err) => {
+        //                 UTILS.hideLoading();
+        //                 LX.popup("There was an error loading the character", "Character not loaded", {width: "30%"});
+        //             } );
+        //             return;
+        //         } 
 
-                // use controller if it has been already loaded in the past
-                this.editor.changeCharacter(value);
-                this.createCharactersPanel(p);
-            });
-        } ,{ nameWidth: "100px", icon: "CloudUpload" } );        
+        //         // use controller if it has been already loaded in the past
+        //         this.editor.changeCharacter(value);
+        //         this.createCharactersPanel(p);
+        //     });
+        // } ,{ nameWidth: "100px", icon: "CloudUpload" } );        
       
         p.addSeparator();
 
@@ -621,11 +621,6 @@ class Gui {
                 button = new LX.Button(null, "Edit Character", (e) => {
                     this.createEditCharacterDialog(item.id);
                 } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px", buttonClass: "bg-secondary"} );
-
-                button.root.addEventListener("click", (e) => {
-                  
-                    this.createEditCharacterDialog(item.id);
-                })
             }
             const flexContainer = LX.makeContainer( ["auto", "auto"], "flex items-center", `<p>${ outerText }</p>`, item );
             if( selected ) {
@@ -676,7 +671,7 @@ class Gui {
 
                 panel.sameLine();
                 let characterFile = panel.addFile("Character File", (v, e) => {
-                    let files = panel.widgets["Character File"].domEl.children[1].files;
+                    let files = panel.widgets["Character File"].root.children[1].files;
                     if(!files.length) {
                         return;
                     }
@@ -694,7 +689,7 @@ class Gui {
                 }, {type: "url", nameWidth: "41%"});
 
                 if(!afromFile) {
-                    characterFile.domEl.classList.add('hidden');
+                    characterFile.root.classList.add('hidden');
                 }
 
                 let characterURL = panel.addText("Character URL", model, (v, e) => {
@@ -733,7 +728,7 @@ class Gui {
                     else { LX.popup("Only accepts GLB and GLTF formats!"); }
                 }, {nameWidth: "43%"});
                 if(afromFile) {
-                    characterURL.domEl.classList.add('hidden');
+                    characterURL.root.classList.add('hidden');
                 }
 
                 panel.addComboButtons(null, [
@@ -741,10 +736,10 @@ class Gui {
                         value: "From File",
                         callback: (v, e) => {                            
                             afromFile = true;
-                            if(!characterURL.domEl.classList.contains('hidden')) {
-                                characterURL.domEl.classList.add('hidden');          
+                            if(!characterURL.root.classList.contains('hidden')) {
+                                characterURL.root.classList.add('hidden');          
                             }
-                            characterFile.domEl.classList.remove('hidden');                                                          
+                            characterFile.root.classList.remove('hidden');                                                          
                             panel.refresh();
                         }
                     },
@@ -752,10 +747,10 @@ class Gui {
                         value: "From URL",
                         callback: (v, e) => {
                             afromFile = false;
-                            if(!characterFile.domEl.classList.contains('hidden')) {
-                                characterFile.domEl.classList.add('hidden');           
+                            if(!characterFile.root.classList.contains('hidden')) {
+                                characterFile.root.classList.add('hidden');           
                             }                                               
-                            characterURL.domEl.classList.remove('hidden');          
+                            characterURL.root.classList.remove('hidden');          
                         }
                     }
                 ], {selected: afromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});                
@@ -767,7 +762,7 @@ class Gui {
                     if(!v) {
                         return;
                     }
-                    const filename = panel.widgets["Config File"].domEl.children[1].files[0].name;
+                    const filename = panel.widgets["Config File"].root.children[1].files[0].name;
                     let extension = filename.split(".");
                     extension = extension.pop();
                     if (extension == "json") { 
@@ -809,9 +804,9 @@ class Gui {
                 }, {nameWidth: "43%"});
 
                 if(cfromFile) {
-                    configURL.domEl.classList.add('hidden');
+                    configURL.root.classList.add('hidden');
                 }else {
-                    configFile.domEl.classList.add('hidden');
+                    configFile.root.classList.add('hidden');
                 }
                 
                 const editConfigBtn = panel.addButton(null, "Edit config file", () => {
@@ -829,10 +824,10 @@ class Gui {
                         callback: (v, e) => {                            
                             cfromFile = true;
                             // panel.refresh();
-                            if(!configURL.domEl.classList.contains('hidden')) {
-                                configURL.domEl.classList.add('hidden');          
+                            if(!configURL.root.classList.contains('hidden')) {
+                                configURL.root.classList.add('hidden');          
                             }
-                            configFile.domEl.classList.remove('hidden');                                                          
+                            configFile.root.classList.remove('hidden');                                                          
                         }
                     },
                     {
@@ -840,10 +835,10 @@ class Gui {
                         callback: (v, e) => {
                             cfromFile = false;
                             // panel.refresh();
-                            if(!configFile.domEl.classList.contains('hidden')) {
-                                configFile.domEl.classList.add('hidden');           
+                            if(!configFile.root.classList.contains('hidden')) {
+                                configFile.root.classList.add('hidden');           
                             }                                               
-                            configURL.domEl.classList.remove('hidden');  
+                            configURL.root.classList.remove('hidden');  
                         }
                     }
                 ], {selected: cfromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});
@@ -924,17 +919,7 @@ class Gui {
                 this.editor.currentCharacter.config = config;
                 if(config) {
                     this.editor.characterOptions[name][1] = config._filename;
-                    // this.editor.scriptApp.onLoadCharacter(this.editor.currentCharacter.model, this.editor.currentCharacter.config, this.editor.currentCharacter.skeleton);
-                    this.editor.currentCharacter.skeleton.pose();
-                    this.editor.scriptApp.ECAcontroller.reset();                        
-                    this.editor.changeMode(Performs.Modes.SCRIPT);
-                    if(this.settingsActive) {
-                        this.createSettingsPanel();             
-                    }
-                    const resetBtn = this.mainArea.sections[0].panels[2].root.querySelector("button[title='Reset pose']");
-                    if(resetBtn) {
-                        resetBtn.classList.remove("hidden");
-                    }
+                    this.editor.updateCharacter(config);  
                 }
 
             }, 
@@ -954,7 +939,10 @@ class Gui {
             panel.refresh = () => {
                 panel.clear();                
                 let nameWidget = panel.addText("Name Your Character", name, (v, e) => {
-                    if (this.editor.characterOptions[v]) LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]});
+                    if (data.name != v && this.editor.characterOptions[v]) { 
+                        LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]});
+                        return;
+                    }
                     name = v;
                 });
 
@@ -964,7 +952,7 @@ class Gui {
                     if(!v) {
                         return;
                     }
-                    const filename = panel.widgets["Config File"].domEl.children[1].files[0].name;
+                    const filename = panel.widgets["Config File"].root.children[1].files[0].name;
                     let extension = filename.split(".");
                     extension = extension.pop();
                     if (extension == "json") { 
@@ -1011,7 +999,7 @@ class Gui {
 
                 if( config ) {
                     panel.addButton(null, "Edit config file", () => {
-                        this.editor.openAtelier(name, this.editor.characterOptions[name][0], config, false, rotation);                  
+                        this.editor.openAtelier(name, this.editor.characterOptions[name][0], data.config == config ? data.rawConfig : config, false, rotation);                  
                     }, {icon: "UserCog@solid", width: "40px"});
                 }
 
@@ -1042,13 +1030,13 @@ class Gui {
                 , {selected: fromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});
                 panel.endLine();
 
-                panel.addNumber("Apply Rotation", 0, (v) => {
-                    rotation = v * Math.PI / 180;
-                }, { min: -180, max: 180, step: 1 } );
+                // panel.addNumber("Apply Rotation", 0, (v) => {
+                //     rotation = v * Math.PI / 180;
+                // }, { min: -180, max: 180, step: 1 } );
                 
                 panel.sameLine(2);
                 panel.addButton(null, (config ? "Edit": "Create") + " Config File", () => {
-                    this.editor.openAtelier(name, this.editor.characterOptions[name][0], config, false, rotation);                                       
+                    this.editor.openAtelier(name, this.editor.characterOptions[name][0], data.config == config ? data.rawConfig : config, false, rotation);                                       
                 })
                 panel.addButton(null, "Update", () => {
                     if (name) {
@@ -1070,6 +1058,7 @@ class Gui {
                             }, {input: false, on_cancel: () => {}});
                             
                         }
+                        this.characterDialog.close();
                     }
                     else {
                         LX.popup("Complete all fields!", null, { position: ["45%", "20%"]});

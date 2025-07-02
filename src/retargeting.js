@@ -520,12 +520,23 @@ function applyTPose(skeleton, map) {
 	const y_axis = new THREE.Vector3(0, 1, 0);
 	const z_axis = new THREE.Vector3(0, 0, 1);
 
-	// Exercice 2: Fully extend the 5 chains
-	extendChain( resultSkeleton, resultSkeleton.bones[0].name, map.ShouldersUnion);
-	extendChain( resultSkeleton, map.LUpLeg, map.LFoot);
-	extendChain( resultSkeleton, map.RUpLeg, map.RFoot);
-	extendChain( resultSkeleton, map.LArm, map.LWrist);
-	extendChain( resultSkeleton, map.RArm, map.RWrist);
+	// Fully extend the chains    
+	extendChain( resultSkeleton, resultSkeleton.bones[0].name, map.ShouldersUnion); // Spine
+	extendChain( resultSkeleton, map.LUpLeg, map.LFoot); // Left Leg
+	extendChain( resultSkeleton, map.RUpLeg, map.RFoot); // Right Leg
+	extendChain( resultSkeleton, map.LArm, map.LWrist); // Left Arm
+	extendChain( resultSkeleton, map.RArm, map.RWrist); // Right Arm
+    
+    const leftHand = resultSkeleton.getBoneByName(map.LWrist);
+    for(let i = 0; i < leftHand.children.length; i++) { // Left Fingers
+        extendChain( resultSkeleton, leftHand.children[i]);
+        extendChain( resultSkeleton, map.LWrist, leftHand.children[i].children[0]); // Left Arm
+    }
+    const rightHand = resultSkeleton.getBoneByName(map.RWrist);
+    for(let i = 0; i < rightHand.children.length; i++) { // Right Fingers
+        extendChain( resultSkeleton, rightHand.children[i]); 
+        extendChain( resultSkeleton, map.RWrist, rightHand.children[i].children[0]); // Right Arm
+    }
 
 	// Forces the pose to face the +Z axis using the left-right arm and spine plane
     const right_arm = resultSkeleton.getBoneByName(map.RArm);
@@ -565,6 +576,12 @@ function applyTPose(skeleton, map) {
     const neg_x_axis = x_axis.clone().multiplyScalar(-1);
     alignBoneToAxis(resultSkeleton, map.RArm, map.RWrist, neg_x_axis);
 
+    for(let i = 0; i < leftHand.children.length; i++) { // Left Fingers
+        alignBoneToAxis( resultSkeleton, leftHand.children[i], null, x_axis); 
+    }
+    for(let i = 0; i < rightHand.children.length; i++) { // Right Fingers
+        alignBoneToAxis( resultSkeleton, rightHand.children[i], null, neg_x_axis); 
+    }
 	// return new T-pose
     resultSkeleton.update(); 
     return {skeleton: resultSkeleton, map};
@@ -578,14 +595,24 @@ function applyTPose(skeleton, map) {
  */
 function extendChain(resultSkeleton, origin, end) {
 
-	let previous = resultSkeleton.getBoneByName(end);
+    const base = typeof(origin) == 'string' ? resultSkeleton.getBoneByName(origin) : origin;
+    let previous = null;
+    if( !end ) {
+        end = base;
+        while( end.children.length ) {
+            end = end.children[0];            
+        }
+        previous = end;
+    }
+    else {
+        previous = typeof(end) == 'string' ? resultSkeleton.getBoneByName(end) : end;
+    }
 	let current = previous.parent;
 	let next = current.parent;
 
-    const base = resultSkeleton.getBoneByName(origin);
-	while(next != base) {
+	while( next != base.parent ) {
 		
-		// Exercice 2: Extend the bone current_id - previous_id to follow the next_id - current_id direction
+		// Extend the bone current_id - previous_id to follow the next_id - current_id direction
 		const prevPos = previous.getWorldPosition(new THREE.Vector3());
 		const currPos = current.getWorldPosition(new THREE.Vector3());
 		const nextPos = next.getWorldPosition(new THREE.Vector3());
@@ -670,12 +697,15 @@ function lookBoneAtAxis(bone, dir_a, dir_b, axis ) {
  * @param {String} end : bone's name 
  * @param {THREE.Vector3} axis 
  */
-function alignBoneToAxis(resultSkeleton, origin, end, axis ) {
+function alignBoneToAxis(resultSkeleton, origin, end = null, axis ) {
     
 	// Rotate the direction of the origin-end vector to follow the given axis
-	const oBone = resultSkeleton.getBoneByName(origin);
+	const oBone = typeof(origin) == 'string' ? resultSkeleton.getBoneByName(origin) : origin;
     oBone.updateMatrixWorld(true, true);
-    const eBone = resultSkeleton.getBoneByName(end);
+    if( !end ) {
+        end = oBone.children[0];
+    }
+    const eBone = typeof(end) == 'string' ? resultSkeleton.getBoneByName(end) : end;
     // Get global positions
     const oPos = oBone.getWorldPosition(new THREE.Vector3());
     const ePos = eBone.getWorldPosition(new THREE.Vector3());
