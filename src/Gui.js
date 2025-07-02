@@ -924,59 +924,55 @@ class KeyframesGui extends Gui {
         });
 
         // TODO make it prettier and/or move cloning to timeline
-        this.globalTimeline.cloneClips = function(clipsToClone, timeOffset, cloneReason ){
+        this.globalTimeline.cloneClips = (clipsToClone, timeOffset, cloneReason ) => {
 
+            let result = [];
 
-            const cloned = JSON.parse( JSON.stringify( clipsToClone ) );
-            for( let i = 0; i < cloned.length; ++i ){
-                const sourceClip = clipsToClone[i];
-                const c = cloned[i];
-                c.source = sourceClip.source; // copy reference (if any)
-                let tpg = c.skeletonAnimation.tracksPerGroup;
-                for( let groupId in tpg ){
-                    const arr = tpg[groupId];
-                    for( let ti = 0; ti < arr.length; ++ti ){
-                        arr[ti] = c.skeletonAnimation.tracks[ arr[ti].trackIdx ]; // redo references
+            let deepClone = false;
+            deepClone |= cloneReason == LX.ClipsTimeline.CLONEREASON_PASTE;
+            deepClone |= cloneReason == LX.ClipsTimeline.CLONEREASON_TRACKCLONE;
+            /* 
+            CLONEREASON_COPY & CLONEREASON_HISTORY
+                  Only numbers change. No need to duplicate keyframes. 
+                  If keyframes change, a saveState with currentKeyFrameClip would have been called before 
+                  displaying keyframe timelines. 
+                  Therefore, keyframes need to be duplicated only on paste. Otherwise, references work
+            */
+
+           for( let i = 0; i < clipsToClone.length; ++i ){
+                // Shallow copy
+                // copy values and references
+                const clip = Object.assign( {}, clipsToClone[i] );
+
+                // deepclone is only necessary for skeletonAnimation, auAnimation, bsAnimation and mixers
+                if ( deepClone | ( this.editor.currentKeyFrameClip && this.editor.currentKeyFrameClip == clip ) ){
+                    clip.skeletonAnimation = this.skeletonTimeline.instantiateAnimationClip( clip.skeletonAnimation, true );
+                    clip.auAnimation = this.auTimeline.instantiateAnimationClip( clip.auAnimation, true );
+                    clip.bsAnimation = this.bsTimeline.instantiateAnimationClip( clip.bsAnimation, true );
+        
+                    if ( cloneReason == LX.ClipsTimeline.CLONEREASON_PASTE ){
+                        // would requrie an updateMixerAnimation, immediately
+                        clip.mixerFaceAnimation = clipsToClone[i].mixerFaceAnimation.clone(); // create new uuid
+                        clip.mixerBodyAnimation = clipsToClone[i].mixerBodyAnimation.clone(); // create new uuid
                     }
+
+                    // if paste -> new mixerAnimations and add them to mixer -> probably below pasteContent()
+                    // savestate -> if Undo/Redo & Paste already do mixerAnimation updates, mixersAnimations can be left as references 
+                    // undo/redo -> must redo all actions. Some might have been deleted/added, change of mixer uiids, etc
+                    //              updateMixers.
                 }
-                c.skeletonAnimation.tracks.forEach((t,ti,arr) => { 
-                    t.times = sourceClip.skeletonAnimation.tracks[ti].times.slice();
-                    t.values = sourceClip.skeletonAnimation.tracks[ti].values.slice();
-                } );
-                tpg = c.auAnimation.tracksPerGroup;
-                for( let groupId in tpg ){
-                    const arr = tpg[groupId];
-                    for( let ti = 0; ti < arr.length; ++ti ){
-                        arr[ti] = c.auAnimation.tracks[ arr[ti].trackIdx ]; // redo references
-                    }
+
+                clip.start = (clip.start ?? 0) + timeOffset;
+                if (clip.hasOwnProperty("fadein") ){
+                    clip.fadein += timeOffset;
                 }
-                c.auAnimation.tracks.forEach((t,ti,arr) => { 
-                    t.times = sourceClip.auAnimation.tracks[ti].times.slice();
-                    t.values = sourceClip.auAnimation.tracks[ti].values.slice();
-                } );
-                tpg = c.bsAnimation.tracksPerGroup;
-                for( let groupId in tpg ){
-                    const arr = tpg[groupId];
-                    for( let ti = 0; ti < arr.length; ++ti ){
-                        arr[ti] = c.bsAnimation.tracks[ arr[ti].trackIdx ]; // redo references
-                    }
+                if (clip.hasOwnProperty("fadeout") ){
+                    clip.fadeout += timeOffset;
                 }
-                c.bsAnimation.tracks.forEach((t,ti,arr) => { 
-                    t.times = sourceClip.bsAnimation.tracks[ti].times.slice();
-                    t.values = sourceClip.bsAnimation.tracks[ti].values.slice();
-                } );
-                c.mixerFaceAnimation = clipsToClone[i].mixerFaceAnimation.clone(); // create new uuid
-                c.mixerBodyAnimation = clipsToClone[i].mixerBodyAnimation.clone(); // create new uuid
-                c.start = (c.start ?? 0) + timeOffset;
-                if (c.hasOwnProperty("fadein") ){
-                    c.fadein += timeOffset;
-                }
-                if (c.hasOwnProperty("fadeout") ){
-                    c.fadeout += timeOffset;
-                }
+                result.push(clip);
             }
 
-            return cloned;
+            return result;
         }
 
         this.globalTimeline.onSetTrackState = (track, previousState) =>{
@@ -1583,6 +1579,9 @@ class KeyframesGui extends Gui {
     setKeyframeClip(clip){
         if (!clip){
             this.editor.currentKeyFrameClip = null; // this before any setTime.
+            if ( !this.skeletonTimeline.historyUndo.length && !this.auTimeline.historyUndo.length && !this.bsTimeline.historyUndo.length ){
+                this.globalTimeline.historyUndo.pop(); // nothing was changed, duplication was unnecessary
+            }
             this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation());
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
             this.editor.setTime(this.editor.currentTime);
@@ -1593,6 +1592,7 @@ class KeyframesGui extends Gui {
         const sourceAnimation = clip.source; // might not exist
         this.editor.currentKeyFrameClip = clip;
         this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation()); // now that there is a currentKeyframeClip, update mixer actions
+        this.globalTimeline.saveState( clip.trackIdx ); // cloneClips must have a currentKeyFrameClip to duplicate, which is waht we need now
         
         const localTime = Math.max(0, Math.min( clip.duration, this.editor.currentTime - clip.start ) );
         this.editor.startTimeOffset = clip.start;

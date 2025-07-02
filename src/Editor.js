@@ -1149,6 +1149,24 @@ class KeyframeEditor extends Editor {
             LX.toast(`${this.activeTimeline.timelineTitle} Undo`, `Remaining Undo steps: ${this.activeTimeline.historyUndo.length-1} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
         }
         this.activeTimeline.undo();
+        if( this.activeTimeline == this.gui.globalTimeline && this.activeTimeline.historyRedo.length ){
+            const mixer = this.currentCharacter.mixer;
+            while(mixer._actions.length){
+                mixer.uncacheClip(mixer._actions[0]._clip);
+            }
+            this.globalAnimMixerManagement( mixer, this.activeTimeline.animationClip, false );
+            const steps = this.activeTimeline.historyRedo[ this.activeTimeline.historyRedo.length -1 ];
+            for( let i = 0; i < steps.length; ++i){
+                const track = this.activeTimeline.animationClip.tracks[ steps[i].trackIdx ];
+                track.clips.forEach((c,i) =>{
+                    this.currentKeyFrameClip = { blendMode: c.blendMode }; // start hack
+                    this.updateMixerAnimation( c.mixerBodyAnimation, null, c.skeletonAnimation, false );
+                    this.updateMixerAnimation( c.mixerFaceAnimation, null, c.bsAnimation, false );
+                    this.currentKeyFrameClip = null; // end hack
+                })
+            }
+        }
+        this.setTime(this.currentTime);
     }
 
     redo() {
@@ -1158,6 +1176,24 @@ class KeyframeEditor extends Editor {
             LX.toast(`${this.activeTimeline.timelineTitle} Redo`, `Remaining Redo steps: ${this.activeTimeline.historyRedo.length-1} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
         }
         this.activeTimeline.redo();
+        if( this.activeTimeline == this.gui.globalTimeline && this.activeTimeline.historyUndo.length ){
+            const mixer = this.currentCharacter.mixer;
+            while(mixer._actions.length){
+                mixer.uncacheClip(mixer._actions[0]._clip);
+            }
+            this.globalAnimMixerManagement( mixer, this.activeTimeline.animationClip, false );
+            const steps = this.activeTimeline.historyUndo[ this.activeTimeline.historyUndo.length -1 ];
+            for( let i = 0; i < steps.length; ++i){
+                const track = this.activeTimeline.animationClip.tracks[ steps[i].trackIdx ];
+                track.clips.forEach((c,i) =>{
+                    this.currentKeyFrameClip = { blendMode: c.blendMode }; // start hack
+                    this.updateMixerAnimation( c.mixerBodyAnimation, null, c.skeletonAnimation, false );
+                    this.updateMixerAnimation( c.mixerFaceAnimation, null, c.bsAnimation, false );
+                    this.currentKeyFrameClip = null; // end hack
+                })
+            }
+        }
+        this.setTime(this.currentTime);
     }
 
     async initCharacters() {
@@ -2746,7 +2782,7 @@ class KeyframeEditor extends Editor {
      * @returns 
      */
 
-    updateMixerAnimation( mixerAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip ) {
+    updateMixerAnimation( mixerAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip, callSetTime = true ) {
         // for bones editedAnimation is the timeline skeletonAnimation
         // for blendshapes editedAnimation is the timeline bsAnimation
         const mixer = this.currentCharacter.mixer;
@@ -2758,8 +2794,10 @@ class KeyframeEditor extends Editor {
         const action = mixer.clipAction(mixerAnimation);
         const isFaceAnim = mixerAnimation.name == "faceAnimation";
 
-        for( let i = 0; i < editedTracksIdxs.length; i++ ) {
-            const eIdx = editedTracksIdxs[i];
+        const numEditedTracks = editedTracksIdxs ? editedTracksIdxs.length : editedAnimation.tracks.length;
+
+        for( let i = 0; i < numEditedTracks; i++ ) {
+            const eIdx = editedTracksIdxs ? editedTracksIdxs[i] : i;
             const eTrack = editedAnimation.tracks[eIdx]; // track of the edited animation
             
             let mIdxs = [ eIdx ];
@@ -2828,8 +2866,10 @@ class KeyframeEditor extends Editor {
             }
         }
     
-        
-        this.setTime( this.currentTime );
+        if ( callSetTime ){
+            this.setTime( this.currentTime );
+        }
+
         return;               
     }
     /** -------------------- BONES INTERACTION -------------------- */
