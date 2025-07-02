@@ -1940,7 +1940,14 @@ class KeyframeEditor extends Editor {
 
             const boneHead = skeleton.bones[ 5 ]; // head
             boneHead.quaternion.copy( bindQuats[ 5 ] );
-            const boneHeadTop = skeleton.bones[ 8 ]; // head top, must be a children of head
+            let boneHeadTop = boneHead; // head top, must be a children of head
+            for(let i = 0; i < boneHead.children.length; i++) {
+                if(boneHead.children[i].name.toLowerCase().includes('eye')) {
+                    continue;
+                }
+                boneHeadTop = boneHead.children[i];
+                break;
+            }
             boneHead.updateWorldMatrix( true, false );
             // character bone local space direction
             let headBoneDir = boneHeadTop.position.clone().normalize();
