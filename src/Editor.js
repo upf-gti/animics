@@ -2636,11 +2636,15 @@ class KeyframeEditor extends Editor {
                 // stop actions that are additive. Keep only the selectedKeyFrameClip and all normalBlend animations 
                 for( let i = 0; i < mixer._actions.length; ++i ){
                     const actionClip = mixer._actions[i]._clip;
-                    if ( actionClip.blendMode == THREE.AdditiveAnimationBlendMode && 
-                         currentClip.mixerBodyAnimation != actionClip && 
-                         currentClip.mixerFaceAnimation != actionClip ){
-                            mixer._actions[i].stop();
-                    }
+                    if ( actionClip.blendMode == THREE.AdditiveAnimationBlendMode ){
+                        if ( currentClip.mixerBodyAnimation != actionClip && 
+                             currentClip.mixerFaceAnimation != actionClip ){
+                                mixer._actions[i].stop();
+                        }else{
+                            mixer._actions[i].setEffectiveWeight(1); // the current Clip must not have intensities != 1. Otherwise delta Quat computation is not correct (mixer applies slerp(basePose, pose, weight) )
+                        }
+                        
+                    } 
                 }
             }else{
 
@@ -2653,7 +2657,10 @@ class KeyframeEditor extends Editor {
                     
                     }
                 }
+                const weight = currentClip.weight;
+                currentClip.weight = 1; // hack, Delta Quat computations need to be with weight == 1. Mixer computes pose using slerp(basePose, pose, weight)
                 this.globalAnimMixerManagementSingleClip(mixer, currentClip);
+                currentClip.weight = weight; // end hack
             }
 
             return;
