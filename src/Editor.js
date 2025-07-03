@@ -1113,7 +1113,14 @@ class KeyframeEditor extends Editor {
         this.gui = new KeyframesGui(this);
 
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", children: []}]}];
+
+        this._clipsUniqueIDSeed = 0;
     }
+
+    generateClipUniqueID(){
+        return this._clipsUniqueIDSeed++;
+    }
+
 
     onKeyDown( event ) {
         switch( event.key ) {
@@ -1145,9 +1152,13 @@ class KeyframeEditor extends Editor {
     undo() {  
         if ( !this.activeTimeline.historyUndo.length ){
             LX.toast(`${this.activeTimeline.timelineTitle} Undo`, `No more changes to undo. Remaining Undo steps: ${this.activeTimeline.historyUndo.length} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+            return;
         }else{
             LX.toast(`${this.activeTimeline.timelineTitle} Undo`, `Remaining Undo steps: ${this.activeTimeline.historyUndo.length-1} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
         }
+
+        const lastSelection = this.gui.globalTimeline.lastClipsSelected.length == 1 ? this.gui.globalTimeline.lastClipsSelected[0] : null;
+
         this.activeTimeline.undo();
         if( this.activeTimeline == this.gui.globalTimeline && this.activeTimeline.historyRedo.length ){
             const mixer = this.currentCharacter.mixer;
@@ -1166,15 +1177,45 @@ class KeyframeEditor extends Editor {
                 })
             }
         }
+
+        // keep side panel visible with the selected clip
+        if ( lastSelection ){
+            const tracks = this.gui.globalTimeline.animationClip.tracks;
+            if( tracks[lastSelection[0]].clips.length > lastSelection[1] && tracks[lastSelection[0]].clips[lastSelection[1]].uid == lastSelection[2].uid ){
+                this.gui.globalTimeline.selectClip( lastSelection[0], lastSelection[1] ); // already calls createSidePinel in callback
+            }
+			else{
+				const targetId = lastSelection[2].uid;
+				let lost = true;
+				for( let t = 0; t < tracks.length; ++t ){
+					for( let c = 0; c < tracks[t].clips.length; ++c ){
+						if ( tracks[t].clips[c].uid == targetId ){
+							this.gui.globalTimeline.selectClip( t, c ); // already calls createSidePinel in callback
+							t = tracks.length; // end loop
+							lost = false;
+							break;
+						}
+					}
+				}
+				if ( lost ){
+					this.gui.createSidePanel(); // empty panel				
+				}
+			}
+        }
+
         this.setTime(this.currentTime);
     }
 
     redo() {
         if ( !this.activeTimeline.historyRedo.length ){
             LX.toast(`${this.activeTimeline.timelineTitle} Redo`, `No more changes to Redo. Remaining Redo steps: ${this.activeTimeline.historyRedo.length} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
+            return;
         }else{
             LX.toast(`${this.activeTimeline.timelineTitle} Redo`, `Remaining Redo steps: ${this.activeTimeline.historyRedo.length-1} / ${this.activeTimeline.historyMaxSteps}`, { timeout: 5000 });
         }
+
+        const lastSelection = this.gui.globalTimeline.lastClipsSelected.length == 1 ? this.gui.globalTimeline.lastClipsSelected[0] : null;
+
         this.activeTimeline.redo();
         if( this.activeTimeline == this.gui.globalTimeline && this.activeTimeline.historyUndo.length ){
             const mixer = this.currentCharacter.mixer;
@@ -1193,8 +1234,35 @@ class KeyframeEditor extends Editor {
                 })
             }
         }
+
+        // keep side panel visible with the selected clip
+        if ( lastSelection ){
+            const tracks = this.gui.globalTimeline.animationClip.tracks;
+            if( tracks[lastSelection[0]].clips.length > lastSelection[1] && tracks[lastSelection[0]].clips[lastSelection[1]].uid == lastSelection[2].uid ){
+                this.gui.globalTimeline.selectClip( lastSelection[0], lastSelection[1] ); // already calls createSidePinel in callback
+            }
+			else{
+				const targetId = lastSelection[2].uid;
+				let lost = true;
+				for( let t = 0; t < tracks.length; ++t ){
+					for( let c = 0; c < tracks[t].clips.length; ++c ){
+						if ( tracks[t].clips[c].uid == targetId ){
+							this.gui.globalTimeline.selectClip( t, c ); // already calls createSidePinel in callback
+							t = tracks.length; // end loop
+							lost = false;
+							break;
+						}
+					}
+				}
+				if ( lost ){
+					this.gui.createSidePanel(); // empty panel				
+				}
+			}
+        }
+
         this.setTime(this.currentTime);
     }
+
 
     async initCharacters() {
         // Create gizmo
@@ -2206,6 +2274,7 @@ class KeyframeEditor extends Editor {
         }
         
         const boundAnimation = {
+            uid: this.generateClipUniqueID(), // do not change this value
             source: animation,
             skeletonAnimation, auAnimation, bsAnimation, // from gui timeline. Main data
             mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation, // for threejs mixer. ALWAYS relies on timeline data

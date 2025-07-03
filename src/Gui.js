@@ -945,7 +945,7 @@ class KeyframesGui extends Gui {
                 const clip = Object.assign( {}, clipsToClone[i] );
 
                 // deepclone is only necessary for skeletonAnimation, auAnimation, bsAnimation and mixers
-                if ( deepClone | ( this.editor.currentKeyFrameClip && this.editor.currentKeyFrameClip == clip ) ){
+                if ( deepClone | ( this.editor.currentKeyFrameClip && this.editor.currentKeyFrameClip.uid == clip.uid ) ){
                     clip.skeletonAnimation = this.skeletonTimeline.instantiateAnimationClip( clip.skeletonAnimation, true );
                     clip.auAnimation = this.auTimeline.instantiateAnimationClip( clip.auAnimation, true );
                     clip.bsAnimation = this.bsTimeline.instantiateAnimationClip( clip.bsAnimation, true );
@@ -960,6 +960,10 @@ class KeyframesGui extends Gui {
                     // savestate -> if Undo/Redo & Paste already do mixerAnimation updates, mixersAnimations can be left as references 
                     // undo/redo -> must redo all actions. Some might have been deleted/added, change of mixer uiids, etc
                     //              updateMixers.
+                }
+
+                if ( deepClone ){
+                    clip.uid = this.editor.generateClipUniqueID(); // only on paste and trackclone
                 }
 
                 clip.start = (clip.start ?? 0) + timeOffset;
@@ -1695,10 +1699,13 @@ class KeyframesGui extends Gui {
                 p.addTitle("Keyframe Clip");
 
                 p.addText("Clip Name", clip.id, (v) =>{
+                    this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
                     clip.id = v;
                 } )
 
                 p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
+                    // saving color here floods the historyUndo. There should be some onPress or something similar to the RangeInput event
+                    // this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
                     clip.clipColor = v;
                 });
 
@@ -1707,6 +1714,8 @@ class KeyframesGui extends Gui {
                         p.widgets["State"].set(false, true);
                         return;
                     }
+                    if ( clip.active == v ){ return; }
+                    this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
                     clip.active = v;
                     this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
                     this.editor.setTime(this.editor.currentTime); // update mixer
@@ -1719,14 +1728,20 @@ class KeyframesGui extends Gui {
 
                 p.branch("Clip Blending");
 
-                p.addRange( "Intensity", clip.weight, (v,e) => { 
+                p.addRange( "Intensity", clip.weight, (v,e) => {
                     clip.weight = v; 
                     this.editor.computeKeyframeClipWeight(clip);
                     this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
-                }, {min: 0, max: 1, step: 0.001, className: "contrast" });
+                }, {min: 0, max: 1, step: 0.001, className: "contrast", onPress : (e, silder)=>{
+                       this.globalTimeline.saveState( clip.trackIdx ); // shallow copy    
+                    }
+                });
 
                 const fadetable = ["None","Linear","Quadratic","Sinusoid"]; 
                 p.addSelect("Fade In Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeinType], (v,e) =>{
+                    if ( fadetable[clip.fadeinType] != v ){
+                        this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
+                    }
                     if ( clip.fadeinType == KeyframeEditor.FADETYPE_NONE ){
                         clip.fadein = clip.start + 0.25 * clip.duration;
                     }
@@ -1739,6 +1754,9 @@ class KeyframesGui extends Gui {
                 } );
 
                 p.addSelect("Fade Out Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeoutType], (v,e) =>{
+                    if ( fadetable[clip.fadeoutType] != v ){
+                        this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
+                    }
                     if ( clip.fadeoutType == KeyframeEditor.FADETYPE_NONE ){
                         clip.fadeout = clip.start + 0.75 * clip.duration;
                     }
@@ -1754,10 +1772,9 @@ class KeyframesGui extends Gui {
                 p.addSelect("Blend Mode", ["Normal", "Additive" ], clip.blendMode == THREE.NormalAnimationBlendMode ? "Normal" : "Additive", (value, event) => {
                     let blendMode = value == "Normal" ? THREE.NormalAnimationBlendMode : THREE.AdditiveAnimationBlendMode;
                     if ( blendMode != clip.blendMode ){
-                        this.globalTimeline.saveState(clip.trackIdx);
+                        this.globalTimeline.saveState(clip.trackIdx); // shallow copy, undo/redo will manage the redoing of actions
                         this.editor.setKeyframeClipBlendMode( clip, blendMode, true );
                         this.editor.setTime(this.editor.currentTime); // update mixer
-                        this.createSidePanel();
                     }
                 }, {
                     on_Normal: (panel) => {
@@ -1768,7 +1785,10 @@ class KeyframesGui extends Gui {
                         panel.queuedContainer.appendChild( text ); // hack
 
                         panel.addButton(null, "Add bind pose", (v,e)=>{
-                            this.globalTimeline.saveState(clip.trackIdx);
+                            this.currentKeyFrameClip = clip; // hack to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
+                            this.currentKeyFrameClip = null; // end hack to deepclone
+
                             const skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
                             const skeletonclip = clip.skeletonAnimation;
                             skeleton.pose();
@@ -1821,9 +1841,12 @@ class KeyframesGui extends Gui {
                         panel.queuedContainer.appendChild( text ); // hack
 
                         panel.addButton(null, "Subtract bind pose", (v,e)=>{
-                            this.globalTimeline.saveState(clip.trackIdx);
-                            let skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
-                            let skeletonclip = clip.skeletonAnimation;
+                            this.currentKeyFrameClip = clip; // hack to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
+                            this.currentKeyFrameClip = null; // end hack to deepclone
+                            
+                            const skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
+                            const skeletonclip = clip.skeletonAnimation;
                             skeleton.pose();
     
                             const groups = skeletonclip.tracksPerGroup;
@@ -1868,7 +1891,10 @@ class KeyframesGui extends Gui {
                         }, { buttonClass: "error dashed" });
 
                         panel.addButton(null, "Subtract first frame pose", (v,e) =>{
-                            this.globalTimeline.saveState(clip.trackIdx);
+                            this.currentKeyFrameClip = clip; // hack to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
+                            this.currentKeyFrameClip = null; // end hack to deepclone
+                            
                             const skeletonclip = clip.skeletonAnimation;
     
                             const tracks = skeletonclip.tracks;
