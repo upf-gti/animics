@@ -97,6 +97,10 @@ class Gui {
                         name: "Shortcuts",
                         icon: "Keyboard",
                         submenu: [
+
+                            { name: "Undo", icon:"Undo", kbd: "CTRL + Z", callback: (e)=>{ this.editor.undo() } },
+                            { name: "Redo", icon:"Redo", kbd: "CTRL + Y", callback: (e)=>{ this.editor.redo() } },
+                            { name: "Play-Pause", kbd: "SPACE" },
                             { name: "Play-Pause", kbd: "SPACE" },
                             { name: "Zoom", kbd: "LSHIFT + Wheel" },
                             { name: "Scroll", kbd: "Wheel" },
@@ -1158,7 +1162,6 @@ class KeyframesGui extends Gui {
                 );
 
                 dialog.branch("Propagation Window");
-                // this.propagationWindowConfig(dialog);
                 this.propagationWindow.onOpenConfig(dialog);
                 dialog.merge();
             },
@@ -1359,7 +1362,6 @@ class KeyframesGui extends Gui {
                 );
 
                 dialog.branch("Propagation Window");
-                // this.propagationWindowConfig(dialog);
                 this.propagationWindow.onOpenConfig(dialog);
 
                 dialog.merge();
@@ -1475,7 +1477,6 @@ class KeyframesGui extends Gui {
                 );
 
                 dialog.branch("Propagation Window");
-                // this.propagationWindowConfig(dialog);
                 this.propagationWindow.onOpenConfig(dialog);
 
                 dialog.merge();
@@ -4881,7 +4882,7 @@ class PropagationWindow {
         
         this.showLimits = false;
 
-        this.enabler = true;
+        this.enabler = false;
         this.resizing = 0; // -1 resizing left, 0 nothing, 1 resizing right
 
         this.time = 0; // seconds
@@ -4980,7 +4981,7 @@ class PropagationWindow {
     onOpenConfig(dialog){
         dialog.addToggle("Enable", this.enabler, (v) =>{
             this.setEnabler(v);
-        }, { signal: "@propW_enabler"});
+        }, { className: "success", label: "", signal: "@propW_enabler"});
 
         dialog.sameLine();
         let w = dialog.addNumber("Min", this.leftSide, (v) => {
