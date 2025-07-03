@@ -4870,6 +4870,9 @@ class ScriptGui extends Gui {
 
 class PropagationWindow {
 
+    static STATE_BASE = 0;
+    static STATE_HOVERED = 1;
+    static STATE_SELECTED = 2;
     /*
      * @param {Lexgui timeline} timeline must be valid 
      */
@@ -4878,10 +4881,8 @@ class PropagationWindow {
         this.timeline = timeline; // will provide the canvas
         
         this.curveWidget = null; 
-        this.showCurve = false;
+        this.visualState = false;
         
-        this.showLimits = false;
-
         this.enabler = false;
         this.resizing = 0; // -1 resizing left, 0 nothing, 1 resizing right
 
@@ -4935,7 +4936,7 @@ class PropagationWindow {
     setEnabler( v ){
         this.enabler = v;
         if(!v) {
-            this.setCurveVisibility( false );
+            this.setVisualState( PropagationWindow.STATE_BASE );
         }
         LX.emit( "@propW_enabler", this.enabler );
     }
@@ -4967,7 +4968,7 @@ class PropagationWindow {
         this.timeline = timeline;
         
         this.curveWidget.root.remove(); // remove from dom, wherever this is
-        if(this.showCurve){
+        if(this.visualState){
             this.timeline.canvasArea.root.appendChild( this.curveWidget.root );
             this.updateCurve( true );
         }
@@ -5001,11 +5002,11 @@ class PropagationWindow {
             let color = "rgba(" + ((rawColor >> 16) & 0xff) + "," + ((rawColor >> 8) & 0xff) + "," + (rawColor & 0xff);
             this.gradientColorLimits = color + ",0%)"; 
             this.gradientColor = color;
-            this.curveWidget.curveInstance.element.pointscolor = value;
+
+            this.curveWidget.curveInstance.element.pointscolor = color + ")";
             this.curveWidget.curveInstance.redraw();
 
             this.opacity = parseInt(value[7]+value[8], 16) / 255.0;
-            this.curveWidget.root.style.opacity = this.opacity;
         }, {useAlpha: true});
     }
 
@@ -5033,14 +5034,18 @@ class PropagationWindow {
         }
 
         if( e.localX >= lpos && e.localX <= rpos && e.localY > windowRect.rectPosY && e.localY <= (windowRect.rectPosY + windowRect.rectHeight)) {
-            this.showLimits = true;
+            if( this.visualState == PropagationWindow.STATE_BASE ){
+                this.setVisualState( PropagationWindow.STATE_HOVERED );
+            }
         }
         else if(!this.resizing) { // outside of window
             
-            if(e.type == "mousedown") {
-                this.setCurveVisibility( false );
+            if(e.type == "mousedown" && this.visualState) {
+                this.setVisualState( PropagationWindow.STATE_BASE );
             }
-            this.showLimits = false;
+            else if( this.visualState == PropagationWindow.STATE_HOVERED ){
+                this.setVisualState( PropagationWindow.STATE_BASE );
+            }
         }
 
         if ( this.resizing && e.type == "mousemove" ){
@@ -5053,12 +5058,11 @@ class PropagationWindow {
                 this.recomputeGradient(t, this.rightSide);
                 LX.emit("@propW_minT", t); 
             }
-            this.showLimits = true;
-            if(this.showCurve) {
+            if(this.visualState) {
                 this.updateCurve( true );
             }
         }
-        else if(timeline.grabbing && this.showCurve) {
+        else if(timeline.grabbing && this.visualState) {
             this.updateCurve(); // update position of curvewidget
         }
 
@@ -5084,7 +5088,7 @@ class PropagationWindow {
     }
 
     onDblClick( e ) {
-        if ( !this.enabler || !this.showLimits ){ return; }
+        if ( !this.enabler ){ return; }
 
         const timeline = this.timeline;
         const lpos = timeline.timeToX( this.time - this.leftSide );
@@ -5092,27 +5096,26 @@ class PropagationWindow {
 
         if( e.localX >= lpos && e.localX <= rpos && e.localY > timeline.topMargin) {
             timeline.grabbing = false;
-            this.setCurveVisibility( true );
+            this.setVisualState( PropagationWindow.STATE_SELECTED );
         }
     }
 
-    setCurveVisibility( visibility ){
-        if (!visibility){
-            this.showCurve = false;
+    setVisualState( visualeState = PropagationWindow.STATE_BASE ){
+        if (visualeState == PropagationWindow.STATE_BASE){
+            this.visualState = PropagationWindow.STATE_BASE;
             this.curveWidget.root.remove(); // detach from timeline (if any)
         }else{
-            const oldVisibility = this.showCurve;
-            this.showCurve = true;
-            if ( !oldVisibility ){ // only do update on visibility change
+            const oldVisibility = this.visualState;
+            this.visualState = visualeState;
+            if ( oldVisibility == PropagationWindow.STATE_BASE ){ // only do update on visibility change
                 this.timeline.canvasArea.root.appendChild( this.curveWidget.root );
                 this.updateCurve(true);
             }
         }
-
     }
 
     updateCurve( updateSize = false ) {
-        if( !(this.enabler && this.showCurve) ){ return false; }
+        if( !(this.enabler && this.visualState) ){ return false; }
 
         const timeline = this.timeline;
 
@@ -5150,7 +5153,7 @@ class PropagationWindow {
 
         let rectWidth = leftSize + rightSize;
 		let rectHeight = Math.min(
-            timeline.canvas.height - timeline.topMargin - 2 - (this.showCurve ? this.curveWidget.curveInstance.canvas.clientHeight : 0), 
+            timeline.canvas.height - timeline.topMargin - 2 - (this.visualState ? this.curveWidget.curveInstance.canvas.clientHeight : 0), 
             timeline.leftPanel.root.children[1].children[0].clientHeight - timeline.leftPanel.root.children[1].scrollTop + timeline.trackHeight*0.5
         );
         rectHeight = Math.max( rectHeight, 0 );
@@ -5169,20 +5172,8 @@ class PropagationWindow {
 
         let { rightSize, leftSize, rectWidth, rectHeight, rectPosX, rectPosY } = this._getBoundingRectInnerWindow();
 
-        let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
-        gradient.addColorStop(0, this.gradientColorLimits);
-        for( let i = 0; i < this.gradient.length; ++i){
-            const g = this.gradient[i];
-            gradient.addColorStop(g[0], this.gradientColor + "," + g[1] +")");
-        }
-        gradient.addColorStop(1,this.gradientColorLimits);
-        ctx.fillStyle = gradient;
-        ctx.strokeStyle = this.borderColor;
-        const oldAlpha = ctx.globalAlpha;
-        ctx.globalAlpha = this.opacity;
-
         // compute radii
-        let radii = this.showCurve ? (timeline.trackHeight * 0.4) : timeline.trackHeight;
+        let radii = this.visualState == PropagationWindow.STATE_SELECTED ? (timeline.trackHeight * 0.4) : timeline.trackHeight;
         let leftRadii = leftSize > radii ? radii : leftSize;
         leftRadii = rectHeight > leftRadii ? leftRadii : rectHeight;
         
@@ -5191,55 +5182,73 @@ class PropagationWindow {
                 
         let radiusTL, radiusBL, radiusTR, radiusBR;
         radiusTL = leftRadii;
-        radiusBL = this.showCurve ? 0 : leftRadii;
+        radiusBL = this.visualState ? 0 : leftRadii;
         radiusTR = rightRadii;
-        radiusBR = this.showCurve ? 0 : rightRadii;
+        radiusBR = this.visualState ? 0 : rightRadii;
 
         // draw window rect
-        ctx.beginPath();
-
-        ctx.moveTo(rectPosX, rectPosY + radiusTL);
-        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL, rectPosY );
-        ctx.lineTo( rectPosX + rectWidth - radiusTR, rectPosY );
-        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR );
-        ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR );
-        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR, rectPosY + rectHeight );
-        ctx.lineTo( rectPosX + radiusBL, rectPosY + rectHeight );
-        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL );
-
-        ctx.closePath();
-        ctx.fill();
-        
-        ctx.lineWidth = 1;
-        if(this.showCurve) {
-            rectHeight = rectHeight + this.curveWidget.curveInstance.canvas.clientHeight - 2;
+        if ( this.visualState && this.opacity ){
+            let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
+            gradient.addColorStop(0, this.gradientColorLimits);
+            for( let i = 0; i < this.gradient.length; ++i){
+                const g = this.gradient[i];
+                gradient.addColorStop(g[0], this.gradientColor + "," + g[1] +")");
+            }
+            gradient.addColorStop(1,this.gradientColorLimits);
+            ctx.fillStyle = gradient;
+            ctx.globalAlpha = this.opacity;
+    
             ctx.beginPath();
-            ctx.lineTo(rectPosX, rectPosY + leftRadii);
-            ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + leftRadii, rectPosY );
-            ctx.lineTo( rectPosX + rectWidth - rightRadii, rectPosY );
-            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + rightRadii );
-            ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight - rightRadii );
-            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - rightRadii, rectPosY + rectHeight );
-            ctx.lineTo( rectPosX + leftRadii, rectPosY + rectHeight );
-            ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - leftRadii );
+    
+            ctx.moveTo(rectPosX, rectPosY + radiusTL);
+            ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL, rectPosY );
+            ctx.lineTo( rectPosX + rectWidth - radiusTR, rectPosY );
+            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR );
+            ctx.lineTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR );
+            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR, rectPosY + rectHeight );
+            ctx.lineTo( rectPosX + radiusBL, rectPosY + rectHeight );
+            ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL );
+    
             ctx.closePath();
-            ctx.stroke();
+            ctx.fill();
+            ctx.globalAlpha = 1;
         }
-        else if(this.showLimits){
-            ctx.beginPath();
-            ctx.moveTo(rectPosX, rectPosY + radiusTL*0.5);
-            ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL*0.5, rectPosY );
-            ctx.moveTo( rectPosX + rectWidth - radiusTR*0.5, rectPosY );
-            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR*0.5 );
-            ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR*0.5 );
-            ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR*0.5, rectPosY + rectHeight );
-            ctx.moveTo( rectPosX + radiusBL*0.5, rectPosY + rectHeight );
-            ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL*0.5 );
-            ctx.stroke();
+        
+        // borders
+        ctx.strokeStyle = this.borderColor;
+
+        ctx.lineWidth = 4;
+
+        ctx.beginPath();
+        ctx.moveTo(rectPosX, rectPosY + radiusTL*0.5);
+        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL*0.5, rectPosY );
+        ctx.moveTo( rectPosX + rectWidth - radiusTR*0.5, rectPosY );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR*0.5 );
+        ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR*0.5 );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR*0.5, rectPosY + rectHeight );
+        ctx.moveTo( rectPosX + radiusBL*0.5, rectPosY + rectHeight );
+        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL*0.5 );
+        ctx.stroke();
+        ctx.lineWidth = 1.5;
+
+        let lineSize = timeline.trackHeight;
+        let remaining = rectHeight - timeline.trackHeight;
+        let amount = 0;
+        if (lineSize > 0){
+            amount = Math.ceil(remaining/lineSize);
+            lineSize = remaining / amount;
         }
 
-        ctx.globalAlpha = oldAlpha;
-        
+        let start = rectPosY + timeline.trackHeight * 0.5;
+        for( let i = 0; i < amount; ++i ){
+            ctx.moveTo(rectPosX, start + lineSize * i + lineSize*0.3);
+            ctx.lineTo(rectPosX, start + lineSize * i + lineSize*0.7);
+            ctx.moveTo(rectPosX + rectWidth, start + lineSize * i + lineSize*0.3);
+            ctx.lineTo(rectPosX + rectWidth, start + lineSize * i + lineSize*0.7);
+        }
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        // end of borders        
     }
 }
 
