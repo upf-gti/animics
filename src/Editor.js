@@ -315,12 +315,21 @@ class Editor {
                         if ( o.skeleton ){ 
                             skeleton = o.skeleton;
                         }
-                        if (o.name == "Body")
-                                o.name == "BodyMesh";
+                        if (o.name == "Body") {
+                            o.name == "BodyMesh";
+                        }
                         if(o.morphTargetDictionary)
                         {
                             morphTargets[o.name] = o.morphTargetDictionary;
                             skinnedMeshes[o.name] = o;
+                        }
+                        if(o.name == "Classic_short") {
+                            if( o.children.length > 1 ){ 
+                                o.children[1].renderOrder = 1; 
+                            }
+                        }
+                        if(o.name.includes("Eyelashes")) {
+                            o.castShadow = false;
                         }
                         o.material.side = THREE.FrontSide;                    
                     }
@@ -1124,7 +1133,7 @@ class Editor {
         const openPreview = (data) => {
 
             if( !this._realizer.window || this._realizer.window.closed  ) {
-                this._realizer.window = window.open(Editor.PERFORMS_PATH + `?autoplay=true&avatar=${this.characterOptions[this.currentCharacter.name][0]}&config=${this.characterOptions[this.currentCharacter.name][1]}`, "Preview");
+                this._realizer.window = window.open(Editor.PERFORMS_PATH + `?autoplay=true?srcReferencePose=2&trgReferencePose=2&avatar=${this.characterOptions[this.currentCharacter.name][0]}&config=${this.characterOptions[this.currentCharacter.name][1]}`, "Preview");
                 this._realizer.status = false;
                 this._realizer.pendingData.push(data);
                 this._realizer.openAttemptCount = 0;
@@ -1497,7 +1506,7 @@ class KeyframeEditor extends Editor {
                         const clip = track.clips[j];
                         const newClip = Object.assign({}, clip);
                         newClip.uid = this.generateClipUniqueID();
-                        
+
 						// Retarget body animation
                         if(clip.mixerBodyAnimation) {
                             newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);
