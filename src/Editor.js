@@ -1496,7 +1496,8 @@ class KeyframeEditor extends Editor {
                     for( let j = 0; j < track.clips.length; j++) {
                         const clip = track.clips[j];
                         const newClip = Object.assign({}, clip);
-
+                        newClip.uid = this.generateClipUniqueID();
+                        
 						// Retarget body animation
                         if(clip.mixerBodyAnimation) {
                             newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);
