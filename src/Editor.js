@@ -2501,6 +2501,9 @@ class KeyframeEditor extends Editor {
                 if( !auAnimation.tracks.length ) {
                     auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.rpm);
                 }
+                if( !auAnimation.tracks.length ) {
+                    auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.Eva);
+                }
             }
             // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
             for( let i = 0; i < auAnimation.tracks.length; ++i ){
