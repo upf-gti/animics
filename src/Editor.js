@@ -40,8 +40,8 @@ try {
 
 class Editor {
     static RESOURCES_PATH = "https://resources.gti.upf.edu/3Dcharacters/";
-    static PERFORMS_PATH = "https://performs.gti.upf.edu/";
-    static ATELIER_PATH = "https://atelier.gti.upf.edu/";
+    static PERFORMS_PATH = "https://performs.gti.upf.edu";
+    static ATELIER_PATH = "https://atelier.gti.upf.edu";
     
     constructor( animics ) {
         
@@ -1124,18 +1124,20 @@ class Editor {
         const openPreview = (data) => {
 
             if( !this._realizer.window || this._realizer.window.closed  ) {
-                this._realizer.window = window.open(Editor.PERFORMS_PATH + "?autoplay=true", "Preview");
+                this._realizer.window = window.open(Editor.PERFORMS_PATH + `?autoplay=true&avatar=${this.characterOptions[this.currentCharacter.name][0]}&config=${this.characterOptions[this.currentCharacter.name][1]}`, "Preview");
                 this._realizer.status = false;
                 this._realizer.pendingData.push(data);
                 this._realizer.openAttemptCount = 0;
                 const waitTime = 500; // ms
                 const maxTries = 100;
                 window.onmessage = (event) =>{ 
-                    if (event.origin == URL.parse(Editor.PERFORMS_PATH).origin){ // URL.parse is an overkill, but better be safe, in case performs path changes later on
+                    if (event.origin == Editor.PERFORMS_PATH){ // URL.parse is an overkill, but better be safe, in case performs path changes later on
                         if ( typeof(event.data) == "object" && event.data.appStatus ){
+
                             for( let i = 0; i < this._realizer.pendingData.length; ++i){
                                 this._realizer.window.postMessage(this._realizer.pendingData[i], "*");
                             }
+
                             this._realizer.window.focus();
                             this._realizer.pendingData.length = 0;
                             this._realizer.status = true;
