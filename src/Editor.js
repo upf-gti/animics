@@ -10,7 +10,7 @@ import { Gizmo } from "./Gizmo.js";
 import { UTILS } from "./Utils.js"
 import { NN } from "./ML.js"
 import { OrientationHelper } from "./libs/OrientationHelper.js";
-import { AnimationRetargeting, findIndexOfBone, findIndexOfBoneByName } from './retargeting.js'
+import { AnimationRetargeting, findIndexOfBone, findIndexOfBoneByName, applyTPose } from './retargeting.js'
 import { BMLController } from "./controller.js"
 import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
@@ -20,6 +20,18 @@ import { LX } from "lexgui"
 
 // const MapNames = await import('../data/mapnames.json', {assert: { type: 'json' }});
 const MapNames = await (await fetch('./data/mapnames.json')).json();
+let json = null
+try {
+    const response = await fetch('https://resources.gti.upf.edu/3Dcharacters/ReadyVictor/ReadyVictor.json');
+    if (!response.ok) {
+      throw new Error(`Response status: ${response.status}`);
+    }
+
+    json = await response.json();
+    console.log(json);
+  } catch (error) {
+    console.error(error.message);
+  }
 // Correct negative blenshapes shader of ThreeJS
 // THREE.ShaderChunk[ 'morphnormal_vertex' ] = "#ifdef USE_MORPHNORMALS\n	objectNormal *= morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		for ( int i = 0; i < MORPHTARGETS_COUNT; i ++ ) {\n	    objectNormal += getMorph( gl_VertexID, i, 1, 2 ) * morphTargetInfluences[ i ];\n		}\n	#else\n		objectNormal += morphNormal0 * morphTargetInfluences[ 0 ];\n		objectNormal += morphNormal1 * morphTargetInfluences[ 1 ];\n		objectNormal += morphNormal2 * morphTargetInfluences[ 2 ];\n		objectNormal += morphNormal3 * morphTargetInfluences[ 3 ];\n	#endif\n#endif";
 // THREE.ShaderChunk[ 'morphtarget_pars_vertex' ] = "#ifdef USE_MORPHTARGETS\n	uniform float morphTargetBaseInfluence;\n	#ifdef MORPHTARGETS_TEXTURE\n		uniform float morphTargetInfluences[ MORPHTARGETS_COUNT ];\n		uniform sampler2DArray morphTargetsTexture;\n		uniform vec2 morphTargetsTextureSize;\n		vec3 getMorph( const in int vertexIndex, const in int morphTargetIndex, const in int offset, const in int stride ) {\n			float texelIndex = float( vertexIndex * stride + offset );\n			float y = floor( texelIndex / morphTargetsTextureSize.x );\n			float x = texelIndex - y * morphTargetsTextureSize.x;\n			vec3 morphUV = vec3( ( x + 0.5 ) / morphTargetsTextureSize.x, y / morphTargetsTextureSize.y, morphTargetIndex );\n			return texture( morphTargetsTexture, morphUV ).xyz;\n		}\n	#else\n		#ifndef USE_MORPHNORMALS\n			uniform float morphTargetInfluences[ 8 ];\n		#else\n			uniform float morphTargetInfluences[ 4 ];\n		#endif\n	#endif\n#endif";
@@ -29,10 +41,11 @@ const MapNames = await (await fetch('./data/mapnames.json')).json();
 class Editor {
     static RESOURCES_PATH = "https://resources.gti.upf.edu/3Dcharacters/";
     static PERFORMS_PATH = "https://performs.gti.upf.edu/";
+    static ATELIER_PATH = "https://atelier.gti.upf.edu/";
     
     constructor( animics ) {
         
-        this.character = "Eva";
+        this.character = "";
 
         this.currentCharacter = null;
         this.loadedCharacters = {};
@@ -94,6 +107,17 @@ class Editor {
             status: false, // if there is a window, whether it is ready to receive data properly
             pendingData: [],
         }
+        
+        this.characterOptions = {
+            "Eva": [Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.glb', Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.json', 0, Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.png'],
+            "Witch": [Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.glb', Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.json', 0, Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.png'],
+            "Kevin": [Editor.RESOURCES_PATH+'Kevin/Kevin.glb', Editor.RESOURCES_PATH+'Kevin/Kevin.json', 0, Editor.RESOURCES_PATH+'Kevin/Kevin.png'],
+            "Ada": [Editor.RESOURCES_PATH+'Ada/Ada.glb', Editor.RESOURCES_PATH+'Ada/Ada.json',0, Editor.RESOURCES_PATH+'Ada/Ada.png'],
+            "Victor": [Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.glb', Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.json',0, Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.png'],
+            "Ready Eva": ['https://models.readyplayer.me/66e30a18eca8fb70dcadde68.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva_v3.json',0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
+        }
+
+        this.mapNames = {characterMap: json.faceController.blendshapeMap, mediapipeMap: MapNames.mediapipe, parts:  MapNames.parts};
     }
 
     enable() {
@@ -115,7 +139,9 @@ class Editor {
         this.createScene();
         
         this.disable()
-        await this.initCharacters();
+        
+        const modelToLoad = [Editor.RESOURCES_PATH + 'Eva_Low/Eva_Low.glb', Editor.RESOURCES_PATH + 'Eva_Low/Eva_Low.json', (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), 0 ), "Eva" ];
+        await this.initCharacters(modelToLoad);
 
         if( settings.pendingResources ) {
             UTILS.makeLoading("Loading files...");
@@ -248,10 +274,10 @@ class Editor {
         this.orientationHelper = orientationHelper;
     }
 
-    async initCharacters() {
+    async initCharacters(modelToLoad) {
       
         // Load current character
-        await this.loadCharacter(this.character);
+        await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
         
         // while(!this.loadedCharacters[this.character] ) {
         //     await new Promise(r => setTimeout(r, 1000));            
@@ -259,14 +285,19 @@ class Editor {
 
     }
 
-    async loadCharacter(characterName) {
+    async loadCharacter(modelFilePath, configFile, modelRotation, characterName, callback = null, onerror = null) {
 
-        let modelName = characterName.split("/");
-        UTILS.makeLoading("Loading GLTF [" + modelName[modelName.length - 1] +"]...")
+        if(modelFilePath.includes("models.readyplayer.me")) {
+            modelFilePath+= "?morphTargets=ARKit"
+        }
 
+        this.character = characterName;
+
+        UTILS.makeLoading("Loading GLTF [" + this.character +"]...")
+        //Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb"
         // Load the target model (Eva)
         return new Promise( resolve => {
-            this.loaderGLB.load(Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb", (gltf) => {
+            this.loaderGLB.load(modelFilePath, async (gltf) => {
                 const model = gltf.scene;
                 model.name = characterName;
                 model.visible = true;
@@ -308,6 +339,31 @@ class Editor {
                     name: characterName, model, morphTargets, skinnedMeshes, mixer, skeletonHelper
                 };
                
+                if (configFile) {
+                    // Read the file if it's a URL
+                    if(typeof(configFile) == 'string') {                    
+                        const response = await fetch( configFile );
+                        
+                        if(response.ok) {
+                            const text = await response.text()                       
+                            
+                            let config = JSON.parse( text );
+                            const rawConfig = JSON.parse( text );
+                            config._filename = configFile;
+                            this.loadedCharacters[characterName].config = config;
+                            this.loadedCharacters[characterName].rawConfig = rawConfig;
+                        }
+                    }
+                    else {
+                        // Set the config file data if it's an object
+                        const config = configFile;
+                        this.loadedCharacters[characterName].config = config;
+                        this.loadedCharacters[characterName].rawConfig = JSON.parse(JSON.stringify(config));
+
+                        this.mapNames.characterMap = config.faceController.blendshapeMap;
+                    }
+                }
+
                 if( this.isScriptMode() ) {
                     let eyesTarget = new THREE.Object3D(); //THREE.Mesh( new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshPhongMaterial({ color: 0xffff00 , depthWrite: false }) );
                     eyesTarget.name = "eyesTarget";
@@ -330,28 +386,47 @@ class Editor {
                     model.neckTarget = neckTarget;
     
                     skeletonHelper.visible = false;
-                    fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
-                        const config = JSON.parse( text );
-                        this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
-                        this.changeCharacter(characterName);
-                        resolve();
-                    })
+                    
+                    this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName], this.loadedCharacters[characterName].config);
+                    
+                    // fetch( Editor.RESOURCES_PATH + characterName + "/" + characterName + ".json" ).then(response => response.text()).then( (text) => {
+                    //     const config = JSON.parse( text );
+                    //     this.loadedCharacters[characterName].bmlManager = new BMLController( this.loadedCharacters[characterName] , config);
+                    //     this.changeCharacter(characterName);
+                    //     resolve();
+                    // })
                 }
                 else {
-                    this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, this.mapNames);
-                    this.changeCharacter(characterName);
-                    resolve();
+                    this.loadedCharacters[characterName].blendshapesManager = new BlendshapesManager(skinnedMeshes, morphTargets, {parts: this.mapNames.parts, mediapipeMap: this.mapNames.mediapipeMap, characterMap: (this.loadedCharacters[characterName].config ? this.loadedCharacters[characterName].config.faceController.blendshapeMap : this.mapNames.characterMap)});
+                
                 }
-    
+                
+                await this.changeCharacter(characterName);
+                
+                resolve();
+                if (callback) {
+                    callback();
+                }
+                
             });
         })
+    }
+
+    updateCharacter(config) {
+        this.currentCharacter.skeletonHelper.skeleton.pose();
+        if( this.isScriptMode() ) {
+            this.currentCharacter.bmlManager = new BMLController( this.currentCharacter, config);
+            this.currentCharacter.bmlManager.ECAcontroller.start();
+            this.currentCharacter.bmlManager.ECAcontroller.reset();
+        }               
     }
 
     async changeCharacter(characterName) {
         // Check if the character is already loaded
         if( !this.loadedCharacters[characterName] ) {
             console.warn(characterName + " not loaded");
-            await this.loadCharacter(characterName);
+            const modelToLoad = this.characterOptions[characterName];
+            await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], characterName);
             return;
         }
 
@@ -371,8 +446,74 @@ class Editor {
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
         }
+        this.gui.createCharactersPanel();
+        // this.gui.setKeyframeClip(null);
+        // this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
         
+        for(let anim in this.boundAnimations) {
+            if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
+                const characters = Object.keys(this.boundAnimations[anim]);
+                const animation = this.boundAnimations[anim][characters[0]];
+                this.setGlobalAnimation(anim);
+            }
+            this.updateMixerAnimation( this.loadedAnimations[this.getCurrentAnimation().name].scriptAnimation );
+        }
+        
+        this.gui.createSidePanel();
         UTILS.hideLoading();
+    }
+
+    retargetAnimation(source, bodyAnimation) {
+      
+        const currentCharacter = this.currentCharacter;
+        this.currentCharacter.skeletonHelper.skeleton.pose();
+        const skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
+        if(skeleton)
+        {
+            currentCharacter.skeletonHelper.skeleton = skeleton;
+        }
+        else {
+            console.warn("T-pose can't be applyied to the TARGET. Automap falied.")
+        }
+
+        let sourceCharacter = source.skeleton;
+       
+        
+        if( bodyAnimation ) {
+        
+            let tracks = [];
+            const otherTracks = []; // blendshapes
+            // Remove position changes (only keep i == 0, hips)
+            for (let i = 0; i < bodyAnimation.tracks.length; i++) {
+
+                if(bodyAnimation.tracks[i].constructor.name == THREE.NumberKeyframeTrack.name ) {
+                    otherTracks.push(bodyAnimation.tracks[i]);
+                    continue;
+                }
+                if(i && bodyAnimation.tracks[i].name.includes('position')) {
+                    continue;
+                }
+                tracks.push(bodyAnimation.tracks[i]);
+                tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace(".bones", "");//tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
+            }
+
+            //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+            bodyAnimation.tracks = tracks;            
+            
+            
+            sourceCharacter.pose();
+            const skeleton = applyTPose(sourceCharacter).skeleton;
+            if(skeleton)
+            {
+                sourceCharacter = skeleton;
+            }
+            else {
+                console.warn("T-pose can't be applyied to the SOURCE. Automap falied.")
+            }            
+            
+            const retargeting = new AnimationRetargeting(sourceCharacter, currentCharacter.model, { srcEmbedWorldTransforms: true, trgEmbedWorldTransforms: true, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT } ); // TO DO: change trgUseCurrentPose param
+            return retargeting.retargetAnimation(bodyAnimation);
+        }
     }
 
     fileToAnimation (data, callback)  {
@@ -1057,6 +1198,26 @@ class Editor {
         return this.constructor == ScriptEditor;
     }
     
+    openAtelier(name, model, config, fromFile = true, rotation = 0) {
+            
+        let rawConfig = config;
+        
+        const atelierData = [name, model, rawConfig, rotation];        
+              
+        const sendData = (data) => {
+
+            if( !this._atelier || this._atelier.closed ) {
+                this._atelier = window.open(Editor.ATELIER_PATH, "Atelier");
+                setTimeout(() => sendData(data), 1000); // wait a while to have the page loaded (onloaded has CORS error)                
+            }
+            else {
+                this._atelier.focus();                
+                setTimeout(() => this._atelier.postMessage(data, "*"), 1000);
+            }
+        }
+        sendData(JSON.stringify(atelierData));
+    }
+
     onKeyDown( event ) {} // Abstract
     redo() {}
     undo() {}
@@ -1073,7 +1234,7 @@ class Editor {
 
 /**
  * This editor uses loadedAnimations to store loaded files and video-animations. 
- * The global animations are stored in boundAnimations, each avatar having its own animationClip as keyframes are meaningful only to a single avatar
+ * The global animations are stored in boundAnimations, each character having its own animationClip as keyframes are meaningful only to a single character
  */
 class KeyframeEditor extends Editor { 
     
@@ -1098,7 +1259,7 @@ class KeyframeEditor extends Editor {
 
         this.applyRotation = false; // head and eyes rotation
         this.selectedAU = "Brow Left";
-        this.selectedBone = "mixamorig_Hips";
+        this.selectedBone = null;
         
         if ( this.inferenceMode == this.animationInferenceModes.NN ){
             this.nn = new NN("data/ML/model.json");
@@ -1106,8 +1267,6 @@ class KeyframeEditor extends Editor {
         }
 
         this.retargeting = null;
-        
-        this.mapNames = MapNames.map_llnames[this.character];
 
         // Create GUI
         this.gui = new KeyframesGui(this);
@@ -1263,13 +1422,12 @@ class KeyframeEditor extends Editor {
         this.setTime(this.currentTime);
     }
 
-
-    async initCharacters() {
+    async initCharacters( modelToLoad ) {
         // Create gizmo
         this.gizmo = new Gizmo(this);
 
         // Load current character
-        await this.loadCharacter(this.character);
+        await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
         
         if ( this.inferenceMode == this.animationInferenceModes.NN ) {
             this.loadNNSkeleton();
@@ -1278,7 +1436,7 @@ class KeyframeEditor extends Editor {
         while(!this.loadedCharacters[this.character] || ( !this.nnSkeleton && this.inferenceMode == this.animationInferenceModes.NN ) ) {
             await new Promise(r => setTimeout(r, 1000));            
         }        
-
+        this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
         this.setBoneSize(0.12);
     }
     
@@ -1292,6 +1450,83 @@ class KeyframeEditor extends Editor {
             
             this.nnSkeleton = result.skeleton;
         });
+    }
+
+    async changeCharacter(characterName) {
+        // Check if the character is already loaded
+        if( !this.loadedCharacters[characterName] ) {
+            console.warn(characterName + " not loaded");
+            const modelToLoad = this.characterOptions[characterName];
+            await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], characterName);
+            return;
+        }
+
+        // Remove current character from the scene
+        if(this.currentCharacter) {
+            this.scene.remove(this.currentCharacter.model);
+            this.scene.remove(this.currentCharacter.skeletonHelper);
+        }
+
+        // Add current character to the scene
+        this.currentCharacter = this.loadedCharacters[characterName];
+        this.scene.add( this.currentCharacter.model );
+        this.scene.add( this.currentCharacter.skeletonHelper );
+        this.setPlaybackRate(this.playbackRate);
+
+        // Gizmo stuff
+        if(this.gizmo) {
+            this.gizmo.begin(this.currentCharacter.skeletonHelper);            
+        }
+
+        this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
+        
+        for(let anim in this.boundAnimations) {
+            if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
+                const characters = Object.keys(this.boundAnimations[anim]);
+                const animation = this.boundAnimations[anim][characters[0]];
+                
+                const newAnimation = Object.assign({}, animation);
+                const tracks = [];
+                
+                for(let i = 0; i < animation.tracks.length; i++) {
+                    const track = animation.tracks[i];
+                    const clips = [];
+                    for( let j = 0; j < track.clips.length; j++) {
+                        const clip = track.clips[j];
+                        const newClip = Object.assign({}, clip);
+
+						// Retarget body animation
+                        if(clip.mixerBodyAnimation) {
+                            newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);
+							newClip.mixerBodyAnimation.duration = clip.skeletonAnimation.duration;
+                            // Set keyframe animation to the timeline and get the timeline-formated one
+                            newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
+                            newClip.skeletonAnimation.name = "bodyAnimation";  // timeline
+                        }
+                        if(clip.auAnimation) {
+                           
+                            newClip.auAnimation = this.gui.auTimeline.instantiateAnimationClip( newClip.auAnimation, true );                            
+                            newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( newClip.auAnimation ); // blendhsapes timeline            
+							newClip.mixerFaceAnimation.duration = clip.auAnimation.duration;
+                            newClip.bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(newClip.mixerFaceAnimation);
+                            newClip.bsAnimation.duration = newClip.auAnimation.duration;
+                            newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( newClip.bsAnimation ); // generate default animationclip or process the user's one;
+                        }
+                        clips.push(newClip);
+                    }
+                    const newTrack = Object.assign({}, track);
+                    newTrack.clips = clips;
+                    tracks.push(newTrack);
+                }
+                newAnimation.tracks = tracks;
+                this.boundAnimations[anim][characterName] = newAnimation;
+
+            }
+            this.gui.createCharactersPanel();
+            this.setGlobalAnimation(anim);
+        }
+        this.gui.createSidePanel();
+        UTILS.hideLoading();
     }
 
     /**
@@ -1347,8 +1582,8 @@ class KeyframeEditor extends Editor {
         this.gui.globalTimeline.setAnimationClip( this.boundAnimations[name][this.currentCharacter.name], false );
         this.currentAnimation = name;
         this.currentKeyFrameClip = null;
-        this.setTimeline( this.animationModes.GLOBAL );
-        this.globalAnimMixerManagement(mixer, this.boundAnimations[name][this.currentCharacter.name]);
+        this.globalAnimMixerManagement(mixer, this.boundAnimations[name][this.currentCharacter.name], false);
+        this.setTimeline(this.animationModes.GLOBAL);
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
         this.setTime(this.currentTime); // update mixer
@@ -1378,8 +1613,8 @@ class KeyframeEditor extends Editor {
 
         const bound = this.boundAnimations[currentName];
         this.boundAnimations[newName] = bound;
-        for( let avatarname in bound ){
-            bound[avatarname].id = newName;
+        for( let charactername in bound ){
+            bound[charactername].id = newName;
         }
         delete this.boundAnimations[currentName];
 
@@ -1607,7 +1842,7 @@ class KeyframeEditor extends Editor {
             animationData.blendshapesAnim.name = "faceAnimation";       
             faceAnimation = animationData.blendshapesAnim.clip;
             // // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
-            // faceAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
+            // faceAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
         }
         else { // Otherwise, create empty face animation
             // faceAnimation = THREE.AnimationClip.CreateFromMorphTargetSequence('BodyMesh', this.currentCharacter.model.getObjectByName("BodyMesh").geometry.morphAttributes.position, 24, false);
@@ -1821,9 +2056,16 @@ class KeyframeEditor extends Editor {
 
             const boneHead = skeleton.bones[ 5 ]; // head
             boneHead.quaternion.copy( bindQuats[ 5 ] );
-            const boneHeadTop = skeleton.bones[ 8 ]; // head top, must be a children of head
+            let boneHeadTop = boneHead; // head top, must be a children of head
+            for(let i = 0; i < boneHead.children.length; i++) {
+                if(boneHead.children[i].name.toLowerCase().includes('eye')) {
+                    continue;
+                }
+                boneHeadTop = boneHead.children[i];
+                break;
+            }
             boneHead.updateWorldMatrix( true, false );
-            // avatar bone local space direction
+            // character bone local space direction
             let headBoneDir = boneHeadTop.position.clone().normalize();
     
             // world space
@@ -1878,7 +2120,7 @@ class KeyframeEditor extends Editor {
                 dirPred.subVectors( landmarkTrg, landmarkSrc );
                 dirPred.applyQuaternion( invWorldQuat ).normalize();
     
-                // avatar bone local space direction
+                // character bone local space direction
                 dirBone.copy( boneTrg.position ).normalize();
     
                 // move bone to predicted direction
@@ -1930,7 +2172,7 @@ class KeyframeEditor extends Editor {
 
         /* TODO
             Consider moving the constraints direclty into the mediapipe landmarks. 
-            This would avoid unnecessary recomputations of constraints between different avatars.
+            This would avoid unnecessary recomputations of constraints between different characters.
             Changes would be baked already in the mediapipe landmarks
         */       
         function computeQuatPhalange( skeleton, bindQuats, handLandmarks, isLeft = false ){
@@ -2093,7 +2335,7 @@ class KeyframeEditor extends Editor {
                     // world phalange direction to local space
                     v_phalange.applyQuaternion( invWorldQuat ).normalize();
         
-                    // avatar bone local space direction
+                    // character bone local space direction
                     let phalange_p = boneTrg.position.clone().normalize();
         
                     // move bone to predicted direction
@@ -2214,9 +2456,10 @@ class KeyframeEditor extends Editor {
                 
                 // Retarget NN animation              
                 // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
-                let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true } ); // both skeletons use their native bind pose
+                // let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true, srcPoseMode: options.srcPoseMode, trgPoseMode: options.trgPoseMode, srcEmbedWorldTransforms: options.srcEmbedWorldTransforms } ); // both skeletons use their native bind pose
                 const oldDuration = bodyAnimation.duration;
-                bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+                // bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
+                bodyAnimation = this.retargetAnimation({skeleton}, bodyAnimation);  
                 bodyAnimation.duration = oldDuration;
             }
 
@@ -2248,12 +2491,16 @@ class KeyframeEditor extends Editor {
         if(faceAnimation) {
                             
             if(animation.type == "video") {
-                auAnimation = faceAnimation;
-                faceAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes);
+                const parsedAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes);
+                faceAnimation = parsedAnimation.bsAnimation;
+                auAnimation = parsedAnimation.auAnimation || faceAnimation;
             }
             else {
                 // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
-                auAnimation = this.currentCharacter.blendshapesManager.createMediapipeAnimation(faceAnimation);
+                auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
+                if( !auAnimation.tracks.length ) {
+                    auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.rpm);
+                }
             }
             // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
             for( let i = 0; i < auAnimation.tracks.length; ++i ){
@@ -2266,11 +2513,14 @@ class KeyframeEditor extends Editor {
 
             faceAnimation.name = "faceAnimation";   // mixer
             auAnimation.name = "faceAnimation";  // action units timeline
+            faceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation ); 
             this.validateFaceAnimationClip(faceAnimation);
             
-            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
+            // bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
+            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(faceAnimation);
             bsAnimation.duration = faceAnimation.duration;
             bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation ); // generate default animationclip or process the user's one;
+
         }
         
         const boundAnimation = {
@@ -2307,7 +2557,7 @@ class KeyframeEditor extends Editor {
 
         
         this.setTime(this.currentTime); // update mixer state
-        return true;
+        return boundAnimation;
     }
 
     /** Validate body animation clip created using ML 
@@ -2322,7 +2572,7 @@ class KeyframeEditor extends Editor {
         quatCheck.fill(false);
         let posCheck = false; //root only
 
-        // ensure each track has at least one valid entry. Default to current avatar pose
+        // ensure each track has at least one valid entry. Default to current character pose
         for( let i = 0; i < tracks.length; ++i ){
             let t = tracks[i];
             let trackBoneName = t.name.substr(0, t.name.lastIndexOf("."));
@@ -2365,7 +2615,7 @@ class KeyframeEditor extends Editor {
         bsCheck.fill(false);
 
         const allMorphTargetDictionary = {};
-        // ensure each track has at least one valid entry. Default to current avatar pose
+        // ensure each track has at least one valid entry. Default to current character pose
         for( let i = 0; i < tracks.length; ++i ){
             const track = tracks[i];
             const {propertyIndex, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
@@ -2569,26 +2819,36 @@ class KeyframeEditor extends Editor {
         if(this.activeTimeline) {
             this.activeTimeline.hide();
         }
-
+        const lastMode = this.animationMode;
         switch(type) {
             case this.animationModes.FACEBS:
-                this.animationMode = this.animationModes.FACEBS;
                 this.activeTimeline = this.gui.bsTimeline;
+                this.animationMode = this.animationModes.FACEBS;
+                if( lastMode != this.animationModes.FACEAU ) {
+                    // this.gui.createSidePanel();  
+                }
                 this.gizmo.disable();
                 break;
 
             case this.animationModes.FACEAU:
-                this.animationMode = this.animationModes.FACEAU;
                 this.activeTimeline = this.gui.auTimeline;
-                this.setSelectedActionUnit(this.selectedAU);        
+                this.animationMode = this.animationModes.FACEAU;
+                if( lastMode != this.animationModes.FACEBS ) {
+                    // this.gui.createSidePanel();  
+                }  
+                this.setSelectedActionUnit(this.selectedAU);           
                 this.gizmo.disable();
+                
                 break;
                
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
-                this.activeTimeline = this.gui.skeletonTimeline;                
+                this.activeTimeline = this.gui.skeletonTimeline;
+                // this.gui.createSidePanel();          
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
-                this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
+                if( this.gui.canvasAreaOverlayButtons ) {
+                    this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
+                }
                 this.gizmo.enable();
 
                 break;
@@ -2602,8 +2862,10 @@ class KeyframeEditor extends Editor {
                 this.startTimeOffset = 0;
                 this.currentKeyFrameClip = null;
                 this.activeTimeline = this.gui.globalTimeline;
-
-                this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
+                // this.gui.createSidePanel();
+                if( this.gui.canvasAreaOverlayButtons ) {
+                    this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
+                }
                 this.gizmo.disable();
                 
                 this.video.sync = false;
@@ -2822,25 +3084,25 @@ class KeyframeEditor extends Editor {
             const eTrack = editedAnimation.tracks[eIdx];
             mapTrackIdxs[eIdx] = [];
 
-            let bsNames = this.currentCharacter.blendshapesManager.mapNames[eTrack.id];
+            let bsNames = this.currentCharacter.config ? this.currentCharacter.config.faceController.blendshapeMap[eTrack.id] : this.currentCharacter.blendshapesManager.mapNames.characterMap[eTrack.id];
             if ( !bsNames ){ 
                 continue; 
             }
             if(typeof(bsNames) == 'string') {
-                bsNames = [bsNames];
+                bsNames = [[bsNames, 1.0]];
             }
 
             for( let b = 0; b < bsNames.length; b++ ) {
                 for( let t = 0; t < bsAnimation.tracks.length; t++ ) {
-                    if( bsAnimation.tracks[t].id.includes(bsNames[b]) ) {
+                    if( bsNames[b].includes(bsAnimation.tracks[t].id) ) {
                         mapTrackIdxs[eIdx].push(t);
-                        bsAnimation.tracks[t].values = new Float32Array(eTrack.values);
+                        bsAnimation.tracks[t].values = new Float32Array(eTrack.values.map(v => v * bsNames[b][1]));
                         bsAnimation.tracks[t].times = new Float32Array(eTrack.times);
                         bsAnimation.tracks[t].active = eTrack.active;
                         bsEditedTracksIdxs.push(t);
                         const track = bsAnimation.tracks[t];
                         const frame = this.activeTimeline.getNearestKeyFrame(track, this.activeTimeline.currentTime);
-                        LX.emit("@on_change_"+ track.id, track.values[frame]);
+                        LX.emit("@on_change_"+ track.id, track.values[frame]* bsNames[b][1]);
                         // break; // do not break, need to check all meshes that contain this blendshape
                     }
                 }
@@ -3400,7 +3662,7 @@ class KeyframeEditor extends Editor {
 
 /**
  * This editor uses loadedAnimations to store global animations  
- * The boundAnimations variable stores only the mixer clips for each avatar. As BML is universal, there is no need for each avatar to hold its own bml animation
+ * The boundAnimations variable stores only the mixer clips for each character. As BML is universal, there is no need for each character to hold its own bml animation
  */
 class ScriptEditor extends Editor { 
     constructor( animics ) {
@@ -3460,14 +3722,10 @@ class ScriptEditor extends Editor {
         this.gui.updateClipPanel();
     }
 
-    async initCharacters()
-    {
+    async initCharacters( modelToLoad ) {
+    
         // Load current character
-        await this.loadCharacter(this.character);
-
-        // while(!this.loadedCharacters[this.character] || !this.loadedCharacters[this.character].bmlManager.ECAcontroller) {
-        //     await new Promise(r => setTimeout(r, 1000));            
-        // }  
+        await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
     }
 
     setGlobalAnimation( name ){
@@ -3522,8 +3780,8 @@ class ScriptEditor extends Editor {
 
         const bound = this.boundAnimations[currentName];
         this.boundAnimations[newName] = bound;
-        for( let avatarname in bound ){
-            bound[avatarname].id = newName;
+        for( let charactername in bound ){
+            bound[charactername].id = newName;
         }
         delete this.boundAnimations[currentName];
 

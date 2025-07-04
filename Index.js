@@ -10,14 +10,17 @@ let limit = 10, offset = 0;
 const animics = new Animics();
 await animics.loadSession();		
 
+const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
 const area = await LX.init( { rootClass: "" } );
 
 const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-blur z-1","", LX.main_area.root );
 dropOver.classList.add("hidden");
 
 // Menubar
+let menubar = null;
+let buttonsContainer = null;
 const sidebar = createSideBar( area );
-const menubar = createMenuBar( area );
+menubar = createMenuBar( area );
 
 const content = LX.makeContainer( ["100%", "100%"], "relative flex flex-col px-1", "", area );
 
@@ -34,9 +37,9 @@ body.classList.remove("hidden");
 
 function createMenuBar( area ) {
     
-    const menubar = area.addMenubar( [] );
+    // const menubar = area.addMenubar( [] );
 
-    const buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2 ml-auto", "", menubar.root);
+    buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2 ml-auto", "", menubar.root);
 
     const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto fg-primary border hover:bg-secondary self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
     signupButton.tabIndex = "1";
@@ -79,8 +82,10 @@ function createMenuBar( area ) {
 }
             
 function createSideBar( area ) {
-    const sidebar = area.addSidebar( m => {
-        m.add( "Home", { icon: "House", callback: () => { 
+
+        
+    const sidebarCallback = m => {
+      m.add( "Home", { icon: "House", callback: () => { 
             about.classList.add("hidden");
             home.classList.remove("hidden");
          } } );
@@ -103,8 +108,9 @@ function createSideBar( area ) {
                 }
             }
         })
-        // m.add( "TÀNDEM", { callback: () => {} } );
-    }, { 
+        // m.add( "TÀNDEM", { callback: () => {} } );      
+    };
+    const sidebarOptions = { 
         /* collapseToIcons: false, skipFooter: true, skipHeader: true,*/
         filter: false,
         headerTitle: "ANIMICS",
@@ -131,9 +137,38 @@ function createSideBar( area ) {
                     ]
                 }
             ], { side: "right", align: "end" });
-        }
-    });
-    return sidebar;
+        },
+        collapsed: false,
+        collapsable: false,
+        displaySelected: true
+    };
+
+
+    let sidebar2 = null;
+    if( mobile )
+    {
+        menubar = area.addMenubar();
+
+        const sheetArea = new LX.Area({ skipAppend: true });
+        sheetArea.addSidebar( sidebarCallback, sidebarOptions );
+
+        menubar.addButtons([
+            {
+                title: "Menu",
+                icon: "PanelLeft",
+                callback: (value, event) => {
+                    window.__currentSheet = new LX.Sheet("256px", [ sheetArea ] );
+                }
+            }], { float: "left" })
+    }
+    else
+    {
+        const sidebar1 = area.addSidebar( sidebarCallback, sidebarOptions );
+        menubar = sidebar1.siblingArea.addMenubar();
+    }
+
+
+    return sidebar2;
 }
 
 function createHome( content ) {
@@ -142,7 +177,7 @@ function createHome( content ) {
     mainContent.id = "home-container";
 
     const padContainer = LX.makeContainer( ["100%", "auto"], "px-6", "", mainContent );
-    const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6 overflow-scroll", "", padContainer );
+    const headerContent = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-10 p-4 my-6 overflow-scroll", "", padContainer );
     headerContent.style.minHeight = "256px";
     
     const _makeProjectOptionItem = ( icon, innerText, outerText, id, parent ) => {
@@ -162,13 +197,15 @@ function createHome( content ) {
     _makeProjectOptionItem( "PlusCircle@solid", "Create from scratch", "Empty project", "keyframe-project", keyframeItems );
     _makeProjectOptionItem( "ClapperboardClosed@solid", "Upload video/s", "From video/s", "video-project", keyframeItems );
     _makeProjectOptionItem( "Camera@solid", "Record yourself", "Real-time capture", "webcam-project", keyframeItems );
+    LX.makeContainer(["2px", "auto"], "flex", '<span style="width: 2px;background: var(--global-color-accent);filter: blur(1px);margin: 100px 0px;"></span>', headerContent);
 
     const scriptContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Script Animation", scriptContent );
     const scriptItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", scriptContent );
 
     _makeProjectOptionItem( "PlusCircle@solid", "Create from scratch", "Empty project", "script-project", scriptItems );
-
+    LX.makeContainer(["2px", "auto"], "flex", '<span style="width: 2px;background: var(--global-color-accent);filter: blur(1px);margin: 100px 0px;"></span>', headerContent);
+    
     const fileContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Edit Animation", fileContent );
     const fileItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", fileContent );
@@ -193,31 +230,31 @@ function createAbout( content ) {
     
     const swapValue = LX.getTheme() == "dark";
 
-    const headerContent = LX.makeContainer( ["auto", "25%"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="h-full" src="data/imgs/logos/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
+    const headerContent = LX.makeContainer( ["auto", "25%"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="${mobile? "w-screen" : "h-full"}" src="data/imgs/logos/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
     
     const container = LX.makeContainer( ["100%", "calc(100% - 25%)"], "flex flex-col overflow-scroll items-center",'' , mainContent );
     
     const infoContainer = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center py-10",'' , container );
     infoContainer.style.background = "linear-gradient(0deg, var(--global-color-primary), transparent)";
 
-    const textContent = LX.makeContainer( ["30%", "auto"], "flex justify-center",`<p class="text-xxl font-light text-center" >Animics is an online application to create and
+    const textContent = LX.makeContainer( [`${mobile? "auto" : "30%"}`, "auto"], `flex justify-center ${mobile? "w-screen" : ""}`,`<p class="text-xxl font-light text-center p-5" >Animics is an online application to create and
     edit animations for 3D humanoid characters,
     focused in Sign Language synthesis.</p>` , infoContainer );
 
     const techContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , infoContainer);
     const techText = LX.makeContainer(["auto","auto"], "py-6", `<p>Developed using</p>`, techContent);
 
-    const techLinksContent = LX.makeContainer(["auto", "60px"], "flex flex-row justify-center gap-12", `
-    <a class="h-full" href="https://chuoling.github.io/mediapipe/"><img class="h-full hover:scale" style="filter:grayscale(1) invert(0.5) brightness(1);" src="https://images.viblo.asia/d70d57f3-6756-47cd-a942-249cc1a7da82.png" alt="Mediapipe"></a>
-    <a class="h-full" href="https://threejs.org/"><img class="h-full hover:scale" style="filter:invert(0.5);" src="https://needle.tools/_nuxt/logo-three.CiaNm32y.png" alt="Threejs"></a>
-    <a class="h-full" href="https://github.com/jxarco/lexgui.js"><img class="h-full hover:scale" style="filter:grayscale(1) invert(0.5) brightness(1);" src="data/imgs/logos/lexgui.png" alt="Lexgui"></a>`, techContent)
+    const techLinksContent = LX.makeContainer(["auto", "auto"], `flex ${mobile? "flex-col" : "flex-row"} justify-center items-center gap-12`, `
+    <a class="h-full" href="https://chuoling.github.io/mediapipe/"><img class="hover:scale" style="height:60px; filter:grayscale(1) invert(0.5) brightness(1);" src="https://images.viblo.asia/d70d57f3-6756-47cd-a942-249cc1a7da82.png" alt="Mediapipe"></a>
+    <a class="h-full" href="https://threejs.org/"><img class="hover:scale" style="height:60px;filter:invert(0.5);" src="https://needle.tools/_nuxt/logo-three.CiaNm32y.png" alt="Threejs"></a>
+    <a class="h-full" href="https://github.com/jxarco/lexgui.js"><img class="hover:scale" style="height:60px; filter:grayscale(1) invert(0.5) brightness(1);" src="data/imgs/logos/lexgui.png" alt="Lexgui"></a>`, techContent)
 
     const fundingContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , infoContainer);
     const fundingText = LX.makeContainer(["auto","auto"], "py-6", `<p>Funded by</p>`, fundingContent);
-    const linksContent = LX.makeContainer(["auto", "80px"], "flex flex-row justify-center gap-12", `
-    <a class="h-full" href="https://signon-project.eu/"><img class="h-full hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_SignON.png" alt="SignON"></a>
-    <a class="h-full" href="https://www.upf.edu/web/emerald"><img class="h-full hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_EMERALD.png" alt="EMERALD"></a>
-    <a class="h-full" href="https://www.upf.edu/web/gti"><img class="h-full py-5 hover:scale" style="filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/GTIlogo.png" alt="UPF-GTI"></a>`, fundingContent);
+    const linksContent = LX.makeContainer(["auto", "auto"], "flex flex-row justify-center gap-12", `
+    <a class="h-full" href="https://signon-project.eu/"><img class="hover:scale" style="height:80px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_SignON.png" alt="SignON"></a>
+    <a class="h-full" href="https://www.upf.edu/web/emerald"><img class="hover:scale" style="height:80px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_EMERALD.png" alt="EMERALD"></a>
+    <a class="h-full" href="https://www.upf.edu/web/gti"><img class="py-5 hover:scale" style="height:80px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/GTIlogo.png" alt="UPF-GTI"></a>`, fundingContent);
 
     const devContent = LX.makeContainer(["100%", "auto"], "flex flex-col items-center py-10 bg-primary font-bold", "<h3>Implemented by</h3>" , container);
     const peopleItems = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",'' , devContent );

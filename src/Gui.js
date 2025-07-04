@@ -32,8 +32,7 @@ class Gui {
         this.sidePanel = right;
    
         //Create timelines (keyframes and clips)
-        this.createTimelines( );
-
+        this.createTimelines( );        
     }
 
     init( showGuide ) {       
@@ -568,6 +567,522 @@ class Gui {
             el.getElementsByClassName("lexbutton")[0].classList.add("highlight-border");
         }
     }
+
+    createCharactersPanel( panel = this.characterPanel ) {
+        if(!panel) {
+            return;
+        }
+        const p = this.characterPanel = panel;
+
+        p.clear();
+        p.branch('Characters');
+
+        // p.addButton( "Upload yours", "Upload Character", (v) => {
+        //     this.uploadCharacter((value, config) => {
+                    
+        //         if ( !this.editor.loadedCharacters[value] ) {
+        //             UTILS.makeLoading( `Loading character [ ${value} ]...`);
+        //             let modelFilePath = this.editor.characterOptions[value][0];                    
+        //             let configFilePath = this.editor.characterOptions[value][1];
+        //             let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), this.editor.characterOptions[value][2] ); 
+        //             this.editor.loadCharacter(modelFilePath, config || configFilePath, modelRotation, value, ()=>{ 
+        //                 this.editor.changeCharacter(value);
+        //                 this.createCharactersPanel(p);
+        //                 if(this.editor.currentCharacter.config) {
+                          
+                            
+        //                     const resetBtn = this.mainArea.sections[0].panels[2].root.querySelector("button[title='Reset pose']");
+        //                     if(resetBtn) {
+        //                         resetBtn.classList.remove("hidden");
+        //                     }
+        //                 }
+        //                 UTILS.hideLoading();
+        //             }, (err) => {
+        //                 UTILS.hideLoading();
+        //                 LX.popup("There was an error loading the character", "Character not loaded", {width: "30%"});
+        //             } );
+        //             return;
+        //         } 
+
+        //         // use controller if it has been already loaded in the past
+        //         this.editor.changeCharacter(value);
+        //         this.createCharactersPanel(p);
+        //     });
+        // } ,{ nameWidth: "100px", icon: "CloudUpload" } );        
+      
+        p.addSeparator();
+
+
+        // p.sameLine();
+        let characters = [];
+        const _makeProjectOptionItem = ( icon, outerText, id, parent, selected = false ) => {
+            const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, parent );
+            const card = LX.makeContainer( ["200px", "auto"], `flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button card-color`, `
+               <img src="${icon}" height="120px">
+            `, item );
+
+            let button = null;
+            if(selected) {
+                button = new LX.Button(null, "Edit Character", (e) => {
+                    this.createEditCharacterDialog(item.id);
+                } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px", buttonClass: "bg-secondary"} );
+            }
+            const flexContainer = LX.makeContainer( ["auto", "auto"], "flex items-center", `<p>${ outerText }</p>`, item );
+            if( selected ) {
+                flexContainer.appendChild(button.root);
+            }
+            item.id = id;
+            
+            card.addEventListener("click", (e) => {               
+                this.editor.changeCharacter(item.id);
+            });
+
+        };
+        const characterContainer = LX.makeContainer( ["100%", "auto"], "grid gap-2", "" );
+        characterContainer.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
+        for(let character in this.editor.characterOptions) {
+            _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL, character, character, characterContainer, character == this.editor.currentCharacter.model.name);
+           
+            characters.push({ value: character, src: this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL});
+            p.root.appendChild(characterContainer);
+        }
+    }
+
+    createImportDialog(type, callback) {
+        let isCharacter = false;
+        const dialog = new LX.Dialog(type + " File Detected!", (panel) => {
+            panel.sameLine();
+            panel.addButton(null, "Use as Character", (v) => { isCharacter = true; dialog.close(); callback(isCharacter); });
+            panel.addButton(null, "Use Animations only", (v) => { isCharacter = false; dialog.close(); callback(isCharacter);})
+            panel.endLine();
+        })
+    }
+
+    uploadCharacter(callback = null) {
+        let name, model, config;
+        let rotation = 0;
+        
+        let afromFile = true;
+        let cfromFile = true;
+        this.characterDialog = new LX.Dialog("Upload Character", panel => {
+
+            panel.refresh = () => {
+                panel.clear();
+                
+                let nameWidget = panel.addText("Name Your Character", name, (v, e) => {
+                    if (this.editor.characterOptions[v]) LX.popup("This character name is taken. Please, change it.", null, { size: ["300px", "auto"], position: ["45%", "20%"]});
+                    name = v;
+                });
+
+                panel.sameLine();
+                let characterFile = panel.addFile("Character File", (v, e) => {
+                    let files = panel.widgets["Character File"].root.children[1].files;
+                    if(!files.length) {
+                        return;
+                    }
+                    const path = files[0].name.split(".");
+                    const filename = path[0];
+                    const extension = path[1];
+                    if (extension == "glb" || extension == "gltf") { 
+                        model = v;
+                        if(!name) {
+                            name = filename;
+                            nameWidget.set(name)
+                        }
+                    }
+                    else { LX.popup("Only accepts GLB and GLTF formats!"); }
+                }, {type: "url", nameWidth: "41%"});
+
+                if(!afromFile) {
+                    characterFile.root.classList.add('hidden');
+                }
+
+                let characterURL = panel.addText("Character URL", model, (v, e) => {
+                    if(v == model) {
+                        return;
+                    }
+                    if(!v) {
+                        model = v;
+                        return;
+                    }
+
+                    const path = v.split(".");
+                    let filename = path[path.length-2];
+                    filename = filename.split("/");
+                    filename = filename.pop();
+                    let extension = path[path.length-1];
+                    extension = extension.split("?")[0];
+                    if (extension == "glb" || extension == "gltf") { 
+                        
+                        model = v;                             
+                        if(!name) {
+                            name = filename;
+                            nameWidget.set(name)
+                        }
+                        if(model.includes('models.readyplayer.me')) {
+                           
+                            const promptD = LX.prompt("It looks like you’re importing an character from a Ready Player Me. Would you like to use the default configuration for this character?\nPlease note that the contact settings may vary. We recommend customizing the settings based on the default to better suit your character.", 
+                                                    "Ready Player Me detected!", (value, event)=> {
+                                cfromFile = false;
+                                panel.refresh();
+                                panel.setValue("Config URL", Editor.RESOURCES_PATH+"ReadyEva/ReadyEva_v2.json");
+                                
+                            },{input: false, fitHeight: true})                            
+                        }
+                    }
+                    else { LX.popup("Only accepts GLB and GLTF formats!"); }
+                }, {nameWidth: "43%"});
+                if(afromFile) {
+                    characterURL.root.classList.add('hidden');
+                }
+
+                panel.addComboButtons(null, [
+                    {
+                        value: "From File",
+                        callback: (v, e) => {                            
+                            afromFile = true;
+                            if(!characterURL.root.classList.contains('hidden')) {
+                                characterURL.root.classList.add('hidden');          
+                            }
+                            characterFile.root.classList.remove('hidden');                                                          
+                            panel.refresh();
+                        }
+                    },
+                    {
+                        value: "From URL",
+                        callback: (v, e) => {
+                            afromFile = false;
+                            if(!characterFile.root.classList.contains('hidden')) {
+                                characterFile.root.classList.add('hidden');           
+                            }                                               
+                            characterURL.root.classList.remove('hidden');          
+                        }
+                    }
+                ], {selected: afromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});                
+                panel.endLine();
+            
+                panel.sameLine();
+                let configFile = panel.addFile("Config File", (v, e) => {
+                
+                    if(!v) {
+                        return;
+                    }
+                    const filename = panel.widgets["Config File"].root.children[1].files[0].name;
+                    let extension = filename.split(".");
+                    extension = extension.pop();
+                    if (extension == "json") { 
+                        config = JSON.parse(v); 
+                        config._filename = filename; 
+                        editConfigBtn.classList.remove('hidden');
+                    }
+                    else { LX.popup("Config file must be a JSON!"); }
+                }, {type: "text", nameWidth: "100%"});
+                
+                let configURL = panel.addText("Config URL", config ? config._filename : "", async (v, e) => {
+                    if(!v) {
+                        config = v;
+                        return;
+                    }
+                    const path = v.split(".");
+                    let filename = path[path.length-2];
+                    filename = filename.split("/");
+                    filename = filename.pop();
+                    let extension = path[path.length-1];
+                    extension = extension.split("?")[0].toLowerCase();
+                    if (extension == "json") { 
+                        if (extension == "json") { 
+                            try {
+                                const response = await fetch(v);
+                                if (!response.ok) {
+                                    throw new Error(`Response status: ${response.status}`);
+                                }
+                                config = await response.json();                        
+                                config._filename = v; 
+                                editConfigBtn.classList.remove('hidden');
+                            }
+                            catch (error) {
+                                LX.popup(error.message, "File error!");
+                            }
+                        }
+                    }
+                    else { LX.popup("Config file must be a JSON!"); }
+                }, {nameWidth: "43%"});
+
+                if(cfromFile) {
+                    configURL.root.classList.add('hidden');
+                }else {
+                    configFile.root.classList.add('hidden');
+                }
+                
+                const editConfigBtn = panel.addButton(null, "Edit config file", () => {
+                    this.editor.openAtelier(name, model, config, true, rotation);
+
+                }, {icon: "UserCog@solid", width: "40px"});
+                
+                if(!config) {
+                    editConfigBtn.classList.add('hidden');
+                }
+
+                panel.addComboButtons(null, [
+                    {
+                        value: "From File",
+                        callback: (v, e) => {                            
+                            cfromFile = true;
+                            // panel.refresh();
+                            if(!configURL.root.classList.contains('hidden')) {
+                                configURL.root.classList.add('hidden');          
+                            }
+                            configFile.root.classList.remove('hidden');                                                          
+                        }
+                    },
+                    {
+                        value: "From URL",
+                        callback: (v, e) => {
+                            cfromFile = false;
+                            // panel.refresh();
+                            if(!configFile.root.classList.contains('hidden')) {
+                                configFile.root.classList.add('hidden');           
+                            }                                               
+                            configURL.root.classList.remove('hidden');  
+                        }
+                    }
+                ], {selected: cfromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});
+
+                panel.endLine();
+
+            panel.addNumber("Apply Rotation", 0, (v) => {
+                rotation = v * Math.PI / 180;
+            }, { min: -180, max: 180, step: 1 } );
+            
+            panel.sameLine(2);
+            panel.addButton(null, "Create Config File", () => {
+                this.editor.openAtelier(name, model, config, true, rotation);
+            })
+            panel.addButton(null, "Upload", () => {
+                if (name && model) {
+                    if (this.editor.characterOptions[name]) { LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]}); return; }
+                    let thumbnail = GUI.THUMBNAIL;
+                    if( model.includes('models.readyplayer.me') ) {
+                        model+= '?pose=T&morphTargets=ARKit&lod=1';
+                        thumbnail =  "https://models.readyplayer.me/" + name + ".png?background=68,68,68";
+                    }
+                    if (config) {
+                        this.editor.characterOptions[name] = [model, config, rotation, thumbnail];               
+                        panel.clear();
+                        this.characterDialog.root.remove();
+                        this.editor.characterOptions[name][1] = config._filename;
+                        if (callback) callback(name, config);
+                    }
+                    else {
+                        LX.prompt("Uploading without config file will disable BML animations for this character. Do you want to proceed?", "Warning!", (result) => {
+                            this.editor.characterOptions[name] = [model, null, rotation, thumbnail];
+                            
+                            panel.clear();
+                            this.characterDialog.root.remove();
+                            if (callback) callback(name);
+                        }, {input: false, on_cancel: () => {}});
+                        
+                    }
+                }
+                else {
+                    LX.popup("Complete all fields!", null, { position: ["45%", "20%"]});
+                }
+            });
+
+            panel.root.addEventListener("drop", (v, e) => {
+
+                let files = v.dataTransfer.files;
+                this.onDropCharacterFiles(files);
+            })
+            
+        }
+        panel.refresh();
+
+        }, { size: ["40%"], closable: true, onclose: (root) => {  root.remove(); }});
+
+        return name;
+    }
+
+    createEditCharacterDialog() {
+        let name = this.editor.currentCharacter.model.name;
+        this.editCharacter(name, {
+            callback: (newName, rotation, config) => {
+                if(name != newName) {
+                    this.editor.characterOptions[newName] = [ this.editor.characterOptions[name][0], this.editor.characterOptions[name][1], this.editor.characterOptions[name][2], this.editor.characterOptions[name][3]]
+                    delete this.editor.characterOptions[name];
+                    name = newName;
+                    this.editor.currentCharacter.model.name = name;
+                    this.refresh();
+                }
+                this.editor.characterOptions[name][2] = rotation;
+                
+                const modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), rotation ); 
+                this.editor.currentCharacter.model.quaternion.premultiply( modelRotation );
+                if(this.editor.currentCharacter.config && this.editor.currentCharacter.config == config) {
+                    return;
+                }
+                this.editor.currentCharacter.config = config;
+                if(config) {
+                    this.editor.characterOptions[name][1] = config._filename;
+                    this.editor.updateCharacter(config);  
+                }
+
+            }, 
+            name, modelFilePath: this.editor.characterOptions[name][0], modelConfigPath: this.editor.characterOptions[name][1]
+        });
+    }
+
+    editCharacter(name, options = {}) {
+        const data = this.editor.currentCharacter;
+        const callback = options.callback;
+        let config = data.config;
+        let rotation = 0;
+        
+        let fromFile = !config ?? false;
+        this.characterDialog = new LX.Dialog("Edit Character", panel => {
+          
+            panel.refresh = () => {
+                panel.clear();                
+                let nameWidget = panel.addText("Name Your Character", name, (v, e) => {
+                    if (data.name != v && this.editor.characterOptions[v]) { 
+                        LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]});
+                        return;
+                    }
+                    name = v;
+                });
+
+                panel.sameLine();
+
+                let configFile = panel.addFile("Config File", (v, e) => {
+                    if(!v) {
+                        return;
+                    }
+                    const filename = panel.widgets["Config File"].root.children[1].files[0].name;
+                    let extension = filename.split(".");
+                    extension = extension.pop();
+                    if (extension == "json") { 
+                        config = JSON.parse(v); 
+                        config._filename = filename; 
+                    }
+                    else { LX.popup("Config file must be a JSON!"); }
+                }, {type: "text"});
+
+                let configURL = panel.addText("Config URL", config ? config._filename : "", async (v, e) => {
+                    
+                    if(!v) {
+                        return;
+                    }
+                    const path = v.split(".");
+                    let filename = path[path.length-2];
+                    filename = filename.split("/");
+                    filename = filename.pop();
+                    let extension = path[path.length-1];
+                    extension = extension.split("?")[0].toLowerCase();
+                        if (extension == "json") { 
+                            if (extension == "json") { 
+                                try {
+                                    const response = await fetch(v);
+                                    if (!response.ok) {
+                                        throw new Error(`Response status: ${response.status}`);
+                                    }
+                                    config = await response.json();                        
+                                    config._filename = v; 
+                                }
+                                catch (error) {
+                                    LX.popup(error.message, "File error!");
+                                }
+                            }
+                        }
+                    else { LX.popup("Config file must be a JSON!"); }
+                }, {nameWidth: "43%",});
+
+                if( fromFile ) {
+                    configURL.root.classList.add('hidden');
+                } else {
+                    configFile.root.classList.add('hidden');
+                }
+
+                if( config ) {
+                    panel.addButton(null, "Edit config file", () => {
+                        this.editor.openAtelier(name, this.editor.characterOptions[name][0], data.config == config ? data.rawConfig : config, false, rotation);                  
+                    }, {icon: "UserCog@solid", width: "40px"});
+                }
+
+                panel.addComboButtons(null, [
+                    {
+                        value: "From File",
+                        callback: (v, e) => {                            
+                            fromFile = true;
+                            // panel.refresh();
+                            if(!configURL.root.classList.contains('hidden')) {
+                                configURL.root.classList.add('hidden');          
+                            }
+                            configFile.root.classList.remove('hidden');                                                                                  
+                        }
+                    },
+                    {
+                        value: "From URL",
+                        callback: (v, e) => {
+                            fromFile = false;
+                            // panel.refresh();
+                            if(!configFile.root.classList.contains('hidden')) {
+                                configFile.root.classList.add('hidden');           
+                            }                                               
+                            configURL.root.classList.remove('hidden');  
+                        }
+                    }
+                    ]
+                , {selected: fromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});
+                panel.endLine();
+
+                // panel.addNumber("Apply Rotation", 0, (v) => {
+                //     rotation = v * Math.PI / 180;
+                // }, { min: -180, max: 180, step: 1 } );
+                
+                panel.sameLine(2);
+                panel.addButton(null, (config ? "Edit": "Create") + " Config File", () => {
+                    this.editor.openAtelier(name, this.editor.characterOptions[name][0], data.config == config ? data.rawConfig : config, false, rotation);                                       
+                })
+                panel.addButton(null, "Update", () => {
+                    if (name) {
+                    
+                        if (config) {
+                            // this.editor.characterOptions[name][1] = config._filename;
+                            // this.editor.characterOptions[name][2] = rotation;
+                            
+                            panel.clear();
+                            this.characterDialog.root.remove();
+                            if (callback) callback(name, rotation, config);
+                        }
+                        else {
+                            LX.prompt("Uploading without config file will disable BML animations for this character. Do you want to proceed?", "Warning!", (result) => {
+                                // this.editor.characterOptions[name][2] = rotation;
+                                panel.clear();
+                                this.characterDialog.root.remove();
+                                if (callback) callback(name, rotation);
+                            }, {input: false, on_cancel: () => {}});
+                            
+                        }
+                        this.characterDialog.close();
+                    }
+                    else {
+                        LX.popup("Complete all fields!", null, { position: ["45%", "20%"]});
+                    }
+                });
+
+                // panel.root.addEventListener("drop", (v, e) => {
+
+                //     let files = v.dataTransfer.files;
+                //     this.onDropCharacterFiles(files);
+                // })
+            
+            }
+            panel.refresh();
+
+        }, { size: ["40%"], closable: true, onclose: (root) => {  root.remove(); }});
+
+        return name;
+    }
 };
 
 class KeyframesGui extends Gui {
@@ -644,7 +1159,7 @@ class KeyframesGui extends Gui {
 
             // Export (download) animation
             { name: "Export Global Animations", icon: "Download", kbd: "CTRL+E", callback: () => {
-                this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( info.selectedAnimations, info.format ), {formats: ["BVH", "BVH extended", "GLB"]});
+                this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( info.selectedAnimations, info.format ), { formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
             } },
             { name: "Export Videos and Landmarks", icon: "FileVideo", callback: () => this.showExportVideosDialog() },
             // Save animation in server
@@ -1146,8 +1661,7 @@ class KeyframesGui extends Gui {
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
-                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
-                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+                }, { tooltip: true, icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white" });
 
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
@@ -1346,8 +1860,7 @@ class KeyframesGui extends Gui {
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
-                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
-                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+                }, { tooltip: true, icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white" });
 
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();
@@ -1462,8 +1975,7 @@ class KeyframesGui extends Gui {
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
-                }, { icon: "ArrowBigLeftDash", title:"Return to global animation" });
-                closebtn.root.children[0].style.backgroundColor = "var(--global-color-error)";
+                }, { icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white "});
 
                 panel.addButton("", "Clear track/s", (value, event) =>  {
                     this.editor.clearAllTracks();     
@@ -1591,6 +2103,10 @@ class KeyframesGui extends Gui {
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
             this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
+            // this.editor.gizmo.stop();
+            // const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
+            // skeleton.visible = false;
+            // this.editor.scene.getObjectByName('GizmoPoints').visible = false;
             return;
         }
 
@@ -1611,11 +2127,11 @@ class KeyframesGui extends Gui {
         this.bsTimeline.setSelectedItems(Object.keys(clip.bsAnimation.tracks));
         this.bsTimeline.setTime(localTime, true);
         
+        this.editor.animationMode = this.editor.animationModes.BODY;
         this.editor.setTime( clip.start + localTime );
         this.editor.setTimeline(this.editor.animationModes.BODY);
         this.propagationWindow.setTimeline( this.skeletonTimeline );
-        this.createSidePanel();
-
+        
         if ( sourceAnimation && sourceAnimation.type == "video" ) {
             const video = this.editor.video;
             video.sync = true;
@@ -1640,6 +2156,17 @@ class KeyframesGui extends Gui {
             this.editor.video.sync = false;
             this.editor.setVideoVisibility(false);
         }
+        this.createSidePanel();
+        
+        // if(this.editor.animationMode == this.editor.animationModes.BODY) {
+        //     const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
+        //     skeleton.visible = this.editor.showSkeleton;
+        //     this.editor.scene.getObjectByName('GizmoPoints').visible = this.editor.showSkeleton;
+        //     this.editor.setSelectedBone(this.editor.selectedBone);
+        //     if(!this.editor.showSkeleton) {
+        //         this.editor.gizmo.stop();
+        //     }
+        // }
     }
     
     
@@ -1682,12 +2209,33 @@ class KeyframesGui extends Gui {
             this.sidePanel.root.children[0].remove();
         }
         this.sidePanel.sections = [];
+        this.treeWidget = null;
+        if(this.panelTabs) {
+            this.panelTabs.root.remove();
+        }
 
-        const [top, bottom] = this.sidePanel.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-       
+        // Animation & Character tabs
+        const panelTabs = this.panelTabs = this.sidePanel.addTabs({fit: true});
+
+        // Animation tab content
+        const animationArea = new LX.Area({id: 'Animation'});
+        const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
+        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {
+            
+        }});
         this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
-        top.attach(this.animationPanel);
+        animSide.attach(this.animationPanel);
         this.updateAnimationPanel( );
+
+        // Character tab content
+        const characterArea = new LX.Area({id: 'Character'});
+        const characterPanel = characterArea.addPanel();
+        this.createCharactersPanel( characterPanel ) ;
+        
+        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {
+            
+        }});
+
 
         // SIDE PANEL FOR GLOBAL TIMELINE
         if ( this.editor.activeTimeline == this.globalTimeline ){
@@ -1726,6 +2274,8 @@ class KeyframesGui extends Gui {
                 p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
                     this.setKeyframeClip(clip);
                 }, { buttonClass: "accent" });
+
+                p.addBlank();
 
                 p.branch("Clip Blending");
 
@@ -1935,7 +2485,7 @@ class KeyframesGui extends Gui {
                 p.merge();
 
 
-                bottom.attach(p);
+                tabsSide.attach(p);
             }
             return;
         }
@@ -1943,57 +2493,94 @@ class KeyframesGui extends Gui {
         // SIDE PANEL FOR KEYFRAME CLIP
 
         //create tabs
-        const tabs = this.bodyFaceTabs = bottom.addTabs({fit: true});
+        const tabs = this.bodyFaceTabs = tabsSide.addTabs({fit: true});
 
         const bodyArea = new LX.Area({id: 'Body'});  
         const faceArea = new LX.Area({id: 'Face'});  
-        tabs.add( "Body", bodyArea, {selected: true, onSelect: (e,v) => {
+        tabs.add( "Body", bodyArea, {selected: this.editor.animationMode == this.editor.animationModes.BODY, onSelect: (e,v) => {
             this.editor.setTimeline(this.editor.animationModes.BODY)
             this.propagationWindow.setTimeline( this.skeletonTimeline );
             this.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
         }}  );
         
+        
+        tabs.add( "Face", faceArea, { selected: this.editor.animationMode != this.editor.animationModes.BODY, onSelect: (e,v) => {
 
-        tabs.add( "Face", faceArea, { selected: false, onSelect: (e,v) => {
-            this.faceTabs.select("Action Units");
+            if(this.faceTabs.selected == this.editor.animationModes.FACEBS) {
+                this.editor.setTimeline(this.editor.animationModes.FACEBS);
+                this.propagationWindow.setTimeline( this.bsTimeline );
+            }
+            else { // if is in AU mode or is not defined
+                this.imageMap.resize();
+                this.editor.setTimeline(this.editor.animationModes.FACEAU);
+                this.propagationWindow.setTimeline( this.auTimeline );
+                this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+            }
             this.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
-        } });
+            //  this.faceTabs.select("Action Units");
+        }}  );
 
-        const faceTabs = this.faceTabs = faceArea.addTabs({fit: true});
-        const auArea = new LX.Area({id: 'auFace'});  
-        const bsArea = new LX.Area({id: 'bsFace'}); 
+        const panel = faceArea.addPanel();
+        // panel.root.style.maxHeight= "100vh";
 
-        faceTabs.add("Action Units", auArea, {selected: true, onSelect: (v,e) => {
-            this.editor.setTimeline(this.editor.animationModes.FACEAU);
-            this.createActionUnitsPanel();
-            this.selectActionUnitArea(this.editor.getSelectedActionUnit());
-            
-            this.propagationWindow.setTimeline( this.auTimeline );
-            this.imageMap.resize();
-        }});
+        // Alex: This hacky offset corresponds to Title Widget inside the tabs.
+        // Its height its not checked when computing final heights/scroll stuff (to fix in Lexgui)
+        const titleOffset = 36;
 
-        faceTabs.add("Blendshapes", bsArea, { onSelect: (v,e) => {
-            this.editor.setTimeline(this.editor.animationModes.FACEBS); 
-            
-            this.propagationWindow.setTimeline( this.bsTimeline );
-            this.imageMap.resize();
-        }});
-
-        auArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
+        const auArea = new LX.Area({id: 'auFace', height: `calc(100% - ${ titleOffset }px)`});
+        auArea.split({type: "vertical", sizes: ["auto", "auto"], resize: true});
         const [faceTop, faceBottom] = auArea.sections;
-        faceTop.root.style.minHeight = "20px";
-        faceTop.root.style.height = "50%";
-        faceBottom.root.style.minHeight = "20px";
-        faceBottom.root.style.height = "50%";
-        faceBottom.root.classList.add("overflow-y-auto");
-        this.createFacePanel( faceTop );
-        this.createActionUnitsPanel( faceBottom );
 
-        this.createBlendshapesPanel( bsArea );
+        const bsArea = new LX.Area({id: 'bsFace', height: `calc(100% - ${ titleOffset }px)`});
+
+        this.faceTabs = panel.addTabSections("Edition Mode", [
+            {
+                name: "Action Units", icon: "ScanFace", selected: this.editor.animationMode == this.editor.animationModes.FACEAU,
+                onCreate: p => {
+                    p.addTitle("Action Units", { style: { background: "none", fontSize: "15px" } });
+                    faceTop.root.style.minHeight = "20px";
+                    faceTop.root.style.height = "auto";
+                    faceBottom.root.style.minHeight = "20px";
+                    faceBottom.root.style.height = "auto";
+                    faceBottom.root.classList.add("overflow-y-auto");
+                    this.createFacePanel( faceTop );
+                    this.createActionUnitsPanel( faceBottom );
+                    p.queuedContainer.appendChild(auArea.root);
+                    if(this.imageMap) {
+                        this.imageMap.resize();
+                    }
+                },
+                onSelect: p => {
+                    this.editor.setTimeline(this.editor.animationModes.FACEAU);
+                    this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+                    
+                    this.propagationWindow.setTimeline( this.auTimeline );
+                    this.faceTabs.selected = this.editor.animationModes.FACEAU;
+                    if(this.imageMap) {
+                        this.imageMap.resize();
+                    }                    
+                }
+            },
+            {
+                name: "Blendshapes", icon: "SlidersHorizontal", selected: this.editor.selected == this.editor.animationModes.FACEBS,
+                onCreate: p => {
+                    p.addTitle("Blendshapes", { style: { background: "none", fontSize: "15px" } });
+                    this.createBlendshapesPanel( bsArea );
+                    p.queuedContainer.appendChild(bsArea.root);
+                },
+                onSelect: p => {
+                    this.editor.setTimeline(this.editor.animationModes.FACEBS); 
+            
+                    this.propagationWindow.setTimeline( this.bsTimeline );
+                    this.faceTabs.selected = this.editor.animationModes.FACEBS;
+                    //this.imageMap.resize();
+                }
+            }
+        ], { vertical: true, height : "100%" });
 
         bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
         const [bodyTop, bodyBottom] = bodyArea.sections;
-        this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.currentCharacter.skeletonHelper.bones[0].name} );
+        this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.selectedBone || this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
         
         this.sidePanel.onresize = (e)=>{
@@ -2046,12 +2633,11 @@ class KeyframesGui extends Gui {
                 panel.addText("Clip Name", anim.id, (v) =>{ 
                     anim.id = v;
                 } )
-
-                panel.addButton(null, "Return to global animation", (v,e)=>{
+                panel.addButton(null, LX.makeIcon("Undo2", { svgClass: "fg-white" }).innerHTML + "Return to global animation", (v,e)=>{
                     this.setKeyframeClip(null);
-                }, { buttonClass: "error" });
-
-            }else{
+                }, { buttonClass: "error fg-white" });
+            }
+            else{
                 panel.addTitle( "Animation" );
                 const anim = this.globalTimeline.animationClip;
                 panel.addText("Name", anim.id || "", (v) =>{ 
@@ -2200,6 +2786,7 @@ class KeyframesGui extends Gui {
             });
             
             this.highlighter.init();
+            this.highlighter.element.parentElement.style.maxHeight = "500px";
             this.resize =  () => {
                 var n, m, clen;
                 let newHeight = Math.max( Math.min( area.root.clientWidth / aspectRatio, area.root.clientHeight ) - padding, 0.01 );
@@ -2234,37 +2821,18 @@ class KeyframesGui extends Gui {
         baseArea.sections=[];
 
         // now start building the content
+        
         const tabs = baseArea.addTabs({fit:true});
         const animation = this.auTimeline.animationClip;
         if ( !animation ){
             return;
         }
-
-        let areas = {};
         
-        for(let i in this.editor.mapNames) {
-            for(let item in this.faceAreas) {
-                let toCompare = this.faceAreas[item].toLowerCase().split(" ");
-                let found = true;
-                for(let j = 0; j < toCompare.length; j++) {
-    
-                    if(!i.toLowerCase().includes(toCompare[j])) {
-                        found = false;
-                        break;
-                    }
-                }
-                if(found)
-                {
-                    if(!areas[this.faceAreas[item]])
-                        areas[this.faceAreas[item]] = {};
-                    areas[this.faceAreas[item]][i] =  this.editor.mapNames[i];
-                }
-            }
-        }
+        const areas = this.editor.mapNames.parts;
 
         for(let area in areas) {
 
-            const tabContainer = LX.makeContainer( [ "100%", "100%" ], "overflow-hidden flex flex-col" );
+            const tabContainer = LX.makeContainer( [ "auto", "100%" ], "overflow-hidden flex flex-col" );
 
             LX.makeContainer( [ "100%", "auto" ], "flex justify-center py-2 text-lg", 
             area, 
@@ -2274,7 +2842,8 @@ class KeyframesGui extends Gui {
             let panel = new LX.Panel({id: "au-"+ area});
             tabContainer.appendChild(panel.root);
 
-            for(let name in areas[area]) {
+            for(let id in areas[area]) {
+                const name = areas[area][id];
                 for(let i = 0; i < animation.tracks.length; i++) {
                     const track = animation.tracks[i];
                     if(track.groupId == area && track.id == name) {
@@ -2294,7 +2863,9 @@ class KeyframesGui extends Gui {
             tabs.add(area, tabContainer, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
                     this.showTimeline();
                     this.editor.setSelectedActionUnit(v);
-                    document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
+                    if(document.getElementsByClassName("map-container")[0]) {
+                        document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
+                    }
                     this.propagationWindow.updateCurve(true); // resize
                 }
             });
@@ -2347,7 +2918,7 @@ class KeyframesGui extends Gui {
                     this.editor.updateActionUnitsAnimation(this.auTimeline.animationClip, tracksIds);
                 });
                 
-            }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ 
+            }, {nameWidth: "40%", min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: () => {
                 this.bsTimeline.saveState(track.trackIdx)
              }});
         }
@@ -2420,7 +2991,7 @@ class KeyframesGui extends Gui {
         
         let mytree = { 
             id: rootBone.name, 
-            // selected: rootBone.name == this.editor.boneSelected 
+            selected: rootBone.name == this.editor.selectedBone 
         };
         let children = [];
         
@@ -2433,7 +3004,7 @@ class KeyframesGui extends Gui {
                     id: b.name,
                     children: [],
                     closed: true,
-                    // selected: b.name == this.editor.boneSelected
+                    selected: b.name == this.editor.selectedBone
                 }
                 
                 array.push( child );
@@ -3718,20 +4289,58 @@ class ScriptGui extends Gui {
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
 
+        // clear area
         while ( this.sidePanel.root.children.length ){
             this.sidePanel.root.children[0].remove();
         }
         this.sidePanel.sections = [];
 
-        const [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
-        
-        this.animationPanel = new LX.Panel({id:"animation"});
-        top.attach(this.animationPanel);
-        this.clipPanel = new LX.Panel({id:"bml-clip"});
-        bottom.attach(this.clipPanel);
+        if(this.panelTabs) {
+            this.panelTabs.root.remove();
+        }
 
+        // Animation & Character tabs
+        const panelTabs = this.panelTabs = this.sidePanel.addTabs({fit: true});
+
+        // Animation tab content
+        const animationArea = new LX.Area({id: 'Animation'});
+        const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
+        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {
+            
+        }});
+
+        this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
+        animSide.attach(this.animationPanel);
         this.updateAnimationPanel( );
+        
+        this.clipPanel = new LX.Panel({id:"bml-clip"});
+        tabsSide.attach(this.clipPanel);
         this.updateClipPanel( );
+        
+        // Character tab content
+        const characterArea = new LX.Area({id: 'Character'});
+        const characterPanel = characterArea.addPanel();
+        this.createCharactersPanel( characterPanel ) ;
+        
+        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {
+            
+        }});
+
+
+        // while ( this.sidePanel.root.children.length ){
+        //     this.sidePanel.root.children[0].remove();
+        // }
+        // this.sidePanel.sections = [];
+
+        // const [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
+        
+        // this.animationPanel = new LX.Panel({id:"animation"});
+        // top.attach(this.animationPanel);
+        // this.clipPanel = new LX.Panel({id:"bml-clip"});
+        // bottom.attach(this.clipPanel);
+
+        // this.updateAnimationPanel( );
+        // this.updateClipPanel( );
     }
 
     updateAnimationPanel( options = {}) {
