@@ -5487,6 +5487,7 @@ class PropagationWindow {
      */
     constructor( timeline ){
 
+        this.savedCurves = []; // array of { imageSrc, values }
         this.timeline = timeline; // will provide the canvas
         
         this.curveWidget = null; 
@@ -5504,7 +5505,7 @@ class PropagationWindow {
         this.gradientColorLimits = "rgba( 39, 49, 98, 0%)"; // relies on lexgui input
         this.gradientColor = "rgba( 39, 49, 98"; // relies on lexgui input
         this.borderColor = LX.getThemeColor( "global-text-secondary" );
-        this.gradient = [ [0.5,1] ]; // implicit 0 in the borders
+        this.gradient = [ [0.5,1] ]; // implicit 0 in the borders. Shares array reference with curve Widget
         // radii = 100;
 
         // create curve Widget
@@ -5514,11 +5515,12 @@ class PropagationWindow {
         const lpos = timeline.timeToX( this.time - this.leftSide );
         const rpos = timeline.timeToX( this.time + this.rightSide );
 
+        // curveWidget and this.gradient share the same array reference
         this.curveWidget = new LX.Curve( null, this.gradient, (v,e) => {
                 if ( v.length <= 0){
                     this.curveWidget.curveInstance.element.value = this.gradient = [[0.5,1]];
+                    this.curveWidget.curveInstance.redraw();
                 }
-                this.curveWidget.curveInstance.redraw();
             },
             {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor } 
         );
@@ -5531,11 +5533,78 @@ class PropagationWindow {
         curveElement.style.zIndex = "0.5";
         curveElement.style.padding = "0px";
 
+
+        this.setCurveValues([[0.5,1]]); this.saveCurrentCurve();
+        this.setCurveValues([[0.25,1], [0.5,0], [0.75,1]]); this.saveCurrentCurve();
+        this.setCurveValues([[0.5,1]]);
+        this.makeMenu();
+        
         this.updateTheme();
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
             // Retrieve again the color using LX.getThemeColor, which checks the applied theme
             this.updateTheme();
         } )
+    }
+
+    makeMenu(){
+
+        let prevStates = 0;
+        
+        if ( this.sideMenu ){
+            prevStates |= !this.sideMenu.root.classList.contains("hidden"); 
+            prevStates |= (!this.panelCurves.root.classList.contains("hidden")) << 1;
+            prevStates = prevStates * (this.visualState == PropagationWindow.STATE_SELECTED);
+
+            this.sideMenu.clear();
+            this.sideMenu.root.remove();
+            this.panelCurves.clear();
+            this.panelCurves.root.remove();
+        }
+        const sideMenu = this.sideMenu = new LX.Panel( {id: "PropagationWindowSideOptions", width: "50px", height: "75px" } );
+        sideMenu.root.style.zIndex = "0.5";
+        sideMenu.root.style.position = "fixed";
+        sideMenu.root.background = "transparent";
+        
+        sideMenu.addButton(null, "", (v,e)=>{ 
+            this.panelCurves.root.classList.toggle("hidden");
+            this.updateCurve();
+        }, { icon: "ChartSpline", title: "Show saved curves" } );
+        
+        sideMenu.addButton(null, "", (v,e)=>{ 
+            this.saveCurrentCurve();
+            this.makeMenu(); // overkill for just adding a card to the panel
+            this.updateCurve();
+
+        }, { icon: "Save", title: "Save current curve" } );
+
+        const panelCurves  = this.panelCurves = new LX.Panel( {id:"panelCurves", width:"auto", height: "auto"});
+        panelCurves.root.background = "transparent";
+        for( let i = 0; i < this.savedCurves.length; ++i ){
+            const values = this.savedCurves[i].values;
+            let card = panelCurves.addCard(null, { img: this.savedCurves[i].imgURL, callback:(v,e)=>{ this.setCurveValues(values) }, className: "p-1 my-0"});
+            card.root.children[0].children[1].remove();
+            card.root.children[0].children[0].style.height = "auto";
+            card.root.children[0].classList.add("my-0");
+            card.root.children[0].classList.add("pb-1");
+            card.root.children[0].children[0].classList.add("my-0");
+            card.root.children[0].children[0].classList.add("p-0");
+            card.root.classList.add("leading-3");
+            
+        }
+        panelCurves.root.style.zIndex = "0.5";
+        panelCurves.root.style.position = "fixed";
+        panelCurves.root.style.background = "var(--global-color-tertiary)";
+        panelCurves.root.style.borderRadius = "10px";
+
+        document.body.appendChild(sideMenu.root);
+        document.body.appendChild(panelCurves.root);
+        
+        if ( !(prevStates & 0x01) ){
+            sideMenu.root.classList.add("hidden");
+        }
+        if ( !(prevStates & 0x02) ){
+            panelCurves.root.classList.add("hidden");
+        }
     }
 
     updateTheme(){
@@ -5552,6 +5621,23 @@ class PropagationWindow {
     
     toggleEnabler(){
         this.setEnabler( !this.enabler );
+    }
+
+    saveCurrentCurve(){
+        let c ={
+            imgURL: this.curveWidget.curveInstance.canvas.toDataURL("image/png"),
+            values: this.gradient.slice()
+        }
+        this.savedCurves.push(c);
+    }
+
+    /**
+     * set curve widget values
+     * @param {*} values [ [x,y] ].   0 < x < 0.5 left side of window. 0.5 < x < 1 right side of window
+     */
+    setCurveValues( values ){
+        this.curveWidget.curveInstance.element.value = this.gradient = values.slice();
+        this.curveWidget.curveInstance.redraw();
     }
 
     recomputeGradient( newLeftSide, newRightSide ){
@@ -5640,6 +5726,9 @@ class PropagationWindow {
         
         if ( e.type == "mousedown" && (isInsideResizeLeft || isInsideResizeRight) ){
             this.resizing = isInsideResizeLeft ? -1 : 1; 
+            this.sideMenu.root.style.pointerEvents = "none";
+            this.panelCurves.root.style.pointerEvents = "none";
+            this.curveWidget.root.style.pointerEvents = "none";
         }
 
         if( e.localX >= lpos && e.localX <= rpos && e.localY > windowRect.rectPosY && e.localY <= (windowRect.rectPosY + windowRect.rectHeight)) {
@@ -5649,7 +5738,7 @@ class PropagationWindow {
         }
         else if(!this.resizing) { // outside of window
             
-            if(e.type == "mousedown" && this.visualState) {
+            if(e.type == "mousedown" && this.visualState && e.localY > timeline.lastTrackTreesWidgetOffset ) {
                 this.setVisualState( PropagationWindow.STATE_BASE );
             }
             else if( this.visualState == PropagationWindow.STATE_HOVERED ){
@@ -5658,7 +5747,13 @@ class PropagationWindow {
         }
 
         if ( this.resizing && e.type == "mousemove" ){
-            if ( this.resizing == 1 ){
+            if ( !e.buttons ){ // mouseUp outside the canvas. Stop resizing
+                this.resizing = 0;
+                this.sideMenu.root.style.pointerEvents = "";
+                this.panelCurves.root.style.pointerEvents = "";
+                this.curveWidget.root.style.pointerEvents = "";
+            }
+            else if ( this.resizing == 1 ){
                 const t = Math.max( 0.001, time - this.time );
                 this.recomputeGradient(this.leftSide, t);
                 LX.emit("@propW_maxT", t); 
@@ -5690,6 +5785,10 @@ class PropagationWindow {
 
             if ( e.type == "mouseup" ){
                 this.resizing = 0;
+                this.sideMenu.root.style.pointerEvents = "";
+                this.panelCurves.root.style.pointerEvents = "";
+                this.curveWidget.root.style.pointerEvents = "";
+                
             }
         }
         
@@ -5709,13 +5808,32 @@ class PropagationWindow {
         }
     }
 
-    setVisualState( visualeState = PropagationWindow.STATE_BASE ){
-        if (visualeState == PropagationWindow.STATE_BASE){
+    setVisualState( visualState = PropagationWindow.STATE_BASE ){
+        if ( this.visualState == visualState ){
+            return;
+        }
+
+        
+        if  ( visualState == PropagationWindow.STATE_SELECTED ){
+            this.sideMenu.root.classList.remove("hidden");
+            this.sideMenu.root.style.pointerEvents = "";
+            this.panelCurves.root.style.pointerEvents = "";
+            this.curveWidget.root.style.pointerEvents = "";
+        }else{
+            this.panelCurves.root.classList.add("hidden");
+            this.sideMenu.root.classList.add("hidden");
+            this.sideMenu.root.style.pointerEvents = "";
+            this.panelCurves.root.style.pointerEvents = "";
+            this.curveWidget.root.style.pointerEvents = "";
+        }
+        
+        if (visualState == PropagationWindow.STATE_BASE){
             this.visualState = PropagationWindow.STATE_BASE;
             this.curveWidget.root.remove(); // detach from timeline (if any)
         }else{
             const oldVisibility = this.visualState;
-            this.visualState = visualeState;
+            this.visualState = visualState;
+
             if ( oldVisibility == PropagationWindow.STATE_BASE ){ // only do update on visibility change
                 this.timeline.canvasArea.root.appendChild( this.curveWidget.root );
                 this.updateCurve(true);
@@ -5753,6 +5871,18 @@ class PropagationWindow {
 
             this.curveWidget.curveInstance.redraw();
         }
+        
+        if ( this.visualState ){
+            this.sideMenu.root.style.left = areaRect.x + windowRect.rectPosX + windowRect.rectWidth + "px";
+            this.sideMenu.root.style.top = areaRect.y + windowRect.rectPosY + "px";
+            if ( !this.panelCurves.root.classList.contains("hidden") ){
+                this.panelCurves.root.style.left = areaRect.x + windowRect.rectPosX + windowRect.rectWidth + 50 +"px";
+                this.panelCurves.root.style.top = areaRect.y + windowRect.rectPosY + 10 + "px";       
+                this.panelCurves.root.style.maxHeight = windowRect.rectHeight - 10 + "px";       
+            }
+        }
+
+
     }
 
     _getBoundingRectInnerWindow(){
@@ -5857,7 +5987,7 @@ class PropagationWindow {
         }
         ctx.stroke();
         ctx.lineWidth = 1;
-        // end of borders        
+        // end of borders
     }
 }
 
