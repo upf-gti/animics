@@ -5533,6 +5533,25 @@ class PropagationWindow {
         curveElement.style.zIndex = "0.5";
         curveElement.style.padding = "0px";
 
+        // hidden, used to save images of the window values
+        this.helperCurves = new LX.Curve( null, this.gradient, (v,e) => {
+                if ( v.length <= 0){
+                    this.curveWidget.curveInstance.element.value = this.gradient = [[0.5,1]];
+                    this.curveWidget.curveInstance.redraw();
+                }
+            },
+            {xrange: [0,1], yrange: [0,1], disabled: true, bgColor, pointsColor:"#0003C2FF", lineColor } 
+        );
+        const helper = this.helperCurves.root; 
+        helper.remove(); // from dom
+        helper.style.width = "fit-content";
+        helper.style.height = "fit-content";
+        helper.style.position = "fixed";
+        const helperCanvas = this.helperCurves.curveInstance.canvas;
+        helperCanvas.width = 400;
+        helperCanvas.style.width = "400px";
+        helperCanvas.height = 30;
+        helperCanvas.style.height = "30px";
 
         this.setCurveValues([[0.5,1]]); this.saveCurrentCurve();
         this.setCurveValues([[0.25,1], [0.5,0], [0.75,1]]); this.saveCurrentCurve();
@@ -5549,7 +5568,6 @@ class PropagationWindow {
     makeMenu(){
 
         let prevStates = 0;
-        
         if ( this.sideMenu ){
             prevStates |= !this.sideMenu.root.classList.contains("hidden"); 
             prevStates |= (!this.panelCurves.root.classList.contains("hidden")) << 1;
@@ -5574,6 +5592,7 @@ class PropagationWindow {
             this.saveCurrentCurve();
             this.makeMenu(); // overkill for just adding a card to the panel
             this.updateCurve();
+            LX.toast("Propagation Window Saved", null, { timeout: 7000 } );
 
         }, { icon: "Save", title: "Save current curve" } );
 
@@ -5581,7 +5600,11 @@ class PropagationWindow {
         panelCurves.root.background = "transparent";
         for( let i = 0; i < this.savedCurves.length; ++i ){
             const values = this.savedCurves[i].values;
-            let card = panelCurves.addCard(null, { img: this.savedCurves[i].imgURL, callback:(v,e)=>{ this.setCurveValues(values) }, className: "p-1 my-0"});
+            let card = panelCurves.addCard(null, { img: this.savedCurves[i].imgURL, callback:(v,e)=>{
+                const gradient = JSON.parse(JSON.stringify(values));
+                this.recomputeGradient( gradient, 1, 1, this.leftSide, this.rightSide ); // stored gradient is centered. Readjust to current window size
+                this.setCurveValues( gradient ); 
+            }, className: "p-1 my-0"});
             card.root.children[0].children[1].remove();
             card.root.children[0].children[0].style.height = "auto";
             card.root.children[0].classList.add("my-0");
@@ -5596,15 +5619,15 @@ class PropagationWindow {
         panelCurves.root.style.background = "var(--global-color-tertiary)";
         panelCurves.root.style.borderRadius = "10px";
 
-        document.body.appendChild(sideMenu.root);
-        document.body.appendChild(panelCurves.root);
-        
         if ( !(prevStates & 0x01) ){
             sideMenu.root.classList.add("hidden");
         }
         if ( !(prevStates & 0x02) ){
             panelCurves.root.classList.add("hidden");
         }
+
+        document.body.appendChild(sideMenu.root);
+        document.body.appendChild(panelCurves.root);
     }
 
     updateTheme(){
@@ -5624,9 +5647,34 @@ class PropagationWindow {
     }
 
     saveCurrentCurve(){
+        const gradient = JSON.parse(JSON.stringify(this.gradient));
+        this.recomputeGradient(gradient, this.leftSide, this.rightSide, 1,1 ); // center gradient
+
+        // for some reason width is sometimes 0
+        this.helperCurves.curveInstance.canvas.width = 400;
+        this.helperCurves.curveInstance.canvas.style.width = "400px";
+        this.helperCurves.curveInstance.canvas.height = 30;
+        this.helperCurves.curveInstance.canvas.style.height = "30px";
+        
+        this.helperCurves.curveInstance.element.value = gradient;
+        this.helperCurves.curveInstance.redraw();
+
+        const ctx = this.helperCurves.curveInstance.canvas.getContext("2d");
+        ctx.strokStyle = "black";
+        ctx.beginPath();
+        ctx.moveTo(200,0);
+        ctx.lineTo(200,2.5);
+        ctx.moveTo(200,7.5);
+        ctx.lineTo(200,12.5);
+        ctx.moveTo(200,17.5);
+        ctx.lineTo(200,22.5);
+        ctx.moveTo(200,27.5);
+        ctx.lineTo(200,30);
+        ctx.stroke();
+
         let c ={
-            imgURL: this.curveWidget.curveInstance.canvas.toDataURL("image/png"),
-            values: this.gradient.slice()
+            imgURL: this.helperCurves.curveInstance.canvas.toDataURL("image/png"),
+            values: gradient
         }
         this.savedCurves.push(c);
     }
@@ -5636,16 +5684,24 @@ class PropagationWindow {
      * @param {*} values [ [x,y] ].   0 < x < 0.5 left side of window. 0.5 < x < 1 right side of window
      */
     setCurveValues( values ){
-        this.curveWidget.curveInstance.element.value = this.gradient = values.slice();
+        this.curveWidget.curveInstance.element.value = this.gradient = values;
         this.curveWidget.curveInstance.redraw();
     }
 
-    recomputeGradient( newLeftSide, newRightSide ){
-        let g = this.gradient;
+    /**
+     * The window has a left side and a right side. They might be of different magnitudes. Since gradient's domain is [0,1], the midpoint will not always be in the middle
+     * @param {Array} gradient 
+     * @param {Num} oldLeft > 0
+     * @param {Num} oldRight > 0
+     * @param {Num} newLeftSide > 0
+     * @param {Num} newRightSide > 0
+     */
+    recomputeGradient( gradient, oldLeft, oldRight, newLeftSide, newRightSide ){
+        let g = gradient;
 
-        const oldMid = this.leftSide / (this.leftSide + this.rightSide);
+        const oldMid = oldLeft / (oldLeft + oldRight);
         const newMid = newLeftSide / (newLeftSide + newRightSide);
-        for( let i  = 0; i < g.length; ++i ){
+        for( let i = 0; i < g.length; ++i ){
             let gt = g[i][0]; 
             if ( gt <= oldMid ){
                 g[i][0] = ( gt / oldMid ) * newMid;
@@ -5654,9 +5710,6 @@ class PropagationWindow {
             g[i][0] = ( (gt - oldMid) / (1-oldMid)) * (1-newMid) + newMid ;
             }
         }
-
-        this.leftSide = newLeftSide;
-        this.rightSide = newRightSide;
     }
 
     setTimeline( timeline ){
@@ -5667,6 +5720,20 @@ class PropagationWindow {
             this.timeline.canvasArea.root.appendChild( this.curveWidget.root );
             this.updateCurve( true );
         }
+    }
+
+    /**
+     * 
+     * @param {Num} newLeftSide > 0, size of left side
+     * @param {Num} newRightSide > 0, size of right side 
+     */
+    setSize( newLeftSide, newRightSide ){
+        this.recomputeGradient(this.gradient, this.leftSide, this.rightSide, newLeftSide, newRightSide);
+        if( this.visualState > PropagationWindow.STATE_BASE ){
+            this.updateCurve(true);
+        }
+        this.leftSide = newLeftSide;
+        this.rightSide = newRightSide;
     }
 
     setTime( time ){
@@ -5681,13 +5748,11 @@ class PropagationWindow {
 
         dialog.sameLine();
         let w = dialog.addNumber("Min", this.leftSide, (v) => {
-            this.recomputeGradient( v, this.rightSide );
-            this.updateCurve(true);
+            this.setSize( v, this.rightSide );
         }, {min: 0.001, step: 0.001, units: "s", precision: 3, signal: "@propW_minT", width:"50%"});
         w.root.style.paddingLeft = 0;
         dialog.addNumber("Max", this.rightSide, (v) => {
-            this.recomputeGradient( this.leftSide, v );
-            this.updateCurve(true);
+            this.setSize( this.leftSide, v );
         }, {min: 0.001, step: 0.001, units: "s", precision: 3, signal: "@propW_maxT", width:"50%"});
         dialog.endLine();
 
@@ -5754,16 +5819,13 @@ class PropagationWindow {
                 this.curveWidget.root.style.pointerEvents = "";
             }
             else if ( this.resizing == 1 ){
-                const t = Math.max( 0.001, time - this.time );
-                this.recomputeGradient(this.leftSide, t);
-                LX.emit("@propW_maxT", t); 
+                const t = Math.max( 0.001, time - this.time ); 
+                this.setSize( this.leftSide, t );
+                LX.emit("@propW_maxT", t, true); 
             }else{
                 const t = Math.max( 0.001, this.time - time );
-                this.recomputeGradient(t, this.rightSide);
+                this.setSize( t, this.rightSide );
                 LX.emit("@propW_minT", t); 
-            }
-            if(this.visualState) {
-                this.updateCurve( true );
             }
         }
         else if(timeline.grabbing && this.visualState) {
