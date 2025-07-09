@@ -1286,6 +1286,7 @@ class KeyframeEditor extends Editor {
     onKeyDown( event ) {
         switch( event.key ) {
 
+            //TODO this should be in window.addEventListener. Otherwise, other elements preventDefault and stopImmediatePropagation and this is not called
             case 'w': case 'W': // Show/hide propagation window
                 if ( !document.activeElement || document.activeElement.value === undefined ){
                     this.gui.propagationWindow.toggleEnabler();

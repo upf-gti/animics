@@ -7,7 +7,7 @@
 */
 
 const LX = {
-    version: "0.6.9",
+    version: "0.6.10",
     ready: false,
     components: [], // Specific pre-build components
     signals: {}, // Events and triggers
@@ -311,7 +311,7 @@ function _createCommandbar( root )
 
     const _propagateAdd = ( item, filter, path, skipPropagation ) => {
 
-        if( !item )
+        if( !item || ( item.constructor != Object ) )
         {
             return;
         }
@@ -8540,7 +8540,7 @@ class Button extends Widget {
 
             if( !skipCallback )
             {
-                this._trigger( new LX.IEvent( name, swapInput ? swapInput.checked : value, null ), callback );
+                this._trigger( new LX.IEvent( name, swapInput ? swapInput.checked : ( options.selectable ? v : value ), null ), callback );
             }
         };
 
@@ -8645,6 +8645,7 @@ class Button extends Widget {
         }
 
         trigger.addEventListener( "click", e => {
+            let isSelected;
             if( options.selectable )
             {
                 if( options.parent )
@@ -8652,7 +8653,7 @@ class Button extends Widget {
                     options.parent.querySelectorAll(".lexbutton.selected").forEach( b => { if( b == wValue ) return; b.classList.remove( "selected" ); } );
                 }
 
-                wValue.classList.toggle('selected');
+                isSelected = wValue.classList.toggle('selected');
             }
 
             if( options.fileInput )
@@ -8662,7 +8663,7 @@ class Button extends Widget {
             else
             {
                 const swapInput = wValue.querySelector( "input" );
-                this._trigger( new LX.IEvent( name, swapInput?.checked ?? value, e ), callback );
+                this._trigger( new LX.IEvent( name, swapInput?.checked ?? ( options.selectable ? isSelected : value ), e ), callback );
             }
         });
 
@@ -9068,6 +9069,7 @@ class Select extends Widget {
             }
 
             this.root.dataset["opened"] = ( !!suboptionsFunc );
+            list.style.height = ""; // set auto height by default
 
             if( !skipCallback )
             {
@@ -9089,7 +9091,7 @@ class Select extends Widget {
         wValue.name = name;
         wValue.iValue = value;
 
-        if( options.overflowContainer )
+        if( options.overflowContainer !== undefined )
         {
             options.overflowContainerX = options.overflowContainerY = options.overflowContainer;
         }
@@ -9102,7 +9104,7 @@ class Select extends Widget {
 
             // Manage vertical aspect
             {
-                const overflowContainer = options.overflowContainerY ?? parent.getParentArea();
+                const overflowContainer = options.overflowContainerY !== undefined ? options.overflowContainerY : parent.getParentArea();
                 const listHeight = parent.offsetHeight;
                 let topPosition = rect.y;
 
@@ -9122,18 +9124,25 @@ class Select extends Widget {
                 }
 
                 parent.style.top = ( topPosition + selectRoot.offsetHeight ) + 'px';
+                list.style.height = ""; // set auto height by default
 
-                const showAbove = ( topPosition + listHeight ) > maxY;
-                if( showAbove )
+                const failBelow = ( topPosition + listHeight ) > maxY;
+                const failAbove = ( topPosition - listHeight ) < 0;
+                if( failBelow && !failAbove )
                 {
                     parent.style.top = ( topPosition - listHeight ) + 'px';
                     parent.classList.add( "place-above" );
+                }
+                // If does not fit in any direction, put it below but limit height..
+                else if( failBelow && failAbove )
+                {
+                    list.style.height = `${ maxY - topPosition - 32 }px`; // 32px margin
                 }
             }
 
             // Manage horizontal aspect
             {
-                const overflowContainer = options.overflowContainerX ?? parent.getParentArea();
+                const overflowContainer = options.overflowContainerX !== undefined ? options.overflowContainerX : parent.getParentArea();
                 const listWidth = parent.offsetWidth;
                 let leftPosition = rect.x;
 
@@ -9561,9 +9570,11 @@ class Layers extends Widget {
             container.style.width = `calc( 100% - ${ realNameWidth })`;
         };
 
-        var container = document.createElement( "div" );
+        const container = document.createElement( "div" );
         container.className = "lexlayers";
         this.root.appendChild( container );
+
+        const maxBits = options.maxBits ?? 16;
 
         this.setLayers = ( val ) =>  {
 
@@ -9573,19 +9584,19 @@ class Layers extends Widget {
             let nbits = binary.length;
 
             // fill zeros
-            for( let i = 0; i < ( 16 - nbits ); ++i )
+            for( let i = 0; i < ( maxBits - nbits ); ++i )
             {
                 binary = '0' + binary;
             }
 
-            for( let bit = 0; bit < 16; ++bit )
+            for( let bit = 0; bit < maxBits; ++bit )
             {
                 let layer = document.createElement( "div" );
                 layer.className = "lexlayer";
 
                 if( val != undefined )
                 {
-                    const valueBit = binary[ 16 - bit - 1 ];
+                    const valueBit = binary[ maxBits - bit - 1 ];
                     if( valueBit != undefined && valueBit == '1' )
                     {
                         layer.classList.add( "selected" );
@@ -9593,7 +9604,7 @@ class Layers extends Widget {
                 }
 
                 layer.innerText = bit + 1;
-                layer.title = "Bit " + bit + ", value " + (1 << bit);
+                layer.title = "Bit " + bit + ", value " + ( 1 << bit );
                 container.appendChild( layer );
 
                 layer.addEventListener( "click", e => {
@@ -10240,9 +10251,7 @@ class ColorInput extends Widget {
             colorModel: options.useRGB ? "RGB" : "Hex",
             useAlpha,
             onChange: ( color ) => {
-                this._fromColorPicker = true;
                 this.set( color.hex );
-                delete this._fromColorPicker;
             }
         } );
 
@@ -10280,6 +10289,7 @@ class ColorInput extends Widget {
             this._skipTextUpdate = true;
             this.set( v );
             delete this._skipTextUpdate;
+            this.picker.fromHexColor( v );
         }, { width: "calc( 100% - 24px )", disabled: options.disabled });
 
         textWidget.root.style.marginLeft = "6px";
@@ -11552,8 +11562,15 @@ class TabSections extends Widget {
             throw( "Param @tabs must be an Array!" );
         }
 
+        if( !tabs.length )
+        {
+            throw( "Tab list cannot be empty!" );
+        }
+
         const vertical = options.vertical ?? true;
         const showNames = !vertical && ( options.showNames ?? false );
+
+        this.tabDOMs = {};
 
         let container = document.createElement( 'div' );
         container.className = "lextabscontainer";
@@ -11567,25 +11584,25 @@ class TabSections extends Widget {
         container.appendChild( tabContainer );
         this.root.appendChild( container );
 
-        for( let i = 0; i < tabs.length; ++i )
+        // Check at least 1 is selected
+        if( tabs.findIndex( e => e.selected === true ) < 0 )
         {
-            const tab = tabs[ i ];
+            tabs[ 0 ].selected = true;
+        }
+
+        for( let tab of tabs )
+        {
             console.assert( tab.name );
-            const isSelected = ( i == 0 );
             let tabEl = document.createElement( "div" );
-            tabEl.className = "lextab " + (i == tabs.length - 1 ? "last" : "") + ( isSelected ? "selected" : "" );
+            tabEl.className = "lextab " + ( ( tab.selected ?? false ) ? "selected" : "" );
             tabEl.innerHTML = ( showNames ? tab.name : "" );
             tabEl.appendChild( LX.makeIcon( tab.icon ?? "Hash", { title: tab.name, iconClass: tab.iconClass, svgClass: tab.svgClass } ) );
+            this.tabDOMs[ tab.name ] = tabEl;
 
             let infoContainer = document.createElement( "div" );
             infoContainer.id = tab.name.replace( /\s/g, '' );
             infoContainer.className = "widgets";
-
-            if( !isSelected )
-            {
-                infoContainer.toggleAttribute( "hidden", true );
-            }
-
+            infoContainer.toggleAttribute( "hidden", !( tab.selected ?? false ) );
             container.appendChild( infoContainer );
 
             tabEl.addEventListener( "click", e => {
@@ -11615,6 +11632,20 @@ class TabSections extends Widget {
                 creationPanel.clearQueue();
             }
         }
+
+        this.tabs = tabs;
+    }
+
+    select( name ) {
+
+        const tabEl = this.tabDOMs[ name ];
+
+        if( !tabEl )
+        {
+            return;
+        }
+
+        tabEl.click();
     }
 }
 
@@ -14969,10 +15000,14 @@ class AssetView {
 
         if( options.rootPath )
         {
-            if(options.rootPath.constructor !== String)
-                console.warn("Asset Root Path must be a String (now is " + path.constructor.name + ")");
+            if( options.rootPath.constructor !== String )
+            {
+                console.warn( `Asset Root Path must be a String (now is a ${ path.constructor.name })` );
+            }
             else
+            {
                 this.rootPath = options.rootPath;
+            }
         }
 
         let div = document.createElement('div');
@@ -15341,7 +15376,7 @@ class AssetView {
         this.content.className = (isContentLayout ? "lexassetscontent" : "lexassetscontent list");
         let that = this;
 
-        const add_item = function(item) {
+        const _addItem = function(item) {
 
             const type = item.type.charAt( 0 ).toUpperCase() + item.type.slice( 1 );
             const extension = LX.getExtension( item.id );
@@ -15366,20 +15401,27 @@ class AssetView {
                         return;
                     }
 
+                    const dialog = itemEl.closest('dialog');
                     const rect = itemEl.getBoundingClientRect();
                     const targetRect = e.target.getBoundingClientRect();
-                    const parentRect = desc.parentElement.getBoundingClientRect();
 
-                    let localOffsetX = targetRect.x - parentRect.x - ( targetRect.x - rect.x );
-                    let localOffsetY = targetRect.y - parentRect.y - ( targetRect.y - rect.y );
+                    let localOffsetX = rect.x + e.offsetX;
+                    let localOffsetY = rect.y + e.offsetY;
+
+                    if( dialog )
+                    {
+                        const dialogRect = dialog.getBoundingClientRect();
+                        localOffsetX -= dialogRect.x;
+                        localOffsetY -= dialogRect.y;
+                    }
 
                     if( e.target.classList.contains( "lexassettitle" ) )
                     {
                         localOffsetY += ( targetRect.y - rect.y );
                     }
 
-                    desc.style.left = (localOffsetX + e.offsetX + 12) + "px";
-                    desc.style.top = (localOffsetY + e.offsetY) + "px";
+                    desc.style.left = ( localOffsetX ) + "px";
+                    desc.style.top = ( localOffsetY - 36 ) + "px";
                 });
 
                 itemEl.addEventListener("mouseenter", () => {
@@ -15577,7 +15619,7 @@ class AssetView {
                 } });
             }else
             {
-                item.domEl = add_item( item );
+                item.domEl = _addItem( item );
             }
         }
 

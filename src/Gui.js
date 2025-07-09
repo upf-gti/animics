@@ -1477,7 +1477,7 @@ class KeyframesGui extends Gui {
 
                     // if paste -> new mixerAnimations and add them to mixer -> probably below pasteContent()
                     // savestate -> if Undo/Redo & Paste already do mixerAnimation updates, mixersAnimations can be left as references 
-                    // undo/redo -> must redo all actions. Some might have been deleted/added, change of mixer uiids, etc
+                    // undo/redo -> must redo all actions. Some might have been deleted/added, change of mixer uiids, change of blendmode, etc
                     //              updateMixers.
                 }
 
@@ -2511,24 +2511,22 @@ class KeyframesGui extends Gui {
                 this.propagationWindow.setTimeline( this.bsTimeline );
             }
             else { // if is in AU mode or is not defined
-                this.imageMap.resize();
                 this.editor.setTimeline(this.editor.animationModes.FACEAU);
                 this.propagationWindow.setTimeline( this.auTimeline );
                 this.selectActionUnitArea(this.editor.getSelectedActionUnit());
+                setTimeout(this.imageMap.resize.bind(this.imageMap), 0.01); // are is not visible yet. It has no properly defined clientHeight. Let it finish before resizing
             }
             this.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
-            //  this.faceTabs.select("Action Units");
         }}  );
 
         const panel = faceArea.addPanel();
-        // panel.root.style.maxHeight= "100vh";
 
         // Alex: This hacky offset corresponds to Title Widget inside the tabs.
         // Its height its not checked when computing final heights/scroll stuff (to fix in Lexgui)
         const titleOffset = 36;
 
         const auArea = new LX.Area({id: 'auFace', height: `calc(100% - ${ titleOffset }px)`});
-        auArea.split({type: "vertical", sizes: ["auto", "auto"], resize: true});
+        auArea.split({type: "vertical", sizes: ["50%", "50%"], resize: true});
         const [faceTop, faceBottom] = auArea.sections;
 
         const bsArea = new LX.Area({id: 'bsFace', height: `calc(100% - ${ titleOffset }px)`});
@@ -2546,9 +2544,6 @@ class KeyframesGui extends Gui {
                     this.createFacePanel( faceTop );
                     this.createActionUnitsPanel( faceBottom );
                     p.queuedContainer.appendChild(auArea.root);
-                    if(this.imageMap) {
-                        this.imageMap.resize();
-                    }
                 },
                 onSelect: p => {
                     this.editor.setTimeline(this.editor.animationModes.FACEAU);
