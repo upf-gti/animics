@@ -5548,10 +5548,45 @@ class PropagationWindow {
         helperCanvas.height = 30;
         helperCanvas.style.height = "30px";
 
-        this.setCurveValues([[0.5,1]]); this.saveCurrentCurve();
-        this.setCurveValues([[0.25,1], [0.5,0], [0.75,1]]); this.saveCurrentCurve();
-        this.setCurveValues([[0.5,1]]);
-        this.makeMenu();
+
+        const computeGradientFromFormula = (f, df) => {
+            let left = [];
+            let right = [];
+            const defaultDelta = 0.1;
+            let status = true;
+            for( let i = 0; status; ){
+                if( i > 1 ){
+                    i = 1;
+                    status = false;
+                }
+                let y = f(i);
+
+                left.push( [ Math.clamp( i*0.5, 0 , 0.5 ) , Math.clamp(y, 0,1)] );
+                if ( status ){
+                    right.push( [Math.clamp( 1-i*0.5, 0.5 , 1 ), Math.clamp(y, 0,1)] )
+                }
+                let der = Math.abs(df(i));
+                der = der > 0 ? Math.clamp( defaultDelta / der, 0.08, 0.2 ) : 0.05; // modify delta to add to 'i' depending on derivative
+                i += der;
+            }
+
+            let result = left.concat(right.reverse());
+            this.saveGradient( result, 1, 1 );
+        }
+
+        
+        // cards are drawn from last to first. Make lower cards the least expected curves
+        computeGradientFromFormula( (x) =>{ return 1-x*x*x*x }, (x) =>{ return -4*x*x*x } );
+        computeGradientFromFormula( (x) =>{ return 1-(Math.sin(x * Math.PI - Math.PI*0.5) *0.5 + 0.5); }, (x) =>{ return -Math.cos(x * Math.PI - Math.PI*0.5) *0.5 * Math.PI; } );
+        computeGradientFromFormula( (x) =>{ return x*x*x*x }, (x) =>{ return 4*x*x*x } );
+        computeGradientFromFormula( (x) =>{ return x*x }, (x) =>{ return 2*x } );
+        computeGradientFromFormula( (x) =>{ return Math.sin(x * Math.PI - Math.PI*0.5) *0.5 + 0.5; }, (x) =>{ return Math.cos(x * Math.PI - Math.PI*0.5) *0.5 * Math.PI; } );
+        computeGradientFromFormula( (x) =>{ let a = 1-x; return 1-a*a*a*a }, (x) =>{ let a = 1-x; return -4*a*a*a } );
+        computeGradientFromFormula( (x) =>{ let a = 1-x; return 1-a*a }, (x) =>{ let a = 1-x; return -2*a } );
+        this.saveGradient( [[0.5,1]], 1, 1 );
+        
+        this.setGradient([[0.5,1]]); 
+        this.makeCurvesSelectorMenu();
         
         this.updateTheme();
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
@@ -5560,7 +5595,7 @@ class PropagationWindow {
         } )
     }
 
-    makeMenu(){
+    makeCurvesSelectorMenu(){
 
         let prevStates = 0;
         if ( this.sideMenu ){
@@ -5584,8 +5619,8 @@ class PropagationWindow {
         }, { icon: "ChartSpline", title: "Show saved curves" } );
         
         sideMenu.addButton(null, "", (v,e)=>{ 
-            this.saveCurrentCurve();
-            this.makeMenu(); // overkill for just adding a card to the panel
+            this.saveGradient( this.gradient, this.leftSide, this.rightSide );
+            this.makeCurvesSelectorMenu(); // overkill for just adding a card to the panel
             this.updateCurve();
             LX.toast("Propagation Window Saved", null, { timeout: 7000 } );
 
@@ -5593,12 +5628,12 @@ class PropagationWindow {
 
         const panelCurves  = this.panelCurves = new LX.Panel( {id:"panelCurves", width:"auto", height: "auto"});
         panelCurves.root.background = "transparent";
-        for( let i = 0; i < this.savedCurves.length; ++i ){
+        for( let i = this.savedCurves.length-1; i > -1; --i ){
             const values = this.savedCurves[i].values;
             let card = panelCurves.addCard(null, { img: this.savedCurves[i].imgURL, callback:(v,e)=>{
                 const gradient = JSON.parse(JSON.stringify(values));
                 this.recomputeGradient( gradient, 1, 1, this.leftSide, this.rightSide ); // stored gradient is centered. Readjust to current window size
-                this.setCurveValues( gradient ); 
+                this.setGradient( gradient ); 
             }, className: "p-1 my-0"});
             card.root.children[0].children[1].remove();
             card.root.children[0].children[0].style.height = "auto";
@@ -5613,6 +5648,7 @@ class PropagationWindow {
         panelCurves.root.style.position = "fixed";
         panelCurves.root.style.background = "var(--global-color-tertiary)";
         panelCurves.root.style.borderRadius = "10px";
+        panelCurves.root.classList.add("showScrollBar");
 
         if ( !(prevStates & 0x01) ){
             sideMenu.root.classList.add("hidden");
@@ -5641,9 +5677,9 @@ class PropagationWindow {
         this.setEnabler( !this.enabler );
     }
 
-    saveCurrentCurve(){
-        const gradient = JSON.parse(JSON.stringify(this.gradient));
-        this.recomputeGradient(gradient, this.leftSide, this.rightSide, 1,1 ); // center gradient
+    saveGradient( gradientToSave, leftSize, rightSize ){
+        const gradient = JSON.parse(JSON.stringify(gradientToSave));
+        this.recomputeGradient(gradient, leftSize, rightSize, 1,1 ); // centre gradient
 
         // for some reason width is sometimes 0
         this.helperCurves.curveInstance.canvas.width = 400;
@@ -5654,6 +5690,7 @@ class PropagationWindow {
         this.helperCurves.curveInstance.element.value = gradient;
         this.helperCurves.curveInstance.redraw();
 
+        // vertical line that separates Left and Right sides of the window
         const ctx = this.helperCurves.curveInstance.canvas.getContext("2d");
         ctx.strokStyle = "black";
         ctx.beginPath();
@@ -5676,10 +5713,10 @@ class PropagationWindow {
 
     /**
      * set curve widget values
-     * @param {*} values [ [x,y] ].   0 < x < 0.5 left side of window. 0.5 < x < 1 right side of window
+     * @param {*} newGradient [ [x,y] ].   0 < x < 0.5 left side of window. 0.5 < x < 1 right side of window
      */
-    setCurveValues( values ){
-        this.curveWidget.curveInstance.element.value = this.gradient = values;
+    setGradient( newGradient ){
+        this.curveWidget.curveInstance.element.value = this.gradient = newGradient;
         this.curveWidget.curveInstance.redraw();
     }
 
@@ -5724,11 +5761,11 @@ class PropagationWindow {
      */
     setSize( newLeftSide, newRightSide ){
         this.recomputeGradient(this.gradient, this.leftSide, this.rightSide, newLeftSide, newRightSide);
+        this.leftSide = newLeftSide;
+        this.rightSide = newRightSide;
         if( this.visualState > PropagationWindow.STATE_BASE ){
             this.updateCurve(true);
         }
-        this.leftSide = newLeftSide;
-        this.rightSide = newRightSide;
     }
 
     setTime( time ){

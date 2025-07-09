@@ -1140,7 +1140,7 @@ class Editor {
                 const waitTime = 500; // ms
                 const maxTries = 100;
                 window.onmessage = (event) =>{ 
-                    if (event.origin == Editor.PERFORMS_PATH){ // URL.parse is an overkill, but better be safe, in case performs path changes later on
+                    if (event.origin == Editor.PERFORMS_PATH){
                         if ( typeof(event.data) == "object" && event.data.appStatus ){
 
                             for( let i = 0; i < this._realizer.pendingData.length; ++i){

@@ -23,6 +23,9 @@
 }
 
 /* ----- Lexgui style overrides ----- */
+.showScrollBar::-webkit-scrollbar{
+	display: block !important
+}
 
 .hover\:scale:hover {
 	transform: scale(1.1);
