@@ -454,6 +454,7 @@ class Editor {
         // Gizmo stuff
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
+            this.setBoneSize(0.12);
         }
         this.gui.createCharactersPanel();
         // this.gui.setKeyframeClip(null);
@@ -1486,7 +1487,8 @@ class KeyframeEditor extends Editor {
 
         // Gizmo stuff
         if(this.gizmo) {
-            this.gizmo.begin(this.currentCharacter.skeletonHelper);            
+            this.gizmo.begin(this.currentCharacter.skeletonHelper);
+            this.setBoneSize(0.12);
         }
 
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
