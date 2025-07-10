@@ -19,7 +19,8 @@ class MediaPipe {
         this.currentResults = null;
         this.landmarks = [];
         this.blendshapes = [];
-        
+        this.rawData = [];
+
         this.mirrorCanvas = false;
         this.cropRect = null; //{ x:0, y:0, width: 1, height: 1 }; normalized coordinates
     }
@@ -297,6 +298,10 @@ class MediaPipe {
             }
             this.landmarks.push( results.landmarksResults );
             this.blendshapes.push( results.blendshapesResults );
+            detectionsFace.dt = dt;
+            detectionsPose.dt = dt;
+            detectionsHands.dt = dt;
+            this.rawData.push({detectionsFace, detectionsPose, detectionsHands});
         }
 
         this.currentResults = results;
@@ -544,6 +549,7 @@ class MediaPipe {
         this.recording = true;
         this.landmarks = [];
         this.blendshapes = [];
+        this.rawData = [];
     }
 
     stopRecording() {
