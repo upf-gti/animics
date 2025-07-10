@@ -2430,13 +2430,17 @@ class KeyframeEditor extends Editor {
 
             // right arm-hands
             computeQuatArm( skeleton, body, false );
-            computeQuatHand( skeleton, rightHand, false); 
-            computeQuatPhalange( skeleton, bindQuats, rightHand, false );
+            if(worldLandmarksArray[i].rightHandVisibility > 0.3) {
+                computeQuatHand( skeleton, rightHand, false); 
+                computeQuatPhalange( skeleton, bindQuats, rightHand, false );
+            }
             
             // left arm-hands
             computeQuatArm( skeleton, body, true );
-            computeQuatHand( skeleton, leftHand, true ); 
-            computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+            if(worldLandmarksArray[i].leftHandVisibility > 0.3) {
+                computeQuatHand( skeleton, leftHand, true ); 
+                computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+            }
 
             // remove hips delta rotation from legs (children of hips). Hardcoded for EVA 
             skeleton.bones[62].quaternion.copy( skeleton.bones[0].quaternion ).invert().multiply( bindQuats[0] ).multiply( bindQuats[62] );
@@ -3131,6 +3135,11 @@ class KeyframeEditor extends Editor {
     updateBlendshapesAnimation( bsAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip ) {
         let mapTrackIdxs = {};
         const bsEditedTracksIdxs = [];
+        if( editedTracksIdxs.length && editedTracksIdxs[0] == -1 ){
+            editedTracksIdxs.length = editedAnimation.tracks.length;
+            editedTracksIdxs.fill(-1);
+            editedTracksIdxs = editedTracksIdxs.map((v,i) => i);
+        }
         for( let j = 0; j < editedTracksIdxs.length; j++ ) {
             const eIdx = editedTracksIdxs[j];
             const eTrack = editedAnimation.tracks[eIdx];
@@ -3186,6 +3195,12 @@ class KeyframeEditor extends Editor {
 
         const numEditedTracks = editedTracksIdxs ? editedTracksIdxs.length : editedAnimation.tracks.length;
 
+        if( editedTracksIdxs.length && editedTracksIdxs[0] == -1 ){
+            editedTracksIdxs.length = editedAnimation.tracks.length;
+            editedTracksIdxs.fill(-1);
+            editedTracksIdxs = editedTracksIdxs.map((v,i) => i);
+        }
+        
         for( let i = 0; i < numEditedTracks; i++ ) {
             const eIdx = editedTracksIdxs ? editedTracksIdxs[i] : i;
             const eTrack = editedAnimation.tracks[eIdx]; // track of the edited animation
