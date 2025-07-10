@@ -2134,7 +2134,7 @@ class KeyframesGui extends Gui {
         this.editor.setTimeline(this.editor.animationModes.BODY);
         this.propagationWindow.setTimeline( this.skeletonTimeline );
         
-        if ( sourceAnimation && sourceAnimation.type == "video" ) {
+        if ( sourceAnimation && sourceAnimation.type == "video" && sourceAnimation.videoExtension != ".json" ) {
             const video = this.editor.video;
             video.sync = true;
             this.editor.setVideoVisibility(this.showVideo);
