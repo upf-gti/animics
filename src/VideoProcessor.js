@@ -533,7 +533,8 @@ class VideoProcessor {
             this.mediapipe.processVideoOffline( video, { startTime: animationData.startTime, endTime: animationData.endTime, dt: animationData.dt, callback: () =>{
                 animationData.landmarks = this.mediapipe.landmarks;
                 animationData.blendshapes = this.mediapipe.blendshapes;
-    
+                animationData.rawData = this.mediapipe.rawData;
+                
                 this.inputVideo.onloadedmetadata = null;
              
                 video.onloadedmetadata = null;

@@ -1380,8 +1380,9 @@ class KeyframesGui extends Gui {
                     let data = {
                         startTime: animation.startTime,
                         endTime: animation.endTime,
-                        landmarks: animation.landmarks,
-                        blendshapes: animation.blendshapes
+                        data: animation.rawData,
+                        // landmarks: animation.landmarks,
+                        // blendshapes: animation.blendshapes
                     };
 
                     data = JSON.stringify( data, 
@@ -1408,6 +1409,7 @@ class KeyframesGui extends Gui {
             }, { buttonClass: "accent", width: "50%" });
             p.addButton(null, "Cancel", () => {
                 dialog.close();
+                UTILS.hideLoading();
             }, { width: "50%" });
 
         }, options);

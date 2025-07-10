@@ -41,17 +41,17 @@ class Animics {
 
         const mode = settings.mode;
         switch(mode) {
-            case 'keyframe': case 'bvh': case 'bvhe': case 'video':
+            case 'keyframe': case 'bvh': case 'bvhe': case 'video': case 'json':
                 // Create empty animation
                 this.editor = new KeyframeEditor(this);
             
                 break;
-            case 'bml': case 'json': case 'sigml': case 'script':
+            case 'bml': case 'sigml': case 'script':
                 this.editor = new ScriptEditor(this);
             //     callback = this.onScriptProject.bind(this, settings.pendingResources );
                 break;
             default:                  
-                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml', 'json'\n\tKeyframe animation: 'bvh', 'bvhe'");
+                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml'\n\tKeyframe animation: 'bvh', 'bvhe', 'json'");
                 return false;  
         }
         

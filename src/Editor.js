@@ -454,6 +454,7 @@ class Editor {
         // Gizmo stuff
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
+            this.setBoneSize(0.12);
         }
         this.gui.createCharactersPanel();
         // this.gui.setKeyframeClip(null);
@@ -553,7 +554,16 @@ class Editor {
                         data.animation.behaviours = data.animation.data;
                     }
                 }
-                else if( extension.includes( "bml" ) || extension.includes("json") ) {
+                else if( extension.includes("json") ) {
+                    data.animation = JSON.parse( content );
+                    if( Array.isArray(data.animation) ) {
+                        data.animation = { behaviours: data.animation };
+                    }
+                    else if( Array.isArray(data.animation.data) ) {
+                        data.animation.behaviours = data.animation.data;
+                    }
+                }
+                else if( extension.includes( "bml" ) ) {
                     data.animation = JSON.parse( content );
                     if( Array.isArray(data.animation) ) {
                         data.animation = { behaviours: data.animation };
@@ -645,6 +655,27 @@ class Editor {
                             resolve(animations)
                         })})
                 }
+                else if( type.includes("json") ) {
+                    data.animation = JSON.parse( content );
+                    if( Array.isArray(data.animation) ) { // TODO!
+                        // TO DO
+                    }
+                    else if( Array.isArray(data.animation.data) ) {
+                        const mediapipeData = data.animation.data;
+                       
+                        let animationData = { landmarks: [], blendshapes: [], rawData: [], name: data.name};
+                        
+                        let time = 0;
+                        for(let i = 0; i < mediapipeData.length; i++) {
+                            
+                            animationData.blendshapes.push( this.ANIMICS.videoProcessor.mediapipe.processBlendshapes(mediapipeData[i].detectionsFace, mediapipeData[i].detectionsFace.dt || time ) );
+                            animationData.landmarks.push( this.ANIMICS.videoProcessor.mediapipe.processLandmarks(mediapipeData[i].detectionsFace, mediapipeData[i].detectionsPose, mediapipeData[i].detectionsHands, mediapipeData[i].detectionsPose.dt || time) );
+                            animationData.rawData.push( mediapipeData[i] );
+                            time+=16.60; //ms
+                        }
+                        data.animation = animationData;
+                    }
+                }
                 else if( type.includes('sigml') ) {
                     data.animation = sigmlStringToBML( content );
                     if( Array.isArray(data.animation) ) {
@@ -654,7 +685,7 @@ class Editor {
                         data.animation.behaviours = data.animation.data;
                     }
                 }
-                else if( type.includes( "bml" ) || type.includes("json") ) {
+                else if( type.includes( "bml" ) ) {
                     data.animation = JSON.parse( content );
                     if( Array.isArray(data.animation) ) {
                         data.animation = { behaviours: data.animation };
@@ -1487,7 +1518,8 @@ class KeyframeEditor extends Editor {
 
         // Gizmo stuff
         if(this.gizmo) {
-            this.gizmo.begin(this.currentCharacter.skeletonHelper);            
+            this.gizmo.begin(this.currentCharacter.skeletonHelper);
+            this.setBoneSize(0.12);
         }
 
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
@@ -1668,7 +1700,7 @@ class KeyframeEditor extends Editor {
     }
 
     async loadFiles(files) {
-        const animExtensions = ['bvh','bvhe', 'glb'];
+        const animExtensions = ['bvh','bvhe', 'glb', 'json'];
         const resultFiles = [];
         const promises = [];
 
@@ -1830,9 +1862,18 @@ class KeyframeEditor extends Editor {
     // load animation from bvh or bvhe file
     loadAnimation(name, animationData, bindToCurrentGlobal = true, addToLoadedList = true) {
 
+                
+        let fileExtension = name.lastIndexOf(".");
+        if ( fileExtension != -1 ){
+            fileExtension = name.slice(fileExtension);
+        }else{
+            fileExtension = "unknown";
+        }
+        
         let skeleton = null;
         let bodyAnimation = null;
         let faceAnimation = null;
+
         if ( animationData && animationData.skeletonAnim ){
             skeleton = animationData.skeletonAnim.skeleton;
             skeleton.bones.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
@@ -1843,6 +1884,9 @@ class KeyframeEditor extends Editor {
             animationData.skeletonAnim.clip.tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()|+\-=?;:'"<>\{\}\\\/]/gi, "") } );     
             animationData.skeletonAnim.clip.name = "bodyAnimation";
             bodyAnimation = animationData.skeletonAnim.clip;
+        }
+        else if( animationData.landmarks ) {
+            return this.buildAnimation(animationData, false);        
         }
         else{ // Otherwise create empty body animation
             this.currentCharacter.skeletonHelper.skeleton.pose();
@@ -1871,14 +1915,6 @@ class KeyframeEditor extends Editor {
         }
         bodyAnimation.duration = duration;
         faceAnimation.duration = duration;
-
-        
-        let fileExtension = name.lastIndexOf(".");
-        if ( fileExtension != -1 ){
-            fileExtension = name.slice(fileExtension);
-        }else{
-            fileExtension = "unknown";
-        }
 
         // ensure unique name
         let count = 1;
@@ -3829,7 +3865,7 @@ class ScriptEditor extends Editor {
     }
 
     async loadFiles( files ) {
-        const formats = ['json', 'bml', 'sigml'];
+        const formats = ['bml', 'sigml'];
         const promises = [];
         
         for(let i = 0; i < files.length; ++i){
@@ -3893,7 +3929,7 @@ class ScriptEditor extends Editor {
                 promises.push( promise );
             }
             else {
-                alert(extension + ": Format not supported.\n\nFormats accepted:\n\t'bml', 'sigml', 'json'\n\t");
+                alert(extension + ": Format not supported.\n\nFormats accepted:\n\t'bml', 'sigml'\n\t");
             }
         }
         if( !promises.length ) {
