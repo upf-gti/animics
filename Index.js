@@ -90,8 +90,8 @@ function createSideBar( area ) {
             home.classList.remove("hidden");
          } } );
         m.add( "Documentation", { icon: "BookOpen" });
-        m.add( "Documentation/Keyframe Animation", { xicon: "", callback:  () => { window.open( "docs/" , "_blank" ) } } );
-        m.add( "Documentation/Script Animation", { xicon: "", callback:  () => { window.open( "docs/script_animation.html" , "_blank" ) } } );
+        m.add( "Documentation/Keyframe Animation", { xicon: "", callback:  () => { window.open( "docs/keyframe" , "_blank" ) } } );
+        m.add( "Documentation/Script Animation", { xicon: "", callback:  () => { window.open( "docs/script" , "_blank" ) } } );
         m.add( "About", { icon: "Info", callback: () => { 
             home.classList.add("hidden");
             about.classList.remove("hidden");
