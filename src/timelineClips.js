@@ -1341,9 +1341,9 @@ function HeadClip(o)
 	this._width = 0;
 
 	this.properties = {
-		lexeme : "Nod", //[NOD,SHAKE, TILD...]
+		lexeme : "Nod", //[NOD,SHAKE, TILT...]
 		repetition : 1, //[1,*] (optional)
-		amount : 1, //[0,1]
+		amount : 0.2, //[0,1]
 	}
 
 	if(o)
