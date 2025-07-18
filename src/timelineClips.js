@@ -2645,7 +2645,7 @@ HandOrientationClip.prototype.showInfo = function(panel, callback)
 //HandshapeClip
 HandshapeClip.type = "gesture";
 HandshapeClip.handshapes = ["Fist", "Finger 2", "Finger 23", "Finger 23 spread", "Finger 2345", "Flat", "Pinch 12", "Pinch 12 open", "Pinch all", "Cee all", "Cee 12", "Cee 12 open"];
-HandshapeClip.thumbshapes = ["Default", "Out", "Opposed", "Across", "Touch"];
+HandshapeClip.thumbshapes = ["Handshape Thumb","Default", "Out", "Opposed", "Across"];
 HandshapeClip.bendstates = ["Straight", "Half bent", "Bent", "Round", "Hooked", "Double bent", "Double hooked"];
 HandshapeClip.hands = ["Left", "Right", "Both"];
 HandshapeClip.fingers = ["", "Index", "Middle", "Ring", "Pinky"];

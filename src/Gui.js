@@ -4310,7 +4310,7 @@ class ScriptGui extends Gui {
         animSide.attach(this.animationPanel);
         this.updateAnimationPanel( );
         
-        this.clipPanel = new LX.Panel({id:"bml-clip"});
+        this.clipPanel = new LX.Panel({id:"bml-clip", className: "showScrollBar"});
         tabsSide.attach(this.clipPanel);
         this.updateClipPanel( );
         
