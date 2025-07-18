@@ -2645,7 +2645,7 @@ HandOrientationClip.prototype.showInfo = function(panel, callback)
 //HandshapeClip
 HandshapeClip.type = "gesture";
 HandshapeClip.handshapes = ["Fist", "Finger 2", "Finger 23", "Finger 23 spread", "Finger 2345", "Flat", "Pinch 12", "Pinch 12 open", "Pinch all", "Cee all", "Cee 12", "Cee 12 open"];
-HandshapeClip.thumbshapes = ["Handshape Thumb","Default", "Out", "Opposed", "Across"];
+HandshapeClip.thumbshapes = ["Default", "Out", "Opposed", "Across"];
 HandshapeClip.bendstates = ["Straight", "Half bent", "Bent", "Round", "Hooked", "Double bent", "Double hooked"];
 HandshapeClip.hands = ["Left", "Right", "Both"];
 HandshapeClip.fingers = ["", "Index", "Middle", "Ring", "Pinky"];
@@ -2662,6 +2662,7 @@ function HandshapeClip(o)
 	this.relax = this.fadeout = 0.75; //if it's not permanent
 	this._width = 0;
 
+	this.backupProperties = {}; // used for gui only
 	this.properties = {
 		hand: "Right",
 		handshape: "Flat", //string from the handshape table
@@ -2687,7 +2688,7 @@ function HandshapeClip(o)
 		this.configure(o);
 
 	this.applySpecial = (this.properties.specialFingers != "" && this.properties.specialFingers != " ");
-
+	this.applyThumbTarget = this.properties.thumbTarget && this.properties.thumbTarget.length;
 	this.font = "11px Calibri";
 	this.clipColor = HandshapeClip.clipColor;
 }
@@ -2819,6 +2820,128 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 			callback();
 	});
 
+	panel.addCheckbox("Apply to specific fingers", this.applySpecial, (v, e) => {
+		this.applySpecial = v;
+		if(!v) {
+			this.properties.specialFingers = "";
+		}
+		if(callback)
+			callback(true);
+	}, {
+		title: "All hand settings will be applied only to the selected fingers",
+		suboptions: (p) => {
+			p.addTextArea(null, "Select the fingers to apply the movement to.", null, {disabled:true})
+			for(let i=1; i < HandshapeClip.fingers.length; i++) {
+
+				let active = this.properties.specialFingers.includes(HandshapeClip.fingers[i]);
+				p.addCheckbox(HandshapeClip.fingers[i], active, (v,e, name) => {
+					if(v) {
+						this.properties.specialFingers += name + " ";
+					}
+					else {
+						this.properties.specialFingers = this.properties.specialFingers.replace(name + " ", "");
+					}
+					if(callback)
+						callback();
+				} )
+			}
+		}
+	});
+
+	panel.addCheckbox("Thumb Target", this.applyThumbTarget, (v, e) => {
+		const changed = v != this.applyThumbTarget;
+		this.applyThumbTarget = v;
+
+		if(!v) {
+			this.backupProperties.thumbTargetInfo = {
+				thumbTarget : this.properties.thumbTarget,
+				thumbDistance : this.properties.thumbDistance,
+				thumbSource : this.properties.thumbSource,
+				// thumbSplay : this.properties.thumbSplay,
+			}
+			this.properties.thumbTarget = undefined;
+			this.properties.thumbDistance = undefined;
+			this.properties.thumbSource = undefined;
+			// this.properties.thumbSplay = undefined;
+		}else if( this.backupProperties.thumbTargetInfo ) {
+			this.properties.thumbTarget = this.backupProperties.thumbTargetInfo.thumbTarget;
+			this.properties.thumbDistance = this.backupProperties.thumbTargetInfo.thumbDistance;
+			this.properties.thumbSource = this.backupProperties.thumbTargetInfo.thumbSource;
+			// this.properties.thumbSplay = this.backupProperties.thumbTargetInfo.thumbSplay;
+		}else{
+			this.properties.thumbTarget = "2_TIP";
+			this.properties.thumbSource = "TIP";
+			this.properties.thumbDistance = 0;
+			// ignore thumbSplay for now. System already applies a splay. The Thumbsplay overwrites the automatic splay
+			// this.properties.thumbSplay = this.backupProperties.thumbTargetInfo.thumbSplay;
+		}
+		if(callback)
+			callback(true);
+	}, {
+		title: "Overrides any other thumb specification",
+		suboptions: (p) => {
+
+			if ( !HandshapeClip.guiToThumbTarget ){
+				// do it once only
+
+				const fingers = ["Index", "Middle", "Ring", "Pinky"]
+				const sides = ["Ulnar", "Radial", "Back", "Palmar"]
+				const fingerlocs = [ "Pad", "Mid", "Base" ] 
+				const locs = ["Thumb ball", "Hand", "Wrist"];
+
+				let result = [];
+				let guiToThumbTarget = {};
+				let thumbTargetToGui = {};
+				for( let f = 0; f < fingers.length; ++f ){
+					result.push( fingers[f] + ", Tip" );
+					guiToThumbTarget[ fingers[f] + ", Tip" ] = (f+2) + "_TIP";
+					thumbTargetToGui[ (f+2) + "_TIP" ] = fingers[f] + ", Tip";
+
+					for( let fl = 0 ; fl < fingerlocs.length; ++fl ){
+						for( let s = 0; s < sides.length; ++s ){			
+							const guiname = fingers[f] + ", " + fingerlocs[fl] + ", " + sides[s];
+							const bmlname = (f+2) + "_" + fingerlocs[fl].toUpperCase() + "_" + sides[s].toUpperCase();
+							guiToThumbTarget[ guiname ] = bmlname;
+							thumbTargetToGui[ bmlname ] = guiname;
+						}
+					}
+				}
+				for( let l = 0 ; l < locs.length; ++l ){
+					for( let s = 0; s < sides.length; ++s ){
+						const guiname = locs[l] + ", " + sides[s];
+						const bmlname = locs[l].toUpperCase() + "_" + sides[s].toUpperCase();
+						guiToThumbTarget[ guiname ] = bmlname;
+						thumbTargetToGui[ bmlname ] = guiname;
+					}
+				}
+				HandshapeClip.guiToThumbTarget = guiToThumbTarget;
+				HandshapeClip.thumbTargetToGui = thumbTargetToGui;
+			}
+			p.addSelect("Thumb Target", Object.keys(HandshapeClip.guiToThumbTarget), HandshapeClip.thumbTargetToGui[ this.properties.thumbTarget ] ?? "Index, Tip", (v,e)=>{
+				this.properties.thumbTarget = HandshapeClip.guiToThumbTarget[v];
+				if(callback)
+					callback(true);
+			}, {filter: true} );
+
+			p.addSelect("Thumb Source", ["Tip", "Pad"], this.properties.thumbSource ?? "Tip", (v,e)=>{
+				this.properties.thumbSource = v.toUpperCase();
+				if(callback)
+					callback(true);
+			}, { title: "Sets the thumb part that will touch the fingers"} );
+			
+			p.addNumber("Thumb Distance", this.properties.thumbDistance ?? 0, (v,e)=>{
+				this.properties.thumbDistance = v;
+				if(callback)
+					callback(true);
+			}, { min: 0, max: 1, step: 0.01, title: "0 means contact, 1 a distance equal to the thumb's size" } );
+
+			// ignore thumbSplay for now. System already applies a splay. The Thumbsplay overwrites the automatic splay
+		}
+	} );
+
+	panel.addSeparator();
+	panel.addTitle( "Optionals: Main Shape Modifiers");
+
 	// Thumbshape property
 	panel.addSelect("Thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.thumbshape, (v, e, name) => {
 	
@@ -2837,22 +2960,22 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	}, {precision: 2, min: 0, max: 1, step: 0.01});
 
 	// Main splay property 
-	panel.addCheckbox("Set splay fingers", this.properties.mainSplay!= null, (v) => {
-
+	panel.addCheckbox("Set splay fingers", this.properties.mainSplay != null, (v, e) => {
 		this.properties.mainSplay = v ? 0.5 : null;
 		if(callback)
 			callback(true);
-	}, {title: "Separates laterally index, ring and pinky fingers"} );
-
-	if(this.properties.mainSplay != null) {
-
-		panel.addNumber("Main splay fingers", this.properties.mainSplay, (v, e, name) =>
-		{
-			this.properties.mainSplay = v;
-			if(callback)
-				callback();
-		}, {precision: 2, min: 0, max: 1, step: 0.01});
-	}
+	}, {
+		title: "Separates laterally index, ring and pinky fingers",
+		suboptions: (p) => {
+			p.addNumber("Main splay fingers", this.properties.mainSplay ?? 0.5, (v, e, name) =>
+			{
+				this.properties.mainSplay = v;
+				if(callback)
+					callback();
+			}, 
+			{precision: 2, min: 0, max: 1, step: 0.01});
+		}
+	});	
 
 	// Bend property
 	panel.addSelect("Main bend", ["", ...HandshapeClip.bendstates], this.properties.mainBend, (v, e, name) => {
@@ -2864,7 +2987,8 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 	}, {filter: true});
 	
 
-	panel.addTextArea(null, "Optional second hand shape", null, {disabled: true});
+	panel.addSeparator();
+	panel.addTitle( "Optionals: Secondary Shape Modifiers");
 
 	// Second handshape property
 	panel.addSelect("Second hand shape", ["", ...HandshapeClip.handshapes], this.properties.secondHandshape, (v, e, name) => {
@@ -2903,32 +3027,6 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 		
 	}, {filter: true});
 
-	panel.addCheckbox("Apply to specific fingers", this.applySpecial, (v,e, name) => {
-		this.applySpecial = v;
-		if(!v) {
-			this.properties.specialFingers = "";
-		}
-		if(callback)
-			callback(true);
-	} )
-	if(this.applySpecial) {
-		panel.addTextArea(null, "Select the fingers to apply the movement to.", null, {disabled:true})
-		for(let i=1; i < HandshapeClip.fingers.length; i++) {
-
-			let active = this.properties.specialFingers.includes(HandshapeClip.fingers[i]);
-			panel.addCheckbox(HandshapeClip.fingers[i], active, (v,e, name) => {
-				if(v) {
-					this.properties.specialFingers += name + " ";
-				}
-				else {
-					this.properties.specialFingers = this.properties.specialFingers.replace(name + " ", "");
-				}
-				if(callback)
-					callback();
-			} )
-		}
-	}
-	
 }
 
 
@@ -3187,7 +3285,7 @@ HandConstellationClip.prototype.showInfo = function(panel, callback)
 			if(callback)
 				callback();
 			
-		}, {filter: true});
+		}, {filter: true, title: "Only if Location is set to TIP, PAD, MID or BASE"});
 	}
 	panel.addTextArea(null, "Location of the hand in the unspecified hand (or non dominant hand)", null, {disabled: true});
 
@@ -3572,32 +3670,34 @@ DirectedMotionClip.prototype.showInfo = function(panel, callback)
 
 		if(callback)
 			callback(true);
+	}, {
+		suboptions: (p) =>{
+
+			p.addSelect("Zig zag direction", ["", ...DirectedMotionClip.directions], this.properties.zigzag ?? "", (v, e, name) => {
+					
+				this.properties.zigzag = v;
+				if(callback)
+					callback(true);
+				
+			}, {filter: true});
+	
+			p.addNumber("Zig zag amplitude", this.properties.zigzagSize ?? 0.01, (v, e, name) =>
+			{
+				this.properties.zigzagSize = v;
+				if(callback)
+					callback();
+			}, {precision: 2, min: 0, step: 0.01});
+	
+			p.addNumber("Zig zag speed", this.properties.zigzagSpeed ?? 2, (v, e, name) =>
+			{
+				this.properties.zigzagSpeed = v;
+				if(callback)
+					callback();
+			}, {precision: 2, min: 0, step: 1, title: "Oscillations per second"});
+		
+		}
 	});
 
-	if(this.zigzag) {
-		panel.addSelect("Zig zag direction", ["", ...DirectedMotionClip.directions], this.properties.zigzag, (v, e, name) => {
-				
-			this.properties.zigzag = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
-
-		panel.addNumber("Zig zag amplitude", this.properties.zigzagSize, (v, e, name) =>
-		{
-			this.properties.zigzagSize = v;
-			if(callback)
-				callback();
-		}, {precision: 2, min: 0, step: 0.01});
-
-		panel.addNumber("Zig zag speed", this.properties.zigzagSpeed, (v, e, name) =>
-		{
-			this.properties.zigzagSpeed = v;
-			if(callback)
-				callback();
-		}, {precision: 2, min: 0, step: 1, title: "Oscillations per second"});
-	
-	}
 
 	panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
 	{
@@ -3800,6 +3900,8 @@ CircularMotionClip.prototype.toJSON = function()
 	var json = {
 		id: this.id,
 		start: this.start,
+		attackPeak: this.attackPeak,
+		relax: this.relax,
 		end: this.start + this.duration,
 		type: "gesture",
 	}
@@ -3920,32 +4022,33 @@ CircularMotionClip.prototype.showInfo = function(panel, callback)
 
 		if(callback)
 			callback(true);
+	}, {
+		suboptions: (p) =>{
+			panel.addSelect("Zig zag direction", ["", ...CircularMotionClip.directions], this.properties.zigzag ?? "", (v, e, name) => {
+					
+				this.properties.zigzag = v;
+				if(callback)
+					callback(true);
+				
+			}, {filter: true});
+	
+			panel.addNumber("Zig zag amplitude (m)", this.properties.zigzagSize ?? 0.01, (v, e, name) =>
+			{
+				this.properties.zigzagSize = v;
+				if(callback)
+					callback();
+			}, {precision: 2, min: 0, step: 0.01});
+	
+			panel.addNumber("Oscillations per second", this.properties.zigzagSpeed ?? 2, (v, e, name) =>
+			{
+				this.properties.zigzagSpeed = v;
+				if(callback)
+					callback();
+			}, {precision: 2, min: 0, step: 1, title: "Zig zag speed"});		
+
+		}
 	});
 
-	if(this.zigzag) {
-		panel.addSelect("Zig zag direction", ["", ...CircularMotionClip.directions], this.properties.zigzag, (v, e, name) => {
-				
-			this.properties.zigzag = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
-
-		panel.addNumber("Zig zag amplitude (m)", this.properties.zigzagSize, (v, e, name) =>
-		{
-			this.properties.zigzagSize = v;
-			if(callback)
-				callback();
-		}, {precision: 2, min: 0, step: 0.01});
-
-		panel.addNumber("Oscillations per second", this.properties.zigzagSpeed, (v, e, name) =>
-		{
-			this.properties.zigzagSpeed = v;
-			if(callback)
-				callback();
-		}, {precision: 2, min: 0, step: 1, title: "Zig zag speed"});
-	
-	}
 
 	panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
 	{
