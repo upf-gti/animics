@@ -337,7 +337,7 @@
  
     /** SHOULDER MOVEMENT **/
     MAKE_HEADER("Shoulder Movement", "h3", "shoulder-movement");
-    MAKE_PARAGRAPH(`<p>Moves the shoulder up or froward.</p>`);
+    MAKE_PARAGRAPH(`<p>Moves the shoulder up or forward.</p>`);
     
     let shoulderContainer = document.createElement('div');
     containerD = LX.makeContainer(["auto", "auto"], "flex flex-row gap-4 justify-between", ``, shoulderContainer);
@@ -586,14 +586,58 @@
  
     APPEND_HEADER(content, "Sync points", "h4", "");
     APPEND_HEADER(content, "Attack Peak", "h5", "", "fg-accent");
-    APPEND_PARAGRAPH(content, "<p class='pl-4'>econd at which the wrist motion is acquired. In the interval [0, duration].</p>", true);
+    APPEND_PARAGRAPH(content, "<p class='pl-4'>Second at which the wrist motion is acquired. In the interval [0, duration].</p>", true);
     APPEND_HEADER(content, "Relax", "h5", "", "fg-accent");
     APPEND_PARAGRAPH(content, "<p class='pl-4'>Second at which the arm starts returning to default position. In the interval [0, duration].</p>", true);
 
     img = LX.makeContainer(["400px", "auto"], "flex flex-col gap-4 p-4", `<img src="../imgs/side-panel/circular-motion.png">`, mainContainer);
     containerD.appendChild(img);
     LX.makeContainer(["auto", "auto"], "", `<details><summary class="pl-4" ><b class="cursor-pointer text-l italic">Details</b></summary>${circularContainer.outerHTML}`, mainContainer)
+
+    /** BODY MOVEMENT **/
+    MAKE_HEADER("Body movement", "h3", "Body-movement");
+    MAKE_PARAGRAPH(`<p>Moves the position of the body (trunk) by tilting forward-backward, tilting left-right, and rotating left-right. New gestures can be incorporated alongside the existing ones, without replacing them.</p>`);
+    
+    let bodyContainer = document.createElement('div');
+    containerD = LX.makeContainer(["auto", "auto"], "flex flex-row gap-4 justify-between", ``, bodyContainer);
+    content = LX.makeContainer(["auto", "auto"], "flex flex-col gap-4 p-4", ``, containerD);
+    
+    MAKE_LINE_BREAK();
+
+    APPEND_HEADER(content, "Id", "h5", "", "fg-accent");
+    APPEND_PARAGRAPH(content, "<p class='pl-4'>Identifier name. The default value is <i>Body movement</i>.</p>", true);
+    
+    APPEND_HEADER(content, "Content", "h4", "");
+    APPEND_HEADER(content, "Movement", "h5", "", "fg-accent");
+    APPEND_PARAGRAPH(content, "<p class='pl-4'>Which movement the body performs from the available list.</p>", true);
+    div = document.createElement('div');
+    div.className = "flex flex-wrap gap-2";
+    for(const w of [ "Tilt forward", "Tilt backward", "Tilt left", "Tilt right", "Rotate left", "Rotate right"]) {
+        const lexeme = w.toLowerCase();
+        LX.makeContainer(["auto", "100px"], "", `<div class="flex-col">" width="100"><p class="text-sm text-center">${w}</p></div>`, div)
     }
+    LX.makeContainer(["auto", "auto"], "", `<details><summary style="padding-left: 1em;"><i class="cursor-pointer">List of directions</i></summary>${div.outerHTML}`, content)
+    
+    APPEND_HEADER(content, 'Intensity', "h5", "", "fg-accent");
+    APPEND_PARAGRAPH(content, "<p class='pl-4'>Amplitude of the movement.</p>", true);
+ 
+    APPEND_HEADER(content, "Time", "h4", "");
+    APPEND_HEADER(content, "Start", "h5", "", "fg-accent");
+    APPEND_PARAGRAPH(content,  "<p class='pl-4'>Second at which starts the motion.</p>", true);
+    APPEND_HEADER(content, "Duration", "h5", "", "fg-accent");
+    APPEND_PARAGRAPH(content, "<p class='pl-4'>Duration time, in seconds, of the body returned to default posture.</p>", true);
+ 
+    APPEND_HEADER(content, "Sync points", "h4", "");
+    APPEND_HEADER(content, "Attack Peak", "h5", "", "fg-accent");
+    APPEND_PARAGRAPH(content, "<p class='pl-4'>Second at which the movement peak is acquired. In the interval [0, duration].</p>", true);
+    APPEND_HEADER(content, "Relax", "h5", "", "fg-accent");
+    APPEND_PARAGRAPH(content, "<p class='pl-4'>Second at which the body starts returning to default posture. In the interval [0, duration].</p>", true);
+
+    img = LX.makeContainer(["400px", "auto"], "flex flex-col gap-4 p-4", `<img src="../imgs/side-panel/body-movement.png">`, mainContainer);
+    containerD.appendChild(img);
+    LX.makeContainer(["auto", "auto"], "", `<details><summary class="pl-4" ><b class="cursor-pointer text-l italic">Details</b></summary>${bodyContainer.outerHTML}`, mainContainer)
+    }
+
     function APPEND_HEADER( container, string, type, id, className )
     {
         console.assert(string && type);
