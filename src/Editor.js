@@ -657,21 +657,26 @@ class Editor {
                 }
                 else if( type.includes("json") ) {
                     data.animation = JSON.parse( content );
-                    if( Array.isArray(data.animation) ) { // TODO!
-                        // TO DO
+                    if( Array.isArray(data.animation) ) {
+                        data.animation.data = data.animation;
                     }
-                    else if( Array.isArray(data.animation.data) ) {
+                    if( Array.isArray(data.animation.data) ) {
                         const mediapipeData = data.animation.data;
                        
                         let animationData = { landmarks: [], blendshapes: [], rawData: [], name: data.name};
                         
-                        let time = 0;
+                        let time = 40; // ms (24 fps)
                         for(let i = 0; i < mediapipeData.length; i++) {
-                            
-                            animationData.blendshapes.push( this.ANIMICS.videoProcessor.mediapipe.processBlendshapes(mediapipeData[i].detectionsFace, mediapipeData[i].detectionsFace.dt || time ) );
-                            animationData.landmarks.push( this.ANIMICS.videoProcessor.mediapipe.processLandmarks(mediapipeData[i].detectionsFace, mediapipeData[i].detectionsPose, mediapipeData[i].detectionsHands, mediapipeData[i].detectionsPose.dt || time) );
+                            if(mediapipeData[i].detectionsFace) {
+                                time = mediapipeData[i].detectionsFace.dt ?? time;
+                                animationData.blendshapes.push( this.ANIMICS.videoProcessor.mediapipe.processBlendshapes(mediapipeData[i].detectionsFace, time ) );
+                            }
+                            if(mediapipeData[i].detectionsPose) {
+                                time = mediapipeData[i].detectionsPose.dt ?? time;
+                                animationData.landmarks.push( this.ANIMICS.videoProcessor.mediapipe.processLandmarks(mediapipeData[i].detectionsFace, mediapipeData[i].detectionsPose, mediapipeData[i].detectionsHands, mediapipeData[i].detectionsPose.dt || time) );
+                            }                            
                             animationData.rawData.push( mediapipeData[i] );
-                            time+=16.60; //ms
+                            
                         }
                         data.animation = animationData;
                     }
