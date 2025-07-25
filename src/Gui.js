@@ -1841,7 +1841,7 @@ class KeyframesGui extends Gui {
         }
 
         this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.stop(); } }
-        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : []);
+        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null);
         this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx] );}
         this.skeletonTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [idx]);
@@ -2036,7 +2036,7 @@ class KeyframesGui extends Gui {
             this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
         }
         this.bsTimeline.onUpdateTrack = (indices) => {
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : []);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : null);
             this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, indices);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, indices.length == 1 ? indices[0] : -1);
         }
@@ -2382,7 +2382,7 @@ class KeyframesGui extends Gui {
                                     }
                                 }
                             }
-                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
                         }, { buttonClass: "error dashed" });
                     },
@@ -2439,7 +2439,7 @@ class KeyframesGui extends Gui {
                                     }
                                 }
                             }
-                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
                         }, { buttonClass: "error dashed" });
 
@@ -2477,7 +2477,7 @@ class KeyframesGui extends Gui {
                                     break;
                                 }
                             }
-                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
                         }, { buttonClass: "error dashed" });
 
