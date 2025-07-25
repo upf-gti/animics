@@ -1209,13 +1209,32 @@ class KeyframesGui extends Gui {
         const viewMenu = entries.find( e => e.name == "View" )?.submenu;
         console.assert(viewMenu, "View menu not found" );
         viewMenu.push( null, { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") });
-
+        
+        viewMenu.push( null, { name: "Help Tour", icon: "CircleQuestionMark", callback: (v) => this.openHelpTour() });
+        
         const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
         console.assert(aboutMenu, "About menu not found" );
         aboutMenu.push(
             { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs", "_blank")},
             { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
         );
+    }
+ 
+    openHelpTour(){
+        if (!this.helpTour){
+            this.helpTour = new LX.Tour([
+                {
+                    title: "Welcome to Animics",
+                    content: "This is the main of the application.",
+                    reference: document.body,
+                    side: "top",
+                    align: "center"
+                },
+            ], { offset: 8, radius: 12, horizontalOffset: 12, verticalOffset: 4 });
+
+        }
+
+        this.helpTour.begin();
     }
 
     createBlendShapesInspector(bsNames, options = {}) {
@@ -3850,6 +3869,10 @@ class ScriptGui extends Gui {
             { name: "Select Box", kbd: "LSHIFT + LClick + Drag" }
         );
 
+        const viewMenu = entries.find( e => e.name == "About" )?.submenu;
+        console.assert(viewMenu, "About menu not found" );
+        viewMenu.push( null, { name: "Help Tour", icon: "CircleQuestionMark", callback: (v) => this.openHelpTour() });
+
         const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
         console.assert(aboutMenu, "About menu not found" );
         aboutMenu.push(
@@ -3859,6 +3882,23 @@ class ScriptGui extends Gui {
         );
         
 
+    }
+
+    openHelpTour(){
+        if (!this.helpTour){
+            this.helpTour = new LX.Tour([
+                {
+                    title: "Welcome to Animics",
+                    content: "This is the main of the application.",
+                    reference: document.body,
+                    side: "top",
+                    align: "center"
+                },
+            ], { offset: 8, radius: 12, horizontalOffset: 12, verticalOffset: 4 });
+
+        }
+
+        this.helpTour.begin();
     }
 
     delayedUpdateTracks( reset = true ){

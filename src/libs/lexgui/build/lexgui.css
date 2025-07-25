@@ -4771,6 +4771,39 @@ ul.lexassetscontent {
     transform: scale(1.12);
 }
 
+/* Tour */
+
+.tour-mask {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #1f1f1fe7;
+    --webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    z-index: 99;
+    clip-path: url(#svgTourClipPath);
+}
+
+.tour-ref-mask {
+    position: absolute;
+    background-color: #1f1f1fe7;
+    --webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    z-index: 100;
+    mask: url(#svgTourReferenceMask);
+}
+
+.tour-step-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: var(--global-text-quaternary);
+    display: inline-flex;
+}
+
+.tour-step-indicator.active {
+    background-color: var(--global-text-primary);
+}
+
 /* Code Editor */
 .codebasearea {
     display: flex;
