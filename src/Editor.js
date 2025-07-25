@@ -1383,6 +1383,8 @@ class KeyframeEditor extends Editor {
                     this.currentKeyFrameClip = null; // end hack
                 })
             }
+
+            this.gui.globalTimeline.setDuration( 0, true, true ); // recompute duration
         }
 
         // keep side panel visible with the selected clip
@@ -1440,6 +1442,8 @@ class KeyframeEditor extends Editor {
                     this.currentKeyFrameClip = null; // end hack
                 })
             }
+
+            this.gui.globalTimeline.setDuration( 0, true, true ); // recompute duration
         }
 
         // keep side panel visible with the selected clip
@@ -2599,7 +2603,8 @@ class KeyframeEditor extends Editor {
             id: animationName,
             clipColor: LX.getThemeColor("global-color-accent"),
             blendMode: THREE.NormalAnimationBlendMode,
-            active: true
+            active: true,
+            speed: 1
         }
 
         if ( targetGlobalAnimation ){

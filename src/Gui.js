@@ -2260,6 +2260,69 @@ class KeyframesGui extends Gui {
                     clip.clipColor = v;
                 });
 
+                p.addNumber("Clip Speed", clip.speed ?? 1, (v,e) =>{
+                    // saving color here floods the historyUndo. There should be some onPress or something similar to the RangeInput event
+                    // this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
+                    v = Math.max( 0.001, v );
+                    clip.duration = Math.max(0.001, clip.duration * (clip.speed ?? 1) / v);
+                    clip.speed = v;
+
+                    // not a mouse event, but a keyboard event
+                    if ( e.type == "change" ){ 
+                        p.widgets["Clip Speed"].options.onRelease();
+                    }
+                },{
+                    onPress: () =>{ 
+                        clip.speed = clip.speed ?? 1;
+                        clip._oldSpeed = clip.speed;
+                    },
+                    onRelease: () =>{
+                        // TODO: find a better way of doing this.
+                        //  Modifying keyframes directly generates problems because of numerical stability 
+
+                        const newSp = clip.speed ?? 1;
+                        const oldSp = clip._oldSpeed ?? clip.speed;
+                        const newDuration = clip.duration;
+
+                        if ( clip._oldSpeed == clip.speed ){ return; }
+
+                        clip.speed = oldSp;
+                        clip.duration = clip.duration * newSp / oldSp; // old Duration
+                        this.currentKeyFrameClip = clip; // hack to deepclone
+                        this.globalTimeline.saveState(clip.trackIdx); // deepclone
+                        this.currentKeyFrameClip = null; // end hack to deepclone
+                        clip.speed = newSp;
+                        clip.duration = newDuration;
+                        
+                        clip.skeletonAnimation.duration *= oldSp / newSp;
+                        clip.skeletonAnimation.tracks.forEach((track)=>{
+                            for( let i = 0; i < track.times.length; ++i ){
+                                track.times[i] = track.times[i] * ( oldSp / newSp );
+                            }
+                        });
+                        clip.auAnimation.duration *= oldSp / newSp;
+                        clip.auAnimation.tracks.forEach((track)=>{
+                            for( let i = 0; i < track.times.length; ++i ){
+                                track.times[i] = track.times[i] * ( oldSp / newSp );
+                            }
+                        });
+                        clip.bsAnimation.duration *= oldSp / newSp;
+                        clip.bsAnimation.tracks.forEach((track)=>{
+                            for( let i = 0; i < track.times.length; ++i ){
+                                track.times[i] = track.times[i] * ( oldSp / newSp );
+                            }
+                        });
+
+                        clip._oldSpeed = newSp;
+                        this.globalTimeline.setDuration( 0, true, true ); // clipsTimeline already validates max duration. Force recomputation
+                        this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
+                        this.editor.setTime(this.editor.currentTime); // update mixer
+                    },
+                    min: 0.001,
+                    step: 0.001,
+                    precision: 3
+                });
+
                 p.addToggle("State", clip.active, (v,e) =>{
                     if ( !this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ){
                         p.widgets["State"].set(false, true);
@@ -4323,21 +4386,6 @@ class ScriptGui extends Gui {
             
         }});
 
-
-        // while ( this.sidePanel.root.children.length ){
-        //     this.sidePanel.root.children[0].remove();
-        // }
-        // this.sidePanel.sections = [];
-
-        // const [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
-        
-        // this.animationPanel = new LX.Panel({id:"animation"});
-        // top.attach(this.animationPanel);
-        // this.clipPanel = new LX.Panel({id:"bml-clip"});
-        // bottom.attach(this.clipPanel);
-
-        // this.updateAnimationPanel( );
-        // this.updateClipPanel( );
     }
 
     updateAnimationPanel( options = {}) {
