@@ -1841,7 +1841,7 @@ class KeyframesGui extends Gui {
         }
 
         this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.stop(); } }
-        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : []);
+        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null);
         this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx] );}
         this.skeletonTimeline.onOptimizeTracks = (idx = null) => { 
             this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [idx]);
@@ -2036,7 +2036,7 @@ class KeyframesGui extends Gui {
             this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
         }
         this.bsTimeline.onUpdateTrack = (indices) => {
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : []);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : null);
             this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, indices);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, indices.length == 1 ? indices[0] : -1);
         }
@@ -2382,7 +2382,7 @@ class KeyframesGui extends Gui {
                                     }
                                 }
                             }
-                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
                         }, { buttonClass: "error dashed" });
                     },
@@ -2439,7 +2439,7 @@ class KeyframesGui extends Gui {
                                     }
                                 }
                             }
-                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
                         }, { buttonClass: "error dashed" });
 
@@ -2477,7 +2477,7 @@ class KeyframesGui extends Gui {
                                     break;
                                 }
                             }
-                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, Object.keys(skeletonclip.tracks), skeletonclip );
+                            this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
                         }, { buttonClass: "error dashed" });
 
@@ -5409,11 +5409,10 @@ class ScriptGui extends Gui {
             const name = filename.replace("."+ type, "");
             
             const codeEditor = new LX.CodeEditor(area, {
-                allow_add_scripts: false,
-                name: type,
-                title: name,
-                disable_edition: true
+                allowAddScripts : false,
+                // disableEdition : true // somehow breaks the editor
             });
+            codeEditor.closeTab("untitled", true); // doesn't matter the name, eraseAll is set to true
 
             const text = JSON.stringify(asset.animation.behaviours, (key, value) => {
                 // limit precision of floats
@@ -5426,15 +5425,17 @@ class ScriptGui extends Gui {
                 return value;
             });
             if( asset.type == "sigml" ) {
-                codeEditor.setText(asset.content);
-                codeEditor.addTab("bml", false, name);
+                codeEditor.addTab("sigml", true, name, { language: "XML" } );
+                codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
+                codeEditor.addTab("bml", false, name, { language: "JSON" } );
                 codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
-                codeEditor.openedTabs["bml"].language = 'JSON'
+                codeEditor._changeLanguage( "XML" );
             }
             else {
-                codeEditor.setText(codeEditor.toJSONFormat(text));
+                codeEditor.addTab("bml", true, name, { language: "JSON" } );
+                codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
+                codeEditor._changeLanguage( "JSON" );
             }
-            codeEditor._changeLanguage( "JSON" );
             
         }, { size: ["40%", "600px"], closable: true });
 

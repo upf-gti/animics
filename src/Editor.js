@@ -3199,12 +3199,6 @@ class KeyframeEditor extends Editor {
         const isFaceAnim = mixerAnimation.name == "faceAnimation";
 
         const numEditedTracks = editedTracksIdxs ? editedTracksIdxs.length : editedAnimation.tracks.length;
-
-        if( editedTracksIdxs.length && editedTracksIdxs[0] == -1 ){
-            editedTracksIdxs.length = editedAnimation.tracks.length;
-            editedTracksIdxs.fill(-1);
-            editedTracksIdxs = editedTracksIdxs.map((v,i) => i);
-        }
         
         for( let i = 0; i < numEditedTracks; i++ ) {
             const eIdx = editedTracksIdxs ? editedTracksIdxs[i] : i;
