@@ -3999,7 +3999,8 @@ class ScriptGui extends Gui {
                                     return -1;
                                 return 1;
                             });
-                            this.createSaveDialog( "presets");
+                            // this.createSaveDialog( "presets");
+                            this.createPresetSaveDialog( "presets" );
                             // this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
                         }
                     }
@@ -4473,7 +4474,7 @@ class ScriptGui extends Gui {
             widgets.clear();
             if(!clip) {
                 if(this.clipsTimeline.lastClipsSelected.length > 1) {
-                    widgets.addButton(null, "Create preset", (v, e) => this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
+                    widgets.addButton(null, "Create preset", (v, e) => this.createPresetSaveDialog( "presets" ))//this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
                 }
                 return;
             }
@@ -4835,6 +4836,95 @@ class ScriptGui extends Gui {
                 saveDataToServer("server");
             }
         }, {formats: [ "BML"], folders:["signs",  "presets"], from: ["All clips", "Selected clips"], selectedFolder: folder, selectedFrom: (folder == "signs" ? "All clips" : null) } );
+    }
+
+    createPresetSaveDialog( folder ) {
+
+        let value = "";
+        const saveDataToServer = ( location ) => {
+                this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                    if( a[0]<b[0] ) {
+                        return -1;
+                    }
+                    return 1;
+                });
+                
+                const presetData = { clips:[], duration:0 };
+
+                let globalStart = 10000;
+                let globalEnd = -10000;
+                let clips = this.clipsTimeline.lastClipsSelected;
+                for( let i = 0; i < clips.length; i++ ) {
+                    const [trackIdx, clipIdx] = clips[i];
+                    const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                    if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                    if(clip.ready!=undefined) clip.ready = clip.fadein;
+                    if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                    if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                    if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                    presetData.clips.push(clip);
+                    globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
+                    globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                }
+                presetData.duration = globalEnd - globalStart;
+                presetData.preset = value;
+                const preset = new ANIM.FacePresetClip( presetData );
+
+                //Convert data to bml file format
+                const data = preset.toJSON();
+                presetData.data = data.clips;
+                const presetAnim = {name: value, data: UTILS.dataToFile(JSON.stringify(presetData.data), value, "application/json")};
+            
+
+                this.editor.uploadData(presetAnim.name, presetAnim.data, folder, location, () => {
+                    this.closeDialogs();
+                    LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                })
+                
+            }
+            
+        const dialog = this.prompt = new LX.Dialog("Save preset", p => {
+            
+            p.addText("Name", value, (v) => {
+                value = v;
+            });
+           
+            p.addNumber("Framerate (fps)", this.editor.animationFrameRate, (v) => {
+                this.editor.animationFrameRate = v;
+            }, {min: 1, disabled: false})
+
+            p.sameLine(2);
+            p.addButton("exportCancel", "Cancel", () => { dialog.close();}, {hideName: true, width: "50%"} );
+            p.addButton("exportOk", "OK", (v, e) => { 
+                e.stopPropagation();
+                if(value === '') {
+
+                    text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
+                    dialog.close() ;
+                }
+                else {
+                    const session = this.editor.remoteFileSystem.session;
+                    const user = session ? session.user : ""
+                    if( !user || user.username == "guest" ) {
+                        this.prompt = new LX.Dialog("Alert", d => {
+                            d.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
+                            const btn = d.addButton(null, "Login", () => {
+                                this.prompt.close();
+                                this.showLoginModal();
+                            }, {width:"50%", buttonClass:"accent"});
+                            btn.root.style.margin = "0 auto";
+                        }, {closable: true, modal: true})
+                        
+                    }
+                    else {
+                        saveDataToServer("server");
+                    }
+                    dialog.close() ;
+                }
+                
+            }, { buttonClass: "accent", hideName: true, width: "50%" });
+        }, {modal: true, size: ["50%", "auto"]});
+
     }
 
     createClipsDialog() {
