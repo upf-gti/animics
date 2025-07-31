@@ -4873,12 +4873,12 @@ class ScriptGui extends Gui {
                 //Convert data to bml file format
                 const data = preset.toJSON();
                 presetData.data = data.clips;
-                const presetAnim = {name: value, data: UTILS.dataToFile(JSON.stringify(presetData.data), value, "application/json")};
+                const presetAnim = {name: value + ".bml", data: UTILS.dataToFile(JSON.stringify(presetData.data), value, "application/json")};
             
 
                 this.editor.uploadData(presetAnim.name, presetAnim.data, folder, location, () => {
                     this.closeDialogs();
-                    LX.popup('"' + animations[i].name + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                    LX.popup('"' + value + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                 })
                 
             }
