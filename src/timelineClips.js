@@ -2681,7 +2681,12 @@ function HandshapeClip(o)
 		lrSym: null,
 		udSym: null,
 		ioSym: null,
-		specialFingers: ""
+		specialFingers: "",
+		bend1:"", //Explicit individual digit bending specifications, with the same permitted values as the mainbend
+		bend2:"",
+		bend3:"",
+		bend4:"",
+		bend5:"",
 	}
 
 	if(o)
@@ -2689,6 +2694,7 @@ function HandshapeClip(o)
 
 	this.applySpecial = (this.properties.specialFingers != "" && this.properties.specialFingers != " ");
 	this.applyThumbTarget = this.properties.thumbTarget && this.properties.thumbTarget.length;
+	this.applyIndividualBend = (this.properties.bend1!="" || this.properties.bend2!="" || this.properties.bend3!="" || this.properties.bend4!="" || this.properties.bend5!="");
 	this.font = "11px Calibri";
 	this.clipColor = HandshapeClip.clipColor;
 }
@@ -2985,8 +2991,66 @@ HandshapeClip.prototype.showInfo = function(panel, callback)
 			callback();
 		
 	}, {filter: true});
-	
 
+	panel.addCheckbox("Apply individual digit bending", this.applyIndividualBend, (v, e) => {
+		this.applyIndividualBend = v;
+		if(!v) {
+			this.properties.bend1 = "";
+			this.properties.bend2 = "";
+			this.properties.bend3 = "";
+			this.properties.bend4 = "";
+			this.properties.bend5 = "";
+		}
+		if(callback)
+			callback(true);
+	}, 
+	{
+		title: "These specifications override those defined explicitly or implicitly by earlier attributes.",
+		suboptions: (p) => {
+			p.addTextArea(null, "Select the fingers to apply the movement to.", null, {disabled:true});
+			// Bend1 property
+			p.addSelect("Bend Thumb", ["", ...HandshapeClip.bendstates], this.properties.bend1, (v, e, name) => {
+
+				this.properties.bend1 = v;
+				if(callback)
+					callback();
+				
+			}, {filter: true});
+			// Bend2 property
+			p.addSelect("Bend Index", ["", ...HandshapeClip.bendstates], this.properties.bend2, (v, e, name) => {
+
+				this.properties.bend2 = v;
+				if(callback)
+					callback();
+				
+			}, {filter: true});
+			// Bend3 property
+			p.addSelect("Bend Middle", ["", ...HandshapeClip.bendstates], this.properties.bend3, (v, e, name) => {
+
+				this.properties.bend3 = v;
+				if(callback)
+					callback();
+				
+			}, {filter: true});
+			// Bend4 property
+			p.addSelect("Bend Ring", ["", ...HandshapeClip.bendstates], this.properties.bend4, (v, e, name) => {
+
+				this.properties.bend4 = v;
+				if(callback)
+					callback();
+				
+			}, {filter: true});
+			// Bend5 property
+			p.addSelect("Bend Pinky", ["", ...HandshapeClip.bendstates], this.properties.bend5, (v, e, name) => {
+
+				this.properties.bend5 = v;
+				if(callback)
+					callback();
+				
+			}, {filter: true});			
+		}
+	});
+	
 	panel.addSeparator();
 	panel.addTitle( "Optionals: Secondary Shape Modifiers");
 
