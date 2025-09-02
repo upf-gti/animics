@@ -83,7 +83,18 @@ function createMenuBar( area ) {
             
 function createSideBar( area ) {
 
-        
+    const starterTheme = LX.getTheme();
+
+    // Alex: Instead of doing it inside the SWITCH callback, do it inside this signal,
+    // so any theme trigger (browser, SO, anything) will update the image, not only the switch button
+    LX.addSignal( "@on_new_color_scheme", ( el, value ) => {
+        const img = document.getElementById("animics-img");
+        const swapValue = value == "light";
+        if( img ) {
+            img.src = "data/imgs/logos/animics_" + (swapValue ? "black" : "white") + ".png";
+        }
+    } );
+
     const sidebarCallback = m => {
       m.add( "Home", { icon: "House", callback: () => { 
             about.classList.add("hidden");
@@ -99,15 +110,16 @@ function createSideBar( area ) {
         
         m.separator();
         
-        m.add( "Switch Theme", { icon: "Sun", callback:  () => {
+        // Alex: Swap icons in Sidebar, aleluya!
+        m.add( "Switch Theme", {
+            icon: starterTheme == "dark" ? "Sun" : "Moon",
+            swap: starterTheme == "dark" ? "Moon" : "Sun",
+            skipSelection: true, // Alex: This is new too. Useful to avoid non-selectable entries to be selected / deselect others
+            callback:  (v) => {
                 const swapValue = LX.getTheme() == "dark";
-                LX.setTheme( swapValue ? "light" : "dark" ) 
-                const img = document.getElementById("animics-img");
-                if( img ) {
-                    img.src = "data/imgs/logos/animics_" + (swapValue ? "black" : "white") + ".png";
-                }
+                LX.setTheme( swapValue ? "light" : "dark" );
             }
-        })
+        });
         // m.add( "TÀNDEM", { callback: () => {} } );      
     };
     const sidebarOptions = { 

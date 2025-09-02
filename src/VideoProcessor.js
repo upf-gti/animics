@@ -1,5 +1,5 @@
 import { LX } from 'lexgui';
-import 'lexgui/components/videoeditor.js';
+import 'lexgui/extensions/videoeditor.js';
 import { MediaPipe } from "./Mediapipe.js";
 import { UTILS } from './Utils.js';
 
