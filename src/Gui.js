@@ -1518,6 +1518,8 @@ class KeyframesGui extends Gui {
                 const c = deletedClips[i];
                 this.globalTimeline.onDeleteClip( c[0], c[1], c[2] );
             }
+
+            this.createSidePanel();
         }
         this.globalTimeline.onDeleteClip = ( trackIdx, clipIdx, clip )=>{
             const mixer = this.editor.currentCharacter.mixer;
@@ -2260,14 +2262,32 @@ class KeyframesGui extends Gui {
                     clip.clipColor = v;
                 });
 
-                p.addNumber("Clip Speed", clip.speed ?? 1, (v,e) =>{
+                p.addNumber("Clip Speed", clip.speed, (v,e) =>{
                     // saving color here floods the historyUndo. There should be some onPress or something similar to the RangeInput event
                     // this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
                     v = Math.max( 0.001, v );
-                    clip.duration = Math.max(0.001, clip.duration * (clip.speed ?? 1) / v);
+                    let newDuration = Math.max(0.001, clip.duration * clip.speed / v);
+                    
+                    // there might be other clips in track. Clips in the same track cannot overlap 
+                    let newEndTime = clip.start + newDuration;
+                    const trackClips = this.globalTimeline.animationClip.tracks[clip.trackIdx].clips;
+                    for( let i = 0; i < trackClips.length; ++i ){
+                        if (trackClips[i].start > clip.start ){ 
+                            if ( trackClips[i].start < newEndTime ){
+                                newEndTime = trackClips[i].start - 0.00001;
+                            }
+                            break;
+                        }
+                    }
+
+                    // duration might have changed because of limits. Need to recompute speed. Widget will be updated on release
+                    newDuration = Math.max( newEndTime - clip.start, 0.00001 );
+                    v = clip.duration * clip.speed / newDuration;
+                    
+                    clip.duration = newDuration;
                     clip.speed = v;
 
-                    // not a mouse event, but a keyboard event
+                    // not a mouse drag event, but a manual number setting through keyboard
                     if ( e.type == "change" ){ 
                         p.widgets["Clip Speed"].options.onRelease();
                     }
@@ -2286,37 +2306,55 @@ class KeyframesGui extends Gui {
 
                         if ( clip._oldSpeed == clip.speed ){ return; }
 
-                        clip.speed = oldSp;
+                        clip.speed = oldSp; // ols Speed
                         clip.duration = clip.duration * newSp / oldSp; // old Duration
                         this.currentKeyFrameClip = clip; // hack to deepclone
                         this.globalTimeline.saveState(clip.trackIdx); // deepclone
                         this.currentKeyFrameClip = null; // end hack to deepclone
+
                         clip.speed = newSp;
                         clip.duration = newDuration;
                         
-                        clip.skeletonAnimation.duration *= oldSp / newSp;
+                        clip.skeletonAnimation.duration = newDuration;
+                        clip.bsAnimation.duration = newDuration; 
+                        clip.auAnimation.duration = newDuration;;
+                        clip.mixerBodyAnimation.duration = newDuration;
+                        clip.mixerFaceAnimation.duration = newDuration;
+
                         clip.skeletonAnimation.tracks.forEach((track)=>{
+                            let lastTime = 0;
                             for( let i = 0; i < track.times.length; ++i ){
-                                track.times[i] = track.times[i] * ( oldSp / newSp );
+                                lastTime = Math.max( lastTime, track.times[i] * ( oldSp / newSp ) );
+                                track.times[i] = lastTime;
                             }
                         });
-                        clip.auAnimation.duration *= oldSp / newSp;
-                        clip.auAnimation.tracks.forEach((track)=>{
-                            for( let i = 0; i < track.times.length; ++i ){
-                                track.times[i] = track.times[i] * ( oldSp / newSp );
-                            }
-                        });
-                        clip.bsAnimation.duration *= oldSp / newSp;
+
+                        // auAnimation an bsAunimation share time arrays
+                        // clip.auAnimation.tracks.forEach((track)=>{
+                        //     let lastTime = 0;
+                        //     for( let i = 0; i < track.times.length; ++i ){
+                        //         lastTime = Math.max( lastTime, track.times[i] * ( oldSp / newSp ) );
+                        //         track.times[i] = lastTime;
+                        //     }
+                        // });
+
                         clip.bsAnimation.tracks.forEach((track)=>{
+                            let lastTime = 0;
                             for( let i = 0; i < track.times.length; ++i ){
-                                track.times[i] = track.times[i] * ( oldSp / newSp );
+                                lastTime = Math.max( lastTime, track.times[i] * ( oldSp / newSp ) );
+                                track.times[i] = lastTime;
                             }
                         });
 
                         clip._oldSpeed = newSp;
+                        this.editor.updateMixerAnimation(clip.mixerFaceAnimation, null, clip.bsAnimation );
+                        this.editor.updateMixerAnimation(clip.mixerBodyAnimation, null, clip.skeletonAnimation );
                         this.globalTimeline.setDuration( 0, true, true ); // clipsTimeline already validates max duration. Force recomputation
                         this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
                         this.editor.setTime(this.editor.currentTime); // update mixer
+
+                        p.widgets["Clip Speed"].set(clip.speed, true); // in case duration is limited by space, speed will also be limited. Update widget, without callback
+
                     },
                     min: 0.001,
                     step: 0.001,
