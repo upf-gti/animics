@@ -131,9 +131,7 @@ class Gui {
         const menubar = this.menubar;     
         
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
-            //TO DO delete the current line and uncomment the getButton once lexgui is updated
-            // this.menubar.getButton("Animics"); 
-            this.menubar.root.children[0].children[0].children[0].src = value == "light" ? "data/imgs/logos/animics_logo_lightMode.png" : "data/imgs/logos/animics_logo.png";
+            this.menubar.getButton("Animics").getElementsByTagName("img")[0].src = value == "light" ? "data/imgs/logos/animics_logo_lightMode.png" : "data/imgs/logos/animics_logo.png";
         } )
         
         const colorScheme = document.documentElement.getAttribute( "data-theme" );
@@ -1218,24 +1216,6 @@ class KeyframesGui extends Gui {
         );
     }
 
-    createBlendShapesInspector(bsNames, options = {}) {
-        
-        let inspector = options.inspector || new LX.Panel({id:"blendshapes-inspector"});
-        
-        if(options.clear)
-            inspector.clear();
-            
-        if(inspector.id)
-            inspector.addTitle(inspector.id);
-
-        for(let name in bsNames) {
-    
-            inspector.addProgress(name, 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, editable: options.editable, showNumber: options.showNumber, signal: "@on_change_au_" + name});
-        }
-        
-        return inspector;
-    } 
-
     createVideoOverlay() {
         
         const width = 300;
@@ -1603,6 +1583,8 @@ class KeyframesGui extends Gui {
                             }
 
                             this.editor.setTime(this.editor.currentTime); // update mixer
+                            LX.emit("@on_set_clip_state", true, {skipCallback:true});    
+
                         } 
                     },
                     { 
@@ -1614,6 +1596,7 @@ class KeyframesGui extends Gui {
                                 this.editor.globalAnimMixerManagementSingleClip( this.editor.currentCharacter.mixer, selected[i][2] );
                             }
                             this.editor.setTime(this.editor.currentTime); // update mixer
+                            LX.emit("@on_set_clip_state", false, {skipCallback:true});    
                         } 
                     }
                 )
