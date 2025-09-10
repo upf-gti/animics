@@ -676,7 +676,7 @@ class Gui {
 
                 panel.sameLine();
                 let characterFile = panel.addFile("Character File", (v, e) => {
-                    let files = panel.widgets["Character File"].root.children[1].files;
+                    let files = panel.components["Character File"].root.children[1].files;
                     if(!files.length) {
                         return;
                     }
@@ -767,7 +767,7 @@ class Gui {
                     if(!v) {
                         return;
                     }
-                    const filename = panel.widgets["Config File"].root.children[1].files[0].name;
+                    const filename = panel.components["Config File"].root.children[1].files[0].name;
                     let extension = filename.split(".");
                     extension = extension.pop();
                     if (extension == "json") { 
@@ -957,7 +957,7 @@ class Gui {
                     if(!v) {
                         return;
                     }
-                    const filename = panel.widgets["Config File"].root.children[1].files[0].name;
+                    const filename = panel.components["Config File"].root.children[1].files[0].name;
                     let extension = filename.split(".");
                     extension = extension.pop();
                     if (extension == "json") { 
@@ -1601,6 +1601,7 @@ class KeyframesGui extends Gui {
                                     this.editor.globalAnimMixerManagementSingleClip( this.editor.currentCharacter.mixer, selected[i][2] );
                                 }
                             }
+
                             this.editor.setTime(this.editor.currentTime); // update mixer
                         } 
                     },
@@ -2225,8 +2226,8 @@ class KeyframesGui extends Gui {
         panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {
             
         }});
-        this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
-        animSide.attach(this.animationPanel);
+
+        this.animationPanel = animSide.addPanel({id: "animation", icon: "PersonStanding"});
         this.updateAnimationPanel( );
 
         // Character tab content
@@ -2246,7 +2247,8 @@ class KeyframesGui extends Gui {
             if ( this.globalTimeline.lastClipsSelected.length == 1 ){
                 const clip = this.globalTimeline.lastClipsSelected[0][2];
 
-                const p = new LX.Panel({id:"keyframeclip"});
+                const p = tabsSide.addPanel({id:"keyframeclip"});
+
                 p.addTitle("Keyframe Clip");
 
                 p.addText("Clip Name", clip.id, (v) =>{
@@ -2262,7 +2264,7 @@ class KeyframesGui extends Gui {
 
                 p.addToggle("State", clip.active, (v,e) =>{
                     if ( !this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ){
-                        p.widgets["State"].set(false, true);
+                        p.components["State"].set(false, true);
                         return;
                     }
                     if ( clip.active == v ){ return; }
@@ -2271,7 +2273,7 @@ class KeyframesGui extends Gui {
                     this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
                     this.editor.setTime(this.editor.currentTime); // update mixer
 
-                }, { className: "success", label: this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ? "" : "Track is disabled !" });                
+                }, { className: "success", label: this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ? "" : "Track is disabled !", signal: "@on_set_clip_state" });
 
                 p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
                     this.setKeyframeClip(clip);
@@ -2485,9 +2487,6 @@ class KeyframesGui extends Gui {
                 });
 
                 p.merge();
-
-
-                tabsSide.attach(p);
             }
             return;
         }
@@ -2639,7 +2638,7 @@ class KeyframesGui extends Gui {
                 const anim = this.globalTimeline.animationClip;
                 panel.addText("Name", anim.id || "", (v) =>{ 
                     if ( v.length == 0 ){
-                        this.animationPanel.widgets["Name"].set(this.editor.currentAnimation, true); // skipCallback
+                        this.animationPanel.components["Name"].set(this.editor.currentAnimation, true); // skipCallback
                         return;
                     }
 
@@ -2649,7 +2648,7 @@ class KeyframesGui extends Gui {
 
                     let newName = this.editor.renameGlobalAnimation(this.editor.currentAnimation, v, true);
                     if ( newName != v ){
-                        this.animationPanel.widgets["Name"].set(newName, true); // skipCallback
+                        this.animationPanel.components["Name"].set(newName, true); // skipCallback
                         LX.toast("Animation Rename Issue", `\"${v}\" already exists. Renamed to \"${newName}\"`, { timeout: 7000 } );
                     }
                 } );
@@ -3170,11 +3169,11 @@ class KeyframesGui extends Gui {
                     if(attribute == 'quaternion') {
                         boneSelected.quaternion.fromArray( value ).normalize(); 
                         let rot = boneSelected.rotation.toArray().slice(0,3); // radians
-                        widgets.widgets['Rotation (XYZ)'].set( rot, true ); // skip onchange event
+                        widgets.components['Rotation (XYZ)'].set( rot, true ); // skip onchange event
                     }
                     else if(attribute == 'rotation') {
                         boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
-                        widgets.widgets['Quaternion'].set(boneSelected.quaternion.toArray(), true ); // skip onchange event
+                        widgets.components['Quaternion'].set(boneSelected.quaternion.toArray(), true ); // skip onchange event
                     }
                     else if(attribute == 'position') {
                         boneSelected.position.fromArray( value );
@@ -4488,9 +4487,6 @@ class ScriptGui extends Gui {
                 }
                 this.delayedUpdateTracks();
             }
-
-            widgets.widgets_per_row = 1;
-            // this.clipPanel.branch(clip.constructor.name.match(/[A-Z][a-z]+|[0-9]+/g).join(" "));
 
             let icon = "ChildReaching";
 
