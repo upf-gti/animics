@@ -4,7 +4,8 @@ if(!LX) {
     throw("lexgui.js missing!");
 }
 
-LX.components.push( 'VideoEditor' );
+LX.extensions.push( 'TimeBar' );
+LX.extensions.push( 'VideoEditor' );
 
 /**
  * @class TimeBar
@@ -304,6 +305,8 @@ class TimeBar {
         this._draw();
     }
 }
+LX.TimeBar = TimeBar;
+
 
 /**
  * @class VideoEditor
@@ -322,7 +325,15 @@ class VideoEditor {
 
         this.mainArea = area;
 
-        let [videoArea, controlsArea] = area.split({ type: 'vertical', sizes: ["85%", null], minimizable: false, resize: false });
+        let videoArea = null;
+        let controlsArea = null;
+        if(options.controlsArea) {
+            videoArea = area;
+            controlsArea = options.controlsArea;
+        }
+        else {
+            [videoArea, controlsArea] = area.split({ type: 'vertical', sizes: ["85%", null], minimizable: false, resize: false });
+        }
         controlsArea.root.classList.add('lexconstrolsarea');
         
         this.cropArea = document.createElement("div");
@@ -344,6 +355,7 @@ class VideoEditor {
             this.video.src = options.src;
             this._loadVideo(options);
         }
+        
         if(options.videoArea) {
             options.videoArea.root.classList.add("lexvideoeditor");
             options.videoArea.attach(this.cropArea);
@@ -393,7 +405,7 @@ class VideoEditor {
                 this.controlsPanelLeft.refresh();
             }, { width: '40px', icon: (this.playing ? 'Pause@solid' : 'Play@solid'), className: "justify-center"});
 
-            this.controlsPanelLeft.addLabel(this.startTimeString, {width: 50});
+            this.controlsPanelLeft.addLabel(this.startTimeString, {width: 100});
             this.controlsPanelLeft.endLine();
 
             let availableWidth = leftArea.root.clientWidth - controlsLeft.root.clientWidth;
@@ -408,7 +420,7 @@ class VideoEditor {
         this.controlsPanelRight = new LX.Panel({className: 'lexcontrolspanel'});
         this.controlsPanelRight.refresh = () => {
             this.controlsPanelRight.clear();
-            this.controlsPanelRight.addLabel(this.endTimeString, {width: 50});
+            this.controlsPanelRight.addLabel(this.endTimeString, {width: 100});
         }
         this.controlsPanelRight.refresh();
         controlsRight.root.style.minWidth = 'fit-content';
@@ -461,13 +473,15 @@ class VideoEditor {
             this.timebar.resize([availableWidth, v.height]);
         }
 
+        const parent = controlsArea.parentElement ? controlsArea.parentElement : controlsArea.root.parentElement;
+
         // Add canvas event listeneres
-        area.root.addEventListener( "mousedown", (event) => {
+        parent.addEventListener( "mousedown", (event) => {
             if(this.controls) {
                 this.timebar.onMouseDown(event);
             }
         });
-        area.root.addEventListener( "mouseup",   (event) => {
+        parent.addEventListener( "mouseup",   (event) => {
             if(this.controls) {
                 this.timebar.onMouseUp(event);
             }
@@ -481,7 +495,7 @@ class VideoEditor {
             this.isResizing = false;
 
         });
-        area.root.addEventListener( "mousemove", (event) => {
+        parent.addEventListener( "mousemove", (event) => {
             if(this.controls) {
                 this.timebar.onMouseMove(event);
             }
@@ -516,7 +530,10 @@ class VideoEditor {
                     this.isResizing = true;
                 }
             });
-        });        
+        });
+        
+        this.onChangeStart = null;
+        this.onChangeEnd = null;
     }
 
     resizeCropArea(event) {
@@ -700,6 +717,10 @@ class VideoEditor {
         if(this.onSetTime) {
             this.onSetTime(t);
         }
+        
+        if(this.onChangeStart) {
+            this.onChangeStart(t);
+        }
     }
 
     _setEndValue ( x ) {
@@ -718,6 +739,10 @@ class VideoEditor {
         this.controlsPanelRight.refresh();
         if(this.onSetTime) {
             this.onSetTime(t);
+        }
+
+        if(this.onChangeEnd) {
+            this.onChangeEnd(t);
         }
     }
 
@@ -795,4 +820,4 @@ class VideoEditor {
 
 LX.VideoEditor = VideoEditor;
 
-export { VideoEditor }
+export { VideoEditor, TimeBar }

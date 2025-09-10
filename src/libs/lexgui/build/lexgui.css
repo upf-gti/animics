@@ -1,6 +1,6 @@
 /* clean-css ignore:start */
-@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@700&display=swap');
 @font-face { font-family: "GeistSans"; src: url("https://raw.githubusercontent.com/jxarco/lexgui.js/master/data/GeistSans.ttf"); }
+@font-face { font-family: "CascadiaCode"; src: url("https://raw.githubusercontent.com/jxarco/lexgui.js/master/data/CascadiaCode.ttf"); font-weight: 400; }
 /* clean-css ignore:end */
 
 :root {
@@ -8,6 +8,7 @@
     color-scheme: dark;
 
     --global-font: "GeistSans", sans-serif;
+    --global-code-font: "CascadiaCode", monospace;
     --global-title-font: "GeistSans", sans-serif;
     --global-font-size-xs: 0.625rem; /* 10px */
     --global-font-size-sm: 0.75rem; /* 12px */
@@ -36,6 +37,13 @@
     --global-blur-background: light-dark(#f7f7f7d8, #1f1f1fe7);
     --global-color-transparent: #00000000;
 
+    --global-padding-xs: 0.25rem;
+    --global-padding-sm: 0.375rem;
+    --global-padding-md: 0.5rem;
+    --global-padding-lg: 0.75rem;
+    --global-padding-xl: 1rem;
+
+    --svg-size-xxs: 0.5rem;
     --svg-size-xs: 0.7rem;
     --svg-size-sm: 0.85rem;
     --svg-size-md: 1rem;
@@ -46,6 +54,14 @@
     --code-editor-font-size: 14px;
     --code-editor-row-height: 20px;
     --graphnode-background: 17, 17, 17;
+}
+
+:root[data-spacing="compact"] {
+    --global-padding-xs: 0.15rem;
+    --global-padding-sm: 0.25rem;
+    --global-padding-md: 0.35rem;
+    --global-padding-lg: 0.5rem;
+    --global-padding-xl: 0.75rem;
 }
 
 :root[data-theme="light"] { color-scheme: light }
@@ -194,6 +210,30 @@ body {
     flex-direction: column;
     position: absolute;
     outline: none;
+    transform-origin: center center;
+    transition-property: transform, border-radius;
+    transition-duration: 0.5s;
+    transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root[data-scale="sheet-top"] #lexroot {
+    border-radius: 8px;
+    transform: scale(0.975) translate3d(0, -16px, 0);
+}
+
+:root[data-scale="sheet-bottom"] #lexroot {
+    border-radius: 8px;
+    transform: scale(0.975) translate3d(0, 16px, 0);
+}
+
+:root[data-scale="sheet-left"] #lexroot {
+    border-radius: 8px;
+    transform: scale(0.975) translate3d(-16px, 0, 0);
+}
+
+:root[data-scale="sheet-right"] #lexroot {
+    border-radius: 8px;
+    transform: scale(0.975) translate3d(16px, 0, 0);
 }
 
 /* document layout (scrolling page) */
@@ -314,13 +354,17 @@ body.noevents * {
 
 .orange { color: orange }
 .gray { color: gray }
+.pipelineblue { color: #007acc }
 .dodgerblue { color: dodgerblue }
 .munsellblue { color: #0093af }
 .pictonblue { color: #45B1E8 }
 .lightblue { color: #5aa8f7 }
 .goldenrod { color: goldenrod }
+.metallicyellow { color: #FDCC0D }
 .heliotrope { color: #d460ff }
+.blueviolet { color: blueviolet }
 
+svg.xxs { width: var(--svg-size-xxs); height: var(--svg-size-xxs); }
 svg.xs { width: var(--svg-size-xs); height: var(--svg-size-xs); }
 svg.sm { width: var(--svg-size-sm); height: var(--svg-size-sm); }
 svg.lg { width: var(--svg-size-lg); height: var(--svg-size-lg); }
@@ -400,14 +444,12 @@ a svg, svg path {
     max-height: 100vh;
     position: fixed;
     margin: 0;
-    right: 1rem;
-    bottom: 1rem;
-    top: auto;
     pointer-events: none;
     display: flex;
     flex-direction: column-reverse;
     gap: 0.15em;
     z-index: 100;
+    padding: 0;
 }
 
 .notifications ol.list {
@@ -419,9 +461,9 @@ a svg, svg path {
     flex-direction: row;
     position: relative;
     width: 100%;
-    background-color: var(--global-intense-background);
+    background-color: light-dark(var(--global-color-primary), var(--global-color-secondary));
     border: 1px solid var(--global-color-tertiary);
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
     overflow: hidden;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -430,7 +472,7 @@ a svg, svg path {
     touch-action: none;
     overflow: hidden;
     pointer-events: auto;
-    padding: 0.8rem;
+    padding: 0.75rem;
     border-radius: 8px;
     z-index: 3000;
     transition: all 0.5s cubic-bezier(.42,.97,.52,1.19);
@@ -438,12 +480,29 @@ a svg, svg path {
     --stack-offset: calc(100% - var(--element-offset));
 }
 
-.lextoast[data-open] {
+.lextoast.top {
+    --stack-offset: calc(-100% + var(--element-offset));
+}
+
+.lextoast[data-open="true"] {
     translate: 0 0 !important;
 }
 
-.lextoast[data-closed] {
-    translate: calc(100% + 30px) 0 !important;
+.lextoast[data-open="false"] {
+    translate: 100% 0 !important;
+    opacity: 0 !important;
+}
+
+.lextoast.center[data-open="false"] {
+    translate: 0 30px !important;
+}
+
+.lextoast.center.top[data-open="false"] {
+    translate: 0 -30px !important;
+}
+
+.lextoast.left[data-open="false"] {
+    translate: -100% 0 !important;
 }
 
 .lextoast .lextoastcontent {
@@ -470,8 +529,8 @@ a svg, svg path {
     color: var(--global-text-secondary);
 }
 
-.lextoast .lexwidget {
-    padding-inline: 16px;
+.lextoast .lexcomponent {
+    padding-inline: 1rem;
 }
 
 .lextoast .closer {
@@ -685,8 +744,7 @@ a svg, svg path {
     font-size: var(--global-font-size-xl);
     color: var(--global-text-secondary);
     text-shadow: 0px 1px 6px #22222283;
-    padding: 12px;
-    padding-left: 16px;
+    padding: var(--global-padding-lg);
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
     outline: none;
@@ -701,7 +759,7 @@ a svg, svg path {
 
 .lexdialogcontent {
     width: 100%;
-    padding: 15px;
+    padding: 0.25rem;
     word-break: break-all;
     color: var(--global-text-primary);
     font-size: var(--global-font-size);
@@ -713,7 +771,6 @@ a svg, svg path {
 .lexdialogcontent.notitle {
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
-    padding-top: 24px;
 }
 
 .lexdialogcloser {
@@ -729,8 +786,8 @@ a svg, svg path {
 
 .lexdialogcloser.notitle {
     position: absolute;
-    top: 0.8em;
-    right: 0.6em;
+    top: 0.5em;
+    right: 0;
 }
 
 .lexdialogcloser:hover {
@@ -766,8 +823,6 @@ a svg, svg path {
 }
 
 .lexdialog.pocket .lexdialogcontent {
-    padding: 4px;
-    padding-left: 8px;
     max-height: -webkit-fill-available;
     opacity: 1;
 
@@ -836,11 +891,11 @@ a svg, svg path {
 .lexcontainer.wrapper {
     margin-left: auto;
     margin-right: auto;
-    max-width: 1400px;
+    max-width: 1600px;
     border: 0px solid var(--global-color-tertiary);
 }
 
-@media (min-width: 1400px) {
+@media (min-width: 1600px) {
     .lexcontainer.wrapper {
         border-left-width: 1px;
         border-right-width: 1px;
@@ -849,7 +904,13 @@ a svg, svg path {
 
 @media (min-width: 1800px) {
     .lexcontainer.wrapper {
-        max-width: 1536px;
+        max-width: 1736px;
+    }
+}
+
+@media (min-width: 2100px) {
+    .lexcontainer.wrapper {
+        max-width: 1920px;
     }
 }
 
@@ -866,6 +927,8 @@ a svg, svg path {
 	animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 	will-change: transform, opacity;
     animation-name: slideUpAndFade;
+    z-index: 150;
+    pointer-events: none;
 }
 
 .lextooltip[data-closed] {
@@ -1031,7 +1094,7 @@ a svg, svg path {
     z-index: 150;
     display: flex;
     flex-direction: column;
-    padding: 0.2rem;
+    padding: var(--global-padding-xs);
     border-radius: 6px;
     border: 1px solid #7a797c4f;
     outline: none;
@@ -1043,7 +1106,7 @@ a svg, svg path {
 .lexdropdownmenuitem {
     display: flex;
     flex-direction: row;
-    padding: 0.5rem;
+    padding: var(--global-padding-md);
     border-radius: 6px;
     gap: 0.5rem;
     white-space: nowrap;
@@ -1154,7 +1217,7 @@ a svg, svg path {
 
 .lexpanel {
     margin: 0;
-    padding: 4px;
+    padding: var(--global-padding-xs);
     overflow: hidden;
     overflow-y: scroll;
 }
@@ -1173,7 +1236,7 @@ a svg, svg path {
 }
 
 .lexbranch .lexbranchcontent {
-    padding: 4px;
+    padding: var(--global-padding-xs);
     background-color: var(--global-color-secondary);
     border-bottom-left-radius: 8px;
     border-bottom-right-radius: 8px;
@@ -1191,7 +1254,7 @@ a svg, svg path {
     background-color: var(--global-color-secondary);
     text-shadow: 0px 1px 6px #42424260;
     letter-spacing: calc(var(--global-font-size-lg) * 0.025);
-    padding: 10px;
+    padding: var(--global-padding-lg);
     display: flex;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
@@ -1206,44 +1269,7 @@ a svg, svg path {
     background-color: inherit;
 }
 
-.lexbranchtitle:active {
-    padding-left: 11px;
-}
-
-.lexbranchtitle.wtabs {
-    display: flex;
-    padding: 0px;
-    cursor: default;
-    background-color: var(--global-color-tertiary);
-    text-shadow: none;
-    color: #5f6770;
-}
-
 /* Tab */
-.lexbranchtitle.wtabs span {
-    padding: 10px;
-    cursor: pointer;
-}
-
-.lexbranchtitle.wtabs span:hover {
-    background-color: #47505872;
-}
-
-.lexbranchtitle.wtabs span:active {
-    margin-top: 1px;
-}
-
-.lexbranchtitle.wtabs span.first {
-    border-top-left-radius: 8px;
-}
-
-.lexbranchtitle.wtabs span.selected {
-    border-top: 2px solid var(--global-color-accent-light);
-    background-color: var(--global-color-secondary);
-    color: var(--global-text-primary);
-    text-shadow: 0px 1px 2px #000;
-}
-
 .lexbranch .branchicon {
     font-size: var(--global-font-size);
     margin-right: 12px;
@@ -1277,58 +1303,56 @@ a svg, svg path {
     background-color: inherit;
 }
 
-/* Widgets */
+/* Components */
 
-.lexwidget {
+.lexcomponent {
     display: flex;
     align-items: center;
-    padding: 5px;
+    padding: var(--global-padding-xs);
     font-size: var(--global-font-size);
     color: var(--global-text-primary);
     line-height: 2;
     overflow: hidden;
 }
 
-.lexinlinewidgets .lexwidgetname.float-center {
+.lexinlinecomponents .lexcomponentname.float-center {
     justify-content: center;
 }
 
-.lexinlinewidgets .lexwidgetname.float-right {
+.lexinlinecomponents .lexcomponentname.float-right {
     justify-content: end;
     -moz-transform: translateX(-1em);
     -webkit-transform: translateX(-1em);
     transform: translateX(-1em);
 }
 
-.lexwidget.auto {
+.lexcomponent.auto {
     width: unset !important;
 }
 
-.lexwidget.micro {
+.lexcomponent.micro {
     min-width: 24px;
     width: 3% !important;
-    padding-left: 4px;
-    padding-right: 4px;
 }
 
-.lexwidget.right {
+.lexcomponent.right {
     margin-left: auto;
     margin-right: 8px;
 }
 
-.lexwidget.small {
+.lexcomponent.small {
     width: 5% !important;
 }
 
-.lexwidget.md {
+.lexcomponent.md {
     width: 75% !important;
 }
 
-.lexinlinewidgets {
+.lexinlinecomponents {
     display: flex;
 }
 
-.lexwidgetseparator div {
+.lexcomponentseparator div {
     -ms-transform: translateY(-11px);
     -webkit-transform: translateY(-11px);
     transform: translateY(-11px);
@@ -1338,15 +1362,15 @@ a svg, svg path {
     color: var(--global-text-tertiary);
 }
 
-.lexwidgetseparator div:hover {
+.lexcomponentseparator div:hover {
     color: #4d4d5ac4;
 }
 
-.lexwidgetseparator div div {
+.lexcomponentseparator div div {
     background: #dddddd33;
 }
 
-.lexwidgetname {
+.lexcomponentname {
     white-space: nowrap;
     overflow: hidden;
     display: flex;
@@ -1355,7 +1379,7 @@ a svg, svg path {
     color: var(--global-text-secondary);
 }
 
-.lexinlinewidgets .lexwidgetname {
+.lexinlinecomponents .lexcomponentname {
     width: fit-content !important;
     padding-inline: 0.4rem;
 }
@@ -1380,9 +1404,9 @@ a svg, svg path {
     border-bottom: 1px solid #c1c1c1;
 }
 
-.lexwidget input:not(.lexcheckbox, .lextoggle, .lexrangeslider) {
+.lexcomponent input:not(.lexcheckbox, .lextoggle, .lexrangeslider) {
     font-family: var(--global-font);
-    padding: 4px;
+    padding: var(--global-padding-xs);
     color: var(--global-text-primary);
     --background-color: var(--global-color-tertiary);
     background-color: var(--background-color);
@@ -1394,37 +1418,37 @@ a svg, svg path {
     transition-duration: .15s;
 }
 
-.lexwidget input:not(.lexcheckbox, .lextoggle, .lexrangeslider, .outline):hover {
+.lexcomponent input:not(.lexcheckbox, .lextoggle, .lexrangeslider, .outline):hover {
     background-color: color-mix(in srgb, var(--background-color), #000 5%);
 }
 
-.lexwidget input.colorinput {
+.lexcomponent input.colorinput {
     border: none;
     margin-left: -4px;
 }
 
-.lexwidget input:disabled:not(.lextoggle) {
+.lexcomponent input:disabled:not(.lextoggle) {
     outline: none;
     border: none;
     color: var(--global-text-tertiary);
 }
 
-/* Text Widget */
+/* Text Component */
 
-.lexwidget input.lextext, .lexwidget div.lextext {
+.lexcomponent input.lextext, .lexcomponent div.lextext {
     width: 100%;
     border-radius: 6px;
     position: relative;
     border: 1px solid transparent;
-    padding: 6px 12px;
+    padding: var(--global-padding-xs) 0.75rem;
 }
 
-.lexwidget .lextext:disabled {
+.lexcomponent .lextext:disabled {
     background-color: var(--global-color-tertiary);
     color: var(--global-text-tertiary);
 }
 
-.lexwidget .lextext.formlabel {
+.lexcomponent .lextext.formlabel {
     margin-left: 8px;
     margin-bottom: -6px;
     font-weight: 500;
@@ -1432,51 +1456,51 @@ a svg, svg path {
     font-size: var(--global-font-size-sm);
 }
 
-.lexwidget .lextext.outline {
+.lexcomponent .lextext.outline {
     background: var(--global-color-primary);
     border: 1px solid #7a797c4f;
 }
 
-.lexwidget .lextext.nobg {
+.lexcomponent .lextext.nobg {
     background: none;
     border: 1px solid transparent;
 }
 
-.lexwidget .lextext.dashed {
+.lexcomponent .lextext.dashed {
     background: var(--global-color-primary);
     border: 1px dashed #7a797c4f;
 }
 
-.lexwidget .lextext.nobg:hover {
+.lexcomponent .lextext.nobg:hover {
     background: none;
 }
 
-.lexwidget .lextext:focus {
+.lexcomponent .lextext:focus {
     border: 1px solid var(--global-text-quaternary);
 }
 
-.lexwidget .lextext:invalid:focus {
+.lexcomponent .lextext:invalid:focus {
     border: 1px solid var(--global-color-error);
 }
 
-.lexwidget .lextext.lexwarning div {
+.lexcomponent .lextext.lexwarning div {
     color: var(--global-color-warning);
     font-weight: 600;
 }
 
-.lexwidget .lextext.lexwarning i {
+.lexcomponent .lextext.lexwarning i {
     color: var(--global-color-warning);
     margin-right: 16px;
 }
 
-/* TextArea Widget */
+/* TextArea Component */
 
-.lexwidget textarea {
+.lexcomponent textarea {
     width: 100%;
     word-break: break-word;
     font-family: var(--global-font);
     background: none;
-    padding: 5px;
+    padding: var(--global-padding-md);
     color: var(--global-text-primary);
     outline: none;
     border-radius: 6px;
@@ -1484,34 +1508,34 @@ a svg, svg path {
     transition: 0.1s linear;
 }
 
-.lexwidget textarea.outline {
+.lexcomponent textarea.outline {
     background: var(--global-color-primary);
     border: 1px solid #7a797c4f;
 }
 
-.lexwidget textarea.nobg {
+.lexcomponent textarea.nobg {
     background: none;
     border: 1px solid transparent;
 }
 
-.lexwidget textarea.dashed {
+.lexcomponent textarea.dashed {
     background: var(--global-color-primary);
     border: 1px dashed #7a797c4f;
 }
 
-.lexwidget textarea.outline:hover, .lexwidget .lextext.nobg:hover {
+.lexcomponent textarea.outline:hover, .lexcomponent .lextext.nobg:hover {
     background: none;
 }
 
-.lexwidget textarea:disabled {
+.lexcomponent textarea:disabled {
     resize: none;
 }
 
-.lexwidget textarea:focus {
+.lexcomponent textarea:focus {
     border: 1px solid var(--global-text-quaternary);
 }
 
-/* Input Color Widget */
+/* Input Color Component */
 
 .lexcolor {
     display: flex;
@@ -1536,7 +1560,7 @@ a svg, svg path {
     font-weight: 600;
 }
 
-.lexcolor .lexwidget {
+.lexcolor .lexcomponent {
     padding: 0px;
 }
 
@@ -1603,11 +1627,11 @@ a svg, svg path {
     letter-spacing: 0.02rem;
 }
 
-.lexcolorpicker .lexwidget {
+.lexcolorpicker .lexcomponent {
     padding: 2px !important;
 }
 
-/* Title Widget */
+/* Title Component */
 
 .lextitle {
     width: fit-content !important;
@@ -1616,9 +1640,7 @@ a svg, svg path {
     font-weight: 600;
     font-size: var(--global-font-size);
     margin: 12px;
-    padding: 2px;
-    padding-left: 12px;
-    padding-right: 12px;
+    padding: var(--global-padding-xs) var(--global-padding-lg);
     line-height: 1.5;
     display: grid;
     align-content: center;
@@ -1631,7 +1653,7 @@ a svg, svg path {
     user-select: none;
 }
 
-.lexinlinewidgets .lextitle {
+.lexinlinecomponents .lextitle {
     margin: 8px;
     height: 24px;
     flex: none;
@@ -1649,7 +1671,7 @@ a svg, svg path {
 }
 
 
-/* Button Widget */
+/* Button Component */
 
 .lexbutton {
     --button-color: var(--global-color-tertiary);
@@ -1757,7 +1779,7 @@ a svg, svg path {
     background-color: var(--global-color-tertiary);
     width: max-content;
     justify-self: center;
-    padding: 3px;
+    padding: var(--global-padding-xs);
     border-radius: 8px;
     gap: 0.2em;
 }
@@ -1799,7 +1821,7 @@ a svg, svg path {
     position: relative;
 }
 
-.lexselect .lexwidget {
+.lexselect .lexcomponent {
     padding: 0;
 }
 
@@ -2027,11 +2049,11 @@ dialog .lexselect .lexselectoptions {
     grid-column: span 2;
 }
 
-.lexcheckboxsubmenu .lexwidget {
+.lexcheckboxsubmenu .lexcomponent {
     width: 100% !important;
 }
 
-/* Toggle Widget */
+/* Toggle Component */
 
 .lextoggle {
     --toggle-bg-color: var(--global-text-tertiary); /* Color of background CHECKED */
@@ -2192,7 +2214,7 @@ dialog .lexselect .lexselectoptions {
     grid-column: span 2;
 }
 
-/* Radio Group Widget */
+/* Radio Group Component */
 
 .lexradiogroup {
     width: 100% !important;
@@ -2257,7 +2279,7 @@ dialog .lexselect .lexselectoptions {
 .lexradiogroup.error .lexradiogroupitem button.checked span { background-color: var(--global-color-error); }
 .lexradiogroup.warning .lexradiogroupitem button.checked span { background-color: var(--global-color-warning); }
 
-/* Vector Widgets */
+/* Vector Component */
 
 .lexvector {
     display: flex;
@@ -2284,8 +2306,8 @@ dialog .lexselect .lexselectoptions {
     background-color: color-mix(in srgb, var(--global-color-tertiary), #000 7%);
 }
 
-.lexwidget .numberbox .drag-icon,
-.lexwidget .vecbox .drag-icon {
+.lexcomponent .numberbox .drag-icon,
+.lexcomponent .vecbox .drag-icon {
     font-size: var(--global-font-size-sm);
     color: var(--global-text-secondary);
     z-index: 11;
@@ -2354,9 +2376,9 @@ input[type=number] {
     color: var(--global-text-secondary);
 }
 
-/* Number Widget */
+/* Number Component */
 
-.lexwidget .numberbox {
+.lexcomponent .numberbox {
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -2369,21 +2391,33 @@ input[type=number] {
     transition: 0.1s linear;
 }
 
-.lexwidget .numberbox:hover {
+.lexcomponent .numberbox::-webkit-scrollbar {
+    display: none;
+}
+
+.lexcomponent .numberbox:hover {
     background-color: color-mix(in srgb, var(--global-color-tertiary), #000 7%);
 }
 
-.lexwidget .numberbox:has(input:focus) {
+.lexcomponent .numberbox:has(input:focus) {
     border: 1px solid var(--global-text-quaternary);
 }
 
-.lexwidget .numberbox span {
+.lexcomponent .numberbox .input-box {
+    padding-block: var(--global-padding-xs);
+}
+
+.lexcomponent .numberbox .input-box input {
+    padding-block: 0;
+}
+
+.lexcomponent .numberbox span {
     position: absolute;
     pointer-events: none;
     align-self: center;
 }
 
-.lexwidget .numberbox:has(input[type=range]) span {
+.lexcomponent .numberbox:has(input[type=range]) span {
     margin-top: -12px;
 }
 
@@ -2441,14 +2475,14 @@ input[type=number] {
     cursor: pointer;
 }
 
-/* Range Widget */
+/* Range Component */
 
 .lexrangeslider {
     --range-thumb-color: var(--global-color-primary);
     --range-thumb-size: 1rem;
     --range-progress: currentColor;
     --range-fill: 1;
-    --range-thumb-padding: 0.15rem;
+    --range-thumb-padding: 0.2rem;
     --range-bg: color-mix(in oklab,currentColor 20%,#0000);
     --range-dir: 1;
     --radius-selector: 0.5rem;
@@ -2491,7 +2525,19 @@ input[type=number] {
 
 .lexrangeslider.no-fill {
     --range-fill: 0;
-    --range-bg: currentColor;
+    --in-range-color: color-mix(in oklab,currentColor 30%,#0000);
+    --range-bg: linear-gradient(to right,
+    var(--in-range-color) 0%,
+    var(--in-range-color) calc(var(--range-min-value) + var(--range-fix-min-offset)),
+    currentColor calc(var(--range-min-value) + var(--range-fix-min-offset)),
+    currentColor calc( var(--range-max-value) - var(--range-fix-max-offset)),
+    var(--in-range-color) calc( var(--range-max-value) - var(--range-fix-max-offset)),
+    var(--in-range-color) 100%);
+    background: var(--range-bg);
+}
+
+.lexrangeslider.overlap {
+    --range-bg: transparent;
 }
 
 .lexrangeslider:hover {
@@ -2530,6 +2576,7 @@ input[type=number] {
     background-color: currentColor;
     position: relative;
     top: 50%;
+    pointer-events: all !important;
     transform: translateY(-50%);
 }
 
@@ -2544,9 +2591,10 @@ input[type=number] {
     background-color: currentColor;
     position: relative;
     top: 50%;
+    pointer-events: all !important;
 }
 
-/* OTP Widget */
+/* OTP Component */
 
 .lexotpslot.active {
     border: 1px solid var(--global-text-primary);
@@ -2558,18 +2606,18 @@ input[type=number] {
     cursor: not-allowed;
 }
 
-/* Pad Widget */
+/* Pad Component */
 
-.lexwidget .lexpad {
+.lexcomponent .lexpad {
     place-items: center;
 }
 
-.lexwidget .lexpad .lexinnerpad {
+.lexcomponent .lexpad .lexinnerpad {
     border-radius: 4px;
     background-color: light-dark(var(--global-color-tertiary), var(--global-intense-background));
 }
 
-.lexwidget .lexpad .lexinnerpad .lexpadthumb {
+.lexcomponent .lexpad .lexinnerpad .lexpadthumb {
     background-color: var(--global-color-accent);
     width: 10%;
     height: 10%;
@@ -2577,11 +2625,11 @@ input[type=number] {
     transform: translate(0px, 0px);
 }
 
-.lexwidget .lexpad .lexinnerpad .lexpadthumb.active {
+.lexcomponent .lexpad .lexinnerpad .lexpadthumb.active {
     background-color: var(--global-color-accent-light);
 }
 
-/* Tabs Widget */
+/* Tabs Component */
 
 .lextabscontainer {
     width: 100%;
@@ -2610,7 +2658,7 @@ input[type=number] {
     flex-direction: row;
 }
 
-.lextabscontainer .widgets {
+.lextabscontainer .components {
     width: 100%;
     padding: 4px;
 }
@@ -2623,7 +2671,7 @@ input[type=number] {
     text-align: center;
 }
 
-/* Data Tree Widget */
+/* Data Tree Component */
 
 .lextree {
     border-radius: 6px;
@@ -2653,7 +2701,7 @@ input[type=number] {
     gap: 0.5rem;
 }
 
-.lexwidget.nobranch .lextree .lextreetools {
+.lexcomponent.nobranch .lextree .lextreetools {
     background: var(--global-color-secondary);
 }
 
@@ -2872,14 +2920,15 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 /* Badges */
 
 .lexbadge {
-    border-radius: 0.35rem;
+    border-radius: 0.4rem;
     color: #f4f4f5;
     border: 1px solid var(--badge-color, #14171a);
     width: fit-content;
+    height: 1.1rem;
     justify-content: center;
     align-items: center;
-    gap: 0.5rem;
-    padding-inline: 0.6rem;
+    gap: 0.25rem;
+    padding-inline: 0.5rem;
     font-size: var(--global-font-size);
     display: inline-flex;
     background-color: var(--badge-color, #1d232a);
@@ -2905,11 +2954,30 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     border: none;
 }
 /* Sizes */
-.lexbadge.xs { padding-inline: 0.4rem; font-size: var(--global-font-size-xs); }
-.lexbadge.sm { padding-inline: 0.5rem; font-size: var(--global-font-size-sm); }
+.lexbadge.xs { height: 0.7rem; padding-inline: 0.3rem; font-size: var(--global-font-size-xs); }
+.lexbadge.sm { height: 0.9rem; padding-inline: 0.4rem; font-size: var(--global-font-size-sm); }
 /* .lexbadge.md { default } */
-.lexbadge.lg { padding-inline: 0.8rem; font-size: var(--global-font-size-lg); }
-.lexbadge.xl { padding-inline: 1rem; font-size: var(--global-font-size-xl) }
+.lexbadge.lg { height: 1.3rem; padding-inline: 0.7rem; font-size: var(--global-font-size-lg); }
+.lexbadge.xl { height: 1.5rem; padding-inline: 0.85rem; font-size: var(--global-font-size-xl) }
+
+.lexbadge-parent {
+    position: relative;
+}
+
+.lexbadge-parent .lexbadge {
+    border-radius: 0.5rem;
+    padding-inline: 0.25rem;
+    position: absolute;
+    margin-top: -0.25rem;
+    right: 0.25rem;
+    border: none !important;
+}
+
+.lexbadge.chip {
+    border-radius: 0.5rem;
+    padding-inline: 0.25rem;
+    border: none !important;
+}
 
 /* Menu Bar */
 
@@ -3135,7 +3203,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     display: none;
 }
 
-.lexsidebar .lexwidget {
+.lexsidebar .lexcomponent {
     width: 100% !important;
     padding: 0 !important;
 }
@@ -3177,7 +3245,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 .lexsidebar .lexsidebargrouptitle {
     font-size: var(--global-font-size-sm);
     font-weight: 600;
-    color: var(--global-text-secondary);
+    color: var(--global-text-tertiary);
     overflow: hidden;
     display: flex;
 }
@@ -3211,8 +3279,8 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 
 .lexsidebar .lexsidebarentry {
     width: 100%;
-    padding-inline: 8px;
-    padding-block: 6px;
+    padding-inline: var(--global-padding-md);
+    padding-block: var(--global-padding-sm);
     margin-block: 0.15rem;
     border-radius: 8px;
     cursor: pointer;
@@ -3228,6 +3296,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     white-space: nowrap;
     text-overflow: ellipsis;
     align-self: center;
+    place-content: start;
 }
 
 .lexsidebar .lexsidebarentry:hover {
@@ -3242,7 +3311,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     color: #f4f4f4;
 }
 
-.lexsidebar .lexsidebarentry.selected svg path {
+.lexsidebar .lexsidebarentry.selected .lexsidebarentryicon svg path {
     color: #f4f4f4;
 }
 
@@ -3350,8 +3419,8 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     width: 100%;
     height: 48px;
     display: flex;
-    border-radius: 8px;
-    padding: 8px;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
     font-size: var(--global-font-size);
     cursor: pointer;
     align-items: center;
@@ -3460,13 +3529,13 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     border-radius: 12px;
 }
 
-.lexoverlaybuttons .lexwidget {
+.lexoverlaybuttons .lexcomponent {
     padding: 0px;
     pointer-events: auto;
     min-width: 32px;
 }
 
-.lexoverlaybuttons .lexwidget button {
+.lexoverlaybuttons .lexcomponent button {
     min-width: 32px;
 }
 
@@ -3479,12 +3548,12 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     display: grid;
 }
 
-.lexoverlaybuttonscontainer.vertical .lexwidget {
+.lexoverlaybuttonscontainer.vertical .lexcomponent {
     margin-bottom: 6px;
     margin-right: 0px;
 }
 
-.lexoverlaybuttonscontainer.vertical .lexwidget button {
+.lexoverlaybuttonscontainer.vertical .lexcomponent button {
     min-width: 32px;
     max-height: 32px !important;
 }
@@ -3510,13 +3579,13 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     justify-items: right;
 }
 
-.lexoverlaybuttons .lexwidget:hover {
+.lexoverlaybuttons .lexcomponent:hover {
     background-color: unset;
 }
 
 .lexoverlaybuttons .lexbutton {
     --button-color: var(--global-color-secondary);
-    padding: 6px 6px;
+    padding: var(--global-padding-sm) var(--global-padding-sm);
     font-size: var(--global-font-size-lg);
     border-radius: 10px;
     justify-content: center;
@@ -3551,21 +3620,21 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     margin-bottom: 6px;
 }
 
-.lexoverlaybuttons .lexoverlaygroup .lexwidget {
+.lexoverlaybuttons .lexoverlaygroup .lexcomponent {
     padding: 0px;
     margin-right: 0px;
 }
 
-.lexoverlaybuttonscontainer.vertical .lexoverlaygroup .lexwidget {
+.lexoverlaybuttonscontainer.vertical .lexoverlaygroup .lexcomponent {
     margin-right: 0px;
     margin-bottom: 0px;
 }
 
-.lexoverlaybuttonscontainer.vertical .lexoverlaygroup .lexwidget button {
+.lexoverlaybuttonscontainer.vertical .lexoverlaygroup .lexcomponent button {
     width: 100% !important;
 }
 
-.lexoverlaybuttons .lexwidget:last-child {
+.lexoverlaybuttons .lexcomponent:last-child {
     margin-right: 0px;
 }
 
@@ -3628,7 +3697,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 }
 
 .lexareatabs.row .lexareatab {
-    padding: 0.45em 1.45em;
+    padding: var(--global-padding-md) 1.45em;
     transition: 0.1s;
     background: none;
     border-radius: 6px;
@@ -3685,13 +3754,13 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     max-height: 0px;
 }
 
-/* Curve Widget */
+/* Curve Component */
 
 .curve canvas {
     border-radius: 2px;
 }
 
-/* Avatar Widget */
+/* Avatar Component */
 
 .lexavatar {
     width: 48px;
@@ -3709,11 +3778,10 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     height: 100%;
 }
 
-/* Card Widget */
+/* Card Component */
 
 .lexcard {
     position: relative;
-    margin-bottom: 4px;
 }
 
 .lexcard img {
@@ -3721,7 +3789,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     height: 128px;
     object-fit: cover;
     border-radius: 6px;
-    outline: 3px solid var(--global-text-tertiary);
+    outline: 2px solid var(--global-text-tertiary);
 }
 
 .lexcard:hover a {
@@ -3729,16 +3797,13 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 }
 
 .lexcard:hover img {
-    outline: 3px solid var(--global-color-accent);
+    outline: 2px solid var(--global-color-accent);
 }
 
 .lexcard span {
     font-size: var(--global-font-size-lg);
-    font-family: var(--global-title-font);
     font-weight: 500;
-    text-transform: uppercase;
     width: 100%;
-    height: 32px;
     display: flex;
     background-color: var(--global-blur-background);
     --webkit-backdrop-filter: blur(12px);
@@ -3747,7 +3812,8 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     position: absolute;
     top: 0;
     left: 0;
-    padding: 8px;
+    padding: var(--global-padding-xs);
+    padding-inline-start: 8px;
     border-top-left-radius: 6px;
     border-top-right-radius: 6px;
 }
@@ -3761,7 +3827,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     color: var(--global-color-accent);
 }
 
-/* Layers Widget */
+/* Layers Component */
 
 .lexlayers {
     display: grid;
@@ -3799,7 +3865,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     transform: scale(0.99);
 }
 
-/* List Widget */
+/* List Component */
 
 .lexlist {
     background: var(--global-color-primary);
@@ -3847,26 +3913,26 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     background-color: var(--global-color-accent);
 }
 
-/* Array Widget */
+/* Array Component */
 
-.lexwidget:has(.lexarrayitems),
-.lexwidget:has(.lexcheckboxsubmenu),
-.lexwidget:has(.lextogglesubmenu),
-.lexwidget:has(.lexcustomcontainer) {
+.lexcomponent:has(.lexarrayitems),
+.lexcomponent:has(.lexcheckboxsubmenu),
+.lexcomponent:has(.lextogglesubmenu),
+.lexcomponent:has(.lexcustomcontainer) {
     border-radius: 6px;
     transition: background-color 0.2s ease-out;
     display: flex;
     flex-wrap: wrap;
 }
 
-.lexwidget:has(.lexarrayitems)[data-opened=true],
-.lexwidget:has(.lexcheckboxsubmenu)[data-opened=true],
-.lexwidget:has(.lextogglesubmenu)[data-opened=true],
-.lexwidget:has(.lexcustomcontainer)[data-opened=true] {
+.lexcomponent:has(.lexarrayitems)[data-opened=true],
+.lexcomponent:has(.lexcheckboxsubmenu)[data-opened=true],
+.lexcomponent:has(.lextogglesubmenu)[data-opened=true],
+.lexcomponent:has(.lexcustomcontainer)[data-opened=true] {
     background-color: light-dark(var(--global-color-tertiary), var(--global-medium-background));
 }
 
-.lexarray .lexwidget {
+.lexarray .lexcomponent {
     padding: 0px;
     width: 100% !important;
 }
@@ -3880,7 +3946,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     grid-column: span 2;
 }
 
-.lexarrayitems .lexwidgetname {
+.lexarrayitems .lexcomponentname {
     color: var(--global-text-tertiary);
     font-size: var(--global-font-size-sm);
     justify-content: center;
@@ -3888,7 +3954,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     font-weight: 600;
 }
 
-/* Tags Widget */
+/* Tags Component */
 
 .lextags {
     display: inline-flex;
@@ -3896,7 +3962,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     line-height: 12px;
     background-color: var(--global-color-tertiary);
     border-radius: 8px;
-    padding: 4px;
+    padding: var(--global-padding-xs);
 }
 
 .lextags input {
@@ -3926,7 +3992,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     cursor: pointer;
 }
 
-/* Counter Widget */
+/* Counter Component */
 
 .lexcounter {
     display: flex;
@@ -3954,7 +4020,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     color: var(--global-text-secondary);
 }
 
-/* Table Widget */
+/* Table Component */
 
 .lextable {
     overflow-x: scroll;
@@ -4007,7 +4073,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
 }
 
 .lextable th, .lextable td {
-    padding: 6px;
+    padding-block: var(--global-padding-sm);
     padding-inline: 12px;
     text-align: left;
     align-content: center;
@@ -4114,7 +4180,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     box-shadow: none;
 }
 
-/* Custom Widgets Widget */
+/* Custom Component */
 
 .lexcustomitems {
     width: 100%;
@@ -4131,7 +4197,7 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     justify-content: space-between;
 }
 
-/* Knob Widget */
+/* Knob Component */
 
 .lexknob {
     padding: 8px;
@@ -4353,11 +4419,11 @@ meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
     padding: 0 10px;
 }
 
-.lextimeline .lexwidget:has(.lexbutton:not(.array)) {
+.lextimeline .lexcomponent:has(.lexbutton:not(.array)) {
     padding: 1px;
 }
 
-.lextimeline .lexinlinewidgets {
+.lextimeline .lexinlinecomponents {
     padding-right: 10px;
 }
 
@@ -4628,7 +4694,10 @@ ul.lexassetscontent {
 .lexassetscontent .asset-file-preview text {
     font-size: 4rem;
     text-anchor: middle;
-    font-family: 'Ubuntu', sans-serif;
+    font-family: var(--global-code-font);
+    font-feature-settings: "ss02", 'ss19',  "ss20";
+    font-feature-settings: "ss02", 'ss19',  "ss20";
+    font-weight: 800;
     color: var(--global-text-tertiary);
 }
 
@@ -4771,11 +4840,90 @@ ul.lexassetscontent {
     transform: scale(1.12);
 }
 
+/* Tour */
+
+.tour-mask {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #1f1f1fe7;
+    --webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    z-index: 99;
+    clip-path: url(#svgTourClipPath);
+}
+
+.tour-ref-mask {
+    position: absolute;
+    background-color: #1f1f1fe7;
+    --webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    z-index: 100;
+    mask: url(#svgTourReferenceMask);
+}
+
+.tour-step-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: var(--global-text-quaternary);
+    display: inline-flex;
+}
+
+.tour-step-indicator.active {
+    background-color: var(--global-text-primary);
+}
+
+/* Skeleton */
+
+@keyframes skeletonHide {
+    from {
+        opacity: 1;
+        transform: translate3d(0, 0, 0)
+        scale3d(1, 1, 1);
+    }
+
+    to {
+        opacity: 0;
+        transform: translate3d(0, 12.5%, 0)
+        scale3d(0.75, 0.75, 0.75);
+    }
+}
+
+.lexskeleton[data-closed] {
+    animation: skeletonHide 0.2s forwards;
+}
+
+/* Shimmer keyframes */
+@keyframes skeleton-shimmer {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.lexskeleton *.lexskeletonpart {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--global-color-tertiary);
+    border-radius: 0.375rem;
+    pointer-events: none;
+    animation: skeleton-shimmer 2.0s ease-in-out infinite;
+}
+
 /* Code Editor */
+
 .codebasearea {
     display: flex;
     position: relative;
     overflow: inherit;
+    background-color: light-dark(var(--global-color-secondary), var(--global-medium-background));
 }
 
 .codebasearea * {
@@ -4785,33 +4933,37 @@ ul.lexassetscontent {
 .codebasearea .lexareatabs {
     padding: 0px;
     margin: 0px;
+    gap: 0;
+    background-color: var(--global-color-primary);
 }
 
 .codebasearea .lexareatab {
     padding: 5px;
     border-radius: 0px !important;
     margin: 0px !important;
-    border: 1px solid #91909036;
-    border-right: none;
-    border-bottom: none;
-    background-color: var(--global-color-primary) !important;
+    border: none;
+    background-color: var(--global-color-secondary) !important;
+    border-bottom: 1px solid transparent;
     transition: none;
     display: flex !important;
 }
 
 .codebasearea .lexareatab:hover {
-    background-color: var(--global-color-secondary) !important;
+    background-color: var(--global-color-tertiary) !important;
+}
+
+.codebasearea .lexareatab:first-child {
+    border-top-left-radius: 8px !important;
 }
 
 .codebasearea .lexareatab:last-child {
-    border-right: 1px solid #91909036;
+    border-top-right-radius: 8px !important;
 }
 
 .codebasearea .lexareatab.selected {
-    background-color: var(--global-color-secondary) !important;
-    color: var(--global-text-secondary) !important;
-    border-top: 1px solid var(--global-color-accent);
-    border-bottom: none;
+    background-color: light-dark(var(--global-color-secondary), var(--global-medium-background)) !important;
+    border-bottom: 1px solid var(--global-color-accent);
+    color: var(--global-text-primary) !important;
 }
 
 .codebasearea .lexareatab i {
@@ -4850,6 +5002,7 @@ ul.lexassetscontent {
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
+    background-color: inherit;
 }
 
 .lexcodeeditor .lexareatabscontent {
@@ -4865,61 +5018,43 @@ ul.lexassetscontent {
     padding-inline: 1rem;
 }
 
-.lexcodetabinfo .lexinlinewidgets {
-    justify-content: end;
-}
-
 .lexcodegutter {
     width: 48px;
-    height: calc(100% - 65px);
-    background-color: light-dark(var(--global-color-secondary), var(--global-medium-background));
-    margin-top: 31px;
+    background-color: inherit;
     overflow: hidden;
     position: absolute;
     top: 0;
 }
 
-.lexcodeeditor .codetabsarea {
-    height: calc(100% - 76px) !important;
-    background-color: light-dark(var(--global-color-secondary), var(--global-medium-background));
+.lexcodeeditor .lexcodearea {
+    width: 100%;
+    background-color: inherit;
     overflow: scroll;
 }
 
-.lexcodeeditor .codetabsarea.no-code-info {
-    height: calc(100% - 28px) !important;
-}
-
-.lexcodeeditor .codetabsarea::-webkit-scrollbar {
+.lexcodeeditor .lexcodearea::-webkit-scrollbar {
     display: none;
 }
 
-.lexcodeeditor .codetabsarea.with-vscrollbar {
-    width: 100% !important;
-}
-
-.lexcodeeditor .codetabsarea.with-hscrollbar {
-    height: calc(100% - 72px) !important;
-}
-
-.lexcodeeditor .codetabsarea.dragging {
+.lexcodeeditor .lexcodearea.dragging {
     background-color: var(--global-color-secondary);
 }
 
 .lexcodeeditor .code {
     cursor: text;
-    font-family: "CommitMono", monospace;
+    font-family: var(--global-code-font);
+    font-feature-settings: "ss02", 'ss19',  "ss20";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: "ss04", "ss05";
     font-size: var(--code-editor-font-size);
     position: relative;
 }
 
 .codechar {
-    font-family: "CommitMono", monospace;
+    font-family: var(--global-code-font);
+    font-feature-settings: "ss02", 'ss19',  "ss20";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: "ss04", "ss05";
     font-size: var(--code-editor-font-size);
     position: absolute;
     top: 0;
@@ -4930,6 +5065,9 @@ ul.lexassetscontent {
 
 .lexcodeeditor pre {
     -webkit-text-size-adjust: 100%;
+    font-family: var(--global-code-font);
+    font-feature-settings: "ss02", 'ss19',  "ss20";
+    font-size: var(--code-editor-font-size);
     cursor: text;
     box-sizing: border-box;
     border-radius: 0;
@@ -4961,6 +5099,10 @@ ul.lexassetscontent {
 
 .lexcodeeditor pre.removed {
     background-color: #db21212f !important;
+}
+
+.lexcodeeditor pre.debug {
+    background-color: #fffb002f !important;
 }
 
 .lexcodeeditor.disabled .lexareatab {
@@ -4995,6 +5137,10 @@ ul.lexassetscontent {
     position: sticky;
     left: 0;
     z-index: 1;
+}
+
+.lexcodeeditor pre.active-line .line-gutter {
+    color: var(--global-text-primary);
 }
 
 .lexcodeeditor.no-gutter pre .line-gutter {
@@ -5042,31 +5188,21 @@ ul.lexassetscontent {
 
 .lexcodescrollbar {
     width: 10px;
-    height: calc(100% - 62px);
     position: absolute;
     background-color: transparent;
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    margin-top: 31px;
     z-index: 1 !important;
     right: 0px;
     pointer-events: none;
 }
 
 .lexcodescrollbar.horizontal {
-    width: calc(100% - 58px);
+    width: calc(100% - 48px);
     height: 10px;
-    bottom: 47px;
-    right: 10px;
-}
-
-.codebasearea:has(.codetabsarea.no-code-info) .lexcodescrollbar.horizontal {
     bottom: 0px;
-}
-
-.lexcodescrollbar.scrollbar-unused {
-    display: none;
+    left: 48px; /* gutter offset */
 }
 
 .lexcodescrollbar div {
@@ -5188,6 +5324,10 @@ ul.lexassetscontent {
     background-color: var(--global-color-accent);
 }
 
+.lexcodeeditor .autocomplete pre.selected svg {
+    color: white !important;
+}
+
 .lexcodeeditor .autocomplete pre span {
     cursor: inherit;
 }
@@ -5234,61 +5374,53 @@ ul.lexassetscontent {
 .cm-std { color: #d181d1; }   /* statements & declarations */
 .cm-kwd { color: #2194ce; }   /* keyword */
 .cm-com { color: #5cab5a; }   /* comment */
+.cm-typ { color: #36c0b0; }   /* type */
+.cm-dec { color: #b1ce9b; }   /* decimal */
 
-.cm-typ.javascript { color: #36c0b0; }  /* type */
-.cm-dec.javascript { color: #b1ce9b; }  /* decimal */
+.cm-bln.javascript { color: #d2d6f5; }   /* builtin */
 .cm-sym.javascript { color: #e7ded2; }  /* symbol */
-.cm-mtd.javascript { color: #e0cc68 }   /* method */
+.cm-mtd.javascript { color: #e9d98a }   /* method */
 
-.cm-typ.c { color: #36c0b0; }   /* type */
+.cm-mtd.typescript { color: #e9d98a }   /* method */
+.cm-enu.typescript { color: #4cacff }   /* enums */
+
 .cm-bln.c { color: #d44141; }   /* builtin */
 .cm-dec.c { color: #2ddf53; }   /* decimal */
 .cm-sym.c { color: #e7ded2; }   /* symbol */
 .cm-mtd.c { color: #7a9ae0 }    /* method */
 .cm-ppc.c { color: #969696 }    /* preprocessor */
 
-.cm-typ.cpp { color: #36c0b0; }   /* type */
 .cm-bln.cpp { color: #d44141; }   /* builtin */
 .cm-dec.cpp { color: #2ddf53; }   /* decimal */
 .cm-sym.cpp { color: #e7ded2; }   /* symbol */
 .cm-mtd.cpp { color: #7a9ae0 }    /* method */
 .cm-ppc.cpp { color: #969696 }    /* preprocessor */
+.cm-enu.cpp { color: #b1ce9b }    /* enums */
 
 .cm-sym.cmake { color: #cf6dcf; }  /* symbol */
 
 .cm-kwd.css { color: #e8be53; }   /* keyword */
 .cm-typ.css { color: #b7c3ec; }   /* type */
 .cm-bln.css { color: #2194ce; }   /* builtin */
-.cm-dec.css { color: #b1ce9b; }   /* decimal */
 .cm-sym.css { color: #f9d620; }   /* symbol */
 .cm-mtd.css { color: #e0cc68; }   /* method */
 
-.cm-dec.json { color: #b1ce9b; }  /* decimal */
 .cm-sym.json { color: #cf6dcf; }  /* symbol */
 
-.cm-typ.glsl { color: #36c0b0; }  /* type */
-.cm-dec.glsl { color: #b1ce9b; }  /* decimal */
 .cm-sym.glsl { color: #f9cb20; }  /* symbol */
 .cm-mtd.glsl { color: #e0cc68; }  /* method */
 
-.cm-typ.wgsl { color: #36c0b0; }  /* type */
-.cm-dec.wgsl { color: #b1ce9b; }  /* decimal */
 .cm-mtd.wgsl { color: #dfe093; }  /* method */
 .cm-sym.wgsl { color: #f9cb20; }  /* symbol */
 .cm-ppc.wgsl { color: #99caf1; }  /* preprocessor */
+.cm-bln.wgsl { color: #bebebe; }  /* builtin */
 
-.cm-typ.rust { color: #36c0b0; }  /* type */
-.cm-dec.rust { color: #b1ce9b; }  /* decimal */
 .cm-sym.rust { color: #e7ded2; }  /* symbol */
 .cm-mtd.rust { color: #e0cc68 }   /* method */
 
-.cm-typ.python { color: #36c0b0; }  /* type */
-.cm-dec.python { color: #b1ce9b; }  /* decimal */
 .cm-sym.python { color: #e7ded2; }  /* symbol */
 .cm-mtd.python { color: #e0cc68 }   /* method */
 
-.cm-typ.batch { color: #36c0b0; }   /* type */
-.cm-dec.batch { color: #b1ce9b; }   /* decimal */
 .cm-sym.batch { color: #dfd85e; }   /* symbol */
 
 .cm-bln.html { color: #a1d2f0; }    /* builtin */
@@ -5298,6 +5430,11 @@ ul.lexassetscontent {
 .cm-sym.xml { color: #929292; }    /* symbol */
 
 .cm-bln.markdown { color: #a1d2f0; }  /* builtin */
+
+.cm-sym.php { color: #cf6dcf; }  /* symbol */
+.cm-mtd.php { color: #ddce80 }   /* method */
+.cm-bln.php { color: #ddce80; }  /* builtin */
+.cm-var.php { color: #88bde9; }  /* variable */
 
 :root[data-theme="light"] .lexcodeeditor pre.active-line {
     background-color: #e4e0e0ab;
@@ -5786,7 +5923,7 @@ ul.lexassetscontent {
     height: inherit;
 }
 
-.lexvideoeditor .lexwidget.nobranch {
+.lexvideoeditor .lexcomponent.nobranch {
     padding: 0;
     width: 100% !important;
 }
@@ -5909,11 +6046,13 @@ ul.lexassetscontent {
 .hover\:scale-xl:hover { transform: scale(1.25); transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19); }
 
 .stroke-none { stroke: none }
+.fill-current { fill: currentColor }
 
 /* Layout */
 
 .flex { display: flex }
-.inline-flex { display: inline-flex }
+.inline-flex { display: inline-flex !important }
+.inline-grid { display: inline-grid !important }
 .flex-fill { flex: 1 0 0% }
 .grid { display: grid }
 .block { display: block }
@@ -5970,6 +6109,10 @@ ul.lexassetscontent {
 .items-center { place-items: center }
 .items-end { place-items: end }
 
+.align-items-start { align-items: start }
+.align-items-center { align-items: center }
+.align-items-end { align-items: end }
+
 .justify-start { justify-content: start }
 .justify-center { justify-content: center }
 .justify-end { justify-content: end }
@@ -5983,6 +6126,15 @@ ul.lexassetscontent {
 .content-start { align-content: start }
 .content-center { align-content: center }
 .content-end { align-content: end }
+
+.place-content-start { place-content: start }
+.place-content-center { place-content: center }
+.place-content-end { place-content: end }
+
+.grid-column-start-1 { grid-column-start: 1 }
+.grid-column-start-2 { grid-column-start: 2 }
+
+/* Spacing */
 
 .gap-0 { gap: 0 }
 .gap-0\.5 { gap: 0.125rem }
@@ -5998,8 +6150,6 @@ ul.lexassetscontent {
 .gap-10 { gap: 2.5rem }
 .gap-11 { gap: 2.75rem }
 .gap-12 { gap: 3rem }
-
-/* Spacing */
 
 .mt-auto { margin-top: auto }
 .mb-auto { margin-bottom: auto }
@@ -6089,6 +6239,10 @@ ul.lexassetscontent {
 .p-6 { padding: 1.5rem }
 .p-7 { padding: 1.75rem }
 .p-8 { padding: 2rem }
+.p-9 { padding: 2.25rem }
+.p-10 { padding: 2.5rem }
+.p-11 { padding: 2.75rem }
+.p-12 { padding: 3rem }
 
 .pt-0 { padding-top: 0 }
 .pt-1 { padding-top: 0.25rem }
@@ -6170,6 +6324,8 @@ ul.lexassetscontent {
 .font-bold { font-weight: 700 }
 .font-extrabold { font-weight: 800 }
 
+.font-code { font-family: var(--global-code-font) }
+
 .tracking-tighter { letter-spacing: -0.05em }
 .tracking-tight { letter-spacing: -0.025em }
 .tracking-normal { letter-spacing: 0em }
@@ -6182,12 +6338,61 @@ ul.lexassetscontent {
 .uppercase { text-transform: uppercase }
 .capitalize { text-transform: capitalize }
 
+.decoration-none { text-decoration: none }
+.text-underline { text-decoration: underline }
+
+.hover\:text-underline:hover { text-decoration: underline }
+
 /* Width / Height */
 
 .w-full { width: 100% }
 .w-screen { width: 100vw }
+.w-auto { width: auto }
+
+.w-2\/3 { width: 66.666% }
+.w-1\/2 { width: 50% }
+.w-1\/3 { width: 33.333% }
+.w-1\/4 { width: 25% }
+
+.w-1 { width: 0.25rem }
+.w-2 { width: 0.5rem }
+.w-3 { width: 0.75rem }
+.w-4 { width: 1rem }      /* 16px */
+.w-5 { width: 1.25rem }
+.w-6 { width: 1.5rem }
+.w-7 { width: 1.75rem }
+.w-8 { width: 2rem }
+.w-9 { width: 2.25rem }
+.w-10 { width: 2.5rem }
+.w-11 { width: 2.75rem }
+.w-12 { width: 3rem }
+.w-13 { width: 3.25rem }
+.w-14 { width: 3.5rem }
+.w-15 { width: 3.75rem }
+.w-16 { width: 4rem }     /* 64px */
+.w-32 { width: 8rem }     /* 128px */
+
 .h-full { height: 100% }
 .h-screen { height: 100vh }
+.h-auto { height: auto }
+
+.h-1 { height: 0.25rem }
+.h-2 { height: 0.5rem }
+.h-3 { height: 0.75rem }
+.h-4 { height: 1rem }
+.h-5 { height: 1.25rem }
+.h-6 { height: 1.5rem }
+.h-7 { height: 1.75rem }
+.h-8 { height: 2rem }
+.h-9 { height: 2.25rem }
+.h-10 { height: 2.5rem }
+.h-11 { height: 2.75rem }
+.h-12 { height: 3rem }
+.h-13 { height: 3.25rem }
+.h-14 { height: 3.5rem }
+.h-15 { height: 3.75rem }
+.h-16 { height: 4rem }
+.h-32 { height: 8rem }
 
 .resize-none { resize: none }
 
@@ -6216,6 +6421,7 @@ ul.lexassetscontent {
 /* Borders / Radius / Shadow */
 
 .border { border: 1px solid var(--global-color-tertiary) }
+.border-none { border: none }
 .border-colored { border: 1px solid currentColor }
 
 .border-solid { border-style: solid }
@@ -6239,16 +6445,16 @@ ul.lexassetscontent {
 .border-l-0 { border-left-width: 0 }
 .border-r-0 { border-right-width: 0 }
 
-.rounded-none { border-radius: 0 }
-.rounded-sm { border-radius: 0.125rem }
-.rounded { border-radius: 0.25rem }
-.rounded-md { border-radius: 0.375rem }
-.rounded-lg { border-radius: 0.5rem }
-.rounded-xl { border-radius: 0.75rem }
-.rounded-2xl { border-radius: 1rem }
-.rounded-3xl { border-radius: 1.5rem }
-.rounded-full { border-radius: 9999px }
-.rounded-inherit { border-radius: inherit }
+.rounded-none { border-radius: 0 !important }
+.rounded-sm { border-radius: 0.125rem !important }
+.rounded { border-radius: 0.25rem !important }
+.rounded-md { border-radius: 0.375rem !important }
+.rounded-lg { border-radius: 0.5rem !important }
+.rounded-xl { border-radius: 0.75rem !important }
+.rounded-2xl { border-radius: 1rem !important }
+.rounded-3xl { border-radius: 1.5rem !important }
+.rounded-full { border-radius: 9999px !important }
+.rounded-inherit { border-radius: inherit !important }
 
 .rounded-t-none   { border-top-left-radius: 0; border-top-right-radius: 0 }
 .rounded-r-none   { border-top-right-radius: 0; border-bottom-right-radius: 0 }
@@ -6292,3 +6498,110 @@ ul.lexassetscontent {
 .linear { transition-timing-function: linear }
 .ease-in { transition-timing-function: ease-in }
 .ease-out { transition-timing-function: ease-out }
+
+/* Media queries for sizes */
+
+@media (min-width: 768px) {
+    .sm\:hidden { display: none !important }
+    .sm\:block { display: block !important }
+    .sm\:inline { display: inline !important }
+    .sm\:flex { display: flex !important }
+    .sm\:grid { display: grid !important }
+    .sm\:inline-flex { display: inline-flex !important }
+    .sm\:inline-block { display: inline-block !important }
+    .sm\:flex-fill { flex: 1 0 0% !important }
+
+    .sm\:w-full { width: 100% !important }
+    .sm\:w-screen { width: 100vw !important }
+    .sm\:w-auto { width: auto !important }
+    .sm\:h-full { height: 100% !important }
+    .sm\:h-screen { height: 100vh !important }
+    .sm\:h-auto { height: auto !important }
+    .sm\:w-1\/2 { width: 50% !important }
+    .sm\:w-1\/3 { width: 33.333% !important }
+    .sm\:w-1\/4 { width: 25% !important }
+}
+
+@media (min-width: 1024px) {
+    .md\:hidden { display: none !important }
+    .md\:block { display: block !important }
+    .md\:inline { display: inline !important }
+    .md\:flex { display: flex !important }
+    .md\:grid { display: grid !important }
+    .md\:inline-flex { display: inline-flex !important }
+    .md\:inline-block { display: inline-block !important }
+    .md\:flex-fill { flex: 1 0 0% !important }
+
+    .md\:w-full { width: 100% !important }
+    .md\:w-screen { width: 100vw !important }
+    .md\:w-auto { width: auto !important }
+    .md\:h-full { height: 100% !important }
+    .md\:h-screen { height: 100vh !important }
+    .md\:h-auto { height: auto !important }
+    .md\:w-1\/2 { width: 50% !important }
+    .md\:w-1\/3 { width: 33.333% !important }
+    .md\:w-1\/4 { width: 25% !important }
+}
+
+@media (min-width: 1440px) {
+    .lg\:hidden { display: none !important }
+    .lg\:block { display: block !important }
+    .lg\:inline { display: inline !important }
+    .lg\:flex { display: flex !important }
+    .lg\:grid { display: grid !important }
+    .lg\:inline-flex { display: inline-flex !important }
+    .lg\:inline-block { display: inline-block !important }
+    .lg\:flex-fill { flex: 1 0 0% !important }
+
+    .lg\:w-full { width: 100% !important }
+    .lg\:w-screen { width: 100vw !important }
+    .lg\:w-auto { width: auto !important }
+    .lg\:h-full { height: 100% !important }
+    .lg\:h-screen { height: 100vh !important }
+    .lg\:h-auto { height: auto !important }
+    .lg\:w-1\/2 { width: 50% !important }
+    .lg\:w-1\/3 { width: 33.333% !important }
+    .lg\:w-1\/4 { width: 25% !important }
+}
+
+@media (min-width: 1920px) {
+    .xl\:hidden { display: none !important }
+    .xl\:block { display: block !important }
+    .xl\:inline { display: inline !important }
+    .xl\:flex { display: flex !important }
+    .xl\:grid { display: grid !important }
+    .xl\:inline-flex { display: inline-flex !important }
+    .xl\:inline-block { display: inline-block !important }
+    .xl\:flex-fill { flex: 1 0 0% !important }
+
+    .xl\:w-full { width: 100% !important }
+    .xl\:w-screen { width: 100vw !important }
+    .xl\:w-auto { width: auto !important }
+    .xl\:h-full { height: 100% !important }
+    .xl\:h-screen { height: 100vh !important }
+    .xl\:h-auto { height: auto !important }
+    .xl\:w-1\/2 { width: 50% !important }
+    .xl\:w-1\/3 { width: 33.333% !important }
+    .xl\:w-1\/4 { width: 25% !important }
+}
+
+@media (min-width: 2560px) {
+    .xxl\:hidden { display: none !important }
+    .xxl\:block { display: block !important }
+    .xxl\:inline { display: inline !important }
+    .xxl\:flex { display: flex !important }
+    .xxl\:grid { display: grid !important }
+    .xxl\:inline-flex { display: inline-flex !important }
+    .xxl\:inline-block { display: inline-block !important }
+    .xxl\:flex-fill { flex: 1 0 0% !important }
+
+    .xxl\:w-full { width: 100% !important }
+    .xxl\:w-screen { width: 100vw !important }
+    .xxl\:w-auto { width: auto !important }
+    .xxl\:h-full { height: 100% !important }
+    .xxl\:h-screen { height: 100vh !important }
+    .xxl\:h-auto { height: auto !important }
+    .xxl\:w-1\/2 { width: 50% !important }
+    .xxl\:w-1\/3 { width: 33.333% !important }
+    .xxl\:w-1\/4 { width: 25% !important }
+}

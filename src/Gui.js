@@ -1,8 +1,8 @@
 import { UTILS } from "./Utils.js";
 import * as THREE from "three";
 import { LX } from 'lexgui';
-import 'lexgui/components/codeeditor.js';
-import 'lexgui/components/timeline.js';
+import 'lexgui/extensions/codeeditor.js';
+import 'lexgui/extensions/timeline.js';
 import { Gizmo } from "./Gizmo.js";
 import { KeyframeEditor } from "./Editor.js";
 
