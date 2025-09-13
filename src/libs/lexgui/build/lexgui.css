@@ -777,7 +777,6 @@ a svg, svg path {
     font-size: var(--global-font-size-lg);
     color: var(--global-text-secondary);
     cursor: pointer;
-    margin-right: 0.4em;
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
@@ -6337,7 +6336,11 @@ ul.lexassetscontent {
 
 .uppercase { text-transform: uppercase }
 .capitalize { text-transform: capitalize }
+
 .decoration-none { text-decoration: none }
+.text-underline { text-decoration: underline }
+
+.hover\:text-underline:hover { text-decoration: underline }
 
 /* Width / Height */
 

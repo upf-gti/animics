@@ -85,7 +85,6 @@ function createSideBar( area ) {
 
     const starterTheme = LX.getTheme();
 
-    // Alex: Instead of doing it inside the SWITCH callback, do it inside this signal,
     // so any theme trigger (browser, SO, anything) will update the image, not only the switch button
     LX.addSignal( "@on_new_color_scheme", ( el, value ) => {
         const img = document.getElementById("animics-img");
@@ -110,7 +109,6 @@ function createSideBar( area ) {
         
         m.separator();
         
-        // Alex: Swap icons in Sidebar, aleluya!
         m.add( "Switch Theme", {
             icon: starterTheme == "dark" ? "Sun" : "Moon",
             swap: starterTheme == "dark" ? "Moon" : "Sun",

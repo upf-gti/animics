@@ -319,6 +319,25 @@ class CodeEditor {
 
     constructor( area, options = {} ) {
 
+        if( options.filesAsync )
+        {
+            options.files = [ ...options.filesAsync ];
+
+            return (async () => {
+                await this._init( area, options );
+                // Constructors return `this` implicitly, but this is an IIFE, so
+                // return `this` explicitly (else we'd return an empty object).
+                return this;
+            })();
+        }
+        else
+        {
+            this._init( area, options );
+        }
+    }
+
+    async _init( area, options ) {
+
         window.editor = this;
 
         CodeEditor.__instances.push( this );
@@ -328,6 +347,19 @@ class CodeEditor {
         this.skipTabs = options.skipTabs ?? false;
         this.useFileExplorer = ( options.fileExplorer ?? false ) && !this.skipTabs;
         this.useAutoComplete = options.autocomplete ?? true;
+        this.allowClosingTabs = options.allowClosingTabs ?? true;
+        this.allowLoadingFiles = options.allowLoadingFiles ?? true;
+        this.highlight = options.highlight ?? 'Plain Text';
+        this.newTabOptions = options.newTabOptions;
+        this.customSuggestions = options.customSuggestions ?? [];
+
+        // Editor callbacks
+        this.onSave = options.onSave ?? options.onsave;  // LEGACY onsave
+        this.onRun = options.onRun ?? options.onrun;     // LEGACY onrun
+        this.onCtrlSpace = options.onCtrlSpace;
+        this.onCreateStatusPanel = options.onCreateStatusPanel;
+        this.onContextMenu = options.onContextMenu;
+        this.onNewTab = options.onNewTab;
 
         // File explorer
         if( this.useFileExplorer )
@@ -358,8 +390,7 @@ class CodeEditor {
                             this.loadTab( event.node.id );
                             break;
                         case LX.TreeEvent.NODE_DELETED:
-                            this.tabs.delete( event.node.id );
-                            delete this.loadedTabs[ event.node.id ];
+                            this.closeTab( event.node.id );
                             break;
                         // case LX.TreeEvent.NODE_CONTEXTMENU:
                         //     LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.value, m => {
@@ -528,36 +559,44 @@ class CodeEditor {
                         return;
                     }
 
-                    this.setScrollBarValue( 'vertical' );
-
-                    const scrollTop = this.getScrollTop();
-
-                    // Scroll down...
-                    if( scrollTop > lastScrollTopValue )
+                    // Vertical scroll
                     {
-                        if( this.visibleLinesViewport.y < (this.code.lines.length - 1) )
-                        {
-                            const totalLinesInViewport = ( ( this.codeScroller.offsetHeight ) / this.lineHeight )|0;
-                            const scrollDownBoundary =
-                                ( Math.max( this.visibleLinesViewport.y - totalLinesInViewport, 0 ) - 1 ) * this.lineHeight;
+                        this.setScrollBarValue( 'vertical' );
 
-                            if( scrollTop >= scrollDownBoundary )
+                        const scrollTop = this.getScrollTop();
+
+                        // Scroll down...
+                        if( scrollTop > lastScrollTopValue )
+                        {
+                            if( this.visibleLinesViewport.y < (this.code.lines.length - 1) )
+                            {
+                                const totalLinesInViewport = ( ( this.codeScroller.offsetHeight ) / this.lineHeight )|0;
+                                const scrollDownBoundary =
+                                    ( Math.max( this.visibleLinesViewport.y - totalLinesInViewport, 0 ) - 1 ) * this.lineHeight;
+
+                                if( scrollTop >= scrollDownBoundary )
+                                {
+                                    this.processLines( CodeEditor.UPDATE_VISIBLE_LINES );
+                                }
+                            }
+                        }
+                        // Scroll up...
+                        else
+                        {
+                            const scrollUpBoundary = parseInt( this.code.style.top );
+                            if( scrollTop < scrollUpBoundary )
                             {
                                 this.processLines( CodeEditor.UPDATE_VISIBLE_LINES );
                             }
                         }
-                    }
-                    // Scroll up...
-                    else
-                    {
-                        const scrollUpBoundary = parseInt( this.code.style.top );
-                        if( scrollTop < scrollUpBoundary )
-                        {
-                            this.processLines( CodeEditor.UPDATE_VISIBLE_LINES );
-                        }
+
+                        lastScrollTopValue = scrollTop;
                     }
 
-                    lastScrollTopValue = scrollTop;
+                    // Horizontal scroll
+                    {
+                        this.setScrollBarValue( 'horizontal' );
+                    }
                 });
 
                 this.codeScroller.addEventListener( 'wheel', e => {
@@ -678,9 +717,6 @@ class CodeEditor {
 
         // Code
 
-        this.highlight = options.highlight ?? 'Plain Text';
-        this.onsave = options.onsave ?? ((code) => { console.log( code, "save" ) });
-        this.onrun = options.onrun ?? ((code) => { this.runScript(code) });
         this.actions = {};
         this.cursorBlinkRate = 550;
         this.tabSpaces = 4;
@@ -765,14 +801,14 @@ class CodeEditor {
                         var numCharsDeleted = 1;
 
                         // Delete full word
-                        if( e.shiftKey )
+                        if( e.ctrlKey )
                         {
                             const [word, from, to] = this.getWordAtPos( cursor, -1 );
 
                             if( word.length > 1 )
                             {
                                 deleteFromPosition = from;
-                                numCharsDeleted = word.length;
+                                numCharsDeleted = word.length - ( to - cursor.position );
                             }
                         }
 
@@ -947,7 +983,7 @@ class CodeEditor {
 
                 if( e.ctrlKey )
                 {
-                    this.onrun( this.getText() );
+                    this.onRun( this.getText() );
                     return;
                 }
 
@@ -1130,7 +1166,7 @@ class CodeEditor {
                 if( e.metaKey ) // Apple devices (Command)
                 {
                     e.preventDefault();
-                    this.actions[ 'End' ].callback( ln, cursor );
+                    this.actions[ 'End' ].callback( ln, cursor, e );
                 }
                 else if( e.ctrlKey ) // Next word
                 {
@@ -1259,7 +1295,6 @@ class CodeEditor {
         if( options.allowAddScripts ?? true )
         {
             this.onCreateFile = options.onCreateFile;
-
             this.addTab( "+", false, "Create file" );
         }
 
@@ -1267,11 +1302,14 @@ class CodeEditor {
         {
             console.assert( options.files.constructor === Array, "_files_ must be an Array!" );
             const numFiles = options.files.length;
+            const loadAsync = ( options.filesAsync !== undefined );
             let filesLoaded = 0;
-
             for( let url of options.files )
             {
-                this.loadFile( url, { callback: ( name, text ) => {
+                const finalUrl = url.constructor === Array ? url[ 0 ] : url;
+                const finalFileName = url.constructor === Array ? url[ 1 ] : undefined;
+
+                await this.loadFile( finalUrl, { filename: finalFileName, async: loadAsync, callback: ( name, text ) => {
                     filesLoaded++;
                     if( filesLoaded == numFiles )
                     {
@@ -1279,15 +1317,19 @@ class CodeEditor {
 
                         if( options.onFilesLoaded )
                         {
-                            options.onFilesLoaded( this, numFiles );
+                            options.onFilesLoaded( this, this.loadedTabs, numFiles );
                         }
                     }
                 }});
             }
         }
-        else
+        else if( options.defaultTab ?? true )
         {
             this.addTab( options.name || "untitled", true, options.title, { language: options.highlight ?? "Plain Text" } );
+            onLoadAll();
+        }
+        else
+        {
             onLoadAll();
         }
     }
@@ -1421,15 +1463,12 @@ class CodeEditor {
         const _innerAddTab = ( text, name, title ) => {
 
             // Remove Carriage Return in some cases and sub tabs using spaces
-            text = text.replaceAll( '\r', '' );
-            text = text.replaceAll( /\t|\\t/g, ' '.repeat( this.tabSpaces ) );
+            text = text.replaceAll( '\r', '' ).replaceAll( /\t|\\t/g, ' '.repeat( this.tabSpaces ) );
 
             // Set current text and language
-
             const lines = text.split( '\n' );
 
             // Add item in the explorer if used
-
             if( this.useFileExplorer || this.skipTabs )
             {
                 this._tabStorage[ name ] = {
@@ -1465,13 +1504,20 @@ class CodeEditor {
 
         if( file.constructor == String )
         {
-            let filename = file;
+            const filename = file;
+            const name = options.filename ?? filename.substring(filename.lastIndexOf( '/' ) + 1);
 
-            LX.request({ url: filename, success: text => {
-                const name = filename.substring(filename.lastIndexOf( '/' ) + 1);
-                _innerAddTab( text, name, filename );
-            } });
-
+            if( options.async ?? false )
+            {
+                const text = await this._requestFileAsync( filename, "text" );
+                _innerAddTab( text, name, options.filename ?? filename );
+            }
+            else
+            {
+                LX.request({ url: filename, success: text => {
+                    _innerAddTab( text, name, options.filename ?? filename );
+                } });
+            }
         }
         else // File Blob
         {
@@ -1686,6 +1732,11 @@ class CodeEditor {
 
         let panel = new LX.Panel({ className: "lexcodetabinfo flex flex-row", height: "auto" });
 
+        if( this.onCreateStatusPanel )
+        {
+            this.onCreateStatusPanel( panel, this );
+        }
+
         let leftStatusPanel = new LX.Panel( { id: "FontSizeZoomStatusComponent", height: "auto" } );
         leftStatusPanel.sameLine();
 
@@ -1831,10 +1882,18 @@ class CodeEditor {
 
         this.processFocus( false );
 
-        new LX.DropdownMenu( e.target, [
+        if( this.onNewTab )
+        {
+            this.onNewTab( e );
+            return;
+        }
+
+        const dmOptions = this.newTabOptions ?? [
             { name: "Create file", icon: "FilePlus", callback: this._onCreateNewFile.bind( this ) },
-            { name: "Load file", icon: "FileUp", callback: this.loadTabFromFile.bind( this ) },
-        ], { side: "bottom", align: "start" });
+            { name: "Load file", icon: "FileUp", disabled: !this.allowLoadingFiles, callback: this.loadTabFromFile.bind( this ) }
+        ];
+
+        new LX.DropdownMenu( e.target, dmOptions, { side: "bottom", align: "start" });
     }
 
     _onCreateNewFile() {
@@ -1844,10 +1903,14 @@ class CodeEditor {
         if( this.onCreateFile )
         {
             options = this.onCreateFile( this );
+            if( !options ) // Skip adding new file
+            {
+                return;
+            }
         }
 
         const name = options.name ?? "unnamed.js";
-        this.addTab( name, true, name, { language: options.language ?? "JavaScript" } );
+        this.addTab( name, true, name, { indexOffset: options.indexOffset, language: options.language ?? "JavaScript" } );
     }
 
     _onSelectTab( isNewTabButton, event, name ) {
@@ -1896,19 +1959,19 @@ class CodeEditor {
         }
 
         new LX.DropdownMenu( event.target, [
-            { name: "Close", kbd: "MWB", callback: () => { this.tabs.delete( name ) } },
-            { name: "Close Others", callback: () => {
+            { name: "Close", kbd: "MWB", disabled: !this.allowClosingTabs, callback: () => { this.closeTab( name ) } },
+            { name: "Close Others", disabled: !this.allowClosingTabs, callback: () => {
                 for( const [ key, data ] of Object.entries( this.tabs.tabs ) )
                 {
                     if( key === '+' || key === name ) continue;
-                    this.tabs.delete( key )
+                    this.closeTab( key )
                 }
             } },
-            { name: "Close All", callback: () => {
+            { name: "Close All", disabled: !this.allowClosingTabs, callback: () => {
                 for( const [ key, data ] of Object.entries( this.tabs.tabs ) )
                 {
                     if( key === '+' ) continue;
-                    this.tabs.delete( key )
+                    this.closeTab( key )
                 }
             } },
             null,
@@ -1990,7 +2053,8 @@ class CodeEditor {
                 icon: tabIcon,
                 onSelect: this._onSelectTab.bind( this, isNewTabButton ),
                 onContextMenu: this._onContextMenuTab.bind( this, isNewTabButton ),
-                allowDelete: true
+                allowDelete: this.allowClosingTabs,
+                indexOffset: options.indexOffset
             } );
         }
 
@@ -2010,6 +2074,12 @@ class CodeEditor {
         {
             code.languageOverride = options.language;
             this._changeLanguage( code.languageOverride );
+            this.mustProcessLines = true;
+        }
+
+        if( options.codeLines )
+        {
+            code.lines = options.codeLines;
             this.mustProcessLines = true;
         }
 
@@ -2130,7 +2200,7 @@ class CodeEditor {
             icon: tabIcon,
             onSelect: this._onSelectTab.bind( this, isNewTabButton ),
             onContextMenu: this._onContextMenuTab.bind( this, isNewTabButton ),
-            allowDelete: true
+            allowDelete: this.allowClosingTabs
         });
 
         // Move into the sizer..
@@ -2147,6 +2217,11 @@ class CodeEditor {
     }
 
     closeTab( name, eraseAll ) {
+
+        if( !this.allowClosingTabs )
+        {
+            return;
+        }
 
         this.tabs.delete( name );
 
@@ -2265,22 +2340,65 @@ class CodeEditor {
             e.preventDefault();
 
             if( !this.canOpenContextMenu )
+            {
                 return;
+            }
 
             LX.addContextMenu( null, e, m => {
                 m.add( "Copy", () => {  this._copyContent( cursor ); } );
+
                 if( !this.disableEdition )
                 {
                     m.add( "Cut", () => {  this._cutContent( cursor ); } );
                     m.add( "Paste", () => {  this._pasteContent( cursor ); } );
+                }
+
+                if( !this.onContextMenu )
+                {
+                    return;
+                }
+
+                let content = null;
+
+                if( cursor.selection )
+                {
+                    // Some selections don't depend on mouse up..
+                    if( cursor.selection ) cursor.selection.invertIfNecessary();
+
+                    const separator = "_NEWLINE_";
+                    let code = this.code.lines.join( separator );
+
+                    // Get linear start index
+                    let index = 0;
+
+                    for( let i = 0; i <= cursor.selection.fromY; i++ )
+                    {
+                        index += ( i == cursor.selection.fromY ? cursor.selection.fromX : this.code.lines[ i ].length );
+                    }
+
+                    index += cursor.selection.fromY * separator.length;
+                    const num_chars = cursor.selection.chars + ( cursor.selection.toY - cursor.selection.fromY ) * separator.length;
+                    const text = code.substr( index, num_chars );
+                    content = text.split( separator ).join('\n');
+                }
+
+                const options = this.onContextMenu( this, content, e );
+                if( options.length )
+                {
                     m.add( "" );
-                    m.add( "Format/JSON", () => {
-                        let json = this.toJSONFormat( this.getText() );
-                        if( !json )
-                            return;
-                        this.code.lines = json.split( "\n" );
-                        this.processLines();
-                    } );
+
+                    for( const o of options )
+                    {
+                        m.add( o.path, { disabled: o.disabled, callback: o.callback } );
+                    }
+
+                    // m.add( "Format/JSON", () => {
+                    //     let json = this.toJSONFormat( this.getText() );
+                    //     if( !json )
+                    //         return;
+                    //     this.code.lines = json.split( "\n" );
+                    //     this.processLines();
+                    // } );
                 }
             });
 
@@ -2613,10 +2731,17 @@ class CodeEditor {
                 e.preventDefault();
                 this.selectAll();
                 return true;
+            case 'b': // k+b comment block
+                e.preventDefault();
+                if( this.state.keyChain == 'k' ) {
+                    this._commentLines( cursor, true );
+                    return true;
+                }
+                return false;
             case 'c': // k+c, comment line
                 e.preventDefault();
                 if( this.state.keyChain == 'k' ) {
-                    this._commentLines();
+                    this._commentLines( cursor );
                     return true;
                 }
                 return false;
@@ -2638,12 +2763,12 @@ class CodeEditor {
                 return true;
             case 's': // save
                 e.preventDefault();
-                this.onsave( this.getText() );
+                this.onSave( this.getText() );
                 return true;
             case 'u': // k+u, uncomment line
                 e.preventDefault();
                 if( this.state.keyChain == 'k' ) {
-                    this._uncommentLines();
+                    this._uncommentLines( cursor );
                     return true;
                 }
                 return false;
@@ -2663,6 +2788,13 @@ class CodeEditor {
                 e.preventDefault();
                 this._decreaseFontSize();
                 return true;
+            case ' ': // custom event
+                if( this.onCtrlSpace )
+                {
+                    e.preventDefault();
+                    this.onCtrlSpace( cursor );
+                    return true;
+                }
             }
         }
 
@@ -2956,32 +3088,77 @@ class CodeEditor {
         this.hideAutoCompleteBox();
     }
 
-    _commentLines() {
+    _commentLines( cursor, useCommentBlock ) {
+
+        const lang = CodeEditor.languages[ this.highlight ];
 
         this.state.keyChain = null;
 
+        cursor = cursor ?? this.getCurrentCursor();
+
         if( cursor.selection )
         {
-            var cursor = this.getCurrentCursor();
+            if( !( ( useCommentBlock ? lang.blockComments : lang.singleLineComments ) ?? true ) )
+            {
+                return;
+            }
+
             this._addUndoStep( cursor, true );
 
-            const selectedLines = this.code.lines.slice( cursor.selection.fromY, cursor.selection.toY );
+            const selectedLines = this.code.lines.slice( cursor.selection.fromY, cursor.selection.toY + 1 );
             const minIdx = Math.min(...selectedLines.map( v => {
                 var idx = firstNonspaceIndex( v );
                 return idx < 0 ? 1e10 : idx;
             } ));
 
-            for( var i = cursor.selection.fromY; i <= cursor.selection.toY; ++i )
+            if( useCommentBlock )
             {
-                this._commentLine( cursor, i, minIdx );
+                const tokens = ( lang.blockCommentsTokens ?? this.defaultBlockCommentTokens );
+
+                const fromString = this.code.lines[ cursor.selection.fromY ];
+                let fromIdx = firstNonspaceIndex( fromString );
+                if( fromIdx == -1 )
+                {
+                    fromIdx = 0;
+                }
+
+                this.code.lines[ cursor.selection.fromY ] = [
+                    fromString.substring( 0, fromIdx ),
+                    tokens[ 0 ] + " ",
+                    fromString.substring( fromIdx )
+                ].join( '' );
+
+                this.code.lines[ cursor.selection.toY ] += " " + tokens[ 1 ];
+
+                cursor.selection.fromX += ( tokens[ 0 ].length + 1 );
+                this._processSelection( cursor );
+            }
+            else
+            {
+                for( let i = cursor.selection.fromY; i <= cursor.selection.toY; ++i )
+                {
+                    this._commentLine( cursor, i, minIdx, false );
+                }
+
+                const token = ( lang.singleLineCommentToken ?? this.defaultSingleLineCommentToken ) + ' ';
+                this.cursorToString( cursor, token );
+
+                cursor.selection.fromX += token.length;
+                cursor.selection.toX += token.length;
+                this._processSelection( cursor );
             }
         }
         else
         {
-            for( let cursor of this.cursors.children )
+            if( !( lang.singleLineComments ?? true ) )
             {
-                this._addUndoStep( cursor, true );
-                this._commentLine( cursor, cursor.line );
+                return;
+            }
+
+            for( const cr of this.cursors.children )
+            {
+                this._addUndoStep( cr, true );
+                this._commentLine( cr, cr.line );
             }
         }
 
@@ -2989,33 +3166,37 @@ class CodeEditor {
         this._hideActiveLine();
     }
 
-    _commentLine( cursor, line, minNonspaceIdx ) {
+    _commentLine( cursor, line, minNonspaceIdx, updateCursor = true ) {
 
         const lang = CodeEditor.languages[ this.highlight ];
-
-        if( !( lang.singleLineComments ?? true ))
+        if( !( lang.singleLineComments ?? true ) )
             return;
 
         const token = ( lang.singleLineCommentToken ?? this.defaultSingleLineCommentToken ) + ' ';
         const string = this.code.lines[ line ];
 
         let idx = firstNonspaceIndex( string );
-        if( idx > -1 )
+        if( idx == -1 )
         {
-            // Update idx using min of the selected lines (if necessary..)
-            idx = minNonspaceIdx ?? idx;
+            return;
+        }
 
-            this.code.lines[ line ] = [
-                string.substring( 0, idx ),
-                token,
-                string.substring( idx )
-            ].join( '' );
+        // Update idx using min of the selected lines (if necessary..)
+        idx = minNonspaceIdx ?? idx;
 
+        this.code.lines[ line ] = [
+            string.substring( 0, idx ),
+            token,
+            string.substring( idx )
+        ].join( '' );
+
+        if( updateCursor )
+        {
             this.cursorToString( cursor, token );
         }
     }
 
-    _uncommentLines() {
+    _uncommentLines( cursor ) {
 
         this.state.keyChain = null;
 
@@ -4594,6 +4775,8 @@ class CodeEditor {
 
         if( state.selection )
         {
+            this.endSelection();
+
             this.startSelection( cursor );
 
             cursor.selection.load( state.selection );
@@ -4874,7 +5057,10 @@ class CodeEditor {
         }
         else
         {
-            this.codeScroller.scrollLeft += value;
+            if( value )
+            {
+                this.codeScroller.scrollLeft += value;
+            }
 
             const scrollBarWidth = this.hScrollbar.thumb.parentElement.offsetWidth;
             const scrollThumbWidth = this.hScrollbar.thumb.offsetWidth;
@@ -5083,6 +5269,9 @@ class CodeEditor {
             const otherValues = Array.from( this.code.symbolsTable ).map( s => s[ 0 ] );
             suggestions = suggestions.concat( otherValues.slice( 0, -1 ) );
         }
+
+        // Add custom suggestions...
+        suggestions = suggestions.concat( this.customSuggestions );
 
         // Remove 1/2 char words and duplicates...
         suggestions = Array.from( new Set( suggestions )).filter( s => s.length > 2 && s.toLowerCase().includes( word.toLowerCase() ) );
@@ -5601,6 +5790,36 @@ s
         delete this._markdownHeader;
         delete this._lastResult;
         delete this._scopeStack;
+    }
+
+    async _requestFileAsync( url, dataType, nocache ) {
+        return new Promise( (resolve, reject) => {
+            dataType = dataType ?? "arraybuffer";
+            const mimeType = dataType === "arraybuffer" ? "application/octet-stream" : undefined;
+            var xhr = new XMLHttpRequest();
+            xhr.open( 'GET', url, true );
+            xhr.responseType = dataType;
+            if( mimeType )
+                xhr.overrideMimeType( mimeType );
+            if( nocache )
+                xhr.setRequestHeader('Cache-Control', 'no-cache');
+            xhr.onload = function(load)
+            {
+                var response = this.response;
+                if( this.status != 200)
+                {
+                    var err = "Error " + this.status;
+                    reject(err);
+                    return;
+                }
+                resolve( response );
+            };
+            xhr.onerror = function(err) {
+                reject(err);
+            };
+            xhr.send();
+            return xhr;
+        });
     }
 }
 
