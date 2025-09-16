@@ -1383,31 +1383,31 @@ class KeyframeEditor extends Editor {
                     this.currentKeyFrameClip = null; // end hack
                 })
             }
-        }
-
-        // keep side panel visible with the selected clip
-        if ( lastSelection ){
-            const tracks = this.gui.globalTimeline.animationClip.tracks;
-            if( tracks[lastSelection[0]].clips.length > lastSelection[1] && tracks[lastSelection[0]].clips[lastSelection[1]].uid == lastSelection[2].uid ){
-                this.gui.globalTimeline.selectClip( lastSelection[0], lastSelection[1] ); // already calls createSidePinel in callback
+            
+            // keep side panel visible with the selected clip
+            if ( lastSelection ){
+                const tracks = this.gui.globalTimeline.animationClip.tracks;
+                if( tracks[lastSelection[0]].clips.length > lastSelection[1] && tracks[lastSelection[0]].clips[lastSelection[1]].uid == lastSelection[2].uid ){
+                    this.gui.globalTimeline.selectClip( lastSelection[0], lastSelection[1] ); // already calls createSidePinel in callback
+                }
+                else{
+                    const targetId = lastSelection[2].uid;
+                    let lost = true;
+                    for( let t = 0; t < tracks.length; ++t ){
+                        for( let c = 0; c < tracks[t].clips.length; ++c ){
+                            if ( tracks[t].clips[c].uid == targetId ){
+                                this.gui.globalTimeline.selectClip( t, c ); // already calls createSidePinel in callback
+                                t = tracks.length; // end loop
+                                lost = false;
+                                break;
+                            }
+                        }
+                    }
+                    if ( lost ){
+                        this.gui.createSidePanel(); // empty panel				
+                    }
+                }
             }
-			else{
-				const targetId = lastSelection[2].uid;
-				let lost = true;
-				for( let t = 0; t < tracks.length; ++t ){
-					for( let c = 0; c < tracks[t].clips.length; ++c ){
-						if ( tracks[t].clips[c].uid == targetId ){
-							this.gui.globalTimeline.selectClip( t, c ); // already calls createSidePinel in callback
-							t = tracks.length; // end loop
-							lost = false;
-							break;
-						}
-					}
-				}
-				if ( lost ){
-					this.gui.createSidePanel(); // empty panel				
-				}
-			}
         }
 
         this.setTime(this.currentTime);
@@ -1440,31 +1440,31 @@ class KeyframeEditor extends Editor {
                     this.currentKeyFrameClip = null; // end hack
                 })
             }
-        }
-
-        // keep side panel visible with the selected clip
-        if ( lastSelection ){
-            const tracks = this.gui.globalTimeline.animationClip.tracks;
-            if( tracks[lastSelection[0]].clips.length > lastSelection[1] && tracks[lastSelection[0]].clips[lastSelection[1]].uid == lastSelection[2].uid ){
-                this.gui.globalTimeline.selectClip( lastSelection[0], lastSelection[1] ); // already calls createSidePinel in callback
+            
+            // keep side panel visible with the selected clip
+            if ( lastSelection ){
+                const tracks = this.gui.globalTimeline.animationClip.tracks;
+                if( tracks[lastSelection[0]].clips.length > lastSelection[1] && tracks[lastSelection[0]].clips[lastSelection[1]].uid == lastSelection[2].uid ){
+                    this.gui.globalTimeline.selectClip( lastSelection[0], lastSelection[1] ); // already calls createSidePinel in callback
+                }
+                else{
+                    const targetId = lastSelection[2].uid;
+                    let lost = true;
+                    for( let t = 0; t < tracks.length; ++t ){
+                        for( let c = 0; c < tracks[t].clips.length; ++c ){
+                            if ( tracks[t].clips[c].uid == targetId ){
+                                this.gui.globalTimeline.selectClip( t, c ); // already calls createSidePinel in callback
+                                t = tracks.length; // end loop
+                                lost = false;
+                                break;
+                            }
+                        }
+                    }
+                    if ( lost ){
+                        this.gui.createSidePanel(); // empty panel				
+                    }
+                }
             }
-			else{
-				const targetId = lastSelection[2].uid;
-				let lost = true;
-				for( let t = 0; t < tracks.length; ++t ){
-					for( let c = 0; c < tracks[t].clips.length; ++c ){
-						if ( tracks[t].clips[c].uid == targetId ){
-							this.gui.globalTimeline.selectClip( t, c ); // already calls createSidePinel in callback
-							t = tracks.length; // end loop
-							lost = false;
-							break;
-						}
-					}
-				}
-				if ( lost ){
-					this.gui.createSidePanel(); // empty panel				
-				}
-			}
         }
 
         this.setTime(this.currentTime);
@@ -2851,18 +2851,23 @@ class KeyframeEditor extends Editor {
                 continue;
             }
 
-            timeline.clearTrack(track.trackIdx);
+            timeline.saveState(track.trackIdx, i!=0); // save track before clearing, but combine all saves into a single save-step
+            const oldSaveState = timeline.historySaveEnabler;
+            timeline.historySaveEnabler = false;
+            timeline.clearTrack(track.trackIdx); // clear track without saving
+            timeline.historySaveEnabler = oldSaveState;
+
             if ( timeline != this.gui.globalTimeline ){
                 switch( this.animationMode ) {
                     case this.animationModes.BODY:
                         this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx]);
                         break;
                     case this.animationModes.FACEAU:
-                        this.updateBlendshapesAnimation(this.currentKeyFrameClip.bsAnimation, [id]);
+                        this.updateBlendshapesAnimation(this.currentKeyFrameClip.bsAnimation, [track.trackIdx]);
                         break;
                     case this.animationModes.FACEBS:
                         this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx]);
-                        this.updateActionUnitsAnimation(this.currentKeyFrameClip.auAnimation, [id]);
+                        this.updateActionUnitsAnimation(this.currentKeyFrameClip.auAnimation, [track.trackIdx]);
                         break;
                 }
             }
@@ -3120,8 +3125,10 @@ class KeyframeEditor extends Editor {
     updateActionUnitsAnimation( auAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip ) {
         
         const auEditedTracksIdxs = [];
-        for( let j = 0; j < editedTracksIdxs.length; j++ ) {
-            const eIdx = editedTracksIdxs[j];
+        const numEditedTracks = editedTracksIdxs ? editedTracksIdxs.length : editedAnimation.tracks.length;
+
+        for( let j = 0; j < numEditedTracks; j++ ) {
+            const eIdx = editedTracksIdxs ? editedTracksIdxs[j] : j;
             const eTrack = editedAnimation.tracks[eIdx];        
 
             for( let t = 0; t < auAnimation.tracks.length; t++ ) {
@@ -3140,13 +3147,11 @@ class KeyframeEditor extends Editor {
     updateBlendshapesAnimation( bsAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip ) {
         let mapTrackIdxs = {};
         const bsEditedTracksIdxs = [];
-        if( editedTracksIdxs.length && editedTracksIdxs[0] == -1 ){
-            editedTracksIdxs.length = editedAnimation.tracks.length;
-            editedTracksIdxs.fill(-1);
-            editedTracksIdxs = editedTracksIdxs.map((v,i) => i);
-        }
-        for( let j = 0; j < editedTracksIdxs.length; j++ ) {
-            const eIdx = editedTracksIdxs[j];
+     
+        const numEditedTracks = editedTracksIdxs ? editedTracksIdxs.length : editedAnimation.tracks.length;
+
+        for( let j = 0; j < numEditedTracks; j++ ) {
+            const eIdx = editedTracksIdxs ? editedTracksIdxs[j] : j;
             const eTrack = editedAnimation.tracks[eIdx];
             mapTrackIdxs[eIdx] = [];
 
@@ -3196,7 +3201,7 @@ class KeyframeEditor extends Editor {
         }
     
         const action = mixer.clipAction(mixerAnimation);
-        const isFaceAnim = mixerAnimation.name == "faceAnimation";
+        const isFaceAnim =  mixerAnimation.name != "bodyAnimation";
 
         const numEditedTracks = editedTracksIdxs ? editedTracksIdxs.length : editedAnimation.tracks.length;
         
