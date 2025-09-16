@@ -191,6 +191,10 @@ class VideoProcessor {
     }
 
     createSidePanel(area, options = {}) {
+        if ( this.sidePanel ){
+            this.sidePanel.clear(); // remove signals from previous components
+        }
+        
         /* Create right panel */
         LX.makeContainer( ["auto", "50px"], "text-xl p-4", "Estimator", area );
         const panel = this.sidePanel = area.addPanel({ className: "p-4"});         
