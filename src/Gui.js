@@ -29,8 +29,9 @@ class Gui {
         this.mainArea.splitBar.style.zIndex = right.root.style.zIndex = 1;
         [this.canvasArea, this.timelineArea] = left.split({sizes: ["80%", "20%"], minimizable: true, type: "vertical"});
         this.canvasAreaOverlayButtons = null;
-        this.sidePanel = right;
-   
+        this.sidePanelArea = right;
+        this.sidePanelSpecialSignals = []; // signals that need to be manually removed in createSidePanel to avoid an accumulation of old lx-components
+
         //Create timelines (keyframes and clips)
         this.createTimelines( );        
     }
@@ -896,7 +897,7 @@ class Gui {
         }
         panel.refresh();
 
-        }, { size: ["40%"], closable: true, onclose: (root) => {  root.remove(); }});
+        }, { size: ["40%"], closable: true });
 
         return name;
     }
@@ -1077,7 +1078,7 @@ class Gui {
             }
             panel.refresh();
 
-        }, { size: ["40%"], closable: true, onclose: (root) => {  root.remove(); }});
+        }, { size: ["40%"], closable: true });
 
         return name;
     }
@@ -1498,6 +1499,7 @@ class KeyframesGui extends Gui {
                 const c = deletedClips[i];
                 this.globalTimeline.onDeleteClip( c[0], c[1], c[2] );
             }
+            this.createSidePanel(); // update, in case a clip was visible
         }
         this.globalTimeline.onDeleteClip = ( trackIdx, clipIdx, clip )=>{
             const mixer = this.editor.currentCharacter.mixer;
@@ -1565,7 +1567,7 @@ class KeyframesGui extends Gui {
                     {
                         title: "Delete",
                         callback: () => {
-                            this.globalTimeline.deleteSelectedContent({});
+                            this.globalTimeline.deleteSelectedContent();
                         }
                     }
                 )
@@ -2089,10 +2091,7 @@ class KeyframesGui extends Gui {
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
             this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
-            // this.editor.gizmo.stop();
-            // const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
-            // skeleton.visible = false;
-            // this.editor.scene.getObjectByName('GizmoPoints').visible = false;
+
             return;
         }
 
@@ -2144,15 +2143,6 @@ class KeyframesGui extends Gui {
         }
         this.createSidePanel();
         
-        // if(this.editor.animationMode == this.editor.animationModes.BODY) {
-        //     const skeleton = this.editor.scene.getObjectByName("SkeletonHelper");
-        //     skeleton.visible = this.editor.showSkeleton;
-        //     this.editor.scene.getObjectByName('GizmoPoints').visible = this.editor.showSkeleton;
-        //     this.editor.setSelectedBone(this.editor.selectedBone);
-        //     if(!this.editor.showSkeleton) {
-        //         this.editor.gizmo.stop();
-        //     }
-        // }
     }
     
     
@@ -2190,25 +2180,29 @@ class KeyframesGui extends Gui {
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
-        // clear area
-        while ( this.sidePanel.root.children.length ){
-            this.sidePanel.root.children[0].remove();
+        // remove signals to avoid memory leaks
+        for( let i = 0; i < this.sidePanelSpecialSignals.length; ++i ){
+            delete LX.signals[ this.sidePanelSpecialSignals[i] ];
         }
-        this.sidePanel.sections = [];
+        this.sidePanelSpecialSignals.length = 0;
+
+        // clear area
+        while ( this.sidePanelArea.root.children.length ){
+            this.sidePanelArea.root.children[0].remove();
+        }
+        this.sidePanelArea.sections = [];
         this.treeWidget = null;
         if(this.panelTabs) {
             this.panelTabs.root.remove();
         }
 
         // Animation & Character tabs
-        const panelTabs = this.panelTabs = this.sidePanel.addTabs({fit: true});
+        const panelTabs = this.panelTabs = this.sidePanelArea.addTabs({fit: true});
 
         // Animation tab content
         const animationArea = new LX.Area({id: 'Animation'});
         const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {
-            
-        }});
+        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {}});
 
         this.animationPanel = animSide.addPanel({id: "animation", icon: "PersonStanding"});
         this.updateAnimationPanel( );
@@ -2218,14 +2212,12 @@ class KeyframesGui extends Gui {
         const characterPanel = characterArea.addPanel();
         this.createCharactersPanel( characterPanel ) ;
         
-        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {
-            
-        }});
+        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {}});
 
 
         // SIDE PANEL FOR GLOBAL TIMELINE
         if ( this.editor.activeTimeline == this.globalTimeline ){
-            this.sidePanel.onresize = null;
+            this.sidePanelArea.onresize = null;
 
             if ( this.globalTimeline.lastClipsSelected.length == 1 ){
                 const clip = this.globalTimeline.lastClipsSelected[0][2];
@@ -2257,6 +2249,7 @@ class KeyframesGui extends Gui {
                     this.editor.setTime(this.editor.currentTime); // update mixer
 
                 }, { className: "success", label: this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ? "" : "Track is disabled !", signal: "@on_set_clip_state" });
+                this.sidePanelSpecialSignals.push("@on_set_clip_state");
 
                 p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
                     this.setKeyframeClip(clip);
@@ -2562,7 +2555,7 @@ class KeyframesGui extends Gui {
         this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.selectedBone || this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
         
-        this.sidePanel.onresize = (e)=>{
+        this.sidePanelArea.onresize = (e)=>{
             if (faceTop.onresize){
                 faceTop.onresize(e);
             }
@@ -2585,17 +2578,6 @@ class KeyframesGui extends Gui {
 
         w = this.bonePanel.get("Scale");
         if ( w ){ w.root.getElementsByTagName("input").forEach((e)=> {e.disabled = (!enabled) | (gizmoMode != "Scale")}); }
-    }
-
-    // updates the necessary elements of the gui to adjust to the new animation
-    onChangeAnimation( animation ){
-        // this.skeletonTimeline.setAnimationClip( animation.skeletonAnimation, false );
-        // this.auTimeline.setAnimationClip( animation.auAnimation, false );
-        // this.bsTimeline.setAnimationClip( animation.bsAnimation, false);
-        // this.bsTimeline.setSelectedItems(Object.keys(animation.bsAnimation.tracks));
-        // this.updateAnimationPanel();
-        // this.createActionUnitsPanel(); // need to update the panel's available blendshapes
-        // this.createBlendshapesPanel( );
     }
 
     updateAnimationPanel( options = {}) {
@@ -2823,6 +2805,7 @@ class KeyframesGui extends Gui {
 
             for(let id in areas[area]) {
                 const name = areas[area][id];
+                const signal = "@on_change_face_" + name;
                 for(let i = 0; i < animation.tracks.length; i++) {
                     const track = animation.tracks[i];
                     if(track.groupId == area && track.id == name) {
@@ -2832,8 +2815,10 @@ class KeyframesGui extends Gui {
                         panel.addNumber(name, track.values.length ? track.values[frame] : 0, (v,e) => {                           
                             this.editor.updateBlendshapesProperties(name, v, (tracksIds) => {
                                 this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, tracksIds, this.auTimeline.animationClip);
-                        });
-                        }, {min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: ()=>{ this.auTimeline.saveState(track.trackIdx) }});
+                            });
+                        }, {min: 0, max: 1, step: 0.01, signal: signal, onPress: ()=>{ this.auTimeline.saveState(track.trackIdx) }});
+
+                        this.sidePanelSpecialSignals.push( signal );
                         break;
                     }
                 }
@@ -2884,22 +2869,18 @@ class KeyframesGui extends Gui {
                 this.bsTimeline.selectKeyFrame(track.trackIdx, frame);
             }
 
+            const signal = "@on_change_face_" + name;
+            this.sidePanelSpecialSignals.push(signal);
             panel.addNumber(name, track.values[frame], (v,e) => {    
                 const boundAnimation = this.editor.currentKeyFrameClip;
-                // let frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
-                //     frame = frame == -1 ? 0 : frame;
-                // for(let id in track.data.tracksIds ) {
-                //     const idx = track.data.tracksIds[id];
-                //     boundAnimation.bsAnimation.tracks[idx][frame] = v;
-                // }
                 this.editor.updateBlendshapesProperties(name, v, (tracksIds) => {
                     this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, tracksIds);
                     this.editor.updateActionUnitsAnimation(this.auTimeline.animationClip, tracksIds);
                 });
                 
-            }, {nameWidth: "40%", min: 0, max: 1, step: 0.01, signal: "@on_change_" + name, onPress: () => {
-                this.bsTimeline.saveState(track.trackIdx)
-             }});
+            }, {nameWidth: "40%", min: 0, max: 1, step: 0.01, signal: signal, onPress: () => {
+                this.bsTimeline.saveState(track.trackIdx);
+            }});
         }
         
         area.attach(panel);
@@ -3519,6 +3500,7 @@ class KeyframesGui extends Gui {
             
             const assetViewer = new LX.AssetView({  allowedTypes: ["bvh", "bvhe", "glb", "gltf"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
+            this.assetViewer = assetViewer;
             
             const loadingArea = p.loadingArea = this.createLoadingArea(p);
 
@@ -3536,17 +3518,16 @@ class KeyframesGui extends Gui {
        
         }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
-            onclose: ( root ) => {
+            onBeforeClose: ( dilog ) => {
 
-                if( modal.destroy ) {
-                    modal.destroy();
+                if ( this.assetViewer ){
+                    this.assetViewer.clear(); // clear signals
+                    this.assetViewer.root.remove(); // not really necessary
+                    this.assetViewer = null;
                 }
-                root.remove();
 
                 this.prompt = null;
-                if( !LX.modal.hidden ) {
-                    LX.modal.toggle(true);
-                }
+               
                 if( this.choice ) {
                     this.choice.close();
                 }
@@ -3645,30 +3626,33 @@ class KeyframesGui extends Gui {
     }
 
     showSourceCode( asset ) {
-        if( window.dialog ) {
-            window.dialog.destroy();
+        if( this.sourceCodeDialog ) {
+            const fn = this.sourceCodeDialog.close ?? this.sourceCodeDialog.destroy;
+            fn();
         }
     
-        window.dialog = new LX.PocketDialog("Editor", p => {
-            const area = new LX.Area();
-            p.attach( area );
+        const area = new LX.Area();
+        const filename = asset.filename;
+        const type = asset.type;
+        const name = filename.replace("."+ type, "");
+                    
+        const codeEditor = new LX.CodeEditor(area, {
+            allow_add_scripts: false,
+            name: type,
+            title: name,
+            disable_edition: true
+        });
+        
+        codeEditor.setText( asset.content );
+        codeEditor._changeLanguage( "JSON" );
 
-            const filename = asset.filename;
-            const type = asset.type;
-            const name = filename.replace("."+ type, "");
-                        
-            const codeEditor = new LX.CodeEditor(area, {
-                allow_add_scripts: false,
-                name: type,
-                title: name,
-                disable_edition: true
-            });
-            
-            codeEditor.setText( asset.content );
-            
-            codeEditor._changeLanguage( "JSON" );
-                     
-        }, { size: ["40%", "600px"], closable: true });
+
+        this.sourceCodeDialog = new LX.PocketDialog("Editor", p => {
+            p.attach( area );                     
+        }, { size: ["40%", "600px"], closable: true, onBeforeClose: (dialog)=>{
+            codeEditor.clear();
+            this.sourceCodeDialog = null;
+        } });
     }
 
     createSceneUI(area) {
@@ -3733,11 +3717,11 @@ class KeyframesGui extends Gui {
                             editor.gizmo.stop();
                         }
                         this.hideTimeline();
-                        this.sidePanel.parentArea.extend();
+                        this.sidePanelArea.parentArea.extend();
                         this.hideVideoOverlay();                       
                     } else {
                         this.showTimeline();
-                        this.sidePanel.parentArea.reduce();  
+                        this.sidePanelArea.parentArea.reduce();  
                         const currentAnim = this.editor.currentKeyFrameClip;
                         if ( currentAnim && currentAnim.type == "video" && this.showVideo ){
                             this.showVideoOverlay();
@@ -4267,19 +4251,24 @@ class ScriptGui extends Gui {
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel() {
+        // remove signals to avoid memory leaks
+        for( let i = 0; i < this.sidePanelSpecialSignals.length; ++i ){
+            delete LX.signals[ this.sidePanelSpecialSignals[i] ];
+        }
+        this.sidePanelSpecialSignals.length = 0;
 
         // clear area
-        while ( this.sidePanel.root.children.length ){
-            this.sidePanel.root.children[0].remove();
+        while ( this.sidePanelArea.root.children.length ){
+            this.sidePanelArea.root.children[0].remove();
         }
-        this.sidePanel.sections = [];
+        this.sidePanelArea.sections = [];
 
         if(this.panelTabs) {
             this.panelTabs.root.remove();
         }
 
         // Animation & Character tabs
-        const panelTabs = this.panelTabs = this.sidePanel.addTabs({fit: true});
+        const panelTabs = this.panelTabs = this.sidePanelArea.addTabs({fit: true});
 
         // Animation tab content
         const animationArea = new LX.Area({id: 'Animation'});
@@ -4301,25 +4290,7 @@ class ScriptGui extends Gui {
         const characterPanel = characterArea.addPanel();
         this.createCharactersPanel( characterPanel ) ;
         
-        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {
-            
-        }});
-
-
-        // while ( this.sidePanel.root.children.length ){
-        //     this.sidePanel.root.children[0].remove();
-        // }
-        // this.sidePanel.sections = [];
-
-        // const [top, bottom] = this.sidePanel.split({type: "vertical", resize: false, sizes: "auto"});
-        
-        // this.animationPanel = new LX.Panel({id:"animation"});
-        // top.attach(this.animationPanel);
-        // this.clipPanel = new LX.Panel({id:"bml-clip"});
-        // bottom.attach(this.clipPanel);
-
-        // this.updateAnimationPanel( );
-        // this.updateClipPanel( );
+        panelTabs.add( "Character", characterArea, {selected: false });
     }
 
     updateAnimationPanel( options = {}) {
@@ -4715,8 +4686,7 @@ class ScriptGui extends Gui {
                 "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard. <br> <br> Go to 'Help' for more information about the application.", 
                 p.root, 
                 { wordBreak: "break-word", lineHeight: "1.5rem" } );
-        }, {closable: true, onclose: (root) => {
-            root.remove();
+        }, {closable: true, onBeforeClose: (dialog) => {
             this.prompt = null;
             LX.popup("Click on Timeline tab to discover all the available interactions.", "Useful info!", {position: [ "10px", "50px"], timeout: 5000})
         },
@@ -4998,6 +4968,7 @@ class ScriptGui extends Gui {
 
             asset_browser = new LX.AssetView({ previewActions });
             p.attach( asset_browser );
+            this.assetViewer = asset_browser;
 
             asset_browser.load( asset_data, (e,v) => {
                 switch(e.type) {
@@ -5024,9 +4995,13 @@ class ScriptGui extends Gui {
                 }
             })
         },{ title:'Lexemes', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: true, contextMenu: false,
-            onclose: (root) => {
+            onBeforeClose: (dialog) => {
             
-                root.remove();
+                if ( this.assetViewer ){
+                    this.assetViewer.clear(); // clear signals
+                    this.assetViewer.root.remove(); // not really necessary
+                    this.assetViewer = null;
+                }
                 this.prompt = null;
             }
          });
@@ -5217,6 +5192,7 @@ class ScriptGui extends Gui {
             
             const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
+            this.assetViewer = assetViewer;
             
             const loadingArea = p.loadingArea = this.createLoadingArea(p);
 
@@ -5233,18 +5209,17 @@ class ScriptGui extends Gui {
             }
 
             
-        }, { title:'Available animations', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
+        }, { title:'Available animations', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false, modal: true,
     
-            onclose: (root) => {
-                if( modal.destroy ) {
-                    modal.destroy();
-                }
-                root.remove();
+            onBeforeClose: (dialog) => {
 
+                if ( this.assetViewer ){
+                    this.assetViewer.clear(); // clear signals
+                    this.assetViewer.root.remove(); // not really necessary
+                    this.assetViewer = null;
+                }  
                 this.prompt = null;
-                if( !LX.modal.hidden ) {
-                    LX.modal.toggle(true);
-                }
+              
                 if( this.choice ) {
                     this.choice.close();
                 }
@@ -5375,48 +5350,52 @@ class ScriptGui extends Gui {
     }
 
     showSourceCode (asset) {
-        if( window.dialog ) {
-            window.dialog.destroy();
+        if( this.sourceCodeDialog ) {
+            const fn = this.sourceCodeDialog.close ?? this.sourceCodeDialog.destroy;
+            fn();
         }
     
-        window.dialog = new LX.PocketDialog("Editor", p => {
-            const area = new LX.Area();
+        const area = new LX.Area();
+        const filename = asset.filename;
+        const type = asset.type;
+        const name = filename.replace("."+ type, "");
+        
+        const codeEditor = new LX.CodeEditor(area, {
+            allowAddScripts : false,
+            // disableEdition : true // somehow breaks the editor
+        });
+        codeEditor.closeTab("untitled", true); // doesn't matter the name, eraseAll is set to true
+
+        const text = JSON.stringify(asset.animation.behaviours, (key, value) => {
+            // limit precision of floats
+            if( typeof value === 'number' ) {
+                return parseFloat(value.toFixed(3));
+            }
+            if( key == "gloss" ) {
+                return value.replaceAll(":", "_")
+            }
+            return value;
+        });
+        if( asset.type == "sigml" ) {
+            codeEditor.addTab("sigml", true, name, { language: "XML" } );
+            codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
+            codeEditor.addTab("bml", false, name, { language: "JSON" } );
+            codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
+            codeEditor._changeLanguage( "XML" );
+        }
+        else {
+            codeEditor.addTab("bml", true, name, { language: "JSON" } );
+            codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
+            codeEditor._changeLanguage( "JSON" );
+        }
+        
+        // open dialog
+        this.sourceCodeDialog = new LX.PocketDialog("Editor", p => {
             p.attach( area );
-
-            const filename = asset.filename;
-            const type = asset.type;
-            const name = filename.replace("."+ type, "");
-            
-            const codeEditor = new LX.CodeEditor(area, {
-                allowAddScripts : false,
-                // disableEdition : true // somehow breaks the editor
-            });
-            codeEditor.closeTab("untitled", true); // doesn't matter the name, eraseAll is set to true
-
-            const text = JSON.stringify(asset.animation.behaviours, (key, value) => {
-                // limit precision of floats
-                if( typeof value === 'number' ) {
-                    return parseFloat(value.toFixed(3));
-                }
-                if( key == "gloss" ) {
-                    return value.replaceAll(":", "_")
-                }
-                return value;
-            });
-            if( asset.type == "sigml" ) {
-                codeEditor.addTab("sigml", true, name, { language: "XML" } );
-                codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
-                codeEditor.addTab("bml", false, name, { language: "JSON" } );
-                codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
-                codeEditor._changeLanguage( "XML" );
-            }
-            else {
-                codeEditor.addTab("bml", true, name, { language: "JSON" } );
-                codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
-                codeEditor._changeLanguage( "JSON" );
-            }
-            
-        }, { size: ["40%", "600px"], closable: true });
+        }, { size: ["40%", "600px"], closable: true, onBeforeClose: (dialog)=>{
+            codeEditor.clear();
+            this.sourceCodeDialog = null;
+        } });
 
     }
 
@@ -5437,11 +5416,11 @@ class ScriptGui extends Gui {
                   
                     if(editor.showGUI) {
                         this.showTimeline();
-                        this.sidePanel.parentArea.reduce();                       
+                        this.sidePanelArea.parentArea.reduce();                       
                         
                     } else {
                         this.hideTimeline();
-                        this.sidePanel.parentArea.extend();
+                        this.sidePanelArea.parentArea.extend();
 
                     }
                 }

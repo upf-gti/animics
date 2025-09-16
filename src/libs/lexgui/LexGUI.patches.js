@@ -2,7 +2,8 @@
 
 import { LX } from 'lexgui';
 
-// BUG FIX 1
+
+// FIX 1
 // asset view scrol broken
 
 LX.AssetView.prototype._createContentPanel = function( area ) {
@@ -139,5 +140,118 @@ LX.AssetView.prototype._createContentPanel = function( area ) {
 
     this._refreshContent();
 }
+//  END OF FIX 1
+
+
+// FIX 2 
+// Cannot properly clear signals from a codeeditor
+import "lexgui/extensions/codeeditor.js"
+LX.CodeEditor.prototype.clear = function(){
+    this.rightStatusPanel.clear();
+    this.leftStatusPanel.clear();
+}
+
+LX.CodeEditor.prototype._createStatusPanel = function( options ) {
+
+    if( this.skipInfo )
+    {
+        return;
+    }
+
+    let panel = new LX.Panel({ className: "lexcodetabinfo flex flex-row", height: "auto" });
+
+    if( this.onCreateStatusPanel )
+    {
+        this.onCreateStatusPanel( panel, this );
+    }
+
+    let leftStatusPanel = this.leftStatusPanel = new LX.Panel( { id: "FontSizeZoomStatusComponent", height: "auto" } );
+    leftStatusPanel.sameLine();
+
+    if( this.skipTabs )
+    {
+        leftStatusPanel.addButton( null, "ZoomOutButton", this._decreaseFontSize.bind( this ), { icon: "ZoomOut", width: "32px", title: "Zoom Out", tooltip: true } );
+    }
+
+    leftStatusPanel.addButton( null, "ZoomOutButton", this._decreaseFontSize.bind( this ), { icon: "ZoomOut", width: "32px", title: "Zoom Out", tooltip: true } );
+    leftStatusPanel.addLabel( this.fontSize ?? 14, { fit: true, signal: "@font-size" });
+    leftStatusPanel.addButton( null, "ZoomInButton", this._increaseFontSize.bind( this ), { icon: "ZoomIn", width: "32px", title: "Zoom In", tooltip: true } );
+    leftStatusPanel.endLine( "justify-start" );
+    panel.attach( leftStatusPanel.root );
+
+    let rightStatusPanel = this.rightStatusPanel = new LX.Panel( { height: "auto" } );
+    rightStatusPanel.sameLine();
+    rightStatusPanel.addLabel( this.code?.title ?? "", { id: "EditorFilenameStatusComponent", fit: true, signal: "@tab-name" });
+    rightStatusPanel.addButton( null, "Ln 1, Col 1", this.showSearchLineBox.bind( this ), { id: "EditorSelectionStatusComponent", fit: true, signal: "@cursor-data" });
+    rightStatusPanel.addButton( null, "Spaces: " + this.tabSpaces, ( value, event ) => {
+        LX.addContextMenu( "Spaces", event, m => {
+            const options = [ 2, 4, 8 ];
+            for( const n of options )
+                m.add( n, (v) => {
+                    this.tabSpaces = v;
+                    this.processLines();
+                    this._updateDataInfoPanel( "@tab-spaces", "Spaces: " + this.tabSpaces );
+                } );
+        });
+    }, { id: "EditorIndentationStatusComponent", nameWidth: "15%", signal: "@tab-spaces" });
+    rightStatusPanel.addButton( "<b>{ }</b>", this.highlight, ( value, event ) => {
+        LX.addContextMenu( "Language", event, m => {
+            for( const lang of Object.keys( CodeEditor.languages ) )
+            {
+                m.add( lang, v => {
+                    this._changeLanguage( v, null, true )
+                } );
+            }
+        });
+    }, { id: "EditorLanguageStatusComponent", nameWidth: "15%", signal: "@highlight" });
+    rightStatusPanel.endLine( "justify-end" );
+    panel.attach( rightStatusPanel.root );
+
+
+    const itemVisibilityMap = {
+        "Font Size Zoom": options.statusShowFontSizeZoom ?? true,
+        "Editor Filename": options.statusShowEditorFilename ?? true,
+        "Editor Selection": options.statusShowEditorSelection ?? true,
+        "Editor Indentation": options.statusShowEditorIndentation ?? true,
+        "Editor Language": options.statusShowEditorLanguage ?? true,
+    };
+
+    const _setVisibility = ( itemName ) => {
+        const b = panel.root.querySelector( `#${ itemName.replaceAll( " ", "" ) }StatusComponent` );
+        console.assert( b, `${ itemName } has no status button!` );
+        b.classList.toggle( "hidden", !itemVisibilityMap[ itemName ] );
+    }
+
+    for( const [ itemName, v ] of Object.entries( itemVisibilityMap ) )
+    {
+        _setVisibility( itemName );
+    }
+
+    panel.root.addEventListener( "contextmenu", (e) => {
+
+        if( e.target && ( e.target.classList.contains( "lexpanel" ) || e.target.classList.contains( "lexinlinecomponents" ) ) )
+        {
+            return;
+        }
+
+        const menuOptions = Object.keys( itemVisibilityMap ).map( ( itemName, idx ) => {
+            const item = {
+                name: itemName,
+                icon: "Check",
+                callback: () => {
+                    itemVisibilityMap[ itemName ] = !itemVisibilityMap[ itemName ];
+                    _setVisibility( itemName );
+                }
+            }
+            if( !itemVisibilityMap[ itemName ] ) delete item.icon;
+            return item;
+        } );
+        new LX.DropdownMenu( e.target, menuOptions, { side: "top", align: "start" });
+    } );
+
+    return panel;
+}
+
+// END OF FIX 2
 
 export{};

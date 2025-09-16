@@ -117,7 +117,7 @@ class Editor {
             "Ready Eva": ['https://models.readyplayer.me/66e30a18eca8fb70dcadde68.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva_v3.json',0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
         }
 
-        this.mapNames = {characterMap: json.faceController.blendshapeMap, mediapipeMap: MapNames.mediapipe, parts:  MapNames.parts};
+        this.mapNames = {characterMap: json.faceController.blendshapeMap, mediapipeMap: MapNames.mediapipe, parts: MapNames.parts};
     }
 
     enable() {
@@ -3095,7 +3095,7 @@ class KeyframeEditor extends Editor {
                 }
                 const frame = timeline.getNearestKeyFrame(track, timeline.currentTime);
                 if ( frame > -1 ){
-                    LX.emit("@on_change_" + track.id, track.values[frame]);
+                    LX.emit("@on_change_face_" + track.id, track.values[frame]);
                 }
             }
 
@@ -3113,7 +3113,7 @@ class KeyframeEditor extends Editor {
         }
 
         if( frame > -1 ){
-            LX.emit("@on_change_" + track.id, track.values[frame]);
+            LX.emit("@on_change_face_" + track.id, track.values[frame]);
         }
     }
 
@@ -3168,7 +3168,7 @@ class KeyframeEditor extends Editor {
                         bsEditedTracksIdxs.push(t);
                         const track = bsAnimation.tracks[t];
                         const frame = this.activeTimeline.getNearestKeyFrame(track, this.activeTimeline.currentTime);
-                        LX.emit("@on_change_"+ track.id, track.values[frame]* bsNames[b][1]);
+                        LX.emit("@on_change_face_"+ track.id, track.values[frame]* bsNames[b][1]);
                         // break; // do not break, need to check all meshes that contain this blendshape
                     }
                 }
