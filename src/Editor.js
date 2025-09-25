@@ -1337,7 +1337,6 @@ class KeyframeEditor extends Editor {
                     this.gui.propagationWindow.toggleEnabler();
                     if( this.gui.propagationWindow.enabler ){
                         this.gui.skeletonTimeline.deselectAllKeyFrames();
-                        this.gui.auTimeline.deselectAllKeyFrames();
                         this.gui.bsTimeline.deselectAllKeyFrames();
                     }
                 }
@@ -1553,15 +1552,16 @@ class KeyframeEditor extends Editor {
                             newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
                             newClip.skeletonAnimation.name = "bodyAnimation";  // timeline
                         }
-                        if(clip.auAnimation) {
+                        // TODO: retarget somehow without auTimeline
+                        // if(clip.auAnimation) {
                            
-                            newClip.auAnimation = this.gui.auTimeline.instantiateAnimationClip( newClip.auAnimation, true );                            
-                            newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( newClip.auAnimation ); // blendhsapes timeline            
-							newClip.mixerFaceAnimation.duration = clip.auAnimation.duration;
-                            newClip.bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(newClip.mixerFaceAnimation);
-                            newClip.bsAnimation.duration = newClip.auAnimation.duration;
-                            newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( newClip.bsAnimation ); // generate default animationclip or process the user's one;
-                        }
+                        //     newClip.auAnimation = this.gui.auTimeline.instantiateAnimationClip( newClip.auAnimation, true );                            
+                        //     newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( newClip.auAnimation ); // blendhsapes timeline            
+						// 	newClip.mixerFaceAnimation.duration = clip.auAnimation.duration;
+                        //     newClip.bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(newClip.mixerFaceAnimation);
+                        //     newClip.bsAnimation.duration = newClip.auAnimation.duration;
+                        //     newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( newClip.bsAnimation ); // generate default animationclip or process the user's one;
+                        // }
                         clips.push(newClip);
                     }
                     const newTrack = Object.assign({}, track);
@@ -1903,11 +1903,8 @@ class KeyframeEditor extends Editor {
         if ( animationData && animationData.blendshapesAnim ) {
             animationData.blendshapesAnim.name = "faceAnimation";       
             faceAnimation = animationData.blendshapesAnim.clip;
-            // // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
-            // faceAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
         }
         else { // Otherwise, create empty face animation
-            // faceAnimation = THREE.AnimationClip.CreateFromMorphTargetSequence('BodyMesh', this.currentCharacter.model.getObjectByName("BodyMesh").geometry.morphAttributes.position, 24, false);
             faceAnimation = this.currentCharacter.blendshapesManager.createEmptyAnimation("faceAnimation");
             faceAnimation.duration = bodyAnimation.duration;
             faceAnimation.from = "";
@@ -2567,27 +2564,26 @@ class KeyframeEditor extends Editor {
             for( let i = 0; i < auAnimation.tracks.length; ++i ){
                 auAnimation.tracks[i].dim = 1;
             }
-
             auAnimation.duration = faceAnimation.duration;
-            // Set keyframe animation to the timeline and get the timeline-formated one.
-            auAnimation = this.gui.auTimeline.instantiateAnimationClip( auAnimation );
+            auAnimation = this.gui.bsTimeline.instantiateAnimationClip( auAnimation ); // formats auAnimation into the Timelie format
+
 
             faceAnimation.name = "faceAnimation";   // mixer
             auAnimation.name = "faceAnimation";  // action units timeline
             faceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation ); 
+            faceAnimation.duration = auAnimation.duration;
             this.validateFaceAnimationClip(faceAnimation);
             
-            // bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation ); // blendhsapes timeline            
-            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(faceAnimation);
-            bsAnimation.duration = faceAnimation.duration;
-            bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation ); // generate default animationclip or process the user's one;
+            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation );
 
+            bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation ); // generate default animationclip or process the user's one;
+            bsAnimation.duration = faceAnimation.duration;
         }
         
         const boundAnimation = {
             uid: this.generateClipUniqueID(), // do not change this value
             source: animation,
-            skeletonAnimation, auAnimation, bsAnimation, // from gui timeline. Main data
+            skeletonAnimation, bsAnimation, // from gui timeline. Main data
             mixerBodyAnimation: bodyAnimation, mixerFaceAnimation: faceAnimation, // for threejs mixer. ALWAYS relies on timeline data
 
             start: 0,
@@ -2860,14 +2856,12 @@ class KeyframeEditor extends Editor {
             if ( timeline != this.gui.globalTimeline ){
                 switch( this.animationMode ) {
                     case this.animationModes.BODY:
-                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx]);
+                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.activeTimeline.animationClip);
                         break;
-                    case this.animationModes.FACEAU:
-                        this.updateBlendshapesAnimation(this.currentKeyFrameClip.bsAnimation, [track.trackIdx]);
-                        break;
+
+                    case this.animationModes.FACEAU: 
                     case this.animationModes.FACEBS:
-                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx]);
-                        this.updateActionUnitsAnimation(this.currentKeyFrameClip.auAnimation, [track.trackIdx]);
+                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx], this.activeTimeline.animationClip);
                         break;
                 }
             }
@@ -2890,18 +2884,12 @@ class KeyframeEditor extends Editor {
             case this.animationModes.FACEBS:
                 this.activeTimeline = this.gui.bsTimeline;
                 this.animationMode = this.animationModes.FACEBS;
-                if( lastMode != this.animationModes.FACEAU ) {
-                    // this.gui.createSidePanel();  
-                }
                 this.gizmo.disable();
                 break;
 
             case this.animationModes.FACEAU:
-                this.activeTimeline = this.gui.auTimeline;
+                this.activeTimeline = this.gui.bsTimeline;
                 this.animationMode = this.animationModes.FACEAU;
-                if( lastMode != this.animationModes.FACEBS ) {
-                    // this.gui.createSidePanel();  
-                }  
                 this.setSelectedActionUnit(this.selectedAU);           
                 this.gizmo.disable();
                 
@@ -2921,7 +2909,6 @@ class KeyframeEditor extends Editor {
                 
             default:
                 this.gui.skeletonTimeline.hide();
-                this.gui.auTimeline.hide();
                 this.gui.bsTimeline.hide();
                 this.gui.globalTimeline.setTime(this.currentTime, true);
                 this.gui.globalTimeline.show();
@@ -3122,66 +3109,6 @@ class KeyframeEditor extends Editor {
         }
     }
 
-    updateActionUnitsAnimation( auAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip ) {
-        
-        const auEditedTracksIdxs = [];
-        const numEditedTracks = editedTracksIdxs ? editedTracksIdxs.length : editedAnimation.tracks.length;
-
-        for( let j = 0; j < numEditedTracks; j++ ) {
-            const eIdx = editedTracksIdxs ? editedTracksIdxs[j] : j;
-            const eTrack = editedAnimation.tracks[eIdx];        
-
-            for( let t = 0; t < auAnimation.tracks.length; t++ ) {
-                if( auAnimation.tracks[t].data && auAnimation.tracks[t].data.blendshapes.includes(eTrack.id) ) {
-                    auEditedTracksIdxs.push(t);
-                    auAnimation.tracks[t].values = new Float32Array(eTrack.values);
-                    auAnimation.tracks[t].times = new Float32Array(eTrack.times);
-                    //LX.emit("@on_cahnge"+ auAnimation.tracks[t].id);
-                    //this.gui.updateActionUnitsPanel(auAnimation, t);
-                    // break; // do not break, need to check all meshes that contain this blendshape
-                }
-            }           
-        }
-    }
-
-    updateBlendshapesAnimation( bsAnimation, editedTracksIdxs, editedAnimation = this.activeTimeline.animationClip ) {
-        let mapTrackIdxs = {};
-        const bsEditedTracksIdxs = [];
-     
-        const numEditedTracks = editedTracksIdxs ? editedTracksIdxs.length : editedAnimation.tracks.length;
-
-        for( let j = 0; j < numEditedTracks; j++ ) {
-            const eIdx = editedTracksIdxs ? editedTracksIdxs[j] : j;
-            const eTrack = editedAnimation.tracks[eIdx];
-            mapTrackIdxs[eIdx] = [];
-
-            let bsNames = this.currentCharacter.config ? this.currentCharacter.config.faceController.blendshapeMap[eTrack.id] : this.currentCharacter.blendshapesManager.mapNames.characterMap[eTrack.id];
-            if ( !bsNames ){ 
-                continue; 
-            }
-            if(typeof(bsNames) == 'string') {
-                bsNames = [[bsNames, 1.0]];
-            }
-
-            for( let b = 0; b < bsNames.length; b++ ) {
-                for( let t = 0; t < bsAnimation.tracks.length; t++ ) {
-                    if( bsNames[b].includes(bsAnimation.tracks[t].id) ) {
-                        mapTrackIdxs[eIdx].push(t);
-                        bsAnimation.tracks[t].values = new Float32Array(eTrack.values.map(v => v * bsNames[b][1]));
-                        bsAnimation.tracks[t].times = new Float32Array(eTrack.times);
-                        bsAnimation.tracks[t].active = eTrack.active;
-                        bsEditedTracksIdxs.push(t);
-                        const track = bsAnimation.tracks[t];
-                        const frame = this.activeTimeline.getNearestKeyFrame(track, this.activeTimeline.currentTime);
-                        LX.emit("@on_change_face_"+ track.id, track.values[frame]* bsNames[b][1]);
-                        // break; // do not break, need to check all meshes that contain this blendshape
-                    }
-                }
-            }
-        }        
-        this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, bsEditedTracksIdxs, bsAnimation);
-    }
-
        /**
      * This function updates the mixer animation actions so the edited tracks are assigned to the interpolants.
      * WARNING It uses the editedAnimation tracks directly, without cloning them.
@@ -3209,13 +3136,13 @@ class KeyframeEditor extends Editor {
             const eIdx = editedTracksIdxs ? editedTracksIdxs[i] : i;
             const eTrack = editedAnimation.tracks[eIdx]; // track of the edited animation
             
-            let mIdxs = [ eIdx ];
-            if( eTrack.data && eTrack.data.tracksIds ) { // if the edited animation is the BS animation, the tracks have to be mapped
-                mIdxs = eTrack.data.tracksIds;
-            }
-            
-            if( eTrack.locked || !mIdxs.length ) {
+            if( eTrack.locked ) {
                 continue;
+            }
+
+            let mIdxs = [ eIdx ];
+            if( eTrack.data && eTrack.data.tracksIds ) { // if the edited animation is the BS animation, the tracks have to be mapped to the actual threejs clip tracks
+                mIdxs = eTrack.data.tracksIds;
             }
 
             for( let t = 0; t < mIdxs.length; t++ ) {
@@ -3228,8 +3155,8 @@ class KeyframeEditor extends Editor {
 
                 const track = mixerAnimation.tracks[trackId];
                 if( eTrack.active && eTrack.times.length ) {
-                    interpolant.parameterPositions = track.times = new Float32Array(eTrack.times);
-                    interpolant.sampleValues = track.values = new Float32Array(eTrack.values);
+                    interpolant.parameterPositions = track.times = eTrack.times;
+                    interpolant.sampleValues = track.values = eTrack.values;
                 }
                 else {
                     interpolant.parameterPositions = track.times = [0];
@@ -3420,8 +3347,6 @@ class KeyframeEditor extends Editor {
     }
 
     setSelectedActionUnit(au) {
-
-        this.gui.auTimeline.setSelectedItems([au]);
         if(this.selectedAU == au) {
             return;
         }
@@ -3551,45 +3476,28 @@ class KeyframeEditor extends Editor {
         track.edited[keyframe] = true;
     }
 
-    // Update blendshapes properties from the GUI
-    updateBlendshapesProperties(name, value, callback) {
-        if( this.state ){ return false; }
+    // Update blendshapes properties of bsTimeline clip (not threejs)
+    updateBlendshapesProperties(trackIdx, value, isDelta = false ) {
+        if( this.state ){ return -1; }
 
-        value = Number(value);
-        const time = this.activeTimeline.currentTime;
+        const timeline = this.gui.bsTimeline;
+        const track = timeline.animationClip.tracks[trackIdx];
+        const time = timeline.currentTime;
 
-        const visibleItems = this.activeTimeline.getVisibleItems();
-        for(let i = 0; i < visibleItems.length; i++) {
-            const track = visibleItems[i].treeData.trackData;
-            if (!track){
-                continue;
+        if ( track.times.length && track.active && !track.locked ){
+            if ( this.gui.propagationWindow.enabler ){
+                this.propagateEdition(timeline, track.trackIdx, value, isDelta);                    
             }
-            if(track.id == name && track.active && !track.locked ){
-
-                if ( track.times.length <= 0){ continue; }
-
-                if ( this.gui.propagationWindow.enabler ){
-                    this.propagateEdition(this.activeTimeline, track.trackIdx, value);
-
-                    // Update animation action (mixer) interpolants.
-                    callback( [track.trackIdx] );
-                    
-                }
-                else{
-                    const frameIdx = this.activeTimeline.getCurrentKeyFrame(track, time, 0.01)
-                    if ( frameIdx > -1 ){
-                        // Update Action Unit keyframe value of timeline animation
-                        track.values[frameIdx] = value; // activeTimeline.animationClip == auAnimation               
-                        track.edited[frameIdx] = true;               
-
-                        // Update animation action (mixer) interpolants.
-                        callback( [track.trackIdx] );
-                    } 
-                }
-                return true;
+            else{
+                const frameIdx = timeline.getCurrentKeyFrame(track, time, 0.01)
+                if ( frameIdx > -1 ){
+                    // Update Action Unit keyframe value of timeline animation
+                    track.values[frameIdx] = isDelta ? (track.values[frameIdx] + value) : value;
+                    track.edited[frameIdx] = true;               
+                } 
             }
+            return track.trackIdx;
         }
-        
     }
 
     /** ------------------------ Generate formatted data --------------------------*/
