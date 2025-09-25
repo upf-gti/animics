@@ -2232,7 +2232,7 @@ class KeyFramesTimeline extends Timeline {
         if ( keyframes.length > 1){
             let startPosX = this.timeToX( keyframes[0] );
             let startValue = values[0];                
-            startValue = Math.clamp((startValue - valueRange[0]) / (valueRange[1] - valueRange[0]), 0,1) * (-displayRange) + (trackHeight - defaultPointSize); // normalize and offset
+            startValue = LX.clamp((startValue - valueRange[0]) / (valueRange[1] - valueRange[0]), 0,1) * (-displayRange) + (trackHeight - defaultPointSize); // normalize and offset
             ctx.moveTo( startPosX, startValue );
 
             for(let j = 1; j < keyframes.length; ++j){
@@ -2240,7 +2240,7 @@ class KeyFramesTimeline extends Timeline {
                 let time = keyframes[j];
                 let keyframePosX = this.timeToX( time );
                 let value = values[j];                
-                value = Math.clamp((value - valueRange[0]) / (valueRange[1] - valueRange[0]), 0,1) * (-displayRange) + (trackHeight - defaultPointSize); // normalize and offset
+                value = LX.clamp((value - valueRange[0]) / (valueRange[1] - valueRange[0]), 0,1) * (-displayRange) + (trackHeight - defaultPointSize); // normalize and offset
     
                 if( time < startTime ){
                     ctx.moveTo( keyframePosX, value ); 
@@ -2252,7 +2252,7 @@ class KeyFramesTimeline extends Timeline {
                     let dt = keyframePosX - lastKeyframePosX;
                     if ( dt > 0 ){
                         let lastValue = values[j-1];
-                        lastValue = Math.clamp((lastValue - valueRange[0]) / (valueRange[1] - valueRange[0]), 0,1) * (-displayRange) + (trackHeight - defaultPointSize); // normalize and offset
+                        lastValue = LX.clamp((lastValue - valueRange[0]) / (valueRange[1] - valueRange[0]), 0,1) * (-displayRange) + (trackHeight - defaultPointSize); // normalize and offset
                         let f = (this.timeToX( endTime ) - lastKeyframePosX) / dt;
                         ctx.lineTo( lastKeyframePosX + dt * f, lastValue * (1-f) + value * f ); 
                     }
@@ -2292,7 +2292,7 @@ class KeyFramesTimeline extends Timeline {
                 ctx.fillStyle = Timeline.KEYFRAME_COLOR
             
             let value = values[j];
-            value = Math.clamp((value - valueRange[0]) / (valueRange[1] - valueRange[0]), 0,1) *(-displayRange) + (trackHeight - defaultPointSize); // normalize, clamp and offset
+            value = LX.clamp((value - valueRange[0]) / (valueRange[1] - valueRange[0]), 0,1) *(-displayRange) + (trackHeight - defaultPointSize); // normalize, clamp and offset
 
             ctx.beginPath();
             ctx.arc( keyframePosX, value, size, 0, Math.PI * 2);
