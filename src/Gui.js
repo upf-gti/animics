@@ -1661,6 +1661,15 @@ class KeyframesGui extends Gui {
                     }, {min: 0, max: 1, step: 0.001, precision: 4}
                 );
 
+                dialog.addRange("Keyframe Size", this.skeletonTimeline.keyframeSize / this.skeletonTimeline.trackHeight, (v, e) =>{
+                    this.skeletonTimeline.setKeyframeSize( v * this.skeletonTimeline.trackHeight, v * this.skeletonTimeline.trackHeight + 5 );
+                }, {min: 0, max:1, step: 0.0001});
+                dialog.addNumber("Track Height", this.bsTimeline.trackHeight, (v,e) =>{
+                    let keyframeSize = this.skeletonTimeline.keyframeSize / this.skeletonTimeline.trackHeight;
+                    this.skeletonTimeline.setTrackHeight( v );
+                    this.skeletonTimeline.setKeyframeSize( keyframeSize * this.skeletonTimeline.trackHeight, keyframeSize * this.skeletonTimeline.trackHeight + 5 );
+                }, { min: parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25 });
+
                 dialog.branch("Propagation Window");
                 this.propagationWindow.onOpenConfig(dialog);
                 dialog.merge();
@@ -1669,6 +1678,9 @@ class KeyframesGui extends Gui {
         });
 
         this.propagationWindow = new PropagationWindow( this.skeletonTimeline );
+
+        this.skeletonTimeline.setTrackHeight( 32 );
+        this.skeletonTimeline.setKeyframeSize( this.skeletonTimeline.trackHeight * 0.5, this.skeletonTimeline.trackHeight * 0.5 + 5 );
 
         this.skeletonTimeline.leftPanel.parent.root.style.zIndex = 1;
         this.skeletonTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
@@ -1856,6 +1868,15 @@ class KeyframesGui extends Gui {
                     }, {min: 0, max: 1, step: 0.001, precision: 4}
                 );
 
+                dialog.addRange("Keyframe Size", this.bsTimeline.keyframeSize / this.bsTimeline.trackHeight, (v,e) =>{
+                    this.bsTimeline.setKeyframeSize( v * this.bsTimeline.trackHeight, v * this.bsTimeline.trackHeight + 5 );
+                }, {min: 0, max:1, step: 0.0001});
+                dialog.addNumber("Track Height", this.bsTimeline.trackHeight, (v,e) =>{
+                    let keyframeSize = this.bsTimeline.keyframeSize / this.bsTimeline.trackHeight;
+                    this.bsTimeline.setTrackHeight( v );
+                    this.bsTimeline.setKeyframeSize( keyframeSize * this.bsTimeline.trackHeight, keyframeSize * this.bsTimeline.trackHeight + 5 );
+                }, { min: parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25 });
+
                 dialog.branch("Propagation Window");
                 this.propagationWindow.onOpenConfig(dialog);
 
@@ -1864,6 +1885,8 @@ class KeyframesGui extends Gui {
             disableNewTracks: true
         });
 
+        this.bsTimeline.setTrackHeight( 32 );
+        this.bsTimeline.setKeyframeSize( this.bsTimeline.trackHeight * 0.5, this.bsTimeline.trackHeight * 0.5 + 5 );
         this.bsTimeline.leftPanel.parent.root.style.zIndex = 1;
         this.bsTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.bsTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
@@ -2699,9 +2722,6 @@ class KeyframesGui extends Gui {
                     }
 
                     panel.components[name].prevValue = v;
-                    if ( e.type == "change" ){
-                        panel.components[name].options.onRelease(e, e.currentTarget);
-                    }
                 }, {
                     nameWidth: "50%", skipReset: true, precision: 3, step: 0.001, signal: signal, 
                     onPress: ()=>{ 
