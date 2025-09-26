@@ -2935,6 +2935,7 @@ class KeyframeEditor extends Editor {
                 this.gizmo.disable();
                 
                 this.video.sync = false;
+                this.gui.propagationWindow.setEnabler(false);
                 this.setVideoVisibility(false);
                 break;
         }
