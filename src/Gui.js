@@ -1680,7 +1680,7 @@ class KeyframesGui extends Gui {
         this.propagationWindow = new PropagationWindow( this.skeletonTimeline );
 
         this.skeletonTimeline.setTrackHeight( 32 );
-        this.skeletonTimeline.setKeyframeSize( this.skeletonTimeline.trackHeight * 0.5, this.skeletonTimeline.trackHeight * 0.5 + 5 );
+        this.skeletonTimeline.setKeyframeSize( this.skeletonTimeline.trackHeight * 0.33, this.skeletonTimeline.trackHeight * 0.33 + 5 );
 
         this.skeletonTimeline.leftPanel.parent.root.style.zIndex = 1;
         this.skeletonTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
@@ -1886,7 +1886,7 @@ class KeyframesGui extends Gui {
         });
 
         this.bsTimeline.setTrackHeight( 32 );
-        this.bsTimeline.setKeyframeSize( this.bsTimeline.trackHeight * 0.5, this.bsTimeline.trackHeight * 0.5 + 5 );
+        this.bsTimeline.setKeyframeSize( this.bsTimeline.trackHeight * 0.33, this.bsTimeline.trackHeight * 0.33 + 5 );
         this.bsTimeline.leftPanel.parent.root.style.zIndex = 1;
         this.bsTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.bsTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);

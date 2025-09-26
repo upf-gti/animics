@@ -2684,7 +2684,6 @@ class KeyframeEditor extends Editor {
             }
         }
 
-        const defaultTimes = animation && animation.tracks.length ? animation.tracks[0].times : [0];
         const morphTargetDictionary = this.currentCharacter.morphTargets;
 
         for( let mesh in morphTargetDictionary ) {
@@ -2692,18 +2691,15 @@ class KeyframeEditor extends Editor {
             for( let morph in dictionary ) {
                 let newTrack = null;
                 if( allMorphTargetDictionary[morph]) {
-                        if(allMorphTargetDictionary[morph][mesh]) {
-                            continue;
-                        }                    
+                    if(allMorphTargetDictionary[morph][mesh]) {
+                        continue;
+                    }                    
                     const keys = Object.keys(allMorphTargetDictionary[morph]);
                     const track = allMorphTargetDictionary[morph][keys[0]];
                     newTrack = new THREE.NumberKeyframeTrack( mesh + ".morphTargetInfluences[" + morph + "]", track.times, track.values);
                 }
                 else {
-                    const values = [];
-                    values.length = defaultTimes.length;
-                    values.fill(0);
-                    newTrack = new THREE.NumberKeyframeTrack( mesh + ".morphTargetInfluences[" + morph + "]", defaultTimes.slice(), values);
+                    newTrack = new THREE.NumberKeyframeTrack( mesh + ".morphTargetInfluences[" + morph + "]", [0], [0]);
                     allMorphTargetDictionary[morph] = { [mesh] : newTrack};
                 }
 
