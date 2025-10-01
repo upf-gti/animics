@@ -1877,6 +1877,39 @@ class KeyframesGui extends Gui {
                     this.bsTimeline.setKeyframeSize( keyframeSize * this.bsTimeline.trackHeight, keyframeSize * this.bsTimeline.trackHeight + 5 );
                 }, { min: parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25 });
 
+                dialog.addVector2("Keyframe Value Range", this.bsTimeline.defaultCurvesRange.slice(), (v,e) =>{
+
+                    if ( v[0] != this.bsTimeline.defaultCurvesRange[0] ){
+                        v[0] = Math.min( v[0], this.bsTimeline.defaultCurvesRange[1] );
+                    }else{
+                        v[1] = Math.max( this.bsTimeline.defaultCurvesRange[0], v[1] );
+                    }
+
+                    dialog.components["Keyframe Value Range"].set( v, true ); // skip callback
+
+                    this.bsTimeline.defaultCurvesRange[0] = v[0];
+                    this.bsTimeline.defaultCurvesRange[1] = v[1];
+
+                    if ( !this.bsTimeline.animationClip ){
+                        return;
+                    }
+
+                    const tracks = this.bsTimeline.animationClip.tracks;
+                    for( let i = 0; i < tracks.length; ++i ){
+                        tracks[i].curvesRange[0] = v[0];
+                        tracks[i].curvesRange[1] = v[1];
+                    }
+
+                    if ( this.sidePanelBlendshapeSlidersPanel){
+                        const cmps = this.sidePanelBlendshapeSlidersPanel.components;
+                        for( let name in cmps ){
+                            if (cmps[name].type != LX.BaseComponent.NUMBER){ continue; }
+                            cmps[name].setLimits( v[0], v[1], 0.001 );
+                        }
+                    }
+
+                }, { step: 0.001, precision: 3, onRelease: ()=>{ if ( this.sidePanelBlendshapeSlidersPanel ) {this.sidePanelBlendshapeSlidersPanel.refresh(); } } });
+
                 dialog.branch("Propagation Window");
                 this.propagationWindow.onOpenConfig(dialog);
 
@@ -2664,8 +2697,7 @@ class KeyframesGui extends Gui {
     }
 
     createActionUnitsPanel( baseArea ) {
-        // const baseArea = this.bodyFaceTabs.tabs.Face.sections[1]; // take bottom area of Face tab
-        baseArea = baseArea || this.faceTabs.tabs["Action Units"].sections[1];
+
         // clear area before redoing all sliders
         while (baseArea.root.firstChild) {
             baseArea.root.removeChild(baseArea.root.lastChild);
@@ -2696,7 +2728,9 @@ class KeyframesGui extends Gui {
             let panel = new LX.Panel({id: "au-"+ area});
             tabContainer.appendChild(panel.root);
 
-            for(let id in areas[area]) {
+            let auIds = areas[area];
+            auIds.sort();
+            for(let id = 0; id < auIds.length; ++id) {
                 const name = areas[area][id];
                 const signal = "@on_change_face_" + name;
 
@@ -2757,39 +2791,40 @@ class KeyframesGui extends Gui {
 
     createBlendshapesPanel( area ) {
 
-        area = area || this.faceTabs.tabs["Blendshapes"];
         area.root.innerHTML = "";
 
         const animation = this.bsTimeline.animationClip;
         if ( !animation ){
             return;
         }
-
-        let panel = new LX.Panel({id: "bs-"+ area});
-
-        for(let i = 0; i < animation.tracks.length; i++) {
-            const track = animation.tracks[i];
-
-            const name = track.id;
-            let frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
-
-            if( (!this.bsTimeline.lastKeyFramesSelected.length || this.bsTimeline.lastKeyFramesSelected[0][2] != frame)) {
-                this.bsTimeline.selectKeyFrame(track.trackIdx, frame);
-            }
-
-            const signal = "@on_change_face_" + name;
-            this.sidePanelSpecialSignals.push(signal);
-            panel.addNumber(name, frame == -1 ? 0 : track.values[frame], (v,e) => {    
-                const boundAnimation = this.editor.currentKeyFrameClip;
-                this.editor.updateBlendshapesProperties(track.trackIdx, v);
-                this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, [track.trackIdx], animation);
-                
-            }, {nameWidth: "40%", skipReset: true, min: 0, max: 1, step: 0.01, signal: signal, onPress: () => {
-                this.bsTimeline.saveState(track.trackIdx);
-            }});
-        }
         
-        area.attach(panel);
+        let panel = this.sidePanelBlendshapeSlidersPanel = area.addPanel({id: "bs-"+ area});
+        panel.refresh = ()=>{
+
+            for(let i = 0; i < animation.tracks.length; i++) {
+                const track = animation.tracks[i];
+                
+                const name = track.id;
+                let frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
+                
+                if( (!this.bsTimeline.lastKeyFramesSelected.length || this.bsTimeline.lastKeyFramesSelected[0][2] != frame)) {
+                    this.bsTimeline.selectKeyFrame(track.trackIdx, frame);
+                }
+                
+                const signal = "@on_change_face_" + name;
+                this.sidePanelSpecialSignals.push(signal);
+                panel.addNumber(name, frame == -1 ? 0 : track.values[frame], (v,e) => {    
+                    const boundAnimation = this.editor.currentKeyFrameClip;
+                    this.editor.updateBlendshapesProperties(track.trackIdx, v);
+                    this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, [track.trackIdx], animation);
+                    
+                }, {nameWidth: "40%", skipReset: true, min: this.bsTimeline.defaultCurvesRange[0], max: this.bsTimeline.defaultCurvesRange[1], step: 0.01, signal: signal, onPress: () => {
+                    this.bsTimeline.saveState(track.trackIdx);
+                }});
+            }
+        }
+
+        panel.refresh();
     }
 
     createSkeletonPanel(root, options) {

@@ -147,36 +147,6 @@ class BlendshapesManager {
         return {bsAnimation, auAnimation};
     }
 
-    createBlendshapesAnimation( animation ) {
-
-        const tracks = [];
-        const allMorphTargetDictionary = {};       
-
-        for(let i = 0; i < animation.tracks.length; i++) {
-            const track = animation.tracks[i];
-            
-           const { propertyIndex, nodeName } = THREE.PropertyBinding.parseTrackName( track.name );
-           const newTrack = new THREE.NumberKeyframeTrack( propertyIndex, track.times, track.values);
-           
-           if(allMorphTargetDictionary[propertyIndex]) {
-               allMorphTargetDictionary[propertyIndex].skinnedMeshes.push(nodeName);
-               allMorphTargetDictionary[propertyIndex].tracksIds.push(i);
-               continue;
-            }
-            else {
-                allMorphTargetDictionary[propertyIndex] = { skinnedMeshes: [nodeName], tracksIds: [i] };
-                newTrack.data = allMorphTargetDictionary[propertyIndex];
-            }
-            tracks.push(newTrack);
-        }
-        
-        // use -1 to automatically calculate
-        // the length from the array of tracks
-        const length = -1;
-
-        let bsAnimation = new THREE.AnimationClip( "bsAnimation", length, tracks);
-        return bsAnimation;
-    }
 
     // Convert THREEJS morph target animation into AU names format
     createAUAnimation(animation, map = this.mapNames.characterMap) {
@@ -361,46 +331,123 @@ class BlendshapesManager {
     }
 
     /**
-     * Creates ThreeJS animationClip with morphTargetInfluences for all mapped meshes 
+     * Creates ThreeJS animationClip with morphTargetInfluences ( "mesh.morphTargetInfluences[bs]" ) for all mapped meshes, from action units ( "au" ) 
      * Assumes all input tracks are AU and have the same amount of keyframes, each in the same timestamp
      */ 
-    createBlendshapesAnimationFromAU ( animation ) {
+    createMorphTargetsAnimationFromAU ( animation ) {
 
         const bsTracks = [];
         const done = {};
         for(let i = 0; i < animation.tracks.length; i++) {
             const track = animation.tracks[i];
-            for(let mesh in this.skinnedMeshes)
-                {
-                    let bs = this.mapNames.characterMap[track.id];
-                    for(let i = 0; i < bs.length; i++) {
-                        
-                        const mtIdx = this.morphTargetDictionary[mesh][bs[i][0]];
-                        if( mtIdx > -1 ) {
-                            const trackName = this.skinnedMeshes[mesh].name +'.morphTargetInfluences['+ bs[i][0] + ']';
-                            if(done[trackName] != undefined) {
-                                for( let j = 0; j < bsTracks[done[trackName]].values.length; j++) {
-                                    bsTracks[done[trackName]].values[j] += track.values[j] * bs[i][1];
-                                }
-                            }
-                            else {
-                                bsTracks.push( new THREE.NumberKeyframeTrack( trackName, track.times, track.values.map( v => v*bs[i][1] ) ) );
-                                done[trackName] = bsTracks.length - 1;
+            for(let mesh in this.skinnedMeshes){
+                let bs = this.mapNames.characterMap[track.id ?? track.name];
+                for(let i = 0; i < bs.length; i++) {
+                    
+                    const mtIdx = this.morphTargetDictionary[mesh][bs[i][0]];
+                    if( mtIdx > -1 ) {
+                        const trackName = this.skinnedMeshes[mesh].name +'.morphTargetInfluences['+ bs[i][0] + ']';
+                        if(done[trackName] != undefined) {
+                            for( let j = 0; j < bsTracks[done[trackName]].values.length; j++) {
+                                bsTracks[done[trackName]].values[j] += track.values[j] * bs[i][1];
                             }
                         }
-
+                        else {
+                            bsTracks.push( new THREE.NumberKeyframeTrack( trackName, track.times, track.values.map( v => v*bs[i][1] ) ) );
+                            done[trackName] = bsTracks.length - 1;
+                        }
                     }
+
                 }
-                const newName = this.getFormattedTrackName(track.id);
-                if(!newName) {
-                    continue;
-                }
-          
+            }          
         }
         
         const bsAnimation = new THREE.AnimationClip( "threejsAnimation", -1, bsTracks); // duration == -1 so it is automatically computed from the array of tracks
         return bsAnimation;
     }
+
+    createBlendshapesAnimationFromMorphTargets( animation ) {
+
+        const tracks = [];
+        const allMorphTargetDictionary = {};       
+
+        for(let i = 0; i < animation.tracks.length; i++) {
+            const track = animation.tracks[i];
+            
+           const { propertyIndex, nodeName } = THREE.PropertyBinding.parseTrackName( track.name );
+           const newTrack = new THREE.NumberKeyframeTrack( propertyIndex, track.times.slice(), track.values.slice());
+           
+           if(allMorphTargetDictionary[propertyIndex]) {
+               allMorphTargetDictionary[propertyIndex].skinnedMeshes.push(nodeName);
+               allMorphTargetDictionary[propertyIndex].tracksIds.push(i);
+               continue;
+            }
+            else {
+                allMorphTargetDictionary[propertyIndex] = { skinnedMeshes: [nodeName], tracksIds: [i] };
+                newTrack.data = allMorphTargetDictionary[propertyIndex];
+            }
+            tracks.push(newTrack);
+        }
+        
+        let bsAnimation = new THREE.AnimationClip( "bsAnimation", animation.duration ?? -1, tracks);
+        return bsAnimation;
+    }
+
+    /**
+     * Creates ThreeJS animationClip with blendshapes ( "bs" ) from action units ( "au" ). No meshes involved 
+     * Assumes all input tracks are AU and have the same amount of keyframes, each in the same timestamp
+     */
+    createBlendshapesAnimationFromAU ( auAnimation ) {
+
+        const bsTracks = [];
+        const done = {};
+        for(let i = 0; i < auAnimation.tracks.length; i++) {
+            const track = auAnimation.tracks[i];
+            
+            let bs = this.mapNames.characterMap[track.id ?? track.name];
+            for(let i = 0; i < bs.length; i++) {
+                const trackName = bs[i][0];
+
+                // blendshape might be used by different action units
+                if(done[trackName]){
+                    const bst = bsTracks[done[trackName]];
+                    for( let j = 0; j < bst.values.length; j++) {
+                        bst.values[j] += track.values[j] * bs[i][1];
+                    }
+                }
+                else {
+                    bsTracks.push( new THREE.NumberKeyframeTrack( trackName, track.times.slice(), track.values.slice().map( v => v*bs[i][1] ) ) );
+                    done[trackName] = bsTracks.length - 1;
+                }
+            }          
+        }
+        
+        const bsAnimation = new THREE.AnimationClip( "bsAnimation", auAnimation.duration ?? -1, bsTracks);
+        return bsAnimation;
+    }
+
+    /**
+     * Creates ThreeJS animationClip with morphTargetInfluences ( "mesh.morphTargetInfluences[bs]" ) for all mapped meshes, from a blendshape animation ( "bs" )
+     * Assumes all input tracks are AU and have the same amount of keyframes, each in the same timestamp
+     */ 
+    createMorphTargetsAnimationFromBlendshapes ( animation ) {
+
+        const bsTracks = [];
+        for(let i = 0; i < animation.tracks.length; i++) {
+            const track = animation.tracks[i];
+            const bsName = track.name ?? track.id;
+            for(let mesh in this.skinnedMeshes) {
+                if ( this.morphTargetDictionary[mesh][bsName] != undefined ){
+                    const trackName = this.skinnedMeshes[mesh].name +'.morphTargetInfluences['+ bsName + ']';
+                    bsTracks.push( new THREE.NumberKeyframeTrack( trackName, track.times.slice(), track.values.slice() ) );
+                }
+            }          
+        }
+        
+        const bsAnimation = new THREE.AnimationClip( "morphtTargetAnimation", animation.duration ?? -1, bsTracks); // duration == -1 so it is automatically computed from the array of tracks
+        return bsAnimation;
+    }
+
 }
 
 BlendshapesManager.faceAreas =  [

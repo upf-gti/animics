@@ -18,6 +18,7 @@ import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
 
 import { LX } from "lexgui"
 
+
 // const MapNames = await import('../data/mapnames.json', {assert: { type: 'json' }});
 const MapNames = await (await fetch('./data/mapnames.json')).json();
 let json = null
@@ -2544,40 +2545,64 @@ class KeyframeEditor extends Editor {
         let bsAnimation = null;
 
         if(faceAnimation) {
-                            
+            const t1 = performance.now();
+
+
+            const faceDuration = faceAnimation.duration;
             if(animation.type == "video") {
-                const parsedAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes);
+                const parsedAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes); // Mediapipe outputs AU (although the attribute is named blendshapes)
                 faceAnimation = parsedAnimation.bsAnimation;
                 auAnimation = parsedAnimation.auAnimation || faceAnimation;
+                bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
             }
             else {
+                // TODO check different au mappings
+                // TODO allow to do only blendshape-match, only au or both 
+                auAnimation = this.createAU( faceAnimation, MapNames.Eva );
+                bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
+                bsAnimation = new THREE.AnimationClip("bsAnimation", 0, []);
+
+
+                let matchingTracks = this.getMatchingBlendshapesFromAnimation( faceAnimation, this.currentCharacter );
+
+                for( let bs in matchingTracks ){
+                    const track = matchingTracks[bs];
+                    let replaced = false;
+                    for( let i = 0; i < bsAnimation.tracks.length; ++i){
+                        if ( bsAnimation.tracks[i].name == bs ){
+                            bsAnimation.tracks[i].times = track.times;
+                            bsAnimation.tracks[i].values = track.values;
+                            replaced = true;
+                            break;
+                        }
+                    }
+
+                    if ( !replaced ){
+                        bsAnimation.tracks.push( new THREE.NumberKeyframeTrack( bs, track.times, track.values ) );
+                    }
+                }
+
                 // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
-                auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
-                if( !auAnimation.tracks.length ) {
-                    auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.rpm);
-                }
-                if( !auAnimation.tracks.length ) {
-                    auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.Eva);
-                }
+                // auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
+                // if( !auAnimation.tracks.length ) {
+                //     auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.rpm);
+                // }
+                // if( !auAnimation.tracks.length ) {
+                //     auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.Eva);
+                // }
             }
-            // set track value dimensions. Necessary for the timeline, although it should automatically default to 1
-            for( let i = 0; i < auAnimation.tracks.length; ++i ){
-                auAnimation.tracks[i].dim = 1;
-            }
-            auAnimation.duration = faceAnimation.duration;
-            auAnimation = this.gui.bsTimeline.instantiateAnimationClip( auAnimation ); // formats auAnimation into the Timelie format
 
-
-            faceAnimation.name = "faceAnimation";   // mixer
-            auAnimation.name = "faceAnimation";  // action units timeline
-            faceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation ); 
-            faceAnimation.duration = auAnimation.duration;
-            this.validateFaceAnimationClip(faceAnimation);
-            
-            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation( faceAnimation );
-
+            this.validateBlendshapeAnimationClip(bsAnimation); // adds missing tracks
+            faceAnimation = this.currentCharacter.blendshapesManager.createMorphTargetsAnimationFromBlendshapes( bsAnimation );
+            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromMorphTargets( faceAnimation ); // this also links blendshape tracks with the morphtargets tracks, necessary for updateMixer
             bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation ); // generate default animationclip or process the user's one;
-            bsAnimation.duration = faceAnimation.duration;
+            
+            faceAnimation.name = "faceAnimation"; // mixer
+            faceAnimation.duration = faceDuration;
+            bsAnimation.duration = faceDuration;
+
+            const t2 = performance.now();
+            console.log(t2-t1);
         }
         
         const boundAnimation = {
@@ -2612,7 +2637,7 @@ class KeyframeEditor extends Editor {
 
         }
 
-        
+ 
         this.setTime(this.currentTime); // update mixer state
         return boundAnimation;
     }
@@ -2660,55 +2685,197 @@ class KeyframeEditor extends Editor {
         }
     }
 
-    /** Validate face animation clip created using Mediapipe 
-     * THREEJS AnimationClips CANNOT have tracks with 0 entries
-    */
-    validateFaceAnimationClip( animation ) {
-
-        let tracks = animation.tracks;
-        let blendshapes = this.currentCharacter.morphTargets;
-
-        let bsCheck = new Array(blendshapes.length);
-        bsCheck.fill(false);
-
-        const allMorphTargetDictionary = {};
-        // ensure each track has at least one valid entry. Default to current character pose
-        for( let i = 0; i < tracks.length; ++i ){
-            const track = tracks[i];
-            const {propertyIndex, nodeName} = THREE.PropertyBinding.parseTrackName( track.name );
-            if(allMorphTargetDictionary[propertyIndex]) {
-                allMorphTargetDictionary[propertyIndex][nodeName] = track;
+    getMatchingBlendshapesFromAnimation(faceAnimation, targetCharacter, parseTrackNamesAsThreejs = true ){
+        const tracks = faceAnimation.tracks;
+        let mappedBlendshapes ={};
+        
+        for( let i = 0; i < tracks.length; ++i){
+            let blendshapeName = tracks[i].name ?? tracks[i].id;
+            if ( parseTrackNamesAsThreejs ){
+                blendshapeName = THREE.PropertyBinding.parseTrackName( blendshapeName ).propertyIndex;
             }
-            else {
-                allMorphTargetDictionary[propertyIndex] = { [nodeName] : track };
+
+            // it already has been mapped. The first track encountered will determine the keyframes for all meshes that have this blendshape
+            if ( mappedBlendshapes[blendshapeName] ){ 
+                continue;
+            }
+
+            for ( let mesh in targetCharacter.morphTargets ){
+                if ( targetCharacter.morphTargets[mesh][blendshapeName] != undefined ){ // track blendshape exists in the target character
+                    mappedBlendshapes[blendshapeName] = tracks[i];
+                    break;
+                }
             }
         }
-
-        const morphTargetDictionary = this.currentCharacter.morphTargets;
-
-        for( let mesh in morphTargetDictionary ) {
-            const dictionary = morphTargetDictionary[mesh];
-            for( let morph in dictionary ) {
-                let newTrack = null;
-                if( allMorphTargetDictionary[morph]) {
-                    if(allMorphTargetDictionary[morph][mesh]) {
-                        continue;
-                    }                    
-                    const keys = Object.keys(allMorphTargetDictionary[morph]);
-                    const track = allMorphTargetDictionary[morph][keys[0]];
-                    newTrack = new THREE.NumberKeyframeTrack( mesh + ".morphTargetInfluences[" + morph + "]", track.times, track.values);
-                }
-                else {
-                    newTrack = new THREE.NumberKeyframeTrack( mesh + ".morphTargetInfluences[" + morph + "]", [0], [0]);
-                    allMorphTargetDictionary[morph] = { [mesh] : newTrack};
-                }
-
-                tracks.push(newTrack);
-            }
-        }
+        return mappedBlendshapes;
     }
 
-    setVideoVisibility( visibility, needsMirror = false ){ // TO DO
+    createAU( faceAnimation, sourceMapping, parseTrackNamesAsThreejs = true ){
+
+        const tracks = faceAnimation.tracks;
+
+
+        // get all blendshapes from animation. For a given blendshape, all meshes will follow the first track encountered. 
+        let mappedBlendshapes ={};
+        for( let i = 0; i < tracks.length; ++i){
+            let blendshapeName = tracks[i].name ?? tracks[i].id;
+            if ( parseTrackNamesAsThreejs ){
+                blendshapeName = THREE.PropertyBinding.parseTrackName( blendshapeName ).propertyIndex;
+            }
+
+            if ( !mappedBlendshapes[blendshapeName] && tracks[i].times.length ){
+                mappedBlendshapes[blendshapeName] = tracks[i];
+            }
+        }
+
+
+        // match blendshapes from animation to the action units of the mapping. Not all blendshapes from an AU might exist
+        let bsarray = []; // array of names of blendsapes that need to be taken into account for AU computations.
+        let mappedAUs = {}; // which action units need to be taken into account.
+        for ( let actionUnit in sourceMapping ) {
+            const mappedMorphs = sourceMapping[actionUnit];
+            
+            let mapped = false;
+            for(let j = 0; j < mappedMorphs.length; j++) {
+                const bsName = mappedMorphs[j][0];
+                if (!mappedBlendshapes[bsName]){ // blendshape from AU does not exist in the animation
+                    continue;
+                }
+                mapped = true;
+
+                let idx = bsarray.indexOf( bsName ); // add blendshape to list only if it has not been added before
+                if ( idx == -1 ){ 
+                    bsarray.push( bsName); 
+                } 
+            }
+
+            if ( mapped ){ // at last 1 blendshape was added 
+                mappedAUs[ actionUnit ] = mappedMorphs; 
+            }
+        }
+
+        if( bsarray.length == 0 ){
+            return null;
+        }
+
+        let mappedAUsKeys = Object.keys( mappedAUs ); // AU entries that need to be computed
+
+        if ( mappedAUsKeys.length == 0){
+            return null;
+        }
+
+
+        /* Now we need to solve the Ax=b problem.
+            A = [rows, cols] = [blendshapesMapped, AUs]
+            x = AU weights
+            b = blendshape weights
+           SVD will be used to invert A.
+        */
+
+        // prepare matrix
+        let matrix = [];
+        for ( let i = 0; i < mappedAUsKeys.length; ++i ) {
+            let arr = new Float32Array(bsarray.length);
+            arr.fill( 0 );
+
+            for(let j = 0; j < mappedAUs[ mappedAUsKeys[i] ].length; j++) {
+                let idx = bsarray.indexOf( mappedAUs[ mappedAUsKeys[i] ][j][0] );
+                if (idx != -1){ arr[idx] = mappedAUs[ mappedAUsKeys[i] ][j][1]; }
+            }
+
+            matrix.push( arr );
+        }
+
+        // ml-matrix library
+        // https://mljs.github.io/matrix/classes/Matrix.html#set
+        // https://stackoverflow.com/questions/57175722/is-there-a-javascript-equivalent-to-numpy-linalg-pinv
+
+        let m = new mlMatrix.Matrix( matrix ); // memory layout assumes array of ROWs
+        m = m.transpose(); // transform to columns
+        m = mlMatrix.inverse(m, true); // svd inverse
+
+        let timeIndices = bsarray.slice();
+        timeIndices.fill(0);
+        
+        let AUtimes = [];
+        let AUvalues = [];
+
+        let areAllLastTime = false;
+        let currTime = 0;
+
+        let bsoutput = new mlMatrix.Matrix( bsarray.length, 1 ); // column vector
+        while( !areAllLastTime ){
+            areAllLastTime = true;
+
+            let nextTime = currTime;
+            for( let t = 0; t < timeIndices.length; t++ ){
+                const times = mappedBlendshapes[ bsarray[t] ].times;
+                const values = mappedBlendshapes[ bsarray[t] ].values;
+                
+                let timeIdx = timeIndices[t];
+                while( currTime >= times[timeIdx] && timeIdx < (times.length-1) ){
+                    timeIdx++;
+                }
+                areAllLastTime &= timeIdx == (times.length-1);
+                nextTime = Math.max( currTime, times[timeIdx]);
+
+                timeIndices[t] = timeIdx;
+
+                let f = timeIdx == 0 ? 1 : ( (currTime-times[timeIdx-1]) / (times[timeIdx]-times[timeIdx-1]) );
+                let v = timeIdx == 0 ? values[timeIdx] : (values[timeIdx]*f + values[timeIdx-1] * (1-f));
+
+                bsoutput.data[t][0] = v;
+            }
+
+            // infer AU values from blendshape values Ax=b
+            AUvalues.push(m.mmul( bsoutput ));
+            AUtimes.push( currTime );
+            currTime = nextTime;
+        }
+
+
+        // build animation
+        let resultTracks = [];
+		for( let i = 0; i < mappedAUsKeys.length; ++i ){
+			let values = new Float32Array(AUtimes.length);
+
+			for( let t = 0;  t < AUtimes.length; ++t){
+				values[t] = AUvalues[t].data[i][0];
+			}
+
+			const tr = new THREE.NumberKeyframeTrack( mappedAUsKeys[i], AUtimes.slice(), values)
+			resultTracks.push(tr);
+		}
+
+        return new THREE.AnimationClip( "auAnimation", -1, resultTracks); // duration == -1 so it is automatically computed from the array of tracks
+    }
+
+
+    /** Validate face animation clip ( tracks names = "bs" )
+     * THREEJS AnimationClips CANNOT have tracks with 0 entries
+    */
+    validateBlendshapeAnimationClip( animation ) {
+
+        const morphTargetDictionary = this.currentCharacter.morphTargets;
+        const srcTracksLength = animation.tracks.length;
+        
+        let animationDictionary = {};        
+        for( let i = 0; i < srcTracksLength; ++i){
+            const bsName = animation.tracks[i].name ?? animation.tracks[i].id;
+            animationDictionary[bsName] = true;
+        }
+
+        for( let mesh in morphTargetDictionary ) {
+            for( let meshMorph in morphTargetDictionary[mesh] ){
+                if( !animationDictionary[meshMorph] ){
+                    animation.tracks.push(new THREE.NumberKeyframeTrack( meshMorph, [0], [0]));
+                }
+            }
+        }
+
+    }
+
+    setVideoVisibility( visibility, needsMirror = false ){
         if(visibility && this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video") {
             this.gui.showVideoOverlay(needsMirror);
             this.gui.computeVideoArea( this.currentKeyFrameClip.source.rect );
