@@ -474,57 +474,53 @@ class Editor {
         UTILS.hideLoading();
     }
 
-    retargetAnimation(source, bodyAnimation) {
+    retargetAnimation(sourceSkeleton, bodyAnimation) {
       
+        if ( !bodyAnimation ){ return null; }
+        
         const currentCharacter = this.currentCharacter;
         this.currentCharacter.skeletonHelper.skeleton.pose();
-        const skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
-        if(skeleton)
-        {
-            currentCharacter.skeletonHelper.skeleton = skeleton;
+        let temp_skeleton = applyTPose(this.currentCharacter.skeletonHelper.skeleton).skeleton;
+        if(temp_skeleton) {
+            currentCharacter.skeletonHelper.skeleton = temp_skeleton;
         }
         else {
             console.warn("T-pose can't be applyied to the TARGET. Automap falied.")
         }
-
-        let sourceCharacter = source.skeleton;
-       
         
-        if( bodyAnimation ) {
         
-            let tracks = [];
-            const otherTracks = []; // blendshapes
-            // Remove position changes (only keep i == 0, hips)
-            for (let i = 0; i < bodyAnimation.tracks.length; i++) {
+        let tracks = [];
+        const otherTracks = []; // blendshapes
+        // Remove position changes (only keep i == 0, hips)
+        for (let i = 0; i < bodyAnimation.tracks.length; i++) {
 
-                if(bodyAnimation.tracks[i].constructor.name == THREE.NumberKeyframeTrack.name ) {
-                    otherTracks.push(bodyAnimation.tracks[i]);
-                    continue;
-                }
-                if(i && bodyAnimation.tracks[i].name.includes('position')) {
-                    continue;
-                }
-                tracks.push(bodyAnimation.tracks[i]);
-                tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace(".bones", "");//tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
+            if(bodyAnimation.tracks[i].constructor.name == THREE.NumberKeyframeTrack.name ) {
+                otherTracks.push(bodyAnimation.tracks[i]);
+                continue;
             }
-
-            //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
-            bodyAnimation.tracks = tracks;            
-            
-            
-            sourceCharacter.pose();
-            const skeleton = applyTPose(sourceCharacter).skeleton;
-            if(skeleton)
-            {
-                sourceCharacter = skeleton;
+            if(i && bodyAnimation.tracks[i].name.includes('position')) {
+                continue;
             }
-            else {
-                console.warn("T-pose can't be applyied to the SOURCE. Automap falied.")
-            }            
-            
-            const retargeting = new AnimationRetargeting(sourceCharacter, currentCharacter.model, { srcEmbedWorldTransforms: true, trgEmbedWorldTransforms: true, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT } ); // TO DO: change trgUseCurrentPose param
-            return retargeting.retargetAnimation(bodyAnimation);
+            tracks.push(bodyAnimation.tracks[i]);
+            tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace(".bones", "");
         }
+
+        //tracks.forEach( b => { b.name = b.name.replace( /[`~!@#$%^&*()_|+\-=?;:'"<>\{\}\\\/]/gi, "") } );
+        bodyAnimation.tracks = tracks;            
+        
+        
+        sourceSkeleton.pose();
+        temp_skeleton = applyTPose(sourceSkeleton).skeleton;
+        if(temp_skeleton) {
+            sourceSkeleton = temp_skeleton;
+        }
+        else {
+            console.warn("T-pose can't be applyied to the SOURCE. Automap falied.")
+        }            
+        
+        const retargeting = new AnimationRetargeting(sourceSkeleton, currentCharacter.model, { srcEmbedWorldTransforms: true, trgEmbedWorldTransforms: true, srcPoseMode: AnimationRetargeting.BindPoseModes.CURRENT, trgPoseMode: AnimationRetargeting.BindPoseModes.CURRENT } ); // TO DO: change trgUseCurrentPose param
+        return retargeting.retargetAnimation(bodyAnimation);
+        
     }
 
     fileToAnimation (data, callback)  {
@@ -1538,34 +1534,41 @@ class KeyframeEditor extends Editor {
                 const tracks = [];
                 
                 for(let i = 0; i < animation.tracks.length; i++) {
-                    const track = animation.tracks[i];
+                    const srcTrack = animation.tracks[i];
                     const clips = [];
-                    for( let j = 0; j < track.clips.length; j++) {
-                        const clip = track.clips[j];
-                        const newClip = Object.assign({}, clip);
+                    for( let j = 0; j < srcTrack.clips.length; j++) {
+                        const srcClip = srcTrack.clips[j];
+                        const newClip = Object.assign({}, srcClip);
                         newClip.uid = this.generateClipUniqueID();
 
 						// Retarget body animation
-                        if(clip.mixerBodyAnimation) {
-                            newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper, clip.mixerBodyAnimation);
-							newClip.mixerBodyAnimation.duration = clip.skeletonAnimation.duration;
+                        if(srcClip.mixerBodyAnimation) {
+                            newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper.skeleton, srcClip.mixerBodyAnimation); // from sourceSkeleton to this.currentCharacter
+                            this.validateBodyAnimationClip(newClip.mixerBodyAnimation);
+                            newClip.mixerBodyAnimation.duration = srcClip.skeletonAnimation.duration;
                             // Set keyframe animation to the timeline and get the timeline-formated one
                             newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
-                            newClip.skeletonAnimation.name = "bodyAnimation";  // timeline
+                            newClip.skeletonAnimation.name = "bodyAnimation";
                         }
-                        // TODO: retarget somehow without auTimeline
-                        // if(clip.auAnimation) {
-                           
-                        //     newClip.auAnimation = this.gui.auTimeline.instantiateAnimationClip( newClip.auAnimation, true );                            
-                        //     newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( newClip.auAnimation ); // blendhsapes timeline            
-						// 	newClip.mixerFaceAnimation.duration = clip.auAnimation.duration;
-                        //     newClip.bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimation(newClip.mixerFaceAnimation);
-                        //     newClip.bsAnimation.duration = newClip.auAnimation.duration;
-                        //     newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( newClip.bsAnimation ); // generate default animationclip or process the user's one;
-                        // }
+
+                        // Retarget face animation
+                        if(srcClip.bsAnimation) {
+                            let auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( srcClip.bsAnimation, this.loadedCharacters[characters[0]].blendshapesManager.mapNames.characterMap, false );
+                            let bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
+                            this.currentCharacter.blendshapesManager.mergeTracksToBlendshapeToAnimation( bsAnimation, srcClip.bsAnimation, { parseAsThreejsNamesNewTracks: false, duplicateTracksToReplace: true } );
+                            
+                            this.validateBlendshapeAnimationClip( bsAnimation );
+                            newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createMorphTargetsAnimationFromBlendshapes( bsAnimation );
+                            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromMorphTargets( newClip.mixerFaceAnimation ); // this also links blendshape tracks with the morphtargets tracks, necessary for updateMixer                
+                            newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation );
+                            
+                            newClip.bsAnimation.duration = newClip.mixerFaceAnimation.duration = srcClip.bsAnimation.duration;
+                            newClip.bsAnimation.name = "faceAnimation";
+                            newClip.mixerFaceAnimation.name = "faceAnimation";
+                        }
                         clips.push(newClip);
                     }
-                    const newTrack = Object.assign({}, track);
+                    const newTrack = Object.assign({}, srcTrack);
                     newTrack.clips = clips;
                     tracks.push(newTrack);
                 }
@@ -2507,15 +2510,12 @@ class KeyframeEditor extends Editor {
                     tracks[tracks.length - 1].name = tracks[tracks.length - 1].name.replace( /[\[\]`~!@#$%^&*()|+\-=?;:'"<>\{\}\\\/]/gi, "").replace(".bones", "");
                 }
 
-                bodyAnimation.tracks = tracks;            
+                bodyAnimation.tracks = tracks;
                 let skeleton = animation.skeleton ?? this.nnSkeleton;
                 
                 // Retarget NN animation              
-                // trgEmbedWorldTransform: take into account external rotations like the model (bone[0].parent) quaternion
-                // let retargeting = new AnimationRetargeting(skeleton, this.currentCharacter.skeletonHelper.skeleton, { trgEmbedWorldTransforms: true, srcPoseMode: options.srcPoseMode, trgPoseMode: options.trgPoseMode, srcEmbedWorldTransforms: options.srcEmbedWorldTransforms } ); // both skeletons use their native bind pose
                 const oldDuration = bodyAnimation.duration;
-                // bodyAnimation = retargeting.retargetAnimation(bodyAnimation);
-                bodyAnimation = this.retargetAnimation({skeleton}, bodyAnimation);  
+                bodyAnimation = this.retargetAnimation(skeleton, bodyAnimation);  
                 bodyAnimation.duration = oldDuration;
             }
 
@@ -2527,6 +2527,7 @@ class KeyframeEditor extends Editor {
                 if ( t.name.endsWith(".quaternion") ){ t.dim = 4; }
                 else{ t.dim = 3; }
             }
+
             // Set keyframe animation to the timeline and get the timeline-formated one
             skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( bodyAnimation );
 
@@ -2558,38 +2559,10 @@ class KeyframeEditor extends Editor {
             else {
                 // TODO check different au mappings
                 // TODO allow to do only blendshape-match, only au or both 
-                auAnimation = this.createAU( faceAnimation, MapNames.Eva );
+                auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, MapNames.Eva, true );
                 bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
-                bsAnimation = new THREE.AnimationClip("bsAnimation", 0, []);
 
-
-                let matchingTracks = this.getMatchingBlendshapesFromAnimation( faceAnimation, this.currentCharacter );
-
-                for( let bs in matchingTracks ){
-                    const track = matchingTracks[bs];
-                    let replaced = false;
-                    for( let i = 0; i < bsAnimation.tracks.length; ++i){
-                        if ( bsAnimation.tracks[i].name == bs ){
-                            bsAnimation.tracks[i].times = track.times;
-                            bsAnimation.tracks[i].values = track.values;
-                            replaced = true;
-                            break;
-                        }
-                    }
-
-                    if ( !replaced ){
-                        bsAnimation.tracks.push( new THREE.NumberKeyframeTrack( bs, track.times, track.values ) );
-                    }
-                }
-
-                // Convert morph target animation (threejs with character morph target names) into Mediapipe Action Units animation
-                // auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation);
-                // if( !auAnimation.tracks.length ) {
-                //     auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.rpm);
-                // }
-                // if( !auAnimation.tracks.length ) {
-                //     auAnimation = this.currentCharacter.blendshapesManager.createAUAnimation(faceAnimation, MapNames.Eva);
-                // }
+                this.currentCharacter.blendshapesManager.mergeTracksToBlendshapeToAnimation( bsAnimation, faceAnimation, { parseAsThreejsNamesNewTracks: true, duplicateTracksToReplace: true } );
             }
 
             this.validateBlendshapeAnimationClip(bsAnimation); // adds missing tracks
@@ -2630,14 +2603,11 @@ class KeyframeEditor extends Editor {
             this.gui.globalTimeline.setAnimationClip(currentGlobal, false);
         }else{
             this.gui.globalTimeline.addClip(boundAnimation);
-            
             const mixer = this.currentCharacter.mixer;
             this.setKeyframeClipBlendMode( boundAnimation, THREE.NormalAnimationBlendMode, false );
             this.globalAnimMixerManagementSingleClip(mixer, boundAnimation);
-
         }
-
- 
+        
         this.setTime(this.currentTime); // update mixer state
         return boundAnimation;
     }
@@ -2684,172 +2654,6 @@ class KeyframeEditor extends Editor {
             }
         }
     }
-
-    getMatchingBlendshapesFromAnimation(faceAnimation, targetCharacter, parseTrackNamesAsThreejs = true ){
-        const tracks = faceAnimation.tracks;
-        let mappedBlendshapes ={};
-        
-        for( let i = 0; i < tracks.length; ++i){
-            let blendshapeName = tracks[i].name ?? tracks[i].id;
-            if ( parseTrackNamesAsThreejs ){
-                blendshapeName = THREE.PropertyBinding.parseTrackName( blendshapeName ).propertyIndex;
-            }
-
-            // it already has been mapped. The first track encountered will determine the keyframes for all meshes that have this blendshape
-            if ( mappedBlendshapes[blendshapeName] ){ 
-                continue;
-            }
-
-            for ( let mesh in targetCharacter.morphTargets ){
-                if ( targetCharacter.morphTargets[mesh][blendshapeName] != undefined ){ // track blendshape exists in the target character
-                    mappedBlendshapes[blendshapeName] = tracks[i];
-                    break;
-                }
-            }
-        }
-        return mappedBlendshapes;
-    }
-
-    createAU( faceAnimation, sourceMapping, parseTrackNamesAsThreejs = true ){
-
-        const tracks = faceAnimation.tracks;
-
-
-        // get all blendshapes from animation. For a given blendshape, all meshes will follow the first track encountered. 
-        let mappedBlendshapes ={};
-        for( let i = 0; i < tracks.length; ++i){
-            let blendshapeName = tracks[i].name ?? tracks[i].id;
-            if ( parseTrackNamesAsThreejs ){
-                blendshapeName = THREE.PropertyBinding.parseTrackName( blendshapeName ).propertyIndex;
-            }
-
-            if ( !mappedBlendshapes[blendshapeName] && tracks[i].times.length ){
-                mappedBlendshapes[blendshapeName] = tracks[i];
-            }
-        }
-
-
-        // match blendshapes from animation to the action units of the mapping. Not all blendshapes from an AU might exist
-        let bsarray = []; // array of names of blendsapes that need to be taken into account for AU computations.
-        let mappedAUs = {}; // which action units need to be taken into account.
-        for ( let actionUnit in sourceMapping ) {
-            const mappedMorphs = sourceMapping[actionUnit];
-            
-            let mapped = false;
-            for(let j = 0; j < mappedMorphs.length; j++) {
-                const bsName = mappedMorphs[j][0];
-                if (!mappedBlendshapes[bsName]){ // blendshape from AU does not exist in the animation
-                    continue;
-                }
-                mapped = true;
-
-                let idx = bsarray.indexOf( bsName ); // add blendshape to list only if it has not been added before
-                if ( idx == -1 ){ 
-                    bsarray.push( bsName); 
-                } 
-            }
-
-            if ( mapped ){ // at last 1 blendshape was added 
-                mappedAUs[ actionUnit ] = mappedMorphs; 
-            }
-        }
-
-        if( bsarray.length == 0 ){
-            return null;
-        }
-
-        let mappedAUsKeys = Object.keys( mappedAUs ); // AU entries that need to be computed
-
-        if ( mappedAUsKeys.length == 0){
-            return null;
-        }
-
-
-        /* Now we need to solve the Ax=b problem.
-            A = [rows, cols] = [blendshapesMapped, AUs]
-            x = AU weights
-            b = blendshape weights
-           SVD will be used to invert A.
-        */
-
-        // prepare matrix
-        let matrix = [];
-        for ( let i = 0; i < mappedAUsKeys.length; ++i ) {
-            let arr = new Float32Array(bsarray.length);
-            arr.fill( 0 );
-
-            for(let j = 0; j < mappedAUs[ mappedAUsKeys[i] ].length; j++) {
-                let idx = bsarray.indexOf( mappedAUs[ mappedAUsKeys[i] ][j][0] );
-                if (idx != -1){ arr[idx] = mappedAUs[ mappedAUsKeys[i] ][j][1]; }
-            }
-
-            matrix.push( arr );
-        }
-
-        // ml-matrix library
-        // https://mljs.github.io/matrix/classes/Matrix.html#set
-        // https://stackoverflow.com/questions/57175722/is-there-a-javascript-equivalent-to-numpy-linalg-pinv
-
-        let m = new mlMatrix.Matrix( matrix ); // memory layout assumes array of ROWs
-        m = m.transpose(); // transform to columns
-        m = mlMatrix.inverse(m, true); // svd inverse
-
-        let timeIndices = bsarray.slice();
-        timeIndices.fill(0);
-        
-        let AUtimes = [];
-        let AUvalues = [];
-
-        let areAllLastTime = false;
-        let currTime = 0;
-
-        let bsoutput = new mlMatrix.Matrix( bsarray.length, 1 ); // column vector
-        while( !areAllLastTime ){
-            areAllLastTime = true;
-
-            let nextTime = currTime;
-            for( let t = 0; t < timeIndices.length; t++ ){
-                const times = mappedBlendshapes[ bsarray[t] ].times;
-                const values = mappedBlendshapes[ bsarray[t] ].values;
-                
-                let timeIdx = timeIndices[t];
-                while( currTime >= times[timeIdx] && timeIdx < (times.length-1) ){
-                    timeIdx++;
-                }
-                areAllLastTime &= timeIdx == (times.length-1);
-                nextTime = Math.max( currTime, times[timeIdx]);
-
-                timeIndices[t] = timeIdx;
-
-                let f = timeIdx == 0 ? 1 : ( (currTime-times[timeIdx-1]) / (times[timeIdx]-times[timeIdx-1]) );
-                let v = timeIdx == 0 ? values[timeIdx] : (values[timeIdx]*f + values[timeIdx-1] * (1-f));
-
-                bsoutput.data[t][0] = v;
-            }
-
-            // infer AU values from blendshape values Ax=b
-            AUvalues.push(m.mmul( bsoutput ));
-            AUtimes.push( currTime );
-            currTime = nextTime;
-        }
-
-
-        // build animation
-        let resultTracks = [];
-		for( let i = 0; i < mappedAUsKeys.length; ++i ){
-			let values = new Float32Array(AUtimes.length);
-
-			for( let t = 0;  t < AUtimes.length; ++t){
-				values[t] = AUvalues[t].data[i][0];
-			}
-
-			const tr = new THREE.NumberKeyframeTrack( mappedAUsKeys[i], AUtimes.slice(), values)
-			resultTracks.push(tr);
-		}
-
-        return new THREE.AnimationClip( "auAnimation", -1, resultTracks); // duration == -1 so it is automatically computed from the array of tracks
-    }
-
 
     /** Validate face animation clip ( tracks names = "bs" )
      * THREEJS AnimationClips CANNOT have tracks with 0 entries

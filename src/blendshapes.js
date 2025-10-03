@@ -329,11 +329,13 @@ class BlendshapesManager {
         let auAnimation = new THREE.AnimationClip( name ?? "auAnimation", length, auTracks);
         return auAnimation;
     }
-
+ 
     /**
      * Creates ThreeJS animationClip with morphTargetInfluences ( "mesh.morphTargetInfluences[bs]" ) for all mapped meshes, from action units ( "au" ) 
-     * Assumes all input tracks are AU and have the same amount of keyframes, each in the same timestamp
-     */ 
+     * WARNING !! Assumes all input tracks are AU and have the SAME amount of keyframes, each in the SAME TIMESTAMP
+     * @param {ThreeJs AnimationClip} animation action unit ("au")
+     * @returns {ThreeJs AnimationClip} morph target animation ("mesh.morphTargetInfluences[bs]")
+     */
     createMorphTargetsAnimationFromAU ( animation ) {
 
         const bsTracks = [];
@@ -342,6 +344,8 @@ class BlendshapesManager {
             const track = animation.tracks[i];
             for(let mesh in this.skinnedMeshes){
                 let bs = this.mapNames.characterMap[track.id ?? track.name];
+                if ( !bs ){ continue; }
+
                 for(let i = 0; i < bs.length; i++) {
                     
                     const mtIdx = this.morphTargetDictionary[mesh][bs[i][0]];
@@ -366,6 +370,13 @@ class BlendshapesManager {
         return bsAnimation;
     }
 
+     /**
+     * Creates ThreeJS animationClip with blendshapes ( "bs" ) from morph target ("mesh.morphTargetInfluences[bs]") 
+     * WRNING !! If several meshes contain the same MT, the first instance will be used
+     * NOTE: Blendshape tracks will contain a data attribute mapping each blendshape to the source MT tracks
+     * @param {ThreeJs AnimationClip} animation morph target animation ("mesh.morphTargetInfluences[bs]")
+     * @returns {ThreeJs AnimationClip} blendshape animation ("bs"). All tracks have an additional "data" attribute with { skinnedMeshes, tracksIds }, mapping to the meshes names and the track idx inside the source morphTarget animation
+     */
     createBlendshapesAnimationFromMorphTargets( animation ) {
 
         const tracks = [];
@@ -375,7 +386,6 @@ class BlendshapesManager {
             const track = animation.tracks[i];
             
            const { propertyIndex, nodeName } = THREE.PropertyBinding.parseTrackName( track.name );
-           const newTrack = new THREE.NumberKeyframeTrack( propertyIndex, track.times.slice(), track.values.slice());
            
            if(allMorphTargetDictionary[propertyIndex]) {
                allMorphTargetDictionary[propertyIndex].skinnedMeshes.push(nodeName);
@@ -384,9 +394,10 @@ class BlendshapesManager {
             }
             else {
                 allMorphTargetDictionary[propertyIndex] = { skinnedMeshes: [nodeName], tracksIds: [i] };
+                const newTrack = new THREE.NumberKeyframeTrack( propertyIndex, track.times.slice(), track.values.slice());
                 newTrack.data = allMorphTargetDictionary[propertyIndex];
+                tracks.push(newTrack);
             }
-            tracks.push(newTrack);
         }
         
         let bsAnimation = new THREE.AnimationClip( "bsAnimation", animation.duration ?? -1, tracks);
@@ -395,7 +406,9 @@ class BlendshapesManager {
 
     /**
      * Creates ThreeJS animationClip with blendshapes ( "bs" ) from action units ( "au" ). No meshes involved 
-     * Assumes all input tracks are AU and have the same amount of keyframes, each in the same timestamp
+     * WARNING !! Assumes all input tracks are AU and have the SAME amount of keyframes, each in the SAME TIMESTAMP
+     * @param {ThreeJs AnimationClip} auAnimation Action Unit animation ("au") 
+     * @returns {ThreeJs AnimationClip} blendshape animation ("bs")
      */
     createBlendshapesAnimationFromAU ( auAnimation ) {
 
@@ -405,6 +418,8 @@ class BlendshapesManager {
             const track = auAnimation.tracks[i];
             
             let bs = this.mapNames.characterMap[track.id ?? track.name];
+            if( !bs ){ continue;}
+
             for(let i = 0; i < bs.length; i++) {
                 const trackName = bs[i][0];
 
@@ -429,6 +444,9 @@ class BlendshapesManager {
     /**
      * Creates ThreeJS animationClip with morphTargetInfluences ( "mesh.morphTargetInfluences[bs]" ) for all mapped meshes, from a blendshape animation ( "bs" )
      * Assumes all input tracks are AU and have the same amount of keyframes, each in the same timestamp
+     *
+     * @param {ThreeJs AnimationClip} animation blendshape animation ("bs") 
+     * @returns {ThreeJs AnimationClip} morph target animation ("mesh.morphTargetInfluences[bs]")
      */ 
     createMorphTargetsAnimationFromBlendshapes ( animation ) {
 
@@ -448,7 +466,214 @@ class BlendshapesManager {
         return bsAnimation;
     }
 
+    /**
+     * Merge tracksToReplace tracks into targetAnimation. 
+     * Matching blendshapes will be replaced by tracksToReplace
+     * Unmatched blendshapes will be added to the animation
+     *  
+     * @param {ThreeJs AnimationClip} targetBsAnimation blendshapes animation "bs" 
+     * @param {ThreeJs AnimationClip} tracksToReplace blendshapes ("bs") or morph targets ("mesh.morphTargetInfluences[bs]") animation
+     * @param {object or null} options 
+     *      - options.parseAsThreejsNamesNewTracks: whether to parse new tracks' name (MT) or not (BS). Default false
+     *      - options.duplicateTracksToReplace: whether to duplicate arrays when replacing (or adding). Default true
+     * @returns 
+     */
+    mergeTracksToBlendshapeToAnimation( targetBsAnimation, tracksToReplace, options = {} ){
+        const parseAsThreejsNamesNewTracks = options.parseAsThreejsNamesNewTracks ?? false;
+        const duplicate = options.duplicateTracksToReplace ?? true;
+
+        let mappedBlendshapes = {};
+        const newTracks = tracksToReplace.tracks;
+        const targTracks = targetBsAnimation.tracks;
+        const numTargTracks = targTracks.length; // original size, before any track push. Used to avoid checking pushed tracks
+        for( let i = 0; i < newTracks.length; ++i){
+            let blendshapeName = newTracks[i].name ?? newTracks[i].id;
+            if ( parseAsThreejsNamesNewTracks ){
+                blendshapeName = THREE.PropertyBinding.parseTrackName( blendshapeName ).propertyIndex;
+            }
+
+            // check if already done
+            if ( mappedBlendshapes[blendshapeName] ){
+                continue;
+            }
+
+            // check new tracks' blendshape exists in character 
+            for ( let mesh in this.morphTargets ){
+                if ( this.morphTargets[mesh][blendshapeName] == undefined ){ // track blendshape exists in the target character
+                    blendshapeName = null;
+                    break;
+                }
+            }
+            if ( !blendshapeName ){ 
+                continue; 
+            }
+
+            // find new blendshape in targetAnimations and replace arrays. Otherwise, create a new track
+            const times = duplicate ? newTracks[i].times.slice() : newTracks[i].times;
+            const values = duplicate ? newTracks[i].values.slice() : newTracks[i].values;
+
+            let t = 0;
+            for( t = 0; t < numTargTracks; ++t ){
+                if ( (targTracks[t].name ?? targTracks[t].id) == blendshapeName ){
+                    targTracks[t].times = times;
+                    targTracks[t].values = values;
+                    break;
+                }
+            }
+            if ( t == targTracks.length ){ // no match was found. Simply add it to the animation
+                targTracks.push( new THREE.NumberKeyframeTrack( blendshapeName, times, values ) );
+            }
+
+            mappedBlendshapes[blendshapeName] = targTracks[t];
+        }
+
+        return;
+    }
+
+
+    /* 
+    */
+   
+    /**
+      * Creates a ThreeJs.AnimationClip with AUs from blendshapes/morph targets. 
+      * NOTE: The resulting tracks of the AU animation will have the same timestamps (each with their values) 
+      * @param {ThreeJs AnimationClip} faceAnimation clip where tracks are of blendshapes ("bs") or morph targets ("mesh.morphTargetInfluences[bs]")
+      * @param {Object} sourceMapping maps AU to blendshapes and their factors:  "AU" : [ ["bs1", 0.4], ["bs2", 0.1] ]
+      * @param {Boolean} parseTrackNamesAsThreejs whether to parse track names or not
+      * @returns 
+      */
+    static createAUAnimationFromBlendshapes( faceAnimation, sourceMapping, parseTrackNamesAsThreejs = true ){
+
+        const tracks = faceAnimation.tracks;
+
+        // get all blendshapes from animation. For a given blendshape, all meshes will follow the first track encountered. 
+        let animBlendshapes = {};
+        for( let i = 0; i < tracks.length; ++i){
+            let blendshapeName = tracks[i].name ?? tracks[i].id;
+            if ( parseTrackNamesAsThreejs ){
+                blendshapeName = THREE.PropertyBinding.parseTrackName( blendshapeName ).propertyIndex;
+            }
+
+            if ( !animBlendshapes[blendshapeName] && tracks[i].times.length ){
+                animBlendshapes[blendshapeName] = tracks[i];
+            }
+        }
+
+
+        // match blendshapes from animation to the action units of the mapping. Not all blendshapes from an AU might exist
+        let bsarray = []; // array of names of blendsapes that need to be taken into account for AU computations.
+        let svdMappedAUs = []; // which action units need to be taken into account.
+        for ( let actionUnit in sourceMapping ) {
+            const mappedMorphs = sourceMapping[actionUnit];
+            
+            let mapped = false;
+            for(let j = 0; j < mappedMorphs.length; j++) {
+                const bsName = mappedMorphs[j][0];
+                if (!animBlendshapes[bsName]){ // blendshape from AU does not exist in the animation
+                    continue;
+                }
+                mapped = true;
+
+                let idx = bsarray.indexOf( bsName ); // add blendshape to list only if it has not been added before
+                if ( idx == -1 ){ 
+                    bsarray.push( bsName );
+                }
+            }
+
+            if ( mapped ){ // at least 1 blendshape was added 
+                svdMappedAUs.push( actionUnit ); 
+            }
+        }
+
+        /* Now we need to solve the Ax=b problem.
+            A = [rows, cols] = [blendshapesMapped, AUs]
+            x = AU weights
+            b = blendshape weights
+           SVD will be used to invert A.
+        */
+
+        // prepare matrix
+        let matrix = [];
+        // for each action unit mapped
+        for ( let i = 0; i < svdMappedAUs.length; ++i ) {
+            let arr = new Float32Array(bsarray.length);
+            arr.fill( 0 );
+
+            // for each blendshape in AU, set its factor
+            const auBlendshapes = sourceMapping[ svdMappedAUs[i] ];
+            for(let j = 0; j < auBlendshapes.length; j++) {
+                let idx = bsarray.indexOf( auBlendshapes[j][0] );
+                if (idx != -1){ arr[idx] = auBlendshapes[j][1]; }
+            }
+
+            matrix.push( arr );
+        }
+
+        // ml-matrix library
+        // https://mljs.github.io/matrix/classes/Matrix.html#set
+        // https://stackoverflow.com/questions/57175722/is-there-a-javascript-equivalent-to-numpy-linalg-pinv
+
+        let m = new mlMatrix.Matrix( matrix ); // memory layout assumes array of ROWs
+        m = m.transpose(); // transform to columns
+        m = mlMatrix.inverse(m, true); // svd inverse
+
+        let timeIndices = bsarray.slice();
+        timeIndices.fill(0);
+        
+        let AUtimes = [];
+        let AUvalues = [];
+
+        let areAllLastTime = false;
+        let currTime = 0;
+
+        let bsoutput = new mlMatrix.Matrix( bsarray.length, 1 ); // column vector
+        while( !areAllLastTime ){
+            areAllLastTime = true;
+
+            let nextTime = currTime;
+            for( let t = 0; t < timeIndices.length; t++ ){
+                const times = animBlendshapes[ bsarray[t] ].times;
+                const values = animBlendshapes[ bsarray[t] ].values;
+                
+                let timeIdx = timeIndices[t];
+                while( currTime >= times[timeIdx] && timeIdx < (times.length-1) ){
+                    timeIdx++;
+                }
+                areAllLastTime &= timeIdx == (times.length-1);
+                nextTime = Math.max( currTime, times[timeIdx]);
+
+                timeIndices[t] = timeIdx;
+
+                let f = timeIdx == 0 ? 1 : ( (currTime-times[timeIdx-1]) / (times[timeIdx]-times[timeIdx-1]) );
+                let v = timeIdx == 0 ? values[timeIdx] : (values[timeIdx]*f + values[timeIdx-1] * (1-f));
+
+                bsoutput.data[t][0] = v;
+            }
+
+            // infer AU values from blendshape values Ax=b
+            AUvalues.push(m.mmul( bsoutput ));
+            AUtimes.push( currTime );
+            currTime = nextTime;
+        }
+
+        // build animation
+        let resultTracks = [];
+		for( let i = 0; i < svdMappedAUs.length; ++i ){
+			let values = new Float32Array(AUtimes.length);
+
+			for( let t = 0;  t < AUtimes.length; ++t){
+				values[t] = AUvalues[t].data[i][0];
+			}
+
+			const tr = new THREE.NumberKeyframeTrack( svdMappedAUs[i], AUtimes.slice(), values);
+			resultTracks.push(tr);
+		}
+
+        return new THREE.AnimationClip( "auAnimation", -1, resultTracks); // duration == -1 so it is automatically computed from the array of tracks
+    }
 }
+
+
 
 BlendshapesManager.faceAreas =  [
     "Nose", 
