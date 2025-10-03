@@ -585,6 +585,10 @@ class BlendshapesManager {
             }
         }
 
+        if ( bsarray.length == 0 && svdMappedAUs.length == 0 ){
+            return null;
+        }
+
         /* Now we need to solve the Ax=b problem.
             A = [rows, cols] = [blendshapesMapped, AUs]
             x = AU weights

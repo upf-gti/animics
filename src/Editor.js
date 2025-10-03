@@ -2557,9 +2557,21 @@ class KeyframeEditor extends Editor {
                 bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
             }
             else {
-                // TODO check different au mappings
                 // TODO allow to do only blendshape-match, only au or both 
-                auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, MapNames.Eva, true );
+                auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, this.currentCharacter.blendshapesManager.mapNames.characterMap, true );
+                if ( !auAnimation ){
+                    for( let avatarName in this.loadedCharacters ){
+                        const mapping = this.loadedCharacters[avatarName].blendshapesManager.mapNames.characterMap;
+                        auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, mapping, true );
+                        if ( !auAnimation ){
+                            break;
+                        }    
+                    }
+                }
+                if ( !auAnimation ){
+                    auAnimation = new THREE.AnimationClip( "aus", 0, [] );
+                }
+                
                 bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
 
                 this.currentCharacter.blendshapesManager.mergeTracksToBlendshapeToAnimation( bsAnimation, faceAnimation, { parseAsThreejsNamesNewTracks: true, duplicateTracksToReplace: true } );
