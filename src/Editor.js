@@ -460,13 +460,11 @@ class Editor {
   
         for(let anim in this.boundAnimations) {
             if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
-                const characters = Object.keys(this.boundAnimations[anim]);
-                const animation = this.boundAnimations[anim][characters[0]];
+                this.setGlobalAnimation(anim); // create animation to avatar
             }
-            this.updateMixerAnimation( this.loadedAnimations[this.getCurrentAnimation().name].scriptAnimation );
         }
 
-        this.setGlobalAnimation(this.currentAnimation);
+        this.setGlobalAnimation(this.currentAnimation); 
         
         this.gui.createSidePanel( this.panelTabs ? this.panelTabs.selected : null );
         UTILS.hideLoading();
