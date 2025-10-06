@@ -572,9 +572,10 @@ class Gui {
             return;
         }
         const p = this.characterPanel = panel;
+        this.characterPanel.root.classList.add("showScrollBar");
 
         p.clear();
-        p.branch('Characters');
+        // p.branch('Characters');
 
         // p.addButton( "Upload yours", "Upload Character", (v) => {
         //     this.uploadCharacter((value, config) => {
@@ -609,13 +610,13 @@ class Gui {
         //     });
         // } ,{ nameWidth: "100px", icon: "CloudUpload" } );        
       
-        p.addSeparator();
+        // p.addSeparator();
 
 
         // p.sameLine();
         let characters = [];
-        const _makeProjectOptionItem = ( icon, outerText, id, parent, selected = false ) => {
-            const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, parent );
+        const _makeProjectOptionItem = ( icon, outerText, id, selected = false ) => {
+            const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, null );
             const card = LX.makeContainer( ["200px", "auto"], `flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button card-color`, `
                <img src="${icon}" height="120px">
             `, item );
@@ -623,7 +624,7 @@ class Gui {
             let button = null;
             if(selected) {
                 button = new LX.Button(null, "Edit Character", (e) => {
-                    this.createEditCharacterDialog(item.id);
+                    this.createEditCharacterDialog();
                 } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px", buttonClass: "bg-secondary"} );
             }
             const flexContainer = LX.makeContainer( ["auto", "auto"], "flex items-center", `<p>${ outerText }</p>`, item );
@@ -632,18 +633,30 @@ class Gui {
             }
             item.id = id;
             
-            card.addEventListener("click", (e) => {               
-                this.editor.changeCharacter(item.id);
+            card.addEventListener("click", async (e) => {
+                if ( item.id != this.editor.currentCharacter.name ){
+                    this.editor.changeCharacter(item.id);
+                }
             });
 
+            return item;
         };
+        
         const characterContainer = LX.makeContainer( ["100%", "auto"], "grid gap-2", "" );
         characterContainer.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
+        p.root.appendChild(characterContainer);
+
         for(let character in this.editor.characterOptions) {
-            _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL, character, character, characterContainer, character == this.editor.currentCharacter.model.name);
+            const isSelected = character == this.editor.currentCharacter.model.name;
+            const container = _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL, character, character, isSelected);
            
             characters.push({ value: character, src: this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL});
-            p.root.appendChild(characterContainer);
+            characterContainer.appendChild( container );
+
+            if ( isSelected ){
+                setTimeout(container.scrollIntoView.bind(container), 1);
+                this.characterPanel.selectedCard = container;
+            }
         }
     }
 
@@ -902,47 +915,61 @@ class Gui {
         return name;
     }
 
-    createEditCharacterDialog() {
-        let name = this.editor.currentCharacter.model.name;
-        this.editCharacter(name, {
-            callback: (newName, rotation, config) => {
-                if(name != newName) {
-                    this.editor.characterOptions[newName] = [ this.editor.characterOptions[name][0], this.editor.characterOptions[name][1], this.editor.characterOptions[name][2], this.editor.characterOptions[name][3]]
-                    delete this.editor.characterOptions[name];
-                    name = newName;
-                    this.editor.currentCharacter.model.name = name;
-                    this.refresh();
-                }
-                this.editor.characterOptions[name][2] = rotation;
-                
-                const modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), rotation ); 
-                this.editor.currentCharacter.model.quaternion.premultiply( modelRotation );
-                if(this.editor.currentCharacter.config && this.editor.currentCharacter.config == config) {
-                    return;
-                }
-                this.editor.currentCharacter.config = config;
-                if(config) {
-                    this.editor.characterOptions[name][1] = config._filename;
-                    this.editor.updateCharacter(config);  
-                }
+    editCharacter( name, newName, newRotation = null, newConfig = null ){
+        if ( newRotation != null ){ // newRotation is a number
+            const offsetModelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), newRotation - (this.editor.characterOptions[name][2] ?? 0) );
+            this.editor.characterOptions[name][2] = newRotation;
+            this.editor.currentCharacter.model.quaternion.premultiply( offsetModelRotation );
+        }
 
-            }, 
-            name, modelFilePath: this.editor.characterOptions[name][0], modelConfigPath: this.editor.characterOptions[name][1]
-        });
+        if (newConfig){
+            if(this.editor.currentCharacter.config && this.editor.currentCharacter.config != newConfig) {
+                this.editor.currentCharacter.config = newConfig;
+                this.editor.characterOptions[name][1] = newConfig._filename;
+                this.editor.updateCharacter(newConfig);  
+            }
+        }
+
+        if(name != newName) {
+            this.editor.characterOptions[newName] = this.editor.characterOptions[name];
+            delete this.editor.characterOptions[name];
+
+            for( let animationName in this.editor.boundAnimations ){
+                if ( this.editor.boundAnimations[animationName][name] ){
+                    this.editor.boundAnimations[animationName][newName] = this.editor.boundAnimations[animationName][name];
+                    delete this.editor.boundAnimations[animationName][name];
+                }
+            }
+
+            if ( this.editor.loadedCharacters[name] ){
+                const character = this.editor.loadedCharacters[name];
+                character.name = newName;
+                character.model.name = newName;
+                this.editor.loadedCharacters[newName] = this.editor.loadedCharacters[name];
+                delete this.editor.loadedCharacters[name]; 
+            }
+
+            this.createCharactersPanel( this.characterPanel );
+        }
     }
 
-    editCharacter(name, options = {}) {
-        const data = this.editor.currentCharacter;
-        const callback = options.callback;
+    createEditCharacterDialog(name) {
+
+        if ( this.characterDialog ){ 
+            this.characterDialog.close();
+        }
+        const data = name ? this.editor.loadedCharacters[name] : this.editor.currentCharacter;
+
+        name = data.name;
         let config = data.config;
-        let rotation = 0;
+        let rotation = this.editor.characterOptions[name][2];
         
         let fromFile = !config ?? false;
         this.characterDialog = new LX.Dialog("Edit Character", panel => {
           
             panel.refresh = () => {
                 panel.clear();                
-                let nameWidget = panel.addText("Name Your Character", name, (v, e) => {
+                panel.addText("Name Your Character", name, (v, e) => {
                     if (data.name != v && this.editor.characterOptions[v]) { 
                         LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]});
                         return;
@@ -1034,51 +1061,38 @@ class Gui {
                 , {selected: fromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});
                 panel.endLine();
 
-                // panel.addNumber("Apply Rotation", 0, (v) => {
-                //     rotation = v * Math.PI / 180;
-                // }, { min: -180, max: 180, step: 1 } );
-                
                 panel.sameLine(2);
                 panel.addButton(null, (config ? "Edit": "Create") + " Config File", () => {
                     this.editor.openAtelier(name, this.editor.characterOptions[name][0], data.config == config ? data.rawConfig : config, false, rotation);                                       
-                })
+                }, { width: "50%" });
                 panel.addButton(null, "Update", () => {
                     if (name) {
                     
                         if (config) {
                             // this.editor.characterOptions[name][1] = config._filename;
                             // this.editor.characterOptions[name][2] = rotation;
-                            
-                            panel.clear();
-                            this.characterDialog.root.remove();
-                            if (callback) callback(name, rotation, config);
+                            this.editCharacter(data.name, name, rotation, config);
                         }
                         else {
                             LX.prompt("Uploading without config file will disable BML animations for this character. Do you want to proceed?", "Warning!", (result) => {
                                 // this.editor.characterOptions[name][2] = rotation;
-                                panel.clear();
-                                this.characterDialog.root.remove();
-                                if (callback) callback(name, rotation);
+                                this.editCharacter(data.name, name, rotation);
                             }, {input: false, on_cancel: () => {}});
                             
                         }
                         this.characterDialog.close();
+                        this.characterDialog = null;
                     }
                     else {
                         LX.popup("Complete all fields!", null, { position: ["45%", "20%"]});
                     }
-                });
-
-                // panel.root.addEventListener("drop", (v, e) => {
-
-                //     let files = v.dataTransfer.files;
-                //     this.onDropCharacterFiles(files);
-                // })
-            
+                }, { width: "50%" });            
             }
             panel.refresh();
 
-        }, { size: ["40%"], closable: true });
+        }, { size: ["40%"], closable: true, onBeforeClose: (dialog)=>{
+            this.characterDialog = null;
+        } });
 
         return name;
     }
@@ -2103,7 +2117,7 @@ class KeyframesGui extends Gui {
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
-    createSidePanel() {
+    createSidePanel( selectedTab = null ) {
         // remove signals to avoid memory leaks
         for( let i = 0; i < this.sidePanelSpecialSignals.length; ++i ){
             delete LX.signals[ this.sidePanelSpecialSignals[i] ];
@@ -2120,13 +2134,15 @@ class KeyframesGui extends Gui {
             this.panelTabs.root.remove();
         }
 
+        const defaultTabSelected = selectedTab ? selectedTab : "Animation";
+
         // Animation & Character tabs
         const panelTabs = this.panelTabs = this.sidePanelArea.addTabs({fit: true});
 
         // Animation tab content
         const animationArea = new LX.Area({id: 'Animation'});
         const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {}});
+        panelTabs.add( "Animation", animationArea, {selected: defaultTabSelected == "Animation", onSelect: (e,v) => {}});
 
         this.animationPanel = animSide.addPanel({id: "animation", icon: "PersonStanding"});
         this.updateAnimationPanel( );
@@ -2136,7 +2152,12 @@ class KeyframesGui extends Gui {
         const characterPanel = characterArea.addPanel();
         this.createCharactersPanel( characterPanel ) ;
         
-        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {}});
+        panelTabs.add( "Character", characterArea, {selected: defaultTabSelected == "Character", onSelect: (e,v) => {
+            if ( this.characterPanel && this.characterPanel.selectedCard ){
+                const el = this.characterPanel.selectedCard;
+                setTimeout(el.scrollIntoView.bind(el), 1);
+            }
+        }});
 
 
         // SIDE PANEL FOR GLOBAL TIMELINE
@@ -3140,7 +3161,7 @@ class KeyframesGui extends Gui {
                 }
 
                 this.editor.setTimeline( this.editor.animationModes.GLOBAL );
-                dialog.close() ;
+                dialog.close();
             }, { title: "Insert as clips into the current global animation", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
             p.addButton("Animation", toInsert.length == 1 ? "Add as a new global animation" : "Add as new global animations", (v, e) => { 
@@ -3152,7 +3173,7 @@ class KeyframesGui extends Gui {
                 if ( lastGlobalAnimation ){
                     this.editor.setGlobalAnimation( lastGlobalAnimation.id );
                 }
-                dialog.close() ;
+                dialog.close();
             }, { title: "Insert as new global animations", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
 
@@ -3459,7 +3480,7 @@ class KeyframesGui extends Gui {
        
         }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
-            onBeforeClose: ( dilog ) => {
+            onBeforeClose: ( dialog ) => {
 
                 if ( this.assetViewer ){
                     this.assetViewer.clear(); // clear signals
@@ -4191,7 +4212,7 @@ class ScriptGui extends Gui {
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
-    createSidePanel() {
+    createSidePanel( selectedTab = null ) {
         // remove signals to avoid memory leaks
         for( let i = 0; i < this.sidePanelSpecialSignals.length; ++i ){
             delete LX.signals[ this.sidePanelSpecialSignals[i] ];
@@ -4203,10 +4224,12 @@ class ScriptGui extends Gui {
             this.sidePanelArea.root.children[0].remove();
         }
         this.sidePanelArea.sections = [];
-
+        
         if(this.panelTabs) {
             this.panelTabs.root.remove();
         }
+
+        const defaultTabSelected = selectedTab ? selectedTab : "Animation";
 
         // Animation & Character tabs
         const panelTabs = this.panelTabs = this.sidePanelArea.addTabs({fit: true});
@@ -4214,9 +4237,7 @@ class ScriptGui extends Gui {
         // Animation tab content
         const animationArea = new LX.Area({id: 'Animation'});
         const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {
-            
-        }});
+        panelTabs.add( "Animation", animationArea, {selected: defaultTabSelected == "Animation", onSelect: (e,v) => {}});
 
         this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
         animSide.attach(this.animationPanel);
@@ -4231,7 +4252,7 @@ class ScriptGui extends Gui {
         const characterPanel = characterArea.addPanel();
         this.createCharactersPanel( characterPanel ) ;
         
-        panelTabs.add( "Character", characterArea, {selected: false });
+        panelTabs.add( "Character", characterArea, {selected:  defaultTabSelected == "Character" });
     }
 
     updateAnimationPanel( options = {}) {

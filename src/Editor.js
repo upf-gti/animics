@@ -457,20 +457,18 @@ class Editor {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);            
             this.setBoneSize(0.12);
         }
-        this.gui.createCharactersPanel();
-        // this.gui.setKeyframeClip(null);
-        // this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
-        
+  
         for(let anim in this.boundAnimations) {
             if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
                 const characters = Object.keys(this.boundAnimations[anim]);
                 const animation = this.boundAnimations[anim][characters[0]];
-                this.setGlobalAnimation(anim);
             }
             this.updateMixerAnimation( this.loadedAnimations[this.getCurrentAnimation().name].scriptAnimation );
         }
+
+        this.setGlobalAnimation(this.currentAnimation);
         
-        this.gui.createSidePanel();
+        this.gui.createSidePanel( this.panelTabs ? this.panelTabs.selected : null );
         UTILS.hideLoading();
     }
 
@@ -1576,10 +1574,17 @@ class KeyframeEditor extends Editor {
                 this.boundAnimations[anim][characterName] = newAnimation;
 
             }
-            this.gui.createCharactersPanel();
-            this.setGlobalAnimation(anim);
         }
-        this.gui.createSidePanel();
+
+        if(this.currentAnimation){
+            const tab = this.gui.panelTabs ? this.gui.panelTabs.selected : null;
+            this.setGlobalAnimation(this.currentAnimation);
+            if ( tab ){
+                this.gui.createSidePanel( tab );
+            }
+        }else{
+            this.gui.createSidePanel( this.gui.panelTabs ? this.gui.panelTabs.selected : null );
+        }
         UTILS.hideLoading();
     }
 
@@ -2563,7 +2568,7 @@ class KeyframeEditor extends Editor {
                     for( let avatarName in this.loadedCharacters ){
                         const mapping = this.loadedCharacters[avatarName].blendshapesManager.mapNames.characterMap;
                         auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, mapping, true );
-                        if ( !auAnimation ){
+                        if ( auAnimation ){
                             break;
                         }    
                     }
@@ -2877,7 +2882,6 @@ class KeyframeEditor extends Editor {
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
                 this.activeTimeline = this.gui.skeletonTimeline;
-                // this.gui.createSidePanel();          
                 this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
@@ -2894,7 +2898,6 @@ class KeyframeEditor extends Editor {
                 this.startTimeOffset = 0;
                 this.currentKeyFrameClip = null;
                 this.activeTimeline = this.gui.globalTimeline;
-                // this.gui.createSidePanel();
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
                 }
