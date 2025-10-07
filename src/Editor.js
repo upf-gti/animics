@@ -1278,6 +1278,12 @@ class Editor {
  */
 class KeyframeEditor extends Editor { 
     
+    // import animations. Flags
+    static IMPORTSETTINGS_FACENONE = 0x00; // No mapping of face
+    static IMPORTSETTINGS_FACEBS = 0x01; // Only blendshapes (if found)
+    static IMPORTSETTINGS_FACEAU = 0x02; // Only action units (if found)
+    static IMPORTSETTINGS_FACEBSAU = 0x03; // Blendshapes and Action Units
+
     constructor( animics ) {
                 
         super(animics);
@@ -1522,55 +1528,9 @@ class KeyframeEditor extends Editor {
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
         
         for(let anim in this.boundAnimations) {
-            if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
+            if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {                
                 const characters = Object.keys(this.boundAnimations[anim]);
-                const animation = this.boundAnimations[anim][characters[0]];
-                
-                const newAnimation = Object.assign({}, animation);
-                const tracks = [];
-                
-                for(let i = 0; i < animation.tracks.length; i++) {
-                    const srcTrack = animation.tracks[i];
-                    const clips = [];
-                    for( let j = 0; j < srcTrack.clips.length; j++) {
-                        const srcClip = srcTrack.clips[j];
-                        const newClip = Object.assign({}, srcClip);
-                        newClip.uid = this.generateClipUniqueID();
-
-						// Retarget body animation
-                        if(srcClip.mixerBodyAnimation) {
-                            newClip.mixerBodyAnimation = this.retargetAnimation(this.loadedCharacters[characters[0]].skeletonHelper.skeleton, srcClip.mixerBodyAnimation); // from sourceSkeleton to this.currentCharacter
-                            this.validateBodyAnimationClip(newClip.mixerBodyAnimation);
-                            newClip.mixerBodyAnimation.duration = srcClip.skeletonAnimation.duration;
-                            // Set keyframe animation to the timeline and get the timeline-formated one
-                            newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
-                            newClip.skeletonAnimation.name = "bodyAnimation";
-                        }
-
-                        // Retarget face animation
-                        if(srcClip.bsAnimation) {
-                            let auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( srcClip.bsAnimation, this.loadedCharacters[characters[0]].blendshapesManager.mapNames.characterMap, false );
-                            let bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
-                            this.currentCharacter.blendshapesManager.mergeTracksToBlendshapeToAnimation( bsAnimation, srcClip.bsAnimation, { parseAsThreejsNamesNewTracks: false, duplicateTracksToReplace: true } );
-                            
-                            this.validateBlendshapeAnimationClip( bsAnimation );
-                            newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createMorphTargetsAnimationFromBlendshapes( bsAnimation );
-                            bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromMorphTargets( newClip.mixerFaceAnimation ); // this also links blendshape tracks with the morphtargets tracks, necessary for updateMixer                
-                            newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation );
-                            
-                            newClip.bsAnimation.duration = newClip.mixerFaceAnimation.duration = srcClip.bsAnimation.duration;
-                            newClip.bsAnimation.name = "faceAnimation";
-                            newClip.mixerFaceAnimation.name = "faceAnimation";
-                        }
-                        clips.push(newClip);
-                    }
-                    const newTrack = Object.assign({}, srcTrack);
-                    newTrack.clips = clips;
-                    tracks.push(newTrack);
-                }
-                newAnimation.tracks = tracks;
-                this.boundAnimations[anim][characterName] = newAnimation;
-
+                this.boundAnimations[anim][characterName] = this.retargetGlobalAnimationFromAvatar( anim, characters[0] );
             }
         }
 
@@ -1584,6 +1544,72 @@ class KeyframeEditor extends Editor {
             this.gui.createSidePanel( this.gui.panelTabs ? this.gui.panelTabs.selected : null );
         }
         UTILS.hideLoading();
+    }
+
+    retargetGlobalAnimationFromAvatar( animationName, avatarName, options = {} ){
+        if ( !this.boundAnimations[animationName] || !this.boundAnimations[animationName][avatarName] ){
+            return null;
+        }
+
+        const srcAvatar = this.loadedCharacters[avatarName];
+        const srcAnimation = this.boundAnimations[animationName][avatarName];
+        
+        const newAnimation = Object.assign({}, srcAnimation);
+        const tracks = [];
+        
+        for(let i = 0; i < srcAnimation.tracks.length; i++) {
+            const srcTrack = srcAnimation.tracks[i];
+            const clips = [];
+            for( let j = 0; j < srcTrack.clips.length; j++) {
+                const srcClip = srcTrack.clips[j];
+                const newClip = Object.assign({}, srcClip);
+                newClip.uid = this.generateClipUniqueID();
+
+                // Retarget body animation
+                if(srcClip.mixerBodyAnimation) {
+                    newClip.mixerBodyAnimation = this.retargetAnimation(srcAvatar.skeletonHelper.skeleton, srcClip.mixerBodyAnimation); // from sourceSkeleton to this.currentCharacter
+                    this.validateBodyAnimationClip(newClip.mixerBodyAnimation);
+                    newClip.mixerBodyAnimation.duration = srcClip.skeletonAnimation.duration;
+                    // Set keyframe animation to the timeline and get the timeline-formated one
+                    newClip.skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( newClip.mixerBodyAnimation );                
+                    newClip.skeletonAnimation.name = "bodyAnimation";
+                }
+
+                // Retarget face animation
+                if(srcClip.bsAnimation) {
+                    
+                    const faceMapMode = options.faceMapMode ?? KeyframeEditor.IMPORTSETTINGS_FACEBSAU; // whether user wants to import BS, AU, or both
+                    
+                    let bsAnimation;
+                    if (faceMapMode & KeyframeEditor.IMPORTSETTINGS_FACEAU){ // if flag is enabled, try to match au between avatars
+                        let auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( srcClip.bsAnimation, srcAvatar.blendshapesManager.mapNames.characterMap, false );
+                        bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
+                    }else{
+                        bsAnimation = new THREE.AnimationClip( "bsAnimation", 0, [] );
+                    }
+
+                    if ( faceMapMode & KeyframeEditor.IMPORTSETTINGS_FACEBS ){ // if flag is enabled, try to match existing tracks
+                        this.currentCharacter.blendshapesManager.mergeTracksToBlendshapeToAnimation( bsAnimation, srcClip.bsAnimation, { parseAsThreejsNamesNewTracks: false, duplicateTracksToReplace: true } );
+                    }
+
+                    this.validateBlendshapeAnimationClip( bsAnimation );
+                    newClip.mixerFaceAnimation = this.currentCharacter.blendshapesManager.createMorphTargetsAnimationFromBlendshapes( bsAnimation );
+                    bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromMorphTargets( newClip.mixerFaceAnimation ); // this also links blendshape tracks with the morphtargets tracks, necessary for updateMixer                
+                    newClip.bsAnimation = this.gui.bsTimeline.instantiateAnimationClip( bsAnimation );
+                    
+                    newClip.bsAnimation.duration = newClip.mixerFaceAnimation.duration = srcClip.bsAnimation.duration;
+                    newClip.bsAnimation.name = "faceAnimation";
+                    newClip.mixerFaceAnimation.name = "faceAnimation";
+                }
+                clips.push(newClip);
+            }
+            const newTrack = Object.assign({}, srcTrack);
+            newTrack.clips = clips;
+            tracks.push(newTrack);
+        }
+        newAnimation.tracks = tracks;
+
+        return newAnimation;
     }
 
     /**
@@ -2477,8 +2503,11 @@ class KeyframeEditor extends Editor {
      * KeyframeEditor: fetches a loaded animation and applies it to the character.
      * @param {String} animationName 
      * @param {Object} targetGlobalAnimation where to add the animation. If null, the current global animation is used
+     * @param {Object} options
+     *      - faceMapMode: Whether to import blendshapes, action units, or both (or none). IMPORTSETTINGS_ enum
+     *      - auMapSrcAvatar: character with which to map AU (if enabled). When provided, only this avatar will be checked. Otherwise, avatars are check until at least 1 match is found
      */
-    bindAnimationToCharacter(animationName, targetGlobalAnimation = null) {
+    bindAnimationToCharacter(animationName, targetGlobalAnimation = null, options = {} ) {
         
         const animation = this.loadedAnimations[animationName];
         let faceAnimation = null;
@@ -2549,9 +2578,6 @@ class KeyframeEditor extends Editor {
         let bsAnimation = null;
 
         if(faceAnimation) {
-            const t1 = performance.now();
-
-
             const faceDuration = faceAnimation.duration;
             if(animation.type == "video") {
                 const parsedAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes); // Mediapipe outputs AU (although the attribute is named blendshapes)
@@ -2561,23 +2587,31 @@ class KeyframeEditor extends Editor {
             }
             else {
                 // TODO allow to do only blendshape-match, only au or both 
-                auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, this.currentCharacter.blendshapesManager.mapNames.characterMap, true );
-                if ( !auAnimation ){
-                    for( let avatarName in this.loadedCharacters ){
-                        const mapping = this.loadedCharacters[avatarName].blendshapesManager.mapNames.characterMap;
-                        auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, mapping, true );
-                        if ( auAnimation ){
-                            break;
-                        }    
+                const faceMapMode = options.faceMapMode ?? KeyframeEditor.IMPORTSETTINGS_FACEBSAU; // whether user wants to import BS, AU, or both
+
+                if (faceMapMode & KeyframeEditor.IMPORTSETTINGS_FACEAU){ // if flag is enabled, try to match au between avatars
+                    const auFaceMappingAvatar = options.auMapSrcAvatar ? options.auMapSrcAvatar : this.currentCharacter; // user forced an avatar, otherwise rely on currentCharacter
+                    auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, auFaceMappingAvatar.blendshapesManager.mapNames.characterMap, true );
+                    if ( !auAnimation && !options.auMapSrcAvatar ){ // try to find a match, if user allowed it
+                        for( let avatarName in this.loadedCharacters ){
+                            const mapping = this.loadedCharacters[avatarName].blendshapesManager.mapNames.characterMap;
+                            auAnimation = BlendshapesManager.createAUAnimationFromBlendshapes( faceAnimation, mapping, true );
+                            if ( auAnimation ){
+                                break;
+                            }    
+                        }
                     }
                 }
+
                 if ( !auAnimation ){
                     auAnimation = new THREE.AnimationClip( "aus", 0, [] );
                 }
                 
                 bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
 
-                this.currentCharacter.blendshapesManager.mergeTracksToBlendshapeToAnimation( bsAnimation, faceAnimation, { parseAsThreejsNamesNewTracks: true, duplicateTracksToReplace: true } );
+                if ( faceMapMode & KeyframeEditor.IMPORTSETTINGS_FACEBS ){ // if flag is enabled, try to match existing tracks
+                    this.currentCharacter.blendshapesManager.mergeTracksToBlendshapeToAnimation( bsAnimation, faceAnimation, { parseAsThreejsNamesNewTracks: true, duplicateTracksToReplace: true } );
+                }
             }
 
             this.validateBlendshapeAnimationClip(bsAnimation); // adds missing tracks
@@ -2588,9 +2622,6 @@ class KeyframeEditor extends Editor {
             faceAnimation.name = "faceAnimation"; // mixer
             faceAnimation.duration = faceDuration;
             bsAnimation.duration = faceDuration;
-
-            const t2 = performance.now();
-            console.log(t2-t1);
         }
         
         const boundAnimation = {

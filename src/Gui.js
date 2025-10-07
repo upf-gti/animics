@@ -646,7 +646,11 @@ class Gui {
         characterContainer.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
         p.root.appendChild(characterContainer);
 
-        for(let character in this.editor.characterOptions) {
+        const characterNames = Object.keys(this.editor.characterOptions);
+        characterNames.sort( (a,b) =>{ return (a.toLowerCase() < b.toLowerCase()) ? -1 : 1 });
+
+        for(let c = 0; c < characterNames.length; ++c) {
+            const character = characterNames[c];  
             const isSelected = character == this.editor.currentCharacter.model.name;
             const container = _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL, character, character, isSelected);
            
@@ -1157,7 +1161,8 @@ class KeyframesGui extends Gui {
                 name: "Import Animations",
                 icon: "FileInput",
                 submenu: [
-                    { name: "From Loaded Animations", icon: "ListCheck", callback: () => this.showInsertFromLoadedAnimations(), kbd: "CTRL+O" },
+                    { name: "From Characters", icon: "ListCheck", callback: () => this.showInsertFromBoundAnimations() },
+                    { name: "From Loaded Resources", icon: "ListCheck", callback: () => this.showInsertFromLoadedAnimations() },
                     { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
                     { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
                 ]
@@ -3136,12 +3141,42 @@ class KeyframesGui extends Gui {
         widgets.onRefresh();
     }
 
+
+    // flags
+    
     /**
      * 
      * @param {Array of String} toInsert name of loadedAnimations to insert 
      */
     showInsertModeAnimationDialog( toInsert = [], showDoNotInsert = true ){
         const dialog = new LX.Dialog( "How would you like to insert the imported animations?", p => {
+         
+
+            // IMPORT SETTINGS
+            let faceMapMode = KeyframeEditor.IMPORTSETTINGS_FACEBSAU;
+            let auMapSrcAvatar = null;
+
+            p.branch("Advanced Settings");
+            let charactersNames = Object.keys( this.editor.loadedCharacters );
+            charactersNames.unshift("AUTOMATIC");
+
+            p.addTextArea(null, "Choose the character that will be used to extract the Action Units from the animations. These Action Units will then be mapped to the current avatar", null, {disabled: true, fitHeight: true })
+            p.addSelect("Face Mapping Source", charactersNames, "AUTOMATIC", (v,e)=>{
+                if ( v == "AUTOMATIC" ){
+                    auMapSrcAvatar = null;
+                }else{
+                    auMapSrcAvatar = this.editor.loadedCharacters[v];
+                }
+            } );
+
+            p.addTextArea(null, "Choose whether to keep matching Blendshape tracks, convert to Action Units before mapping, or both. Matching blendshape tracks will overwrite the output from the Action Units", null, {disabled: true, fitHeight: true })
+            const faceMapping = [ "None", "Only Blendshapes", "Only Action Units", "Blendshapes and Action Units" ];
+            p.addSelect("Face Mapping Mode", faceMapping, faceMapping[faceMapMode], (v,e)=>{
+                faceMapMode = faceMapping.indexOf(v); // this will not work if there are more than 0x03 mapping types (IMPORTSETTINGS_FACE)
+            } );
+            p.merge();
+
+            // BOTTOM BUTTONS
             p.sameLine(showDoNotInsert ? 3 : 2);
             
             if( showDoNotInsert ){
@@ -3157,7 +3192,7 @@ class KeyframesGui extends Gui {
                 }
 
                 for( let i = 0; i < toInsert.length; ++i ){
-                    this.editor.bindAnimationToCharacter( toInsert[i] );
+                    this.editor.bindAnimationToCharacter( toInsert[i], null, {faceMapMode, auMapSrcAvatar} );
                 }
 
                 this.editor.setTimeline( this.editor.animationModes.GLOBAL );
@@ -3168,7 +3203,7 @@ class KeyframesGui extends Gui {
                 let lastGlobalAnimation = null;
                 for( let i = 0; i < toInsert.length; ++i ){
                     lastGlobalAnimation = this.editor.createGlobalAnimation( toInsert[i], 1 ); // find suitable name
-                    this.editor.bindAnimationToCharacter( toInsert[i], lastGlobalAnimation );
+                    this.editor.bindAnimationToCharacter( toInsert[i], lastGlobalAnimation, {faceMapMode, auMapSrcAvatar} );
                 }
                 if ( lastGlobalAnimation ){
                     this.editor.setGlobalAnimation( lastGlobalAnimation.id );
@@ -3208,6 +3243,80 @@ class KeyframesGui extends Gui {
 
     }
 
+    showInsertFromBoundAnimations(){
+        const dialog = this.prompt = new LX.Dialog( "Insert from Loaded Animations", p => {
+            const table = this.createAvailableAnimationsTable( Object.keys(this.editor.loadedCharacters) );
+            p.attach( table );
+
+
+            let faceMapMode = KeyframeEditor.IMPORTSETTINGS_FACEBSAU;
+            let auMapSrcAvatar = null;
+
+            p.branch("Advanced Settings");
+            let charactersNames = Object.keys( this.editor.loadedCharacters );
+            charactersNames.unshift("AUTOMATIC");
+
+            const faceMapping = [ "None", "Only Blendshapes", "Only Action Units", "Blendshapes and Action Units" ];
+            p.addTextArea(null, "Choose whether to keep matching Blendshape tracks, convert to Action Units before mapping, or both. Matching blendshape tracks will overwrite the output from the Action Units", null, {disabled: true, fitHeight: true })
+            p.addSelect("Face Mapping Mode", faceMapping, faceMapping[faceMapMode], (v,e)=>{
+                faceMapMode = faceMapping.indexOf(v); // this will not work if there are more than 0x03 mapping types (IMPORTSETTINGS_FACE)
+            } );
+            p.merge();
+            // TODO import settings
+
+            p.sameLine(3);
+            p.addButton("Cancel", "Cancel", () => {
+                dialog.close();
+            }, {hideName: true, width: "33.3333%"} );
+            
+            p.addButton("AsClips", "Add as clips", (v, e) => { 
+                e.stopPropagation();
+                const selectedAnimations = table.getSelectedRows();
+
+                if( !selectedAnimations.length ){
+                    return;
+                }
+
+                for( let i = 0; i < selectedAnimations.length; ++i ){
+                    const globalAnim = this.editor.retargetGlobalAnimationFromAvatar( selectedAnimations[i][0], selectedAnimations[i][1], {faceMapMode} );
+
+                    for( let t = 0; t < globalAnim.tracks.length; ++t ){
+                        this.globalTimeline.addClips( globalAnim.tracks[t].clips );
+                    }
+                }
+                dialog.close();
+            }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
+
+            p.addButton("AsGlobal", "Add as new global animations", (v, e) => { 
+                e.stopPropagation();
+                const selectedAnimations = table.getSelectedRows();
+                if( !selectedAnimations.length ){
+                    return;
+                }
+                
+                let lastId;
+                for( let i = 0; i < selectedAnimations.length; ++i ){
+                    const globalAnim = this.editor.retargetGlobalAnimationFromAvatar( selectedAnimations[i][0], selectedAnimations[i][1], {faceMapMode} );
+
+                    const resultingGlobalAnim = this.editor.createGlobalAnimation( globalAnim.id, 1 ); // find suitable name. Do not overwrite existing animations
+
+                    // resultingGlobalAnim is already in boundAnimations. Shallow copy everything from globalAnim into resultingGlobalAnim
+                    const resultingId = lastId = resultingGlobalAnim.id; // store correct id
+                    Object.assign( resultingGlobalAnim, globalAnim );
+                    resultingGlobalAnim.id = resultingId;
+                }
+
+                if( selectedAnimations.length ){
+                    this.editor.setGlobalAnimation( lastId );
+                }
+
+                dialog.close();
+            }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
+
+        }, {modal: true, size: ["50%", "auto"]});
+
+    }
+
     createLoadedAnimationsTable(){
 
         const animations = this.editor.loadedAnimations;
@@ -3239,22 +3348,33 @@ class KeyframesGui extends Gui {
         return table;
     }
 
-    createAvailableAnimationsTable(){
+    /**
+     * Creates a table with all bound animations of the specified avatars
+     * @param {Array of Strings} avatarNames avatars to take into account. If null, the currentCharacter is shown 
+     * @returns 
+     */
+    createAvailableAnimationsTable( avatarNames = null ){
 
         const animations = this.editor.boundAnimations;
-        const characterName = this.editor.currentCharacter.name;
+        if ( !avatarNames ){
+            avatarNames = [ this.editor.currentCharacter.name ];
+        }
         let availableAnimations = [];
         for ( let aName in animations ){
-            if ( !animations[aName][characterName] ){
-                continue;
+            for( let i = 0; i < avatarNames.length; ++i ){
+                
+                const characterName = avatarNames[i];
+                if ( !animations[aName][characterName] ){
+                    continue;
+                }
+                let numClips = 0;
+                animations[aName][characterName].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
+                availableAnimations.push([ aName, characterName, numClips, animations[aName][characterName].duration.toFixed(3) ]);
             }
-            let numClips = 0;
-            animations[aName][characterName].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
-            availableAnimations.push([ aName, numClips, animations[aName][characterName].duration.toFixed(3) ]);
         }
 
         let table = new LX.Table(null, {
-                head: ["Name",  "Num. Clips", "Duration (s)"],
+                head: ["Name",  "Character", "Num. Clips", "Duration (s)"],
                 body: availableAnimations
             },
             {
@@ -3262,6 +3382,9 @@ class KeyframesGui extends Gui {
                 sortable: true,
                 toggleColumns: true,
                 filter: "Name",
+                customFilters: [
+                    { name: "Character", options: Object.keys(this.editor.loadedCharacters) }
+                ],
                 // TODO add a row icon to modify the animations name
             }
         );

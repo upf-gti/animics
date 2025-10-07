@@ -497,14 +497,15 @@ class BlendshapesManager {
                 continue;
             }
 
-            // check new tracks' blendshape exists in character 
-            for ( let mesh in this.morphTargets ){
-                if ( this.morphTargets[mesh][blendshapeName] == undefined ){ // track blendshape exists in the target character
-                    blendshapeName = null;
+            // check new tracks' blendshape exists in character
+            let exists = false;
+            for ( let mesh in this.morphTargetDictionary ){
+                if ( this.morphTargetDictionary[mesh][blendshapeName] != undefined ){ // track blendshape exists in the target character
+                    exists = true;
                     break;
                 }
             }
-            if ( !blendshapeName ){ 
+            if ( !exists ){ 
                 continue; 
             }
 
@@ -520,7 +521,7 @@ class BlendshapesManager {
                     break;
                 }
             }
-            if ( t == targTracks.length ){ // no match was found. Simply add it to the animation
+            if ( t == numTargTracks ){ // no match was found. Simply add it to the animation
                 targTracks.push( new THREE.NumberKeyframeTrack( blendshapeName, times, values ) );
             }
 
