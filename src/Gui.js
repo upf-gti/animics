@@ -938,14 +938,10 @@ class Gui {
             this.editor.characterOptions[newName] = this.editor.characterOptions[name];
             delete this.editor.characterOptions[name];
 
-            for( let animationName in this.editor.boundAnimations ){
-                if ( this.editor.boundAnimations[animationName][name] ){
-                    this.editor.boundAnimations[animationName][newName] = this.editor.boundAnimations[animationName][name];
-                    delete this.editor.boundAnimations[animationName][name];
-                }
-            }
-
             if ( this.editor.loadedCharacters[name] ){
+                this.editor.boundAnimations[newName] = this.editor.boundAnimations[name];
+                delete this.editor.boundANimations[name];
+
                 const character = this.editor.loadedCharacters[name];
                 character.name = newName;
                 character.model.name = newName;
@@ -1428,7 +1424,10 @@ class KeyframesGui extends Gui {
             skipLock: true,
             onCreateBeforeTopBar: (panel) => {
                 // panel.addButton
-                panel.addSelect("Animation", Object.keys(this.editor.boundAnimations), this.editor.currentAnimation, (v)=> {
+
+                let characterAnimations = ( !this.editor.currentCharacter || !this.editor.boundAnimations[this.editor.currentCharacter.name] ) ? [] : Object.keys(this.editor.boundAnimations[this.editor.currentCharacter.name]);
+
+                panel.addSelect("Animation", characterAnimations, this.editor.currentAnimation, (v)=> {
                     this.editor.setGlobalAnimation(v); // already updates gui
                 }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
                 
@@ -2187,9 +2186,9 @@ class KeyframesGui extends Gui {
                     clip.clipColor = v;
                 });
 
-                p.addToggle("State", clip.active, (v,e) =>{
+                p.addToggle("Active", clip.active, (v,e) =>{
                     if ( !this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ){
-                        p.components["State"].set(false, true);
+                        p.components["Active"].set(false, true);
                         return;
                     }
                     if ( clip.active == v ){ return; }
@@ -3244,7 +3243,7 @@ class KeyframesGui extends Gui {
     }
 
     showInsertFromBoundAnimations(){
-        const dialog = this.prompt = new LX.Dialog( "Insert from Loaded Animations", p => {
+        const dialog = this.prompt = new LX.Dialog( "Insert from Character Animations", p => {
             const table = this.createAvailableAnimationsTable( Object.keys(this.editor.loadedCharacters) );
             p.attach( table );
 
@@ -3257,7 +3256,7 @@ class KeyframesGui extends Gui {
             charactersNames.unshift("AUTOMATIC");
 
             const faceMapping = [ "None", "Only Blendshapes", "Only Action Units", "Blendshapes and Action Units" ];
-            p.addTextArea(null, "Choose whether to keep matching Blendshape tracks, convert to Action Units before mapping, or both. Matching blendshape tracks will overwrite the output from the Action Units", null, {disabled: true, fitHeight: true })
+            p.addTextArea(null, "Choose whether to keep matching Blendshape tracks, convert to Action Units before mapping, or both.\nMatching Blendshape tracks will overwrite the output from the Action Units", null, {disabled: true, fitHeight: true })
             p.addSelect("Face Mapping Mode", faceMapping, faceMapping[faceMapMode], (v,e)=>{
                 faceMapMode = faceMapping.indexOf(v); // this will not work if there are more than 0x03 mapping types (IMPORTSETTINGS_FACE)
             } );
@@ -3360,16 +3359,17 @@ class KeyframesGui extends Gui {
             avatarNames = [ this.editor.currentCharacter.name ];
         }
         let availableAnimations = [];
-        for ( let aName in animations ){
-            for( let i = 0; i < avatarNames.length; ++i ){
-                
-                const characterName = avatarNames[i];
-                if ( !animations[aName][characterName] ){
-                    continue;
-                }
+        for( let i = 0; i < avatarNames.length; ++i ){
+            if ( !animations[ avatarNames[i] ] ){
+                continue;
+            }
+            
+            const characterName = avatarNames[i];
+
+            for ( let aName in animations[characterName] ){
                 let numClips = 0;
-                animations[aName][characterName].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
-                availableAnimations.push([ aName, characterName, numClips, animations[aName][characterName].duration.toFixed(3) ]);
+                animations[characterName][aName].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
+                availableAnimations.push([ aName, characterName, numClips, animations[characterName][aName].duration.toFixed(3) ]);
             }
         }
 

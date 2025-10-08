@@ -55,7 +55,7 @@ class Editor {
         this.startTimeOffset = 0; // global start time of sub animations, useful for keyframe mode. Script ignores it
 
         this.loadedAnimations = {}; // loaded animations from mediapipe&NN or BVH
-        this.boundAnimations = {}; // global animations for each character, containing its mixer animations
+        this.boundAnimations = {}; // global animations for each character, containing its mixer animations. { character: { anim1, anim2 } }
         this.currentAnimation = ""; // current bound animation
         this.animationFrameRate = 30;
 
@@ -306,7 +306,8 @@ class Editor {
                 let skeleton;
                 let morphTargets = {};
                 let skinnedMeshes = {};
-                this.loadedCharacters[characterName] = {}
+                this.loadedCharacters[characterName] = {};
+                this.boundAnimations[characterName] = {};
     
                 model.traverse( o => {
                     if (o.isMesh || o.isSkinnedMesh) {
@@ -458,8 +459,8 @@ class Editor {
             this.setBoneSize(0.12);
         }
   
-        for(let anim in this.boundAnimations) {
-            if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {
+        for(let anim in this.loadedAnimations) {
+            if(!this.boundAnimations[characterName][anim]) {
                 this.setGlobalAnimation(anim); // create animation to avatar
             }
         }
@@ -933,8 +934,8 @@ class Editor {
     }
 
     getCurrentBoundAnimation() {
-        const boundAnim = this.boundAnimations[this.currentAnimation]; 
-        return boundAnim ? boundAnim[this.currentCharacter.name] : null;
+        const boundAnims = this.boundAnimations[this.currentCharacter.name]; 
+        return boundAnims ? boundAnims[this.currentAnimation] : null;
     }
 
     getCurrentAnimation() {
@@ -993,7 +994,10 @@ class Editor {
 
                 for(let a in animsToExport) {
                     const animationName = animsToExport[a];
-                    const boundAnim = this.boundAnimations[animationName][this.currentCharacter.name];
+                    const boundAnim = this.boundAnimations[this.currentCharacter.name][animationName];
+                    if ( !boundAnim ){
+                        continue;
+                    }
                     
                     let tracks = []; 
                     if(boundAnim.mixerAnimation) { // script Editor
@@ -1020,8 +1024,11 @@ class Editor {
 
                 for( let a in animsToExport ) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
                     const animationName = animsToExport[a];
-                    const boundAnim = this.boundAnimations[animationName][this.currentCharacter.name];
-                                        
+                    const boundAnim = this.boundAnimations[this.currentCharacter.name][animationName];
+                    if ( !boundAnim ){
+                        continue;
+                    }
+
                     // Check if it already has extension
                     let clipName = animationName;
 
@@ -1527,32 +1534,35 @@ class KeyframeEditor extends Editor {
 
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
         
-        for(let anim in this.boundAnimations) {
-            if(this.boundAnimations[anim] && !this.boundAnimations[anim][characterName]) {                
-                const characters = Object.keys(this.boundAnimations[anim]);
-                this.boundAnimations[anim][characterName] = this.retargetGlobalAnimationFromAvatar( anim, characters[0] );
-            }
+        let avatarFirstBoundAnimation = null;
+        for(let anim in this.boundAnimations[characterName]) {
+            avatarFirstBoundAnimation = anim;
+            break;
         }
 
-        if(this.currentAnimation){
-            const tab = this.gui.panelTabs ? this.gui.panelTabs.selected : null;
-            this.setGlobalAnimation(this.currentAnimation);
-            if ( tab ){
-                this.gui.createSidePanel( tab );
-            }
+        const tab = this.gui.panelTabs ? this.gui.panelTabs.selected : null;
+        if ( !avatarFirstBoundAnimation ){
+            this.createGlobalAnimation( "New Animation" );
+            this.setGlobalAnimation( "New Animation" );
         }else{
-            this.gui.createSidePanel( this.gui.panelTabs ? this.gui.panelTabs.selected : null );
+            if(this.boundAnimations[characterName][this.currentAnimation]) {                
+                this.setGlobalAnimation( this.currentAnimation );
+            }else{
+                this.setGlobalAnimation( avatarFirstBoundAnimation );
+            }
         }
+        this.gui.createSidePanel( tab );
+
         UTILS.hideLoading();
     }
 
     retargetGlobalAnimationFromAvatar( animationName, avatarName, options = {} ){
-        if ( !this.boundAnimations[animationName] || !this.boundAnimations[animationName][avatarName] ){
+        if ( !this.boundAnimations[avatarName][animationName] ){
             return null;
         }
 
         const srcAvatar = this.loadedCharacters[avatarName];
-        const srcAnimation = this.boundAnimations[animationName][avatarName];
+        const srcAnimation = this.boundAnimations[avatarName][animationName];
         
         const newAnimation = Object.assign({}, srcAnimation);
         const tracks = [];
@@ -1608,12 +1618,13 @@ class KeyframeEditor extends Editor {
             tracks.push(newTrack);
         }
         newAnimation.tracks = tracks;
+        newAnimation.character = this.currentCharacter;
 
         return newAnimation;
     }
 
     /**
-     * 
+     * Creates an global animation for the current character
      * @param {string} name 
      * @param {int} mode
      *      -1: overwrite any existing animation with that name for the current character
@@ -1622,34 +1633,38 @@ class KeyframeEditor extends Editor {
      */
     createGlobalAnimation( name, mode = 0 ){
 
-        const characterName = this.currentCharacter.name;
+        const characterBoundAnimations = this.boundAnimations[this.currentCharacter.name];
 
         if (mode == 1){
             let count = 1;
             let countName = name;
-            while( this.boundAnimations[countName] && this.boundAnimations[countName][characterName] ){
+            while( characterBoundAnimations[countName] ){
                 countName = name + ` (${count++})`;
             }
             name = countName;
         }
         else if (mode == 0){
-            if (this.boundAnimations[name] && this.boundAnimations[name][characterName]){
+            if (characterBoundAnimations[name]){
                 return null;
             }
         }
 
-        if ( !this.boundAnimations[name] ){
-            this.boundAnimations[name] = {};
-        }
         const animationClip = this.gui.globalTimeline.instantiateAnimationClip({ id: name });
-        this.boundAnimations[name][characterName] = animationClip;
+        characterBoundAnimations[name] = animationClip;
 
         return animationClip;
     }
 
+    /**
+     * Sets the animation for the current character. If inexistent, the animation is created
+     * @param {String} name 
+     * @returns 
+     */
     setGlobalAnimation( name ){
         let alreadyExisted = true;
-        if (!this.boundAnimations[name] || !this.boundAnimations[name][this.currentCharacter.name]){
+        const characterBoundAnimations = this.boundAnimations[this.currentCharacter.name];
+
+        if (!characterBoundAnimations[name]){
             this.createGlobalAnimation(name, -1);
             alreadyExisted = false;
         }
@@ -1662,10 +1677,10 @@ class KeyframeEditor extends Editor {
 
         this.currentCharacter.skeletonHelper.skeleton.pose(); // this is needed so mixer does Bind Pose when no actions are played
 
-        this.gui.globalTimeline.setAnimationClip( this.boundAnimations[name][this.currentCharacter.name], false );
+        this.gui.globalTimeline.setAnimationClip( characterBoundAnimations[name], false );
         this.currentAnimation = name;
         this.currentKeyFrameClip = null;
-        this.globalAnimMixerManagement(mixer, this.boundAnimations[name][this.currentCharacter.name], false);
+        this.globalAnimMixerManagement(mixer, characterBoundAnimations[name], false);
         this.setTimeline(this.animationModes.GLOBAL);
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
@@ -1675,31 +1690,33 @@ class KeyframeEditor extends Editor {
         return alreadyExisted;
     }
 
+    /**
+     * Renames global animation for the current avatar only.
+     * @param {String} currentName 
+     * @param {String} newName 
+     * @param {Boolean} findSuitableName 
+     * @returns 
+     */
     renameGlobalAnimation( currentName, newName, findSuitableName = false ){
+        const characterBoundAnimations = this.boundAnimations[this.currentCharacter.name];
 
         if (findSuitableName){
             let count = 1;
             let countName = newName;
-            while( this.boundAnimations[countName] ){
+            while( characterBoundAnimations[countName] ){
                 countName = newName + ` (${count++})`;
             }
             newName = countName;
         }else{
-            if ( this.boundAnimations[newName] ){
+            if ( characterBoundAnimations[newName] ){ // already exists, do nothing
                 return null;
             }
         }
 
-        if ( !this.boundAnimations[newName] ){
-            this.boundAnimations[newName] = {};
-        }
-
-        const bound = this.boundAnimations[currentName];
-        this.boundAnimations[newName] = bound;
-        for( let charactername in bound ){
-            bound[charactername].id = newName;
-        }
-        delete this.boundAnimations[currentName];
+        const bound = characterBoundAnimations[currentName];
+        characterBoundAnimations[newName] = bound;
+        bound.id = newName;
+        delete characterBoundAnimations[currentName];
 
         if ( this.currentAnimation == currentName ){
             this.currentAnimation = newName;
@@ -2586,7 +2603,6 @@ class KeyframeEditor extends Editor {
                 bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
             }
             else {
-                // TODO allow to do only blendshape-match, only au or both 
                 const faceMapMode = options.faceMapMode ?? KeyframeEditor.IMPORTSETTINGS_FACEBSAU; // whether user wants to import BS, AU, or both
 
                 if (faceMapMode & KeyframeEditor.IMPORTSETTINGS_FACEAU){ // if flag is enabled, try to match au between avatars
@@ -2637,6 +2653,7 @@ class KeyframeEditor extends Editor {
             weight: 1, // not the current weight, but the overall weight the clip should have when playing
 
             id: animationName,
+            character: this.currentCharacter,
             clipColor: LX.getThemeColor("global-color-accent"),
             blendMode: THREE.NormalAnimationBlendMode,
             active: true
@@ -3736,7 +3753,7 @@ class ScriptEditor extends Editor {
         this.gui.clipsTimeline.setAnimationClip( this.loadedAnimations[name].scriptAnimation, false );
         this.currentAnimation = name;
 
-        if (!this.boundAnimations[name] || !this.boundAnimations[name][this.currentCharacter]){
+        if (!this.boundAnimations[this.currentCharacter.name][name]){
             this.bindAnimationToCharacter( name );
         }else{
             this.updateMixerAnimation( this.loadedAnimations[name].scriptAnimation );
@@ -3752,31 +3769,30 @@ class ScriptEditor extends Editor {
 
     renameGlobalAnimation( currentName, newName, findSuitableName = false ){
 
+        const characterBoundAnimations = this.boundAnimations[this.currentCharacter.name];
+
         if (findSuitableName){
             let count = 1;
             let countName = newName;
-            while( this.boundAnimations[countName] ){ // boundAnimations and loadedAnimations should have the same keys: the animation names
+            while( characterBoundAnimations[countName] ){
                 countName = newName + ` (${count++})`;
             }
             newName = countName;
         }else{
-            if (this.boundAnimations[newName] ){
+            if ( characterBoundAnimations[newName] ){
                 return null;
             }
         }
 
-        if ( !this.boundAnimations[newName] ){
-            this.boundAnimations[newName] = {};
+        // change for all avatars
+        for( let charactername in this.boundAnimations ){
+            const bound = this.boundAnimations[charactername][currentName];
+            delete this.boundAnimations[charactername][currentName];
+            this.boundAnimations[charactername][newName] = bound; 
+            bound.id = newName;
         }
 
-        const bound = this.boundAnimations[currentName];
-        this.boundAnimations[newName] = bound;
-        for( let charactername in bound ){
-            bound[charactername].id = newName;
-        }
-        delete this.boundAnimations[currentName];
-
-
+        // change loaded resource name
         this.loadedAnimations[newName] = this.loadedAnimations[currentName];
         this.loadedAnimations[newName].name = newName;
         this.loadedAnimations[newName].scriptAnimation.id = newName;
@@ -3829,7 +3845,9 @@ class ScriptEditor extends Editor {
                         if( empty ) {
                             const lastAnimation = this.currentAnimation;
                             delete this.loadedAnimations[lastAnimation];
-                            delete this.boundAnimations[lastAnimation];
+                            for( let characterName in this.boundAnimations ){
+                                delete this.boundAnimations[characterName][lastAnimation];
+                            }
                             this.loadAnimation( file.name, animation );
                             resolve(file.animation);
                             UTILS.hideLoading();
@@ -3919,16 +3937,13 @@ class ScriptEditor extends Editor {
             console.warn(animationName + " not found");
             return false;
         }
-
-        if( !this.boundAnimations[animationName] ) {
-            this.boundAnimations[animationName] = {};
-        }
-        
-        this.boundAnimations[animationName][this.currentCharacter.name] = { 
+       
+        this.boundAnimations[this.currentCharacter.name][animationName] = { 
             mixerAnimation: null,
 
             source: animation,
             id: animationName,
+            character: this.currentCharacter.name
         };
     
         this.updateMixerAnimation( animation.scriptAnimation );
@@ -3954,7 +3969,7 @@ class ScriptEditor extends Editor {
         mixer.clipAction(mixerAnimation).setEffectiveWeight(1.0).play();
         mixer.setTime(this.currentTime / mixer.timeScale);
         
-        this.boundAnimations[this.currentAnimation][this.currentCharacter.name].mixerAnimation = mixerAnimation;    
+        this.boundAnimations[this.currentCharacter.name][this.currentAnimation].mixerAnimation = mixerAnimation;    
     }
     
     updateTracks() {
