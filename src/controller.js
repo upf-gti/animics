@@ -99,10 +99,13 @@ class BMLController {
 
             // Get computed BS weights
             for(let skinnedMesh in this.morphTargetDictionary) {
-                let bs = [];
-                this.ECAcontroller.facialController._morphTargets[skinnedMesh].morphTargetInfluences.map( x => bs.push(x));
-                if(!values[skinnedMesh])
+                if ( !this.ECAcontroller.facialController._morphTargets[skinnedMesh] ){ // mesh not mapped in the config
+                    continue;
+                }
+                if(!values[skinnedMesh]){
                     values[skinnedMesh] = [];
+                }
+                let bs = this.ECAcontroller.facialController._morphTargets[skinnedMesh].morphTargetInfluences.slice();
                 values[skinnedMesh].push(bs);
             }
 
@@ -125,11 +128,11 @@ class BMLController {
                 }
 
                 for(let morph in this.morphTargetDictionary[skinnedMesh]){
-                    let i = this.morphTargetDictionary[skinnedMesh][morph];
-                    let v = [];
+                    let morphIdx = this.morphTargetDictionary[skinnedMesh][morph];
+                    let v = new Float32Array( values[skinnedMesh].length );
                     
-                    values[skinnedMesh].forEach(element => {
-                        v.push(element[i]);
+                    values[skinnedMesh].forEach( (element,timeIdx) => {
+                        v[timeIdx] = element[morphIdx];
                     });
                     const mesh = this.skinnedMeshes[skinnedMesh];
                     

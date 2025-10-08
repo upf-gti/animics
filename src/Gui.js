@@ -658,7 +658,7 @@ class Gui {
             characterContainer.appendChild( container );
 
             if ( isSelected ){
-                setTimeout(container.scrollIntoView.bind(container), 1);
+                setTimeout(container.scrollIntoViewIfNeeded.bind(container), 1);
                 this.characterPanel.selectedCard = container;
             }
         }
@@ -940,7 +940,7 @@ class Gui {
 
             if ( this.editor.loadedCharacters[name] ){
                 this.editor.boundAnimations[newName] = this.editor.boundAnimations[name];
-                delete this.editor.boundANimations[name];
+                delete this.editor.boundAnimations[name];
 
                 const character = this.editor.loadedCharacters[name];
                 character.name = newName;
@@ -1539,6 +1539,10 @@ class KeyframesGui extends Gui {
         }
 
         this.globalTimeline.onContentMoved = (clip, deltaTime) => {
+            if ( !this.globalTimeline.dragClipMode || !this.globalTimeline.dragClipMode.length ){ 
+                return;
+            }
+
             clip.skeletonAnimation.duration = clip.duration;
             clip.bsAnimation.duration = clip.duration;
             clip.mixerBodyAnimation.duration = clip.duration;
@@ -2000,6 +2004,7 @@ class KeyframesGui extends Gui {
 
             if(el) {
                 el.parentElement.classList.add("bg-accent");
+                el.scrollIntoViewIfNeeded();
             }     
         };
         
@@ -2159,7 +2164,7 @@ class KeyframesGui extends Gui {
         panelTabs.add( "Character", characterArea, {selected: defaultTabSelected == "Character", onSelect: (e,v) => {
             if ( this.characterPanel && this.characterPanel.selectedCard ){
                 const el = this.characterPanel.selectedCard;
-                setTimeout(el.scrollIntoView.bind(el), 1);
+                setTimeout(el.scrollIntoViewIfNeeded.bind(el), 1);
             }
         }});
 
@@ -2759,7 +2764,7 @@ class KeyframesGui extends Gui {
                 const name = areas[area][id];
                 const signal = "@on_change_face_" + name;
 
-                // compute au to bs mapping changing names to timeline tracks
+                // compute au to bs mapping changing names to timeline track idx
                 const auMapping = JSON.parse(JSON.stringify(auToBs[name]));
                 for( let a = 0; a < auMapping.length; ++a ){
                     const t = this.bsTimeline.getTrack(auMapping[a][0]);
@@ -2825,16 +2830,13 @@ class KeyframesGui extends Gui {
         
         let panel = this.sidePanelBlendshapeSlidersPanel = area.addPanel({id: "bs-"+ area});
         panel.refresh = ()=>{
+            this.sidePanelBlendshapeSlidersPanel.clear();
 
             for(let i = 0; i < animation.tracks.length; i++) {
                 const track = animation.tracks[i];
                 
                 const name = track.id;
-                let frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
-                
-                if( (!this.bsTimeline.lastKeyFramesSelected.length || this.bsTimeline.lastKeyFramesSelected[0][2] != frame)) {
-                    this.bsTimeline.selectKeyFrame(track.trackIdx, frame);
-                }
+                const frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
                 
                 const signal = "@on_change_face_" + name;
                 this.sidePanelSpecialSignals.push(signal);
@@ -3979,6 +3981,11 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
+
+            if ( !this.clipsTimeline.dragClipMode || !this.clipsTimeline.dragClipMode.length ){ 
+                return;
+            }
+
             if(clip.strokeStart) clip.strokeStart+=offset;
             if(clip.stroke) clip.stroke+=offset;
             if(clip.strokeEnd) clip.strokeEnd+=offset;
