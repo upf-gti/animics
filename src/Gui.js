@@ -2186,7 +2186,7 @@ class KeyframesGui extends Gui {
                 } )
 
                 p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
-                    // saving color here floods the historyUndo. There should be some onPress or something similar to the RangeInput event
+                    // savingState here floods the historyUndo. There should be some onPress or something similar to the RangeInput event
                     // this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
                     clip.clipColor = v;
                 });
@@ -2204,6 +2204,94 @@ class KeyframesGui extends Gui {
 
                 }, { className: "success", label: this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ? "" : "Track is disabled !", signal: "@on_set_clip_state" });
                 this.sidePanelSpecialSignals.push("@on_set_clip_state");
+
+                p.addNumber("Clip Speed", clip.speed, (v,e) =>{
+                    v = Math.max( 0.001, v );
+                    let newDuration = Math.max(0.001, clip.duration * clip.speed / v);
+
+                    // there might be other clips in track. Clips in the same track cannot overlap 
+                    let newEndTime = clip.start + newDuration;
+                    const trackClips = this.globalTimeline.animationClip.tracks[clip.trackIdx].clips;
+                    for( let i = 0; i < trackClips.length; ++i ){
+                        if (trackClips[i].start > clip.start ){ 
+                            if ( trackClips[i].start < newEndTime ){
+                                newEndTime = trackClips[i].start - 0.00001;
+                            }
+                            break;
+                        }
+                    }
+
+                    // duration might have changed because of limits. Need to recompute speed. Widget will be updated on release
+                    newDuration = Math.max( newEndTime - clip.start, 0.00001 );
+                    v = clip.duration * clip.speed / newDuration;
+
+                    clip.duration = newDuration;
+                    clip.speed = v;
+
+                    // if not a mouse drag event, but a manual number setting through keyboard
+                    if ( e.type == "change" ){ 
+                        p.components["Clip Speed"].options.onRelease();
+                    }
+                },{
+                    onPress: () =>{ 
+                        clip.speed = clip.speed ?? 1;
+                        clip._oldSpeed = clip.speed;
+                    },
+                    onRelease: () =>{
+                        // TODO: find a better way of doing this.
+                        //  Modifying keyframes directly might generate problems because of numerical stability 
+
+                        const newSp = clip.speed ?? 1;
+                        const oldSp = clip._oldSpeed ?? clip.speed;
+                        const newDuration = clip.duration;
+
+                        if ( clip._oldSpeed == clip.speed ){ return; }
+
+                        clip.speed = oldSp; // old Speed
+                        clip.duration = clip.duration * newSp / oldSp; // old Duration
+                        this.currentKeyFrameClip = clip; // HACK to deepclone
+                        this.globalTimeline.saveState(clip.trackIdx); // deepclone, cloneClips will manage it
+                        this.currentKeyFrameClip = null; // END HACK to deepclone
+
+                        clip.speed = newSp;
+                        clip.duration = newDuration;
+
+                        clip.skeletonAnimation.duration = newDuration;
+                        clip.bsAnimation.duration = newDuration; 
+                        clip.mixerBodyAnimation.duration = newDuration;
+                        clip.mixerFaceAnimation.duration = newDuration;
+
+                        clip.skeletonAnimation.tracks.forEach((track)=>{
+                            let lastTime = 0;
+                            for( let i = 0; i < track.times.length; ++i ){
+                                lastTime = Math.max( lastTime, track.times[i] * ( oldSp / newSp ) );
+                                track.times[i] = lastTime;
+                            }
+                        });
+
+                        clip.bsAnimation.tracks.forEach((track)=>{
+                            let lastTime = 0;
+                            for( let i = 0; i < track.times.length; ++i ){
+                                lastTime = Math.max( lastTime, track.times[i] * ( oldSp / newSp ) );
+                                track.times[i] = lastTime;
+                            }
+                        });
+
+                        clip._oldSpeed = newSp;
+
+                        this.editor.updateMixerAnimation(clip.mixerBodyAnimation, null, clip.skeletonAnimation, false );
+                        this.editor.updateMixerAnimation(clip.mixerFaceAnimation, null, clip.bsAnimation, false );
+                        this.globalTimeline.setDuration( this.globalTimeline.animationClip.duration, true, true ); // clipsTimeline already validates max duration. Force recomputation
+                        this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
+                        this.editor.setTime(this.editor.currentTime); // update mixer
+
+                        p.components["Clip Speed"].set(clip.speed, true); // in case duration is limited by space, speed will also be limited. Update widget, without callback
+
+                    },
+                    min: 0.001,
+                    step: 0.001,
+                    precision: 3
+                });
 
                 p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
                     this.setKeyframeClip(clip);
@@ -2270,9 +2358,9 @@ class KeyframesGui extends Gui {
                         panel.queuedContainer.appendChild( text ); // hack
 
                         panel.addButton(null, "Add bind pose", (v,e)=>{
-                            this.currentKeyFrameClip = clip; // hack to deepclone
-                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
-                            this.currentKeyFrameClip = null; // end hack to deepclone
+                            this.editor.currentKeyFrameClip = clip; // HACK to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone, cloneClips will manage it
+                            this.editor.currentKeyFrameClip = null; // END HACK to deepclone
 
                             const skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
                             const skeletonclip = clip.skeletonAnimation;
@@ -2326,9 +2414,9 @@ class KeyframesGui extends Gui {
                         panel.queuedContainer.appendChild( text ); // hack
 
                         panel.addButton(null, "Subtract bind pose", (v,e)=>{
-                            this.currentKeyFrameClip = clip; // hack to deepclone
-                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
-                            this.currentKeyFrameClip = null; // end hack to deepclone
+                            this.editor.currentKeyFrameClip = clip; // HACK to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone, cloneClips will manage it
+                            this.editor.currentKeyFrameClip = null; // END HACK to deepclone
                             
                             const skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
                             const skeletonclip = clip.skeletonAnimation;
@@ -2376,9 +2464,9 @@ class KeyframesGui extends Gui {
                         }, { buttonClass: "error dashed" });
 
                         panel.addButton(null, "Subtract first frame pose", (v,e) =>{
-                            this.currentKeyFrameClip = clip; // hack to deepclone
-                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
-                            this.currentKeyFrameClip = null; // end hack to deepclone
+                            this.editor.currentKeyFrameClip = clip; // HACK to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone, cloneClips will manage it
+                            this.editor.currentKeyFrameClip = null; // END HACK to deepclone
                             
                             const skeletonclip = clip.skeletonAnimation;
     

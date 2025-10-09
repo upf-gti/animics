@@ -2656,7 +2656,8 @@ class KeyframeEditor extends Editor {
             character: this.currentCharacter,
             clipColor: LX.getThemeColor("global-color-accent"),
             blendMode: THREE.NormalAnimationBlendMode,
-            active: true
+            active: true,
+            speed: 1
         }
 
         if ( targetGlobalAnimation ){
