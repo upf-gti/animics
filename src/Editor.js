@@ -2599,8 +2599,7 @@ class KeyframeEditor extends Editor {
             if(animation.type == "video") {
                 const parsedAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes); // Mediapipe outputs AU (although the attribute is named blendshapes)
                 faceAnimation = parsedAnimation.bsAnimation;
-                auAnimation = parsedAnimation.auAnimation || faceAnimation;
-                bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromAU( auAnimation );
+                bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromMorphTargets( faceAnimation );
             }
             else {
                 const faceMapMode = options.faceMapMode ?? KeyframeEditor.IMPORTSETTINGS_FACEBSAU; // whether user wants to import BS, AU, or both

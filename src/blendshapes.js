@@ -632,6 +632,8 @@ class BlendshapesManager {
         let currTime = 0;
 
         let bsoutput = new mlMatrix.Matrix( bsarray.length, 1 ); // column vector
+        // TODO This loop definitely needs a refactor
+        // iterate through all timestamps of the tracks. For each, compute all AU
         while( !areAllLastTime ){
             areAllLastTime = true;
 
@@ -645,7 +647,7 @@ class BlendshapesManager {
                     timeIdx++;
                 }
                 areAllLastTime &= timeIdx == (times.length-1);
-                nextTime = Math.max( currTime, times[timeIdx]);
+                nextTime = currTime < (times[timeIdx]-0.001) ? Math.min( nextTime, times[timeIdx]) : nextTime;
 
                 timeIndices[t] = timeIdx;
 
@@ -658,7 +660,7 @@ class BlendshapesManager {
             // infer AU values from blendshape values Ax=b
             AUvalues.push(m.mmul( bsoutput ));
             AUtimes.push( currTime );
-            currTime = nextTime;
+            currTime = nextTime > currTime ? nextTime : (currTime + 0.016);
         }
 
         // build animation
