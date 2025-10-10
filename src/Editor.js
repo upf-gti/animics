@@ -46,8 +46,6 @@ class Editor {
     
     constructor( animics ) {
         
-        this.character = "";
-
         this.currentCharacter = null;
         this.loadedCharacters = {};
                 
@@ -132,6 +130,8 @@ class Editor {
         this.enabled = false;
         // This already disables events
         this.editorArea.root.classList.add("hidden");
+        this.gui.menubar._resetMenubar(false); // just in case a menu is open, close it
+
     }
 
     //Create canvas scene
@@ -278,11 +278,7 @@ class Editor {
     async initCharacters(modelToLoad) {
       
         // Load current character
-        await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
-        
-        // while(!this.loadedCharacters[this.character] ) {
-        //     await new Promise(r => setTimeout(r, 1000));            
-        // }        
+        await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]); 
 
     }
 
@@ -292,9 +288,7 @@ class Editor {
             modelFilePath+= "?morphTargets=ARKit"
         }
 
-        this.character = characterName;
-
-        UTILS.makeLoading("Loading GLTF [" + this.character +"]...")
+        UTILS.makeLoading("Loading GLTF [" + characterName +"]...")
         //Editor.RESOURCES_PATH + characterName + "/" + characterName + ".glb"
         // Load the target model (Eva)
         return new Promise( resolve => {
@@ -1299,6 +1293,7 @@ class KeyframeEditor extends Editor {
         this.animationMode = this.animationModes.BODY;
 
         this.currentKeyFrameClip = null; // animation shown in the keyframe timelines
+        this.evaCharacter = null; // temporary solution for Mediapipe-to-animation algorithm
 
         this.animationInferenceModes = {NN: 0, M3D: 1}; // either use ML or mediapipe 3d approach to generate an animation (see buildanimation and bindanimation)
         this.inferenceMode = new URLSearchParams(window.location.search).get("inference") == "NN" ? this.animationInferenceModes.NN : this.animationInferenceModes.M3D;
@@ -1481,12 +1476,13 @@ class KeyframeEditor extends Editor {
 
         // Load current character
         await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
+        this.evaCharacter = this.currentCharacter; // temporary solution for Mediapipe-to-animation algorithm 
         
         if ( this.inferenceMode == this.animationInferenceModes.NN ) {
             this.loadNNSkeleton();
         }
 
-        while(!this.loadedCharacters[this.character] || ( !this.nnSkeleton && this.inferenceMode == this.animationInferenceModes.NN ) ) {
+        while(!this.loadedCharacters[modelToLoad[3]] || ( !this.nnSkeleton && this.inferenceMode == this.animationInferenceModes.NN ) ) {
             await new Promise(r => setTimeout(r, 1000));            
         }        
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
@@ -2061,7 +2057,10 @@ class KeyframeEditor extends Editor {
     }
 
 
-    // Array of objects. Each object is a frame with all world landmarks. See mediapipe.js detections
+    /**
+     * Array of objects. Each object is a frame with all world landmarks. See mediapipe.js detections
+     * Only works for the Eva model
+     * */ 
     createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton ){
         function getTwistQuaternion( q, normAxis, outTwist ){
             let dot =  q.x * normAxis.x + q.y * normAxis.y + q.z * normAxis.z;
@@ -2542,7 +2541,13 @@ class KeyframeEditor extends Editor {
 
         if(bodyAnimation) {
             if ( animation.type == "video" && this.inferenceMode == this.animationInferenceModes.M3D ){ // mediapipe3d animation inference algorithm
-                bodyAnimation = this.createBodyAnimationFromWorldLandmarks( animation.bodyAnimation, this.currentCharacter.skeletonHelper.skeleton );
+                if( !animation.retargetedToEva ){
+                    animation.retargetedToEva = this.createBodyAnimationFromWorldLandmarks( animation.bodyAnimation, this.evaCharacter.skeletonHelper.skeleton );
+                }
+                
+                // Retarget from Eva to current character
+                bodyAnimation = this.retargetAnimation(this.evaCharacter.skeletonHelper.skeleton, animation.retargetedToEva);  
+                bodyAnimation.duration = animation.retargetedToEva.duration;
             } 
             else { // bvh (and old ML system) retarget an existing animation
                 const tracks = [];

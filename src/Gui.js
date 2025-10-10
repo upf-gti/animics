@@ -2404,7 +2404,7 @@ class KeyframesGui extends Gui {
                             }
                             this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
-                        }, { buttonClass: "error dashed" });
+                        }, { buttonClass: "warning dashed" });
                     },
                     on_Additive: (panel) => {
                         const text = LX.makeContainer( [ "100%", "auto" ], "p-2 whitespace-pre-wrap", 
@@ -2461,7 +2461,7 @@ class KeyframesGui extends Gui {
                             }
                             this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
-                        }, { buttonClass: "error dashed" });
+                        }, { buttonClass: "warning dashed" });
 
                         panel.addButton(null, "Subtract first frame pose", (v,e) =>{
                             this.editor.currentKeyFrameClip = clip; // HACK to deepclone
@@ -2499,7 +2499,7 @@ class KeyframesGui extends Gui {
                             }
                             this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
-                        }, { buttonClass: "error dashed" });
+                        }, { buttonClass: "warning dashed" });
 
                     }   
                 });
