@@ -4904,9 +4904,10 @@ class ScriptGui extends Gui {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = ( location ) => {
+                const selectedClips = Array.from(this.clipsTimeline.lastClipsSelected);
                 let animations = this.editor.export(info.selectedAnimations, info.format, false);
                 if(info.from == "Selected clips") {
-                    this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                   selectedClips.sort((a,b) => {
                         if( a[0]<b[0] ) {
                             return -1;
                         }
@@ -4917,7 +4918,7 @@ class ScriptGui extends Gui {
 
                     let globalStart = 10000;
                     let globalEnd = -10000;
-                    let clips = this.clipsTimeline.lastClipsSelected;
+                    let clips = selectedClips;
                     for( let i = 0; i < clips.length; i++ ) {
                         const [trackIdx, clipIdx] = clips[i];
                         const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
