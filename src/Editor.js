@@ -1940,9 +1940,7 @@ class KeyframeEditor extends Editor {
             return this.buildAnimation(animationData, false);        
         }
         else{ // Otherwise create empty body animation
-            this.currentCharacter.skeletonHelper.skeleton.pose();
-            bodyAnimation = createEmptySkeletonAnimation("bodyAnimation", this.currentCharacter.skeletonHelper.bones);
-            skeleton = this.currentCharacter.skeletonHelper.skeleton;
+            bodyAnimation = new THREE.AnimationClip( "bodyAnimation", 0, [] );
         }
 
         // If it has face animation, it means that comes from BVHe
@@ -1951,9 +1949,7 @@ class KeyframeEditor extends Editor {
             faceAnimation = animationData.blendshapesAnim.clip;
         }
         else { // Otherwise, create empty face animation
-            faceAnimation = this.currentCharacter.blendshapesManager.createEmptyAnimation("faceAnimation");
-            faceAnimation.duration = bodyAnimation.duration;
-            faceAnimation.from = "";
+            faceAnimation = new THREE.AnimationClip( "faceAnimation", 0, [] );
         }
         
         // fix duration of body and face animations 
@@ -2569,7 +2565,7 @@ class KeyframeEditor extends Editor {
                 
                 // Retarget NN animation              
                 const oldDuration = bodyAnimation.duration;
-                bodyAnimation = this.retargetAnimation(skeleton, bodyAnimation);  
+                bodyAnimation = this.retargetAnimation(skeleton, bodyAnimation);
                 bodyAnimation.duration = oldDuration;
             }
 
@@ -2686,7 +2682,9 @@ class KeyframeEditor extends Editor {
     validateBodyAnimationClip(clip) {
 
         let tracks = clip.tracks;
-        let bones = this.currentCharacter.skeletonHelper.bones;
+        const skeleton = this.currentCharacter.skeletonHelper.skeleton;
+        skeleton.pose();
+        const bones = skeleton.bones;
 
         let quatCheck = new Array(bones.length);
         quatCheck.fill(false);
@@ -2696,7 +2694,7 @@ class KeyframeEditor extends Editor {
         for( let i = 0; i < tracks.length; ++i ){
             let t = tracks[i];
             let trackBoneName = t.name.substr(0, t.name.lastIndexOf("."));
-            let boneIdx = findIndexOfBoneByName( this.currentCharacter.skeletonHelper.skeleton, trackBoneName );
+            let boneIdx = findIndexOfBoneByName( skeleton, trackBoneName );
             if ( boneIdx < 0 ){ continue; }
             let bone = bones[ boneIdx ];
             if ( !t.values.length || !t.times.length ){
