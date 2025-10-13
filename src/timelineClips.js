@@ -464,6 +464,11 @@ FaceLexemeClip.prototype.configure = function(o)
 	const offset = this.duration/4;
 	this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
 	this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
+	if(o.properties)
+	{
+		Object.assign(this.properties, o.properties);
+	}
+	
 	for(let property in this.properties) {
 		
 		if(property == "lexeme") {
