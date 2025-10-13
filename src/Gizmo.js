@@ -640,7 +640,7 @@ class Gizmo {
                 }
 
                 // Update animation interpolants
-                this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx] );
+                this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
             }
         }
         else{
@@ -673,7 +673,7 @@ class Gizmo {
             }
 
             // Update animation interpolants
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
 
     }

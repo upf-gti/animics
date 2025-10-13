@@ -1181,23 +1181,40 @@ class KeyframesGui extends Gui {
             { name: "Preview in PERFORMS", icon: "StreetView", callback: () => this.editor.showPreview() },
         );
        
-        const timelineMenu = entries.find( e => e.name == "Timeline" )?.submenu;
+        const timelineMenuItem = entries.find( e => e.name == "Timeline" ); 
+        const timelineMenu = timelineMenuItem.submenu;
         console.assert(timelineMenu, "Timeline menu not found" );
 
         this.showVideo = this.showVideo ?? true; // menu option, whether to show video overlay (if any exists)
 
-        timelineMenu.push( 
+        timelineMenu.splice(1,1);
+        timelineMenu.push(
             null, 
-            { name: "Optimize Tracks", icon: "Filter", callback: () => {
+            { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
+                this.showVideo = v;
+                this.editor.setVideoVisibility( v );
+            }},
+            null,
+            { name: "Optimize All Tracks", icon: "Filter", callback: () => {
+                if ( !this.editor.currentKeyFrameClip){
+                    return;
+                }
                 // optimize all tracks of current bound animation (if any)
                 this.bsTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
                 this.skeletonTimeline.optimizeTracks();
             }},
-            { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
-                this.showVideo = v;
-                this.editor.setVideoVisibility( v );
-            }}
+            { name: "Clear Tracks", icon: "Trash2", callback: () => this.editor.clearAllTracks() }
         );
+        timelineMenuItem.completeSubmenu = timelineMenu.slice(); // shallow copy
+        timelineMenuItem.submenu = timelineMenuItem.completeSubmenu.filter( (v,i,arr) =>{ // same as setkeyframeclip 
+            if(v){ 
+                if(v.name.includes("Optimize") || v.name.includes("Video")){
+                    return false;
+                }
+            }
+            return true;
+        })
+
         
         const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
@@ -1740,8 +1757,8 @@ class KeyframesGui extends Gui {
             }
         };
 
-        this.skeletonTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx]);
-        this.skeletonTimeline.onDeleteKeyFrames = (trackIdx, indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx]);
+        this.skeletonTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
+        this.skeletonTimeline.onDeleteKeyFrames = (trackIdx, indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
         this.skeletonTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.skeletonTimeline.currentTime );
 
@@ -1856,10 +1873,10 @@ class KeyframesGui extends Gui {
         }
 
         this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.stop(); } }
-        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null);
-        this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx] );}
+        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
+        this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );}
         this.skeletonTimeline.onOptimizeTracks = (idx = -1) => { 
-            this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, idx == -1 ? null : [idx]);
+            this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, idx == -1 ? null : [idx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
 
         /* Curves Blendshapes Timeline */
@@ -1972,15 +1989,15 @@ class KeyframesGui extends Gui {
         };
 
         this.bsTimeline.onContentMoved = (trackIdx, keyframeIdx)=> {
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx], this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
         }
         this.bsTimeline.onUpdateTrack = (indices) => {
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : null);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : null, this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, indices.length == 1 ? indices[0] : -1);
         }
         this.bsTimeline.onDeleteKeyFrames = (trackIdx, tidx) => {
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx], this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
         }
         
@@ -2017,10 +2034,10 @@ class KeyframesGui extends Gui {
             this.menubar.getButton("Stop").setState(true); // click();
         }
         this.bsTimeline.onOptimizeTracks = (idx = -1) => { 
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, idx == -1 ? null : [idx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, idx == -1 ? null : [idx], this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, idx < 0 ? -1 : idx);
         }
-        this.bsTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx]);}
+        this.bsTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.bsAnimation);}
 
         this.timelineArea.attach(this.globalTimeline.root);
         this.timelineArea.attach(this.skeletonTimeline.root);
@@ -2042,9 +2059,33 @@ class KeyframesGui extends Gui {
             this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
 
+            const menubarTimeline = this.menubar.getItem("Timeline");
+            menubarTimeline.submenu = menubarTimeline.completeSubmenu.filter( (v,i,arr) =>{ 
+                if(v){
+                    if ( v.name.includes("Optimize") || v.name.includes("Video") ){
+                        return false;
+                    }
+                }
+                return true;
+            });
             return;
         }
 
+        const menubarTimeline = this.menubar.getItem("Timeline");
+        menubarTimeline.submenu = menubarTimeline.completeSubmenu.filter( (v,i,arr) =>{ 
+            if(v){
+                if ( v.name.includes("Video") ){
+                    if( !clip.source || clip.source.type != "video" ){
+                        return false;
+                    }
+                }
+            }
+            return true;
+        });
+
+
+
+        
         const sourceAnimation = clip.source; // might not exist
         this.editor.currentKeyFrameClip = clip;
         this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation()); // now that there is a currentKeyframeClip, update mixer actions

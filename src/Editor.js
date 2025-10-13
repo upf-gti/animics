@@ -2891,12 +2891,12 @@ class KeyframeEditor extends Editor {
             if ( timeline != this.gui.globalTimeline ){
                 switch( this.animationMode ) {
                     case this.animationModes.BODY:
-                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.activeTimeline.animationClip);
+                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.currentKeyFrameClip.skeletonAnimation);
                         break;
 
                     case this.animationModes.FACEAU: 
                     case this.animationModes.FACEBS:
-                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx], this.activeTimeline.animationClip);
+                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx], this.currentKeyFrameClip.bsAnimation);
                         break;
                 }
             }
