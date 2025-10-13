@@ -4962,15 +4962,28 @@ class ScriptGui extends Gui {
                     let clips = selectedClips;
                     for( let i = 0; i < clips.length; i++ ) {
                         const [trackIdx, clipIdx] = clips[i];
-                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                        if(clip.ready!=undefined) clip.ready = clip.fadein;
-                        if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                        if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                        if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                        const clipToCopy = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        const type = clipToCopy.constructor.name;
+                        const clip = new ANIM[type](clipToCopy);
+                        if(clipToCopy.attackPeak!=undefined) clip.attackPeak = clipToCopy.fadein;
+                        if(clipToCopy.ready!=undefined) clip.ready = clip.fadein;
+                        if(clipToCopy.strokeStart!=undefined) clip.strokeStart = clipToCopy.fadein;
+                        if(clipToCopy.relax!=undefined) clip.relax = clipToCopy.fadeout;
+                        if(clipToCopy.strokeEnd!=undefined) clip.strokeEnd = clipToCopy.fadeout;
                         presetData.clips.push(clip);
                         globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
                         globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                    }
+                    for( let i = 0; i < presetData.clips.length; i++ ) {
+                        
+                        const clip = presetData.clips[i];
+                        clip.start -= globalStart;
+            
+                        if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
+                        if(clip.ready!=undefined) clip.ready -= globalStart;
+                        if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
+                        if(clip.relax!=undefined) clip.relax -= globalStart;
+                        if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
                     }
                     presetData.duration = globalEnd - globalStart;
                     presetData.preset = animations[0].name;
