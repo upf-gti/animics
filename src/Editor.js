@@ -3268,16 +3268,18 @@ class KeyframeEditor extends Editor {
         this.gui.skeletonTimeline.setSelectedItems( [this.selectedBone] );
 
         // selectkeyframe at current keyframe if possible
-        const track = this.gui.skeletonTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
-        if ( track ){
-            const keyframe = this.gui.skeletonTimeline.getCurrentKeyFrame(track, this.gui.skeletonTimeline.currentTime, 0.1 );
-            if ( keyframe > -1 ){
-                this.gui.skeletonTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
-            }
-        }
+        // const track = this.gui.skeletonTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
+        // if ( track ){
+        //     const keyframe = this.gui.skeletonTimeline.getCurrentKeyFrame(track, this.gui.skeletonTimeline.currentTime, 0.1 );
+        //     if ( keyframe > -1 ){
+        //         this.gui.skeletonTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
+        //     }
+        // }
 
         this.gizmo.setBone(name);
+        this.gizmo.stop(); // nothing is selected
         this.gizmo.mustUpdate = true;
+
 
         this.gui.updateSkeletonPanel();
         if ( this.gui.treeWidget ){ 

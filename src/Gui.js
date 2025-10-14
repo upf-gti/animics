@@ -1534,6 +1534,7 @@ class KeyframesGui extends Gui {
                 this.globalTimeline.onDeleteClip( c[0], c[1], c[2] );
             }
             this.createSidePanel(); // update, in case a clip was visible
+            this.editor.setTime(this.editor.currentTime);
         }
         this.globalTimeline.onDeleteClip = ( trackIdx, clipIdx, clip )=>{
             const mixer = this.editor.currentCharacter.mixer;
