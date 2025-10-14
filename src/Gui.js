@@ -410,6 +410,12 @@ class Gui {
                     if( callback ) {
                         let selectedAnimations = [];
                         availableTable.getSelectedRows().forEach((v)=>{ selectedAnimations.push(v[0]) });
+
+                        // do not close the dialog
+                        if ( selectedAnimations.length == 0 ){
+                            return;
+                        }
+
                         callback({selectedAnimations, format, folder, from});
                     }
                     dialog.close() ;
@@ -1662,6 +1668,16 @@ class KeyframesGui extends Gui {
                         }
                     )
                 }
+
+                actions.push(
+                    {
+                        title: "Empty Clip",
+                        callback: () => {
+                            this.editor.loadAnimation("Empty clip", {}, true, false ); // create and bind. Do not add to loadedAnimations, as it is meaningless
+                            this.createSidePanel(); // adding a clip deselects the rest. Make sure sidePanel is updated
+                        }
+                    }
+                )
             }
             
             LX.addContextMenu("Options", e, (m) => {
@@ -1739,9 +1755,14 @@ class KeyframesGui extends Gui {
             this.menubar.getButton("Stop").setState(true); // click();
         }
         this.skeletonTimeline.onSetTime = (t) => {
+            if ( this.skeletonTimeline.lastKeyFramesSelected.length && this.skeletonTimeline.grabbingTimeBar ){
+                this.skeletonTimeline.deselectAllKeyFrames();
+                this.editor.gizmo.stop();
+            }
             this.editor.setTime(this.editor.startTimeOffset + t, true);
             this.propagationWindow.setTime(t);
         }
+
         this.skeletonTimeline.onSetDuration = (t) => { 
             const currentClip = this.editor.currentKeyFrameClip;
             if (!currentClip){ return; }
@@ -1769,7 +1790,10 @@ class KeyframesGui extends Gui {
                 this.editor.setGizmoMode(track ? track.id : "rotate");
                 this.editor.gizmo.update(true);
                 this.updateSkeletonPanel();
+            }else{
+                this.editor.gizmo.stop();
             }
+
             if ( this.propagationWindow.enabler ){
                 this.skeletonTimeline.deselectAllKeyFrames();
             }
@@ -1817,21 +1841,28 @@ class KeyframesGui extends Gui {
                     );
                 }
             }
-            else{
 
-                if(!e.track) {
-                    return;
-                }
+            if(e.track) {
                 
                 const type = e.track.id;
                 if(that.boneProperties[type]) {
                     actions.push(
-                        {
-                            title: "Add Here",
-                            callback: () => {
-                                this.addKeyFrames( e.track.trackIdx,[0,0,0,1] /*that.boneProperties[type].toArray()*/, [this.xToTime(e.localX)] );
+                    {
+                        title: "Add Here",
+                        callback: () => {
+                            const selectedTime = this.xToTime(e.localX);
+                            const currentTime = that.editor.currentTime;
+
+                            that.editor.activeTimeline.setTime(selectedTime);
+                            let newframe = this.addKeyFrames( e.track.trackIdx,that.boneProperties[type].toArray(), [selectedTime] );
+                            
+                            if( that.propagationWindow.enabler ){
+                                that.editor.activeTimeline.setTime(currentTime);
+                            }else{
+                                this.selectKeyFrame(e.track.trackIdx, newframe[0]);
                             }
                         }
+                    }
                     );
                     actions.push(
                         {
@@ -1841,10 +1872,11 @@ class KeyframesGui extends Gui {
                             }
                         }
                     );
-
+                        
                 }    
             }
-    
+            
+            
             if(this.clipboard && this.clipboard.keyframes)
             {
                 actions.push(
@@ -1967,6 +1999,11 @@ class KeyframesGui extends Gui {
         this.bsTimeline.onChangeLoopMode = (loop) => this.updateLoopModeGui( loop );
         this.bsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.bsTimeline.onSetTime = (t) => {
+
+            if ( this.bsTimeline.lastKeyFramesSelected.length && this.bsTimeline.grabbingTimeBar ){
+                this.bsTimeline.deselectAllKeyFrames();
+            }
+
             this.editor.setTime(this.editor.startTimeOffset + t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
@@ -3360,6 +3397,11 @@ class KeyframesGui extends Gui {
             p.addButton("Ok", "Add", (v, e) => { 
                 e.stopPropagation();
                 let selectedAnimations = table.getSelectedRows();
+
+                if ( selectedAnimations.length == 0 ){
+                    return;
+                }
+
                 let animationNames = [];
                 for( let i = 0; i < selectedAnimations.length; ++i ){
                     animationNames.push( selectedAnimations[i][0] );
@@ -3408,13 +3450,19 @@ class KeyframesGui extends Gui {
                     return;
                 }
 
-                for( let i = 0; i < selectedAnimations.length; ++i ){
-                    const globalAnim = this.editor.retargetGlobalAnimationFromAvatar( selectedAnimations[i][0], selectedAnimations[i][1], {faceMapMode} );
+               // if the target animation is the same as the source animation, undesired animations may setTrackState. So first accumulate retargetedAnims
+               let retargetedClips = [];
+               for( let i = 0; i < selectedAnimations.length; ++i ){
+                   const globalAnim = this.editor.retargetGlobalAnimationFromAvatar( selectedAnimations[i][0], selectedAnimations[i][1], {faceMapMode} );
+                   for( let t = 0; t < globalAnim.tracks.length; ++t ){
+                       retargetedClips = retargetedClips.concat( globalAnim.tracks[t].clips );
+                   }
+               }
 
-                    for( let t = 0; t < globalAnim.tracks.length; ++t ){
-                        this.globalTimeline.addClips( globalAnim.tracks[t].clips );
-                    }
-                }
+               if( retargetedClips.length ){
+                   this.globalTimeline.addClips( retargetedClips, this.currentTime );
+               }
+
                 dialog.close();
             }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
 
@@ -6032,7 +6080,7 @@ class PropagationWindow {
         }
         else if(!this.resizing) { // outside of window
             
-            if(e.type == "mousedown" && this.visualState && e.localY > timeline.lastTrackTreesWidgetOffset ) {
+            if(e.type == "mousedown" && this.visualState && e.localY > timeline.lastTrackTreesComponentOffset ) {
                 this.setVisualState( PropagationWindow.STATE_BASE );
             }
             else if( this.visualState == PropagationWindow.STATE_HOVERED ){
@@ -6203,7 +6251,7 @@ class PropagationWindow {
         let { rightSize, leftSize, rectWidth, rectHeight, rectPosX, rectPosY } = this._getBoundingRectInnerWindow();
 
         // compute radii
-        let radii = this.visualState == PropagationWindow.STATE_SELECTED ? (timeline.trackHeight * 0.4) : timeline.trackHeight;
+        let radii = this.visualState == PropagationWindow.STATE_SELECTED ? (timeline.trackHeight * 0.4) : timeline.trackHeight * 0.6;
         let leftRadii = leftSize > radii ? radii : leftSize;
         leftRadii = rectHeight > leftRadii ? leftRadii : rectHeight;
         
@@ -6216,7 +6264,7 @@ class PropagationWindow {
         radiusTR = rightRadii;
         radiusBR = this.visualState ? 0 : rightRadii;
 
-        // draw window rect
+        // draw window rect gradient
         if ( this.visualState && this.opacity ){
             let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
             gradient.addColorStop(0, this.gradientColorLimits);
@@ -6244,41 +6292,89 @@ class PropagationWindow {
             ctx.globalAlpha = 1;
         }
         
-        // borders
+        // borders round corners
         ctx.strokeStyle = this.borderColor;
 
         ctx.lineWidth = 4;
 
         ctx.beginPath();
-        ctx.moveTo(rectPosX, rectPosY + radiusTL*0.5);
-        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL*0.5, rectPosY );
-        ctx.moveTo( rectPosX + rectWidth - radiusTR*0.5, rectPosY );
-        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR*0.5 );
-        ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR*0.5 );
-        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR*0.5, rectPosY + rectHeight );
-        ctx.moveTo( rectPosX + radiusBL*0.5, rectPosY + rectHeight );
-        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL*0.5 );
+        ctx.moveTo(rectPosX, rectPosY + radiusTL);
+        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL, rectPosY );
+        ctx.moveTo( rectPosX + rectWidth - radiusTR, rectPosY );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR );
+        ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR, rectPosY + rectHeight );
+        ctx.moveTo( rectPosX + radiusBL, rectPosY + rectHeight );
+        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL );
         ctx.stroke();
+        
+        // border sublines
         ctx.lineWidth = 1.5;
 
-        let lineSize = timeline.trackHeight;
-        let remaining = rectHeight - timeline.trackHeight;
-        let amount = 0;
-        if (lineSize > 0){
-            amount = Math.ceil(remaining/lineSize);
-            lineSize = remaining / amount;
-        }
+        this._drawSubLines(ctx, rectPosX + radiusTL, rectWidth - radiusTL - radiusTR, rectPosY, false );
+        this._drawSubLines(ctx, rectPosX + radiusBL, rectWidth - radiusBL - radiusBR, rectPosY + rectHeight - 2, false );
 
-        let start = rectPosY + timeline.trackHeight * 0.5;
-        for( let i = 0; i < amount; ++i ){
-            ctx.moveTo(rectPosX, start + lineSize * i + lineSize*0.3);
-            ctx.lineTo(rectPosX, start + lineSize * i + lineSize*0.7);
-            ctx.moveTo(rectPosX + rectWidth, start + lineSize * i + lineSize*0.3);
-            ctx.lineTo(rectPosX + rectWidth, start + lineSize * i + lineSize*0.7);
-        }
+        this._drawSubLines(ctx, rectPosY + radiusTL, rectHeight - radiusTL - radiusBL, rectPosX, true );
+        this._drawSubLines(ctx, rectPosY + radiusTR, rectHeight - radiusTR - radiusBR, rectPosX + rectWidth, true );
+
+
         ctx.stroke();
         ctx.lineWidth = 1;
         // end of borders
+    }
+
+    _drawSubLines(ctx, start, width, staticCoord, isVertical ){
+        let lineSize = 32; //timelin.trackHeight;
+        let remaining;
+        let amount = 0;
+        const margin = 15;
+        
+        start += margin;
+        remaining = Math.max( 0, width - margin - margin );
+        if( lineSize > 0 ){
+            amount = Math.ceil( remaining / lineSize );
+            lineSize = remaining / amount;
+        }
+
+        if ( start < 0 ){
+            let n = Math.ceil( start / lineSize ); // start is negative, ceil instead of floor
+            amount += n; // n is negative
+            start -= n * lineSize;
+        }
+
+        if ( isVertical ){
+            // vertical lines
+            if( staticCoord < 0 || staticCoord > ctx.canvas.width ){
+                return;
+            }
+
+            if( (start + amount * lineSize) > ctx.canvas.height ){
+                amount -= Math.floor( (start + amount*lineSize - ctx.canvas.height) / lineSize ); // remove lines outside of canvas
+            }
+
+            let loopStart = start;
+            for( let i = 0; i < amount; ++i ){
+                ctx.moveTo(staticCoord, loopStart + lineSize*0.3);
+                ctx.lineTo(staticCoord, loopStart + lineSize*0.7);
+                loopStart += lineSize;
+            }
+            return;
+        }
+
+        // horizontal lines
+        if( staticCoord < 0 || staticCoord > ctx.canvas.height ){
+            return;
+        }
+
+        if( (start + amount * lineSize) > ctx.canvas.width ){
+            amount -= Math.floor( (start + amount*lineSize - ctx.canvas.width) / lineSize ); // remove lines outside of canvas
+        }
+        let loopStart = start;
+        for( let i = 0; i < amount; ++i ){
+            ctx.moveTo(loopStart + lineSize*0.3, staticCoord);
+            ctx.lineTo(loopStart + lineSize*0.7, staticCoord);
+            loopStart += lineSize;
+        }
     }
 }
 

@@ -2518,6 +2518,7 @@ class KeyframeEditor extends Editor {
      * @param {Object} options
      *      - faceMapMode: Whether to import blendshapes, action units, or both (or none). IMPORTSETTINGS_ enum
      *      - auMapSrcAvatar: character with which to map AU (if enabled). When provided, only this avatar will be checked. Otherwise, avatars are check until at least 1 match is found
+     *      - startTime: time where to place the clip. Default to current time
      */
     bindAnimationToCharacter(animationName, targetGlobalAnimation = null, options = {} ) {
         
@@ -2663,10 +2664,10 @@ class KeyframeEditor extends Editor {
         if ( targetGlobalAnimation ){
             const currentGlobal = this.gui.globalTimeline.animationClip; // this.currentAnimation might be null, but timeline always has a defualt animation
             this.gui.globalTimeline.setAnimationClip(targetGlobalAnimation, false);
-            this.gui.globalTimeline.addClip(boundAnimation);
+            this.gui.globalTimeline.addClip(boundAnimation, -1, options.startTime ?? this.currentTime);
             this.gui.globalTimeline.setAnimationClip(currentGlobal, false);
         }else{
-            this.gui.globalTimeline.addClip(boundAnimation);
+            this.gui.globalTimeline.addClip(boundAnimation, -1, options.startTime ?? this.currentTime);
             const mixer = this.currentCharacter.mixer;
             this.setKeyframeClipBlendMode( boundAnimation, THREE.NormalAnimationBlendMode, false );
             this.globalAnimMixerManagementSingleClip(mixer, boundAnimation);
@@ -2808,6 +2809,7 @@ class KeyframeEditor extends Editor {
     onPlay() {
      
         this.gui.setBoneInfoState( false );
+        this.gui.propagationWindow.setVisualState( 0 );
         if( this.video.sync ) {
             try {
                 this.video.paused ? this.video.play() : 0;    
