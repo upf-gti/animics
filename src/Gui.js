@@ -1854,12 +1854,12 @@ class KeyframesGui extends Gui {
                             const currentTime = that.editor.currentTime;
 
                             that.editor.activeTimeline.setTime(selectedTime);
-                            let newframe = this.addKeyFrames( e.track.trackIdx,that.boneProperties[type].toArray(), [selectedTime] );
+                            let newFrame = this.addKeyFrames( e.track.trackIdx,that.boneProperties[type].toArray(), [selectedTime] );
                             
                             if( that.propagationWindow.enabler ){
                                 that.editor.activeTimeline.setTime(currentTime);
                             }else{
-                                this.selectKeyFrame(e.track.trackIdx, newframe[0]);
+                                this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
                             }
                         }
                     }
@@ -1868,7 +1868,8 @@ class KeyframesGui extends Gui {
                         {
                             title: "Add",
                             callback: () => {
-                                this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
+                                let newFrame = this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
+                                this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
                             }
                         }
                     );
@@ -2026,6 +2027,121 @@ class KeyframesGui extends Gui {
             }
         };
 
+        this.bsTimeline.showContextMenu = function( e ) {
+            // THIS here means the timeline, not the GUI
+            e.preventDefault();
+            e.stopPropagation();
+    
+            let actions = [];
+            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
+                actions.push(
+                    {
+                        title: "Copy",
+                        callback: () => {
+                            this.copySelectedContent();
+                        }
+                    }
+                );
+                actions.push(
+                    {
+                        title: "Delete",
+                        callback: () => {
+                            this.deleteSelectedContent();
+                        }
+                    }
+                );
+                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value)
+                {
+                    actions.push(
+                        {
+                            title: "Paste Value",
+                            callback: () => {
+                                this.pasteContentValue();
+                            }
+                        }
+                    );
+                }
+            }
+
+            if(e.track) {
+
+                const helperNewBSKeyframe = ( track, time ) =>{
+                    let newFrame = this.addKeyFrames( track.trackIdx, [0], [time] );
+                        
+                    const values = track.values;
+                    const times = track.times;
+                    if ( times.length > 1 ){
+                        if ( newFrame == 0 ){
+                            values[ newFrame ] = values[ newFrame + 1 ]; // copy next value
+                        }
+                        else if ( newFrame == (times.length -1)){
+                            values[ newFrame ] = values[ newFrame - 1 ]; // copy prev value
+                        }
+                        else{
+                            let dt = times[newFrame+1] - times[newFrame-1];
+                            let f = 0;
+                            if( dt > 0 ){
+                                f = ( selectedTime - times[newFrame-1] ) / dt;
+                            }
+                            values[ newFrame ] = values[newFrame-1] * (1-f) + values[newFrame+1] * f;
+                        }
+                    }
+                    
+                    if( !that.propagationWindow.enabler ){
+                        this.selectKeyFrame(track.trackIdx, newFrame[0]);
+                    }
+                }
+
+                actions.push(
+                {
+                    title: "Add Here",
+                    callback: () => {
+                        const selectedTime = this.xToTime(e.localX);
+
+                        that.editor.activeTimeline.setTime(selectedTime);
+                        helperNewBSKeyframe( e.track, selectedTime );
+                        
+                    }
+                });
+                actions.push(
+                    {
+                        title: "Add",
+                        callback: () => {
+                            helperNewBSKeyframe( e.track, that.editor.currentTime );
+                        }
+                    }
+                );
+            }
+            
+            
+            if(this.clipboard && this.clipboard.keyframes)
+            {
+                actions.push(
+                    {
+                        title: "Paste Here",
+                        callback: () => {
+                            this.pasteContent( this.xToTime(e.localX) );
+                        }
+                    }
+                );
+                actions.push(
+                    {
+                        title: "Paste",
+                        callback: () => {
+                            this.pasteContent( this.currentTime );
+                        }
+                    }
+                );
+            }
+            
+            LX.addContextMenu("Options", e, (m) => {
+                for(let i = 0; i < actions.length; i++) {
+                    m.add(actions[i].title,  actions[i].callback )
+                }
+            });
+    
+        }
+
         this.bsTimeline.onContentMoved = (trackIdx, keyframeIdx)=> {
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx], this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
@@ -2051,11 +2167,11 @@ class KeyframesGui extends Gui {
             }
             
             // Highlight panel slider
-            const elements = document.getElementsByClassName("bg-accent");
+            const elements = this.sidePanelBlendshapeSlidersPanel.root.getElementsByClassName("bg-accent");
             for(let el of elements) {
                 el.classList.remove("bg-accent");
             }
-            const el = document.querySelector(`[title='${this.bsTimeline.animationClip.tracks[selection[0]].id}']`);
+            const el = this.sidePanelBlendshapeSlidersPanel.root.querySelector(`[title='${this.bsTimeline.animationClip.tracks[selection[0]].id}']`);
 
             if(el) {
                 el.parentElement.classList.add("bg-accent");
