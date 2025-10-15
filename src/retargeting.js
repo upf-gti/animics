@@ -221,16 +221,16 @@ class AnimationRetargeting {
         else {
             // automap
             const auxBoneMap = Object.keys(AnimationRetargeting.boneMap);
-            this.srcBoneMap = computeAutoBoneMap( srcSkeleton );
-            this.trgBoneMap = computeAutoBoneMap( trgSkeleton );
-            if(this.srcBoneMap.idxMap.length && this.trgBoneMap.idxMap.length) {
+            const srcBoneMap = computeAutoBoneMap( srcSkeleton );
+            const trgBoneMap = computeAutoBoneMap( trgSkeleton );
+            if(srcBoneMap.idxMap.length && trgBoneMap.idxMap.length) {
                 for(let i = 0; i < auxBoneMap.length; i++) {           
                     const name = auxBoneMap[i];
-                    if(this.srcBoneMap.idxMap[i] < 0) {
+                    if(srcBoneMap.idxMap[i] < 0) {
                         continue;
                     }
-                    result.idxMap[this.srcBoneMap.idxMap[i]] = this.trgBoneMap.idxMap[i];
-                    result.nameMap[ this.srcBoneMap.nameMap[name]] = this.trgBoneMap.nameMap[name]; 
+                    result.idxMap[ srcBoneMap.idxMap[i]] = trgBoneMap.idxMap[i];
+                    result.nameMap[ srcBoneMap.nameMap[name]] = trgBoneMap.nameMap[name]; 
                 }
             }
         }

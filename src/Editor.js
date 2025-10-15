@@ -2968,7 +2968,7 @@ class KeyframeEditor extends Editor {
 
     globalAnimMixerManagement(mixer, animation, useCurrentKeyframeClipRules = true){
 
-        // when selecting a clip, only certain neighbouring animations should played
+        // when selecting a clip, only overlapping animations should be played alongside the current one
         if ( useCurrentKeyframeClipRules && this.currentKeyFrameClip ){
             const currentClip = this.currentKeyFrameClip;
 
@@ -3024,11 +3024,12 @@ class KeyframeEditor extends Editor {
             }
         }
     }
+
     globalAnimMixerManagementSingleClip(mixer, clip){
         const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
         const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
         
-        if ( !clip.active ){
+        if ( !clip.active || !this.gui.globalTimeline.animationClip.tracks[clip.trackIdx].active ){
             actionBody.stop();
             actionFace.stop();
             return;

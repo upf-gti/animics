@@ -1524,14 +1524,13 @@ class KeyframesGui extends Gui {
         this.globalTimeline.onSetTrackState = (track, previousState) =>{
             if ( track.active == previousState ){ return; }
 
-            for( let i = 0; i < track.clips.length; ++i ){
-                track.clips[i].active = track.active; 
-            }
             this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation() );
             
-            if ( this.globalTimeline.lastClipsSelected.length ){ // update toggle
+            if ( this.globalTimeline.lastClipsSelected.length ){ // update toggle. A bit of an overkill
                 this.createSidePanel();
             }
+
+            this.editor.setTime(this.editor.currentTime); // force mixer update
         }
 
         this.globalTimeline.onDeleteSelectedClips = (deletedClips) =>{
@@ -2386,7 +2385,7 @@ class KeyframesGui extends Gui {
                     clip.clipColor = v;
                 });
 
-                p.addToggle("Active", clip.active, (v,e) =>{
+                p.addToggle("Active", this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active & clip.active, (v,e) =>{
                     if ( !this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ){
                         p.components["Active"].set(false, true);
                         return;
@@ -2787,7 +2786,7 @@ class KeyframesGui extends Gui {
             }
         ], { vertical: true, height : "100%" });
 
-        bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
+        bodyArea.split({type: "vertical", resize: true, sizes: ["50%","50%"]});
         const [bodyTop, bodyBottom] = bodyArea.sections;
         this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.selectedBone || this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
@@ -3194,6 +3193,23 @@ class KeyframesGui extends Gui {
                 }
             },
         });
+
+        // Hack lexgui. Tree behaviour works for the timeline's left panel, but not for the skeleton panel
+        // make only the hierarchy scrollable
+        this.treeWidget.root.style.height = "100%";
+        const ul = this.treeWidget.root.getElementsByTagName("ul")[0];
+        ul.style.width = "fit-content";
+        const oldUlParent = ul.parentElement;
+        oldUlParent.classList.add("flex");
+        oldUlParent.classList.add("flex-col");
+        oldUlParent.style.height = "100%";
+        const newUlParent = document.createElement("div"); // make div take the remaining space of the tree component for the hierarchy display
+        newUlParent.style.flex = "1 1 auto";
+        newUlParent.style.overflow = "scroll";
+        ul.remove();
+        newUlParent.appendChild(ul);
+        oldUlParent.appendChild(newUlParent);
+        
     }
 
     updateNodeTree() {
