@@ -2919,14 +2919,14 @@ class KeyframeEditor extends Editor {
             case this.animationModes.FACEBS:
                 this.activeTimeline = this.gui.bsTimeline;
                 this.animationMode = this.animationModes.FACEBS;
-                this.gizmo.disable();
+                this.gizmo.disableAll();
                 break;
 
             case this.animationModes.FACEAU:
                 this.activeTimeline = this.gui.bsTimeline;
                 this.animationMode = this.animationModes.FACEAU;
                 this.setSelectedActionUnit(this.selectedAU);           
-                this.gizmo.disable();
+                this.gizmo.disableAll();
                 
                 break;
                
@@ -2937,7 +2937,7 @@ class KeyframeEditor extends Editor {
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
                 }
-                this.gizmo.enable();
+                this.gizmo.enableRaycast();
 
                 break;
                 
@@ -2952,7 +2952,7 @@ class KeyframeEditor extends Editor {
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(false);
                 }
-                this.gizmo.disable();
+                this.gizmo.disableAll();
                 
                 this.video.sync = false;
                 this.gui.propagationWindow.setEnabler(false);
@@ -3261,28 +3261,19 @@ class KeyframeEditor extends Editor {
         return geometry.getAttribute('size').array[0];
     }
 
-    setSelectedBone( name ) {
+    setSelectedBone( name, overwriteTimelineSelectedItems = true ) {
 
         if(!this.gizmo)
         throw("No gizmo attached to scene");
     
         this.selectedBone = name;
 
-        this.gui.skeletonTimeline.setSelectedItems( [this.selectedBone] );
-
-        // selectkeyframe at current keyframe if possible
-        // const track = this.gui.skeletonTimeline.animationClip.tracksPerGroup[this.selectedBone][0];
-        // if ( track ){
-        //     const keyframe = this.gui.skeletonTimeline.getCurrentKeyFrame(track, this.gui.skeletonTimeline.currentTime, 0.1 );
-        //     if ( keyframe > -1 ){
-        //         this.gui.skeletonTimeline.processSelectionKeyFrame( track.trackIdx, keyframe, false );
-        //     }
-        // }
+        if ( overwriteTimelineSelectedItems ){
+            this.gui.skeletonTimeline.setSelectedItems( [this.selectedBone] );
+        }
 
         this.gizmo.setBone(name);
-        this.gizmo.stop(); // nothing is selected
-        this.gizmo.mustUpdate = true;
-
+        this.gizmo.disableTransform(); // no keyframe is selected
 
         this.gui.updateSkeletonPanel();
         if ( this.gui.treeWidget ){ 
@@ -3320,6 +3311,7 @@ class KeyframeEditor extends Editor {
         
         this.gizmo.setMode( mode.toLowerCase() );
     }
+
     getGizmoIkMode(){
         return this.gizmo.ikMode == Gizmo.ToolIkModes.LARGECHAIN ? "Multiple" : "Single";
     }
@@ -3384,12 +3376,7 @@ class KeyframeEditor extends Editor {
     }
 
     setSelectedActionUnit(au) {
-        if(this.selectedAU == au) {
-            return;
-        }
-        this.selectedAU = au;
-        this.setTime(this.currentTime);
-        
+        this.selectedAU = au;        
     }
 
 /**

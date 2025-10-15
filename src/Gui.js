@@ -1756,7 +1756,7 @@ class KeyframesGui extends Gui {
         this.skeletonTimeline.onSetTime = (t) => {
             if ( this.skeletonTimeline.lastKeyFramesSelected.length && this.skeletonTimeline.grabbingTimeBar ){
                 this.skeletonTimeline.deselectAllKeyFrames();
-                this.editor.gizmo.stop();
+                this.editor.gizmo.disableTransform();
             }
             this.editor.setTime(this.editor.startTimeOffset + t, true);
             this.propagationWindow.setTime(t);
@@ -1783,14 +1783,25 @@ class KeyframesGui extends Gui {
         this.skeletonTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.skeletonTimeline.currentTime );
 
-            if ( this.skeletonTimeline.lastKeyFramesSelected.length < 2){   
+            if ( this.skeletonTimeline.lastKeyFramesSelected.length == 1){   
                 const track = this.skeletonTimeline.animationClip.tracks[selection[0]];
-                this.editor.gizmo._setBoneById(this.editor.gizmo.selectedBone);
-                this.editor.setGizmoMode(track ? track.id : "rotate");
+
+                if ( this.editor.selectedBone != track.groupId ){
+                    this.editor.setSelectedBone( track.groupId, false );
+                    if ( !this.editor.hasGizmoSelectedBoneIk() ){
+                        this.editor.gizmo.setTool(Gizmo.Tools.JOINT);
+                    }
+                }
+                
+                const ikMode = this.editor.gizmo.ikMode; // hack
+                this.editor.setGizmoMode(track.id);
+                this.editor.gizmo.ikMode = ikMode; // hack
+
+                this.editor.gizmo.enableTransform(); // show gizmo
                 this.editor.gizmo.update(true);
                 this.updateSkeletonPanel();
             }else{
-                this.editor.gizmo.stop();
+                this.editor.gizmo.disableTransform();
             }
 
             if ( this.propagationWindow.enabler ){
@@ -1799,7 +1810,7 @@ class KeyframesGui extends Gui {
         };
 
         this.skeletonTimeline.onDeselectKeyFrames = (keyframes) => {
-            this.editor.gizmo.stop();
+            this.editor.gizmo.disableTransform();
         }
 
         
@@ -1843,6 +1854,10 @@ class KeyframesGui extends Gui {
 
             if(e.track) {
                 
+                if ( e.track.groupId != that.editor.selectedBone ){
+                    that.editor.setSelectedBone( e.track.groupId, false );
+                }
+
                 const type = e.track.id;
                 if(that.boneProperties[type]) {
                     actions.push(
@@ -1852,7 +1867,8 @@ class KeyframesGui extends Gui {
                             const selectedTime = this.xToTime(e.localX);
                             const currentTime = that.editor.currentTime;
 
-                            that.editor.activeTimeline.setTime(selectedTime);
+                            this.deselectAllElements();
+                            this.setTime(selectedTime);
                             let newFrame = this.addKeyFrames( e.track.trackIdx,that.boneProperties[type].toArray(), [selectedTime] );
                             
                             if( that.propagationWindow.enabler ){
@@ -1867,6 +1883,7 @@ class KeyframesGui extends Gui {
                         {
                             title: "Add",
                             callback: () => {
+                                this.deselectAllElements();
                                 let newFrame = this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
                                 this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
                             }
@@ -1905,7 +1922,7 @@ class KeyframesGui extends Gui {
     
         }
 
-        this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.stop(); } }
+        this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.disableTransform(); } }
         this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
         this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );}
         this.skeletonTimeline.onOptimizeTracks = (idx = -1) => { 
@@ -3283,11 +3300,24 @@ class KeyframesGui extends Gui {
                 let active = this.editor.getGizmoMode();
 
                 const toolsValues = [ 
-                    { value: "Joint", selected: this.editor.getGizmoTool() == "Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} },
-                    { value: "Follow", selected: this.editor.getGizmoTool() == "Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} 
-                }];
-                const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
-                
+                    { value: "Joint", selected: this.editor.getGizmoTool() == "Joint", callback: (v,e) => {
+                        if ( this.skeletonTimeline.lastKeyFramesSelected.length == 1 ){
+                            this.editor.setGizmoTool(v); widgets.onRefresh();
+                        }
+                    }},    
+                    { value: "Follow", selected: this.editor.getGizmoTool() == "Follow", callback: (v,e) => {
+                        if ( this.skeletonTimeline.lastKeyFramesSelected.length == 1 ){
+                            this.editor.setGizmoTool(v); widgets.onRefresh();
+                        }
+                    }}
+                ];
+
+                const hasIk = this.editor.hasGizmoSelectedBoneIk();
+                const _Tools = hasIk ? toolsValues : [toolsValues[0]];
+                if ( !hasIk ){
+                    this.editor.setGizmoTool("Joint");
+                }
+
                 widgets.branch("Gizmo", { icon:"Axis3DArrows", settings: (e) => this.openSettings( 'gizmo' ) });
                 
                 widgets.addComboButtons( "Tool", _Tools, { });
@@ -3324,7 +3354,7 @@ class KeyframesGui extends Gui {
                                 selected: this.editor.getGizmoMode() == "Rotate",
                                 callback: (v,e) => {
                                 
-                                    const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i].trackIdx, this.skeletonTimeline.currentTime, 0.01); 
+                                    const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i], this.skeletonTimeline.currentTime, 0.01); 
                                     if( frame > -1 ) {
                                         this.skeletonTimeline.deselectAllKeyFrames();
                                         this.skeletonTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
@@ -3396,21 +3426,24 @@ class KeyframesGui extends Gui {
                 
 
                 const innerUpdate = (attribute, value) => {
-            
-                    if(attribute == 'quaternion') {
-                        boneSelected.quaternion.fromArray( value ).normalize(); 
-                        let rot = boneSelected.rotation.toArray().slice(0,3); // radians
-                        widgets.components['Rotation (XYZ)'].set( rot, true ); // skip onchange event
-                    }
-                    else if(attribute == 'rotation') {
-                        boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
-                        widgets.components['Quaternion'].set(boneSelected.quaternion.toArray(), true ); // skip onchange event
-                    }
-                    else if(attribute == 'position') {
-                        boneSelected.position.fromArray( value );
+                    
+                    if ( this.skeletonTimeline.lastKeyFramesSelected.length == 1 ){
+
+                        if(attribute == 'quaternion') {
+                            boneSelected.quaternion.fromArray( value ).normalize(); 
+                            let rot = boneSelected.rotation.toArray().slice(0,3); // radians
+                            widgets.components['Rotation (XYZ)'].set( rot, true ); // skip onchange event
+                        }
+                        else if(attribute == 'rotation') {
+                            boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
+                            widgets.components['Quaternion'].set(boneSelected.quaternion.toArray(), true ); // skip onchange event
+                        }
+                        else if(attribute == 'position') {
+                            boneSelected.position.fromArray( value );
+                        }
                     }
 
-                    this.editor.gizmo.onGUI(attribute);
+                    this.editor.gizmo.setMode(attribute);
                 };
 
 
@@ -3421,16 +3454,26 @@ class KeyframesGui extends Gui {
                 // Only edit position for root bone
                 if(boneSelected.children.length && boneSelected.parent.constructor !== boneSelected.children[0].constructor) {
                     this.boneProperties['position'] = boneSelected.position;
-                    widgets.addVector3('Position', boneSelected.position.toArray(), (v) => innerUpdate("position", v), {disabled: this.editor.state || active != 'Translate', precision: 3, step: 0.01, className: 'bone-position'});
+                    widgets.addVector3('Position', boneSelected.position.toArray(), (v) => innerUpdate("position", v), {
+                        disabled: this.editor.state || active != 'Translate', precision: 3, step: 0.01, className: 'bone-position',
+                        onPress: ()=>{this.editor.gizmo.setMode("position");}
+                    });
 
                     this.boneProperties['scale'] = boneSelected.scale;
-                    widgets.addVector3('Scale', boneSelected.scale.toArray(), (v) => innerUpdate("scale", v), {disabled: this.editor.state || active != 'Scale', precision: 3, className: 'bone-scale'});
+                    widgets.addVector3('Scale', boneSelected.scale.toArray(), (v) => innerUpdate("scale", v), {
+                        disabled: this.editor.state || active != 'Scale', precision: 3, className: 'bone-scale',
+                        onPress: ()=>{this.editor.gizmo.setMode("scale");}
+                    });
                 }
 
                 this.boneProperties['rotation'] = boneSelected.rotation;
                 let rot = boneSelected.rotation.toArray().slice(0,3); // toArray returns [x,y,z,order]
                 rot[0] = rot[0] * UTILS.rad2deg; rot[1] = rot[1] * UTILS.rad2deg; rot[2] = rot[2] * UTILS.rad2deg;
-                widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-euler'});
+                widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)},
+                     {
+                        step:1, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-euler',
+                        onPress: ()=>{this.editor.gizmo.setMode("rotation");}
+                     });
 
                 this.boneProperties['quaternion'] = boneSelected.quaternion;
                 widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: true, precision: 3, className: 'bone-quaternion'});
@@ -4083,7 +4126,7 @@ class KeyframesGui extends Gui {
                         skeleton.visible = editor.showSkeleton;
                         editor.scene.getObjectByName('GizmoPoints').visible = editor.showSkeleton;
                         if(!editor.showSkeleton) 
-                            editor.gizmo.stop();
+                            editor.gizmo.disableTransform();
                     }
                 }
             ];       
@@ -4111,7 +4154,7 @@ class KeyframesGui extends Gui {
                     
                     if(!editor.showGUI) {
                         if(editor.gizmo) {
-                            editor.gizmo.stop();
+                            editor.gizmo.disableTransform();
                         }
                         this.hideTimeline();
                         this.sidePanelArea.parentArea.extend();
