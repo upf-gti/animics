@@ -22,40 +22,14 @@ class Gizmo {
             }
         });
 
-        transform.addEventListener( 'mouseUp', e => {
-            if(this.selectedBone == -1){
-                return;
-            }
-            this.updateTracks();
-            this.editor.gui.updateSkeletonPanel();
+        transform.addEventListener( 'mouseUp', (e) =>{
+            this._onTransformMouseUp();
+            // this.editor.gui.updateBonePanel();
         } );
         
-        transform.addEventListener( 'mouseDown', e => {
+        transform.addEventListener( 'mouseDown', (e)=>{
+            this._onTransformMouseDown();
 
-            if(this.selectedBone == -1){
-                return;
-            }
-
-            /*
-                Save current state of bones for this keyframeClip.
-                Since multiple animation might be overlapping, quaternion/position/scale cannot be fetched directly from the scene and plugged in to the track.
-                A delta must be computed and applied to the track. This also allows for normal and additive animations.
-
-                This assumes that while gizmo is clicked, the selected keyframe and the propagation window cannot change. 
-            */
-            const mouseDownState = [];
-            const chain = this.toolSelected == Gizmo.Tools.IK ? this.ikSelectedChain.chain : [this.selectedBone];
-            for( let i = 0; i < chain.length; ++i ){
-                const bone = this.skeleton.bones[chain[i]];
-                mouseDownState.push({
-                    boneIdx: chain[i],
-                    quaternion: bone.quaternion.clone(),
-                    position: bone.position.clone(),
-                    scale: bone.scale.clone(),
-                });
-            }
-
-            this.mouseDownState = mouseDownState;
         } );
 
         transform.addEventListener( 'dragging-changed', e => {
@@ -83,18 +57,52 @@ class Gizmo {
         this.bonePoints = null;
 
         this.toolSelected = Gizmo.Tools.JOINT;
-        this.mode = "rotate";
+        this.jointMode = "rotate";
+        this.jointSpace = "world";
 
         //ik tool 
         this.ikSelectedChain = null;
         this.ikTarget = null;
         this.ikSolver = null;
-        this.ikMode = Gizmo.ToolIkModes.ONEBONE; // this.mode should be the one, but it is used for other purposes in the editor. So we need this variable.
+        this.ikMode = Gizmo.ToolIkModes.ONEBONE;
 
         this.mustUpdate = false;
         this.transformEnabled = false;
         this.raycastEnabled = true;
+    }
 
+    _onTransformMouseUp(){
+        if(this.selectedBone == -1){
+            return;
+        }
+        this.updateTracks();
+    }
+
+    _onTransformMouseDown(){
+        if(this.selectedBone == -1){
+            return;
+        }
+
+        /*
+            Save current state of bones for this keyframeClip.
+            Since multiple animation might be overlapping, quaternion/position/scale cannot be fetched directly from the scene and plugged in to the track.
+            A delta must be computed and applied to the track. This also allows for normal and additive animations.
+
+            This assumes that while gizmo is clicked, the selected keyframe and the propagation window cannot change. 
+        */
+        const mouseDownState = [];
+        const chain = this.toolSelected == Gizmo.Tools.IK ? this.ikSelectedChain.chain : [this.selectedBone];
+        for( let i = 0; i < chain.length; ++i ){
+            const bone = this.skeleton.bones[chain[i]];
+            mouseDownState.push({
+                boneIdx: chain[i],
+                quaternion: bone.quaternion.clone(),
+                position: bone.position.clone(),
+                scale: bone.scale.clone(),
+            });
+        }
+
+        this.mouseDownState = mouseDownState;
     }
 
     begin(skeletonHelper) {
@@ -260,7 +268,8 @@ class Gizmo {
         if ( this.ikMode == Gizmo.ToolIkModes.LARGECHAIN ){
             enabled = this.ikSolver.setChainEnabler( chainName, true );
         } 
-        else { // Gizmo.ToolIkModes.ONEBONE
+
+        if( !enabled ) { // Gizmo.ToolIkModes.ONEBONE
             chainName = "OneBoneIK_" + chainName;
             enabled = this.ikSolver.setChainEnabler( chainName, true );
         }
@@ -346,7 +355,7 @@ class Gizmo {
 
                 case 'q':
                     transform.setSpace( transform.space === 'local' ? 'world' : 'local' );
-                    this.editor.gui.updateSkeletonPanel();
+                    this.editor.gui.updateBonePanel();
                     break;
 
                 case 'Shift':
@@ -360,18 +369,18 @@ class Gizmo {
                         return;
                     this.setTool( Gizmo.Tools.JOINT );
                     this.setMode( "translate" );
-                    this.editor.gui.updateSkeletonPanel();
+                    this.editor.gui.updateBonePanel();
                     break;
 
                 case 'e':
                     this.setTool( Gizmo.Tools.JOINT );
                     this.setMode( "rotate" );
-                    this.editor.gui.updateSkeletonPanel();
+                    this.editor.gui.updateBonePanel();
                     break;
 
                 case 'r':
                     this.setTool( Gizmo.Tools.IK );
-                    this.editor.gui.updateSkeletonPanel();
+                    this.editor.gui.updateBonePanel();
                     break;
             }
 
@@ -400,7 +409,7 @@ class Gizmo {
     enableTransform (){
         this.transformEnabled = true;
         if ( this.selectedBone != -1 ){
-            if ( this.toolSelected == Gizmo.ToolIkModes.IK ){
+            if ( this.toolSelected == Gizmo.Tools.IK ){
                 this.transform.attach( this.ikTarget );
             }else{
                 this.transform.attach( this.skeleton.bones[this.selectedBone] );
@@ -644,31 +653,28 @@ class Gizmo {
         this.updateBoneColors();
     }
 
-    /**
-     * for the tool JOINT -> ModeLUT
-     * for the tool IK -> ToolIkModes
-     * @param {string} mode 
-     * @returns 
-     */
-    setMode( mode ) {
-        if ( this.toolSelected == Gizmo.Tools.JOINT ){
-            this.mode = Gizmo.ModeLUT[mode] ?? "rotate";
-            this.transform.setMode( this.mode );
-            return true;
-        }
 
+    setJointMode( mode ){
+        this.jointMode = Gizmo.ModeLUT[mode] ?? "rotate";
+        if ( this.toolSelected == Gizmo.Tools.JOINT ){
+            this.transform.setMode( this.jointMode );
+        }
+    }
+
+    setIkMode( mode ){
+        this.ikMode = mode;
         if ( this.toolSelected == Gizmo.Tools.IK ){ 
-            this.mode = "rotate";
-            this.ikMode = mode; 
             this.transform.setMode( "translate" ); // ik moves target, but rotates joints
             return this._ikSetBone( this.selectedBone );
         }
-
         return false;
     }
 
     setSpace( space ) {
-        this.transform.setSpace( space );
+        this.jointSpace = space;
+        if ( this.toolSelected == Gizmo.Tools.JOINT ){
+            this.transform.setSpace( space );
+        }
     }
 
     setTool( tool ){
@@ -678,12 +684,15 @@ class Gizmo {
         let ikResult = false;
         if ( tool == Gizmo.Tools.IK ){
             this.toolSelected = Gizmo.Tools.IK;
-            ikResult = this.setMode( lastTool != this.toolSelected ? Gizmo.ToolIkModes.ONEBONE : this.ikMode );
+            ikResult = this.setIkMode( this.ikMode );
         }
         if ( !ikResult ){
             this.toolSelected = Gizmo.Tools.JOINT;
             this._ikStop();
-            this.setMode( lastTool != this.toolSelected ? "rotate" : this.mode );
+            this.setJointMode( lastTool != this.toolSelected ? "rotate" : this.jointMode );
+            this.transform.setSpace(this.jointSpace);
+        }else{
+            this.transform.setSpace("world");
         }
     }
 

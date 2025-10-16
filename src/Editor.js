@@ -2933,7 +2933,7 @@ class KeyframeEditor extends Editor {
             case this.animationModes.BODY:
                 this.animationMode = this.animationModes.BODY;
                 this.activeTimeline = this.gui.skeletonTimeline;
-                this.setSelectedBone(this.selectedBone); // select bone in case of change of animation
+                this.setSelectedBone(this.selectedBone); // select bone in case of change of animation. Sets gizmo transform also
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
                 }
@@ -3273,11 +3273,21 @@ class KeyframeEditor extends Editor {
         }
 
         this.gizmo.setBone(name);
-        this.gizmo.disableTransform(); // no keyframe is selected
+        if ( this.activeTimeline == this.gui.skeletonTimeline && this.gui.propagationWindow.enabler ){
+            this.gizmo.enableTransform(); // no keyframe is selected
+        }
+        else{
+            this.gizmo.disableTransform(); // no keyframe is selected
+        }
 
-        this.gui.updateSkeletonPanel();
+        this.gui.updateBonePanel();
         if ( this.gui.treeWidget ){ 
             this.gui.treeWidget.innerTree.select(this.selectedBone);
+            const ul = this.gui.treeWidget.innerTree.domEl.getElementsByTagName("ul")[0];
+			for( let i = 0; i < ul.children.length; ++i){
+				ul.children[i].style.minWidth = "fit-content";
+				ul.children[i].style.width = "100%";
+			}
         }
     }
 
@@ -3302,14 +3312,16 @@ class KeyframeEditor extends Editor {
     }
 
     getGizmoMode() {
-        return UTILS.firstToUpperCase( this.gizmo.mode );
+        return this.gizmo.toolSelected == Gizmo.Tools.IK ? "Rotate" : UTILS.firstToUpperCase( this.gizmo.jointMode );
     }
 
-    setGizmoMode( mode ) {
-        if(!mode.length)
-        throw("Invalid Gizmo mode");
-        
-        this.gizmo.setMode( mode.toLowerCase() );
+    getGizmoJointMode(){
+        return UTILS.firstToUpperCase( this.gizmo.jointMode );
+
+    }
+
+    setGizmoJointMode( mode ) {
+        this.gizmo.setJointMode( mode.toLowerCase() );
     }
 
     getGizmoIkMode(){
@@ -3317,7 +3329,7 @@ class KeyframeEditor extends Editor {
     }
     
     setGizmoIkMode( mode ){
-        this.gizmo.setMode( mode == "Multiple" ? Gizmo.ToolIkModes.LARGECHAIN : Gizmo.ToolIkModes.ONEBONE ); //!!!!!! TO DO: setMode is being used with Joint and IK mode. This might create conflicts
+        this.gizmo.setIkMode( mode == "Multiple" ? Gizmo.ToolIkModes.LARGECHAIN : Gizmo.ToolIkModes.ONEBONE ); //!!!!!! TO DO: setMode is being used with Joint and IK mode. This might create conflicts
     }
 
     getGizmoSpace() {
@@ -3325,9 +3337,6 @@ class KeyframeEditor extends Editor {
     }
 
     setGizmoSpace( space ) {
-        if(!space.length)
-        throw("Invalid Gizmo mode");
-        
         this.gizmo.setSpace( space.toLowerCase() );
     }
 
@@ -3336,7 +3345,6 @@ class KeyframeEditor extends Editor {
     }
 
     setGizmoSize( size ) {
-        
         this.gizmo.transform.setSize( size );
     }
 
