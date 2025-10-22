@@ -6,6 +6,9 @@ import 'lexgui/extensions/timeline.js';
 import { Gizmo } from "./Gizmo.js";
 import { KeyframeEditor } from "./Editor.js";
 
+LX.registerIcon( "arrow-up-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 4-4 4 4 M7 4v16 M11 12h4 M11 16h7 M11 20h10"/></svg>' );
+LX.registerIcon( "arrow-down-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4 M7 20V4 M11 4h4 M11 8h7 M11 12h10"/></svg>' );
+
 class Gui {
 
     constructor( editor)  {
@@ -3169,10 +3172,27 @@ class KeyframesGui extends Gui {
         
         const mytree = this.updateNodeTree();
     
+        const lastFixedSelection = this.treeWidget ? this.treeWidget._fixedSelection : [];
         this.treeWidget = skeletonPanel.addTree("Skeleton bones", mytree, { 
             // icons: tree_icons, 
             filter: true,
             rename: false,
+            icons: [  // Warning! if order of buttons change, check the tour still points to the correct icons
+                { 
+                    name: "Fix Bones to Timeline", icon: "TextSelect", 
+                    callback: (v,e) =>{ 
+                        this.treeWidget._fixedSelection = this.skeletonTimeline.selectedItems.slice();
+                        LX.toast("Fixed Bones To Timeline", `${this.treeWidget._fixedSelection}`, { timeout: 7000 } );
+                    }
+                },
+                {
+                    name: "Unfix Timeline Bones", icon: "Delete", 
+                    callback: (v,e) =>{ 
+                        this.treeWidget._fixedSelection = [];
+                        LX.toast("Unfixed Bones From Timeline", null, { timeout: 7000 } );
+                    }
+                },
+            ],
             onevent: (event) => { 
                 console.log(event.string());
     
@@ -3216,6 +3236,66 @@ class KeyframesGui extends Gui {
             },
         });
 
+        this.treeWidget._fixedSelection = lastFixedSelection;
+        this.treeWidget._tour = new LX.Tour([
+            {
+                title: "Bone Selection",
+                content: "Bones can be selected by clicking on the bone's name from this panel ...",
+                reference: this.treeWidget.root.querySelector("ul"),
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Bone Selection",
+                content: " .. or by left-clicking the joint from the canvas.",
+                reference: this.editor.renderer.domElement,
+                side: "right",
+                align: "center"
+            },
+            {
+                title: "Timeline and Bones",
+                content: "A selected bone will be automatically displayed in the timeline, hiding any previous bones shown in it.",
+                reference: this.skeletonTimeline.root,
+                side: "top",
+                align: "center"
+            },
+            {
+                title: "Timeline and Bones",
+                content: "The immediate children/parent and the entire descendant/ascendant hierarchy of a bone can be added to the timeline through the buttons to the right of its name.",
+                reference: this.treeWidget.root.querySelector("ul"),
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Timeline and Bones",
+                content: "Right-clicking on the joint nodes will add them to the timeline without removing the previous visible bones.",
+                reference: this.editor.renderer.domElement,
+                side: "right",
+                align: "center"
+            },
+            {
+                title: "Fixing Timeline Bones",
+                content: `This button will force the current bones to always be visible, regardless of the bones selected.`,
+                reference: this.treeWidget.root.querySelector("div.lextreetools > a:nth-child(1)"), // Warning! order of buttons may change
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Unfixing Timeline Bones",
+                content: `This button will unfix bones from the timeline. Any subsequent bone selection will remove all unfixed bones from the timeline.`,
+                reference: this.treeWidget.root.querySelector("div.lextreetools > a:nth-child(2)"), // Warning! order of buttons may change
+                side: "left",
+                align: "center"
+            }
+        ]);
+
+        const helpIcon = LX.makeIcon( "CircleQuestionMark", { title: "Help" } );
+        helpIcon.classList.add("inline-flex", "pl-2");
+        helpIcon.addEventListener("click", (e) =>{ this.treeWidget._tour.begin(); } );
+        const title = this.treeWidget.root.querySelector("span");
+        title.style.padding = "0";
+        title.appendChild( helpIcon );
+
         // Hack lexgui. Tree behaviour works for the timeline's left panel, but not for the skeleton panel
         // make only the hierarchy scrollable
         this.treeWidget.root.style.height = "100%";
@@ -3227,46 +3307,90 @@ class KeyframesGui extends Gui {
         oldUlParent.classList.add("flex-col");
         oldUlParent.style.height = "100%";
         const newUlParent = document.createElement("div"); // make div take the remaining space of the tree component for the hierarchy display
-        newUlParent.style.flex = "0 1 auto";
+        newUlParent.style.flex = "1 1 auto";
         newUlParent.style.overflow = "scroll";
         ul.remove();
         newUlParent.appendChild(ul);
         oldUlParent.appendChild(newUlParent);
-        
     }
 
     updateNodeTree() {
         
         const rootBone = this.editor.currentCharacter.skeletonHelper.bones[0];
         
-        let mytree = { 
-            id: rootBone.name, 
-            selected: rootBone.name == this.editor.selectedBone 
-        };
-        let children = [];
-        
-        const addChildren = (bone, array) => {
-            
+        const buildBoneHierarchy = (bone) => {
+            if ( ! bone.isBone ){ return null; }
+            let children = [];
             for( let b of bone.children ) {
-                
-                if ( ! b.isBone ){ continue; }
-                let child = {
-                    id: b.name,
-                    children: [],
-                    closed: true,
-                    selected: b.name == this.editor.selectedBone
+                let result = buildBoneHierarchy( b );
+                if( result ){
+                    children.push(result);
                 }
-                
-                array.push( child );
-                
-                addChildren(b, child.children);
             }
-        };
+
+            // maxRecursiveSteps == 0 adds children of b, 1 also adds children of children
+            // maxRecursiveSteps < 0 adds all children
+            const innerSelectDescendants = (b, maxRecursiveSteps = 0, selectedDescendants = [] ) => {        
+                for(let i = 0; i < b.children.length; ++i ){
+                    if( ! b.children[i].isBone ){ continue; }
+
+                    if ( this.skeletonTimeline.selectedItems.indexOf( b.children[i].name ) == -1 ){
+                        selectedDescendants.push( b.children[i].name );
+                    }
+                    
+                    if ( maxRecursiveSteps != 0 ){
+                        innerSelectDescendants( b.children[i], maxRecursiveSteps - 1, selectedDescendants );
+                    }
+                }
+                return selectedDescendants
+            }
+            
+            const innerSelectAscendants = (b, maxRecursiveSteps = 0, selectedAscendants = [] ) => {        
+                if ( b.parent && b.parent.isBone ){
+                    if ( this.skeletonTimeline.selectedItems.indexOf( b.parent.name ) == -1 ){
+                        selectedAscendants.push( b.parent.name );
+                    }
+
+                    if ( maxRecursiveSteps != 0 ){
+                        innerSelectAscendants( b.parent, maxRecursiveSteps - 1, selectedAscendants );
+                    }
+                }
+                return selectedAscendants;
+            }
+
+            return {
+                id: bone.name,
+                children: children,
+                closed: bone != rootBone,
+                selected: bone.name == this.editor.selectedBone,
+                skipVisibility: true,
+                _bone: bone,
+                actions: [
+                    { icon: "AlignVerticalJustifyStart", name: "Add Parent to Timeline", callback:(v,e)=>{
+                            let ascendants = innerSelectAscendants( v._bone, 0 );
+                            this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( ascendants ) );
+                        } 
+                    },
+                    { icon: "arrow-up-narrow-wide", name: "Add Ascendants to Timeline", callback:(v,e)=>{
+                            let ascendants = innerSelectAscendants( v._bone, -1 );
+                            this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( ascendants ) );
+                        }
+                    },
+                    { icon: "AlignVerticalJustifyEnd", name: "Add Children to Timeline", callback:(v,e)=>{
+                            let descendants = innerSelectDescendants( v._bone, 0 );
+                            this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( descendants ) );
+                        } 
+                    },
+                    { icon: "arrow-down-narrow-wide", name: "Add Descendants to Timeline", callback:(v,e)=>{
+                            let descendants = innerSelectDescendants( v._bone, -1 );
+                            this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( descendants ) );
+                        } 
+                    },
+                ]
+            }
+        }
         
-        addChildren(rootBone, children);
-        
-        mytree['children'] = children;
-        return mytree;
+        return buildBoneHierarchy(rootBone);
     }
 
     createBonePanel(root, options = {}) {

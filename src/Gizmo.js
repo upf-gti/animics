@@ -327,7 +327,7 @@ class Gizmo {
 
         canvas.addEventListener( 'pointerdown', e => {
 
-            if(e.button != 0 || !this.bonePoints || this.editor.state || (!this.raycastEnabled && !e.ctrlKey))
+            if( (e.button != 0 && e.button != 2) || !this.bonePoints || this.editor.state || (!this.raycastEnabled && !e.ctrlKey))
             return;
 
             const pointer = new THREE.Vector2(( e.offsetX / canvas.clientWidth ) * 2 - 1, -( e.offsetY / canvas.clientHeight ) * 2 + 1);
@@ -339,9 +339,15 @@ class Gizmo {
             const intersection = intersections.length > 0 ? intersections[ 0 ] : null;
 
             if(intersection) {
-                if ( intersection.index != this.selectedBone ){
+                if ( e.button == 0 && intersection.index != this.selectedBone ){
                     this._setBoneByIdx( intersection.index );    
                     this.editor.setSelectedBone( this.skeleton.bones[this.selectedBone].name );
+                }
+                else if ( e.button == 2 ){
+                    let idx = this.editor.gui.skeletonTimeline.selectedItems.indexOf( this.skeleton.bones[intersection.index].name );
+                    if ( idx == -1 ){
+                        this.editor.gui.skeletonTimeline.setSelectedItems( this.editor.gui.skeletonTimeline.selectedItems.concat( [this.skeleton.bones[intersection.index].name] ) );
+                    }
                 }
             }
         });

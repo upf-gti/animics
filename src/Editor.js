@@ -3261,15 +3261,20 @@ class KeyframeEditor extends Editor {
         return geometry.getAttribute('size').array[0];
     }
 
-    setSelectedBone( name, overwriteTimelineSelectedItems = true ) {
+    setSelectedBone( name, redoTimelineSelectedItems = true ) {
 
         if(!this.gizmo)
         throw("No gizmo attached to scene");
     
         this.selectedBone = name;
 
-        if ( overwriteTimelineSelectedItems ){
-            this.gui.skeletonTimeline.setSelectedItems( [this.selectedBone] );
+        if ( redoTimelineSelectedItems ){
+            if ( this.gui.treeWidget ){
+                this.gui.skeletonTimeline.setSelectedItems( [this.selectedBone].concat(this.gui.treeWidget._fixedSelection) );
+            }
+            else{
+                this.gui.skeletonTimeline.setSelectedItems( [this.selectedBone] );
+            }
         }
 
         this.gizmo.setBone(name);
@@ -3283,11 +3288,6 @@ class KeyframeEditor extends Editor {
         this.gui.updateBonePanel();
         if ( this.gui.treeWidget ){ 
             this.gui.treeWidget.innerTree.select(this.selectedBone);
-            const ul = this.gui.treeWidget.innerTree.domEl.getElementsByTagName("ul")[0];
-			for( let i = 0; i < ul.children.length; ++i){
-				ul.children[i].style.minWidth = "fit-content";
-				ul.children[i].style.width = "100%";
-			}
         }
     }
 
