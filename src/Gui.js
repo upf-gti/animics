@@ -2195,11 +2195,10 @@ class KeyframesGui extends Gui {
             for(let el of elements) {
                 el.classList.remove("bg-accent");
             }
-            const el = this.sidePanelBlendshapeSlidersPanel.root.querySelector(`[title='${this.bsTimeline.animationClip.tracks[selection[0]].id}']`);
-
+            const el = this.sidePanelBlendshapeSlidersPanel.components[this.bsTimeline.animationClip.tracks[selection[0]].id];
             if(el) {
-                el.parentElement.classList.add("bg-accent");
-                el.scrollIntoViewIfNeeded();
+                el.root.classList.add("bg-accent");
+                el.root.scrollIntoViewIfNeeded();
             }     
         };
         
@@ -2773,7 +2772,14 @@ class KeyframesGui extends Gui {
             {
                 name: "Action Units", icon: "ScanFace", selected: this.editor.animationMode == this.editor.animationModes.FACEAU,
                 onCreate: p => {
-                    p.addTitle("Action Units", { style: { background: "none", fontSize: "15px" } });
+                    const title = p.addTitle("Action Units", { style: { background: "none", fontSize: "15px" } });
+
+                    const helpIcon = LX.makeIcon( "CircleQuestionMark", { title: "Help" } );
+                    helpIcon.classList.add("inline-flex", "pl-2");
+                    helpIcon.addEventListener("click", (e) =>{ this.faceTabs._tourAU.begin(); } );
+                    title.root.appendChild( helpIcon );
+
+                    p.endLine();
                     faceTop.root.style.minHeight = "20px";
                     faceTop.root.style.height = "auto";
                     faceBottom.root.style.minHeight = "20px";
@@ -2797,7 +2803,13 @@ class KeyframesGui extends Gui {
             {
                 name: "Blendshapes", icon: "SlidersHorizontal", selected: this.editor.selected == this.editor.animationModes.FACEBS,
                 onCreate: p => {
-                    p.addTitle("Blendshapes", { style: { background: "none", fontSize: "15px" } });
+                    const title = p.addTitle("Blendshapes", { style: { background: "none", fontSize: "15px" } });
+
+                    const helpIcon = LX.makeIcon( "CircleQuestionMark", { title: "Help" } );
+                    helpIcon.classList.add("inline-flex", "pl-2");
+                    helpIcon.addEventListener("click", (e) =>{ this.faceTabs._tourBS.begin(); } );
+                    title.root.appendChild( helpIcon );
+
                     this.createBlendshapesPanel( bsArea );
                     p.queuedContainer.appendChild(bsArea.root);
                 },
@@ -2810,6 +2822,78 @@ class KeyframesGui extends Gui {
                 }
             }
         ], { vertical: true, height : "100%" });
+
+        this.faceTabs._tourBS = new LX.Tour([
+            {
+                title: "Blendshapes",
+                content: "3D character's faces are usually modeled by combining a set of Blendshapes. A Blendshape usually targets a specific area/muscle of the face. However, each character has its own set of Blendshapes. \
+                    Action Units (based on FACS) are a more standard way of defining face movements and emotions. Each Action Unit may be represented by several Blendshapes.",
+                reference: bsArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Blendshapes",
+                content: "Each Blendshapes has a numeric slider that directly modifies the values of its track in the animation.",
+                reference: this.sidePanelBlendshapeSlidersPanel ? this.sidePanelBlendshapeSlidersPanel.root : bsArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Blendshapes Value Range",
+                content: "The value range of the track can be changed from the timeline settings.",
+                reference: this.bsTimeline.header.root.querySelector("[title=Settings]") ?? this.bsTimeline.header.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Blendshapes",
+                content: "Each Blendshapes has a numeric slider that directly modifies the values of its track in the animation.",
+                reference: this.sidePanelBlendshapeSlidersPanel ? this.sidePanelBlendshapeSlidersPanel.root : bsArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Blendshapes and Timeline",
+                content: "All Blendshapes can be hidden/shown at once by clicking these buttons.",
+                reference: bsArea.root.children.length ? bsArea.root.children[0] : bsArea.root,
+                side: "left",
+                align: "center"
+            }
+        ]);
+
+        this.faceTabs._tourAU = new LX.Tour([
+            {
+                title: "Action Units",
+                content: "3D character's faces are usually modeled by combining a set of Blendshapes. A Blendshape usually targets a specific area/muscle of the face. However, each character has its own set of Blendshapes. \
+                    Action Units (based on FACS) are a more standard way of defining face movements and emotions. Each Action Unit may be represented by several Blendshapes.",
+                reference: auArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Face Map",
+                content: "Action Units are grouped into face areas, accessible by clicking directly into the desired area.",
+                reference: this.imageMap ? this.imageMap.img : auArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Face Map List",
+                content: "Here, all Action Units of the selected group are shown. Changing the number (either writing it or dragging it with the mouse) will automatically modify the related Blendshape tracks",
+                reference: faceBottom.root,
+                side: "left",
+                align: "center"
+            },
+            { // if this step is moved, createActionUnitsPanel -> tabs.onSelect needs to update the step number
+                title: "Action Units and Timeline",
+                content: "These buttons hide and show the related Blendshape tracks on the timeline. These upper buttons will hide/show tracks for all the Action Units in this group. Each Action Unit has the same button, only hiding/showing their respective tracks.",
+                reference: this.facePanel.tabs[ this.facePanel.selected ].children[1],
+                side: "left",
+                align: "center"
+            }
+        ]);
+
 
         bodyArea.split({type: "vertical", resize: true, sizes: ["50%","50%"]});
         const [bodyTop, bodyBottom] = bodyArea.sections;
@@ -3052,6 +3136,7 @@ class KeyframesGui extends Gui {
         const areas = this.editor.mapNames.parts;
 
         const auToBs = this.editor.currentCharacter.config ? this.editor.currentCharacter.config.faceController.blendshapeMap : this.editor.currentCharacter.blendshapesManager.mapNames.characterMap;
+        let auToBsIndices = JSON.parse(JSON.stringify(auToBs)); // auName : [ [bsTimelineTrackIndex, factor] ]. Still needs to be computed, right now bsTimelineTrackIndex are still names
 
         for(let area in areas) {
 
@@ -3061,18 +3146,144 @@ class KeyframesGui extends Gui {
             area, 
             tabContainer, 
             { wordBreak: "break-word", lineHeight: "1.5rem" } );
-            
+
+            // area where the buttons AddAll and RemoveAll will be. These buttons need the slider's panel to exists first
+            const addRemoveAllContainer = LX.makeContainer( [ "100%", "auto" ], "overflow-hidden justify-center flex flex-row", null, tabContainer );
+
+            // sliders' panel
             let panel = new LX.Panel({id: "au-"+ area});
             tabContainer.appendChild(panel.root);
-
+            
+            // name of actions units in this group
             let auIds = areas[area];
             auIds.sort();
+
+            // returns an array with all BS tracks required by the specified AUs, without repetitions 
+            const innerGetTracksToSelect = (auNames) => {
+                let result = [];
+                for( let i = 0; i < auNames.length; ++i ){
+                    let bss = auToBsIndices[ auNames[i] ];
+                    for ( let b = 0; b < bss.length; ++b ){
+                        const trackIdx = bss[b][0];
+                        let needsSelection = true;
+
+                        // check if it was already added to the results. It could be assumed that blendshapes are unique inside the AU. But just in case, check all results
+                        for( let t = 0; t < result.length; ++t ){
+                            if ( result[t] == trackIdx ){
+                                needsSelection = false;
+                                break;
+                            }
+                        }
+
+                        if ( needsSelection ){
+                            result.push( bss[b][0] );
+                        }
+                    }
+                }
+
+                return result;
+            }
+
+            // returns an array with all BS tracks required by the specified AUs, without repetitions. Tracks already visible in the timeline are not excluded  
+            const innerGetTracksToAdd = (auNames) => {
+                const timelineItems = this.bsTimeline.selectedItems;
+                let result = innerGetTracksToSelect( auNames );
+
+                // remove tracks that are already visible in the timeline
+                for ( let b = 0; b < result.length; ++b ){
+                    const trackIdx = result[b];
+                    for( let t = 0; t < timelineItems.length; ++t ){
+                        if ( timelineItems[t].trackIdx == trackIdx ){
+                            result.splice(b,1);
+                            b--;
+                            break;
+                        }
+                    }
+                }
+                return result;
+            }
+
+            const innerGetTracksToRemove = (auNames) => {
+                let result = innerGetTracksToSelect( auNames );
+                const timelineItems = this.bsTimeline.selectedItems;
+
+                // keep only tracks that are already visible in the timeline
+                for ( let b = 0; b < result.length; ++b ){
+                    const trackIdx = result[b];
+                    let keep = false;
+                    for( let t = 0; t < timelineItems.length; ++t ){
+                        if ( timelineItems[t].trackIdx == trackIdx ){
+                            keep = true;
+                            break;
+                        }
+                    }
+
+                    if ( !keep ){
+                        result.splice(b,1);
+                        b--;
+                    }
+                }
+
+                return result;
+            }
+
+            const innerSelectTracks = (auNames) =>{
+                const tracksToSelect = innerGetTracksToSelect(auNames);
+
+                // set checkboxes to false
+                for( let t = 0; t < this.bsTimeline.selectedItems.length; ++t ){
+                    LX.emit( "@bs_checkbox_" + this.bsTimeline.selectedItems[t].id, false ); // default already skipscallback
+                }
+
+                this.bsTimeline.setSelectedItems( tracksToSelect );
+
+                // set checkboxes to true
+                for( let t = 0; t < this.bsTimeline.selectedItems.length; ++t ){
+                    LX.emit( "@bs_checkbox_" + this.bsTimeline.selectedItems[t].id, true ); // default already skipscallback
+                }
+            }
+
+            const innerSelectAddTracks = (auNames) =>{
+                const tracksToAdd = innerGetTracksToAdd(auNames);
+
+                this.bsTimeline.changeSelectedItems( tracksToAdd );
+                // set checkboxes to true
+                for( let t = 0; t < tracksToAdd.length; ++t ){
+                    LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[tracksToAdd[t]].id, true ); // default already skipscallback
+                }
+            }
+
+            const innerSelectRemoveTracks = (auNames) =>{
+                const tracksToRemove = innerGetTracksToRemove(auNames);
+                this.bsTimeline.changeSelectedItems( null, tracksToRemove );
+    
+                // set checkboxes to true
+                for( let t = 0; t < tracksToRemove.length; ++t ){
+                    LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[tracksToRemove[t]].id, false ); // default already skipscallback
+                }
+            }
+
+            // addAll and removeAll buttons
+            const addAllButton = new LX.Button( "AddAll", null, (v,e) =>{
+                innerSelectTracks(auIds);
+            }, { title: "Left-click to SELECT all AUs in this group in Timeline\nRight-click to ADD all AUs in this group to Timeline", hideName: true, icon: "ListCollapse" } );
+
+            addAllButton.root.addEventListener("contextmenu", (e)=>{
+                innerSelectAddTracks(auIds);
+            });
+
+            const removeAllButton = new LX.Button( "RemoveAll", null, (v,e) =>{
+                innerSelectRemoveTracks(auIds);
+            }, { title: "Hide all AU's blendshapes in this group from Timeline", hideName: true, icon: "ListX" } );
+            addRemoveAllContainer.appendChild( addAllButton.root );
+            addRemoveAllContainer.appendChild( removeAllButton.root );
+
+            // sliders
             for(let id = 0; id < auIds.length; ++id) {
                 const name = areas[area][id];
-                const signal = "@on_change_face_" + name;
 
                 // compute au to bs mapping changing names to timeline track idx
-                const auMapping = JSON.parse(JSON.stringify(auToBs[name]));
+                const auMapping = auToBsIndices[name];
                 for( let a = 0; a < auMapping.length; ++a ){
                     const t = this.bsTimeline.getTrack(auMapping[a][0]);
                     if ( !t ){
@@ -3083,6 +3294,23 @@ class KeyframesGui extends Gui {
                     auMapping[a][0] = t.trackIdx;
                 }
 
+                panel.sameLine();
+
+                // add tracks to timeline button
+                const toTimelineButton = panel.addButton(null, null, (v,e)=>{
+                    innerSelectTracks([name]);
+                }, { title: "Left-click to SELECT in Timeline\nRight-click to ADD to Timeline", hideName: true, icon: "ListCollapse" } );
+
+                toTimelineButton.root.querySelector("button").addEventListener("contextmenu", (e)=>{
+                    innerSelectAddTracks([name]);
+                });
+
+                // remove tracks from timeline button
+                panel.addButton(null, null, (v,e)=>{
+                    innerSelectRemoveTracks([name]);
+                }, { title: "Hide AU's blendshapes from Timeline", hideName: true, icon: "ListX" } );
+
+                // value
                 panel.addNumber(name, 0, (v,e) => {
                     const delta = v - (panel.components[name].prevValue ?? 0);
                     
@@ -3094,13 +3322,17 @@ class KeyframesGui extends Gui {
 
                     panel.components[name].prevValue = v;
                 }, {
-                    nameWidth: "50%", skipReset: true, precision: 3, step: 0.001, signal: signal, 
+                    width: "100%",
+                    minWidth:"0%",
+                    nameWidth: "50%", skipReset: true, precision: 3, step: 0.001, 
                     onPress: ()=>{ 
                         for( let bs = 0; bs < auMapping.length; ++bs ){
                             this.bsTimeline.saveState(auMapping[bs][0], bs != 0);  
                         }
                     }
                 });
+
+                panel.endLine();
             }
                         
             tabs.add(area, tabContainer, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
@@ -3110,6 +3342,11 @@ class KeyframesGui extends Gui {
                         document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
                     }
                     this.propagationWindow.updateCurve(true); // resize
+
+                    // update reference to the add/remove tracks from timeline, from the tour
+                    if( this.faceTabs && this.faceTabs._tourAU ){
+                        this.faceTabs._tourAU.steps[3].reference = this.facePanel.tabs[ v ].children[1];
+                    }
                 }
             });
         }
@@ -3134,8 +3371,29 @@ class KeyframesGui extends Gui {
         if ( !animation ){
             return;
         }
+
+        // area where the buttons AddAll and RemoveAll will be
+        const addRemoveAllContainer = LX.makeContainer( [ "100%", "auto" ], "overflow-hidden justify-center flex flex-row", null, area );
+        // addAll and removeAll buttons
+        const addAllButton = new LX.Button( "AddAll", null, (v,e) =>{
+            this.bsTimeline.setSelectedItems( Object.keys( this.bsTimeline.animationClip.tracks ) );
+            for( let i = 0; i < this.bsTimeline.animationClip.tracks.length; ++i){
+                LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[i].id, true );
+            }
+        }, { title: "Add all blendshape tracks to the timeline", hideName: true, icon: "ListCollapse" } );
+
+        const removeAllButton = new LX.Button( "RemoveAll", null, (v,e) =>{
+            this.bsTimeline.setSelectedItems( [] );
+            for( let i = 0; i < this.bsTimeline.animationClip.tracks.length; ++i){
+                LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[i].id, false );
+            }
+        }, { title: "Hide all blendshape tracks from Timeline", hideName: true, icon: "ListX" } );
+        addRemoveAllContainer.appendChild( addAllButton.root );
+        addRemoveAllContainer.appendChild( removeAllButton.root );
+
+
         
-        let panel = this.sidePanelBlendshapeSlidersPanel = area.addPanel({id: "bs-"+ area});
+        let panel = this.sidePanelBlendshapeSlidersPanel = area.addPanel({id: "bs-sliders"});
         panel.refresh = ()=>{
             this.sidePanelBlendshapeSlidersPanel.clear();
 
@@ -3145,16 +3403,41 @@ class KeyframesGui extends Gui {
                 const name = track.id;
                 const frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
                 
-                const signal = "@on_change_face_" + name;
+                panel.sameLine();
+
+                let signal;
+
+                // find if track is selected or not
+                let state = false;
+                for( let t = 0; t < this.bsTimeline.selectedItems.length; ++t ){
+                    if ( this.bsTimeline.selectedItems[t].trackIdx == track.trackIdx ){
+                        state = true;
+                        break;
+                    }
+                }
+                signal = "@bs_checkbox_" + name;
+                this.sidePanelSpecialSignals.push(signal);
+                panel.addCheckbox("Check me with Label", state, (value, event) => {
+                    if ( value ){
+                        this.bsTimeline.changeSelectedItems( [ track.trackIdx ] ); // append track
+                    }else{
+                        this.bsTimeline.changeSelectedItems( null, [ track.trackIdx ] ); // remove track
+                    }
+                }, { label: "", title: "show/hide this track in the timeline", hideName: true, signal: signal, className: "contrast" } );
+
+
+                signal = "@on_change_face_" + name;
                 this.sidePanelSpecialSignals.push(signal);
                 panel.addNumber(name, frame == -1 ? 0 : track.values[frame], (v,e) => {    
                     const boundAnimation = this.editor.currentKeyFrameClip;
                     this.editor.updateBlendshapesProperties(track.trackIdx, v);
                     this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, [track.trackIdx], animation);
                     
-                }, {nameWidth: "40%", skipReset: true, min: this.bsTimeline.defaultCurvesRange[0], max: this.bsTimeline.defaultCurvesRange[1], step: 0.01, signal: signal, onPress: () => {
+                }, {nameWidth: "40%", width: "100%", minWidth: "0%", skipReset: true, min: this.bsTimeline.defaultCurvesRange[0], max: this.bsTimeline.defaultCurvesRange[1], step: 0.01, signal: signal, onPress: () => {
                     this.bsTimeline.saveState(track.trackIdx);
                 }});
+
+                panel.endLine();
             }
         }
 
