@@ -365,7 +365,7 @@ class Gui {
         let from = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             
-            const availableTable = this.createAvailableAnimationsTable();
+            const availableTable = this.createAvailableAnimationsTable( true );
             p.attach( availableTable );
 
 
@@ -1824,6 +1824,41 @@ class KeyframesGui extends Gui {
         
         // "add" entry needs to set a proper value to the keyframe. This is why the default implementation of showContextMenu is not enough
         const that = this;
+        this.bulkKeyframeAddition = {
+            n: 1,
+            startTime: this.skeletonTimeline.currentTime,
+            duration: 1,
+            track: null,
+            dialog: null,
+        }
+        this.skeletonTimeline.originalDrawTrack = this.skeletonTimeline.drawTrackWithKeyframes;
+        this.skeletonTimeline.bulkAdditionDrawTrack = function( ctx, trackHeight, track ){
+            this.originalDrawTrack( ctx, trackHeight, track );
+
+            if ( track != that.bulkKeyframeAddition.track ){ 
+                return;
+            }
+
+            const n = that.bulkKeyframeAddition.n;
+            const startPixel = this.timeToX( that.bulkKeyframeAddition.startTime );
+            const endPixel = this.timeToX( that.bulkKeyframeAddition.startTime + that.bulkKeyframeAddition.duration );
+            const ppf = n == 1 ? 1 : (endPixel - startPixel) / (n-1);
+            let pos = startPixel;
+
+            ctx.fillStyle = "#FFC69D";
+            const size = this.keyframeSize / Math.SQRT2; // square is rotated. H^2 = C^2 + C^2 ->  h = sqrt2 * c
+            for( let i = 0; i < n; ++i ){
+                
+                ctx.save();
+                ctx.translate(pos, trackHeight * 0.5);
+                ctx.rotate(45 * Math.PI / 180);		
+                ctx.fillRect( -size*0.5, -size*0.5, size, size);
+                ctx.restore();
+                
+                pos += ppf;
+            }
+        }
+
         this.skeletonTimeline.showContextMenu = function( e ) {
             // THIS here means the timeline, not the GUI
             e.preventDefault();
@@ -1870,7 +1905,7 @@ class KeyframesGui extends Gui {
                 if(that.boneProperties[type]) {
                     actions.push(
                     {
-                        title: "Add Here",
+                        title: "Add Keyframe/Here",
                         callback: () => {
                             const selectedTime = this.xToTime(e.localX);
                             const currentTime = that.editor.currentTime;
@@ -1885,17 +1920,73 @@ class KeyframesGui extends Gui {
                                 this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
                             }
                         }
-                    }
-                    );
-                    actions.push(
-                        {
-                            title: "Add",
-                            callback: () => {
-                                this.deselectAllElements();
-                                let newFrame = this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
-                                this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
-                            }
+                    },
+                    {
+                        title: "Add Keyframe/At current time",
+                        callback: () => {
+                            this.deselectAllElements();
+                            let newFrame = this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
+                            this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
                         }
+                    },
+                    {
+                        title: "Add Keyframe/Bulk Addition",
+                        callback: () => {
+                            this.deselectAllElements();
+
+                            if ( that.bulkAdditionDrawTrack.dialog ){
+                                that.bulkKeyframeAddition.dialog.close();
+                            }
+                            that.bulkKeyframeAddition.track = e.track;
+
+                            this.drawTrackWithKeyframes = this.bulkAdditionDrawTrack;
+                         
+                            that.bulkAdditionDrawTrack.dialog = new LX.Dialog( "Bulk addition " + e.track.groupId + "." + e.track.id, p => {
+                                p.addNumber( "Num Keyframes", that.bulkKeyframeAddition.n, (v,e)=>{ that.bulkKeyframeAddition.n = v}, {min: 1, step: 1 } );
+                                p.addNumber( "Start Time", that.bulkKeyframeAddition.startTime, (v,e)=>{ that.bulkKeyframeAddition.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
+                                p.addNumber( "Duration", that.bulkKeyframeAddition.duration, (v,e)=>{ that.bulkKeyframeAddition.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
+                                
+                                p.sameLine();
+                                p.addButton( "Cancel", "Cancel", (v,e)=>{ that.bulkAdditionDrawTrack.dialog.close(); }, {width: "50%", hideName: true} );
+                                p.addButton( "Add", "Add", (v,e)=>{ 
+
+                                    const track = that.bulkKeyframeAddition.track;
+                                    const n = that.bulkKeyframeAddition.n;
+                                    const start = that.bulkKeyframeAddition.startTime;
+                                    const spf = n == 1 ? 1 : that.bulkKeyframeAddition.duration / (n-1);
+                                    let pos = start;
+                        
+                                    const srcTime = that.editor.currentTime;
+                                    let values = [];
+                                    let times = [];
+
+                                    for( let i = 0; i < n; ++i ){
+                                        const frame = this.getNearestKeyFrame(track, pos, 0);
+                                        if ( frame != -1 && Math.abs(track.times[frame]-pos) < 0.001 ){ // keyframe already exists in that position 
+                                            continue;
+                                        }
+
+                                        that.editor.setTime( pos + that.editor.startTimeOffset );
+                                        values.push( that.boneProperties[ track.id ].toArray() );
+                                        times.push( pos );
+                                        pos += spf;
+                                    }
+
+                                    this.addKeyFrames( track.trackIdx, values, times, 0, LX.KeyFramesTimeline.ADDKEY_VALUESINARRAYS );
+
+                                    that.editor.setTime( srcTime );
+
+                                    that.bulkAdditionDrawTrack.dialog.close(); 
+                                }, {width: "50%", hideName: true} );
+                                p.endLine();
+
+                            }, { closable:true, onBeforeClose: (v)=>{
+                                that.bulkKeyframeAddition.track = null;
+                                that.bulkKeyframeAddition.dialog = null
+                                this.drawTrackWithKeyframes = this.originalDrawTrack;
+                            }});
+                        }
+                    }
                     );
                         
                 }    
@@ -2118,7 +2209,7 @@ class KeyframesGui extends Gui {
 
                 actions.push(
                 {
-                    title: "Add Here",
+                    title: "Add Keyframes/Here",
                     callback: () => {
                         const selectedTime = this.xToTime(e.localX);
 
@@ -2126,15 +2217,20 @@ class KeyframesGui extends Gui {
                         helperNewBSKeyframe( e.track, selectedTime );
                         
                     }
-                });
-                actions.push(
-                    {
-                        title: "Add",
-                        callback: () => {
-                            helperNewBSKeyframe( e.track, that.editor.currentTime );
-                        }
+                },
+                {
+                    title: "Add Keyframes/At Current Time",
+                    callback: () => {
+                        helperNewBSKeyframe( e.track, that.editor.currentTime );
                     }
+                },
+                {
+                    title: "Add Keyframes/Bulk Addition",
+                    callback: () => {
+                    }
+                }
                 );
+
             }
             
             
@@ -4031,7 +4127,7 @@ class KeyframesGui extends Gui {
 
     showInsertFromBoundAnimations(){
         const dialog = this.prompt = new LX.Dialog( "Insert from Character Animations", p => {
-            const table = this.createAvailableAnimationsTable( Object.keys(this.editor.loadedCharacters) );
+            const table = this.createAvailableAnimationsTable( false, Object.keys(this.editor.loadedCharacters) );
             p.attach( table );
 
 
@@ -4142,27 +4238,40 @@ class KeyframesGui extends Gui {
 
     /**
      * Creates a table with all bound animations of the specified avatars
+     * @param {Boolean} selectCurrentAnimation name of the animations to show as selected in the table. If null, all animations are selected
      * @param {Array of Strings} avatarNames avatars to take into account. If null, the currentCharacter is shown 
      * @returns 
      */
-    createAvailableAnimationsTable( avatarNames = null ){
+    createAvailableAnimationsTable( selectCurrentAnimation = true, avatarNames = null ){
 
         const animations = this.editor.boundAnimations;
         if ( !avatarNames ){
             avatarNames = [ this.editor.currentCharacter.name ];
         }
+
         let availableAnimations = [];
+        let checkMap = {};
         for( let i = 0; i < avatarNames.length; ++i ){
             if ( !animations[ avatarNames[i] ] ){
                 continue;
             }
             
             const characterName = avatarNames[i];
+            const character = this.editor.loadedCharacters[characterName];
 
             for ( let aName in animations[characterName] ){
                 let numClips = 0;
                 animations[characterName][aName].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
-                availableAnimations.push([ aName, characterName, numClips, animations[characterName][aName].duration.toFixed(3) ]);
+
+                const entry = [ aName, characterName, numClips, animations[characterName][aName].duration.toFixed(3) ];
+                
+                if ( selectCurrentAnimation && character == this.editor.currentCharacter && aName == this.editor.currentAnimation ){
+                    const entryId = LX.getSupportedDOMName( entry.join( '-' ) ).substr(0, 32);
+                    checkMap[entryId] = true;
+                }
+
+                availableAnimations.push(entry);
+
             }
         }
 
@@ -4181,6 +4290,10 @@ class KeyframesGui extends Gui {
                 // TODO add a row icon to modify the animations name
             }
         );
+
+        table.data.checkMap = checkMap; // hack
+        table.refresh();
+
         return table;
     }
 
@@ -5578,14 +5691,23 @@ class ScriptGui extends Gui {
 
     }
 
-    createAvailableAnimationsTable(){
+    createAvailableAnimationsTable( selectCurrentAnimation = true ){
 
         const animations = this.editor.loadedAnimations;
         let availableAnimations = [];
+        let checkMap = {};
         for ( let aName in animations ){
             let numClips = 0;
             animations[aName].scriptAnimation.tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
-            availableAnimations.push([ aName, numClips , animations[aName].scriptAnimation.duration.toFixed(3) ]);
+           
+            const entry = [ aName, numClips , animations[aName].scriptAnimation.duration.toFixed(3) ];
+
+            if ( selectCurrentAnimation && aName == this.editor.currentAnimation ){
+                const entryId = LX.getSupportedDOMName( entry.join( '-' ) ).substr(0, 32);
+                checkMap[entryId] = true;
+            }
+
+            availableAnimations.push(entry);
         }
 
         let table = new LX.Table(null, {
@@ -5600,6 +5722,9 @@ class ScriptGui extends Gui {
                 // TODO add a row icon to modify the animations name
             }
         );
+
+        table.data.checkMap = checkMap; // hack
+        table.refresh();
         return table;
     }
 

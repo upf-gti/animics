@@ -2170,8 +2170,8 @@ class KeyFramesTimeline extends Timeline {
         const keyframes = track.times;         
         const startTime = this.visualTimeRange[0];
         const endTime = this.visualTimeRange[1] + 0.0000001;
-        const defaultPointSize =  Math.SQRT2 * this.keyframeSize * 0.5; // pythagoras with equal sides h2 = c2 + c2 = 2 * c2
-        const hoverPointSize = Math.SQRT2 * this.keyframeSizeHovered * 0.5;
+        const defaultPointSize =  this.keyframeSize / Math.SQRT2; // pythagoras with equal sides h2 = c2 + c2 = 2 * c2
+        const hoverPointSize = this.keyframeSizeHovered / Math.SQRT2;
 
         for(let j = 0; j < keyframes.length; ++j)
         {

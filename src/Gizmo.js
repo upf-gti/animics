@@ -340,7 +340,7 @@ class Gizmo {
 
             if(intersection) {
                 if ( e.button == 0 && intersection.index != this.selectedBone ){
-                    this._setBoneByIdx( intersection.index );    
+                    this.setBoneByIdx( intersection.index );    
                     this.editor.setSelectedBone( this.skeleton.bones[this.selectedBone].name );
                 }
                 else if ( e.button == 2 ){
@@ -647,14 +647,15 @@ class Gizmo {
             return;
         }
 
-        const boneId = this.skeleton.bones.findIndex((bone) => bone.name == name);
-        if(boneId > -1){
-            this._setBoneByIdx( boneId );
+        const boneIdx = this.skeleton.bones.findIndex((bone) => bone.name == name);
+        if(boneIdx > -1){
+            this.setBoneByIdx( boneIdx );
         }
     }
 
-    _setBoneByIdx( boneId ){
-        this.selectedBone = boneId;
+    // needs to be a valid index. No checks are done
+    setBoneByIdx( boneIdx ){
+        this.selectedBone = boneIdx;
         this.setTool( this.toolSelected ); // if ik, do any preparations needed
         this.updateBoneColors();
     }
