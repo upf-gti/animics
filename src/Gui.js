@@ -1907,6 +1907,7 @@ class KeyframesGui extends Gui {
                     {
                         title: "Add Keyframe/Here",
                         callback: () => {
+                            // "this" is the timeline
                             const selectedTime = this.xToTime(e.localX);
                             const currentTime = that.editor.currentTime;
 
@@ -1915,7 +1916,7 @@ class KeyframesGui extends Gui {
                             let newFrame = this.addKeyFrames( e.track.trackIdx,that.boneProperties[type].toArray(), [selectedTime] );
                             
                             if( that.propagationWindow.enabler ){
-                                that.editor.activeTimeline.setTime(currentTime);
+                                this.setTime(currentTime);
                             }else{
                                 this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
                             }
@@ -1924,6 +1925,7 @@ class KeyframesGui extends Gui {
                     {
                         title: "Add Keyframe/At current time",
                         callback: () => {
+                            // "this" is the timeline
                             this.deselectAllElements();
                             let newFrame = this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
                             this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
@@ -1932,22 +1934,23 @@ class KeyframesGui extends Gui {
                     {
                         title: "Add Keyframe/Bulk Addition",
                         callback: () => {
+                            // "this" is the timeline
                             this.deselectAllElements();
 
-                            if ( that.bulkAdditionDrawTrack.dialog ){
+                            if ( that.bulkKeyframeAddition.dialog ){
                                 that.bulkKeyframeAddition.dialog.close();
                             }
                             that.bulkKeyframeAddition.track = e.track;
 
                             this.drawTrackWithKeyframes = this.bulkAdditionDrawTrack;
                          
-                            that.bulkAdditionDrawTrack.dialog = new LX.Dialog( "Bulk addition " + e.track.groupId + "." + e.track.id, p => {
+                            that.bulkKeyframeAddition.dialog = new LX.Dialog( "Bulk addition " + e.track.groupId + "." + e.track.id, p => {
                                 p.addNumber( "Num Keyframes", that.bulkKeyframeAddition.n, (v,e)=>{ that.bulkKeyframeAddition.n = v}, {min: 1, step: 1 } );
                                 p.addNumber( "Start Time", that.bulkKeyframeAddition.startTime, (v,e)=>{ that.bulkKeyframeAddition.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
                                 p.addNumber( "Duration", that.bulkKeyframeAddition.duration, (v,e)=>{ that.bulkKeyframeAddition.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
                                 
                                 p.sameLine();
-                                p.addButton( "Cancel", "Cancel", (v,e)=>{ that.bulkAdditionDrawTrack.dialog.close(); }, {width: "50%", hideName: true} );
+                                p.addButton( "Cancel", "Cancel", (v,e)=>{ that.bulkKeyframeAddition.dialog.close(); }, {width: "50%", hideName: true} );
                                 p.addButton( "Add", "Add", (v,e)=>{ 
 
                                     const track = that.bulkKeyframeAddition.track;
@@ -1976,7 +1979,7 @@ class KeyframesGui extends Gui {
 
                                     that.editor.setTime( srcTime );
 
-                                    that.bulkAdditionDrawTrack.dialog.close(); 
+                                    that.bulkKeyframeAddition.dialog.close(); 
                                 }, {width: "50%", hideName: true} );
                                 p.endLine();
 
@@ -1986,8 +1989,7 @@ class KeyframesGui extends Gui {
                                 this.drawTrackWithKeyframes = this.originalDrawTrack;
                             }});
                         }
-                    }
-                    );
+                    });
                         
                 }    
             }
@@ -2142,6 +2144,8 @@ class KeyframesGui extends Gui {
             }
         };
 
+        this.bsTimeline.originalDrawTrack = this.bsTimeline.drawTrackWithCurves;
+        this.bsTimeline.bulkAdditionDrawTrack = this.skeletonTimeline.bulkAdditionDrawTrack; // reuse function
         this.bsTimeline.showContextMenu = function( e ) {
             // THIS here means the timeline, not the GUI
             e.preventDefault();
@@ -2179,57 +2183,114 @@ class KeyframesGui extends Gui {
             }
 
             if(e.track) {
+                const helperNewBSMultipleKeyframes = ( track, newTimes ) =>{
+                    // "this" is the timeline
+                    let newValues = [];
 
-                const helperNewBSKeyframe = ( track, time ) =>{
-                    let newFrame = this.addKeyFrames( track.trackIdx, [0], [time] );
-                        
                     const values = track.values;
                     const times = track.times;
-                    if ( times.length > 1 ){
-                        if ( newFrame == 0 ){
-                            values[ newFrame ] = values[ newFrame + 1 ]; // copy next value
+                    const timeThreshold = 0.001;
+                    for( let i = 0; i < newTimes.length; ++i ){
+                        let nearest = this.getNearestKeyFrame( track, newTimes[i], 0 );
+                        if ( nearest == -1 ){
+                            newValues.push(0);
+                            continue;
                         }
-                        else if ( newFrame == (times.length -1)){
-                            values[ newFrame ] = values[ newFrame - 1 ]; // copy prev value
+
+                        const newFrameTime = newTimes[i];
+                        if ( Math.abs(times[nearest] - newFrameTime) < timeThreshold ){ 
+                            newTimes.splice(i,1);
+                            --i;
+                            continue;
                         }
-                        else{
-                            let dt = times[newFrame+1] - times[newFrame-1];
+
+                        const prevFrame = times[nearest] > newFrameTime ? (nearest-1) : nearest;
+                        const postFrame = times[nearest] > newFrameTime ? nearest : (nearest+1);
+
+                        if (prevFrame == -1){
+                            newValues.push(values[postFrame]);
+                        }else if (postFrame >= times.length){
+                            newValues.push( values[prevFrame] );
+                        }else{
+                            let dt = times[postFrame] - times[prevFrame];
                             let f = 0;
                             if( dt > 0 ){
-                                f = ( selectedTime - times[newFrame-1] ) / dt;
+                                f = ( newFrameTime - times[prevFrame] ) / dt;
                             }
-                            values[ newFrame ] = values[newFrame-1] * (1-f) + values[newFrame+1] * f;
+                            newValues.push( values[prevFrame] * (1-f) + values[postFrame] * f );
                         }
                     }
                     
+                    let newFrames = this.addKeyFrames( track.trackIdx, newValues, newTimes ); // aleady does a saves history
+                    
                     if( !that.propagationWindow.enabler ){
-                        this.selectKeyFrame(track.trackIdx, newFrame[0]);
+                        for( let i = newFrames.length-1; i > -1; --i ){
+                            this.selectKeyFrame(track.trackIdx, newFrames[i], i == 0);
+                        }
                     }
-                }
+                };
 
                 actions.push(
                 {
-                    title: "Add Keyframes/Here",
+                    title: "Add Keyframe/Here",
                     callback: () => {
+                        // "this" is the timeline
                         const selectedTime = this.xToTime(e.localX);
-
-                        that.editor.activeTimeline.setTime(selectedTime);
-                        helperNewBSKeyframe( e.track, selectedTime );
-                        
+                        helperNewBSMultipleKeyframes( e.track, [selectedTime] );
+                        this.setTime(selectedTime);
                     }
                 },
                 {
-                    title: "Add Keyframes/At Current Time",
+                    title: "Add Keyframe/At Current Time",
                     callback: () => {
+                        // "this" is the timeline
                         helperNewBSKeyframe( e.track, that.editor.currentTime );
                     }
                 },
                 {
-                    title: "Add Keyframes/Bulk Addition",
+                    title: "Add Keyframe/Bulk Addition",
                     callback: () => {
+                        this.deselectAllElements();
+
+                        if ( that.bulkKeyframeAddition.dialog ){
+                            that.bulkKeyframeAddition.dialog.close();
+                        }
+                        that.bulkKeyframeAddition.track = e.track;
+
+                        this.drawTrackWithCurves = this.bulkAdditionDrawTrack;
+                     
+                        that.bulkKeyframeAddition.dialog = new LX.Dialog( "Bulk addition " + e.track.id, p => {
+                            p.addNumber( "Num Keyframes", that.bulkKeyframeAddition.n, (v,e)=>{ that.bulkKeyframeAddition.n = v}, {min: 1, step: 1 } );
+                            p.addNumber( "Start Time", that.bulkKeyframeAddition.startTime, (v,e)=>{ that.bulkKeyframeAddition.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
+                            p.addNumber( "Duration", that.bulkKeyframeAddition.duration, (v,e)=>{ that.bulkKeyframeAddition.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
+                            
+                            p.sameLine();
+                            p.addButton( "Cancel", "Cancel", (v,e)=>{ that.bulkKeyframeAddition.dialog.close(); }, {width: "50%", hideName: true} );
+                            p.addButton( "Add", "Add", (v,e)=>{ 
+                                const n = that.bulkKeyframeAddition.n;
+                                const start = that.bulkKeyframeAddition.startTime;
+                                const spf = n == 1 ? 1 : that.bulkKeyframeAddition.duration / (n-1);
+
+                                let newTimes = [];
+                                for( let i = 0; i < n; ++i ){
+                                    newTimes.push(start + spf * i);
+                                }
+
+                                helperNewBSMultipleKeyframes( that.bulkKeyframeAddition.track, newTimes );
+
+                                that.editor.setTime( newTimes[0] );
+
+                                that.bulkKeyframeAddition.dialog.close(); 
+                            }, {width: "50%", hideName: true} );
+                            p.endLine();
+
+                        }, { closable:true, onBeforeClose: (v)=>{
+                            that.bulkKeyframeAddition.track = null;
+                            that.bulkKeyframeAddition.dialog = null
+                            this.drawTrackWithCurves = this.originalDrawTrack;
+                        }}); // end of dialog
                     }
-                }
-                );
+                });
 
             }
             
@@ -3558,14 +3619,14 @@ class KeyframesGui extends Gui {
             rename: false,
             icons: [  // Warning! if order of buttons change, check the tour still points to the correct icons
                 { 
-                    name: "Fix Bones to Timeline", icon: "TextSelect", 
+                    name: "Fix Bones to Timeline", icon: "Pin", 
                     callback: (v,e) =>{ 
                         this.treeWidget._fixedSelection = this.skeletonTimeline.selectedItems.slice();
                         LX.toast("Fixed Bones To Timeline", `${this.treeWidget._fixedSelection}`, { timeout: 7000 } );
                     }
                 },
                 {
-                    name: "Unfix Timeline Bones", icon: "Delete", 
+                    name: "Unfix Timeline Bones", icon: "PinOff", 
                     callback: (v,e) =>{ 
                         this.treeWidget._fixedSelection = [];
                         LX.toast("Unfixed Bones From Timeline", null, { timeout: 7000 } );
@@ -3614,6 +3675,8 @@ class KeyframesGui extends Gui {
                 }
             },
         });
+
+        this.treeWidget.innerTree.select(this.editor.selectedBone);
 
         this.treeWidget._fixedSelection = lastFixedSelection;
         this.treeWidget._tour = new LX.Tour([
@@ -3741,7 +3804,7 @@ class KeyframesGui extends Gui {
                 id: bone.name,
                 children: children,
                 closed: bone != rootBone,
-                selected: bone.name == this.editor.selectedBone,
+                // selected: bone.name == this.editor.selectedBone,
                 skipVisibility: true,
                 _bone: bone,
                 actions: [
@@ -6792,7 +6855,7 @@ class PropagationWindow {
 
     onMouse( e, time ){
 
-        if( !this.enabler ){ return false; }
+        if( !this.enabler || this.timeline.playing ){ return false; }
 
         const timeline = this.timeline;
 
@@ -6878,7 +6941,7 @@ class PropagationWindow {
     }
 
     onDblClick( e ) {
-        if ( !this.enabler ){ return; }
+        if ( !this.enabler || this.timeline.playing ){ return; }
 
         const timeline = this.timeline;
         const lpos = timeline.timeToX( this.time - this.leftSide );

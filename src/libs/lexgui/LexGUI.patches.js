@@ -65,18 +65,5 @@ LX.NodeTree.prototype.select = function( id ) {
 }
 // END OF FIX 2
 
-// FIX 3
-// frefresh does not call refresh apropriately. 
-// If a node is parent, and is currently selected, frefresh will lose focus and select root 
-LX.NodeTree.prototype.frefresh = function( id ) {
-    this.refresh( null, id ); // <-- added (null, id)
-    var el = this.domEl.querySelector( "#" + id );
-    if( el )
-    {
-        el.focus();
-    }
-}
-// END OF FIX 3
-
 
 export{};
