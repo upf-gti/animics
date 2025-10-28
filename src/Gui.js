@@ -1198,20 +1198,40 @@ class KeyframesGui extends Gui {
 
         timelineMenu.splice(1,1);
         timelineMenu.push(
-            null, 
+            null,
             { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
                 this.showVideo = v;
                 this.editor.setVideoVisibility( v );
             }},
             null,
-            { name: "Optimize All Tracks", icon: "Filter", callback: () => {
-                if ( !this.editor.currentKeyFrameClip){
-                    return;
-                }
-                // optimize all tracks of current bound animation (if any)
-                this.bsTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
-                this.skeletonTimeline.optimizeTracks();
-            }},
+            { name: "Optimize", icon: "Filter", submenu:[
+                { name: "Visible Tracks", icon: "Filter", callback: () => {
+                    if ( !this.editor.currentKeyFrameClip){
+                        return;
+                    }
+    
+                    const activeTimeline = this.editor.activeTimeline; 
+                    const visibleTracks = activeTimeline.getVisibleItems();
+                    let combine = false;
+                    for( let i = 0; i < visibleTracks.length; ++i ){
+                        const track = visibleTracks[i].treeData.trackData;
+                        if( track ){ // might be groups or tracks. If groups, no trackData is found
+                            activeTimeline.saveState( track.trackIdx, combine);
+                            combine = true;
+                            activeTimeline.historySaveEnabler = false;
+                            activeTimeline.optimizeTrack( track.trackIdx );
+                            activeTimeline.historySaveEnabler = true;
+                        }
+                    }
+                }},
+                { name: "All Tracks", icon: "Filter", callback: () => {
+                    if ( !this.editor.currentKeyFrameClip){
+                        return;
+                    }
+                    // optimize all tracks of current bound animation (if any)
+                    this.editor.activeTimeline.optimizeTracks();
+                }},
+            ]},
             { name: "Clear Tracks", icon: "Trash2", callback: () => this.editor.clearAllTracks() }
         );
         timelineMenuItem.completeSubmenu = timelineMenu.slice(); // shallow copy
