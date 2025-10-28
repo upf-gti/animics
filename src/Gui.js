@@ -3359,7 +3359,7 @@ class KeyframesGui extends Gui {
             const addRemoveAllContainer = LX.makeContainer( [ "100%", "auto" ], "overflow-hidden justify-center flex flex-row", null, tabContainer );
 
             // sliders' panel
-            let panel = new LX.Panel({id: "au-"+ area});
+            let panel = new LX.Panel({id: "au-"+ area, className:"showScrollBar"});
             tabContainer.appendChild(panel.root);
             
             // name of actions units in this group
@@ -3580,8 +3580,10 @@ class KeyframesGui extends Gui {
             return;
         }
 
+        area.root.classList.add( "flex", "flex-col" );
+        
         // area where the buttons AddAll and RemoveAll will be
-        const addRemoveAllContainer = LX.makeContainer( [ "100%", "auto" ], "overflow-hidden justify-center flex flex-row", null, area );
+        const addRemoveAllContainer = LX.makeContainer( [ "100%", "fit-content" ], "overflow-hidden justify-center flex flex-row", null, area );
         // addAll and removeAll buttons
         const addAllButton = new LX.Button( "AddAll", null, (v,e) =>{
             this.bsTimeline.setSelectedItems( Object.keys( this.bsTimeline.animationClip.tracks ) );
@@ -3601,7 +3603,8 @@ class KeyframesGui extends Gui {
 
 
         
-        let panel = this.sidePanelBlendshapeSlidersPanel = area.addPanel({id: "bs-sliders"});
+        let panel = this.sidePanelBlendshapeSlidersPanel = area.addPanel({id: "bs-sliders", className: "showScrollBar"});
+        panel.root.style.flex = "1 1 auto";
         panel.refresh = ()=>{
             this.sidePanelBlendshapeSlidersPanel.clear();
 
@@ -3609,7 +3612,6 @@ class KeyframesGui extends Gui {
                 const track = animation.tracks[i];
                 
                 const name = track.id;
-                const frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
                 
                 panel.sameLine();
 
@@ -3634,17 +3636,29 @@ class KeyframesGui extends Gui {
                 }, { label: "", title: "show/hide this track in the timeline", hideName: true, signal: signal, className: "contrast" } );
 
 
+
+                // TODO fix this system. It does not work properly
                 signal = "@on_change_face_" + name;
                 this.sidePanelSpecialSignals.push(signal);
-                panel.addNumber(name, frame == -1 ? 0 : track.values[frame], (v,e) => {    
+                const frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
+                const guiValue = frame == -1 ? 0 : track.values[frame];
+                panel.addNumber(name, guiValue, (v,e) => {    
                     const boundAnimation = this.editor.currentKeyFrameClip;
-                    this.editor.updateBlendshapesProperties(track.trackIdx, v);
+
+                    const delta = v - panel.components[name]._prevValue;
+                    panel.components[name]._prevValue = v;
+                    this.editor.updateBlendshapesProperties(track.trackIdx, delta, true);
                     this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, [track.trackIdx], animation);
                     
-                }, {nameWidth: "40%", width: "100%", minWidth: "0%", skipReset: true, min: this.bsTimeline.defaultCurvesRange[0], max: this.bsTimeline.defaultCurvesRange[1], step: 0.01, signal: signal, onPress: () => {
-                    this.bsTimeline.saveState(track.trackIdx);
-                }});
-
+                }, {nameWidth: "40%", width: "100%", minWidth: "0%", skipReset: true, 
+                    min: this.bsTimeline.defaultCurvesRange[0], max: this.bsTimeline.defaultCurvesRange[1], step: 0.01, 
+                    signal: signal, 
+                    onPress: () => {
+                        this.bsTimeline.saveState(track.trackIdx);
+                        panel.components[name]._prevValue = panel.components[name].onGetValue();
+                    }
+                });
+                panel.components[name]._prevValue = guiValue;
                 panel.endLine();
             }
         }
