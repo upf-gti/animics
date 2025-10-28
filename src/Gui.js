@@ -1734,6 +1734,7 @@ class KeyframesGui extends Gui {
             },
             disableNewTracks: true
         });
+        this.skeletonTimeline.defaultCurves = false;
 
         this.propagationWindow = new PropagationWindow( this.skeletonTimeline );
         this.propagationWindow.onSetEnabler = (v)=>{
@@ -1745,6 +1746,57 @@ class KeyframesGui extends Gui {
             }
             this.editor.gizmo.disableTransform();
         };
+
+        const that = this;
+
+        // overwrite function to add buttons ("remove from timeline" and "pin to timeline")
+        this.skeletonTimeline._generateSelectedItemsTreeData = this.skeletonTimeline.generateSelectedItemsTreeData; 
+        this.skeletonTimeline.generateSelectedItemsTreeData = function(){
+            // "this" is the timeline
+            let nodes = this._generateSelectedItemsTreeData(); 
+
+            for( let i = 0; i < nodes.length; ++i ){
+                if ( nodes[i].children.length ){ // it is a group/bone, not a single track
+
+                    const isPinned = that.treeWidget && that.treeWidget._fixedSelection.indexOf( nodes[i].id ) != -1 ? true : false;
+                    nodes[i].actions = [ 
+                        { icon: isPinned ? "PinOff" : "Pin", swap: isPinned ? "Pin" : "PinOff", callback: (node, swapValue, event) =>{
+                            // xor. how the icon/swap was created needs to be taken into account for the swapValue. SwapValue==false -> icon, SwapValue==true -> swap 
+                            const newPinned = swapValue ^ isPinned;
+                            
+                            if( newPinned ){
+                                // fix bone, taking into account the current visible order in the timeline 
+                                const whereIsNode = this.selectedItems.indexOf( node.id );
+                                let whereToAdd = 0;
+                                for(; whereToAdd < that.treeWidget._fixedSelection.length; ++whereToAdd ){ // check all fixed bones to discover which is visibly lower than node in timeline
+                                    if ( this.selectedItems.indexOf( that.treeWidget._fixedSelection[whereToAdd] > whereIsNode ) ){
+                                        break;
+                                    }
+                                }
+                                that.treeWidget._fixedSelection.splice(whereToAdd, 0, node.id ); // add node to fixedSelection
+                            }else{
+                                // unpin from timeline
+                                const index = that.treeWidget._fixedSelection.indexOf( node.id );
+                                if( index > -1 ){ 
+                                    that.treeWidget._fixedSelection.splice(index, 1);
+                                }
+                            } 
+                        } },
+
+                        { icon: "CircleX", name: "Remove from Timeline (does not remove the track from the animation)", callback: (node, swapValue, event) =>{ 
+                            // unpin from timeline
+                            const index = that.treeWidget._fixedSelection.indexOf( node.id );
+                            if( index > -1 ){ 
+                                that.treeWidget._fixedSelection.splice(index, 1);
+                            }
+                            this.changeSelectedItems( null, [ node.id ] ); 
+                        } },
+                    ]
+                }
+            }
+
+            return nodes;
+        } 
 
         this.skeletonTimeline.setTrackHeight( 32 );
         this.skeletonTimeline.setKeyframeSize( this.skeletonTimeline.trackHeight * 0.33, this.skeletonTimeline.trackHeight * 0.33 + 5 );
@@ -1823,7 +1875,6 @@ class KeyframesGui extends Gui {
 
         
         // "add" entry needs to set a proper value to the keyframe. This is why the default implementation of showContextMenu is not enough
-        const that = this;
         this.bulkKeyframeAddition = {
             n: 1,
             startTime: this.skeletonTimeline.currentTime,
@@ -3617,18 +3668,24 @@ class KeyframesGui extends Gui {
             // icons: tree_icons, 
             filter: true,
             rename: false,
+            draggable: false,
             icons: [  // Warning! if order of buttons change, check the tour still points to the correct icons
                 { 
                     name: "Fix Bones to Timeline", icon: "Pin", 
                     callback: (v,e) =>{ 
                         this.treeWidget._fixedSelection = this.skeletonTimeline.selectedItems.slice();
+                        this.skeletonTimeline.updateLeftPanel();
                         LX.toast("Fixed Bones To Timeline", `${this.treeWidget._fixedSelection}`, { timeout: 7000 } );
                     }
                 },
                 {
                     name: "Unfix Timeline Bones", icon: "PinOff", 
                     callback: (v,e) =>{ 
+                        const selectionLength = this.treeWidget._fixedSelection.length;
                         this.treeWidget._fixedSelection = [];
+                        if ( selectionLength ){
+                            this.skeletonTimeline.updateLeftPanel();
+                        }
                         LX.toast("Unfixed Bones From Timeline", null, { timeout: 7000 } );
                     }
                 },
