@@ -5,6 +5,7 @@ import 'lexgui/extensions/codeeditor.js';
 import 'lexgui/extensions/timeline.js';
 import { Gizmo } from "./Gizmo.js";
 import { KeyframeEditor } from "./Editor.js";
+import { findIndexOfBoneByName } from "./retargeting.js";
 
 LX.registerIcon( "arrow-up-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 4-4 4 4 M7 4v16 M11 12h4 M11 16h7 M11 20h10"/></svg>' );
 LX.registerIcon( "arrow-down-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4 M7 20V4 M11 4h4 M11 8h7 M11 12h10"/></svg>' );
@@ -1113,7 +1114,6 @@ class KeyframesGui extends Gui {
         
         super(editor);
         this.showVideo = true; // menu option, whether to show video overlay (if any exists)
-        this.skeletonScroll = 0;
 
         this.inputVideo = null;
         this.recordedVideo = null;
@@ -1769,7 +1769,33 @@ class KeyframesGui extends Gui {
 
         const that = this;
 
-        // overwrite function to add buttons ("remove from timeline" and "pin to timeline")
+        this.skeletonTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
+             switch( event.type ){
+                case LX.TreeEvent.NODE_CONTEXTMENU:
+                    LX.addContextMenu("Options", event.value, (menu) => { // in a tree widget, the event.value is the Mouse event
+                        menu.add( "Optimize Selected Tracks",  (e)=>{ 
+                            const activeTimeline = this.editor.activeTimeline;
+                            const selectedTracks = activeTimeline.trackTreesComponent.innerTree.selected;
+
+                            let combine = false;
+                            for( let i = 0; i < selectedTracks.length; ++i ){
+                                const track = selectedTracks[i].trackData;
+                                if( !track ){ continue; } // it is a group
+
+                                activeTimeline.saveState( track.trackIdx, combine); // combine all saves into one saveStep
+                                combine = true;
+                                activeTimeline.historySaveEnabler = false;
+                                activeTimeline.optimizeTrack( track.trackIdx ); // avoid optimizeTrack saving to history
+                                activeTimeline.historySaveEnabler = true;
+                            }
+                        });
+                        menu.add( "Add Keyframes In Selected Tracks",  (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline ); } );
+                    });
+                break;
+            }
+        }
+
+        // OVERWRITE function to add buttons ("remove from timeline" and "pin to timeline") to the tree elements
         this.skeletonTimeline._generateSelectedItemsTreeData = this.skeletonTimeline.generateSelectedItemsTreeData; 
         this.skeletonTimeline.generateSelectedItemsTreeData = function(){
             // "this" is the timeline
@@ -1894,22 +1920,205 @@ class KeyframesGui extends Gui {
         }
 
         
-        // "add" entry needs to set a proper value to the keyframe. This is why the default implementation of showContextMenu is not enough
+        // which tracks are affected, are determined by the selectedTracks of the timeline's leftpanel tree. Used by both timelines
         this.bulkKeyframeAddition = {
             n: 1,
             startTime: this.skeletonTimeline.currentTime,
             duration: 1,
-            track: null,
             dialog: null,
-        }
+
+            createDialog( isFaceTimeline = false ){
+                if ( this.dialog ){ // only one dialog of bulk addition, regardless of which type (keyframe or curves) is open
+                    this.dialog.close();
+                }
+
+                if ( isFaceTimeline ){
+                    that.bsTimeline.drawTrackWithCurves = that.bsTimeline.bulkAdditionDrawTrack;
+                }else{
+                    that.skeletonTimeline.drawTrackWithKeyframes = that.skeletonTimeline.bulkAdditionDrawTrack;
+                }
+             
+                this.dialog = new LX.Dialog( "Bulk addition in selected tracks", p => {
+                    p.addNumber( "Num Keyframes", this.n, (v,e)=>{ this.n = v}, {min: 1, step: 1 } );
+                    p.addNumber( "Start Time", this.startTime, (v,e)=>{ this.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
+                    p.addNumber( "Duration", this.duration, (v,e)=>{ this.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
+                    
+                    p.sameLine();
+                    p.addButton( "Cancel", "Cancel", (v,e)=>{ this.dialog.close(); }, {width: "50%", hideName: true} );
+                    p.addButton( "Add", "Add", (v,e)=>{ 
+
+                        if ( isFaceTimeline ){
+                            this._commitAddFace();
+                        }else{
+                            this._commitAddSkeleton();
+                        }
+
+                        this.dialog.close(); 
+                    }, {width: "50%", hideName: true} );
+                    p.endLine();
+
+                }, { closable:true, onBeforeClose: (v)=>{
+                    this.dialog = null;
+                    if ( isFaceTimeline ){
+                        that.bsTimeline.drawTrackWithCurves = that.bsTimeline.originalDrawTrack;
+                    }else{
+                        that.skeletonTimeline.drawTrackWithKeyframes = that.skeletonTimeline.originalDrawTrack;
+                    }
+                }});
+            },
+
+            _commitAddSkeleton(){ // skeleton timeline
+                const n = this.n;
+                const start = this.startTime;
+                const spf = n == 1 ? 1 : this.duration / (n-1);
+
+                const selectedTracks = that.skeletonTimeline.trackTreesComponent.innerTree.selected;
+
+                // TO DO TODO
+                // find bones. This could be already precomputed inside the animation tracks. 
+                // Optionally, this could be avoided by interpolating frames directly, but Position, Scale, Quaternions needs particular interpolations
+                // Although this might be slower, it is probably not a big performance issue
+                const selectedBones = new Array(selectedTracks.length);
+                for( let i = 0; i < selectedTracks.length; ++i ){
+                    if ( selectedTracks[i].trackData ){ 
+                        const idx = findIndexOfBoneByName( that.editor.currentCharacter.skeletonHelper.skeleton, selectedTracks[i].trackData.groupId ); // assuming it exists
+                        selectedBones[i] = that.editor.currentCharacter.skeletonHelper.skeleton.bones[idx]; 
+                        continue; 
+                    }
+                    selectedBones[i] = null;
+                }
+
+                const srcTime = that.editor.currentTime;
+                
+                let saveTrackCombine = false;
+                // for all selected tracks
+                for( let t = 0; t < selectedTracks.length; ++t ){
+                    if ( !selectedBones[t] ){ continue; }
+                    
+                    let values = [];
+                    let times = [];
+                    let pos = start;
+                    
+                    const track = selectedTracks[t].trackData;
+                    const bone = selectedBones[t];
+
+                    // for all new frames
+                    for( let i = 0; i < n; ++i ){
+                        that.editor.setTime( pos + that.editor.startTimeOffset );
+                        
+                        const frame = that.skeletonTimeline.getNearestKeyFrame(track, pos, 0); // probably can be optimized to not use this function, if more performance is necessary.
+                        if ( frame != -1 && Math.abs(track.times[frame]-pos) < 0.001 ){ // keyframe already exists in that position
+                            pos += spf;
+                            continue;
+                        }
+    
+                        values.push( bone[ track.id ].toArray() );
+                        times.push( pos );
+                        pos += spf;
+                    }
+
+                    // addkeyframes, but save all tracks together. Avoid addkeyframes function's internal saving
+                    that.skeletonTimeline.saveState( track.trackIdx, saveTrackCombine );
+                    saveTrackCombine = true;
+
+                    that.skeletonTimeline.historySaveEnabler = false;
+                    that.skeletonTimeline.addKeyFrames( track.trackIdx, values, times, 0, LX.KeyFramesTimeline.ADDKEY_VALUESINARRAYS );
+                    that.skeletonTimeline.historySaveEnabler = true;
+                }
+
+                that.editor.setTime( srcTime );
+            },
+
+            _commitAddFace(){ // bs timeline
+                const n = this.n;
+                const start = this.startTime;
+                const spf = n == 1 ? 1 : this.duration / (n-1);
+
+                let newTimes = []; // helper functions does some splice. Float32Array does not have splice
+                for( let i = 0; i < n; ++i ){
+                    newTimes.push(start + spf * i);
+                }
+
+                const selectedTracks = that.bsTimeline.trackTreesComponent.innerTree.selected;
+                let saveCombine = false;
+                for( let i = 0; i < selectedTracks.length; ++i ){
+                    if ( !selectedTracks[i].trackData ){ continue; }
+
+                    that.bsTimeline.saveState(selectedTracks[i].trackData.trackIdx, saveCombine );
+                    saveCombine = true;
+
+                    that.bsTimeline.historySaveEnabler = false;
+                    this._helperNewBSMultipleKeyframes( selectedTracks[i].trackData, newTimes.slice() ); // saves track (deactivated this), adds keyframe and calls select callback (on last frame)
+                    that.bsTimeline.historySaveEnabler = true;
+                }
+
+                that.editor.setTime( newTimes[0] );
+            },
+            
+            _helperNewBSMultipleKeyframes( track, newTimes ) { // function used also in bsTimeline.showContextMenu
+                // "this" is the timeline
+                let newValues = [];
+
+                const values = track.values;
+                const times = track.times;
+                const timeThreshold = 0.001;
+                for( let i = 0; i < newTimes.length; ++i ){
+                    let nearest = that.bsTimeline.getNearestKeyFrame( track, newTimes[i], 0 );
+                    if ( nearest == -1 ){
+                        newValues.push(0);
+                        continue;
+                    }
+
+                    const newFrameTime = newTimes[i];
+                    if ( Math.abs(times[nearest] - newFrameTime) < timeThreshold ){ 
+                        newTimes.splice(i,1);
+                        --i;
+                        continue;
+                    }
+
+                    const prevFrame = times[nearest] > newFrameTime ? (nearest-1) : nearest;
+                    const postFrame = times[nearest] > newFrameTime ? nearest : (nearest+1);
+
+                    if (prevFrame == -1){
+                        newValues.push(values[postFrame]);
+                    }else if (postFrame >= times.length){
+                        newValues.push( values[prevFrame] );
+                    }else{
+                        let dt = times[postFrame] - times[prevFrame];
+                        let f = 0;
+                        if( dt > 0 ){
+                            f = ( newFrameTime - times[prevFrame] ) / dt;
+                        }
+                        newValues.push( values[prevFrame] * (1-f) + values[postFrame] * f );
+                    }
+                }
+                
+                let newFrames = that.bsTimeline.addKeyFrames( track.trackIdx, newValues, newTimes ); // aleady does a saves history
+                
+                if( !that.propagationWindow.enabler ){
+                    for( let i = newFrames.length-1; i > -1; --i ){
+                        that.bsTimeline.selectKeyFrame(track.trackIdx, newFrames[i], i == 0); // do callback only on last keyframe
+                    }
+                }
+            }
+
+        }; // end of bulk addition
+
         this.skeletonTimeline.originalDrawTrack = this.skeletonTimeline.drawTrackWithKeyframes;
         this.skeletonTimeline.bulkAdditionDrawTrack = function( ctx, trackHeight, track ){
             this.originalDrawTrack( ctx, trackHeight, track );
 
-            if ( track != that.bulkKeyframeAddition.track ){ 
+            // check if track needs bulk addition
+            let i =0;
+            const selectedTracks = this.trackTreesComponent.innerTree.selected;
+            for( ; i < selectedTracks.length; ++i ){
+                if ( selectedTracks[i].trackData == track ){ break; } // selectedTracks[i] might be a group, so trackData will be undefined. Comparison still works, though
+            }
+            if ( i >= selectedTracks.length ){
                 return;
             }
 
+            // render bulk keyframes
             const n = that.bulkKeyframeAddition.n;
             const startPixel = this.timeToX( that.bulkKeyframeAddition.startTime );
             const endPixel = this.timeToX( that.bulkKeyframeAddition.startTime + that.bulkKeyframeAddition.duration );
@@ -2007,58 +2216,7 @@ class KeyframesGui extends Gui {
                         callback: () => {
                             // "this" is the timeline
                             this.deselectAllElements();
-
-                            if ( that.bulkKeyframeAddition.dialog ){
-                                that.bulkKeyframeAddition.dialog.close();
-                            }
-                            that.bulkKeyframeAddition.track = e.track;
-
-                            this.drawTrackWithKeyframes = this.bulkAdditionDrawTrack;
-                         
-                            that.bulkKeyframeAddition.dialog = new LX.Dialog( "Bulk addition " + e.track.groupId + "." + e.track.id, p => {
-                                p.addNumber( "Num Keyframes", that.bulkKeyframeAddition.n, (v,e)=>{ that.bulkKeyframeAddition.n = v}, {min: 1, step: 1 } );
-                                p.addNumber( "Start Time", that.bulkKeyframeAddition.startTime, (v,e)=>{ that.bulkKeyframeAddition.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
-                                p.addNumber( "Duration", that.bulkKeyframeAddition.duration, (v,e)=>{ that.bulkKeyframeAddition.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
-                                
-                                p.sameLine();
-                                p.addButton( "Cancel", "Cancel", (v,e)=>{ that.bulkKeyframeAddition.dialog.close(); }, {width: "50%", hideName: true} );
-                                p.addButton( "Add", "Add", (v,e)=>{ 
-
-                                    const track = that.bulkKeyframeAddition.track;
-                                    const n = that.bulkKeyframeAddition.n;
-                                    const start = that.bulkKeyframeAddition.startTime;
-                                    const spf = n == 1 ? 1 : that.bulkKeyframeAddition.duration / (n-1);
-                                    let pos = start;
-                        
-                                    const srcTime = that.editor.currentTime;
-                                    let values = [];
-                                    let times = [];
-
-                                    for( let i = 0; i < n; ++i ){
-                                        const frame = this.getNearestKeyFrame(track, pos, 0);
-                                        if ( frame != -1 && Math.abs(track.times[frame]-pos) < 0.001 ){ // keyframe already exists in that position 
-                                            continue;
-                                        }
-
-                                        that.editor.setTime( pos + that.editor.startTimeOffset );
-                                        values.push( that.boneProperties[ track.id ].toArray() );
-                                        times.push( pos );
-                                        pos += spf;
-                                    }
-
-                                    this.addKeyFrames( track.trackIdx, values, times, 0, LX.KeyFramesTimeline.ADDKEY_VALUESINARRAYS );
-
-                                    that.editor.setTime( srcTime );
-
-                                    that.bulkKeyframeAddition.dialog.close(); 
-                                }, {width: "50%", hideName: true} );
-                                p.endLine();
-
-                            }, { closable:true, onBeforeClose: (v)=>{
-                                that.bulkKeyframeAddition.track = null;
-                                that.bulkKeyframeAddition.dialog = null
-                                this.drawTrackWithKeyframes = this.originalDrawTrack;
-                            }});
+                            this.bulkKeyframeAddition.createDialog( false );
                         }
                     });
                         
@@ -2215,6 +2373,7 @@ class KeyframesGui extends Gui {
             }
         };
 
+        this.bsTimeline.onTrackTreeEvent = this.skeletonTimeline.onTrackTreeEvent; //reusing function
         this.bsTimeline.originalDrawTrack = this.bsTimeline.drawTrackWithCurves;
         this.bsTimeline.bulkAdditionDrawTrack = this.skeletonTimeline.bulkAdditionDrawTrack; // reuse function
         this.bsTimeline.showContextMenu = function( e ) {
@@ -2254,60 +2413,13 @@ class KeyframesGui extends Gui {
             }
 
             if(e.track) {
-                const helperNewBSMultipleKeyframes = ( track, newTimes ) =>{
-                    // "this" is the timeline
-                    let newValues = [];
-
-                    const values = track.values;
-                    const times = track.times;
-                    const timeThreshold = 0.001;
-                    for( let i = 0; i < newTimes.length; ++i ){
-                        let nearest = this.getNearestKeyFrame( track, newTimes[i], 0 );
-                        if ( nearest == -1 ){
-                            newValues.push(0);
-                            continue;
-                        }
-
-                        const newFrameTime = newTimes[i];
-                        if ( Math.abs(times[nearest] - newFrameTime) < timeThreshold ){ 
-                            newTimes.splice(i,1);
-                            --i;
-                            continue;
-                        }
-
-                        const prevFrame = times[nearest] > newFrameTime ? (nearest-1) : nearest;
-                        const postFrame = times[nearest] > newFrameTime ? nearest : (nearest+1);
-
-                        if (prevFrame == -1){
-                            newValues.push(values[postFrame]);
-                        }else if (postFrame >= times.length){
-                            newValues.push( values[prevFrame] );
-                        }else{
-                            let dt = times[postFrame] - times[prevFrame];
-                            let f = 0;
-                            if( dt > 0 ){
-                                f = ( newFrameTime - times[prevFrame] ) / dt;
-                            }
-                            newValues.push( values[prevFrame] * (1-f) + values[postFrame] * f );
-                        }
-                    }
-                    
-                    let newFrames = this.addKeyFrames( track.trackIdx, newValues, newTimes ); // aleady does a saves history
-                    
-                    if( !that.propagationWindow.enabler ){
-                        for( let i = newFrames.length-1; i > -1; --i ){
-                            this.selectKeyFrame(track.trackIdx, newFrames[i], i == 0);
-                        }
-                    }
-                };
-
                 actions.push(
                 {
                     title: "Add Keyframe/Here",
                     callback: () => {
                         // "this" is the timeline
                         const selectedTime = this.xToTime(e.localX);
-                        helperNewBSMultipleKeyframes( e.track, [selectedTime] );
+                        that.bulkKeyframeAddition._helperNewBSMultipleKeyframes( e.track, [selectedTime] ); // saves track, adds keyframe and calls select callback (on last frame) 
                         this.setTime(selectedTime);
                     }
                 },
@@ -2315,56 +2427,18 @@ class KeyframesGui extends Gui {
                     title: "Add Keyframe/At Current Time",
                     callback: () => {
                         // "this" is the timeline
-                        helperNewBSKeyframe( e.track, that.editor.currentTime );
+                        helperNewBSKeyframe( e.track, that.editor.currentTime ); // saves track, adds keyframe and calls select callback (on last frame)
                     }
                 },
                 {
                     title: "Add Keyframe/Bulk Addition",
                     callback: () => {
+                        // "this" is the timeline
                         this.deselectAllElements();
-
-                        if ( that.bulkKeyframeAddition.dialog ){
-                            that.bulkKeyframeAddition.dialog.close();
-                        }
-                        that.bulkKeyframeAddition.track = e.track;
-
-                        this.drawTrackWithCurves = this.bulkAdditionDrawTrack;
-                     
-                        that.bulkKeyframeAddition.dialog = new LX.Dialog( "Bulk addition " + e.track.id, p => {
-                            p.addNumber( "Num Keyframes", that.bulkKeyframeAddition.n, (v,e)=>{ that.bulkKeyframeAddition.n = v}, {min: 1, step: 1 } );
-                            p.addNumber( "Start Time", that.bulkKeyframeAddition.startTime, (v,e)=>{ that.bulkKeyframeAddition.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
-                            p.addNumber( "Duration", that.bulkKeyframeAddition.duration, (v,e)=>{ that.bulkKeyframeAddition.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
-                            
-                            p.sameLine();
-                            p.addButton( "Cancel", "Cancel", (v,e)=>{ that.bulkKeyframeAddition.dialog.close(); }, {width: "50%", hideName: true} );
-                            p.addButton( "Add", "Add", (v,e)=>{ 
-                                const n = that.bulkKeyframeAddition.n;
-                                const start = that.bulkKeyframeAddition.startTime;
-                                const spf = n == 1 ? 1 : that.bulkKeyframeAddition.duration / (n-1);
-
-                                let newTimes = [];
-                                for( let i = 0; i < n; ++i ){
-                                    newTimes.push(start + spf * i);
-                                }
-
-                                helperNewBSMultipleKeyframes( that.bulkKeyframeAddition.track, newTimes );
-
-                                that.editor.setTime( newTimes[0] );
-
-                                that.bulkKeyframeAddition.dialog.close(); 
-                            }, {width: "50%", hideName: true} );
-                            p.endLine();
-
-                        }, { closable:true, onBeforeClose: (v)=>{
-                            that.bulkKeyframeAddition.track = null;
-                            that.bulkKeyframeAddition.dialog = null
-                            this.drawTrackWithCurves = this.originalDrawTrack;
-                        }}); // end of dialog
+                        this.bulkKeyframeAddition.createDialog( true );                   
                     }
                 });
-
             }
-            
             
             if(this.clipboard && this.clipboard.keyframes)
             {
@@ -3725,7 +3799,6 @@ class KeyframesGui extends Gui {
                 },
             ],
             onevent: (event) => { 
-                console.log(event.string());
     
                 switch(event.type) {
                     case LX.TreeEvent.NODE_SELECTED: 
