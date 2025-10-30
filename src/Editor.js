@@ -1265,7 +1265,7 @@ class Editor {
     onPlay() {} // Abstract
     onStop() {} // Abstract
     onPause() {} // Abstract
-    clearAllTracks() {} // Abstract
+    clearTracks( trackIndices = null ) {} // Abstract
     updateMixerAnimation(animation, idx, replace = false) {}
     setTimeline(type) {};
 
@@ -2868,38 +2868,47 @@ class KeyframeEditor extends Editor {
         this.gizmo.updateBones();
     }
 
-    clearAllTracks() {
+    clearTracks( trackIndices = null ) {
+
         if( !this.activeTimeline.animationClip ) {
             return;
         }
-
+        
         const timeline = this.activeTimeline;
-        const visibleElements = timeline.getVisibleItems();
-        for( let i = 0; i < visibleElements.length; ++i ) {
+        const isGlobal = timeline == this.gui.globalTimeline;
+        const tracksToClear = trackIndices ? trackIndices : Object.keys(this.activeTimeline.animationClip.tracks);
 
-            const track = visibleElements[i].treeData.trackData; 
-            if( !track ) { // is a group title
-                continue;
-            }
+        for( let i = 0; i < tracksToClear.length; ++i ) {
+            const trackIdx = tracksToClear[i];
 
-            timeline.saveState(track.trackIdx, i!=0); // save track before clearing, but combine all saves into a single save-step
-            const oldSaveState = timeline.historySaveEnabler;
-            timeline.historySaveEnabler = false;
-            timeline.clearTrack(track.trackIdx); // clear track without saving
-            timeline.historySaveEnabler = oldSaveState;
+            // unify all savestates into a single step
+            timeline.saveState(trackIdx, i != 0 ); // for globalTimeline, a shallow copy is enough
 
-            if ( timeline != this.gui.globalTimeline ){
-                switch( this.animationMode ) {
-                    case this.animationModes.BODY:
-                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.currentKeyFrameClip.skeletonAnimation);
-                        break;
-
-                    case this.animationModes.FACEAU: 
-                    case this.animationModes.FACEBS:
-                        this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx], this.currentKeyFrameClip.bsAnimation);
-                        break;
+            if ( isGlobal ){
+                const clips = timeline.animationClip.tracks[trackIdx].clips;
+                for( let c = 0; c < clips.length; ++c ){
+                    this.gui.globalTimeline.onDeleteClip( trackIdx, c, clips[c] ); // remove from mixer and all necessary stuff
                 }
             }
+
+            timeline.historySaveEnabler = false;
+            timeline.clearTrack(trackIdx); 
+            timeline.historySaveEnabler = true;
+        }
+
+        if ( timeline != this.gui.globalTimeline ){
+            switch( this.animationMode ) {
+                case this.animationModes.BODY:
+                    this.updateMixerAnimation(this.currentKeyFrameClip.mixerBodyAnimation, trackIndices, this.currentKeyFrameClip.skeletonAnimation);
+                    break;
+
+                case this.animationModes.FACEAU: 
+                case this.animationModes.FACEBS:
+                    this.updateMixerAnimation(this.currentKeyFrameClip.mixerFaceAnimation, trackIndices, this.currentKeyFrameClip.bsAnimation);
+                    break;
+            }
+        }else{
+            this.globalAnimMixerManagement( this.currentCharacter.mixer, this.getCurrentBoundAnimation(), false );
         }
     }
     
@@ -3983,27 +3992,25 @@ class ScriptEditor extends Editor {
         this.updateMixerAnimation(animationData.scriptAnimation);
     }
 
-    clearAllTracks( showConfirmation = true ) {
+    clearTracks( trackIndices = null ) {
         if( !this.activeTimeline.animationClip ) {
             return;
         }
         
-        const clearTracks = () => {
-            for( let i = 0; i < this.activeTimeline.animationClip.tracks.length; ++i ) {
+        const tracksToClear = trackIndices ? trackIndices : this.activeTimeline.animationClip.tracks;
 
-                const track = this.activeTimeline.animationClip.tracks[i];
-                this.activeTimeline.clearTrack(track.trackIdx);
-            }
-            this.updateTracks();
-            this.gui.updateClipPanel();
+        for( let i = 0; i < tracksToClear.length; ++i ) {
+            const trackIdx = trackIndices ? tracksToClear[i] : tracksToClear[i].trackIdx;
+
+            // unify all savestates into a single step
+            this.activeTimeline.saveState(trackIdx, i != 0 );
+
+            this.activeTimeline.historySaveEnabler = false;
+            this.activeTimeline.clearTrack(trackIdx);
+            this.activeTimeline.historySaveEnabler = true;
         }
-        
-        if( showConfirmation ) {
-            this.gui.showClearTracksConfirmation(clearTracks);
-        }
-        else {
-            clearTracks();
-        }
+        this.updateTracks();
+        this.gui.updateClipPanel();        
     }
 
     generateBML( animationName = null ) {
