@@ -95,22 +95,10 @@ class Gui {
                 submenu: [ ]
             },
             {
-                name: "Timeline",
+                name: "Edit",
                 submenu: [
-                    {
-                        name: "Shortcuts",
-                        icon: "Keyboard",
-                        submenu: [
-
-                            { name: "Undo", icon:"Undo", kbd: "CTRL + Z", callback: (e)=>{ this.editor.undo() } },
-                            { name: "Redo", icon:"Redo", kbd: "CTRL + Y", callback: (e)=>{ this.editor.redo() } },
-                            { name: "Play-Pause", kbd: "SPACE" },
-                            { name: "Zoom", kbd: "LSHIFT + Wheel" },
-                            { name: "Scroll", kbd: "Wheel" },
-                            { name: "Move Timeline", kbd: "LClick + drag" },
-                            { name: "Context Menu", kbd: "Right Click" }
-                        ]
-                    }
+                    { name: "Undo", icon:"Undo", kbd: "CTRL + Z", callback: (e)=>{ this.editor.undo() } },
+                    { name: "Redo", icon:"Redo", kbd: "CTRL + Y", callback: (e)=>{ this.editor.redo() } }
                 ]
             },
             {
@@ -126,7 +114,19 @@ class Gui {
                 ]
             },
             {
-                name: "About", submenu: []
+                name: "Help", submenu: [
+                    {
+                        name: "Shortcuts",
+                        icon: "Keyboard",
+                        submenu: [
+                            { name: "Play-Pause", kbd: "SPACE" },
+                            { name: "Zoom", kbd: "LSHIFT + Wheel" },
+                            { name: "Scroll", kbd: "Wheel" },
+                            { name: "Move Timeline", kbd: "LClick + drag" },
+                            { name: "Context Menu", kbd: "Right Click" }
+                        ]
+                    }
+                ]
             }
         ]
 
@@ -1177,19 +1177,14 @@ class KeyframesGui extends Gui {
             { name: "Preview in PERFORMS", icon: "StreetView", callback: () => this.editor.showPreview() },
         );
        
-        const timelineMenuItem = entries.find( e => e.name == "Timeline" ); 
-        const timelineMenu = timelineMenuItem.submenu;
-        console.assert(timelineMenu, "Timeline menu not found" );
+        const editMenuItem = entries.find( e => e.name == "Edit" ); 
+        const editMenu = editMenuItem.submenu;
+        console.assert(editMenu, "Edit menu not found" );
 
         this.showVideo = this.showVideo ?? true; // menu option, whether to show video overlay (if any exists)
 
-        timelineMenu.splice(1,1);
-        timelineMenu.push(
-            null,
-            { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
-                this.showVideo = v;
-                this.editor.setVideoVisibility( v );
-            }},
+        // editMenu.splice(1,1);
+        editMenu.push(
             null,
             { name: "Optimize", icon: "Filter", submenu:[
                 { name: "Visible Tracks", icon: "Filter", callback: () => {
@@ -1249,25 +1244,66 @@ class KeyframesGui extends Gui {
                 
             ] }
         );
-        timelineMenuItem.completeSubmenu = timelineMenu.slice(); // shallow copy
-        timelineMenuItem.submenu = timelineMenuItem.completeSubmenu.filter( (v,i,arr) =>{ // same as setkeyframeclip 
-            if(v){ 
-                if(v.name.includes("Optimize") || v.name.includes("Video")){
-                    return false;
-                }
+        editMenuItem.completeSubmenu = editMenu.slice(); // shallow copy
+        editMenuItem._setMode = (mode)=>{ // 0 == global, 1 local
+            if ( mode ){
+                editMenuItem.submenu = editMenuItem.completeSubmenu;
+            }else{
+                editMenuItem.submenu = editMenuItem.completeSubmenu.filter( (v,i,arr) =>{
+                    if(v){ 
+                        if(v.name.includes("Optimize")){
+                            return false;
+                        }
+                    }
+                    return true;
+                })
             }
-            return true;
-        })
-
+        }
+        editMenuItem._setMode(0);
         
-        const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
+        const viewMenuItem = entries.find( e => e.name == "View" );
+        const viewMenu = viewMenuItem.submenu;
+        console.assert(viewMenu, "View menu not found" );
+        viewMenu.push( 
+            null, 
+            { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") },
+            null,
+            { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
+                this.showVideo = v;
+                this.editor.setVideoVisibility( v );
+            }}
+        );
+        viewMenuItem.completeSubmenu = viewMenu.slice(); // shallow copy
+        viewMenuItem._setMode = (mode)=>{ // 0 do not show video, 1 show video
+            if ( mode ){
+                viewMenuItem.submenu = viewMenuItem.completeSubmenu;
+            }else{
+                viewMenuItem.submenu = viewMenuItem.completeSubmenu.filter( (v,i,arr) =>{
+                    if(v){ 
+                        if(v.name.includes("Video")){
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+            }
+        }
+        viewMenuItem._setMode(0);
+
+        const helpMenu = entries.find( e => e.name == "Help" )?.submenu;
+        console.assert(helpMenu, "Help menu not found" );
+        helpMenu.push(
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs", "_blank")},
+            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
+        );
+        const shortcutsMenu = helpMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
 
         shortcutsMenu.push(
             null,
-            "Keys",
-            { name: "Move", kbd: "CTRL + LClick + drag" },
+            "Keyframes",
             { name: "Change Value (face)", kbd: "ALT + LClick + drag" },
+            { name: "Move", kbd: "CTRL + LClick + drag" },
             { name: "Add", kbd: "Right Click" },
             { name: "Copy", kbd: "CTRL+C" },
             { name: "Paste", kbd: "CTRL+V" },
@@ -1279,17 +1315,6 @@ class KeyframesGui extends Gui {
             { name: "Select Box", kbd: "LSHIFT + LClick + drag" },
             null,
             { name: "Propagation Window", kbd: "W" },
-        );
-        
-        const viewMenu = entries.find( e => e.name == "View" )?.submenu;
-        console.assert(viewMenu, "View menu not found" );
-        viewMenu.push( null, { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") });
-
-        const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
-        console.assert(aboutMenu, "About menu not found" );
-        aboutMenu.push(
-            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs", "_blank")},
-            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
         );
     }
 
@@ -2617,34 +2642,20 @@ class KeyframesGui extends Gui {
             this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
 
-            const menubarTimeline = this.menubar.getItem("Timeline");
-            menubarTimeline.submenu = menubarTimeline.completeSubmenu.filter( (v,i,arr) =>{ 
-                if(v){
-                    if ( v.name.includes("Optimize") || v.name.includes("Video") ){
-                        return false;
-                    }
-                }
-                return true;
-            });
+            const menubarEdit = this.menubar.getItem("Edit");
+            menubarEdit._setMode(0);
+            const menubarView = this.menubar.getItem("View");
+            menubarView._setMode(0);
             return;
         }
 
-        const menubarTimeline = this.menubar.getItem("Timeline");
-        menubarTimeline.submenu = menubarTimeline.completeSubmenu.filter( (v,i,arr) =>{ 
-            if(v){
-                if ( v.name.includes("Video") ){
-                    if( !clip.source || clip.source.type != "video" ){
-                        return false;
-                    }
-                }
-            }
-            return true;
-        });
-
-
-
-        
         const sourceAnimation = clip.source; // might not exist
+
+        const menubarEdit = this.menubar.getItem("Edit");
+        menubarEdit._setMode(1);
+        const menubarView = this.menubar.getItem("View");
+        menubarView._setMode( sourceAnimation && sourceAnimation.type == "video" );
+        
         this.editor.currentKeyFrameClip = clip;
         this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation()); // now that there is a currentKeyframeClip, update mixer actions
         this.globalTimeline.saveState( clip.trackIdx ); // cloneClips must have a currentKeyFrameClip to duplicate, which is waht we need now
@@ -5084,9 +5095,9 @@ class ScriptGui extends Gui {
             { name: "Preview in PERFORMS", icon: "StreetView", callback: () => this.editor.showPreview() },
         );
 
-        const timelineMenu = entries.find( e => e.name == "Timeline" )?.submenu;
-        console.assert(timelineMenu, "Timeline menu not found" );
-        timelineMenu.push(
+        const editMenu = entries.find( e => e.name == "Edit" )?.submenu;
+        console.assert(editMenu, "Edit menu not found" );
+        editMenu.push(
             { name: "Reorder Clips", icon: "Magnet", submenu: [
                 { name: "Type", icon:"Star", callback: () => this.reorderClips(0) },
                 { name: "Type and Handedness", icon: "StarHalf", callback: () => this.reorderClips(1) },
@@ -5110,7 +5121,14 @@ class ScriptGui extends Gui {
             ] }
         );
 
-        const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
+        const helpMenu = entries.find( e => e.name == "Help" )?.submenu;
+        console.assert(helpMenu, "Help menu not found" );
+        helpMenu.push(
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs/script_animation.html", "_blank")},
+            { name: "BML Instructions", icon: "CodeSquare", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") },
+            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
+        );
+        const shortcutsMenu = helpMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
 
         shortcutsMenu.push(
@@ -5129,15 +5147,7 @@ class ScriptGui extends Gui {
             { name: "Select Multiple", kbd: "LSHIFT + LClick" },
             { name: "Select Box", kbd: "LSHIFT + LClick + Drag" }
         );
-
-        const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
-        console.assert(aboutMenu, "About menu not found" );
-        aboutMenu.push(
-            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs/script_animation.html", "_blank")},
-            { name: "BML Instructions", icon: "CodeSquare", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") },
-            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
-        );
-        
+       
 
     }
 
