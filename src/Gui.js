@@ -1183,7 +1183,7 @@ class KeyframesGui extends Gui {
 
         this.showVideo = this.showVideo ?? true; // menu option, whether to show video overlay (if any exists)
 
-        // editMenu.splice(1,1);
+        // EDIT OPTIMIZE AND CLEAR CALLBACKS REUSED ON SEVERAL PARTS OF THE CODE 
         editMenu.push(
             null,
             { name: "Optimize", icon: "Filter", submenu:[
@@ -1687,18 +1687,7 @@ class KeyframesGui extends Gui {
                             }
                         }
 
-                        menu.add( "Clear Selected Tracks", (e)=>{
-                            const activeTimeline = this.editor.activeTimeline;
-                            const selectedTracks = activeTimeline.trackTreesComponent.innerTree.selected;
-
-                            let indices = [];
-                            for( let i = 0; i < selectedTracks.length; ++i ){
-                                const track = selectedTracks[i].trackData;
-                                if( !track ){ continue; } // it is a group
-                                indices.push( track.trackIdx );
-                            }
-                            this.editor.clearTracks( indices );
-                        });
+                        menu.add( "Clear Selected Tracks", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
                     });
                     break;
             }
@@ -1866,35 +1855,10 @@ class KeyframesGui extends Gui {
                             }
                         }
 
-                        menu.add( "Clear Selected Tracks", (e)=>{
-                            const activeTimeline = this.editor.activeTimeline;
-                            const selectedTracks = activeTimeline.trackTreesComponent.innerTree.selected;
+                        that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
 
-                            let indices = [];
-                            for( let i = 0; i < selectedTracks.length; ++i ){
-                                const track = selectedTracks[i].trackData;
-                                if( !track ){ continue; } // it is a group
-                                indices.push( track.trackIdx );
-                            }
-                            this.editor.clearTracks( indices );
-                        });
-
-                        menu.add( "Optimize Selected Tracks",  (e)=>{ 
-                            const activeTimeline = this.editor.activeTimeline;
-                            const selectedTracks = activeTimeline.trackTreesComponent.innerTree.selected;
-
-                            let combine = false;
-                            for( let i = 0; i < selectedTracks.length; ++i ){
-                                const track = selectedTracks[i].trackData;
-                                if( !track ){ continue; } // it is a group
-
-                                activeTimeline.saveState( track.trackIdx, combine); // combine all saves into one saveStep
-                                combine = true;
-                                activeTimeline.historySaveEnabler = false;
-                                activeTimeline.optimizeTrack( track.trackIdx ); // avoid optimizeTrack saving to history
-                                activeTimeline.historySaveEnabler = true;
-                            }
-                        });
+                        menu.add( "Clear Selected Tracks", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
+                        menu.add( "Optimize Selected Tracks", that.menubar.getItem("Edit/Optimize/Selected Tracks").callback);
                         menu.add( "Add Keyframes In Selected Tracks",  (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline ); } );
                     });
                 break;
@@ -2319,45 +2283,20 @@ class KeyframesGui extends Gui {
             e.stopPropagation();
     
             let actions = [];
-            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
-                actions.push(
-                    {
-                        title: "Copy",
-                        callback: () => {
-                            this.copySelectedContent();
-                        }
-                    },
-                    {
-                        title: "Delete",
-                        callback: () => {
-                            this.deleteSelectedContent();
-                        }
-                    }
-                );
-                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value)
-                {
-                    actions.push(
-                        {
-                            title: "Paste Value",
-                            callback: () => {
-                                this.pasteContentValue();
-                            }
-                        }
-                    );
-                }
-            }
 
             if(e.track) {
-                
+                // TODO select this entry's track if not selected. Keep the current track selection otherwise
+
                 if ( e.track.groupId != that.editor.selectedBone ){
                     that.editor.setSelectedBone( e.track.groupId, false );
                 }
 
                 const type = e.track.id;
                 if(that.boneProperties[type]) {
+                    const trackName =  e.track.groupId + "@" + e.track.id;
                     actions.push(
                     {
-                        title: "Add Keyframe/Here",
+                        title: trackName + "/Add Keyframe Here",
                         callback: () => {
                             // "this" is the timeline
                             this.deselectAllElements();
@@ -2380,7 +2319,7 @@ class KeyframesGui extends Gui {
                         }
                     },
                     {
-                        title: "Add Keyframe/At current time",
+                        title: trackName + "/Add Keyframe At current time",
                         callback: () => {
                             // "this" is the timeline
                             this.deselectAllElements();
@@ -2392,43 +2331,107 @@ class KeyframesGui extends Gui {
                             let newFrame = this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
                             this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
                         }
-                    });
+                    },
+                    {
+                        title: trackName + "/Add Keyframe Bulk Addition",
+                        callback: () => {
+    
+                            // TODO select this entry's track only
+    
+                            // "this" is the timeline
+                            this.deselectAllElements();
+                            that.bulkKeyframeAddition.createDialog( true );
+                        }
+                    },
+                    {
+                        title: trackName + "/Optimize Track",
+                        callback: () => {
+                            // "this" is the timeline
+                            this.optimizeTrack( e.track.trackIdx );
+                        }
+                    },
+                    {
+                        title: trackName + "/Clear Track",
+                        callback: () => {
+                            that.editor.clearTracks( [e.track.trackIdx] );
+                        }
+                    },
+                    );
                     
                 }
             }// end of if e.track
-            
-            actions.push(
-            {
-                title: "Add Keyframe/Bulk addition on selected tracks ",
-                callback: () => {
-                    // "this" is the timeline
-                    this.deselectAllElements();
-                    that.bulkKeyframeAddition.createDialog( false );
-                }
-            });
-            
             
             if(this.clipboard && this.clipboard.keyframes)
             {
                 actions.push(
                     {
-                        title: "Paste Here",
+                        title: "Paste Keyframes/Here",
                         callback: () => {
                             this.pasteContent( this.xToTime(e.localX) );
                         }
                     },
                     {
-                        title: "Paste",
+                        title: "Paste Keyframes/At Current Time",
                         callback: () => {
                             this.pasteContent( this.currentTime );
                         }
                     }
                 );
+            }            
+
+            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
+                actions.push(
+                    {
+                        title: "Selected Keyframes/Copy",
+                        callback: () => {
+                            this.copySelectedContent();
+                        }
+                    }
+                );
+                actions.push(
+                    {
+                        title: "Selected Keyframes/Delete",
+                        callback: () => {
+                            this.deleteSelectedContent();
+                        }
+                    }
+                );
+                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value) {
+                    actions.push(
+                        {
+                            title: "Selected Keyframes/Paste Value",
+                            callback: () => {
+                                this.pasteContentValue();
+                            }
+                        }
+                    );
+                }
+            }
+
+            if( this.trackTreesComponent.innerTree.selected.length ){
+                actions.push(
+                    {
+                        title: "Selected Tracks/Add Keyframe Bulk Addition",
+                        callback: () =>{ 
+                            this.deselectAllElements();
+                            that.bulkKeyframeAddition.createDialog( true );
+                        }
+                    },
+                    {
+                        title: "Selected Tracks/Optimize Tracks",
+                        callback: that.menubar.getItem("Edit/Optimize/Selected Tracks").callback
+                    },
+                    {
+                        title: "Selected Tracks/Clear Tracks",
+                        callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+                    }
+                    
+                );
             }
             
             LX.addContextMenu("Options", e, (m) => {
                 for(let i = 0; i < actions.length; i++) {
-                    m.add(actions[i].title,  actions[i].callback )
+                    m.add(actions[i].title,  actions[i] );
                 }
             });
     
@@ -2561,39 +2564,14 @@ class KeyframesGui extends Gui {
             e.stopPropagation();
     
             let actions = [];
-            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
-                actions.push(
-                    {
-                        title: "Copy",
-                        callback: () => {
-                            this.copySelectedContent();
-                        }
-                    }
-                );
-                actions.push(
-                    {
-                        title: "Delete",
-                        callback: () => {
-                            this.deleteSelectedContent();
-                        }
-                    }
-                );
-                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value) {
-                    actions.push(
-                        {
-                            title: "Paste Value",
-                            callback: () => {
-                                this.pasteContentValue();
-                            }
-                        }
-                    );
-                }
-            }
 
             if(e.track) {
+                // TODO select this entry's track if not selected. Keep the current track selection otherwise
+
+                const trackName = "@" + e.track.id;
                 actions.push(
                 {
-                    title: "Add Keyframe/Here",
+                    title: trackName + "/Add Keyframe Here",
                     callback: () => {
                         // "this" is the timeline
                         const selectedTime = this.xToTime(e.localX);
@@ -2604,47 +2582,109 @@ class KeyframesGui extends Gui {
                     }
                 },
                 {
-                    title: "Add Keyframe/At Current Time",
+                    title: trackName + "/Add Keyframe At Current Time",
                     callback: () => {
                         // "this" is the timeline
                         that.bulkKeyframeAddition._helperNewBSMultipleKeyframes( e.track, that.editor.currentTime ); // saves track, adds keyframe and calls select callback (on last frame)
                     }
-                });
+                },
+                {
+                    title: trackName + "/Add Keyframe Bulk Addition",
+                    callback: () => {
+                        // "this" is the timeline
+                        this.deselectAllElements();
+                        that.bulkKeyframeAddition.createDialog( true );
+                    }
+                },
+                {
+                    title: trackName + "/Optimize Track",
+                    callback: () => {
+                        // "this" is the timeline
+                        this.optimizeTrack( e.track.trackIdx );
+                    }
+                },
+                {
+                    title: trackName + "/Clear Track",
+                    callback: () => {
+                        that.editor.clearTracks( [e.track.trackIdx] );
+                    }
+                },
+                );
             }
-            actions.push(
-            {
-                title: "Add Keyframe/Bulk Addition",
-                callback: () => {
-                    // "this" is the timeline
-                    this.deselectAllElements();
-                    that.bulkKeyframeAddition.createDialog( true );
-                }
-            });
-            
+
             if(this.clipboard && this.clipboard.keyframes)
             {
                 actions.push(
                     {
-                        title: "Paste Here",
+                        title: "Paste Keyframes/Here",
                         callback: () => {
                             this.pasteContent( this.xToTime(e.localX) );
                         }
                     },
                     {
-                        title: "Paste",
+                        title: "Paste Keyframes/At Current Time",
                         callback: () => {
                             this.pasteContent( this.currentTime );
                         }
                     }
                 );
             }
-            
+
+            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
+                actions.push(
+                    {
+                        title: "Selected Keyframes/Copy",
+                        callback: () => {
+                            this.copySelectedContent();
+                        }
+                    }
+                );
+                actions.push(
+                    {
+                        title: "Selected Keyframes/Delete",
+                        callback: () => {
+                            this.deleteSelectedContent();
+                        }
+                    }
+                );
+                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value) {
+                    actions.push(
+                        {
+                            title: "Selected Keyframes/Paste Value",
+                            callback: () => {
+                                this.pasteContentValue();
+                            }
+                        }
+                    );
+                }
+            }
+
+            if( this.trackTreesComponent.innerTree.selected.length ){
+                actions.push(
+                    {
+                        title: "Selected Tracks/Add Keyframe Bulk Addition",
+                        callback: () =>{ 
+                            this.deselectAllElements();
+                            that.bulkKeyframeAddition.createDialog( true );
+                        }
+                    },
+                    {
+                        title: "Selected Tracks/Optimize Tracks",
+                        callback: that.menubar.getItem("Edit/Optimize/Selected Tracks").callback
+                    },
+                    {
+                        title: "Selected Tracks/Clear Tracks",
+                        callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+                    }
+                    
+                );
+            }
+
             LX.addContextMenu("Options", e, (m) => {
                 for(let i = 0; i < actions.length; i++) {
-                    m.add(actions[i].title,  actions[i].callback )
+                    m.add(actions[i].title,  actions[i] );
                 }
             });
-    
         }
 
         this.bsTimeline.onContentMoved = (trackIdx, keyframeIdx)=> {
