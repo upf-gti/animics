@@ -316,8 +316,8 @@ class Gizmo {
 
         canvas.addEventListener( 'mousemove', e => {
 
-            if(!this.bonePoints || this.editor.state || !this.editor.currentKeyFrameClip )
-            return;
+            if(!this.bonePoints || this.editor.state || !this.editor.currentKeyFrameClip || !this.raycastEnabled )
+                return;
 
             const pointer = new THREE.Vector2(( e.offsetX / canvas.clientWidth ) * 2 - 1, -( e.offsetY / canvas.clientHeight ) * 2 + 1);
             this.raycaster.setFromCamera(pointer, this.camera);
@@ -328,7 +328,7 @@ class Gizmo {
         canvas.addEventListener( 'pointerdown', e => {
 
             if( (e.button != 0 && e.button != 2) || !this.bonePoints || this.editor.state || (!this.raycastEnabled && !e.ctrlKey))
-            return;
+                return;
 
             const pointer = new THREE.Vector2(( e.offsetX / canvas.clientWidth ) * 2 - 1, -( e.offsetY / canvas.clientHeight ) * 2 + 1);
             this.raycaster.setFromCamera(pointer, this.camera);
@@ -354,7 +354,7 @@ class Gizmo {
 
         canvas.addEventListener( 'keydown', e => {
 
-            if ( !this.editor.currentKeyFrameClip ){
+            if ( !this.editor.currentKeyFrameClip || this.editor.animationMode != this.editor.animationModes.BODY ){
                 return;
             }
             switch ( e.key ) {
@@ -374,13 +374,13 @@ class Gizmo {
                     if(timeline.getTracksGroup(bone.name).length < 2) // only rotation
                         return;
                     this.setTool( Gizmo.Tools.JOINT );
-                    this.setMode( "translate" );
+                    this.setJointMode( "translate" );
                     this.editor.gui.updateBonePanel();
                     break;
 
                 case 'e':
                     this.setTool( Gizmo.Tools.JOINT );
-                    this.setMode( "rotate" );
+                    this.setJointMode( "rotate" );
                     this.editor.gui.updateBonePanel();
                     break;
 
@@ -545,7 +545,7 @@ class Gizmo {
                 const quaternionTrackIdx = ( timeline.getTracksGroup(boneToProcess.name).length > 1 ) ? 1 : 0; // localindex
                 
                 const track = groupTracks[quaternionTrackIdx];
-                if ( track.dim != 4 ){ continue; } // only quaternions
+                if ( track.dim != 4 || track.locked ){ continue; } // only quaternions
 
                 this.editor.gui.skeletonTimeline.saveState( track.trackIdx, i != 1 );
 

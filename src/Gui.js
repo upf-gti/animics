@@ -2059,6 +2059,8 @@ class KeyframesGui extends Gui {
                             this._commitAddSkeleton();
                         }
 
+                        this.dialog.close();
+
                     }, {width: "50%", hideName: true} );
                     p.endLine();
 
@@ -2121,6 +2123,9 @@ class KeyframesGui extends Gui {
                 const srcTime = that.editor.currentTime;
                 
                 let saveTrackCombine = false;
+                let lockedTracks = false;
+                let duplicateKeyframes = false;
+
                 // for all selected tracks
                 for( let t = 0; t < selectedTracks.length; ++t ){
                     if ( !selectedBones[t] ){ continue; }
@@ -2131,6 +2136,11 @@ class KeyframesGui extends Gui {
                     
                     const track = selectedTracks[t].trackData;
                     const bone = selectedBones[t];
+
+                    if ( track.locked ){
+                        lockedTracks = true;
+                        continue;
+                    }
 
                     // for all new frames
                     for( let i = 0; i < n; ++i ){
@@ -2152,11 +2162,21 @@ class KeyframesGui extends Gui {
                     saveTrackCombine = true;
 
                     that.skeletonTimeline.historySaveEnabler = false;
-                    that.skeletonTimeline.addKeyFrames( track.trackIdx, values, times, 0, LX.KeyFramesTimeline.ADDKEY_VALUESINARRAYS );
+                    const newFrames = that.skeletonTimeline.addKeyFrames( track.trackIdx, values, times, 0, LX.KeyFramesTimeline.ADDKEY_VALUESINARRAYS ) ?? [];
                     that.skeletonTimeline.historySaveEnabler = true;
+
+                    duplicateKeyframes |= newFrames.length != this.n;
                 }
 
                 that.editor.setTime( srcTime );
+
+                LX.toast("Bulk Addition", `Keyframes have been added to the selected tracks.`, { timeout: 7000 } );
+                if ( duplicateKeyframes ){
+                    LX.toast("Bulk Addition Duplicated Keyframes", `Duplicate keyframes have been discarded`, { timeout: 7000 } );
+                }
+                if ( lockedTracks ){
+                    LX.toast("Bulk Addition Locked Tracks", `Locked tracks have been discarded for this operation`,  { timeout: 7000 } );
+                }
             },
 
             _commitAddFace(){ // bs timeline
@@ -2171,22 +2191,44 @@ class KeyframesGui extends Gui {
 
                 const selectedTracks = that.bsTimeline.trackTreesComponent.innerTree.selected;
                 let saveCombine = false;
+
+                let lockedTracks = false;
+                let duplicateKeyframes = false;
+
                 for( let i = 0; i < selectedTracks.length; ++i ){
                     if ( !selectedTracks[i].trackData ){ continue; }
+                    if ( selectedTracks[i].trackData.locked ){ 
+                        lockedTracks = true;
+                        continue;
+                    }
 
                     that.bsTimeline.saveState(selectedTracks[i].trackData.trackIdx, saveCombine );
                     saveCombine = true;
 
                     that.bsTimeline.historySaveEnabler = false;
-                    this._helperNewBSMultipleKeyframes( selectedTracks[i].trackData, newTimes.slice() ); // saves track (deactivated this), adds keyframe and calls select callback (on last frame)
+                    const newFrames = this._helperNewBSMultipleKeyframes( selectedTracks[i].trackData, newTimes.slice() ) ?? []; // saves track (deactivated this), adds keyframe and calls select callback (on last frame)
                     that.bsTimeline.historySaveEnabler = true;
+
+                    duplicateKeyframes |= newTimes.length == newFrames.length;
                 }
 
                 that.editor.setTime( newTimes[0] );
+                
+                LX.toast("Bulk Addition", `Keyframes have been added to the selected tracks.`, { timeout: 7000 } );
+                if ( duplicateKeyframes ){
+                    LX.toast("Bulk Addition Duplicated Keyframes", `Duplicate keyframes have been discarded`, { timeout: 7000 } );
+                }
+                if ( lockedTracks ){
+                    LX.toast("Bulk Addition Locked Tracks", `Locked tracks have been discarded for this operation`,  { timeout: 7000 } );
+                }
             },
             
             _helperNewBSMultipleKeyframes( track, newTimes ) { // function used also in bsTimeline.showContextMenu
-                // "this" is the timeline
+                // "this" is bulkKeyframeAddition object
+                if ( track.locked ){ 
+                    return null; 
+                }
+
                 let newValues = [];
 
                 const values = track.values;
@@ -2230,6 +2272,8 @@ class KeyframesGui extends Gui {
                         that.bsTimeline.selectKeyFrame(track.trackIdx, newFrames[i], i == 0); // do callback only on last keyframe
                     }
                 }
+
+                return newFrames;
             }
 
         }; // end of bulk addition
@@ -2316,10 +2360,15 @@ class KeyframesGui extends Gui {
                         title: "Add Keyframe/Here",
                         callback: () => {
                             // "this" is the timeline
+                            this.deselectAllElements();
+
+                            if ( e.track.locked ){
+                                return
+                            }
+
                             const selectedTime = this.xToTime(e.localX);
                             const currentTime = that.editor.currentTime;
 
-                            this.deselectAllElements();
                             this.setTime(selectedTime);
                             let newFrame = this.addKeyFrames( e.track.trackIdx,that.boneProperties[type].toArray(), [selectedTime] );
                             
@@ -2335,6 +2384,11 @@ class KeyframesGui extends Gui {
                         callback: () => {
                             // "this" is the timeline
                             this.deselectAllElements();
+
+                            if ( e.track.locked ){
+                                return;
+                            }
+
                             let newFrame = this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
                             this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
                         }
@@ -2543,8 +2597,10 @@ class KeyframesGui extends Gui {
                     callback: () => {
                         // "this" is the timeline
                         const selectedTime = this.xToTime(e.localX);
-                        that.bulkKeyframeAddition._helperNewBSMultipleKeyframes( e.track, [selectedTime] ); // saves track, adds keyframe and calls select callback (on last frame) 
-                        this.setTime(selectedTime);
+                        const newFrames = that.bulkKeyframeAddition._helperNewBSMultipleKeyframes( e.track, [selectedTime] ); // saves track, adds keyframe and calls select callback (on last frame) 
+                        if ( newFrames && newFrames.length ){
+                            this.setTime(selectedTime);
+                        }
                     }
                 },
                 {
