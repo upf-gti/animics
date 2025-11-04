@@ -1187,6 +1187,25 @@ class KeyframesGui extends Gui {
         editMenu.push(
             null,
             { name: "Optimize", icon: "Filter", submenu:[
+                { name: "Selected Tracks", icon: "Filter", callback: () => {
+                    if ( !this.editor.currentKeyFrameClip){
+                        return;
+                    }
+    
+                    const activeTimeline = this.editor.activeTimeline; 
+                    const selectedTracks = activeTimeline.trackTreesComponent.innerTree.selected;
+                    let combine = false;
+                    for( let i = 0; i < selectedTracks.length; ++i ){
+                        const track = selectedTracks[i].trackData;
+                        if( track ){ // might be groups or tracks. If groups, no trackData is found
+                            activeTimeline.saveState( track.trackIdx, combine);
+                            combine = true;
+                            activeTimeline.historySaveEnabler = false;
+                            activeTimeline.optimizeTrack( track.trackIdx );
+                            activeTimeline.historySaveEnabler = true;
+                        }
+                    }
+                }},
                 { name: "Visible Tracks", icon: "Filter", callback: () => {
                     if ( !this.editor.currentKeyFrameClip){
                         return;
@@ -3921,8 +3940,8 @@ class KeyframesGui extends Gui {
                         break;
                     case LX.TreeEvent.NODE_VISIBILITY:
                         const tracksInItem = this.skeletonTimeline.animationClip.tracksPerGroup[event.node.id];
-                        for( let i = 0; i < tracksInItem.length; ++i ){
-                            this.skeletonTimeline.setTrackState(tracksInItem[i].trackIdx, event.value);
+                        for( let i = tracksInItem.length-1; i > -1; --i ){
+                            this.skeletonTimeline.setTrackState(tracksInItem[i].trackIdx, event.value, false, i == 0 ); // update tree panel only on last track
                         }
                         console.log(event.node.id + " visibility: " + event.value); 
                         break;
