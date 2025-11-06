@@ -1193,17 +1193,13 @@ class KeyframesGui extends Gui {
                     }
     
                     const activeTimeline = this.editor.activeTimeline; 
-                    const selectedTracks = activeTimeline.trackTreesComponent.innerTree.selected;
-                    let combine = false;
+                    const selectedTracks = activeTimeline.selectedTracks;
                     for( let i = 0; i < selectedTracks.length; ++i ){
-                        const track = selectedTracks[i].trackData;
-                        if( track ){ // might be groups or tracks. If groups, no trackData is found
-                            activeTimeline.saveState( track.trackIdx, combine);
-                            combine = true;
-                            activeTimeline.historySaveEnabler = false;
-                            activeTimeline.optimizeTrack( track.trackIdx );
-                            activeTimeline.historySaveEnabler = true;
-                        }
+                        const track = selectedTracks[i];
+                        activeTimeline.saveState( track.trackIdx, i != 0);
+                        activeTimeline.historySaveEnabler = false;
+                        activeTimeline.optimizeTrack( track.trackIdx );
+                        activeTimeline.historySaveEnabler = true;
                     }
                 }},
                 { name: "Visible Tracks", icon: "Filter", callback: () => {
@@ -1238,11 +1234,9 @@ class KeyframesGui extends Gui {
                 { name: "Selected Tracks", icon: "Trash2", 
                     callback: () => {
                         let indices = [];
-                        const selected = this.editor.activeTimeline.trackTreesComponent.innerTree.selected;
+                        const selected = this.editor.activeTimeline.selectedTracks;
                         for( let i = 0; i < selected.length; ++i ){
-                            if ( selected[i].trackData ){
-                                indices.push( selected[i].trackData.trackIdx );
-                            }
+                            indices.push( selected[i].trackIdx );
                         }
                         this.editor.clearTracks( indices );
                     }
@@ -1678,16 +1672,16 @@ class KeyframesGui extends Gui {
         this.globalTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
             switch( event.type ){
                 case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Options", event.event, (menu) => {
+                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
                         if ( event.node.trackData ){
-                            const selectedNodes = event.value; 
-                            if ( selectedNodes.indexOf( event.node ) == -1 ){
-                               this.editor.activeTimeline.trackTreesComponent.innerTree.selected = [ event.node ];
-                               this.editor.activeTimeline.trackTreesComponent.innerTree.refresh();
+                            if ( !event.node.trackData.isSelected ){
+                                this.globalTimeline.deselectAllTracks( false ); // no need to update left panel
+                                this.globalTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
                             }
                         }
 
-                        menu.add( "Clear Selected Tracks", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
+                        menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
+                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
                     });
                     break;
             }
@@ -1703,7 +1697,7 @@ class KeyframesGui extends Gui {
                 actions.push(
                     {
                         title: "Copy",
-                        callback: () => { this.globalTimeline.copySelectedContent();}
+                        callback: () => { this.globalTimeline.copySelectedContent(); }
                     }
                 )
                 actions.push(
@@ -1846,20 +1840,20 @@ class KeyframesGui extends Gui {
         this.skeletonTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
              switch( event.type ){
                 case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Options", event.event, (menu) => {
+                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
                         if ( event.node.trackData ){
-                            const selectedNodes = event.value; 
-                            if ( selectedNodes.indexOf( event.node ) == -1 ){
-                                this.editor.activeTimeline.trackTreesComponent.innerTree.selected = [ event.node ];
-                                this.editor.activeTimeline.trackTreesComponent.innerTree.refresh();
+                            if ( !event.node.trackData.isSelected ){
+                                this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                                this.editor.activeTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
                             }
                         }
 
                         that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
 
-                        menu.add( "Clear Selected Tracks", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
-                        menu.add( "Optimize Selected Tracks", that.menubar.getItem("Edit/Optimize/Selected Tracks").callback);
-                        menu.add( "Add Keyframes In Selected Tracks",  (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline ); } );
+                        menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
+                        menu.add( "Optimize", that.menubar.getItem("Edit/Optimize/Selected Tracks").callback);
+                        menu.add( "Add Keyframes",  (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline ); } );
+                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
                     });
                 break;
             }
@@ -2068,7 +2062,7 @@ class KeyframesGui extends Gui {
                 const start = this.startTime;
                 const spf = n == 1 ? 1 : this.duration / (n-1);
 
-                const selectedTracks = that.skeletonTimeline.trackTreesComponent.innerTree.selected;
+                const selectedTracks = that.skeletonTimeline.selectedTracks;
 
                 // TO DO TODO
                 // find bones. This could be already precomputed inside the animation tracks. 
@@ -2076,12 +2070,8 @@ class KeyframesGui extends Gui {
                 // Although this might be slower, it is probably not a big performance issue
                 const selectedBones = new Array(selectedTracks.length);
                 for( let i = 0; i < selectedTracks.length; ++i ){
-                    if ( selectedTracks[i].trackData ){ 
-                        const idx = findIndexOfBoneByName( that.editor.currentCharacter.skeletonHelper.skeleton, selectedTracks[i].trackData.groupId ); // assuming it exists
-                        selectedBones[i] = that.editor.currentCharacter.skeletonHelper.skeleton.bones[idx]; 
-                        continue; 
-                    }
-                    selectedBones[i] = null;
+                    const idx = findIndexOfBoneByName( that.editor.currentCharacter.skeletonHelper.skeleton, selectedTracks[i].groupId ); // assuming it exists
+                    selectedBones[i] = that.editor.currentCharacter.skeletonHelper.skeleton.bones[idx]; 
                 }
 
                 const srcTime = that.editor.currentTime;
@@ -2098,7 +2088,7 @@ class KeyframesGui extends Gui {
                     let times = [];
                     let pos = start;
                     
-                    const track = selectedTracks[t].trackData;
+                    const track = selectedTracks[t];
                     const bone = selectedBones[t];
 
                     if ( track.locked ){
@@ -2153,24 +2143,23 @@ class KeyframesGui extends Gui {
                     newTimes.push(start + spf * i);
                 }
 
-                const selectedTracks = that.bsTimeline.trackTreesComponent.innerTree.selected;
+                const selectedTracks = that.bsTimeline.selectedTracks;
                 let saveCombine = false;
 
                 let lockedTracks = false;
                 let duplicateKeyframes = false;
 
                 for( let i = 0; i < selectedTracks.length; ++i ){
-                    if ( !selectedTracks[i].trackData ){ continue; }
-                    if ( selectedTracks[i].trackData.locked ){ 
+                    if ( selectedTracks[i].locked ){ 
                         lockedTracks = true;
                         continue;
                     }
 
-                    that.bsTimeline.saveState(selectedTracks[i].trackData.trackIdx, saveCombine );
+                    that.bsTimeline.saveState(selectedTracks[i].trackIdx, saveCombine );
                     saveCombine = true;
 
                     that.bsTimeline.historySaveEnabler = false;
-                    const newFrames = this._helperNewBSMultipleKeyframes( selectedTracks[i].trackData, newTimes.slice() ) ?? []; // saves track (deactivated this), adds keyframe and calls select callback (on last frame)
+                    const newFrames = this._helperNewBSMultipleKeyframes( selectedTracks[i], newTimes.slice() ) ?? []; // saves track (deactivated this), adds keyframe and calls select callback (on last frame)
                     that.bsTimeline.historySaveEnabler = true;
 
                     duplicateKeyframes |= newTimes.length == newFrames.length;
@@ -2246,13 +2235,7 @@ class KeyframesGui extends Gui {
         this.skeletonTimeline.bulkAdditionDrawTrack = function( ctx, trackHeight, track ){
             this.originalDrawTrack( ctx, trackHeight, track );
 
-            // check if track needs bulk addition
-            let i =0;
-            const selectedTracks = this.trackTreesComponent.innerTree.selected;
-            for( ; i < selectedTracks.length; ++i ){
-                if ( selectedTracks[i].trackData == track ){ break; } // selectedTracks[i] might be a group, so trackData will be undefined. Comparison still works, though
-            }
-            if ( i >= selectedTracks.length ){
+            if ( !track.isSelected ){
                 return;
             }
 
@@ -2340,7 +2323,7 @@ class KeyframesGui extends Gui {
     
                             // "this" is the timeline
                             this.deselectAllElements();
-                            that.bulkKeyframeAddition.createDialog( true );
+                            that.bulkKeyframeAddition.createDialog( false );
                         }
                     },
                     {
@@ -2408,13 +2391,13 @@ class KeyframesGui extends Gui {
                 }
             }
 
-            if( this.trackTreesComponent.innerTree.selected.length ){
+            if( this.selectedTracks.length ){
                 actions.push(
                     {
                         title: "Selected Tracks/Add Keyframe Bulk Addition",
                         callback: () =>{ 
                             this.deselectAllElements();
-                            that.bulkKeyframeAddition.createDialog( true );
+                            that.bulkKeyframeAddition.createDialog( false );
                         }
                     },
                     {
@@ -2424,7 +2407,12 @@ class KeyframesGui extends Gui {
                     {
                         title: "Selected Tracks/Clear Tracks",
                         callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+                    },
+                    {
+                        title: "Selected Tracks/Deselect Tracks",
+                        callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); }
                     }
+
                     
                 );
             }
@@ -2659,7 +2647,7 @@ class KeyframesGui extends Gui {
                 }
             }
 
-            if( this.trackTreesComponent.innerTree.selected.length ){
+            if( this.selectedTracks.length ){
                 actions.push(
                     {
                         title: "Selected Tracks/Add Keyframe Bulk Addition",
@@ -2675,7 +2663,12 @@ class KeyframesGui extends Gui {
                     {
                         title: "Selected Tracks/Clear Tracks",
                         callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+                    },
+                    {
+                        title: "Selected Tracks/Deselect Tracks",
+                        callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); }
                     }
+
                     
                 );
             }
@@ -5222,11 +5215,9 @@ class ScriptGui extends Gui {
                 { name: "Selected Tracks", icon: "Trash2",
                     callback: () => {
                         let indices = [];
-                        const selected = this.editor.activeTimeline.trackTreesComponent.innerTree.selected;
+                        const selected = this.editor.activeTimeline.selectedTracks;
                         for( let i = 0; i < selected.length; ++i ){
-                            if ( selected[i].trackData ){
-                                indices.push( selected[i].trackData.trackIdx );
-                            }
+                            indices.push( selected[i].trackIdx );
                         }
                         this.editor.clearTracks( indices );
                     }
@@ -5383,27 +5374,27 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onTrackTreeEvent = (event) =>{
             switch( event.type ){
                 case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Options", event.event, (menu) => {
+                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
                         if ( event.node.trackData ){
-                            const selectedNodes = event.value; 
-                            if ( selectedNodes.indexOf( event.node ) == -1 ){
-                               this.editor.activeTimeline.trackTreesComponent.innerTree.selected = [ event.node ];
-                               this.editor.activeTimeline.trackTreesComponent.innerTree.refresh();
+                            if ( !event.node.trackData.isSelected ){
+                                this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                                this.editor.activeTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
                             }
                         }
 
-                        menu.add( "Clear Selected Tracks", (e)=>{
+                        menu.add( "Clear", (e)=>{
                             const activeTimeline = this.editor.activeTimeline;
-                            const selectedTracks = activeTimeline.trackTreesComponent.innerTree.selected;
+                            const selectedTracks = activeTimeline.selectedTracks;
 
                             let indices = [];
                             for( let i = 0; i < selectedTracks.length; ++i ){
-                                const track = selectedTracks[i].trackData;
-                                if( !track ){ continue; } // it is a group
-                                indices.push( track.trackIdx );
+                                indices.push( selectedTracks[i].trackIdx );
                             }
                             this.editor.clearTracks( indices );
                         });
+
+                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
+
                     });
                     break;
             }
