@@ -315,8 +315,7 @@ class Timeline {
                 if ( this.onAddNewTrackButton ){
                     this.onAddNewTrackButton();
                 }else{
-                    const trackIdx = this.addNewTrack();
-                    this.changeSelectedItems( [trackIdx] );
+                    this.addNewTrack();
                 }
             }, { hideName: true, title: "Add Track", icon: "Plus" });
         }
@@ -1201,7 +1200,7 @@ class Timeline {
     /**
      * @param {Int} trackIdx 
      * @param {Boolean} isSelected new "selected" state of the track
-     * @param {Boolean} skipCallback whether to call onSelectTrack
+     * @param {Boolean} skipCallback whether to call onSetTrackSelection
      * @param {Boolean} updateTrackTree whether track tree panel needs a refresh
      * @returns 
      */
@@ -1221,8 +1220,8 @@ class Timeline {
             this.selectedTracks.splice( idx, 1 );
         }
 
-        if( this.onSelectTrack && !skipCallback ){
-            this.onSelectTrack(track, oldValue );
+        if( this.onSetTrackSelection && !skipCallback ){
+            this.onSetTrackSelection(track, oldValue );
         }
 
         if ( updateTrackTree ){
