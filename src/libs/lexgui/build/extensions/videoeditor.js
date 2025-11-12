@@ -615,6 +615,7 @@ class VideoEditor {
             this.video.currentTime = 10000000 * Math.random();
         }
         
+        this.controlsPanelLeft.refresh();
         this.timebar.startX = this.timebar.position.x;
         this.timebar.endX = this.timebar.position.x + this.timebar.lineWidth;
 

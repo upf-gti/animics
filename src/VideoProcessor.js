@@ -256,24 +256,28 @@ class VideoProcessor {
     /**
      * @param {{}} [options={}] enable_redo: true/false to add redo button
      */
-    createTrimArea( options = {} ) {
+    async createTrimArea( options = {} ) {
         // TRIM VIDEO - be sure that only the sign is recorded
         const recordedVideo = this.mediapipeOnlineVideo = this.recordedVideo;
         const canvasVideo = this.canvasVideo;
         const inputVideo = this.inputVideo;
 
-        this.videoEditor.video = recordedVideo;
-        this.videoEditor.showControls();
         this.videoEditor.showCropArea();
-        this.videoEditor._loadVideo();
-        this.buttonsPanel.clear();
+        this.videoEditor.showControls();
 
         recordedVideo.classList.remove("hidden");
         inputVideo.classList.add("hidden");
-        
         recordedVideo.style.width = canvasVideo.width + "px";
         recordedVideo.style.height = canvasVideo.height + "px";
-    
+
+        this.videoEditor.video = recordedVideo;
+        await this.videoEditor._loadVideo();
+        
+        this.videoEditor.dragCropArea( { clientX: -1, clientY: -1 } );
+        this.videoEditor.resizeCropArea( { clientX: window.screen.width, clientY: window.screen.height } );
+        
+        this.buttonsPanel.clear();
+
         this.mediapipe.mirrorCanvas = false; // we want the raw video. The mirror was only to make it easy to record for the user
 
         this.buttonsPanel.addButton(null, "Convert to animation", async (v) => {
