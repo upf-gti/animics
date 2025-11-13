@@ -114,7 +114,8 @@ ANIM.clipFromJSON = function( clipData, clip )
 
 // legacy functions
 class BaseClip {
-	
+	constructor(o){}
+
 	drawClip( ctx, w,h, selected, timeline )
 	{
 		ctx.font = this.font;
@@ -151,8 +152,8 @@ class BaseClip {
 		if(o.duration) this.duration = o.duration || 1;
 		if(o.end) this.duration = (o.end - o.start) || 1;
 		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
+		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset); // fadein is from LX.Timeline
+		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset); // fadeout is from LX.Timeline
 		if(o.properties)
 		{
 			Object.assign(this.properties, o.properties);
@@ -194,11 +195,12 @@ class FaceLexemeClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
 		let lexeme = FaceLexemeClip.lexemes[6];
 		this.start = 0;
 		this.duration = 1;
-		this.attackPeak = 0.25;
-		this.relax = 0.75;
+		this.attackPeak = this.fadein = 0.25;
+		this.relax = this.fadeout = 0.75;
 		
 		this.properties = {};
 		this.properties.amount = 0.8;
@@ -217,26 +219,8 @@ class FaceLexemeClip extends BaseClip {
 
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-	
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
-		
-		for(let property in this.properties) {
-			if(o[property] != undefined){
-				this.properties[property] = o[property];
-			}
-		}
-
+		super.configure(o);
 		this.id = this.properties.lexeme;
-
 	}
 
 	toJSON()
@@ -301,11 +285,13 @@ class FaceFACSClip extends BaseClip {
 
 	constructor()
 	{
+		super();
+
 		this.id= "faceFACS";
 		this.start = 0
 		this.duration = 1;
-		this.attackPeak = 0.25;
-		this.relax = 0.75;
+		this.attackPeak = this.fadein = 0.25;
+		this.relax = this.fadeout = 0.75;
 
 		this.properties = {
 			amount : 0.5,
@@ -315,33 +301,18 @@ class FaceFACSClip extends BaseClip {
 		}
 		this.font = "11px Calibri";
 		this.clipColor = FaceFACSClip.clipColor;
-	}
-
-	configure(o)
-	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
-		for(let p in this.properties){
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
-		}
+		this.type = "faceFacs";
 	}
 
 	toJSON()
 	{
 		var json = {
+			type: FaceFACSClip.type,
 			id: this.id,
 			start: this.start,
 			end: this.start + this.duration,
+			attackPeak: this.fadein,
+			relax : this.fadeout,
 
 		}
 		for(var i in this.properties)
@@ -442,26 +413,31 @@ class FaceEmotionClip extends BaseClip {
 
 	constructor()
 	{
+		super();
 		this.id= "faceEmotion-"+Math.ceil(getTime());;
 		this.start = 0
 		this.duration = 1;
-	
+		this.attackPeak = this.fadein = 0.25;
+		this.relax = this.fadeout = 0.75;
+		
 		this.properties = {
 			amount : 0.5,
-			attackPeak : 0.25,
-			relax : 0.75,
 			emotion : "HAPPINESS", 
 		}
 		this.font = "11px Calibri";
 		this.clipColor = FaceEmotionClip.clipColor;
+		this.type = FaceEmotionClip.type;
 	}
 
 	toJSON()
 	{
 		var json = {
+			type: FaceEmotionClip.type,
 			id: this.id,
 			start: this.start,
 			end: this.start + this.duration,
+			attackPeak: this.fadein,
+			relax : this.fadeout,
 
 		}
 		for(var i in this.properties)
@@ -472,26 +448,13 @@ class FaceEmotionClip extends BaseClip {
 		return json;
 	}
 
-	fromJSON( json )
-	{
-		this.id = json.id;
-		this.properties.amount = json.amount;
-		this.start = json.start;
-		this.properties.attackPeak = json.attackPeak;
-		this.properties.relax = json.relax;
-		this.duration = json.duration;
-		this.properties.emotion = json.emotion;
-		/*this.properties.permanent = json.permanent;*/
-
-	}
-
 	showInfo(panel, callback)
 	{
 		for(var i in this.properties)
 		{
 			var property = this.properties[i];
 			if(i=="emotion"){
-				panel.addCombo(i, property,{values: FaceEmotionClip.emotions, callback: function(i,v)
+				panel.addSelect(i, property,{values: FaceEmotionClip.emotions, callback: function(v,e)
 				{
 					this.properties[i] = v;
 					if(callback)
@@ -504,7 +467,7 @@ class FaceEmotionClip extends BaseClip {
 				{
 
 					case String:
-						panel.addString(i, property, {callback: function(i,v)
+						panel.addString(i, property, {callback: function(v,e)
 						{
 							this.properties[i] = v;
 							if(callback)
@@ -514,15 +477,15 @@ class FaceEmotionClip extends BaseClip {
 					case Number:
 						if(i=="amount")
 						{
-							panel.addNumber(i, property, {min:0, max:1,callback: function(i,v)
+							panel.addNumber(i, property, {min:0, max:1,callback: function(v,e)
 							{
-								this.properties[i] = v;
+								this.properties.amount = v;
 								if(callback)
 									callback();
 							}.bind(this,i)});
 						}
 						else{
-							panel.addNumber(i, property, {callback: function(i,v)
+							panel.addNumber(i, property, {callback: function(v,e)
 							{
 								if(i == "start"){
 									var dt = v - this.properties[i];
@@ -536,7 +499,7 @@ class FaceEmotionClip extends BaseClip {
 						}
 					break;
 					case Boolean:
-						panel.addCheckbox(i, property, {callback: function(i,v)
+						panel.addCheckbox(i, property, {callback: function(v,e)
 						{
 							this.properties[i] = v;
 							if(callback)
@@ -544,7 +507,7 @@ class FaceEmotionClip extends BaseClip {
 						}.bind(this,i)});
 							break;
 					case Array:
-						panel.addArray(i, property, {callback: function(i,v)
+						panel.addArray(i, property, {callback: function(v,e)
 						{
 							this.properties[i] = v;
 							if(callback)
@@ -572,6 +535,8 @@ class FacePresetClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		let preset = FacePresetClip.facePreset[0];
 		this.start = 0;
 		this.duration = 1;
@@ -866,6 +831,8 @@ class GazeClip extends BaseClip {
 	
 	constructor(o)
 	{
+		super();
+
 		this.id = "Eyes Gaze";
 		this.start = 0
 		this.duration = 1;
@@ -890,20 +857,12 @@ class GazeClip extends BaseClip {
 
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
+		super.configure(o);
+		
 		this.ready = this.fadein = (o.ready || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		delete this.attackPeak; // added by super.configure
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -1019,6 +978,8 @@ class HeadClip extends BaseClip {
 	
 	constructor(o)
 	{
+		super();
+
 		this.id= "Head movement";
 	
 		this.start = 0;
@@ -1048,24 +1009,17 @@ class HeadClip extends BaseClip {
 
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.ready = this.fadein = (o.ready || offset);
+		super.configure(o);
+		this.ready = this.fadein = (o.ready || this.start + offset);
+		delete this.attackPeak; // added by super.configure
+
 		if(o.strokeStart) this.strokeStart = o.strokeStart;
 		if(o.stroke) this.stroke  = o.stroke ;
 		if(o.strokeEnd) this.strokeEnd = o.strokeEnd;
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
 
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -1147,6 +1101,8 @@ class ElbowRaiseClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id = "Elbow Raise";
 		this.start = 0
 		this.duration = 1;
@@ -1172,25 +1128,14 @@ class ElbowRaiseClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);		
-		}
+		super.configure(o);
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
 	
-		this.properties.amount = o.elbowRaise || this.properties.amount;
+		this.properties.amount = o.elbowRaise ?? this.properties.amount;
 	}
 	
 	toJSON()
@@ -1268,6 +1213,8 @@ class ShoulderClip extends BaseClip {
 	
 	constructor(o)
 	{
+		super();
+
 		this.id = "Shoulder";
 		this.start = 0
 		this.duration = 1;
@@ -1295,25 +1242,13 @@ class ShoulderClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);		
-		}
+		super.configure(o);
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
 	
-		this.properties.amount = o.shoulderRaise || o.shoulderHunch || this.properties.amount;
+		this.properties.amount = o.shoulderRaise ?? (o.shoulderHunch ?? this.properties.amount);
 		if(o.shoulderRaise != undefined)
 			this.movementType = "Raise";
 		else if(o.shoulderHunch != undefined)
@@ -1404,6 +1339,8 @@ class BodyMovementClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id= "Body Movement";
 		this.start = 0
 		this.duration = 1;
@@ -1429,20 +1366,8 @@ class BodyMovementClip extends BaseClip {
 
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -1516,6 +1441,8 @@ class ArmLocationClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id= "Arm location";
 		this.start = 0
 		this.duration = 1;
@@ -1557,20 +1484,8 @@ class ArmLocationClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -1831,6 +1746,8 @@ class PalmOrientationClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id= "Palm Orientation";
 		this.start = 0
 		this.duration = 1;
@@ -1858,20 +1775,9 @@ class PalmOrientationClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -2032,6 +1938,8 @@ class HandOrientationClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id = "Hand orientation";
 		this.start = 0
 		this.duration = 1;
@@ -2059,20 +1967,8 @@ class HandOrientationClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -2246,6 +2142,8 @@ class HandshapeClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id= "Handshape";
 		this.start = 0
 		this.duration = 1;
@@ -2285,20 +2183,9 @@ class HandshapeClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string') {
 				if(p == 'specialFingers')  {
 					let fingers = this.properties[p].replaceAll("_", " ").split(" ");
@@ -2625,6 +2512,8 @@ class HandConstellationClip extends BaseClip {
 	
 	constructor(o)
 	{
+		super();
+
 		this.id= "Hand Constellation";
 		this.start = 0
 		this.duration = 1;
@@ -2665,20 +2554,9 @@ class HandConstellationClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -2931,6 +2809,8 @@ class DirectedMotionClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id= "Directed Motion";
 		this.start = 0
 		this.duration = 1;
@@ -2965,20 +2845,9 @@ class DirectedMotionClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -3281,6 +3150,8 @@ class CircularMotionClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id= "Circular Motion";
 		this.start = 0;
 		this.duration = 1;
@@ -3317,20 +3188,9 @@ class CircularMotionClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -3612,6 +3472,8 @@ class WristMotionClip extends BaseClip {
 	
 	constructor(o)
 	{
+		super();
+
 		this.id= "Wrist Motion";
 		this.start = 0
 		this.duration = 1;
@@ -3646,20 +3508,9 @@ class WristMotionClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
 		}
@@ -3744,6 +3595,8 @@ class FingerplayMotionClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id= "Fingerplay Motion";
 		this.start = 0
 		this.duration = 1;
@@ -3772,20 +3625,9 @@ class FingerplayMotionClip extends BaseClip {
 	
 	configure(o)
 	{
-		this.start = o.start || 0;
-		if(o.duration) this.duration = o.duration || 1;
-		if(o.end) this.duration = (o.end - o.start) || 1;
-		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset);
-		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset);
-		if(o.properties)
-		{
-			Object.assign(this.properties, o.properties);
-		}
+		super.configure(o);
+
 		for(let p in this.properties) {
-			if(o[p] != undefined) {
-				this.properties[p] = o[p];
-			}
 			if(typeof(this.properties[p]) == 'string') {
 	
 				if(p == 'fingers')  {
@@ -3915,6 +3757,8 @@ class MouthingClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id= "Mouthing";
 		this.start = 0
 		this.duration = 1;
@@ -4081,6 +3925,8 @@ class SuperClip extends BaseClip {
 
 	constructor(o)
 	{
+		super();
+
 		this.id = "super"
 		this.start = 0;
 		this.duration = 1;
@@ -4123,10 +3969,6 @@ class SuperClip extends BaseClip {
 			end: this.start + this.duration,
 			type: this.type
 		}
-		// for(var i in this.properties)
-		// {
-		// 	json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
-		// }
 	
 		if(this.clips) {
 			const subclips = this.clips;

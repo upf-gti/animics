@@ -53,7 +53,7 @@ class BMLController {
             return;
         
         // Convert each internal action clip to readable ECA controller BML json format
-        let json = { faceLexeme: [], gaze: [], head: [], gesture: [], speech: [], control: "0"};
+        let json = { faceLexeme: [], faceEmotion:[], gaze: [], head: [], gesture: [], speech: [], control: "0"};
 
         for(let i = 0; i < scriptAnimation.tracks.length; i++) {
 
