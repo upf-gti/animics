@@ -5294,7 +5294,7 @@ class ScriptGui extends Gui {
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
-                }, {min: 0, disabled: false});
+                }, {min: 1, disabled: false});
                 dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
             },
         });
