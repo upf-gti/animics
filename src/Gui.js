@@ -6339,15 +6339,23 @@ class ScriptGui extends Gui {
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             // Face lexemes & Mouthing clips
-            asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Mouthing", type: "MouthingClip"}];
+            asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Face emotion", type: "FaceEmotionClip"}, {id: "Mouthing", type: "MouthingClip"}];
             previewActions.push({
+                type: "FaceEmotionClip",
+                name: 'Add clip', 
+                callback: innerSelect,
+                allowedTypes: ["Clip"]
+            },
+            {
                 type: "MouthingClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
+
+
             // HEAD
             // Gaze clip
             values = ANIM.GazeClip.influences;
@@ -6365,8 +6373,8 @@ class ScriptGui extends Gui {
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
-            // Head movemen clip
+            });
+            // Head movement clip
             values = ANIM.HeadClip.lexemes;
             let movements = [];
             for(let i = 0; i < values.length; i++){
@@ -6381,7 +6389,7 @@ class ScriptGui extends Gui {
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             asset_data[1].children = [{ id: "Gaze", type: "folder", children: gazes}, {id: "Head movement", type: "folder", children: movements}];
 
             asset_data[2].children = [{id: "Elbow Raise", type: "ElbowRaiseClip"}, {id: "Shoulder Raise", type: "ShoulderClip"}, {id:"Shoulder Hunch", type: "ShoulderClip"}, {id: "Arm Location", type: "ArmLocationClip"}, {id: "Hand Constellation", type: "HandConstellationClip"}, {id: "Directed Motion", type: "DirectedMotionClip"}, {id: "Circular Motion", type: "CircularMotionClip"}];
@@ -6390,62 +6398,62 @@ class ScriptGui extends Gui {
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             previewActions.push({
                 type: "ShoulderClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             previewActions.push({
                 type: "ArmLocationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             previewActions.push({
                 type: "HandConstellationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             previewActions.push({
                 type: "DirectedMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             previewActions.push({
                 type: "CircularMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             asset_data[3].children = [{id: "Palm Orientation", type: "PalmOrientationClip"}, {id: "Hand Orientation", type: "HandOrientationClip"}, {id: "Handshape", type: "HandshapeClip"}, {id: "Wrist Motion", type: "WristMotionClip"}, {id: "Fingerplay Motion", type: "FingerplayMotionClip"}];
             previewActions.push({
                 type: "PalmOrientationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             previewActions.push({
                 type: "HandOrientationClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             previewActions.push({
                 type: "WristMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             previewActions.push({
                 type: "FingerplayMotionClip",
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
             // BODY
             asset_data[4].children.push({id: "Body movement", type: "BodyMovementClip"});
             previewActions.push({
@@ -6453,7 +6461,7 @@ class ScriptGui extends Gui {
                 name: 'Add clip', 
                 callback: innerSelect,
                 allowedTypes: ["Clip"]
-            })
+            });
 
             asset_browser = new LX.AssetView({ previewActions });
             p.attach( asset_browser );
