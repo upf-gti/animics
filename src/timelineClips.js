@@ -1,9 +1,8 @@
 "use strict";
 
-//ANIMATE by Javi Agenjo (@tamat) 2018 and modifyed by Eva Valls (2021) to define Agent Behaviors through the time
+//ANIM by Eva Valls (2021) to define Agent Behaviors through the time
 //************************************
-//This file contains the code necessary to define BEHAVIORS (verbal and non-verbal) based on BML standard (Project, Tracks and Clips definitions)
-//All the editor features are in timelineEditor.js (TIMELINE_EDITOR)
+//This file contains the code necessary to define BEHAVIORS (verbal and non-verbal) based on the extended BML
 
 (function(global){
 
@@ -42,212 +41,6 @@ ANIM.registerClipType = function(ctor)
 	ANIM[ name ] = ctor;
 }
 
-// PROJECT ****************************************************
-//a project contains tracks, a track contains clips, and a clip could contain frames
-function Project()
-{
-	this.name = "unnamed";
-
-	//timing
-	this.mode = ANIM.PAUSED;
-	this.currentTime = 0;
-	this.duration = 60;
-	this.framerate = 30;
-	this.volume = 1;
-	this.type = ANIM.CANVAS2D;
-	this.allowSeeking = true;
-
-	//canvas
-	this.size = [1280,720]; //project res
-
-	//tracks: similar to layers
-	this.tracks = []; //all tracks
-	this.markers = []; //time markers
-
-	//scripts
-	this.includes = []; //urls to js files that must be imported
-	this.scripts = {}; //scripts that could be used in this project
-	this.globals = {}; //container to store global vars between clips
-	this.texts = {}; //generic container for text data
-
-	//external
-	this.fonts = []; //fonts that must be loaded from Google Fonts
-
-	this.clipTypes = []; //list of all available clip types
-
-	this.clear();
-
-	Project.instance = this;
-}
-
-ANIM.Project = Project;
-
-Project.prototype.add = function(track)
-{
-	if(track.constructor !== ANIM.Track)
-		throw("only tracks allowed to be added to project");
-	this.tracks.push( track );
-	track._project = this;
-	return track;
-}
-
-Project.prototype.getTrack = function( id )
-{
-	if(id.constructor === String)
-	{
-		for(var i = 0; i < this.tracks.length; ++i )
-			if( this.tracks[i].name == id )
-				return this.tracks[i];
-		return null;
-	}
-	return this.tracks[ Number(id) ];
-}
-
-
-Project.prototype.clear = function( skipDefaultTracks )
-{
-	this.currentTime = 0;
-
-	this.globals = {};
-	this.tracks.length = 0;
-	this.markers.length = 0;
-
-	this.includes = [];
-	this.scripts = {};
-	this.fonts = [];
-}
-
-
-Project.prototype.load = function( url, onComplete )
-{
-	var that = this;
-	fetch(url)
-	.then(function(response) {
-		if(response.status == 404)
-		{
-			if(onComplete)
-				onComplete(null);
-		}
-		else
-		  return response.json();
-	}).then( function(data){
-		if(data)
-			that.fromJSON(data, onComplete);
-	});/*.catch(function(err){
-		console.error( "error loading project: " + err );
-	});
-	*/
-}
-
-Project.prototype.toJSON = function()
-{
-	var json = {};
-
-	json.name = this.name;
-
-	json.currentTime = this.currentTime;
-	json.duration = this.duration;
-	json.framerate = this.framerate;
-	json.size = this.size;
-	json.markers = this.markers;
-	json.texts = this.texts;
-
-	json.includes = this.includes;
-	json.scripts = [];
-	for(var i in this.scripts)
-	{
-		var script = this.scripts[i];
-		json.scripts.push({ name: script.name, code: script.code });
-	}
-
-
-
-	json.tracks = [];
-	for(var i = 0; i < this.tracks.length; ++i)
-		json.tracks.push( this.tracks[i].toJSON() );
-
-	json.fonts = this.fonts;
-
-	return json;
-}
-
-Project.prototype.fromJSON = function(json, callback)
-{
-
-	this.currentTime = json.currentTime || 0;
-	this.duration = json.duration;
-	this.framerate = json.framerate;
-	this.size = json.size;
-
-	this.tracks.length = 0;
-	this.markers = json.markers || [];
-		if(callback)
-			callback();
-	}
-
-//when coding clips from external scripts, you need a way to ensure clip classes hasnt been modifyed
-Project.prototype.checkClips = function()
-{
-	for(var j = 0; j < this.tracks.length; ++j)
-	{
-		var track = this.tracks[j];
-		for(var i = 0; i < this.clips.length; ++i)
-		{
-			var clip = this.clips;
-			var ctorClass = ANIM.clipTypes[ clip.constructor.id ];
-			if(clip.constructor === ctorClass)
-				continue;
-			var newClip = new ctorClass();
-			newClip.fromJSON( clip.toJSON() );
-			newClip.start = clip.start;
-			newClip.duration = clip.duration;
-			this.clips[i] = newClip;
-		}
-	}
-}
-
-function Track( name )
-{
-	this.name = name || "noname";
-	this.clips = [];
-	this.hidden = false;
-	this.editable = true;
-	this._project = null;
-	this.currentClip = null;
-}
-
-Track.prototype.getIndex = function()
-{
-	return this._project.tracks.indexOf(this);
-}
-
-Track.prototype.toJSON = function()
-{
-	var json = {
-		name: this.name,
-		clips: [],
-		editable: this.editable,
-		hidden: this.hidden
-	};
-	for(var i = 0; i < this.clips.length; ++i)
-	{
-		var shift = false;
-		
-		if(this.name.includes("Shift"))
-			shift = true;
-		var clip = this.clips[i];
-		var data = ANIM.clipToJSON( clip );
-		if(data)
-		{
-			data.shift = shift;
-			json.clips.push( data );
-		}
-			
-	}
-
-	return json;
-}
-
 ANIM.clipToJSON = function( clip )
 {
 	var id;
@@ -279,26 +72,6 @@ ANIM.clipToJSON = function( clip )
 	}
 
 	return [ id, clip.start, clip.duration, data ];
-}
-
-Track.prototype.fromJSON = function(json)
-{
-	this.name = json.name;
-	this.editable = json.editable;
-	this.hidden = json.hidden;
-
-	if(!json.clips)
-	{
-		console.warn("track without clips");
-		return;
-	}
-
-	for(var i = 0; i < json.clips.length; ++i)
-	{
-		var clipData = json.clips[i];
-		var clip = ANIM.clipFromJSON( clipData );
-		this.add( clip );
-	}
 }
 
 ANIM.clipFromJSON = function( clipData, clip )
@@ -335,73 +108,6 @@ ANIM.clipFromJSON = function( clipData, clip )
 
 	return clip;
 }
-
-//used to render the content of this track so it doesnt have to be rendered constantly
-Track.prototype.getTempCanvas = function()
-{
-	if(!this._tempCanvas)
-		this._tempCanvas = document.createElement("canvas");
-	return this._tempCanvas;
-}
-
-
-Track.prototype.add = function( clip, time, duration )
-{
-	if(time !== undefined)
-	{
-		if(isNaN(time))
-		{
-			console.error("NaN in time");
-			return;
-		}
-		clip.start = time;
-	}
-	if(duration !== undefined)
-		clip.duration = duration;
-	clip._track = this;
-	this.clips.push( clip );
-	this.sortClips();
-}
-
-Track.prototype.remove = function(clip)
-{
-	var index = this.clips.indexOf(clip);
-	if(index != -1)
-		this.clips.splice(index,1);
-	this.sortClips();
-}
-
-Track.prototype.sortClips = function()
-{
-	this.clips.sort( function(a,b) {return a.start - b.start; });
-}
-
-Track.prototype.getClipAtTime = function(time)
-{
-	for(var i = 0, l = this.clips.length; i < l; ++i)
-	{
-		var clip = this.clips[i];
-		if(clip.start > time || (clip.start + clip.duration) < time )
-			continue;
-		return clip;
-	}
-	return null;
-}
-
-Track.prototype.getClipsInRange = function(start,end)
-{
-	var res = [];
-	for(var i = 0, l = this.clips.length; i < l; ++i)
-	{
-		var clip = this.clips[i];
-		if(clip.start > end || (clip.start + clip.duration) < start )
-			continue;
-		res.push(clip);
-	}
-	return res;
-}
-
-ANIM.Track = Track;
 
 // CLIPS *******************************************************
 //-----------------------------Face Behaviour-----------------------------//
@@ -1327,7 +1033,7 @@ GazeClip.prototype.showInfo = function(panel, callback)
 /*----------------------------------Head Behaviour-----------------------------------*/
 //HeadClip
 HeadClip.type = "head";
-HeadClip.lexemes = ["Nod", "Shake", "Tilt", "Tilt left", "Tilt right", "Tilt forward", "Tilt backward", "Forward", "Backward"];
+HeadClip.lexemes = ["Nod", "Shake", "Rotate left", "Rotate right", "Tilt", "Tilt left", "Tilt right", "Tilt forward", "Tilt backward", "Forward", "Backward"];
 HeadClip.id = ANIM.HEAD ? ANIM.HEAD: ANIM.clipTypes.length;
 HeadClip.clipColor = "#5772c1";
 
