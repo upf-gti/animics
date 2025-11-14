@@ -83,7 +83,6 @@ class Gui {
 
         this.editor.scene.background.set(this.editor.theme[scheme].background);
         this.editor.scene.getObjectByName("Grid").material.color.set(this.editor.theme[scheme].grid);
-        // this.editor.scene.getObjectByName("Grid").material.opacity.set(this.editor.theme[scheme].girdOpacity);
     }
 
     /** Create menu bar */
@@ -104,13 +103,13 @@ class Gui {
             {
                 name: "View",
                 submenu: [
-                        { 
-                            name: "Theme", icon: "Palette", 
-                            submenu: [
+                    { 
+                        name: "Theme", icon: "Palette", 
+                        submenu: [
                             { name: "Light", icon: "Sun", callback: () => this.setColorTheme("light") },
                             { name: "Dark", icon: "Moon", callback: () => this.setColorTheme("dark") }
                         ] 
-                    }
+                    },                    
                 ]
             },
             {
@@ -1277,28 +1276,69 @@ class KeyframesGui extends Gui {
         const viewMenuItem = entries.find( e => e.name == "View" );
         const viewMenu = viewMenuItem.submenu;
         console.assert(viewMenu, "View menu not found" );
+
+        const showHideMenu = {
+            name: "Show & Hide", // warning: check all occurrence of this menu before changing the name
+            submenu: [
+                {
+                    name: "Scene Overlay Panel",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        if ( v ){
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.remove("hidden");
+                        }else{
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
+                        }
+                    }
+                },
+                {
+                    name: "GUI",
+                    checked: true,
+                    callback: (title, v, e) => {
+                        this.canvasAreaOverlayButtons.buttons["GUI"].setState(v);
+                    }
+                },
+                {
+                    name: "Scene Grid",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Grid"].setState(v);
+                    }
+                },
+                {
+                    name: "Skeleton",
+                    checked: false,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Skeleton"].setState(v);
+                    }
+                },
+                {
+                    name: "Avatar",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Skin"].setState(v);
+                    }
+                },
+                { name: "Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
+                    this.showVideo = v;
+                    this.editor.setVideoVisibility( v );
+                }}
+            ]
+        }
+
         viewMenu.push( 
             null, 
             { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") },
             null,
-            { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
-                this.showVideo = v;
-                this.editor.setVideoVisibility( v );
-            }}
+            showHideMenu
         );
-        viewMenuItem.completeSubmenu = viewMenu.slice(); // shallow copy
+        showHideMenu.completeSubmenu = showHideMenu.submenu.slice();
         viewMenuItem._setMode = (mode)=>{ // 0 do not show video, 1 show video
             if ( mode ){
-                viewMenuItem.submenu = viewMenuItem.completeSubmenu;
+                showHideMenu.submenu = showHideMenu.completeSubmenu;
             }else{
-                viewMenuItem.submenu = viewMenuItem.completeSubmenu.filter( (v,i,arr) =>{
-                    if(v){ 
-                        if(v.name.includes("Video")){
-                            return false;
-                        }
-                    }
-                    return true;
-                })
+                // shallow copy. Any changes to the submenu items (.checked) will be reflected on both submenu and completeSubmenu
+                showHideMenu.submenu = showHideMenu.completeSubmenu.slice(0, showHideMenu.completeSubmenu.length-1);
             }
         }
         viewMenuItem._setMode(0);
@@ -5081,10 +5121,12 @@ class KeyframesGui extends Gui {
                 {
                     name: 'Skin',
                     property: 'showSkin',
-                    icon: 'UserX',
+                    icon: 'UserRoundCheck',
                     selectable: true,
-                    callback: (v) =>  {
-                        editor.showSkin = !editor.showSkin;
+                    selected: true,
+                    callback: (v,e) =>  {
+                        this.menubar.getItem( "View/Show & Hide/Avatar" ).checked = v; // a bit of a circular dependency
+                        editor.showSkin = v;
                         let model = editor.scene.getObjectByName("Armature");
                         model.visible = editor.showSkin;
                         
@@ -5096,8 +5138,10 @@ class KeyframesGui extends Gui {
                     icon: 'Bone',
                     selectable: true,
                     selected: false,
-                    callback: (value,event) =>  {
-                        editor.showSkeleton = this.canvasAreaOverlayButtons.buttons["Skeleton"].root.children[0].classList.contains("selected");
+                    callback: (v,e) =>  {
+                        this.menubar.getItem( "View/Show & Hide/Skeleton" ).checked = v; // a bit of a circular dependency
+
+                        editor.showSkeleton = v;
                         let skeleton = editor.scene.getObjectByName("SkeletonHelper");
                         skeleton.visible = editor.showSkeleton;
                         editor.scene.getObjectByName('GizmoPoints').visible = editor.showSkeleton;
@@ -5107,42 +5151,56 @@ class KeyframesGui extends Gui {
                 }
             ];       
         }
-        
+
         canvasButtons.push(
             {
-                name: 'GUI',
-                property: 'showGUI',
+                name: 'Grid',
+                property: 'showGrid',
                 icon: 'Grid',
                 selectable: true,
                 selected: true,
                 callback: (v, e) => {
-                    editor.showGUI = !editor.showGUI;
+                    this.editor.scene.getObjectByName("Grid").visible = v;
+                    this.menubar.getItem( "View/Show & Hide/Scene Grid" ).checked = v; // a bit of a circular dependency
+                }
+            },
+            {
+                name: 'GUI',
+                property: 'showGUI',
+                icon: 'PanelLeftClose',
+                selectable: true,
+                selected: true,
+                callback: (v, e) => {
+                    editor.showGUI = v;
+                    this.menubar.getItem( "View/Show & Hide/GUI" ).checked = v; // a bit of a circular dependency
 
                     if( editor.scene.getObjectByName('Armature') ) {
-                        editor.scene.getObjectByName('SkeletonHelper').visible = editor.showGUI;
+                        this.canvasAreaOverlayButtons.buttons["Skeleton"].setState( v );
                     }
 
-                    if( editor.gizmo ) {
-                        editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
-                    }
+                    this.canvasAreaOverlayButtons.buttons["Grid"].setState( v );
 
-                    editor.scene.getObjectByName('Grid').visible = editor.showGUI;
-                    
                     if(!editor.showGUI) {
                         if(editor.gizmo) {
                             editor.gizmo.disableTransform();
                         }
                         this.hideTimeline();
                         this.sidePanelArea.parentArea.extend();
-                        this.hideVideoOverlay();                       
+                        this.hideVideoOverlay();
                     } else {
                         this.showTimeline();
-                        this.sidePanelArea.parentArea.reduce();  
+                        this.sidePanelArea.parentArea.reduce();
                         const currentAnim = this.editor.currentKeyFrameClip;
                         if ( currentAnim && currentAnim.type == "video" && this.showVideo ){
                             this.showVideoOverlay();
                         }
-                    }                  
+                    }
+
+                    setTimeout( ()=>{
+                        this.editor.delayedResizeTime = 1;
+                        this.editor.delayedResize();
+                        this.editor.delayedResizeTime = 500;
+                    }, 120);
                 }
             }
         )
@@ -5226,6 +5284,40 @@ class ScriptGui extends Gui {
                 
             ] }
         );
+
+
+        const showHideMenu = {
+            name: "Show & Hide", // warning: check all occurrence of this menu before changing the name
+            submenu: [
+                {
+                    name: "Scene Overlay Panel",
+                    checked: false,
+                    callback: (title, v,e)=>{
+                        if ( v ){
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.remove("hidden");
+                        }else{
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
+                        }
+                    }
+                },
+                {
+                    name: "GUI",
+                    checked: true,
+                    callback: (title, v, e) => {
+                        this.canvasAreaOverlayButtons.buttons["GUI"].setState(v);
+                    }
+                },
+                {
+                    name: "Scene Grid",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Grid"].setState(v);
+                    }
+                }
+            ]
+        }
+        const viewMenu = entries.find( e => e.name == "View" )?.submenu;
+        viewMenu.push( showHideMenu );
 
         const helpMenu = entries.find( e => e.name == "Help" )?.submenu;
         console.assert(helpMenu, "Help menu not found" );
@@ -5425,11 +5517,10 @@ class ScriptGui extends Gui {
                                 return 1;
                             });
                             this.createSaveDialog( "presets");
-                            // this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
                         }
                     }
                 );
-                if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
+                if(e.track && this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
                     let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
                     if(clip.type == "glossa") {                        
                         actions.push(
@@ -6823,33 +6914,50 @@ class ScriptGui extends Gui {
 
     createSceneUI(area) {
 
-        let editor = this.editor;
         let canvasButtons = [
             {
-                name: 'GUI',
-                property: 'showGUI',
+                name: 'Grid',
+                property: 'showGrid',
                 icon: 'Grid',
                 selectable: true,
                 selected: true,
                 callback: (v, e) => {
-                    editor.showGUI = !editor.showGUI;
+                    this.editor.scene.getObjectByName("Grid").visible = v;
+                    this.menubar.getItem( "View/Show & Hide/Scene Grid" ).checked = v; // a bit of a circular dependency
+                }
+            },
+            {
+                name: 'GUI',
+                property: 'showGUI',
+                icon: 'PanelLeftClose',
+                selectable: true,
+                selected: true,
+                callback: (v, e) => {
+                    this.editor.showGUI = v;
+                    this.menubar.getItem( "View/Show & Hide/GUI" ).checked = v; // a bit of a circular dependency
 
-                    editor.scene.getObjectByName('Grid').visible = editor.showGUI;
+                    this.canvasAreaOverlayButtons.buttons["Grid"].setState( this.editor.showGUI );
                   
-                    if(editor.showGUI) {
+                    if(this.editor.showGUI) {
                         this.showTimeline();
-                        this.sidePanelArea.parentArea.reduce();                       
-                        
+                        this.sidePanelArea.parentArea.reduce();                        
                     } else {
                         this.hideTimeline();
                         this.sidePanelArea.parentArea.extend();
-
                     }
+
+                    // if this is not done, canvas might not resize properly. Panel resize transition lasts for 0.1 seconds
+                    setTimeout( ()=>{
+                        this.editor.delayedResizeTime = 1; //hack to make it immediate
+                        this.editor.delayedResize();
+                        this.editor.delayedResizeTime = 500;
+                    }, 120);
                 }
             },
     
         ]
         this.canvasAreaOverlayButtons = area.addOverlayButtons(canvasButtons, { float: "htc" } );
+        this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
     }
 
     
