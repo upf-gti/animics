@@ -79,11 +79,11 @@
         "Brow Left": [ "Outer_Brow_Raiser_Left", "Brow_Lowerer_Left"],
         "Eye Right": [ "Upper_Lid_Raiser_Right", "Blink_Right", "Wink_Right", "Squint_Right"],
         "Eye Left": [ "Upper_Lid_Raiser_Left", "Blink_Left", "Wink_Left", "Squint_Left"],
-        "Nose": ["Nose_Wrinkler_Left", "Nose_Wrinkler_Right"],
-        "Mouth": ["Dimpler_Left", "Dimpler_Right", "Upper_Lip_Raiser_Left", "Upper_Lip_Raiser_Right", "Lip_Corner_Puller_Left", "Lip_Corner_Puller_Right", "Lip_Corner_Depressor_Left", "Lip_Corner_Depressor_Right", "Lower_Lip_Depressor_Left", "Lower_Lip_Depressor_Right","Lip_Puckerer_Left" ,"Lip_Puckerer_Right" ,"Lip_Stretcher_Left" ,"Lip_Stretcher_Right" ,"Lip_Funneler" ,"Lip_Pressor_Left" ,"Lip_Pressor_Right" ,"Lips_Part" ,"Lip_Suck_Upper" ,"Lip_Suck_Lower" ,"Lip_Wipe", "Tongue_Show", "Mouth_Stretch"],
-        "Jaw": ["Jaw_Drop", "Jaw_Thrust", "Jaw_Sideways_Left", "Jaw_Sideways_Right"],
-        "Cheek Right": [ "Cheek_Raiser_Right"],
-        "Cheek Left": [ "Cheek_Raiser_Left"]
+        "Nose": [ "Nose_Wrinkler_Left", "Nose_Wrinkler_Right" ],
+        "Mouth": [ "Dimpler_Left", "Dimpler_Right", "Upper_Lip_Raiser_Left", "Upper_Lip_Raiser_Right", "Lip_Corner_Puller_Left", "Lip_Corner_Puller_Right", "Lip_Corner_Depressor_Left", "Lip_Corner_Depressor_Right", "Lower_Lip_Depressor_Left", "Lower_Lip_Depressor_Right","Lip_Puckerer_Left" ,"Lip_Puckerer_Right" ,"Lip_Stretcher_Left" ,"Lip_Stretcher_Right" ,"Lip_Funneler" ,"Lip_Pressor_Left" ,"Lip_Pressor_Right" ,"Lips_Part" ,"Lip_Suck_Upper" ,"Lip_Suck_Lower" ,"Lip_Wipe", "Tongue_Show", "Mouth_Stretch" ],
+        "Jaw": [ "Jaw_Drop", "Jaw_Thrust", "Jaw_Sideways_Left", "Jaw_Sideways_Right" ],
+        "Cheek Right": [ "Cheek_Blow_Right", "Cheek_Raiser_Right" ],
+        "Cheek Left": [ "Cheek_Blow_Left", "Cheek_Raiser_Left" ]
     },
 
     "mediapipe" : {

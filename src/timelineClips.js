@@ -152,7 +152,14 @@ class BaseClip {
 		if(o.duration) this.duration = o.duration || 1;
 		if(o.end) this.duration = (o.end - o.start) || 1;
 		const offset = this.duration/4;
-		this.attackPeak = this.fadein = (o.attackPeak || this.start + offset); // fadein is from LX.Timeline
+
+		if ( this.constructor == ANIM.GazeClip || this.constructor == ANIM.HeadClip ){
+			this.ready = this.fadein = (o.ready || this.start + offset); // fadein is from LX.Timeline
+		}
+		else{
+			this.attackPeak = this.fadein = (o.attackPeak || this.start + offset); // fadein is from LX.Timeline
+		}
+
 		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset); // fadeout is from LX.Timeline
 		if(o.properties)
 		{
@@ -206,7 +213,6 @@ class FaceLexemeClip extends BaseClip {
 		this.properties.amount = 0.8;
 		this.properties.lexeme = lexeme;
 		/*permanent : false,*/
-		
 		
 		this.font = "11px Calibri";
 		this.clipColor = FaceLexemeClip.clipColor;
@@ -307,13 +313,12 @@ class FaceFACSClip extends BaseClip {
 	toJSON()
 	{
 		var json = {
-			type: FaceFACSClip.type,
 			id: this.id,
 			start: this.start,
 			end: this.start + this.duration,
 			attackPeak: this.fadein,
 			relax : this.fadeout,
-
+			type: FaceFACSClip.type
 		}
 		for(var i in this.properties)
 		{
@@ -414,7 +419,7 @@ class FaceEmotionClip extends BaseClip {
 	constructor()
 	{
 		super();
-		this.id= "faceEmotion-"+Math.ceil(getTime());;
+		this.id= "faceEmotion";
 		this.start = 0
 		this.duration = 1;
 		this.attackPeak = this.fadein = 0.25;
@@ -432,17 +437,15 @@ class FaceEmotionClip extends BaseClip {
 	toJSON()
 	{
 		var json = {
-			type: FaceEmotionClip.type,
 			id: this.id,
 			start: this.start,
 			end: this.start + this.duration,
 			attackPeak: this.fadein,
 			relax : this.fadeout,
-
+			type: FaceEmotionClip.type
 		}
 		for(var i in this.properties)
 		{
-			
 			json[i] = this.properties[i];
 		}
 		return json;
@@ -450,73 +453,65 @@ class FaceEmotionClip extends BaseClip {
 
 	showInfo(panel, callback)
 	{
-		for(var i in this.properties)
-		{
-			var property = this.properties[i];
-			if(i=="emotion"){
-				panel.addSelect(i, property,{values: FaceEmotionClip.emotions, callback: function(v,e)
-				{
-					this.properties[i] = v;
-					if(callback)
-						callback();
-				}.bind(this, i)});
-			}
-			else
-			{
-				switch(property.constructor)
-				{
+		panel.addRange("Intensity", this.properties.amount, (v,e)=>{
+			this.properties.amount = v;
+			if(callback)
+				callback();
+		}, {min: 0, max: 1, step: 0.01, className: "contrast" } );
 
-					case String:
-						panel.addString(i, property, {callback: function(v,e)
-						{
-							this.properties[i] = v;
-							if(callback)
-								callback();
-						}.bind(this, i)});
-						break;
-					case Number:
-						if(i=="amount")
-						{
-							panel.addNumber(i, property, {min:0, max:1,callback: function(v,e)
-							{
-								this.properties.amount = v;
-								if(callback)
-									callback();
-							}.bind(this,i)});
-						}
-						else{
-							panel.addNumber(i, property, {callback: function(v,e)
-							{
-								if(i == "start"){
-									var dt = v - this.properties[i];
-									this.properties.attackPeak += dt;
-									this.properties.relax += dt;
-								}
-								this.properties[i] = v;
-								if(callback)
-									callback();
-							}.bind(this,i)});
-						}
-					break;
-					case Boolean:
-						panel.addCheckbox(i, property, {callback: function(v,e)
-						{
-							this.properties[i] = v;
-							if(callback)
-								callback();
-						}.bind(this,i)});
-							break;
-					case Array:
-						panel.addArray(i, property, {callback: function(v,e)
-						{
-							this.properties[i] = v;
-							if(callback)
-								callback();
-						}.bind(this,i)});
-							break;
+		this._backupProperties ={
+			emotion: this.properties.emotion,
+			valaro: this.properties.valaro,
+		}
+
+		if ( this.properties.emotion ){
+			this.properties.valaro = null;
+		}else{
+			this.properties.emotion = null;
+		}
+
+		panel.addSelect("Mode", ["Emotion", "Valence-Arousal"], this.properties.emotion ? "Emotion" : "Valence-Arousal", (v,e) =>{
+			if (v == "Emotion"){
+				this._backupProperties.valaro = this.properties.valaro;
+				this.properties.valaro = null;
+				this.properties.emotion = this._backupProperties.emotion ?? "HAPPINESS";
+			}
+			else {
+				this._backupProperties.emotion = this.properties.emotion;
+				this.properties.emotion = null;
+				this.properties.valaro = this._backupProperties.valaro ?? [0,0];
+			}
+			if ( callback )
+				callback();
+		}, {
+				"on_Emotion": (p)=>{
+					p.addSelect("Emotion", FaceEmotionClip.emotions, this.properties.emotion, (v,e)=>{
+						this.properties.emotion = v;
+						if(callback)
+							callback();
+					});
+				},
+				"on_Valence-Arousal": (p)=>{
+					const map2Dpoints = [
+						{ name: "Angry", pos: [-0.76,0.64] },
+						{ name: "Happy", pos: [0.95,0.23] },
+						{ name: "Sad", pos: [-0.81,-0.57] },
+						{ name: "Surprised", pos: [0.22,0.98] },
+						{ name: "Scared", pos: [-0.25, 0.98] },
+						{ name: "Disgusted", pos: [-0.96,0.23] },
+						{ name: "Contempt", pos: [-0.98,-0.21] },
+					];
+					p.addMap2D("Valernce Arousal Map", map2Dpoints, (value, event, point) => {
+						this.properties.valaro[0] = point.x;
+						this.properties.valaro[1] = point.y;
+						if(callback)
+							callback();
+					});
 				}
 			}
-		}
+		);
+
+
 	}
 }
 
@@ -858,10 +853,7 @@ class GazeClip extends BaseClip {
 	configure(o)
 	{
 		super.configure(o);
-		
-		this.ready = this.fadein = (o.ready || this.start + offset);
-		delete this.attackPeak; // added by super.configure
-
+	
 		for(let p in this.properties) {
 			if(typeof(this.properties[p]) == 'string')
 				this.properties[p] = capitalize(this.properties[p].replaceAll("_", " "));
@@ -1010,8 +1002,6 @@ class HeadClip extends BaseClip {
 	configure(o)
 	{
 		super.configure(o);
-		this.ready = this.fadein = (o.ready || this.start + offset);
-		delete this.attackPeak; // added by super.configure
 
 		if(o.strokeStart) this.strokeStart = o.strokeStart;
 		if(o.stroke) this.stroke  = o.stroke ;
@@ -2985,7 +2975,7 @@ class DirectedMotionClip extends BaseClip {
 			end: this.start + this.duration,
 			attackPeak: this.fadein,
 			relax: this.fadeout,
-			type: "gesture",
+			type: "gesture"
 		}
 		for(let i in this.properties)
 		{
@@ -3303,10 +3293,10 @@ class CircularMotionClip extends BaseClip {
 		var json = {
 			id: this.id,
 			start: this.start,
-			attackPeak: this.attackPeak,
-			relax: this.relax,
 			end: this.start + this.duration,
-			type: "gesture",
+			attackPeak: this.fadein,
+			relax: this.fadeout,
+			type: "gesture"
 		}
 		for(let i in this.properties)
 		{
@@ -3670,7 +3660,7 @@ class FingerplayMotionClip extends BaseClip {
 			end: this.start + this.duration,
 			attackPeak: this.fadein,
 			relax: this.fadeout,
-			type: "gesture",
+			type: "gesture"
 		}
 	
 		for(let i in this.properties)
@@ -3802,7 +3792,7 @@ class MouthingClip extends BaseClip {
 			id: this.id,
 			start: this.start,
 			end: this.start + this.duration,
-			type: "speech",
+			type: "speech"
 		}
 	
 		for(let i in this.properties)
@@ -4029,36 +4019,32 @@ class SuperClip extends BaseClip {
 	
 		clip.end = (clip.end + offset) || (clip.start + clip.duration);
 	}
-	
-	onChangeStart(offset) 
-	{
-	}
 }
 
 ANIM.registerClipType( SuperClip );
 
 //helpers **************************
 
-var seed = 123;
-function random() {
-    var x = Math.sin(seed++) * 10000;
-    return x - Math.floor(x);
-}
-var noiseData = new Float32Array(1024);
-for(var i = 0; i < noiseData.length; ++i)
-	noiseData[i] = random();
+// var seed = 123;
+// function random() {
+//     var x = Math.sin(seed++) * 10000;
+//     return x - Math.floor(x);
+// }
+// var noiseData = new Float32Array(1024);
+// for(var i = 0; i < noiseData.length; ++i)
+// 	noiseData[i] = random();
 
-function noise(t)
-{
-	var i = (t|0) % 1024;
-	if(i < 0) i = 1024 + i;
-	var i2 = (i+1) % 1024;
-	var f = t-(t|0);
-	f = f*f*f*(f*(f*6.0-15.0)+10.0); //exp
-	return noiseData[i] * (1-f) + noiseData[i2] * f;
-}
+// function noise(t)
+// {
+// 	var i = (t|0) % 1024;
+// 	if(i < 0) i = 1024 + i;
+// 	var i2 = (i+1) % 1024;
+// 	var f = t-(t|0);
+// 	f = f*f*f*(f*(f*6.0-15.0)+10.0); //exp
+// 	return noiseData[i] * (1-f) + noiseData[i2] * f;
+// }
 
-ANIM.noise = noise;
+// ANIM.noise = noise;
 
 
 function roundedRect(ctx, x, y, width, height, radiusStart, radiusEnd, fill = true) {
@@ -4087,28 +4073,12 @@ const HexToRgb = (hex) => {
     throw new Error('Bad Hex');
 }
 
-function distance(a,b)
-{
-	var x = b[0] - a[0];
-	var y = b[1] - a[1];
-	return Math.sqrt(x*x+y*y);
-}
-
-function vec2Length(x,y)
-{
-	return Math.sqrt(x*x+y*y);
-}
-
-function replace(target, search, replacement) {
-    return target.replace(new RegExp(search, 'g'), replacement);
-};
 
 function capitalize(text) {
 	text = text.toLowerCase();
 	return text.charAt(0).toUpperCase() + text.slice(1);
 }
 global.getTime = performance.now.bind(performance);
-
 
 function RGB(r,g,b) { return "rgb(" + Math.floor(Math.clamp(r,0,1)*255) + "," + Math.floor(Math.clamp(g,0,1)*255) + "," + Math.floor(Math.clamp(b,0,1)*255) + ")"; }
 function HSL(h,s,L) { return "hsl(" + Math.floor(h*360) + "," + Math.floor(Math.clamp(s,0,1)*100) + "%," + Math.floor(Math.clamp(v,0,1)*100) + "%)"; }

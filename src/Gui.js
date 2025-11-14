@@ -3662,7 +3662,7 @@ class KeyframesGui extends Gui {
             const innerGetTracksToSelect = (auNames) => {
                 let result = [];
                 for( let i = 0; i < auNames.length; ++i ){
-                    let bss = auToBsIndices[ auNames[i] ];
+                    let bss = auToBsIndices[ auNames[i] ] ?? [];
                     for ( let b = 0; b < bss.length; ++b ){
                         const trackIdx = bss[b][0];
                         let needsSelection = true;
@@ -3783,7 +3783,7 @@ class KeyframesGui extends Gui {
                 const name = areas[area][id];
 
                 // compute au to bs mapping changing names to timeline track idx
-                const auMapping = auToBsIndices[name];
+                const auMapping = auToBsIndices[name] ?? [];
                 for( let a = 0; a < auMapping.length; ++a ){
                     const t = this.bsTimeline.getTrack(auMapping[a][0]);
                     if ( !t ){
@@ -4841,8 +4841,8 @@ class KeyframesGui extends Gui {
                             
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Upload to server', 
@@ -4853,8 +4853,8 @@ class KeyframesGui extends Gui {
                             
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvh",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -4863,8 +4863,8 @@ class KeyframesGui extends Gui {
                         const items = this.editor.localStorage[0].children[0].children;
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));  
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -4873,8 +4873,8 @@ class KeyframesGui extends Gui {
                         const items = this.editor.localStorage[0].children[0].children;
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));                        
                     }
-                });             
-                previewActions.push({
+                },
+                {
                     type: "bvh",
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
@@ -4892,8 +4892,8 @@ class KeyframesGui extends Gui {
                             // this.closeDialogs();                            
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
@@ -5332,10 +5332,6 @@ class ScriptGui extends Gui {
             if(clip.stroke) clip.stroke+=offset;
             if(clip.strokeEnd) clip.strokeEnd+=offset;
             this.updateClipSyncGUI();
-            if(clip.onChangeStart)  {
-                clip.onChangeStart(offset);
-            }
-
             this.delayedUpdateTracks();
         };
 
@@ -5518,7 +5514,7 @@ class ScriptGui extends Gui {
     reorderClips( mode = 0x00 ){
         const clipTypesOrder = [
             ANIM.SuperClip, 
-            ANIM.FaceLexemeClip, ANIM.FaceFACSClip, ANIM.FaceEmotionClip, ANIM.FacePresetClip, ANIM.MouthingClip,
+            ANIM.FaceEmotionClip, ANIM.FaceLexemeClip, ANIM.FaceFACSClip, ANIM.FacePresetClip, ANIM.MouthingClip,
             ANIM.GazeClip, ANIM.HeadClip,  
             ANIM.ElbowRaiseClip, ANIM.ShoulderClip, ANIM.BodyMovementClip,
             ANIM.ArmLocationClip,
@@ -6001,9 +5997,6 @@ class ScriptGui extends Gui {
                 this.clipInPanel.start = v;
                 clip.start = v;
                 
-                if(clip.onChangeStart) {
-                    clip.onChangeStart(diff);
-                }
 				this.updateClipSyncGUI();
                 updateTracks();
                 
@@ -6309,17 +6302,29 @@ class ScriptGui extends Gui {
                 asset_browser.clear();
                 dialog.close();
         }
-        let previewActions =  [{
-            type: "Clip",
-            name: 'Add clip', 
-            callback: innerSelect,
-            allowedTypes: ["Clip"]
-        }];
+
+        const createPreviewActionClipType = ( type ) =>{
+            return {
+                type: type,
+                name: 'Add clip', 
+                callback: innerSelect,
+                allowedTypes: ["Clip"]
+            }
+        }
+
+        let previewActions =  [ createPreviewActionClipType( "Clip" ) ];
+
 
         let asset_browser = null;
         let dialog = this.prompt = new LX.Dialog('Available behaviours', (p) => {
 
-            let asset_data = [{id: "Face", type: "folder", children: []}, {id: "Head", type: "folder",  children: []}, {id: "Arms", type: "folder",  children: []}, {id: "Hands", type: "folder",  children: []}, {id: "Body", type: "folder",  children: []}];
+            let asset_data = [
+                {id: "Face", type: "folder", children: []},
+                {id: "Head", type: "folder",  children: []},
+                {id: "Arms", type: "folder",  children: []},
+                {id: "Hands", type: "folder",  children: []},
+                {id: "Body", type: "folder",  children: []}
+            ];
                 
             // FACE CLIP
 
@@ -6334,27 +6339,8 @@ class ScriptGui extends Gui {
                 }
                 lexemes.push(data);
             }
-            previewActions.push({
-                type: "FaceLexemeClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
             // Face lexemes & Mouthing clips
             asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Face emotion", type: "FaceEmotionClip"}, {id: "Mouthing", type: "MouthingClip"}];
-            previewActions.push({
-                type: "FaceEmotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            },
-            {
-                type: "MouthingClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-
 
             // HEAD
             // Gaze clip
@@ -6368,12 +6354,6 @@ class ScriptGui extends Gui {
                 gazes.push(data);
             }
 
-            previewActions.push({
-                type: "GazeClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
             // Head movement clip
             values = ANIM.HeadClip.lexemes;
             let movements = [];
@@ -6384,84 +6364,29 @@ class ScriptGui extends Gui {
                 }
                 movements.push(data);
             }
-            previewActions.push({
-                type: "HeadClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
             asset_data[1].children = [{ id: "Gaze", type: "folder", children: gazes}, {id: "Head movement", type: "folder", children: movements}];
-
             asset_data[2].children = [{id: "Elbow Raise", type: "ElbowRaiseClip"}, {id: "Shoulder Raise", type: "ShoulderClip"}, {id:"Shoulder Hunch", type: "ShoulderClip"}, {id: "Arm Location", type: "ArmLocationClip"}, {id: "Hand Constellation", type: "HandConstellationClip"}, {id: "Directed Motion", type: "DirectedMotionClip"}, {id: "Circular Motion", type: "CircularMotionClip"}];
-            previewActions.push({
-                type: "ElbowRaiseClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            previewActions.push({
-                type: "ShoulderClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            previewActions.push({
-                type: "ArmLocationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            previewActions.push({
-                type: "HandConstellationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            previewActions.push({
-                type: "DirectedMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            previewActions.push({
-                type: "CircularMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
             asset_data[3].children = [{id: "Palm Orientation", type: "PalmOrientationClip"}, {id: "Hand Orientation", type: "HandOrientationClip"}, {id: "Handshape", type: "HandshapeClip"}, {id: "Wrist Motion", type: "WristMotionClip"}, {id: "Fingerplay Motion", type: "FingerplayMotionClip"}];
-            previewActions.push({
-                type: "PalmOrientationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            previewActions.push({
-                type: "HandOrientationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            previewActions.push({
-                type: "WristMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            previewActions.push({
-                type: "FingerplayMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
-            // BODY
             asset_data[4].children.push({id: "Body movement", type: "BodyMovementClip"});
-            previewActions.push({
-                type: "BodyMovementClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            });
+            
+            previewActions.push( 
+                createPreviewActionClipType( "FaceLexemeClip" ),
+                createPreviewActionClipType( "FaceEmotionClip" ),
+                createPreviewActionClipType( "MouthingClip" ),
+                createPreviewActionClipType( "GazeClip" ),
+                createPreviewActionClipType( "HeadClip" ),
+                createPreviewActionClipType( "ElbowRaiseClip" ),
+                createPreviewActionClipType( "ShoulderClip" ),
+                createPreviewActionClipType( "ArmLocationClip" ),
+                createPreviewActionClipType( "HandConstellationClip" ),
+                createPreviewActionClipType( "DirectedMotionClip" ),
+                createPreviewActionClipType( "CircularMotionClip" ),
+                createPreviewActionClipType( "PalmOrientationClip" ),
+                createPreviewActionClipType( "HandOrientationClip" ),
+                createPreviewActionClipType( "WristMotionClip" ),
+                createPreviewActionClipType( "FingerplayMotionClip" ),
+                createPreviewActionClipType( "BodyMovementClip" )
+            );
 
             asset_browser = new LX.AssetView({ previewActions });
             p.attach( asset_browser );
@@ -6605,8 +6530,8 @@ class ScriptGui extends Gui {
                                 
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bml",
                         path: "@/Local/" + folder,
                         name: 'Upload to server', 
@@ -6617,8 +6542,8 @@ class ScriptGui extends Gui {
                                 
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bvh",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -6631,8 +6556,8 @@ class ScriptGui extends Gui {
                                 }
                             })
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bvhe",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -6645,8 +6570,8 @@ class ScriptGui extends Gui {
                                 }
                             })                        
                         }
-                    });    
-                    previewActions.push({
+                    },
+                    {
                         type: "sigml",
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
@@ -6664,8 +6589,8 @@ class ScriptGui extends Gui {
                                 // this.closeDialogs();                            
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bml",
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
