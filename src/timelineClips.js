@@ -392,7 +392,8 @@ class FaceFACSClip extends BaseClip {
 						panel.addCheckbox(i, property, {callback: function(i,v)
 						{
 							this.properties[i] = v;
-						}.bind(this,i)});
+						}.bind(this,i)}, 
+						{ className: "contrast", label: ""});
 							break;
 					case Array:
 						panel.addArray(i, property, {callback: function(i,v)
@@ -794,7 +795,7 @@ class FacePresetClip extends BaseClip {
 							this.properties[i] = v;
 							if(callback)
 								callback();
-						}.bind(this,i)});
+						}.bind(this,i)},{className: "contrast", label: ""});
 							break;
 					case Array:
 						panel.addArray(i, property, {callback: function(i,v)
@@ -925,7 +926,7 @@ class GazeClip extends BaseClip {
 			this.properties.shift = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		// Offset Driection property
 		panel.addSelect("Offset direction", ["", ...GazeClip.directions], this.properties.offsetDirection, (v, e, name) => {
 			
@@ -951,7 +952,7 @@ class GazeClip extends BaseClip {
 				this.properties.headOnly = v;
 				if(callback)
 					callback();
-			});
+			},{className: "contrast", label: ""});
 		}
 	}
 }
@@ -1185,7 +1186,7 @@ class ElbowRaiseClip extends BaseClip {
 			this.properties.shift = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 	
 	}
 }
@@ -1312,7 +1313,7 @@ class ShoulderClip extends BaseClip {
 			this.properties.shift = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 	
 	}
 }
@@ -1601,7 +1602,7 @@ class ArmLocationClip extends BaseClip {
 			this.properties.shift = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		// Location side
 		panel.addSelect("Side", ["", ...Object.keys(ArmLocationClip.sides)], this.properties.side, (v, e, name) => {
 			
@@ -1707,19 +1708,19 @@ class ArmLocationClip extends BaseClip {
 			this.properties.lrSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
 		{
 			this.properties.udSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
 		{
 			this.properties.ioSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 	}
 }
 
@@ -1877,7 +1878,7 @@ class PalmOrientationClip extends BaseClip {
 			this.properties.shift = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		
 		// Second direction side
 		panel.addSelect("Second direction", ["", ...PalmOrientationClip.directions], this.properties.secondPalmor, (v, e, name) => {
@@ -1893,19 +1894,19 @@ class PalmOrientationClip extends BaseClip {
 			this.properties.lrSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
 		{
 			this.properties.udSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
 		{
 			this.properties.ioSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 	}
 }
 
@@ -2082,7 +2083,7 @@ class HandOrientationClip extends BaseClip {
 			this.properties.shift = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		
 		// Second direction side
 		panel.addSelect("Second direction", ["", ...HandOrientationClip.directions], this.properties.secondExtfidir, (v, e, name) => {
@@ -2098,19 +2099,19 @@ class HandOrientationClip extends BaseClip {
 			this.properties.lrSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
 		{
 			this.properties.udSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
 		{
 			this.properties.ioSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 	}
 
 }
@@ -2259,15 +2260,14 @@ class HandshapeClip extends BaseClip {
 			
 		}, {filter: true});
 	
-		panel.addSeparator();
-		panel.addTitle( "Optionals");
+		
 	
 		panel.addCheckbox("Set as base shape", this.properties.shift, (v, e, name) =>
 		{
 			this.properties.shift = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 	
 		panel.addCheckbox("Apply to specific fingers", this.applySpecial, (v, e) => {
 			this.applySpecial = v;
@@ -2277,6 +2277,7 @@ class HandshapeClip extends BaseClip {
 			if(callback)
 				callback(true);
 		}, {
+			className: "contrast", label: "",
 			title: "All hand settings will be applied only to the selected fingers",
 			suboptions: (p) => {
 				p.addTextArea(null, "Select the fingers to apply the movement to.", null, {disabled:true})
@@ -2292,11 +2293,61 @@ class HandshapeClip extends BaseClip {
 						}
 						if(callback)
 							callback();
-					} )
+					},{className: "contrast", label: ""} )
 				}
 			}
 		});
 	
+
+	
+		panel.addSeparator();
+		panel.addTitle( "Optionals: Thumb Shape Modifiers");
+	
+		// Thumbshape property
+		panel.addSelect("Thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.thumbshape, (v, e, name) => {
+		
+			this.properties.thumbshape = v;
+			if(callback)
+				callback();
+			
+		}, {filter: true});
+	
+		// TCO property 
+		panel.addNumber("Thumb Combination Opening", this.properties.tco, (v, e, name) =>
+		{
+			this.properties.tco = v;
+			if(callback)
+				callback();
+		}, {precision: 2, min: 0, max: 1, step: 0.01});
+		
+		// Second handshape property
+		panel.addSelect("Second hand shape", ["", ...HandshapeClip.handshapes], this.properties.secondHandshape, (v, e, name) => {
+				
+			this.properties.secondHandshape = v;
+			if(callback)
+				callback();
+			
+		}, {filter: true});
+	
+	
+		// Second thumbshape property
+		panel.addSelect("Second thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.secondThumbshape, (v, e, name) => {
+		
+			this.properties.secondThumbshape = v;
+			if(callback)
+				callback();
+			
+		}, {filter: true});
+	
+	
+		// Second TCO property 
+		panel.addNumber("Second Thumb Combination Opening", this.properties.secondtco, (v, e, name) =>
+		{
+			this.properties.secondtco = v;
+			if(callback)
+				callback();
+		}, {precision: 2, min: 0, max: 1, step: 0.01});
+
 		panel.addCheckbox("Thumb Target", this.applyThumbTarget, (v, e) => {
 			const changed = v != this.applyThumbTarget;
 			this.applyThumbTarget = v;
@@ -2327,6 +2378,7 @@ class HandshapeClip extends BaseClip {
 			if(callback)
 				callback(true);
 		}, {
+			className: "contrast", label: "",
 			title: "Overrides any other thumb specification",
 			suboptions: (p) => {
 	
@@ -2387,45 +2439,13 @@ class HandshapeClip extends BaseClip {
 				// ignore thumbSplay for now. System already applies a splay. The Thumbsplay overwrites the automatic splay
 			}
 		} );
-	
+
 		panel.addSeparator();
-		panel.addTitle( "Optionals: Main Shape Modifiers");
-	
-		// Thumbshape property
-		panel.addSelect("Thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.thumbshape, (v, e, name) => {
 		
-			this.properties.thumbshape = v;
-			if(callback)
-				callback();
-			
-		}, {filter: true});
-	
-		// TCO property 
-		panel.addNumber("Thumb Combination Opening", this.properties.tco, (v, e, name) =>
-		{
-			this.properties.tco = v;
-			if(callback)
-				callback();
-		}, {precision: 2, min: 0, max: 1, step: 0.01});
-	
-		// Main splay property 
-		panel.addCheckbox("Set splay fingers", this.properties.mainSplay != null, (v, e) => {
-			this.properties.mainSplay = v ? 0.5 : null;
-			if(callback)
-				callback(true);
-		}, {
-			title: "Separates laterally index, ring and pinky fingers",
-			suboptions: (p) => {
-				p.addNumber("Main splay fingers", this.properties.mainSplay ?? 0.5, (v, e, name) =>
-				{
-					this.properties.mainSplay = v;
-					if(callback)
-						callback();
-				}, 
-				{precision: 2, min: 0, max: 1, step: 0.01});
-			}
-		});	
-	
+		panel.addTitle( "Optionals: Finger Bending and Splaying");
+		
+				// Main splay property 
+		
 		// Bend property
 		panel.addSelect("Main bend", ["", ...HandshapeClip.bendstates], this.properties.mainBend, (v, e, name) => {
 	
@@ -2434,39 +2454,7 @@ class HandshapeClip extends BaseClip {
 				callback();
 			
 		}, {filter: true});
-		
-	
-		panel.addSeparator();
-		panel.addTitle( "Optionals: Secondary Shape Modifiers");
-	
-		// Second handshape property
-		panel.addSelect("Second hand shape", ["", ...HandshapeClip.handshapes], this.properties.secondHandshape, (v, e, name) => {
-				
-			this.properties.secondHandshape = v;
-			if(callback)
-				callback();
-			
-		}, {filter: true});
-	
-	
-		// Second thumbshape property
-		panel.addSelect("Second thumb shape", ["", ...HandshapeClip.thumbshapes], this.properties.secondThumbshape, (v, e, name) => {
-		
-			this.properties.secondThumbshape = v;
-			if(callback)
-				callback();
-			
-		}, {filter: true});
-	
-	
-		// Second TCO property 
-		panel.addNumber("Second Thumb Combination Opening", this.properties.secondtco, (v, e, name) =>
-		{
-			this.properties.secondtco = v;
-			if(callback)
-				callback();
-		}, {precision: 2, min: 0, max: 1, step: 0.01});
-	
+
 		// Second bend property
 		panel.addSelect("Second main bend", ["", ...HandshapeClip.bendstates], this.properties.secondMainBend, (v, e, name) => {
 	
@@ -2475,7 +2463,66 @@ class HandshapeClip extends BaseClip {
 				callback();
 			
 		}, {filter: true});
+
+		const addBendSplay = (attribute, guiId, isSplay = false, inputOptions = null) =>{
+			const attributeExists = this.properties[attribute] != undefined && this.properties[attribute] != null;
+			
+			panel.sameLine(2);
+			panel.addCheckbox("checkbox", attributeExists, (v,e)=>{
+				let inputs = panel.components[guiId].root.querySelectorAll("input");
+				for( let i = 0; i < inputs.length; ++i ){
+					v ? (inputs[i].disabled = false) : (inputs[i].disabled = true);
+				}
+				this.properties[attribute] = v ? panel.components[guiId].value() : null;
+
+				if(callback)
+					callback();
+
+			}, {className: "contrast", label:"", hideName: true, skipReset: true, width:"10%"});
+
+			if ( isSplay ){
+				panel.addRange(guiId, this.properties[attribute] ?? 0, (v,e)=>{
+					this.properties[attribute] = v;
+					if(callback)
+						callback();
+				}, Object.assign({ min: -2, max: 2, step: 0.01, precision: 2, skipReset:true, skipLock:true, width: "90%", disabled: !attributeExists}, inputOptions));
+			}
+			else{
+				let values = [0,0,0];
+				if( typeof this.properties[attribute] == "string" ){
+					for( let i = 0; (i < this.properties[attribute]) && (i < 3); ++i ){
+						values[i] = parseInt(this.properties[attribute]) / 9;
+					}
+					this.properties[attribute] = values;
 	
+				}else if( Array.isArray( this.properties[attribute] ) ){
+					for( let i = 0; (i < this.properties[attribute].length) && (i < 3); ++i ){
+						values[i] = this.properties[attribute][i];
+					}
+					this.properties[attribute] = values;
+				}
+	
+				panel.addVector3(guiId, values, (v,e)=>{
+					this.properties[attribute] = v;
+					if(callback)
+						callback();
+				}, inputOptions ?? Object.assign({ min: -2, max: 2, step: 0.01, precision: 2, skipReset:true, width: "90%", disabled: !attributeExists}, inputOptions));
+			}
+
+		}
+		
+		addBendSplay("bend2", "bend Index", false, { title: "Overrides any other bending applied to this finger" });
+		addBendSplay("bend3", "bend Middle", false, { title: "Overrides any other bending applied to this finger" });
+		addBendSplay("bend4", "bend Ring", false, { title: "Overrides any other bending applied to this finger" });
+		addBendSplay("bend5", "bend Pinky", false, { title: "Overrides any other bending applied to this finger" });
+
+		panel.addSeparator();
+	
+		addBendSplay("mainSplay", "Main Splay", true, { className: "accent" });
+		addBendSplay("splay2", "splay Index", true, { title: "Overrides any other splaying applied to this finger" });
+		addBendSplay("splay3", "splay Middle", true, { title: "Overrides any other splaying applied to this finger" });
+		addBendSplay("splay4", "splay Ring", true, { title: "Overrides any other splaying applied to this finger" });
+		addBendSplay("splay5", "splay Pinky", true,{ title: "Overrides any other splaying applied to this finger" });
 	}
 }
 
@@ -3071,6 +3118,7 @@ class DirectedMotionClip extends BaseClip {
 			if(callback)
 				callback(true);
 		}, {
+			className: "contrast", label: "",
 			suboptions: (p) =>{
 	
 				p.addSelect("Zig zag direction", ["", ...DirectedMotionClip.directions], this.properties.zigzag ?? "", (v, e, name) => {
@@ -3104,19 +3152,19 @@ class DirectedMotionClip extends BaseClip {
 			this.properties.lrSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
 		{
 			this.properties.udSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
 		{
 			this.properties.ioSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 	}
 }
 
@@ -3400,6 +3448,7 @@ class CircularMotionClip extends BaseClip {
 			if(callback)
 				callback(true);
 		}, {
+			className: "contrast", label: "",
 			suboptions: (p) =>{
 				panel.addSelect("Zig zag direction", ["", ...CircularMotionClip.directions], this.properties.zigzag ?? "", (v, e, name) => {
 						
@@ -3432,19 +3481,19 @@ class CircularMotionClip extends BaseClip {
 			this.properties.lrSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("Up-Down symmetry", this.properties.udSym, (v, e, name) =>
 		{
 			this.properties.udSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 		panel.addCheckbox("In-Out symmetry", this.properties.ioSym, (v, e, name) =>
 		{
 			this.properties.ioSym = v;
 			if(callback)
 				callback();
-		});
+		},{className: "contrast", label: ""});
 	}
 }
 
@@ -3731,7 +3780,7 @@ class FingerplayMotionClip extends BaseClip {
 				}
 				if(callback)
 					callback();
-			} )
+			},{className: "contrast", label: ""} );
 		}
 	}
 
@@ -3836,7 +3885,7 @@ class MouthingClip extends BaseClip {
 	
 			if(callback)
 				callback(true);
-		})
+		},{className: "contrast", label: ""});
 		if(this.properties.phT == null) {
 	
 			// Speed property 
@@ -3877,7 +3926,7 @@ class MouthingClip extends BaseClip {
 	
 			if(callback)
 				callback(true);
-		})
+		},{className: "contrast", label: ""});
 		if(this.properties.phInt== null) {
 	
 			// Speed property 
