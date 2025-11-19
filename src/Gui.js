@@ -1278,7 +1278,7 @@ class KeyframesGui extends Gui {
         console.assert(viewMenu, "View menu not found" );
 
         const showHideMenu = {
-            name: "Show & Hide", // warning: check all occurrence of this menu before changing the name
+            name: "Appearance", // warning: check all occurrence of this menu before changing the name
             submenu: [
                 {
                     name: "Scene Overlay Panel",
@@ -5125,7 +5125,7 @@ class KeyframesGui extends Gui {
                     selectable: true,
                     selected: true,
                     callback: (v,e) =>  {
-                        this.menubar.getItem( "View/Show & Hide/Avatar" ).checked = v; // a bit of a circular dependency
+                        this.menubar.getItem( "View/Appearance/Avatar" ).checked = v; // a bit of a circular dependency
                         editor.showSkin = v;
                         let model = editor.scene.getObjectByName("Armature");
                         model.visible = editor.showSkin;
@@ -5139,7 +5139,7 @@ class KeyframesGui extends Gui {
                     selectable: true,
                     selected: false,
                     callback: (v,e) =>  {
-                        this.menubar.getItem( "View/Show & Hide/Skeleton" ).checked = v; // a bit of a circular dependency
+                        this.menubar.getItem( "View/Appearance/Skeleton" ).checked = v; // a bit of a circular dependency
 
                         editor.showSkeleton = v;
                         let skeleton = editor.scene.getObjectByName("SkeletonHelper");
@@ -5161,7 +5161,7 @@ class KeyframesGui extends Gui {
                 selected: true,
                 callback: (v, e) => {
                     this.editor.scene.getObjectByName("Grid").visible = v;
-                    this.menubar.getItem( "View/Show & Hide/Scene Grid" ).checked = v; // a bit of a circular dependency
+                    this.menubar.getItem( "View/Appearance/Scene Grid" ).checked = v; // a bit of a circular dependency
                 }
             },
             {
@@ -5172,7 +5172,7 @@ class KeyframesGui extends Gui {
                 selected: true,
                 callback: (v, e) => {
                     editor.showGUI = v;
-                    this.menubar.getItem( "View/Show & Hide/GUI" ).checked = v; // a bit of a circular dependency
+                    this.menubar.getItem( "View/Appearance/GUI" ).checked = v; // a bit of a circular dependency
 
                     if( editor.scene.getObjectByName('Armature') ) {
                         this.canvasAreaOverlayButtons.buttons["Skeleton"].setState( v );
@@ -5287,7 +5287,7 @@ class ScriptGui extends Gui {
 
 
         const showHideMenu = {
-            name: "Show & Hide", // warning: check all occurrence of this menu before changing the name
+            name: "Appearance", // warning: check all occurrence of this menu before changing the name
             submenu: [
                 {
                     name: "Scene Overlay Panel",
@@ -6923,7 +6923,7 @@ class ScriptGui extends Gui {
                 selected: true,
                 callback: (v, e) => {
                     this.editor.scene.getObjectByName("Grid").visible = v;
-                    this.menubar.getItem( "View/Show & Hide/Scene Grid" ).checked = v; // a bit of a circular dependency
+                    this.menubar.getItem( "View/Appearance/Scene Grid" ).checked = v; // a bit of a circular dependency
                 }
             },
             {
@@ -6934,7 +6934,7 @@ class ScriptGui extends Gui {
                 selected: true,
                 callback: (v, e) => {
                     this.editor.showGUI = v;
-                    this.menubar.getItem( "View/Show & Hide/GUI" ).checked = v; // a bit of a circular dependency
+                    this.menubar.getItem( "View/Appearance/GUI" ).checked = v; // a bit of a circular dependency
 
                     this.canvasAreaOverlayButtons.buttons["Grid"].setState( this.editor.showGUI );
                   

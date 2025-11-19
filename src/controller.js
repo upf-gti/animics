@@ -1,17 +1,14 @@
 import * as THREE from 'three';
-import { BehaviourManager } from './libs/bml/BML.js'
-import { CharacterController } from './libs/bml/CharacterController.js';
+import { EBMLC } from './libs/bml/eBMLController.module.js';
 
 class BMLController {
 
     constructor(currentCharacter, config) {
         
-        let ECAcontroller = this.ECAcontroller = new CharacterController( {character: currentCharacter.model, characterConfig: config} );
+        let ECAcontroller = this.ECAcontroller = new EBMLC.CharacterController( {character: currentCharacter.model, characterConfig: config} );
         ECAcontroller.start({autoblink: false});
         ECAcontroller.reset();
     
-        
-        this.bmlManager = new BehaviourManager();
         // Update in first iteration
         if(!currentCharacter.morphTargets)
             console.warn("No morph targets to attach Controller!");
