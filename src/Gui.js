@@ -83,7 +83,6 @@ class Gui {
 
         this.editor.scene.background.set(this.editor.theme[scheme].background);
         this.editor.scene.getObjectByName("Grid").material.color.set(this.editor.theme[scheme].grid);
-        // this.editor.scene.getObjectByName("Grid").material.opacity.set(this.editor.theme[scheme].girdOpacity);
     }
 
     /** Create menu bar */
@@ -104,13 +103,13 @@ class Gui {
             {
                 name: "View",
                 submenu: [
-                        { 
-                            name: "Theme", icon: "Palette", 
-                            submenu: [
+                    { 
+                        name: "Theme", icon: "Palette", 
+                        submenu: [
                             { name: "Light", icon: "Sun", callback: () => this.setColorTheme("light") },
                             { name: "Dark", icon: "Moon", callback: () => this.setColorTheme("dark") }
                         ] 
-                    }
+                    },                    
                 ]
             },
             {
@@ -1277,28 +1276,69 @@ class KeyframesGui extends Gui {
         const viewMenuItem = entries.find( e => e.name == "View" );
         const viewMenu = viewMenuItem.submenu;
         console.assert(viewMenu, "View menu not found" );
+
+        const showHideMenu = {
+            name: "Appearance", // warning: check all occurrence of this menu before changing the name
+            submenu: [
+                {
+                    name: "Scene Overlay Panel",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        if ( v ){
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.remove("hidden");
+                        }else{
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
+                        }
+                    }
+                },
+                {
+                    name: "GUI",
+                    checked: true,
+                    callback: (title, v, e) => {
+                        this.canvasAreaOverlayButtons.buttons["GUI"].setState(v);
+                    }
+                },
+                {
+                    name: "Scene Grid",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Grid"].setState(v);
+                    }
+                },
+                {
+                    name: "Skeleton",
+                    checked: false,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Skeleton"].setState(v);
+                    }
+                },
+                {
+                    name: "Avatar",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Skin"].setState(v);
+                    }
+                },
+                { name: "Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
+                    this.showVideo = v;
+                    this.editor.setVideoVisibility( v );
+                }}
+            ]
+        }
+
         viewMenu.push( 
             null, 
             { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") },
             null,
-            { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
-                this.showVideo = v;
-                this.editor.setVideoVisibility( v );
-            }}
+            showHideMenu
         );
-        viewMenuItem.completeSubmenu = viewMenu.slice(); // shallow copy
+        showHideMenu.completeSubmenu = showHideMenu.submenu.slice();
         viewMenuItem._setMode = (mode)=>{ // 0 do not show video, 1 show video
             if ( mode ){
-                viewMenuItem.submenu = viewMenuItem.completeSubmenu;
+                showHideMenu.submenu = showHideMenu.completeSubmenu;
             }else{
-                viewMenuItem.submenu = viewMenuItem.completeSubmenu.filter( (v,i,arr) =>{
-                    if(v){ 
-                        if(v.name.includes("Video")){
-                            return false;
-                        }
-                    }
-                    return true;
-                })
+                // shallow copy. Any changes to the submenu items (.checked) will be reflected on both submenu and completeSubmenu
+                showHideMenu.submenu = showHideMenu.completeSubmenu.slice(0, showHideMenu.completeSubmenu.length-1);
             }
         }
         viewMenuItem._setMode(0);
@@ -3662,7 +3702,7 @@ class KeyframesGui extends Gui {
             const innerGetTracksToSelect = (auNames) => {
                 let result = [];
                 for( let i = 0; i < auNames.length; ++i ){
-                    let bss = auToBsIndices[ auNames[i] ];
+                    let bss = auToBsIndices[ auNames[i] ] ?? [];
                     for ( let b = 0; b < bss.length; ++b ){
                         const trackIdx = bss[b][0];
                         let needsSelection = true;
@@ -3783,7 +3823,7 @@ class KeyframesGui extends Gui {
                 const name = areas[area][id];
 
                 // compute au to bs mapping changing names to timeline track idx
-                const auMapping = auToBsIndices[name];
+                const auMapping = auToBsIndices[name] ?? [];
                 for( let a = 0; a < auMapping.length; ++a ){
                     const t = this.bsTimeline.getTrack(auMapping[a][0]);
                     if ( !t ){
@@ -4841,8 +4881,8 @@ class KeyframesGui extends Gui {
                             
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Upload to server', 
@@ -4853,8 +4893,8 @@ class KeyframesGui extends Gui {
                             
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvh",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -4863,8 +4903,8 @@ class KeyframesGui extends Gui {
                         const items = this.editor.localStorage[0].children[0].children;
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));  
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -4873,8 +4913,8 @@ class KeyframesGui extends Gui {
                         const items = this.editor.localStorage[0].children[0].children;
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));                        
                     }
-                });             
-                previewActions.push({
+                },
+                {
                     type: "bvh",
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
@@ -4892,8 +4932,8 @@ class KeyframesGui extends Gui {
                             // this.closeDialogs();                            
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
@@ -5081,10 +5121,12 @@ class KeyframesGui extends Gui {
                 {
                     name: 'Skin',
                     property: 'showSkin',
-                    icon: 'UserX',
+                    icon: 'UserRoundCheck',
                     selectable: true,
-                    callback: (v) =>  {
-                        editor.showSkin = !editor.showSkin;
+                    selected: true,
+                    callback: (v,e) =>  {
+                        this.menubar.getItem( "View/Appearance/Avatar" ).checked = v; // a bit of a circular dependency
+                        editor.showSkin = v;
                         let model = editor.scene.getObjectByName("Armature");
                         model.visible = editor.showSkin;
                         
@@ -5096,8 +5138,10 @@ class KeyframesGui extends Gui {
                     icon: 'Bone',
                     selectable: true,
                     selected: false,
-                    callback: (value,event) =>  {
-                        editor.showSkeleton = this.canvasAreaOverlayButtons.buttons["Skeleton"].root.children[0].classList.contains("selected");
+                    callback: (v,e) =>  {
+                        this.menubar.getItem( "View/Appearance/Skeleton" ).checked = v; // a bit of a circular dependency
+
+                        editor.showSkeleton = v;
                         let skeleton = editor.scene.getObjectByName("SkeletonHelper");
                         skeleton.visible = editor.showSkeleton;
                         editor.scene.getObjectByName('GizmoPoints').visible = editor.showSkeleton;
@@ -5107,42 +5151,56 @@ class KeyframesGui extends Gui {
                 }
             ];       
         }
-        
+
         canvasButtons.push(
             {
-                name: 'GUI',
-                property: 'showGUI',
+                name: 'Grid',
+                property: 'showGrid',
                 icon: 'Grid',
                 selectable: true,
                 selected: true,
                 callback: (v, e) => {
-                    editor.showGUI = !editor.showGUI;
+                    this.editor.scene.getObjectByName("Grid").visible = v;
+                    this.menubar.getItem( "View/Appearance/Scene Grid" ).checked = v; // a bit of a circular dependency
+                }
+            },
+            {
+                name: 'GUI',
+                property: 'showGUI',
+                icon: 'PanelLeftClose',
+                selectable: true,
+                selected: true,
+                callback: (v, e) => {
+                    editor.showGUI = v;
+                    this.menubar.getItem( "View/Appearance/GUI" ).checked = v; // a bit of a circular dependency
 
                     if( editor.scene.getObjectByName('Armature') ) {
-                        editor.scene.getObjectByName('SkeletonHelper').visible = editor.showGUI;
+                        this.canvasAreaOverlayButtons.buttons["Skeleton"].setState( v );
                     }
 
-                    if( editor.gizmo ) {
-                        editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
-                    }
+                    this.canvasAreaOverlayButtons.buttons["Grid"].setState( v );
 
-                    editor.scene.getObjectByName('Grid').visible = editor.showGUI;
-                    
                     if(!editor.showGUI) {
                         if(editor.gizmo) {
                             editor.gizmo.disableTransform();
                         }
                         this.hideTimeline();
                         this.sidePanelArea.parentArea.extend();
-                        this.hideVideoOverlay();                       
+                        this.hideVideoOverlay();
                     } else {
                         this.showTimeline();
-                        this.sidePanelArea.parentArea.reduce();  
+                        this.sidePanelArea.parentArea.reduce();
                         const currentAnim = this.editor.currentKeyFrameClip;
                         if ( currentAnim && currentAnim.type == "video" && this.showVideo ){
                             this.showVideoOverlay();
                         }
-                    }                  
+                    }
+
+                    setTimeout( ()=>{
+                        this.editor.delayedResizeTime = 1;
+                        this.editor.delayedResize();
+                        this.editor.delayedResizeTime = 500;
+                    }, 120);
                 }
             }
         )
@@ -5227,6 +5285,40 @@ class ScriptGui extends Gui {
             ] }
         );
 
+
+        const showHideMenu = {
+            name: "Appearance", // warning: check all occurrence of this menu before changing the name
+            submenu: [
+                {
+                    name: "Scene Overlay Panel",
+                    checked: false,
+                    callback: (title, v,e)=>{
+                        if ( v ){
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.remove("hidden");
+                        }else{
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
+                        }
+                    }
+                },
+                {
+                    name: "GUI",
+                    checked: true,
+                    callback: (title, v, e) => {
+                        this.canvasAreaOverlayButtons.buttons["GUI"].setState(v);
+                    }
+                },
+                {
+                    name: "Scene Grid",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Grid"].setState(v);
+                    }
+                }
+            ]
+        }
+        const viewMenu = entries.find( e => e.name == "View" )?.submenu;
+        viewMenu.push( showHideMenu );
+
         const helpMenu = entries.find( e => e.name == "Help" )?.submenu;
         console.assert(helpMenu, "Help menu not found" );
         helpMenu.push(
@@ -5294,7 +5386,7 @@ class ScriptGui extends Gui {
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
-                }, {min: 0, disabled: false});
+                }, {min: 1, disabled: false});
                 dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
             },
         });
@@ -5332,10 +5424,6 @@ class ScriptGui extends Gui {
             if(clip.stroke) clip.stroke+=offset;
             if(clip.strokeEnd) clip.strokeEnd+=offset;
             this.updateClipSyncGUI();
-            if(clip.onChangeStart)  {
-                clip.onChangeStart(offset);
-            }
-
             this.delayedUpdateTracks();
         };
 
@@ -5428,13 +5516,11 @@ class ScriptGui extends Gui {
                                     return -1;
                                 return 1;
                             });
-                            // this.createSaveDialog( "presets");
                             this.createPresetSaveDialog( "presets" );
-                            // this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
                         }
                     }
                 );
-                if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
+                if(e.track && this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
                     let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
                     if(clip.type == "glossa") {                        
                         actions.push(
@@ -5519,7 +5605,7 @@ class ScriptGui extends Gui {
     reorderClips( mode = 0x00 ){
         const clipTypesOrder = [
             ANIM.SuperClip, 
-            ANIM.FaceLexemeClip, ANIM.FaceFACSClip, ANIM.FaceEmotionClip, ANIM.FacePresetClip, ANIM.MouthingClip,
+            ANIM.FaceEmotionClip, ANIM.FaceLexemeClip, ANIM.FaceFACSClip, ANIM.FacePresetClip, ANIM.MouthingClip,
             ANIM.GazeClip, ANIM.HeadClip,  
             ANIM.ElbowRaiseClip, ANIM.ShoulderClip, ANIM.BodyMovementClip,
             ANIM.ArmLocationClip,
@@ -5890,7 +5976,7 @@ class ScriptGui extends Gui {
             panel.clear();
             if(!clip) {
                 if(this.clipsTimeline.lastClipsSelected.length > 1) {
-                    widgets.addButton(null, "Create preset", (v, e) => this.createPresetSaveDialog( "presets" ))//this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
+                    panel.addButton(null, "Create preset", (v, e) => this.createPresetSaveDialog( "presets" ))//this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
                 }
                 return;
             }
@@ -6002,9 +6088,6 @@ class ScriptGui extends Gui {
                 this.clipInPanel.start = v;
                 clip.start = v;
                 
-                if(clip.onChangeStart) {
-                    clip.onChangeStart(diff);
-                }
 				this.updateClipSyncGUI();
                 updateTracks();
                 
@@ -6399,17 +6482,29 @@ class ScriptGui extends Gui {
                 asset_browser.clear();
                 dialog.close();
         }
-        let previewActions =  [{
-            type: "Clip",
-            name: 'Add clip', 
-            callback: innerSelect,
-            allowedTypes: ["Clip"]
-        }];
+
+        const createPreviewActionClipType = ( type ) =>{
+            return {
+                type: type,
+                name: 'Add clip', 
+                callback: innerSelect,
+                allowedTypes: ["Clip"]
+            }
+        }
+
+        let previewActions =  [ createPreviewActionClipType( "Clip" ) ];
+
 
         let asset_browser = null;
         let dialog = this.prompt = new LX.Dialog('Available behaviours', (p) => {
 
-            let asset_data = [{id: "Face", type: "folder", children: []}, {id: "Head", type: "folder",  children: []}, {id: "Arms", type: "folder",  children: []}, {id: "Hands", type: "folder",  children: []}, {id: "Body", type: "folder",  children: []}];
+            let asset_data = [
+                {id: "Face", type: "folder", children: []},
+                {id: "Head", type: "folder",  children: []},
+                {id: "Arms", type: "folder",  children: []},
+                {id: "Hands", type: "folder",  children: []},
+                {id: "Body", type: "folder",  children: []}
+            ];
                 
             // FACE CLIP
 
@@ -6424,20 +6519,9 @@ class ScriptGui extends Gui {
                 }
                 lexemes.push(data);
             }
-            previewActions.push({
-                type: "FaceLexemeClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
             // Face lexemes & Mouthing clips
-            asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Mouthing", type: "MouthingClip"}];
-            previewActions.push({
-                type: "MouthingClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
+            asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Face emotion", type: "FaceEmotionClip"}, {id: "Mouthing", type: "MouthingClip"}];
+
             // HEAD
             // Gaze clip
             values = ANIM.GazeClip.influences;
@@ -6450,13 +6534,7 @@ class ScriptGui extends Gui {
                 gazes.push(data);
             }
 
-            previewActions.push({
-                type: "GazeClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            // Head movemen clip
+            // Head movement clip
             values = ANIM.HeadClip.lexemes;
             let movements = [];
             for(let i = 0; i < values.length; i++){
@@ -6466,84 +6544,29 @@ class ScriptGui extends Gui {
                 }
                 movements.push(data);
             }
-            previewActions.push({
-                type: "HeadClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
             asset_data[1].children = [{ id: "Gaze", type: "folder", children: gazes}, {id: "Head movement", type: "folder", children: movements}];
-
             asset_data[2].children = [{id: "Elbow Raise", type: "ElbowRaiseClip"}, {id: "Shoulder Raise", type: "ShoulderClip"}, {id:"Shoulder Hunch", type: "ShoulderClip"}, {id: "Arm Location", type: "ArmLocationClip"}, {id: "Hand Constellation", type: "HandConstellationClip"}, {id: "Directed Motion", type: "DirectedMotionClip"}, {id: "Circular Motion", type: "CircularMotionClip"}];
-            previewActions.push({
-                type: "ElbowRaiseClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "ShoulderClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "ArmLocationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "HandConstellationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "DirectedMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "CircularMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
             asset_data[3].children = [{id: "Palm Orientation", type: "PalmOrientationClip"}, {id: "Hand Orientation", type: "HandOrientationClip"}, {id: "Handshape", type: "HandshapeClip"}, {id: "Wrist Motion", type: "WristMotionClip"}, {id: "Fingerplay Motion", type: "FingerplayMotionClip"}];
-            previewActions.push({
-                type: "PalmOrientationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "HandOrientationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "WristMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "FingerplayMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            // BODY
             asset_data[4].children.push({id: "Body movement", type: "BodyMovementClip"});
-            previewActions.push({
-                type: "BodyMovementClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
+            
+            previewActions.push( 
+                createPreviewActionClipType( "FaceLexemeClip" ),
+                createPreviewActionClipType( "FaceEmotionClip" ),
+                createPreviewActionClipType( "MouthingClip" ),
+                createPreviewActionClipType( "GazeClip" ),
+                createPreviewActionClipType( "HeadClip" ),
+                createPreviewActionClipType( "ElbowRaiseClip" ),
+                createPreviewActionClipType( "ShoulderClip" ),
+                createPreviewActionClipType( "ArmLocationClip" ),
+                createPreviewActionClipType( "HandConstellationClip" ),
+                createPreviewActionClipType( "DirectedMotionClip" ),
+                createPreviewActionClipType( "CircularMotionClip" ),
+                createPreviewActionClipType( "PalmOrientationClip" ),
+                createPreviewActionClipType( "HandOrientationClip" ),
+                createPreviewActionClipType( "WristMotionClip" ),
+                createPreviewActionClipType( "FingerplayMotionClip" ),
+                createPreviewActionClipType( "BodyMovementClip" )
+            );
 
             asset_browser = new LX.AssetView({ previewActions });
             p.attach( asset_browser );
@@ -6687,8 +6710,8 @@ class ScriptGui extends Gui {
                                 
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bml",
                         path: "@/Local/" + folder,
                         name: 'Upload to server', 
@@ -6699,8 +6722,8 @@ class ScriptGui extends Gui {
                                 
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bvh",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -6713,8 +6736,8 @@ class ScriptGui extends Gui {
                                 }
                             })
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bvhe",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -6727,8 +6750,8 @@ class ScriptGui extends Gui {
                                 }
                             })                        
                         }
-                    });    
-                    previewActions.push({
+                    },
+                    {
                         type: "sigml",
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
@@ -6746,8 +6769,8 @@ class ScriptGui extends Gui {
                                 // this.closeDialogs();                            
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bml",
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
@@ -6980,33 +7003,50 @@ class ScriptGui extends Gui {
 
     createSceneUI(area) {
 
-        let editor = this.editor;
         let canvasButtons = [
             {
-                name: 'GUI',
-                property: 'showGUI',
+                name: 'Grid',
+                property: 'showGrid',
                 icon: 'Grid',
                 selectable: true,
                 selected: true,
                 callback: (v, e) => {
-                    editor.showGUI = !editor.showGUI;
+                    this.editor.scene.getObjectByName("Grid").visible = v;
+                    this.menubar.getItem( "View/Appearance/Scene Grid" ).checked = v; // a bit of a circular dependency
+                }
+            },
+            {
+                name: 'GUI',
+                property: 'showGUI',
+                icon: 'PanelLeftClose',
+                selectable: true,
+                selected: true,
+                callback: (v, e) => {
+                    this.editor.showGUI = v;
+                    this.menubar.getItem( "View/Appearance/GUI" ).checked = v; // a bit of a circular dependency
 
-                    editor.scene.getObjectByName('Grid').visible = editor.showGUI;
+                    this.canvasAreaOverlayButtons.buttons["Grid"].setState( this.editor.showGUI );
                   
-                    if(editor.showGUI) {
+                    if(this.editor.showGUI) {
                         this.showTimeline();
-                        this.sidePanelArea.parentArea.reduce();                       
-                        
+                        this.sidePanelArea.parentArea.reduce();                        
                     } else {
                         this.hideTimeline();
                         this.sidePanelArea.parentArea.extend();
-
                     }
+
+                    // if this is not done, canvas might not resize properly. Panel resize transition lasts for 0.1 seconds
+                    setTimeout( ()=>{
+                        this.editor.delayedResizeTime = 1; //hack to make it immediate
+                        this.editor.delayedResize();
+                        this.editor.delayedResizeTime = 500;
+                    }, 120);
                 }
             },
     
         ]
         this.canvasAreaOverlayButtons = area.addOverlayButtons(canvasButtons, { float: "htc" } );
+        this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
     }
 
     
