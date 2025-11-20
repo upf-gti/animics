@@ -45,6 +45,7 @@ function createMenuBar( area ) {
     signupButton.tabIndex = "1";
     signupButton.role = "button";
     signupButton.listen( "click", () => {
+        animics.showCreateAccountDialog( { user: "", password: "" }, _checkSession );
     } );			
     signupButton.id = "signup-button";
 
@@ -52,7 +53,7 @@ function createMenuBar( area ) {
     loginButton.tabIndex = "1";
     loginButton.role = "button";
     loginButton.listen( "click", () => {
-        showLoginModal();
+        animics.showLoginModal( _checkSession );
     } );
     loginButton.id = "login-button"
 
@@ -68,7 +69,7 @@ function createMenuBar( area ) {
                 appendAnimationFiles( true );
             } },
             null,
-            { name: "Logout", icon: "LogOut", callback: () => { _logout() } },
+            { name: "Logout", icon: "LogOut", callback: () => { animics._logout( _checkSession ); } },
             
         ], { side: "bottom", align: "end" });
     } );									
@@ -520,39 +521,6 @@ function onLoadFiles( files ) {
     return null;
 }
 
-function showLoginModal() {
-    let prompt = new LX.Dialog("Login", (p) => {
-        
-        const formData = { Username: "", Password: { value: "", type: "password" } };
-        p.addForm("Login", formData, (value, event) => {
-            animics.remoteFileSystem.login(value.Username, value.Password, (session, response) => {
-                if(response.status == 1) {
-                    
-                    _checkSession();							
-                }
-                else {                           
-                    //refresh(p, response.msg || "Can't connect to the server. Try again!");
-                    LX.popup(response.msg || "Can't connect to the server. Try again!", "Error");
-                }
-                prompt.close();
-                prompt = null;
-            });
-        }, { primaryActionName: "Login", secondaryActionName: "Sign Up", secondaryActionCallback: () =>{}} ) // this.showCreateAccountDialog({username, password});});
-        
-        
-    }, {modal: true, closable: true} )
-}
-
-function _logout() {
-
-    animics.remoteFileSystem.logout(() => {
-        animics.remoteFileSystem.login("guest", "guest", () => {                    
-            _checkSession();
-        })
-
-    }); 
-}
-
 function _checkSession() {
 
     const signupButton = document.getElementById("signup-button");
@@ -591,6 +559,11 @@ function appendAnimationFiles( refresh = false) {
                 projectItems.innerHTML = "";
             }
         }
+
+        const projectText = document.getElementById("project-text");
+        projectText.classList.add("hidden");
+
+        files = files ?? [];
         for(const data of files) {            
             _makeProjectItem( data );
         }

@@ -208,14 +208,11 @@ class Gui {
             new LX.DropdownMenu( userButton, [
                 
                 { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
-                { name: "Logout", icon: "LogOut", callback: () => { 
-                    this.editor.remoteFileSystem.logout(() => {
-                        this.editor.remoteFileSystem.login("guest", "guest", () => {
-                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
-                            this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
-                        })
+                { name: "Logout", icon: "LogOut", callback: () => {
+                    this.editor.ANIMICS._logout( () => {
+                        const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
+                        this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
                         this.changeLoginButton();
-        
                     }); 
                 } },
                 
@@ -254,104 +251,11 @@ class Gui {
     }
 
     showLoginModal() {
-        this.prompt = new LX.Dialog("Login", (p) => {
-            let username = "";
-            let password = "";
-            const refresh = (p, msg) => {
-                p.clear();
-                if(msg) {
-                    p.addText(null, msg, null, {disabled: true, warning: true, className: "nobg"});
-                }
-                p.addText("User", username, (v) => {
-                    username = v;
-                });
-                p.addText("Password", password, (v) => {
-                    password = v;
-                }, {type: "password"});
-                p.sameLine(2);
-
-                let b = p.addButton(null, "Cancel", (v) => {
-                    this.prompt.close();
-                    this.prompt = null;
-                });
-                b.root.style.width = "50%";
-    
-                b = p.addButton(null, "Login", (v) => {
-                    this.editor.remoteFileSystem.login(username, password, (session, response) => {
-                        if(response.status == 1) {
-                            this.changeLoginButton(session.user.username);
-                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
-                            this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
-                            this.prompt.close();
-                            this.prompt = null;
-                        }
-                        else {                           
-                            refresh(p, response.msg || "Can't connect to the server. Try again!");
-                        }
-                    });
-                }, { buttonClass: "accent" });
-                b.root.style.width = "50%";
-
-                p.addButton(null, "Sign up", (v) => {
-                    this.prompt.close();
-                    this.prompt = null;
-                    this.showCreateAccountDialog({username, password});
-                })
-            }
-            refresh(p);
-            
-        }, {modal: true, closable: true} )
-
-        this.prompt.onclose = () => {
-            // this.editor.getDictionaries();
-            this.prompt = null;
-        }
-  
-    }
-
-    showCreateAccountDialog(session = {user: "", password: ""})
-    {
-        let user = session.user, pass = session.password,
-        pass2 = "", email = "";
-        let errors = false;
-
-        this.prompt = new LX.Dialog("Create account", (p) => {
-        
-            const refresh = (p, msg) => {
-                p.clear();
-                if(msg) {
-
-                    let w = p.addText(null, msg, null, {disabled: true, warning: true});
-                }
-                p.addText("Username", user, (v) => { user = v; });
-                p.addText("Email", email, (v) => { email = v; }, {type: "email"});
-                p.addText("Password", pass, (v) => { pass = v; }, {type: "password"});
-                p.addText("Confirm password",pass2, (v) => { pass2 = v; }, {type: "password"});
-                p.addButton(null, "Register",  () => {
-                    if(pass === pass2)
-                    {
-                        this.editor.remoteFileSystem.createAccount(user, pass, email, (request) => {
-                            
-                                this.prompt.close();
-                                this.prompt = null;
-                                let el = document.querySelector("#Login");
-                                el.innerText = session.user;
-                                // this.showLoginModal( { user: user, password: pass});
-                            }, (request)  => {
-                                refresh(p, "Server status: " + (request.msg ||  "Can't connect to the server. Try again!"));
-                            }
-                        );
-                    }
-                    else
-                    {
-                        refresh(p, "Please confirm password");
-                        console.error("Wrong pass confirmation");
-                    }
-                }, { buttonClass: "accent" })
-            }
-            refresh(p);
-        }, {modal: true, closable: true});
-            
+        this.editor.ANIMICS.showLoginModal( (session, response) => {
+                this.changeLoginButton(session.user.username);
+                const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
+                this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
+        } );  
     }
 
     showExportAnimationsDialog(title, callback, options = { formats: [], folders: [], from: [] }) {
@@ -6387,6 +6291,17 @@ class ScriptGui extends Gui {
                     globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
                     globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
                 }
+                for( let i = 0; i < presetData.clips.length; i++ ) {
+                        
+                    const clip = presetData.clips[i];
+                    clip.start -= globalStart;
+        
+                    if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
+                    if(clip.ready!=undefined) clip.ready -= globalStart;
+                    if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
+                    if(clip.relax!=undefined) clip.relax -= globalStart;
+                    if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
+                }
                 presetData.duration = globalEnd - globalStart;
                 presetData.preset = value;
                 const preset = new ANIM.FacePresetClip( presetData );
@@ -6410,10 +6325,6 @@ class ScriptGui extends Gui {
                 value = v;
             });
            
-            p.addNumber("Framerate (fps)", this.editor.animationFrameRate, (v) => {
-                this.editor.animationFrameRate = v;
-            }, {min: 1, disabled: false})
-
             p.sameLine(2);
             p.addButton("exportCancel", "Cancel", () => { dialog.close();}, {hideName: true, width: "50%"} );
             p.addButton("exportOk", "OK", (v, e) => { 
@@ -6425,17 +6336,20 @@ class ScriptGui extends Gui {
                 }
                 else {
                     const session = this.editor.remoteFileSystem.session;
-                    const user = session ? session.user : ""
+                    const user = session ? session.user : "";
                     if( !user || user.username == "guest" ) {
-                        this.prompt = new LX.Dialog("Alert", d => {
-                            d.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
-                            const btn = d.addButton(null, "Login", () => {
-                                this.prompt.close();
-                                this.showLoginModal();
-                            }, {width:"50%", buttonClass:"accent"});
-                            btn.root.style.margin = "0 auto";
-                        }, {closable: true, modal: true})
-                        
+                        if ( !this._PresetNeedsLoginWasDisplayed ){
+                            this._PresetNeedsLoginWasDisplayed = true;
+                            const alertDialog = new LX.Dialog("Alert", panel => {
+                                panel.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
+                                const btn = panel.addButton(null, "Login", () => {
+                                    alertDialog.close();
+                                    this.showLoginModal();
+                                }, {width:"50%", buttonClass:"accent"});
+                                btn.root.style.margin = "0 auto";
+                            }, {closable: true, modal: true})
+                        }
+                        saveDataToServer("local");
                     }
                     else {
                         saveDataToServer("server");

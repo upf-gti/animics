@@ -36,6 +36,90 @@ class Animics {
         })
     }
 
+    showLoginModal( onLoginCallback = null ) {
+        let prompt = new LX.Dialog("Login", (p) => {
+            
+            const formData = { Username: "", Password: { value: "", type: "password" } };
+            p.addForm("Login", formData, (value, event) => {
+                this.remoteFileSystem.login(value.Username, value.Password, (session, response) => {
+                    if(response.status == 1) {
+                        if ( onLoginCallback ){
+                            onLoginCallback(session, response);
+                        }
+                    }
+                    else {
+                        LX.popup(response.msg || "Can't connect to the server. Try again!", "Error");
+                    }
+                    prompt.close();
+                    prompt = null;
+                });
+            }, {
+                primaryActionName: "Login",
+                secondaryActionName: "Sign Up",
+                secondaryActionCallback: () =>{ 
+                    this.showCreateAccountDialog({user: formData.Username.textComponent.value(), password: formData.Password.textComponent.value()}, onLoginCallback ); 
+                    prompt.close();
+                    prompt = null;
+                }
+            });
+
+        }, {modal: true, closable: true} );
+        return prompt;
+    }
+    
+    showCreateAccountDialog(session = {user: "", password: ""}, onLoginCallback = null ) {
+        let user = session.user, pass = session.password,
+        pass2 = "", email = "";
+    
+        let prompt = new LX.Dialog("Create account", (p) => {
+        
+            const refresh = (p, msg) => {
+                p.clear();
+                if(msg) {
+                    let w = p.addText(null, msg, null, {disabled: true, warning: true});
+                }
+                p.addText("Username", user, (v) => { user = v; });
+                p.addText("Email", email, (v) => { email = v; }, {type: "email"});
+                p.addText("Password", pass, (v) => { pass = v; }, {type: "password"});
+                p.addText("Confirm password",pass2, (v) => { pass2 = v; }, {type: "password"});
+                p.addButton(null, "Register",  () => {
+                    if(pass === pass2)
+                    {
+                        this.remoteFileSystem.createAccount(user, pass, email, (request) => {
+                            
+                                if ( onLoginCallback ){
+                                    onLoginCallback( this.remoteFileSystem.session, request );
+                                }
+                                prompt.close();
+                                prompt = null;
+                            }, (request)  => {
+                                refresh(p, "Server status: " + (request.msg ||  "Can't connect to the server. Try again!"));
+                            }
+                        );
+                    }
+                    else
+                    {
+                        refresh(p, "Please confirm password");
+                        console.error("Wrong pass confirmation");
+                    }
+                }, { buttonClass: "accent" })
+            }
+            refresh(p);
+        }, {modal: true, closable: true});
+    }
+
+    _logout( callback = null ) {
+
+        this.remoteFileSystem.logout(() => {
+            this.remoteFileSystem.login("guest", "guest", () => {                    
+                if ( callback ){
+                    callback();
+                }
+            })
+    
+        }); 
+    }
+
     async init(settings = {}) {
         this.mainArea = LX.main_area || await LX.init();
 
