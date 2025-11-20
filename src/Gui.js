@@ -1255,8 +1255,8 @@ class KeyframesGui extends Gui {
         const helpMenu = entries.find( e => e.name == "Help" )?.submenu;
         console.assert(helpMenu, "Help menu not found" );
         helpMenu.push(
-            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs", "_blank")},
-            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open( window.location.origin + "/docs/keyframe", "_blank" ) },
+            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank") }
         );
         const shortcutsMenu = helpMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
@@ -5231,9 +5231,9 @@ class ScriptGui extends Gui {
         const helpMenu = entries.find( e => e.name == "Help" )?.submenu;
         console.assert(helpMenu, "Help menu not found" );
         helpMenu.push(
-            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs/script_animation.html", "_blank")},
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open( window.location.origin + "/docs/script", "_blank" )},
             { name: "BML Instructions", icon: "CodeSquare", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") },
-            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
+            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}
         );
         const shortcutsMenu = helpMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
