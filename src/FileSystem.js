@@ -1,11 +1,11 @@
 import { LFS } from './libs/litefileserver.js';
-
+import { UTILS } from './Utils.js';
 class RemoteFileSystem {
     
     constructor( callback, folders = []) {
         this.session = null;
 
-        this.host = "https://signon-lfs.gti.upf.edu/";
+        this.host = "https://dev-lfs.gti.upf.edu/";
         this.root = this.host + "files/";
         
         // this.repository = {signs:[], presets: [], clips:[]};
@@ -323,31 +323,74 @@ class RemoteFileSystem {
         for( let i = 0; i < this.repository.length; i++ ) {
             const unit = this.repository[i].id;
             //get all folders for empty units
-            await session.getFolders( unit, async ( folders ) =>  {
-                const foldersData = [];
-                for( let folder in folders.animics ) {
-                    if( allowFolders.length && allowFolders.indexOf(folder) < 0 ) {
-                        continue;
-                    }
-                    const assets = [];
-                    const mainFolder = folders.animics[ folder ];
-                    if( mainFolder ) {
-                        for( let folderc in mainFolder ) {
-                            const data = {id: folderc, type: "folder", folder:  folderc , children: [], unit: unit, fullpath: "animics/"+ folder + "/" + folderc};                            
-                            assets.push( data );
+            // await session.getFolders( unit, async ( folders ) =>  {
+            //     const foldersData = [];
+            //     for( let folder in folders.animics ) {
+            //         if( allowFolders.length && allowFolders.indexOf(folder) < 0 ) {
+            //             continue;
+            //         }
+            //         const assets = [];
+            //         const mainFolder = folders.animics[ folder ];
+            //         if( mainFolder ) {
+            //             for( let folderc in mainFolder ) {
+            //                 const data = {id: folderc, type: "folder", folder:  folderc , children: [], unit: unit, fullpath: "animics/"+ folder + "/" + folderc};                            
+            //                 assets.push( data );
+            //             }
+            //         }
+            //         const folderData = {id: folder, type: "folder", folder: folder , children: assets, unit: unit, fullpath: "animics/"+ folder };
+            //         if( folder == "presets" ) {
+            //             folderData.icon = "Tags";
+            //         }
+            //         else if( folder == "signs") {
+            //             folderData.icon = "HandsAslInterpreting";
+            //         }
+            //         foldersData.push( folderData )
+            //     }
+            //     const data = {id: unit, type: "folder", children: foldersData, unit: unit};
+            //     this.repository[i] = data;
+            //     count++;
+
+            //     if( count == this.repository.length ) {
+            //         // this.repository.push(this.localStorage);
+                    
+            //         if( callback ) {
+            //             callback();
+            //         }
+            //     }
+            // })
+            await session.getFoldersAndFiles( unit, "animics", 2, async ( folders ) =>  {
+
+                const getAssetInfo = (unit, assets, path, restrictFolders = []) => {
+                    const extraData = [];
+                    for( let asset in assets ) {
+                        if( restrictFolders.length && restrictFolders.indexOf(asset) < 0) {
+                            continue;
                         }
+                        const data = {id: null, type: null, folder: null, children: [], unit: unit, fullpath: path+"/"+asset};
+                        if( typeof(assets[asset]) == 'object' ) {
+                            data.id = asset;
+                            data.type = "folder";
+                            data.folder = asset;
+                            data.children = getAssetInfo(unit, assets[asset], path+"/"+asset);
+                        }
+                        else {
+                            const filename = assets[asset];
+                            const type = UTILS.getExtension( filename );
+                            data.id = filename;
+                            data.type = type;
+                            data.fullpath = path+"/"+filename;
+                        }
+                        extraData.push( data )
                     }
-                    const folderData = {id: folder, type: "folder", folder: folder , children: assets, unit: unit, fullpath: "animics/"+ folder };
-                    if( folder == "presets" ) {
-                        folderData.icon = "Tags";
-                    }
-                    else if( folder == "signs") {
-                        folderData.icon = "HandsAslInterpreting";
-                    }
-                    foldersData.push( folderData )
+                    return extraData;
                 }
-                const data = {id: unit, type: "folder", children: foldersData, unit: unit};
-                this.repository[i] = data;
+                console.log(folders)
+                const extraData = {id: unit, type: "folder", folder: null, children: [], unit: unit};
+                const data = getAssetInfo(unit, folders, "animics", allowFolders);
+                extraData.children = data;
+                console.log(extraData)
+                
+                this.repository[i] = extraData;
                 count++;
 
                 if( count == this.repository.length ) {

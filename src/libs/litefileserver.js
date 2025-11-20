@@ -827,6 +827,25 @@ Session.prototype.deleteFolder = function( fullpath, on_complete, on_error )
     });
 }
 
+
+//folders and files (fullpath without unit name)
+Session.prototype.getFoldersAndFiles = function( unit, fullpath, depth, on_complete, on_error )
+{
+	if(!unit)
+		throw("no unit specified");
+
+	return this.request( this.server_url,{ action: "files/getFoldersAndFiles", unit: unit, fullpath, depth }, function(resp){
+		if(resp.status != 1)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
+
+		if(on_complete)
+			on_complete( resp.data, resp );
+	});
+}
 //files
 
 Session.processFileList = function(list)
@@ -946,9 +965,9 @@ Session.prototype.getLastFiles = function( limit, offset, on_complete )
 	});
 }
 
-Session.prototype.getFilesTree = function( fullpath, on_complete )
+Session.prototype.getFilesTree = function( folder, unit, on_complete )
 {
-    return this.request( this.server_url,{ action: "files/getFilesTree", fullpath: fullpath }, function(resp){
+    return this.request( this.server_url,{ action: "files/getFilesTree", folder, unit }, function(resp){
         if(on_complete)
             on_complete(resp.data, resp);
     });

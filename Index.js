@@ -45,6 +45,7 @@ function createMenuBar( area ) {
     signupButton.tabIndex = "1";
     signupButton.role = "button";
     signupButton.listen( "click", () => {
+        showCreateAccountDialog();
     } );			
     signupButton.id = "signup-button";
 
@@ -62,7 +63,7 @@ function createMenuBar( area ) {
     userButton.listen( "click", () => {
         new LX.DropdownMenu( userButton, [
             
-            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.upf.edu/src/", "_blank")} },
+            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://dev-lfs.gti.upf.edu/src/", "_blank")} },
             { name: "Refresh", icon: "RotateCcw", callback: () => {
                 offset = 0;
                 appendAnimationFiles( true );
@@ -537,10 +538,51 @@ function showLoginModal() {
                 prompt.close();
                 prompt = null;
             });
-        }, { primaryActionName: "Login", secondaryActionName: "Sign Up", secondaryActionCallback: () =>{}} ) // this.showCreateAccountDialog({username, password});});
-        
-        
+        }, { primaryActionName: "Login", secondaryActionName: "Sign Up", secondaryActionCallback: () =>{ showCreateAccountDialog({user: formData.Username.textComponent.value(), password: formData.Password.textComponent.value()})}})
+            
     }, {modal: true, closable: true} )
+}
+
+function showCreateAccountDialog(session = {user: "", password: ""}) {
+    let user = session.user, pass = session.password,
+    pass2 = "", email = "";
+
+    let prompt = new LX.Dialog("Create account", (p) => {
+    
+        const refresh = (p, msg) => {
+            p.clear();
+            if(msg) {
+
+                let w = p.addText(null, msg, null, {disabled: true, warning: true});
+            }
+            p.addText("Username", user, (v) => { user = v; });
+            p.addText("Email", email, (v) => { email = v; }, {type: "email"});
+            p.addText("Password", pass, (v) => { pass = v; }, {type: "password"});
+            p.addText("Confirm password",pass2, (v) => { pass2 = v; }, {type: "password"});
+            p.addButton(null, "Register",  () => {
+                if(pass === pass2)
+                {
+                    animics.remoteFileSystem.createAccount(user, pass, email, (request) => {
+                        
+                            prompt.close();
+                            prompt = null;
+                            let el = document.querySelector("#Login");
+                            el.innerText = session.user;
+                            showLoginModal( { user: user, password: pass});
+                        }, (request)  => {
+                            refresh(p, "Server status: " + (request.msg ||  "Can't connect to the server. Try again!"));
+                        }
+                    );
+                }
+                else
+                {
+                    refresh(p, "Please confirm password");
+                    console.error("Wrong pass confirmation");
+                }
+            }, { buttonClass: "accent" })
+        }
+        refresh(p);
+    }, {modal: true, closable: true});
 }
 
 function _logout() {
