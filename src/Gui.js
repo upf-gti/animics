@@ -298,9 +298,12 @@ class Gui {
                 p.addComboButtons("Save as", buttons, {});
             }
 
-            p.addNumber("Framerate (fps)", this.editor.animationFrameRate, (v) => {
-                this.editor.animationFrameRate = v;
-            }, {min: 1, disabled: false})
+            if ( ! (options.formats && options.formats.length == 1 && options.formats[0] == "BML") ){
+
+                p.addNumber("Framerate (fps)", this.editor.animationFrameRate, (v) => {
+                    this.editor.animationFrameRate = v;
+                }, {min: 1, disabled: false})
+            }
 
             p.sameLine(2);
             p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true, width: "50%"} );
@@ -327,7 +330,7 @@ class Gui {
                 }
                 
             }, { buttonClass: "accent", hideName: true, width: "50%" });
-        }, {modal: true, size: ["50%", "auto"]});
+        }, {modal: true, size: ["50%", "fit-content"]});
 
         // Focus text prompt
         if( options.input !== false ) {
@@ -558,7 +561,9 @@ class Gui {
             characterContainer.appendChild( container );
 
             if ( isSelected ){
-                setTimeout(container.scrollIntoViewIfNeeded.bind(container), 1);
+                if ( container.scrollIntoViewIfNeeded ){
+                    setTimeout(container.scrollIntoViewIfNeeded.bind(container), 1);
+                }
                 this.characterPanel.selectedCard = container;
             }
         }
@@ -4458,7 +4463,7 @@ class KeyframesGui extends Gui {
             }, { title: "Insert as new global animations", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
 
-        }, {modal: true, size: ["50%", "auto"]});
+        }, {modal: true, size: ["50%", "fit-content"]});
 
     }
 
@@ -4490,7 +4495,7 @@ class KeyframesGui extends Gui {
                 }
             }, { buttonClass: "accent", hideName: true, width: "50%" });
 
-        }, {modal: true, size: ["50%", "auto"]});
+        }, {modal: true, size: ["50%", "fit-content"]});
 
     }
 
@@ -4570,7 +4575,7 @@ class KeyframesGui extends Gui {
                 dialog.close();
             }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
 
-        }, {modal: true, size: ["50%", "auto"]});
+        }, {modal: true, size: ["50%", "fit-content"]});
 
     }
 
@@ -5288,10 +5293,14 @@ class ScriptGui extends Gui {
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
             onShowConfiguration: (dialog) => {
+                dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
-                }, {min: 1, disabled: false});
-                dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
+                }, {min: 1, disabled: false, title: "BML animations are transformed to keyframe animations to display them or when exporting to BVH files. This will be their framerate (frames per second)"});
+
+                dialog.addNumber("Track Height", this.clipsTimeline.trackHeight, (v,e) =>{
+                    this.clipsTimeline.setTrackHeight( v );    
+                }, { min: parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25 });
             },
         });
 
@@ -6133,16 +6142,18 @@ class ScriptGui extends Gui {
 
     showGuide() {       
         this.prompt = new LX.Dialog("How to start?", (p) =>{
-            LX.makeContainer( [ "100%", "auto" ], "p-8 whitespace-pre-wrap text-lg", 
+            LX.makeContainer( [ "100%", "fit-content" ], "p-8 whitespace-pre-wrap text-lg", 
                 "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard. <br> <br> Go to 'Help' for more information about the application.", 
                 p.root, 
                 { wordBreak: "break-word", lineHeight: "1.5rem" } );
-        }, {closable: true, onBeforeClose: (dialog) => {
-            this.prompt = null;
-            LX.popup("Click on Timeline tab to discover all the available interactions.", "Useful info!", {position: [ "10px", "50px"], timeout: 5000})
-        },
-        modal: true
-    })
+        }, {closable: true, size: ["25%", "fit-content"], onBeforeClose: (dialog) => {
+                this.prompt = null;
+                LX.popup("Click on Timeline tab to discover all the available interactions.", "Useful info!", {position: [ "10px", "50px"], timeout: 5000})
+            },
+            modal: true
+        });
+
+        // this.prompt.root.style.height = "fit-content";
 
     }
 
@@ -6254,7 +6265,7 @@ class ScriptGui extends Gui {
                         this.showLoginModal();
                     }, {width:"50%", buttonClass:"accent"});
                     btn.root.style.margin = "0 auto";
-                }, {closable: true, modal: true})
+                }, {closable: true, modal: true, size: ["30%", "fit-content"]});
                 
             }
             else {
@@ -6358,7 +6369,7 @@ class ScriptGui extends Gui {
                 }
                 
             }, { buttonClass: "accent", hideName: true, width: "50%" });
-        }, {modal: true, size: ["50%", "auto"]});
+        }, {modal: true, size: ["50%", "fit-content"]});
 
     }
 
@@ -6825,7 +6836,7 @@ class ScriptGui extends Gui {
                                 this.closeDialogs();
                                 onSelectFile(e.item, v);
                             }, {width: "33%"});
-                        }, {modal:true, closable: true, id: "choice-insert-mode"})
+                        }, {modal:true, closable: true, id: "choice-insert-mode", size:["50%", "fit-content"]});
                     }
                     break;
 

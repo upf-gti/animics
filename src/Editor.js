@@ -4035,7 +4035,7 @@ class ScriptEditor extends Editor {
             }   
         }
         if( empty ) {
-            alert("You can't export an animation with empty tracks.")
+            alert("You cannot export empty animations.")
             return null;
         }
        
