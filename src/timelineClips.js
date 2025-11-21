@@ -2514,7 +2514,7 @@ class HandshapeClip extends BaseClip {
 					this.properties[attribute] = v;
 					if(callback)
 						callback();
-				}, inputOptions ?? Object.assign({ min: -2, max: 2, step: 0.01, precision: 2, skipReset:true, width: "90%", disabled: !attributeExists}, inputOptions));
+				}, Object.assign({ min: -2, max: 2, step: 0.01, precision: 2, skipReset:true, width: "90%", disabled: !attributeExists}, inputOptions));
 			}
 
 		}
