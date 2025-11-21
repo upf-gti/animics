@@ -7,7 +7,7 @@
 */
 
 const LX = {
-    version: "0.7.7",
+    version: "0.7.10",
     ready: false,
     extensions: [], // Store extensions used
     signals: {}, // Events and triggers
@@ -647,12 +647,13 @@ class TreeEvent {
     static NODE_VISIBILITY      = 7;
     static NODE_CARETCHANGED    = 8;
 
-    constructor( type, node, value ) {
+    constructor( type, node, value, event ) {
         this.type = type || TreeEvent.NONE;
         this.node = node;
         this.value = value;
         this.multiple = false; // Multiple selection
         this.panel = null;
+        this.event = event;
     }
 
     string() {
@@ -1239,7 +1240,7 @@ class DropdownMenu {
         }
 
         const menuItem = document.createElement('div');
-        menuItem.className = "lexdropdownmenuitem" + ( item.name ? "" : " label" ) + ( item.disabled ?? false ? " disabled" : "" ) + ( ` ${ item.className ?? "" }` );
+        menuItem.className = "lexdropdownmenuitem" + ( ( item.name || item.options ) ? "" : " label" ) + ( item.disabled ?? false ? " disabled" : "" ) + ( ` ${ item.className ?? "" }` );
         menuItem.dataset["id"] = pKey;
         menuItem.innerHTML = `<span>${ key }</span>`;
         menuItem.tabIndex = "1";
@@ -1325,19 +1326,23 @@ class DropdownMenu {
         else
         {
             menuItem.addEventListener( "click", () => {
-                const f = item[ 'callback' ];
-                if( f )
-                {
-                    f.call( this, key, menuItem );
-                }
-
                 const radioName = menuItem.getAttribute( "data-radioname" );
                 if( radioName )
                 {
                     this._trigger[ radioName ] = key;
                 }
 
-                this.destroy( true );
+                const f = item.callback;
+                if( f )
+                {
+                    f.call( this, key, menuItem, radioName );
+                }
+
+                // If has options, it's a radio group label, so don't close the menu
+                if( !item.options && ( item.closeOnClick ?? true ) )
+                {
+                    this.destroy( true );
+                }
             } );
         }
 
@@ -1375,8 +1380,6 @@ class DropdownMenu {
 
         if( item.options )
         {
-            this._addSeparator();
-
             console.assert( this._trigger[ item.name ] && "An item of the radio group must be selected!" );
             this._radioGroup = {
                 name: item.name,
@@ -2575,9 +2578,11 @@ class Tabs {
 
             if( isSelected && this.thumb )
             {
+                this.thumb.classList.add( "no-transition" );
                 this.thumb.style.transform = "translate( " + ( tabEl.childIndex * tabEl.offsetWidth ) + "px )";
                 this.thumb.style.width = ( tabEl.offsetWidth ) + "px";
                 this.thumb.item = tabEl;
+                this.thumb.classList.remove( "no-transition" );
             }
 
         }, 10 );
@@ -5533,47 +5538,49 @@ function makeCodeSnippet( code, size, options = { } )
         disableEdition: true,
         allowAddScripts: false,
         name: options.tabName,
-        // showTab: options.showTab ?? true
+        callback: () =>
+        {
+            if( options.linesAdded )
+            {
+                const code = editor.root.querySelector( ".code" );
+                for( let l of options.linesAdded )
+                {
+                    if( l.constructor == Number )
+                    {
+                        code.childNodes[ l - 1 ].classList.add( "added" );
+                    }
+                    else if( l.constructor == Array ) // It's a range
+                    {
+                        for( let i = ( l[ 0 ] - 1 ); i <= ( l[ 1 ] - 1 ); i++ )
+                        {
+                            code.childNodes[ i ].classList.add( "added" );
+                        }
+                    }
+                }
+            }
+
+            if( options.linesRemoved )
+            {
+                const code = editor.root.querySelector( ".code" );
+                for( let l of options.linesRemoved )
+                {
+                    if( l.constructor == Number )
+                    {
+                        code.childNodes[ l - 1 ].classList.add( "removed" );
+                    }
+                    else if( l.constructor == Array ) // It's a range
+                    {
+                        for( let i = ( l[ 0 ] - 1 ); i <= ( l[ 1 ] - 1 ); i++ )
+                        {
+                            code.childNodes[ i ].classList.add( "removed" );
+                        }
+                    }
+                }
+            }
+        }
     } );
+
     editor.setText( code, options.language ?? "Plain Text" );
-
-    if( options.linesAdded )
-    {
-        const code = editor.root.querySelector( ".code" );
-        for( let l of options.linesAdded )
-        {
-            if( l.constructor == Number )
-            {
-                code.childNodes[ l - 1 ].classList.add( "added" );
-            }
-            else if( l.constructor == Array ) // It's a range
-            {
-                for( let i = ( l[ 0 ] - 1 ); i <= ( l[ 1 ] - 1 ); i++ )
-                {
-                    code.childNodes[ i ].classList.add( "added" );
-                }
-            }
-        }
-    }
-
-    if( options.linesRemoved )
-    {
-        const code = editor.root.querySelector( ".code" );
-        for( let l of options.linesRemoved )
-        {
-            if( l.constructor == Number )
-            {
-                code.childNodes[ l - 1 ].classList.add( "removed" );
-            }
-            else if( l.constructor == Array ) // It's a range
-            {
-                for( let i = ( l[ 0 ] - 1 ); i <= ( l[ 1 ] - 1 ); i++ )
-                {
-                    code.childNodes[ i ].classList.add( "removed" );
-                }
-            }
-        }
-    }
 
     if( options.windowMode )
     {
@@ -5598,6 +5605,7 @@ function makeCodeSnippet( code, size, options = { } )
     }
 
     snippet.appendChild( area.root );
+
     return snippet;
 }
 
@@ -6611,6 +6619,22 @@ Object.assign(LX, {
 });
 
 /**
+ * @method formatBytes
+ * @param {Number} bytes
+ **/
+function formatBytes( bytes )
+{
+    if( bytes === 0 ) return "0 B";
+    const k = 1024;
+    const sizes = [ "B", "KB", "MB", "GB", "TB" ];
+    const i = Math.floor( Math.log( bytes ) / Math.log( k ) );
+    const value = bytes / Math.pow( k, i );
+    return value.toFixed( 2 ) + " " + sizes[ i ];
+}
+
+LX.formatBytes = formatBytes;
+
+/**
  * @method compareThreshold
  * @param {String} url
  * @param {Function} onComplete
@@ -7514,21 +7538,25 @@ class Area {
         let [ area1, area2 ] = this.sections;
         this.splitExtended = true;
 
+        area1.root.classList.add( `maximize-${ this.type }` );
+        area2.root.classList.add( `minimize-${ this.type }` );
+        area2.root.classList.add( `fadeout-${ this.type }` );
+        area2.root.classList.remove( `fadein-${ this.type }` );
+
         if( this.type == "vertical" )
         {
             this.offset = area2.root.offsetHeight;
-            area2.root.classList.add("fadeout-vertical");
             this._moveSplit( -Infinity, true );
-
         }
         else
         {
             this.offset = area2.root.offsetWidth - 8; // Force some height here...
-            area2.root.classList.add("fadeout-horizontal");
             this._moveSplit( -Infinity, true, 8 );
         }
 
-        LX.doAsync( () => this.propagateEvent('onresize'), 150 );
+        LX.doAsync( () => {
+            this.propagateEvent( 'onresize' );
+        }, 100 );
     }
 
     /**
@@ -7538,23 +7566,24 @@ class Area {
     reduce() {
 
         if( !this.splitExtended )
-        return;
+        {
+            return;
+        }
 
         this.splitExtended = false;
-        let [area1, area2] = this.sections;
 
-        if( this.type == "vertical")
-        {
-            area2.root.classList.add("fadein-vertical");
-            this._moveSplit(this.offset);
-        }
-        else
-        {
-            area2.root.classList.add("fadein-horizontal");
-            this._moveSplit(this.offset);
-        }
+        let [ area1, area2 ] = this.sections;
 
-        LX.doAsync( () => this.propagateEvent('onresize'), 150 );
+        area1.root.classList.add( `minimize-${ this.type }` );
+        area2.root.classList.add( `maximize-${ this.type }` );
+        area2.root.classList.add( `fadein-${ this.type }` );
+        area2.root.classList.remove( `fadeout-${ this.type }` );
+
+        this._moveSplit( this.offset );
+
+        LX.doAsync( () => {
+            this.propagateEvent( 'onresize' );
+        }, 100 );
     }
 
     /**
@@ -8491,7 +8520,7 @@ class NodeTree {
                 node.closed = false;
                 if( that.onevent )
                 {
-                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_CARETCHANGED, node, node.closed );
+                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_CARETCHANGED, node, node.closed, e );
                     that.onevent( event );
                 }
                 that.frefresh( node.id );
@@ -8499,13 +8528,13 @@ class NodeTree {
 
             if( that.onevent )
             {
-                const event = new LX.TreeEvent(LX.TreeEvent.NODE_SELECTED, e.shiftKey ? this.selected : node );
+                const event = new LX.TreeEvent( LX.TreeEvent.NODE_SELECTED, node, this.selected, e );
                 event.multiple = e.shiftKey;
                 that.onevent( event );
             }
         });
 
-        item.addEventListener("dblclick", function() {
+        item.addEventListener("dblclick", function(e) {
 
             if( that.options.rename ?? true )
             {
@@ -8516,7 +8545,7 @@ class NodeTree {
 
             if( that.onevent )
             {
-                const event = new LX.TreeEvent( LX.TreeEvent.NODE_DBLCLICKED, node );
+                const event = new LX.TreeEvent( LX.TreeEvent.NODE_DBLCLICKED, node, null, e );
                 that.onevent( event );
             }
         });
@@ -8530,10 +8559,10 @@ class NodeTree {
                 return;
             }
 
-            const event = new LX.TreeEvent(LX.TreeEvent.NODE_CONTEXTMENU, this.selected.length > 1 ? this.selected : node, e);
+            const event = new LX.TreeEvent( LX.TreeEvent.NODE_CONTEXTMENU, node, this.selected, e );
             event.multiple = this.selected.length > 1;
 
-            LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.value, m => {
+            LX.addContextMenu( event.multiple ? "Selected Nodes" : event.node.id, event.event, m => {
                 event.panel = m;
             });
 
@@ -8582,7 +8611,7 @@ class NodeTree {
 
                     if( ok && that.onevent )
                     {
-                        const event = new LX.TreeEvent( LX.TreeEvent.NODE_DELETED, node, e );
+                        const event = new LX.TreeEvent( LX.TreeEvent.NODE_DELETED, node, [node], null );
                         that.onevent( event );
                     }
 
@@ -8615,7 +8644,7 @@ class NodeTree {
                 // Send event now so we have the info in selected array..
                 if( nodesDeleted.length && that.onevent )
                 {
-                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_DELETED, nodesDeleted.length > 1 ? nodesDeleted : node, e );
+                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_DELETED, node, nodesDeleted, e );
                     event.multiple = nodesDeleted.length > 1;
                     that.onevent( event );
                 }
@@ -8657,7 +8686,7 @@ class NodeTree {
 
                 if( that.onevent )
                 {
-                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_RENAMED, node, this.value);
+                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_RENAMED, node, this.value, e);
                     that.onevent( event );
                 }
 
@@ -8731,7 +8760,7 @@ class NodeTree {
                 // Trigger node dragger event
                 if( that.onevent )
                 {
-                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_DRAGGED, dragged, target);
+                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_DRAGGED, dragged, target, e);
                     that.onevent( event );
                 }
 
@@ -8772,7 +8801,7 @@ class NodeTree {
 
                 if( that.onevent )
                 {
-                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_CARETCHANGED, node, node.closed);
+                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_CARETCHANGED, node, node.closed, e);
                     that.onevent( event );
                 }
                 that.frefresh( node.id );
@@ -8804,13 +8833,13 @@ class NodeTree {
 
         if( !node.skipVisibility ?? false )
         {
-            const visibilityBtn = new LX.Button( null, "", ( swapValue, event ) => {
-                event.stopPropagation();
+            const visibilityBtn = new LX.Button( null, "", ( swapValue, e ) => {
+                e.stopPropagation();
                 node.visible = node.visible === undefined ? false : !node.visible;
                 // Trigger visibility event
                 if( that.onevent )
                 {
-                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_VISIBILITY, node, node.visible );
+                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_VISIBILITY, node, node.visible, e );
                     that.onevent( event );
                 }
             }, { icon: node.visible ? "Eye" : "EyeOff", swap: node.visible ? "EyeOff" : "Eye", title: "Toggle visible", className: "p-0 m-0", buttonClass: "bg-none" } );
@@ -15144,17 +15173,26 @@ class Menubar {
                 } });
             };
 
-            entry.addEventListener("click", () => {
+            entry.addEventListener("mousedown", (e) => {
+                e.preventDefault();
+            });
+
+            entry.addEventListener("mouseup", (e) => {
+
+                e.preventDefault();
+
                 const f = item[ 'callback' ];
                 if( f )
                 {
-                    f.call( this, key, entry );
+                    f.call( this, key, entry, e );
                     return;
                 }
 
                 _showEntry();
 
                 this.focused = true;
+
+                return false;
             });
 
             entry.addEventListener( "mouseover", (e) => {
@@ -15321,7 +15359,12 @@ class Menubar {
         }
 
         const _b = button.querySelector('a');
-        _b.addEventListener("click", (e) => {
+
+        _b.addEventListener( "mousedown", (e) => {
+            e.preventDefault();
+        });
+
+        _b.addEventListener( "mouseup", (e) => {
             if( callback && !disabled )
             {
                 callback.call( this, _b, e );
@@ -16159,7 +16202,8 @@ LX.AssetViewEvent = AssetViewEvent;
 class AssetView {
 
     static LAYOUT_GRID          = 0;
-    static LAYOUT_LIST          = 1;
+    static LAYOUT_COMPACT       = 1;
+    static LAYOUT_LIST          = 2;
 
     static CONTENT_SORT_ASC     = 0;
     static CONTENT_SORT_DESC    = 1;
@@ -16421,7 +16465,9 @@ class AssetView {
         }
         else
         {
+            area.root.classList.add( "flex", "flex-col" );
             this.toolsPanel = area.addPanel({ className: 'flex flex-col overflow-hidden', height:"auto" });
+            this.toolsPanel.root.style.flex = "none";
             this.contentPanel = area.addPanel({ className: 'lexassetcontentpanel flex flex-col overflow-hidden' });
         }
 
@@ -16438,7 +16484,8 @@ class AssetView {
         const _onChangeView = ( value, event ) => {
             new LX.DropdownMenu( event.target, [
                 { name: "Grid", icon: "LayoutGrid", callback: () => this._setContentLayout( AssetView.LAYOUT_GRID ) },
-                { name: "List", icon: "LayoutList", callback: () => this._setContentLayout( AssetView.LAYOUT_LIST ) }
+                { name: "Compact", icon: "LayoutList", callback: () => this._setContentLayout( AssetView.LAYOUT_COMPACT ) },
+                { name: "List", icon: "List", callback: () => this._setContentLayout( AssetView.LAYOUT_LIST ) }
             ], { side: "right", align: "start" });
         };
 
@@ -16548,15 +16595,17 @@ class AssetView {
     _refreshContent( searchValue, filter ) {
 
         const isGridLayout = ( this.layout == AssetView.LAYOUT_GRID ); // default
+        const isCompactLayout = ( this.layout == AssetView.LAYOUT_COMPACT );
+        const isListLayout = ( this.layout == AssetView.LAYOUT_LIST );
 
         this.filter = filter ?? ( this.filter ?? "None" );
-        this.searchValue = searchValue ?? (this.searchValue ?? "");
+        this.searchValue = searchValue ?? ( this.searchValue ?? "" );
         this.content.innerHTML = "";
-        this.content.className = (isGridLayout ? "lexassetscontent" : "lexassetscontent list");
+        this.content.className = `lexassetscontent${ isCompactLayout ? " compact" : ( isListLayout ? " list" : "" ) }`;
         let that = this;
 
-        const _addItem = function(item) {
-
+        const _addItem = function( item )
+        {
             const type = item.type.charAt( 0 ).toUpperCase() + item.type.slice( 1 );
             const extension = LX.getExtension( item.id );
             const isFolder = type === "Folder";
@@ -16566,14 +16615,20 @@ class AssetView {
             itemEl.tabIndex = -1;
             that.content.appendChild( itemEl );
 
+            if( item.lastModified && !item.lastModifiedDate )
+            {
+                item.lastModifiedDate = that._lastModifiedToStringDate( item.lastModified );
+            }
+
             if( !that.useNativeTitle )
             {
                 let desc = document.createElement( 'span' );
                 desc.className = 'lexitemdesc';
-                desc.innerHTML = "File: " + item.id + "<br>Type: " + type;
+                desc.id = `floatingTitle_${ item.id }`;
+                desc.innerHTML = `File: ${ item.id }<br>Type: ${ type }`;
                 that.content.appendChild( desc );
 
-                itemEl.addEventListener("mousemove", e => {
+                itemEl.addEventListener( "mousemove", e => {
 
                     if( !isGridLayout )
                     {
@@ -16601,23 +16656,7 @@ class AssetView {
 
                     desc.style.left = ( localOffsetX ) + "px";
                     desc.style.top = ( localOffsetY - 36 ) + "px";
-                });
-
-                itemEl.addEventListener("mouseenter", () => {
-                    if( isGridLayout )
-                    {
-                        desc.style.display = "unset";
-                    }
-                });
-
-                itemEl.addEventListener("mouseleave", () => {
-                    if( isGridLayout )
-                    {
-                        setTimeout( () => {
-                            desc.style.display = "none";
-                        }, 100 );
-                    }
-                });
+                } );
             }
             else
             {
@@ -16652,26 +16691,49 @@ class AssetView {
 
             if( !that.skipPreview )
             {
-                let preview = null;
-                const hasImage = item.src && (['png', 'jpg'].indexOf( LX.getExtension( item.src ) ) > -1 || item.src.includes("data:image/") ); // Support b64 image as src
-
-                if( hasImage || isFolder || !isGridLayout)
+                if( item.type === 'video' )
                 {
+                    const itemVideo = LX.makeElement( 'video', 'absolute left-0 top-0 w-full border-none pointer-events-none', '', itemEl );
+                    itemVideo.setAttribute( 'disablePictureInPicture', false );
+                    itemVideo.setAttribute( 'disableRemotePlayback', false );
+                    itemVideo.setAttribute( 'loop', true );
+                    itemVideo.setAttribute( 'async', true );
+                    itemVideo.style.transition = 'opacity 0.2s ease-out';
+                    itemVideo.style.opacity = item.preview ? '0' : '1';
+                    itemVideo.src = item.src;
+                    itemVideo.volume = item.videoVolume ?? 0.4;
+                }
+
+                let preview = null;
+
+                const previewSrc    = item.preview ?? item.src;
+                const hasImage = previewSrc && (
+                    (() => {
+                        const ext = LX.getExtension( previewSrc.split( '?' )[ 0 ].split( '#' )[ 0 ]); // get final source without url parameters/anchors
+                        return ext ? ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'avif'].includes( ext.toLowerCase() ) : false;
+                    })()
+                    || previewSrc.startsWith( 'data:image/' )
+                );
+
+                if( hasImage || isFolder || !isGridLayout )
+                {
+                    const defaultPreviewPath    = `${ that.rootPath }images/file.png`;
+                    const defaultFolderPath     = `${ that.rootPath }images/folder.png`;
+
                     preview = document.createElement('img');
-                    let real_src = item.unknown_extension ? that.rootPath + "images/file.png" : (isFolder ? that.rootPath + "images/folder.png" : item.src);
-                    preview.src = (isGridLayout || isFolder ? real_src : that.rootPath + "images/file.png");
+                    let realSrc = item.unknownExtension ? defaultPreviewPath : ( isFolder ? defaultFolderPath : previewSrc );
+                    preview.src = ( isGridLayout || isFolder ? realSrc : defaultPreviewPath );
                     itemEl.appendChild( preview );
                 }
                 else
                 {
-                    preview = document.createElement('svg');
-                    preview.className = "asset-file-preview";
-                    itemEl.appendChild(preview);
+                    preview = document.createElement( 'svg' );
+                    preview.className = 'asset-file-preview';
+                    itemEl.appendChild( preview );
 
-                    let textEl = document.createElement('text');
-                    preview.appendChild(textEl);
-                    // If no extension, e.g. Clip, use the type...
-                    textEl.innerText = (!extension || extension == item.id) ? item.type.toUpperCase() : ("." + extension.toUpperCase());
+                    let textEl = document.createElement( 'text' );
+                    textEl.innerText = ( !extension || extension == item.id ) ? item.type.toUpperCase() : ( `.${ extension.toUpperCase() }` ); // If no extension, e.g. Clip, use the type...
+                    preview.appendChild( textEl );
 
                     var newLength = textEl.innerText.length;
                     var charsPerLine = 2.5;
@@ -16681,19 +16743,22 @@ class AssetView {
                     if( newEmSize < 1 )
                     {
                         var newFontSize = newEmSize * textBaseSize;
-                        textEl.style.fontSize = newFontSize + "px";
-                        preview.style.paddingTop = "calc(50% - " + (textEl.offsetHeight * 0.5 + 10) + "px)";
+                        textEl.style.fontSize = newFontSize + 'px';
+                        preview.style.paddingTop = `calc(50% - ${ ( textEl.offsetHeight * 0.5 + 10 ) }px)`;
                     }
                 }
             }
 
-            if( !isFolder )
+            // Add item type info
+            let itemInfoHtml = type;
+
+            if( isListLayout )
             {
-                let info = document.createElement('span');
-                info.className = "lexassetinfo";
-                info.innerText = type;
-                itemEl.appendChild(info);
+                if( item.bytesize ) itemInfoHtml += ` | ${ LX.formatBytes( item.bytesize ) }`;
+                if( item.lastModifiedDate ) itemInfoHtml += ` | ${ item.lastModifiedDate }`;
             }
+
+            LX.makeContainer( [ 'auto', 'auto' ], 'lexassetinfo', itemInfoHtml, itemEl );
 
             itemEl.addEventListener('click', function( e ) {
                 e.stopImmediatePropagation();
@@ -16705,10 +16770,10 @@ class AssetView {
                 {
                     if( !e.shiftKey )
                     {
-                        that.content.querySelectorAll('.lexassetitem').forEach( i => i.classList.remove('selected') );
+                        that.content.querySelectorAll( '.lexassetitem').forEach( i => i.classList.remove( 'selected' ) );
                     }
 
-                    this.classList.add('selected');
+                    this.classList.add( 'selected' );
                     that.selectedItem = item;
 
                     if( !that.skipPreview )
@@ -16760,6 +16825,42 @@ class AssetView {
             itemEl.addEventListener("dragstart", function( e ) {
                 e.preventDefault();
             }, false );
+
+            itemEl.addEventListener( "mouseenter", ( e ) => {
+
+                if( !that.useNativeTitle && isGridLayout )
+                {
+                    const desc = that.content.querySelector( `#floatingTitle_${ item.id }` );
+                    if( desc ) desc.style.display = "unset";
+                }
+
+                if( item.type !== "video" ) return;
+                e.preventDefault();
+                const video = itemEl.querySelector( "video" );
+                video.style.opacity = "1";
+                video.play();
+            } );
+
+            itemEl.addEventListener( "mouseleave", ( e ) => {
+
+                if( !that.useNativeTitle && isGridLayout )
+                {
+                    setTimeout( () => {
+                        const desc = that.content.querySelector( `#floatingTitle_${ item.id }` );
+                        if( desc ) desc.style.display = "none";
+                    }, 100 );
+                }
+
+                if( item.type !== "video" ) return;
+                e.preventDefault();
+                const video = itemEl.querySelector( "video" );
+                video.pause();
+                video.currentTime = 0;
+                if( item.preview )
+                {
+                    video.style.opacity = "0";
+                }
+            } );
 
             return itemEl;
         };
@@ -16836,18 +16937,18 @@ class AssetView {
         const options = { disabled: true };
 
         this.previewPanel.addText("Filename", file.id, null, options);
-        if( file.lastModified ) this.previewPanel.addText("Last Modified", new Date( file.lastModified ).toLocaleString(), null, options);
+        if( file.lastModifiedDate ) this.previewPanel.addText("Last Modified", file.lastModifiedDate, null, options);
         if( file._path || file.src ) this.previewPanel.addText("URL", file._path ? file._path : file.src, null, options);
         this.previewPanel.addText("Path", this.path.join('/'), null, options);
         this.previewPanel.addText("Type", file.type, null, options);
-        if( file.bytesize ) this.previewPanel.addText("Size", (file.bytesize/1024).toPrecision(3) + " KBs", null, options);
+        if( file.bytesize ) this.previewPanel.addText("Size", LX.formatBytes( file.bytesize ), null, options);
         if( file.type == "folder" ) this.previewPanel.addText("Files", file.children ? file.children.length.toString() : "0", null, options);
 
         this.previewPanel.addSeparator();
 
         const previewActions = [...this.previewActions];
 
-        if( !previewActions.length )
+        if( !previewActions.length && file.type !== "folder" )
         {
             // By default
             previewActions.push({
@@ -16887,7 +16988,8 @@ class AssetView {
                     "id": file.name,
                     "src": e.currentTarget.result,
                     "extension": ext,
-                    "lastModified": file.lastModified
+                    "lastModified": file.lastModified,
+                    "lastModifiedDate": this._lastModifiedToStringDate( file.lastModified )
                 };
 
                 switch(ext)
@@ -16904,7 +17006,7 @@ class AssetView {
                     item.type = "mesh"; break;
                 default:
                     item.type = ext;
-                    item.unknown_extension = true;
+                    item.unknownExtension = true;
                     break;
                 }
 
@@ -16999,6 +17101,11 @@ class AssetView {
         }
 
         this._processData( this.data );
+    }
+
+    _lastModifiedToStringDate( lm ) {
+        const d = new Date( lm ).toLocaleString();
+        return d.substring( 0, d.indexOf( ',' ) );
     }
 }
 

@@ -1,19 +1,7 @@
 // @jxarco
 
-// modified from lexgui 0.7.7
-
-import { LX } from 'lexgui';
-
-if( !LX )
-{
-    throw( "lexgui.js missing!" );
-}
-
-const CPP_KEY_WORDS = ['int', 'float', 'double', 'bool', 'char', 'wchar_t', 'const', 'static_cast', 'dynamic_cast', 'new', 'delete', 'void', 'true', 'false', 'auto', 'struct', 'typedef', 'nullptr', 'NULL', 'unsigned', 'namespace', 'auto'];
-const CLASS_WORDS = ['uint32_t', 'uint64_t', 'uint8_t'];
-const STATEMENT_WORDS = ['for', 'if', 'else', 'return', 'continue', 'break', 'case', 'switch', 'while', 'import', 'from', 'await'];
-
-const JS_KEY_WORDS = ['var', 'let', 'const', 'static', 'function', 'null', 'undefined', 'new', 'delete', 'true', 'false', 'NaN', 'this'];
+const KEY_WORDS = ['var', 'let', 'const', 'static', 'function', 'null', 'undefined', 'new', 'delete', 'true', 'false', 'NaN', 'this'];
+const STATEMENT_WORDS = ['for', 'if', 'else', 'return', 'continue', 'break', 'case', 'switch', 'while', 'import', 'from'];
 const HTML_ATTRIBUTES = ['html', 'charset', 'rel', 'src', 'href', 'crossorigin', 'type', 'lang'];
 const HTML_TAGS = ['html', 'DOCTYPE', 'head', 'meta', 'title', 'link', 'script', 'body', 'style'];
 
@@ -24,14 +12,10 @@ function SET_DOM_TARGET( element )
     mainContainer = element;
 }
 
-window.SET_DOM_TARGET = SET_DOM_TARGET;
-
 function MAKE_LINE_BREAK()
 {
     mainContainer.appendChild( document.createElement('br') );
 }
-
-window.MAKE_LINE_BREAK = MAKE_LINE_BREAK;
 
 function MAKE_HEADER( string, type, id )
 {
@@ -42,8 +26,6 @@ function MAKE_HEADER( string, type, id )
     mainContainer.appendChild( header );
 }
 
-window.MAKE_HEADER = MAKE_HEADER;
-
 function MAKE_PARAGRAPH( string, sup )
 {
     console.assert(string);
@@ -53,9 +35,53 @@ function MAKE_PARAGRAPH( string, sup )
     mainContainer.appendChild( paragraph );
 }
 
-window.MAKE_PARAGRAPH = MAKE_PARAGRAPH;
+function MAKE_NOTE( string, title = "Note")
+{
+    console.assert(string);
 
-function MAKE_CODE( text, language = "js" )
+    let note = document.createElement('div');
+    note.className = "note";
+
+    let header = document.createElement('div');
+    header.className = "note-header";
+    header.appendChild(LX.makeIcon("NotepadText"));
+    header.innerHTML += "<b>" + title + "</b>";
+
+    let body = document.createElement('div');
+    body.className = "note-body";
+    body.innerHTML = string;
+
+    note.appendChild(header);
+    note.appendChild(body);
+    mainContainer.appendChild(note);
+}
+
+function MAKE_CARDS(title, subtitle, cards) {
+    console.assert(cards && cards.length > 0);
+
+    const cardsContent = LX.makeContainer(["100%", "auto"], "flex flex-col gap-4 my-6 p-4", "", mainContainer);
+    LX.makeContainer(["auto", "auto"], "text-xxl font-bold", title, cardsContent);
+    if (subtitle) {
+        LX.makeContainer(["auto", "auto"], "text-xl", subtitle, cardsContent);
+    }
+
+    const projectItems = LX.makeContainer(["100%", "auto"], "grid gap-2 p-1 overflow-y-auto overflow-x-hidden ", "", cardsContent);
+    projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
+    projectItems.id = "project-items-container";
+
+    if (projectItems && projectItems.lastChild) {
+        projectItems.lastChild.remove();
+        if (refresh) {
+            projectItems.innerHTML = "";
+        }
+    }
+    for (const data of cards) {
+        _makeProjectItem(data);
+    }
+
+}
+
+function MAKE_CODE( text )
 {
     console.assert(text);
 
@@ -125,17 +151,9 @@ function MAKE_CODE( text, language = "js" )
                     text = text.substr( 0, i ) + '@' + content + '@' + text.substr( i + content.length + 3 );
                 }
 
-                if( language == "cpp" && CPP_KEY_WORDS.includes( content ) )
+                if( KEY_WORDS.includes( content ) )
                 {
-                    highlight = "kwd";
-                }
-                else if( language == "js" && JS_KEY_WORDS.includes( content ) )
-                {
-                    highlight = "kwd";
-                }
-                else if( CLASS_WORDS.includes( content ) )
-                {
-                    highlight = "cls";
+                    highlight = "kwd";    
                 }
                 else if( STATEMENT_WORDS.includes( content ) )
                 {
@@ -190,41 +208,29 @@ function MAKE_CODE( text, language = "js" )
     mainContainer.appendChild( container );
 }
 
-window.MAKE_CODE = MAKE_CODE;
-
-function MAKE_LIST( list, type, target )
+function MAKE_BULLET_LIST( list )
 {
-    const validTypes = [ 'bullet', 'numbered' ];
-    console.assert( list && list.length > 0 && validTypes.includes(type), "Invalid list type or empty list" + type );
-    const typeString = type == 'bullet' ? 'ul' : 'ol';
-    let ul = document.createElement( typeString );
-    target = target ?? mainContainer;
-    target.appendChild( ul );
+    console.assert(list && list.length > 0);
+    let ul = document.createElement('ul');
     for( var el of list ) {
-        if( el.constructor === Array ) {
-            MAKE_LIST( el, type, ul );
-            return;
-        }
-        let li = document.createElement( 'li' );
-        li.className = "leading-loose";
+        let li = document.createElement('li');
         li.innerHTML = el;
         ul.appendChild( li );
     }
+    mainContainer.appendChild( ul );
 }
 
-function MAKE_BULLET_LIST( list )
+function MAKE_NUMBER_LIST( list )
 {
-    MAKE_LIST( list, 'bullet' );
+    console.assert(list && list.length > 0);
+    let ol = document.createElement('ol');
+    for( var el of list ) {
+        let li = document.createElement('li');
+        li.innerHTML = el;
+        ol.appendChild( li );
+    }
+    mainContainer.appendChild( ol );
 }
-
-window.MAKE_BULLET_LIST = MAKE_BULLET_LIST;
-
-function MAKE_NUMBERED_LIST( list )
-{
-    MAKE_LIST( list, 'numbered' );
-}
-
-window.MAKE_NUMBERED_LIST = MAKE_NUMBERED_LIST;
 
 function ADD_CODE_LIST_ITEM( item, target )
 {
@@ -235,12 +241,9 @@ function ADD_CODE_LIST_ITEM( item, target )
         return;
     }
     let li = document.createElement('li');
-    li.className = "leading-loose";
     li.innerHTML = split ? ( item.length == 2 ? INLINE_CODE( item[0] ) + ": " + item[1] : INLINE_CODE( item[0] + " <span class='desc'>(" + item[1] + ")</span>" ) + ": " + item[2] ) : INLINE_CODE( item );
     target.appendChild( li );
 }
-
-window.ADD_CODE_LIST_ITEM = ADD_CODE_LIST_ITEM;
 
 function MAKE_CLASS_METHOD( name, desc, params, ret )
 {
@@ -258,26 +261,18 @@ function MAKE_CLASS_METHOD( name, desc, params, ret )
     MAKE_PARAGRAPH( desc );
 }
 
-window.MAKE_CLASS_METHOD = MAKE_CLASS_METHOD;
-
-function MAKE_CLASS_CONSTRUCTOR( name, params, language = "js" )
+function MAKE_CLASS_CONSTRUCTOR( name, params )
 {
     let paramsHTML = "";    
     for( var p of params ) {
-        const str1 = p[ 0 ]; // cpp: param          js: name
-        const str2 = p[ 1 ]; // cpp: defaultValue   js: type
-        if( language == "cpp" ) {
-            paramsHTML += str1 + ( str2 ? " = <span class='desc'>" + str2 + "</span>" : "" ) + ( params.indexOf( p ) != (params.length - 1) ? ', ' : '' );
-        } else if( language == "js" ) {
-            paramsHTML += str1 + ": <span class='desc'>" + str2 + "</span>" + ( params.indexOf( p ) != (params.length - 1) ? ', ' : '' );
-        }
+        const name = p[ 0 ];
+        const type = p[ 1 ];
+        paramsHTML += name + ": <span class='desc'>" + type + "</span>" + ( params.indexOf( p ) != (params.length - 1) ? ', ' : '' );
     }
     let pr = document.createElement('p');
     pr.innerHTML = INLINE_CODE( "<span class='constructor'>" + name + "(" + paramsHTML + ")" + "</span>" );
     mainContainer.appendChild( pr );
 }
-
-window.MAKE_CLASS_CONSTRUCTOR = MAKE_CLASS_CONSTRUCTOR;
 
 function MAKE_CODE_BULLET_LIST( list, target )
 {
@@ -293,15 +288,11 @@ function MAKE_CODE_BULLET_LIST( list, target )
     }
 }
 
-window.MAKE_CODE_BULLET_LIST = MAKE_CODE_BULLET_LIST;
-
 function START_CODE_BULLET_LIST()
 {
     let ul = document.createElement('ul');
     window.listQueued = ul;
 }
-
-window.START_CODE_BULLET_LIST = START_CODE_BULLET_LIST;
 
 function END_CODE_BULLET_LIST()
 {
@@ -310,33 +301,23 @@ function END_CODE_BULLET_LIST()
     window.listQueued = undefined;
 }
 
-window.END_CODE_BULLET_LIST = END_CODE_BULLET_LIST;
-
 function INLINE_LINK( string, href )
 {
     console.assert(string && href);
     return `<a href="` + href + `">` + string + `</a>`;
 }
 
-window.INLINE_LINK = INLINE_LINK;
-
 function INLINE_PAGE( string, page )
 {
     console.assert(string && page);
-    const startPage = page.replace(".html", "");
-    const tabName = window.setPath( startPage );
-    return `<a onclick="loadPage('${ page }', true, '${ tabName }')">${ string }</a>`;
+    return `<a onclick="loadPage('` + page + `')">` + string + `</a>`;
 }
-
-window.INLINE_PAGE = INLINE_PAGE;
 
 function INLINE_CODE( string, codeClass )
 {
     console.assert(string);
     return `<code class="inline ${ codeClass ?? "" }">` + string + `</code>`;
 }
-
-window.INLINE_CODE = INLINE_CODE;
 
 function COPY_SNIPPET( b )
 {
@@ -354,107 +335,26 @@ function COPY_SNIPPET( b )
     console.log("Copied!");
 }
 
-function INSERT_IMAGE( src, caption = "", parent )
+function INSERT_IMAGE( src, caption = "" )
 {
     let img = document.createElement('img');
     img.src = src;
     img.alt = caption;
-    img.className = "my-1";
-    ( parent ?? mainContainer ).appendChild( img );
+    mainContainer.appendChild( img );
 }
-
-window.INSERT_IMAGE = INSERT_IMAGE;
-
-function INSERT_IMAGES( sources, captions = [], width, height )
-{
-    const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
-
-    if( !mobile )
-    {
-        let div = document.createElement('div');
-        div.style.width = width ?? "auto";
-        div.style.height = height ?? "256px";
-        div.className = "flex flex-row justify-center";
-
-        for( let i = 0; i < sources.length; ++i )
-        {
-            INSERT_IMAGE( sources[ i ], captions[ i ], div );
-        }
-
-        mainContainer.appendChild( div );
-    }
-    else
-    {
-        for( let i = 0; i < sources.length; ++i )
-        {
-            INSERT_IMAGE( sources[ i ], captions[ i ] );
-        }
-    }
-}
-
-window.INSERT_IMAGES = INSERT_IMAGES;
 
 function INSERT_VIDEO( src, caption = "", controls = true, autoplay = false )
 {
-    let video = document.createElement( 'video' );
+    let video = document.createElement('video');
     video.src = src;
     video.controls = controls;
     video.autoplay = autoplay;
-    if( autoplay )
-    {
-        video.muted = true;
-    }
+    if (autoplay) video.muted = true;
     video.loop = true;
     video.alt = caption;
-    mainContainer.appendChild( video  );
+    mainContainer.appendChild(video);
 }
 
-window.INSERT_VIDEO = INSERT_VIDEO;
-
-function MAKE_NOTE( string, warning, title, icon )
-{
-    console.assert( string );
-
-    const note = LX.makeContainer( [], "border rounded-lg overflow-hidden text-md fg-secondary my-6", "", mainContainer );
-
-    let header = document.createElement( 'div' );
-    header.className = "flex bg-tertiary font-semibold px-3 py-2 gap-2 fg-secondary";
-    header.appendChild( LX.makeIcon( icon ?? ( warning ? "MessageSquareWarning" : "NotepadText" ) ) );
-    header.innerHTML += ( title ?? ( warning ? "Important" : "Note" ) );
-    note.appendChild( header );
-
-    const body = LX.makeContainer( [], "leading-6 p-3", string, note );
-}
-
-window.MAKE_NOTE = MAKE_NOTE;
-
-// custom
-
-function MAKE_CARDS(title, subtitle, cards) {
-    console.assert(cards && cards.length > 0);
-
-    const cardsContent = LX.makeContainer(["100%", "auto"], "flex flex-col gap-4 my-6 p-4", "", mainContainer);
-    LX.makeContainer(["auto", "auto"], "text-xxl font-bold", title, cardsContent);
-    if (subtitle) {
-        LX.makeContainer(["auto", "auto"], "text-xl", subtitle, cardsContent);
-    }
-
-    const projectItems = LX.makeContainer(["100%", "auto"], "grid gap-2 p-1 overflow-y-auto overflow-x-hidden ", "", cardsContent);
-    projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
-    projectItems.id = "project-items-container";
-
-    if (projectItems && projectItems.lastChild) {
-        projectItems.lastChild.remove();
-        if (refresh) {
-            projectItems.innerHTML = "";
-        }
-    }
-    for (const data of cards) {
-        _makeProjectItem(data);
-    }
-}
-
-window.MAKE_CARDS = MAKE_CARDS;
 
 function _makeProjectItem(item) {
     const projectItems = document.getElementById("project-items-container");
@@ -484,13 +384,6 @@ function _makeProjectItem(item) {
     itemContainer.addEventListener("click", () => {
         loadPage(item.link);
     });
-}
 
-window._makeProjectItem = _makeProjectItem;
 
-export { SET_DOM_TARGET, MAKE_LINE_BREAK, MAKE_HEADER, MAKE_PARAGRAPH, MAKE_CODE, MAKE_BULLET_LIST,
-    MAKE_CLASS_METHOD, MAKE_CLASS_CONSTRUCTOR, MAKE_CODE_BULLET_LIST, START_CODE_BULLET_LIST, ADD_CODE_LIST_ITEM,
-    END_CODE_BULLET_LIST, INLINE_LINK, INLINE_PAGE, INLINE_CODE, INSERT_IMAGE, INSERT_IMAGES, INSERT_VIDEO, MAKE_NOTE,
-
-    MAKE_CARDS, _makeProjectItem
 }

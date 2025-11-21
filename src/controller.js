@@ -1,17 +1,14 @@
 import * as THREE from 'three';
-import { BehaviourManager } from './libs/bml/BML.js'
-import { CharacterController } from './libs/bml/CharacterController.js';
+import { EBMLC } from './libs/bml/eBMLController.module.js';
 
 class BMLController {
 
     constructor(currentCharacter, config) {
         
-        let ECAcontroller = this.ECAcontroller = new CharacterController( {character: currentCharacter.model, characterConfig: config} );
+        let ECAcontroller = this.ECAcontroller = new EBMLC.CharacterController( {character: currentCharacter.model, characterConfig: config} );
         ECAcontroller.start({autoblink: false});
         ECAcontroller.reset();
     
-        
-        this.bmlManager = new BehaviourManager();
         // Update in first iteration
         if(!currentCharacter.morphTargets)
             console.warn("No morph targets to attach Controller!");
@@ -53,7 +50,7 @@ class BMLController {
             return;
         
         // Convert each internal action clip to readable ECA controller BML json format
-        let json = { faceLexeme: [], gaze: [], head: [], gesture: [], speech: [], control: "0"};
+        let json = { faceLexeme: [], faceEmotion:[], gaze: [], head: [], gesture: [], speech: [], control: "0"};
 
         for(let i = 0; i < scriptAnimation.tracks.length; i++) {
 
@@ -99,10 +96,13 @@ class BMLController {
 
             // Get computed BS weights
             for(let skinnedMesh in this.morphTargetDictionary) {
-                let bs = [];
-                this.ECAcontroller.facialController._morphTargets[skinnedMesh].morphTargetInfluences.map( x => bs.push(x));
-                if(!values[skinnedMesh])
+                if ( !this.ECAcontroller.facialController._morphTargets[skinnedMesh] ){ // mesh not mapped in the config
+                    continue;
+                }
+                if(!values[skinnedMesh]){
                     values[skinnedMesh] = [];
+                }
+                let bs = this.ECAcontroller.facialController._morphTargets[skinnedMesh].morphTargetInfluences.slice();
                 values[skinnedMesh].push(bs);
             }
 
@@ -125,11 +125,11 @@ class BMLController {
                 }
 
                 for(let morph in this.morphTargetDictionary[skinnedMesh]){
-                    let i = this.morphTargetDictionary[skinnedMesh][morph];
-                    let v = [];
+                    let morphIdx = this.morphTargetDictionary[skinnedMesh][morph];
+                    let v = new Float32Array( values[skinnedMesh].length );
                     
-                    values[skinnedMesh].forEach(element => {
-                        v.push(element[i]);
+                    values[skinnedMesh].forEach( (element,timeIdx) => {
+                        v[timeIdx] = element[morphIdx];
                     });
                     const mesh = this.skinnedMeshes[skinnedMesh];
                     

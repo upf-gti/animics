@@ -11,9 +11,7 @@ class Gizmo {
         if(!editor)
         throw("No editor to attach Gizmo!");
 
-        this.raycastEnabled = true;
         let transform = new TransformControls( editor.camera, editor.renderer.domElement );
-        window.trans = transform;
         transform.setSpace( 'local' );
         transform.setMode( 'rotate' );
 
@@ -24,58 +22,32 @@ class Gizmo {
             }
         });
 
-        transform.addEventListener( 'mouseUp', e => {
-            if(this.selectedBone == -1){
-                return;
-            }
-            this.updateTracks();
-            this.editor.gui.updateSkeletonPanel();
+        transform.addEventListener( 'mouseUp', (e) =>{
+            this._onTransformMouseUp();
+            // this.editor.gui.updateBonePanel();
         } );
         
-        transform.addEventListener( 'mouseDown', e => {
+        transform.addEventListener( 'mouseDown', (e)=>{
+            this._onTransformMouseDown();
 
-            if(this.selectedBone == -1){
-                return;
-            }
-
-            /*
-                Save current state of bones for this keyframeClip.
-                Since multiple animation might be overlapping, quaternion/position/scale cannot be fetched directly from the scene and plugged in to the track.
-                A delta must be computed and applied to the track. This also allows for normal and additive animations.
-
-                This assumes that while gizmo is clicked, the selected keyframe and the propagation window cannot change. 
-            */
-            const mouseDownState = [];
-            const chain = this.toolSelected == Gizmo.Tools.IK ? this.ikSelectedChain.chain : [this.selectedBone];
-            for( let i = 0; i < chain.length; ++i ){
-                const bone = this.skeleton.bones[chain[i]];
-                mouseDownState.push({
-                    boneIdx: chain[i],
-                    quaternion: bone.quaternion.clone(),
-                    position: bone.position.clone(),
-                    scale: bone.scale.clone(),
-                });
-            }
-
-            this.mouseDownState = mouseDownState;
         } );
 
         transform.addEventListener( 'dragging-changed', e => {
             const enabled = e.value;
-            this.editor.controls.enabled = !enabled;
-            this.raycastEnabled = !enabled;//!this.raycastEnabled;
+            this.editor.controls.enabled = !enabled; // camera should not move when using gizmo
+            this.raycastEnabled = !enabled; // neither should the raycasting work
 
             if(this.selectedBone == -1 || this.editor.state ){
                 this.mustUpdate = false;
                 return;
             }
             this.mustUpdate = enabled;
-            
         });
 
         let scene = editor.scene;
         scene.add( transform.getHelper() );
 
+        this.editor = editor;
         this.camera = editor.camera;
         this.scene = scene;
         this.transform = transform;
@@ -83,21 +55,54 @@ class Gizmo {
         this.skeleton = null;
         this.selectedBone = -1;
         this.bonePoints = null;
-        this.editor = editor;
+
+        this.toolSelected = Gizmo.Tools.JOINT;
+        this.jointMode = "rotate";
+        this.jointSpace = "world";
 
         //ik tool 
         this.ikSelectedChain = null;
         this.ikTarget = null;
         this.ikSolver = null;
-        // this.ikHelper = null;
-        this.ikMode = Gizmo.ToolIkModes.ONEBONE; // this.mode should be the one, but it is used for other purposes in the editor. So we need this variable.
+        this.ikMode = Gizmo.ToolIkModes.ONEBONE;
 
-        this.mustUpdate = false; 
+        this.mustUpdate = false;
+        this.transformEnabled = false;
+        this.raycastEnabled = true;
+    }
 
-        this.toolSelected = Gizmo.Tools.JOINT;
-        this.mode = "rotate";
+    _onTransformMouseUp(){
+        if(this.selectedBone == -1){
+            return;
+        }
+        this.updateTracks();
+    }
 
-        this.enabled = false;
+    _onTransformMouseDown(){
+        if(this.selectedBone == -1){
+            return;
+        }
+
+        /*
+            Save current state of bones for this keyframeClip.
+            Since multiple animation might be overlapping, quaternion/position/scale cannot be fetched directly from the scene and plugged in to the track.
+            A delta must be computed and applied to the track. This also allows for normal and additive animations.
+
+            This assumes that while gizmo is clicked, the selected keyframe and the propagation window cannot change. 
+        */
+        const mouseDownState = [];
+        const chain = this.toolSelected == Gizmo.Tools.IK ? this.ikSelectedChain.chain : [this.selectedBone];
+        for( let i = 0; i < chain.length; ++i ){
+            const bone = this.skeleton.bones[chain[i]];
+            mouseDownState.push({
+                boneIdx: chain[i],
+                quaternion: bone.quaternion.clone(),
+                position: bone.position.clone(),
+                scale: bone.scale.clone(),
+            });
+        }
+
+        this.mouseDownState = mouseDownState;
     }
 
     begin(skeletonHelper) {
@@ -113,7 +118,6 @@ class Gizmo {
         skeletonHelper.material.linewidth = 4;
 
         this.skeleton = skeletonHelper.skeleton;
-        this.ikInit();
 
         // point cloud for bones
         const pointsShaderMaterial = new THREE.ShaderMaterial( {
@@ -125,26 +129,12 @@ class Gizmo {
             depthTest: false,
             vertexShader: ShaderChunk["Point"].vertexshader,
             fragmentShader: ShaderChunk["Point"].fragmentshader
-        });
-
+        });        
         
-        let vertices = [];
-        
-        for(let bone of this.skeleton.bones) {
-            let tempVec = new THREE.Vector3();
-            bone.getWorldPosition(tempVec);
-            vertices.push( tempVec );
-        }
-        
-        this.selectedBone = vertices.length ? 0 : -1;
+        this.selectedBone = this.skeleton.bones.length ? 0 : -1;
         
         const geometry = new THREE.BufferGeometry();
-        geometry.setFromPoints(vertices);
-        
-        const positionAttribute = geometry.getAttribute( 'position' );
-        const size = 0.1;
-        geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( new Array(positionAttribute.count).fill(size), 1 ) );
-
+        geometry.setAttribute( 'size', new THREE.Float32BufferAttribute( new Float32Array(this.skeleton.bones.length).fill(0.1), 1 ) );
         this.bonePoints = new THREE.Points( geometry, pointsShaderMaterial );
         this.bonePoints.name = "GizmoPoints";
         this.bonePoints.renderOrder = 1;
@@ -155,6 +145,8 @@ class Gizmo {
         this.raycaster.params.Points.threshold = 0.05;
         
         this.bindEvents();
+
+        this.ikInit();
         
         // First update to get bones in place
         this.update(true, 0.0);
@@ -174,15 +166,6 @@ class Gizmo {
         this.ikSolver.setIterations( 1 );
         this.ikSolver.setSquaredDistanceThreshold( 0.000001 );
         this.ikSolver.constraintsEnabler = false;
-
-        // this.ikHelper = new IKHelper();
-        // this.ikHelper.begin(this.ikSolver, scene);
-        // this.ikHelper.setVisualisationScale( 2 );
-        // this.ikHelper.setVisibilityFlags( IKHelper.VISIBILITYFLAGS.CONSTRAINTS );
-        // window.ikSolver = this.ikSolver;
-        // window.ikHelper = this.ikHelper;
-        // window.addEventListener( "keydown", (e) => { if (e.key == "a"){ this.ikHelper.setVisibility( !this.ikHelper.visible ); }});
-
 
         this.ikSelectedChain = null;
         this._ikCreateChains( "LeftEye", "Head" );
@@ -249,61 +232,6 @@ class Gizmo {
             
             chain.push( i );
 
-            // set constraints
-        //     let sign = bone.name.includes("Left") ? 1 : (-1);
-
-        //     if ( bone.name.includes("Shoulder") ){ // clavicula
-        //         /*Left */ if ( sign > 0 ){ constraints.push({ type: 2, axis:[0,0,1], polar:[0, 35 * DEG2RAD ], azimuth:[60 * DEG2RAD, 180 * DEG2RAD], twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } );  }
-        //         /*Right*/ else{ constraints.push({ type: 2, axis:[0,0,1], polar:[0, 35 * DEG2RAD ], azimuth:[ 0 * DEG2RAD, 120 * DEG2RAD], twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } ); }
-        //     }
-        //     else if ( bone.name.includes("ForeArm") ){ // forearm/elbow
-        //         constraints.push({ type: 1, axis:[1, sign * 1,0], min: (30 * DEG2RAD), max: (180 * DEG2RAD), twist:[290 * DEG2RAD, 90 * DEG2RAD] } );
-        //     }
-        //     else if( bone.name.includes("Arm") ){ // actual shoulder
-        //         constraints.push({ type: 2, axis:[ sign * (-0.9),-0.8,1], polar:[0, 80 * DEG2RAD ], azimuth:[ 0 * DEG2RAD, 359.999 * DEG2RAD], twist:[-90 * DEG2RAD, 45 * DEG2RAD] });
-        //     }
-        //     else if ( bone.name.includes("Pinky") || bone.name.includes("Ring") || bone.name.includes("Middle") || bone.name.includes("Index") ){
-        //         if ( bone.name.includes("2") ){ constraints.push( { type: 1, axis:[-1,0,0], min: (240 * DEG2RAD), max: (360 * DEG2RAD), twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } ); }
-        //         else{ constraints.push( { type: 1, axis:[-1,0,0], min: (270 * DEG2RAD), max: (360 * DEG2RAD), twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } ); }
-        //     }
-        //     else if ( bone.name.includes("Thumb") ){
-        //         if ( bone.name.includes("1")){ constraints.push( { type: 1, axis:[-0.2, sign * (-1),0], min: (310 * DEG2RAD), max: ( 10* DEG2RAD), twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } ); }
-        //         else{ constraints.push( { type: 1, axis:[-0.2, sign * (-1),0],  min: (280 * DEG2RAD), max: (360 * DEG2RAD), twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } ); }
-        //     }
-        //     else if ( bone.name.includes("Hand") ){ // fingers are tested before
-        //         /*Left */ if ( sign > 0 ){ constraints.push( { type: 2, axis:[0,-1,0], polar:[25 * DEG2RAD, 155 * DEG2RAD], azimuth: [60 * DEG2RAD, 140 * DEG2RAD], twist:[0 * DEG2RAD, 0.001 * DEG2RAD] });}
-        //         /*Right*/ else{ constraints.push( { type: 2, axis:[0,-1,0], polar:[25 * DEG2RAD, 155 * DEG2RAD], azimuth: [45 * DEG2RAD, 125 * DEG2RAD], twist:[0 * DEG2RAD, 0.001 * DEG2RAD] }); }
-        //     }
-
-        //     else if ( bone.name.includes("Head") ){ // headEnd will not have constraint. It is ignored during the createChain
-        //         // set the same constraint space regardless of different bind bones
-        //         if (effectorName.includes("Eye") ){ constraints.push( { type: 2, axis:[0,0.5,1], polar:[0, 60 * DEG2RAD ], azimuth:[185 * DEG2RAD, 345 * DEG2RAD], twist:[-45 * DEG2RAD, 45 * DEG2RAD] } );  }
-        //         else{ constraints.push({ type: 2, axis:[0,0.5,1], polar:[0, 60 * DEG2RAD ], azimuth:[ 225 * DEG2RAD, 315 * DEG2RAD], twist:[-67 * DEG2RAD, 67 * DEG2RAD] } ); }
-        //     }
-        //     else if ( bone.name.includes("Neck") ){
-        //         constraints.push({ type: 2, axis:[0,0.6,1], polar:[0, 68 * DEG2RAD ], azimuth:[ 210 * DEG2RAD, 330 * DEG2RAD], twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } );
-        //     }
-        //     else if( bone.name.includes("Spine") ){
-        //         constraints.push({ type: 2, axis:[0,-0.2,1], polar:[0, 45 * DEG2RAD ], azimuth:[ 35 * DEG2RAD, 135 * DEG2RAD], twist:[-30 * DEG2RAD, 30 * DEG2RAD] } );
-        //     }
-
-        //     else if( bone.name.includes("UpLeg") ){ //leg-hip
-        //         /*Left */ if ( sign > 0 ) { constraints.push( { type: 2, axis:[0,1,0], polar:[40 * DEG2RAD, 123 * DEG2RAD ], azimuth:[ 160 * DEG2RAD, 300 * DEG2RAD], twist:[-45 * DEG2RAD, 45 * DEG2RAD] } ); }
-        //         /*Right*/ else { constraints.push({ type: 2, axis:[-1,0.7,0], polar:[40 * DEG2RAD, 123 * DEG2RAD ], azimuth:[ -30 * DEG2RAD, 112 * DEG2RAD], twist:[-45 * DEG2RAD, 45 * DEG2RAD] } ); }
-        //     }
-        //     else if( bone.name.includes("Leg") ){ // knee
-        //         constraints.push({ type: 1, axis:[1,0,0], min: (40 * DEG2RAD), max: (180 * DEG2RAD), twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } ); 
-        //     }
-        //     else if (bone.name.includes("Foot") ){ // ankle
-        //         constraints.push({ type: 2, axis:[0,-1,0], polar:[35 * DEG2RAD, 116 * DEG2RAD ], azimuth:[ 62 * DEG2RAD, 115 * DEG2RAD], twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } );   
-        //     }
-        //     else if (bone.name.includes("ToeBase") ){ // toe articulation
-        //         constraints.push({ type: 1, axis:[1,0,0], min: (145 * DEG2RAD), max: (190 * DEG2RAD), twist:[0 * DEG2RAD, 0.001 * DEG2RAD] } ); 
-        //     }
-        //     else{
-        //         constraints.push(null);
-        //     }
-
             if ( bone == root ){ break; }
             bone = bone.parent;
         }
@@ -324,14 +252,14 @@ class Gizmo {
 
     ikSetTargetToBone (){
         if( !this.ikSelectedChain ){ return; }
-        this.skeleton.bones[ this.selectedBone ].updateMatrixWorld();
-        this.skeleton.bones[ this.selectedBone ].parent.updateMatrixWorld();
-        this.skeleton.bones[ this.selectedBone ].getWorldPosition( this.ikTarget.position );
+        const boneIdx = this.ikSelectedChain.chain[0];
+        this.skeleton.bones[ boneIdx ].updateMatrixWorld();
+        this.skeleton.bones[ boneIdx ].parent.updateMatrixWorld();
+        this.skeleton.bones[ boneIdx ].getWorldPosition( this.ikTarget.position );
     }
     
-    ikSetBone( boneIdx ){
+    _ikSetBone( boneIdx ){
         this.ikSolver.setChainEnablerAll( false );
-        this.transform.detach();
         this.ikSelectedChain = null;
         
         let chainName = this.skeleton.bones[ boneIdx ].name;
@@ -340,7 +268,8 @@ class Gizmo {
         if ( this.ikMode == Gizmo.ToolIkModes.LARGECHAIN ){
             enabled = this.ikSolver.setChainEnabler( chainName, true );
         } 
-        else { // Gizmo.ToolIkModes.ONEBONE
+
+        if( !enabled ) { // Gizmo.ToolIkModes.ONEBONE
             chainName = "OneBoneIK_" + chainName;
             enabled = this.ikSolver.setChainEnabler( chainName, true );
         }
@@ -348,15 +277,20 @@ class Gizmo {
         if ( !enabled ){
             return false;
         }
-
+        
+        this.selectedBone = boneIdx;
         this.ikSelectedChain = this.ikSolver.getChain( chainName );
-
         this.ikSetTargetToBone();
-        this.transform.attach( this.ikTarget );
+
+        if( this.transformEnabled ){
+            this.transform.detach();
+            this.transform.attach( this.ikTarget );
+        }
+
         return true;
     }
 
-    ikStop() {
+    _ikStop() {
         this.ikSelectedChain = null;
     }
 
@@ -371,25 +305,19 @@ class Gizmo {
         return !!this.ikSolver.getChain( "OneBoneIK_" + bone.name );
     }
 
-    stop() {
-        this.transform.detach();
-        this.ikStop();
-    }
-
     bindEvents() {
 
         if(!this.skeleton)
             throw("No skeleton");
 
-        let transform = this.transform;
-        let timeline = this.editor.gui.skeletonTimeline;
-
-        const canvas = document.getElementById("webgl-canvas");
+        const transform = this.transform;
+        const timeline = this.editor.gui.skeletonTimeline;
+        const canvas = this.editor.renderer.domElement;
 
         canvas.addEventListener( 'mousemove', e => {
 
-            if(!this.bonePoints || this.editor.state || !this.editor.currentKeyFrameClip )
-            return;
+            if(!this.bonePoints || this.editor.state || !this.editor.currentKeyFrameClip || !this.raycastEnabled )
+                return;
 
             const pointer = new THREE.Vector2(( e.offsetX / canvas.clientWidth ) * 2 - 1, -( e.offsetY / canvas.clientHeight ) * 2 + 1);
             this.raycaster.setFromCamera(pointer, this.camera);
@@ -399,8 +327,8 @@ class Gizmo {
 
         canvas.addEventListener( 'pointerdown', e => {
 
-            if(!this.enabled || e.button != 0 || !this.bonePoints || this.editor.state || (!this.raycastEnabled && !e.ctrlKey))
-            return;
+            if( (e.button != 0 && e.button != 2) || !this.bonePoints || this.editor.state || (!this.raycastEnabled && !e.ctrlKey))
+                return;
 
             const pointer = new THREE.Vector2(( e.offsetX / canvas.clientWidth ) * 2 - 1, -( e.offsetY / canvas.clientHeight ) * 2 + 1);
             this.raycaster.setFromCamera(pointer, this.camera);
@@ -411,23 +339,29 @@ class Gizmo {
             const intersection = intersections.length > 0 ? intersections[ 0 ] : null;
 
             if(intersection) {
-                this._setBoneById( intersection.index );
-                
-                let boneName = this.skeleton.bones[this.selectedBone].name;
-                this.editor.setSelectedBone(boneName);
+                if ( e.button == 0 && intersection.index != this.selectedBone ){
+                    this.setBoneByIdx( intersection.index );    
+                    this.editor.setSelectedBone( this.skeleton.bones[this.selectedBone].name );
+                }
+                else if ( e.button == 2 ){
+                    let idx = this.editor.gui.skeletonTimeline.selectedItems.indexOf( this.skeleton.bones[intersection.index].name );
+                    if ( idx == -1 ){
+                        this.editor.gui.skeletonTimeline.setSelectedItems( this.editor.gui.skeletonTimeline.selectedItems.concat( [this.skeleton.bones[intersection.index].name] ) );
+                    }
+                }
             }
         });
 
         canvas.addEventListener( 'keydown', e => {
 
-            if ( !this.editor.currentKeyFrameClip ){
+            if ( !this.editor.currentKeyFrameClip || this.editor.animationMode != this.editor.animationModes.BODY ){
                 return;
             }
             switch ( e.key ) {
 
                 case 'q':
                     transform.setSpace( transform.space === 'local' ? 'world' : 'local' );
-                    this.editor.gui.updateSkeletonPanel();
+                    this.editor.gui.updateBonePanel();
                     break;
 
                 case 'Shift':
@@ -440,19 +374,19 @@ class Gizmo {
                     if(timeline.getTracksGroup(bone.name).length < 2) // only rotation
                         return;
                     this.setTool( Gizmo.Tools.JOINT );
-                    this.setMode( "translate" );
-                    this.editor.gui.updateSkeletonPanel();
+                    this.setJointMode( "translate" );
+                    this.editor.gui.updateBonePanel();
                     break;
 
                 case 'e':
                     this.setTool( Gizmo.Tools.JOINT );
-                    this.setMode( "rotate" );
-                    this.editor.gui.updateSkeletonPanel();
+                    this.setJointMode( "rotate" );
+                    this.editor.gui.updateBonePanel();
                     break;
 
                 case 'r':
                     this.setTool( Gizmo.Tools.IK );
-                    this.editor.gui.updateSkeletonPanel();
+                    this.editor.gui.updateBonePanel();
                     break;
             }
 
@@ -470,22 +404,49 @@ class Gizmo {
         });
     }
     
-    enable ( ) {
-        this.enabled = true;
+    enableRaycast (){
+        this.raycastEnabled = true;
+    }
+    disableRaycast (){
+        this.raycastEnabled = false;
     }
 
-    disable ( ) {
-        this.enabled = false;
-        this.stop();
+    // displays the Gizmo
+    enableTransform (){
+        this.transformEnabled = true;
+        if ( this.selectedBone != -1 ){
+            if ( this.toolSelected == Gizmo.Tools.IK ){
+                this.transform.attach( this.ikTarget );
+            }else{
+                this.transform.attach( this.skeleton.bones[this.selectedBone] );
+            }
+        }
+    }
+
+    // hides gizmo
+    disableTransform (){
+        this.transformEnabled = false;
+        this.transform.detach();
+        this._ikStop();
+    }
+
+    /** Enable raycast and transform */
+    enableAll ( ) {
+        this.enableRaycast();
+        this.enableTransform();
+    }
+
+    /** Disable raycast and transform */
+    disableAll ( ) {
+        this.disableRaycast();
+        this.disableTransform();
     }
 
     update(state, dt) {
 
-        if(state) this.updateBones(dt);
+        if(state) this.updateBones();
 
-        if(!this.enabled || this.selectedBone == -1) return;
-
-        //this.ikHelper.update();
+        if(!this.transformEnabled || this.selectedBone == -1) return;
                 
         if ( !this.mustUpdate ){
             if ( this.toolSelected == Gizmo.Tools.IK && !this.transform.dragging ){ // make target follow bone when not directly using it
@@ -584,7 +545,7 @@ class Gizmo {
                 const quaternionTrackIdx = ( timeline.getTracksGroup(boneToProcess.name).length > 1 ) ? 1 : 0; // localindex
                 
                 const track = groupTracks[quaternionTrackIdx];
-                if ( track.dim != 4 ){ continue; } // only quaternions
+                if ( track.dim != 4 || track.locked ){ continue; } // only quaternions
 
                 this.editor.gui.skeletonTimeline.saveState( track.trackIdx, i != 1 );
 
@@ -640,7 +601,7 @@ class Gizmo {
                 }
 
                 // Update animation interpolants
-                this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx] );
+                this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
             }
         }
         else{
@@ -673,7 +634,7 @@ class Gizmo {
             }
 
             // Update animation interpolants
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
 
     }
@@ -686,53 +647,59 @@ class Gizmo {
             return;
         }
 
-        const boneId = this.skeleton.bones.findIndex((bone) => bone.name == name);
-        if(boneId > -1){
-            this._setBoneById( boneId );
+        const boneIdx = this.skeleton.bones.findIndex((bone) => bone.name == name);
+        if(boneIdx > -1){
+            this.setBoneByIdx( boneIdx );
         }
     }
-    _setBoneById( boneId ){
-        this.selectedBone = boneId;
 
-        this.setTool( this.toolSelected ); // attach and prepare bone
+    // needs to be a valid index. No checks are done
+    setBoneByIdx( boneIdx ){
+        this.selectedBone = boneIdx;
+        this.setTool( this.toolSelected ); // if ik, do any preparations needed
         this.updateBoneColors();
     }
 
-    setMode( mode ) {
+
+    setJointMode( mode ){
+        this.jointMode = Gizmo.ModeLUT[mode] ?? "rotate";
         if ( this.toolSelected == Gizmo.Tools.JOINT ){
-            this.mode = Gizmo.ModeLUT[mode] ?? "rotate";
-            this.transform.setMode( this.mode );
-            return true;
+            this.transform.setMode( this.jointMode );
         }
+    }
 
+    setIkMode( mode ){
+        this.ikMode = mode;
         if ( this.toolSelected == Gizmo.Tools.IK ){ 
-            this.mode = "rotate";
-            this.ikMode = mode; 
             this.transform.setMode( "translate" ); // ik moves target, but rotates joints
-            return this.ikSetBone( this.selectedBone );
+            return this._ikSetBone( this.selectedBone );
         }
-
         return false;
     }
 
     setSpace( space ) {
-        this.transform.setSpace( space );
+        this.jointSpace = space;
+        if ( this.toolSelected == Gizmo.Tools.JOINT ){
+            this.transform.setSpace( space );
+        }
     }
 
     setTool( tool ){
-        let lastTool = this.toolSelected;
+        const lastTool = this.toolSelected;
         this.toolSelected = Gizmo.Tools.JOINT;
 
         let ikResult = false;
         if ( tool == Gizmo.Tools.IK ){
             this.toolSelected = Gizmo.Tools.IK;
-            ikResult = this.setMode( lastTool != this.toolSelected ? Gizmo.ToolIkModes.ONEBONE : this.ikMode );
+            ikResult = this.setIkMode( this.ikMode );
         }
         if ( !ikResult ){
             this.toolSelected = Gizmo.Tools.JOINT;
-            this.ikStop();
-            this.transform.attach( this.skeleton.bones[this.selectedBone] );
-            this.setMode( lastTool != this.toolSelected ? "rotate" : this.mode );
+            this._ikStop();
+            this.setJointMode( lastTool != this.toolSelected ? "rotate" : this.jointMode );
+            this.transform.setSpace(this.jointSpace);
+        }else{
+            this.transform.setSpace("world");
         }
     }
 
@@ -755,23 +722,11 @@ class Gizmo {
 
         const depthTestEnabled = this.bonePoints.material.depthTest;
         inspector.addCheckbox( "Depth test", depthTestEnabled, (v) => { this.bonePoints.material.depthTest = v; })
-    }
-
-    onGUI(mode) {
-        if(mode == 'position')
-            mode = 'translate';
-        else if (mode == 'rotation' || mode == 'quaternion')
-            mode = 'rotate';
-
-        if(this.mode != mode) 
-            this.setMode(mode);
-        this.updateBones();
-        this.updateTracks();
-    }
-    
+    }    
 };
 
 
+// from generic key to Three.TransformControl compliant string
 Gizmo.ModeLUT = {
     "translate": "translate",
     "position" : "translate",
@@ -794,16 +749,6 @@ Gizmo.Tools = {
 Gizmo.ToolIkModes = {
     LARGECHAIN: 0,
     ONEBONE: 1
-}
-
-function nlerpQuats( destQuat, qa, qb, t ){
-    let bsign = ( qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w ) < 0 ? -1 : 1;    
-    destQuat.x = qa.x * (1-t) + bsign * qb.x * t;
-    destQuat.y = qa.y * (1-t) + bsign * qb.y * t;
-    destQuat.z = qa.z * (1-t) + bsign * qb.z * t;
-    destQuat.w = qa.w * (1-t) + bsign * qb.w * t;
-    destQuat.normalize();
-    return destQuat;
 }
 
 export { Gizmo };

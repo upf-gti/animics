@@ -5,6 +5,10 @@ import 'lexgui/extensions/codeeditor.js';
 import 'lexgui/extensions/timeline.js';
 import { Gizmo } from "./Gizmo.js";
 import { KeyframeEditor } from "./Editor.js";
+import { findIndexOfBoneByName } from "./retargeting.js";
+
+LX.registerIcon( "arrow-up-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 4-4 4 4 M7 4v16 M11 12h4 M11 16h7 M11 20h10"/></svg>' );
+LX.registerIcon( "arrow-down-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4 M7 20V4 M11 4h4 M11 8h7 M11 12h10"/></svg>' );
 
 class Gui {
 
@@ -79,7 +83,6 @@ class Gui {
 
         this.editor.scene.background.set(this.editor.theme[scheme].background);
         this.editor.scene.getObjectByName("Grid").material.color.set(this.editor.theme[scheme].grid);
-        // this.editor.scene.getObjectByName("Grid").material.opacity.set(this.editor.theme[scheme].girdOpacity);
     }
 
     /** Create menu bar */
@@ -91,40 +94,38 @@ class Gui {
                 submenu: [ ]
             },
             {
-                name: "Timeline",
+                name: "Edit",
                 submenu: [
+                    { name: "Undo", icon:"Undo", kbd: "CTRL + Z", callback: (e)=>{ this.editor.undo() } },
+                    { name: "Redo", icon:"Redo", kbd: "CTRL + Y", callback: (e)=>{ this.editor.redo() } }
+                ]
+            },
+            {
+                name: "View",
+                submenu: [
+                    { 
+                        name: "Theme", icon: "Palette", 
+                        submenu: [
+                            { name: "Light", icon: "Sun", callback: () => this.setColorTheme("light") },
+                            { name: "Dark", icon: "Moon", callback: () => this.setColorTheme("dark") }
+                        ] 
+                    },                    
+                ]
+            },
+            {
+                name: "Help", submenu: [
                     {
                         name: "Shortcuts",
                         icon: "Keyboard",
                         submenu: [
-
-                            { name: "Undo", icon:"Undo", kbd: "CTRL + Z", callback: (e)=>{ this.editor.undo() } },
-                            { name: "Redo", icon:"Redo", kbd: "CTRL + Y", callback: (e)=>{ this.editor.redo() } },
-                            { name: "Play-Pause", kbd: "SPACE" },
                             { name: "Play-Pause", kbd: "SPACE" },
                             { name: "Zoom", kbd: "LSHIFT + Wheel" },
                             { name: "Scroll", kbd: "Wheel" },
                             { name: "Move Timeline", kbd: "LClick + drag" },
                             { name: "Context Menu", kbd: "Right Click" }
                         ]
-                    },
-                    { name: "Clear Tracks", icon: "Trash2", callback: () => this.editor.clearAllTracks() }
-                ]
-            },
-            {
-                name: "View",
-                submenu: [
-                        { 
-                            name: "Theme", icon: "Palette", 
-                            submenu: [
-                            { name: "Light", icon: "Sun", callback: () => this.setColorTheme("light") },
-                            { name: "Dark", icon: "Moon", callback: () => this.setColorTheme("dark") }
-                        ] 
                     }
                 ]
-            },
-            {
-                name: "About", submenu: []
             }
         ]
 
@@ -207,14 +208,11 @@ class Gui {
             new LX.DropdownMenu( userButton, [
                 
                 { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
-                { name: "Logout", icon: "LogOut", callback: () => { 
-                    this.editor.remoteFileSystem.logout(() => {
-                        this.editor.remoteFileSystem.login("guest", "guest", () => {
-                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
-                            this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
-                        })
+                { name: "Logout", icon: "LogOut", callback: () => {
+                    this.editor.ANIMICS._logout( () => {
+                        const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
+                        this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
                         this.changeLoginButton();
-        
                     }); 
                 } },
                 
@@ -253,104 +251,11 @@ class Gui {
     }
 
     showLoginModal() {
-        this.prompt = new LX.Dialog("Login", (p) => {
-            let username = "";
-            let password = "";
-            const refresh = (p, msg) => {
-                p.clear();
-                if(msg) {
-                    p.addText(null, msg, null, {disabled: true, warning: true, className: "nobg"});
-                }
-                p.addText("User", username, (v) => {
-                    username = v;
-                });
-                p.addText("Password", password, (v) => {
-                    password = v;
-                }, {type: "password"});
-                p.sameLine(2);
-
-                let b = p.addButton(null, "Cancel", (v) => {
-                    this.prompt.close();
-                    this.prompt = null;
-                });
-                b.root.style.width = "50%";
-    
-                b = p.addButton(null, "Login", (v) => {
-                    this.editor.remoteFileSystem.login(username, password, (session, response) => {
-                        if(response.status == 1) {
-                            this.changeLoginButton(session.user.username);
-                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
-                            this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
-                            this.prompt.close();
-                            this.prompt = null;
-                        }
-                        else {                           
-                            refresh(p, response.msg || "Can't connect to the server. Try again!");
-                        }
-                    });
-                }, { buttonClass: "accent" });
-                b.root.style.width = "50%";
-
-                p.addButton(null, "Sign up", (v) => {
-                    this.prompt.close();
-                    this.prompt = null;
-                    this.showCreateAccountDialog({username, password});
-                })
-            }
-            refresh(p);
-            
-        }, {modal: true, closable: true} )
-
-        this.prompt.onclose = () => {
-            // this.editor.getDictionaries();
-            this.prompt = null;
-        }
-  
-    }
-
-    showCreateAccountDialog(session = {user: "", password: ""})
-    {
-        let user = session.user, pass = session.password,
-        pass2 = "", email = "";
-        let errors = false;
-
-        this.prompt = new LX.Dialog("Create account", (p) => {
-        
-            const refresh = (p, msg) => {
-                p.clear();
-                if(msg) {
-
-                    let w = p.addText(null, msg, null, {disabled: true, warning: true});
-                }
-                p.addText("Username", user, (v) => { user = v; });
-                p.addText("Email", email, (v) => { email = v; }, {type: "email"});
-                p.addText("Password", pass, (v) => { pass = v; }, {type: "password"});
-                p.addText("Confirm password",pass2, (v) => { pass2 = v; }, {type: "password"});
-                p.addButton(null, "Register",  () => {
-                    if(pass === pass2)
-                    {
-                        this.editor.remoteFileSystem.createAccount(user, pass, email, (request) => {
-                            
-                                this.prompt.close();
-                                this.prompt = null;
-                                let el = document.querySelector("#Login");
-                                el.innerText = session.user;
-                                // this.showLoginModal( { user: user, password: pass});
-                            }, (request)  => {
-                                refresh(p, "Server status: " + (request.msg ||  "Can't connect to the server. Try again!"));
-                            }
-                        );
-                    }
-                    else
-                    {
-                        refresh(p, "Please confirm password");
-                        console.error("Wrong pass confirmation");
-                    }
-                }, { buttonClass: "accent" })
-            }
-            refresh(p);
-        }, {modal: true, closable: true});
-            
+        this.editor.ANIMICS.showLoginModal( (session, response) => {
+                this.changeLoginButton(session.user.username);
+                const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
+                this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
+        } );  
     }
 
     showExportAnimationsDialog(title, callback, options = { formats: [], folders: [], from: [] }) {
@@ -362,7 +267,7 @@ class Gui {
         let from = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             
-            const availableTable = this.createAvailableAnimationsTable();
+            const availableTable = this.createAvailableAnimationsTable( true );
             p.attach( availableTable );
 
 
@@ -393,9 +298,12 @@ class Gui {
                 p.addComboButtons("Save as", buttons, {});
             }
 
-            p.addNumber("Framerate (fps)", this.editor.animationFrameRate, (v) => {
-                this.editor.animationFrameRate = v;
-            }, {min: 1, disabled: false})
+            if ( ! (options.formats && options.formats.length == 1 && options.formats[0] == "BML") ){
+
+                p.addNumber("Framerate (fps)", this.editor.animationFrameRate, (v) => {
+                    this.editor.animationFrameRate = v;
+                }, {min: 1, disabled: false})
+            }
 
             p.sameLine(2);
             p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true, width: "50%"} );
@@ -410,13 +318,19 @@ class Gui {
                     if( callback ) {
                         let selectedAnimations = [];
                         availableTable.getSelectedRows().forEach((v)=>{ selectedAnimations.push(v[0]) });
+
+                        // do not close the dialog
+                        if ( selectedAnimations.length == 0 ){
+                            return;
+                        }
+
                         callback({selectedAnimations, format, folder, from});
                     }
                     dialog.close() ;
                 }
                 
             }, { buttonClass: "accent", hideName: true, width: "50%" });
-        }, {modal: true, size: ["50%", "auto"]});
+        }, {modal: true, size: ["50%", "fit-content"]});
 
         // Focus text prompt
         if( options.input !== false ) {
@@ -430,8 +344,8 @@ class Gui {
         if( this.skeletonTimeline ){
             this.skeletonTimeline.setLoopMode(loop, true);
         }
-        if( this.auTimeline ){
-            this.auTimeline.setLoopMode(loop, true);
+        if( this.bsTimeline ){
+            this.bsTimeline.setLoopMode(loop, true);
         }
         if( this.clipsTimeline ){
             this.clipsTimeline.setLoopMode(loop, true);
@@ -486,17 +400,6 @@ class Gui {
             } // resize
         }
         this.mainArea._update(); // to update area's this.size attribute
-    }
-
-    showClearTracksConfirmation(callback) {
-        this.prompt = new LX.prompt("Are you sure you want to delete all the tracks? You won't be able to restore the animation.", "Clear all tracks", callback, {input:false},  
-        {
-            onclose: (root) => {
-            
-                root.remove();
-                this.prompt = null;
-            }
-        } );
     }
 
     closeDialogs() {
@@ -572,9 +475,10 @@ class Gui {
             return;
         }
         const p = this.characterPanel = panel;
+        this.characterPanel.root.classList.add("showScrollBar");
 
         p.clear();
-        p.branch('Characters');
+        // p.branch('Characters');
 
         // p.addButton( "Upload yours", "Upload Character", (v) => {
         //     this.uploadCharacter((value, config) => {
@@ -609,13 +513,13 @@ class Gui {
         //     });
         // } ,{ nameWidth: "100px", icon: "CloudUpload" } );        
       
-        p.addSeparator();
+        // p.addSeparator();
 
 
         // p.sameLine();
         let characters = [];
-        const _makeProjectOptionItem = ( icon, outerText, id, parent, selected = false ) => {
-            const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, parent );
+        const _makeProjectOptionItem = ( icon, outerText, id, selected = false ) => {
+            const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, null );
             const card = LX.makeContainer( ["200px", "auto"], `flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button card-color`, `
                <img src="${icon}" height="120px">
             `, item );
@@ -623,7 +527,7 @@ class Gui {
             let button = null;
             if(selected) {
                 button = new LX.Button(null, "Edit Character", (e) => {
-                    this.createEditCharacterDialog(item.id);
+                    this.createEditCharacterDialog();
                 } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px", buttonClass: "bg-secondary"} );
             }
             const flexContainer = LX.makeContainer( ["auto", "auto"], "flex items-center", `<p>${ outerText }</p>`, item );
@@ -632,18 +536,36 @@ class Gui {
             }
             item.id = id;
             
-            card.addEventListener("click", (e) => {               
-                this.editor.changeCharacter(item.id);
+            card.addEventListener("click", async (e) => {
+                if ( item.id != this.editor.currentCharacter.name ){
+                    this.editor.changeCharacter(item.id);
+                }
             });
 
+            return item;
         };
+        
         const characterContainer = LX.makeContainer( ["100%", "auto"], "grid gap-2", "" );
         characterContainer.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
-        for(let character in this.editor.characterOptions) {
-            _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL, character, character, characterContainer, character == this.editor.currentCharacter.model.name);
+        p.root.appendChild(characterContainer);
+
+        const characterNames = Object.keys(this.editor.characterOptions);
+        characterNames.sort( (a,b) =>{ return (a.toLowerCase() < b.toLowerCase()) ? -1 : 1 });
+
+        for(let c = 0; c < characterNames.length; ++c) {
+            const character = characterNames[c];  
+            const isSelected = character == this.editor.currentCharacter.model.name;
+            const container = _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL, character, character, isSelected);
            
             characters.push({ value: character, src: this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL});
-            p.root.appendChild(characterContainer);
+            characterContainer.appendChild( container );
+
+            if ( isSelected ){
+                if ( container.scrollIntoViewIfNeeded ){
+                    setTimeout(container.scrollIntoViewIfNeeded.bind(container), 1);
+                }
+                this.characterPanel.selectedCard = container;
+            }
         }
     }
 
@@ -902,47 +824,57 @@ class Gui {
         return name;
     }
 
-    createEditCharacterDialog() {
-        let name = this.editor.currentCharacter.model.name;
-        this.editCharacter(name, {
-            callback: (newName, rotation, config) => {
-                if(name != newName) {
-                    this.editor.characterOptions[newName] = [ this.editor.characterOptions[name][0], this.editor.characterOptions[name][1], this.editor.characterOptions[name][2], this.editor.characterOptions[name][3]]
-                    delete this.editor.characterOptions[name];
-                    name = newName;
-                    this.editor.currentCharacter.model.name = name;
-                    this.refresh();
-                }
-                this.editor.characterOptions[name][2] = rotation;
-                
-                const modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), rotation ); 
-                this.editor.currentCharacter.model.quaternion.premultiply( modelRotation );
-                if(this.editor.currentCharacter.config && this.editor.currentCharacter.config == config) {
-                    return;
-                }
-                this.editor.currentCharacter.config = config;
-                if(config) {
-                    this.editor.characterOptions[name][1] = config._filename;
-                    this.editor.updateCharacter(config);  
-                }
+    editCharacter( name, newName, newRotation = null, newConfig = null ){
+        if ( newRotation != null ){ // newRotation is a number
+            const offsetModelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), newRotation - (this.editor.characterOptions[name][2] ?? 0) );
+            this.editor.characterOptions[name][2] = newRotation;
+            this.editor.currentCharacter.model.quaternion.premultiply( offsetModelRotation );
+        }
 
-            }, 
-            name, modelFilePath: this.editor.characterOptions[name][0], modelConfigPath: this.editor.characterOptions[name][1]
-        });
+        if (newConfig){
+            if(this.editor.currentCharacter.config && this.editor.currentCharacter.config != newConfig) {
+                this.editor.currentCharacter.config = newConfig;
+                this.editor.characterOptions[name][1] = newConfig._filename;
+                this.editor.updateCharacter(newConfig);  
+            }
+        }
+
+        if(name != newName) {
+            this.editor.characterOptions[newName] = this.editor.characterOptions[name];
+            delete this.editor.characterOptions[name];
+
+            if ( this.editor.loadedCharacters[name] ){
+                this.editor.boundAnimations[newName] = this.editor.boundAnimations[name];
+                delete this.editor.boundAnimations[name];
+
+                const character = this.editor.loadedCharacters[name];
+                character.name = newName;
+                character.model.name = newName;
+                this.editor.loadedCharacters[newName] = this.editor.loadedCharacters[name];
+                delete this.editor.loadedCharacters[name]; 
+            }
+
+            this.createCharactersPanel( this.characterPanel );
+        }
     }
 
-    editCharacter(name, options = {}) {
-        const data = this.editor.currentCharacter;
-        const callback = options.callback;
+    createEditCharacterDialog(name) {
+
+        if ( this.characterDialog ){ 
+            this.characterDialog.close();
+        }
+        const data = name ? this.editor.loadedCharacters[name] : this.editor.currentCharacter;
+
+        name = data.name;
         let config = data.config;
-        let rotation = 0;
+        let rotation = this.editor.characterOptions[name][2];
         
         let fromFile = !config ?? false;
         this.characterDialog = new LX.Dialog("Edit Character", panel => {
           
             panel.refresh = () => {
                 panel.clear();                
-                let nameWidget = panel.addText("Name Your Character", name, (v, e) => {
+                panel.addText("Name Your Character", name, (v, e) => {
                     if (data.name != v && this.editor.characterOptions[v]) { 
                         LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]});
                         return;
@@ -1034,51 +966,38 @@ class Gui {
                 , {selected: fromFile ? "From File" : "From URL", width: "170px", minWidth: "0px"});
                 panel.endLine();
 
-                // panel.addNumber("Apply Rotation", 0, (v) => {
-                //     rotation = v * Math.PI / 180;
-                // }, { min: -180, max: 180, step: 1 } );
-                
                 panel.sameLine(2);
                 panel.addButton(null, (config ? "Edit": "Create") + " Config File", () => {
                     this.editor.openAtelier(name, this.editor.characterOptions[name][0], data.config == config ? data.rawConfig : config, false, rotation);                                       
-                })
+                }, { width: "50%" });
                 panel.addButton(null, "Update", () => {
                     if (name) {
                     
                         if (config) {
                             // this.editor.characterOptions[name][1] = config._filename;
                             // this.editor.characterOptions[name][2] = rotation;
-                            
-                            panel.clear();
-                            this.characterDialog.root.remove();
-                            if (callback) callback(name, rotation, config);
+                            this.editCharacter(data.name, name, rotation, config);
                         }
                         else {
                             LX.prompt("Uploading without config file will disable BML animations for this character. Do you want to proceed?", "Warning!", (result) => {
                                 // this.editor.characterOptions[name][2] = rotation;
-                                panel.clear();
-                                this.characterDialog.root.remove();
-                                if (callback) callback(name, rotation);
+                                this.editCharacter(data.name, name, rotation);
                             }, {input: false, on_cancel: () => {}});
                             
                         }
                         this.characterDialog.close();
+                        this.characterDialog = null;
                     }
                     else {
                         LX.popup("Complete all fields!", null, { position: ["45%", "20%"]});
                     }
-                });
-
-                // panel.root.addEventListener("drop", (v, e) => {
-
-                //     let files = v.dataTransfer.files;
-                //     this.onDropCharacterFiles(files);
-                // })
-            
+                }, { width: "50%" });            
             }
             panel.refresh();
 
-        }, { size: ["40%"], closable: true });
+        }, { size: ["40%"], closable: true, onBeforeClose: (dialog)=>{
+            this.characterDialog = null;
+        } });
 
         return name;
     }
@@ -1090,7 +1009,6 @@ class KeyframesGui extends Gui {
         
         super(editor);
         this.showVideo = true; // menu option, whether to show video overlay (if any exists)
-        this.skeletonScroll = 0;
 
         this.inputVideo = null;
         this.recordedVideo = null;
@@ -1143,7 +1061,8 @@ class KeyframesGui extends Gui {
                 name: "Import Animations",
                 icon: "FileInput",
                 submenu: [
-                    { name: "From Loaded Animations", icon: "ListCheck", callback: () => this.showInsertFromLoadedAnimations(), kbd: "CTRL+O" },
+                    { name: "From Characters", icon: "ListCheck", callback: () => this.showInsertFromBoundAnimations() },
+                    { name: "From Loaded Resources", icon: "ListCheck", callback: () => this.showInsertFromLoadedAnimations() },
                     { name: "From Disk", icon: "FileInput", callback: () => this.importFiles(), kbd: "CTRL+O" },
                     { name: "From Database", icon: "Database", callback: () => this.createServerClipsDialog(), kbd: "CTRL+I" }
                 ]
@@ -1166,32 +1085,187 @@ class KeyframesGui extends Gui {
             { name: "Preview in PERFORMS", icon: "StreetView", callback: () => this.editor.showPreview() },
         );
        
-        const timelineMenu = entries.find( e => e.name == "Timeline" )?.submenu;
-        console.assert(timelineMenu, "Timeline menu not found" );
+        const editMenuItem = entries.find( e => e.name == "Edit" ); 
+        const editMenu = editMenuItem.submenu;
+        console.assert(editMenu, "Edit menu not found" );
 
         this.showVideo = this.showVideo ?? true; // menu option, whether to show video overlay (if any exists)
 
-        timelineMenu.push( 
-            null, 
-            { name: "Optimize Tracks", icon: "Filter", callback: () => {
-                // optimize all tracks of current bound animation (if any)
-                this.auTimeline.optimizeTracks(); // onoptimizetracks will call updateActionUnitPanel
-                this.skeletonTimeline.optimizeTracks();
-            }},
-            { name: "Show Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
-                this.showVideo = v;
-                this.editor.setVideoVisibility( v );
-            }}
+        // EDIT OPTIMIZE AND CLEAR CALLBACKS REUSED ON SEVERAL PARTS OF THE CODE 
+        editMenu.push(
+            null,
+            { name: "Optimize", icon: "Filter", submenu:[
+                { name: "Selected Tracks", icon: "Filter", callback: () => {
+                    if ( !this.editor.currentKeyFrameClip){
+                        return;
+                    }
+    
+                    const activeTimeline = this.editor.activeTimeline; 
+                    const selectedTracks = activeTimeline.selectedTracks;
+                    for( let i = 0; i < selectedTracks.length; ++i ){
+                        const track = selectedTracks[i];
+                        activeTimeline.saveState( track.trackIdx, i != 0);
+                        activeTimeline.historySaveEnabler = false;
+                        activeTimeline.optimizeTrack( track.trackIdx );
+                        activeTimeline.historySaveEnabler = true;
+                    }
+                }},
+                { name: "Visible Tracks", icon: "Filter", callback: () => {
+                    if ( !this.editor.currentKeyFrameClip){
+                        return;
+                    }
+    
+                    const activeTimeline = this.editor.activeTimeline; 
+                    const visibleTracks = activeTimeline.getVisibleItems();
+                    let combine = false;
+                    for( let i = 0; i < visibleTracks.length; ++i ){
+                        const track = visibleTracks[i].treeData.trackData;
+                        if( track ){ // might be groups or tracks. If groups, no trackData is found
+                            activeTimeline.saveState( track.trackIdx, combine);
+                            combine = true;
+                            activeTimeline.historySaveEnabler = false;
+                            activeTimeline.optimizeTrack( track.trackIdx );
+                            activeTimeline.historySaveEnabler = true;
+                        }
+                    }
+                }},
+                { name: "All Tracks", icon: "Filter", callback: () => {
+                    if ( !this.editor.currentKeyFrameClip){
+                        return;
+                    }
+                    // optimize all tracks of current bound animation (if any)
+                    this.editor.activeTimeline.optimizeTracks();
+                }},
+            ]},
+            { name: "Clear Tracks", icon: "Trash2", submenu: [
+
+                { name: "Selected Tracks", icon: "Trash2", 
+                    callback: () => {
+                        let indices = [];
+                        const selected = this.editor.activeTimeline.selectedTracks;
+                        for( let i = 0; i < selected.length; ++i ){
+                            indices.push( selected[i].trackIdx );
+                        }
+                        this.editor.clearTracks( indices );
+                    }
+                },
+                { name: "Visible Tracks", icon: "Trash2", 
+                    callback: () => {
+                        let indices = [];
+                        const selected = this.editor.activeTimeline.getVisibleItems();
+                        for( let i = 0; i < selected.length; ++i ){
+                            if ( selected[i].treeData.trackData ){
+                                indices.push( selected[i].treeData.trackData.trackIdx );
+                            }
+                        }
+                        this.editor.clearTracks( indices );
+                    } 
+                },
+                { name: "All Tracks", icon: "Trash2", callback: () => this.editor.clearTracks() }
+                
+            ] }
         );
+        editMenuItem.completeSubmenu = editMenu.slice(); // shallow copy
+        editMenuItem._setMode = (mode)=>{ // 0 == global, 1 local
+            if ( mode ){
+                editMenuItem.submenu = editMenuItem.completeSubmenu;
+            }else{
+                editMenuItem.submenu = editMenuItem.completeSubmenu.filter( (v,i,arr) =>{
+                    if(v){ 
+                        if(v.name.includes("Optimize")){
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+            }
+        }
+        editMenuItem._setMode(0);
         
-        const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
+        const viewMenuItem = entries.find( e => e.name == "View" );
+        const viewMenu = viewMenuItem.submenu;
+        console.assert(viewMenu, "View menu not found" );
+
+        const showHideMenu = {
+            name: "Appearance", // warning: check all occurrence of this menu before changing the name
+            submenu: [
+                {
+                    name: "Scene Overlay Panel",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        if ( v ){
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.remove("hidden");
+                        }else{
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
+                        }
+                    }
+                },
+                {
+                    name: "GUI",
+                    checked: true,
+                    callback: (title, v, e) => {
+                        this.canvasAreaOverlayButtons.buttons["GUI"].setState(v);
+                    }
+                },
+                {
+                    name: "Scene Grid",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Grid"].setState(v);
+                    }
+                },
+                {
+                    name: "Skeleton",
+                    checked: false,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Skeleton"].setState(v);
+                    }
+                },
+                {
+                    name: "Avatar",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Skin"].setState(v);
+                    }
+                },
+                { name: "Video", checked: this.showVideo, callback: ( key, v, menuItem ) => {
+                    this.showVideo = v;
+                    this.editor.setVideoVisibility( v );
+                }}
+            ]
+        }
+
+        viewMenu.push( 
+            null, 
+            { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") },
+            null,
+            showHideMenu
+        );
+        showHideMenu.completeSubmenu = showHideMenu.submenu.slice();
+        viewMenuItem._setMode = (mode)=>{ // 0 do not show video, 1 show video
+            if ( mode ){
+                showHideMenu.submenu = showHideMenu.completeSubmenu;
+            }else{
+                // shallow copy. Any changes to the submenu items (.checked) will be reflected on both submenu and completeSubmenu
+                showHideMenu.submenu = showHideMenu.completeSubmenu.slice(0, showHideMenu.completeSubmenu.length-1);
+            }
+        }
+        viewMenuItem._setMode(0);
+
+        const helpMenu = entries.find( e => e.name == "Help" )?.submenu;
+        console.assert(helpMenu, "Help menu not found" );
+        helpMenu.push(
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open( window.location.origin + "/docs/keyframe", "_blank" ) },
+            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank") }
+        );
+        const shortcutsMenu = helpMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
 
         shortcutsMenu.push(
             null,
-            "Keys",
-            { name: "Move", kbd: "CTRL + LClick + drag" },
+            "Keyframes",
             { name: "Change Value (face)", kbd: "ALT + LClick + drag" },
+            { name: "Move", kbd: "CTRL + LClick + drag" },
             { name: "Add", kbd: "Right Click" },
             { name: "Copy", kbd: "CTRL+C" },
             { name: "Paste", kbd: "CTRL+V" },
@@ -1203,17 +1277,6 @@ class KeyframesGui extends Gui {
             { name: "Select Box", kbd: "LSHIFT + LClick + drag" },
             null,
             { name: "Propagation Window", kbd: "W" },
-        );
-        
-        const viewMenu = entries.find( e => e.name == "View" )?.submenu;
-        console.assert(viewMenu, "View menu not found" );
-        viewMenu.push( null, { name: "Gizmo Settings", icon: "Axis3DArrows", callback: (v) => this.openSettings("gizmo") });
-
-        const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
-        console.assert(aboutMenu, "About menu not found" );
-        aboutMenu.push(
-            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs", "_blank")},
-            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
         );
     }
 
@@ -1409,7 +1472,10 @@ class KeyframesGui extends Gui {
             skipLock: true,
             onCreateBeforeTopBar: (panel) => {
                 // panel.addButton
-                panel.addSelect("Animation", Object.keys(this.editor.boundAnimations), this.editor.currentAnimation, (v)=> {
+
+                let characterAnimations = ( !this.editor.currentCharacter || !this.editor.boundAnimations[this.editor.currentCharacter.name] ) ? [] : Object.keys(this.editor.boundAnimations[this.editor.currentCharacter.name]);
+
+                panel.addSelect("Animation", characterAnimations, this.editor.currentAnimation, (v)=> {
                     this.editor.setGlobalAnimation(v); // already updates gui
                 }, {signal: "@on_animation_loaded", id:"animation-selector", nameWidth: "auto"})
                 
@@ -1446,10 +1512,9 @@ class KeyframesGui extends Gui {
                 // copy values and references
                 const clip = Object.assign( {}, clipsToClone[i] );
 
-                // deepclone is only necessary for skeletonAnimation, auAnimation, bsAnimation and mixers
+                // deepclone is only necessary for skeletonAnimation, bsAnimation and mixers
                 if ( deepClone | ( this.editor.currentKeyFrameClip && this.editor.currentKeyFrameClip.uid == clip.uid ) ){
                     clip.skeletonAnimation = this.skeletonTimeline.instantiateAnimationClip( clip.skeletonAnimation, true );
-                    clip.auAnimation = this.auTimeline.instantiateAnimationClip( clip.auAnimation, true );
                     clip.bsAnimation = this.bsTimeline.instantiateAnimationClip( clip.bsAnimation, true );
         
                     if ( cloneReason == LX.ClipsTimeline.CLONEREASON_PASTE ){
@@ -1484,14 +1549,13 @@ class KeyframesGui extends Gui {
         this.globalTimeline.onSetTrackState = (track, previousState) =>{
             if ( track.active == previousState ){ return; }
 
-            for( let i = 0; i < track.clips.length; ++i ){
-                track.clips[i].active = track.active; 
-            }
             this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation() );
             
-            if ( this.globalTimeline.lastClipsSelected.length ){ // update toggle
+            if ( this.globalTimeline.lastClipsSelected.length ){ // update toggle. A bit of an overkill
                 this.createSidePanel();
             }
+
+            this.editor.setTime(this.editor.currentTime); // force mixer update
         }
 
         this.globalTimeline.onDeleteSelectedClips = (deletedClips) =>{
@@ -1500,6 +1564,7 @@ class KeyframesGui extends Gui {
                 this.globalTimeline.onDeleteClip( c[0], c[1], c[2] );
             }
             this.createSidePanel(); // update, in case a clip was visible
+            this.editor.setTime(this.editor.currentTime);
         }
         this.globalTimeline.onDeleteClip = ( trackIdx, clipIdx, clip )=>{
             const mixer = this.editor.currentCharacter.mixer;
@@ -1522,8 +1587,11 @@ class KeyframesGui extends Gui {
         }
 
         this.globalTimeline.onContentMoved = (clip, deltaTime) => {
+            if ( !this.globalTimeline.dragClipMode || !this.globalTimeline.dragClipMode.length ){ 
+                return;
+            }
+
             clip.skeletonAnimation.duration = clip.duration;
-            clip.auAnimation.duration = clip.duration;
             clip.bsAnimation.duration = clip.duration;
             clip.mixerBodyAnimation.duration = clip.duration;
             clip.mixerFaceAnimation.duration = clip.duration;
@@ -1550,6 +1618,24 @@ class KeyframesGui extends Gui {
             this.createSidePanel();
         }
 
+        this.globalTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
+            switch( event.type ){
+                case LX.TreeEvent.NODE_CONTEXTMENU:
+                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
+                        if ( event.node.trackData ){
+                            if ( !event.node.trackData.isSelected ){
+                                this.globalTimeline.deselectAllTracks( false ); // no need to update left panel
+                                this.globalTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
+                            }
+                        }
+
+                        menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
+                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
+                    });
+                    break;
+            }
+        }
+
         this.globalTimeline.showContextMenu = ( e ) => {
 
             e.preventDefault();
@@ -1560,7 +1646,7 @@ class KeyframesGui extends Gui {
                 actions.push(
                     {
                         title: "Copy",
-                        callback: () => { this.globalTimeline.copySelectedContent();}
+                        callback: () => { this.globalTimeline.copySelectedContent(); }
                     }
                 )
                 actions.push(
@@ -1624,6 +1710,16 @@ class KeyframesGui extends Gui {
                         }
                     )
                 }
+
+                actions.push(
+                    {
+                        title: "Empty Clip",
+                        callback: () => {
+                            this.editor.loadAnimation("Empty clip", {}, true, false ); // create and bind. Do not add to loadedAnimations, as it is meaningless
+                            this.createSidePanel(); // adding a clip deselects the rest. Make sure sidePanel is updated
+                        }
+                    }
+                )
             }
             
             LX.addContextMenu("Options", e, (m) => {
@@ -1647,13 +1743,9 @@ class KeyframesGui extends Gui {
                 });
             },
             onCreateSettingsButtons: (panel) => {
-                const closebtn = panel.addButton( null, "X", (e,v) =>{ 
+                panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
                 }, { tooltip: true, icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white" });
-
-                panel.addButton("", "Clear track/s", (value, event) =>  {
-                    this.editor.clearAllTracks();     
-                }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Num bones", Object.keys(this.skeletonTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
@@ -1663,14 +1755,110 @@ class KeyframesGui extends Gui {
                     }, {min: 0, max: 1, step: 0.001, precision: 4}
                 );
 
+                dialog.addRange("Keyframe Size", this.skeletonTimeline.keyframeSize / this.skeletonTimeline.trackHeight, (v, e) =>{
+                    this.skeletonTimeline.setKeyframeSize( v * this.skeletonTimeline.trackHeight, v * this.skeletonTimeline.trackHeight + 5 );
+                }, {min: 0, max:1, step: 0.0001});
+                dialog.addNumber("Track Height", this.bsTimeline.trackHeight, (v,e) =>{
+                    let keyframeSize = this.skeletonTimeline.keyframeSize / this.skeletonTimeline.trackHeight;
+                    this.skeletonTimeline.setTrackHeight( v );
+                    this.skeletonTimeline.setKeyframeSize( keyframeSize * this.skeletonTimeline.trackHeight, keyframeSize * this.skeletonTimeline.trackHeight + 5 );
+                }, { min: parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25 });
+
                 dialog.branch("Propagation Window");
                 this.propagationWindow.onOpenConfig(dialog);
                 dialog.merge();
             },
+            onShowOptimizeMenu: false,
             disableNewTracks: true
         });
+        this.skeletonTimeline.defaultCurves = false;
 
         this.propagationWindow = new PropagationWindow( this.skeletonTimeline );
+        this.propagationWindow.onSetEnabler = (v)=>{
+            if ( this.editor.activeTimeline == this.skeletonTimeline ){
+                if ( this.propagationWindow.enabler || this.skeletonTimeline.lastKeyFramesSelected.length ){
+                    this.editor.gizmo.enableTransform();
+                    return;
+                }
+            }
+            this.editor.gizmo.disableTransform();
+        };
+
+        const that = this;
+
+        this.skeletonTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
+             switch( event.type ){
+                case LX.TreeEvent.NODE_CONTEXTMENU:
+                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
+                        if ( event.node.trackData ){
+                            if ( !event.node.trackData.isSelected ){
+                                this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                                this.editor.activeTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
+                            }
+                        }
+
+                        that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+
+                        menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
+                        menu.add( "Optimize", that.menubar.getItem("Edit/Optimize/Selected Tracks").callback);
+                        menu.add( "Add Keyframes",  (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline ); } );
+                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
+                    });
+                break;
+            }
+        }
+
+        // OVERWRITE function to add buttons ("remove from timeline" and "pin to timeline") to the tree elements
+        this.skeletonTimeline._generateSelectedItemsTreeData = this.skeletonTimeline.generateSelectedItemsTreeData; 
+        this.skeletonTimeline.generateSelectedItemsTreeData = function(){
+            // "this" is the timeline
+            let nodes = this._generateSelectedItemsTreeData(); 
+
+            for( let i = 0; i < nodes.length; ++i ){
+                if ( nodes[i].children.length ){ // it is a group/bone, not a single track
+
+                    const isPinned = that.treeWidget && that.treeWidget._fixedSelection.indexOf( nodes[i].id ) != -1 ? true : false;
+                    nodes[i].actions = [ 
+                        { icon: isPinned ? "PinOff" : "Pin", swap: isPinned ? "Pin" : "PinOff", callback: (node, swapValue, event) =>{
+                            // xor. how the icon/swap was created needs to be taken into account for the swapValue. SwapValue==false -> icon, SwapValue==true -> swap 
+                            const newPinned = swapValue ^ isPinned;
+                            
+                            if( newPinned ){
+                                // fix bone, taking into account the current visible order in the timeline 
+                                const whereIsNode = this.selectedItems.indexOf( node.id );
+                                let whereToAdd = 0;
+                                for(; whereToAdd < that.treeWidget._fixedSelection.length; ++whereToAdd ){ // check all fixed bones to discover which is visibly lower than node in timeline
+                                    if ( this.selectedItems.indexOf( that.treeWidget._fixedSelection[whereToAdd] > whereIsNode ) ){
+                                        break;
+                                    }
+                                }
+                                that.treeWidget._fixedSelection.splice(whereToAdd, 0, node.id ); // add node to fixedSelection
+                            }else{
+                                // unpin from timeline
+                                const index = that.treeWidget._fixedSelection.indexOf( node.id );
+                                if( index > -1 ){ 
+                                    that.treeWidget._fixedSelection.splice(index, 1);
+                                }
+                            } 
+                        } },
+
+                        { icon: "CircleX", name: "Remove from Timeline (does not remove the track from the animation)", callback: (node, swapValue, event) =>{ 
+                            // unpin from timeline
+                            const index = that.treeWidget._fixedSelection.indexOf( node.id );
+                            if( index > -1 ){ 
+                                that.treeWidget._fixedSelection.splice(index, 1);
+                            }
+                            this.changeSelectedItems( null, [ node.id ] ); 
+                        } },
+                    ]
+                }
+            }
+
+            return nodes;
+        } 
+
+        this.skeletonTimeline.setTrackHeight( 32 );
+        this.skeletonTimeline.setKeyframeSize( this.skeletonTimeline.trackHeight * 0.33, this.skeletonTimeline.trackHeight * 0.33 + 5 );
 
         this.skeletonTimeline.leftPanel.parent.root.style.zIndex = 1;
         this.skeletonTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
@@ -1689,18 +1877,22 @@ class KeyframesGui extends Gui {
             this.menubar.getButton("Stop").setState(true); // click();
         }
         this.skeletonTimeline.onSetTime = (t) => {
+            if ( this.skeletonTimeline.lastKeyFramesSelected.length && this.skeletonTimeline.grabbingTimeBar ){
+                this.skeletonTimeline.deselectAllKeyFrames();
+                if ( !this.propagationWindow.enabler ){
+                    this.editor.gizmo.disableTransform();
+                }
+            }
             this.editor.setTime(this.editor.startTimeOffset + t, true);
             this.propagationWindow.setTime(t);
         }
+
         this.skeletonTimeline.onSetDuration = (t) => { 
             const currentClip = this.editor.currentKeyFrameClip;
             if (!currentClip){ return; }
             currentClip.mixerBodyAnimation.duration = t;
             currentClip.mixerFaceAnimation.duration = t;
 
-            if( this.auTimeline.duration != t ){
-	            this.auTimeline.setDuration(t, true, true);
-			}
             if( this.bsTimeline.duration != t ){
 	            this.bsTimeline.setDuration(t, true, true);
 			}
@@ -1711,40 +1903,418 @@ class KeyframesGui extends Gui {
             }
         };
 
-        this.skeletonTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx]);
-        this.skeletonTimeline.onDeleteKeyFrames = (trackIdx, indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx]);
+        this.skeletonTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
+        this.skeletonTimeline.onDeleteKeyFrames = (trackIdx, indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
         this.skeletonTimeline.onSelectKeyFrame = (selection) => {
             this.propagationWindow.setTime( this.skeletonTimeline.currentTime );
 
-            if ( this.skeletonTimeline.lastKeyFramesSelected.length < 2){   
+            if ( this.skeletonTimeline.lastKeyFramesSelected.length == 1 ){   
                 const track = this.skeletonTimeline.animationClip.tracks[selection[0]];
-                this.editor.gizmo._setBoneById(this.editor.gizmo.selectedBone);
-                this.editor.setGizmoMode(track ? track.id : "rotate");
+
+                if ( this.editor.selectedBone != track.groupId ){
+                    this.editor.setSelectedBone( track.groupId, false );
+                }
+                
+                this.updateBonePanel(); // updates sidepanel and chooses the apropriate gizmo tool based on the selected keyframe
+                this.editor.gizmo.enableTransform(); // show gizmo
                 this.editor.gizmo.update(true);
-                this.updateSkeletonPanel();
+
+            }else{
+                this.editor.gizmo.disableTransform();
             }
+
             if ( this.propagationWindow.enabler ){
                 this.skeletonTimeline.deselectAllKeyFrames();
             }
         };
 
         this.skeletonTimeline.onDeselectKeyFrames = (keyframes) => {
-            this.editor.gizmo.stop();
+            this.editor.gizmo.disableTransform();
         }
 
         
-        // "add" entry needs to set a proper value to the keyframe. This is why the default implementation of showContextMenu is not enough
-        const that = this;
+        // which tracks are affected, are determined by the selectedTracks of the timeline's leftpanel tree. Used by both timelines
+        this.bulkKeyframeAddition = {
+            n: 1,
+            startTime: this.skeletonTimeline.currentTime,
+            duration: 1,
+            dialog: null,
+
+            createDialog( isFaceTimeline = false ){
+                if ( this.dialog ){ // only one dialog of bulk addition, regardless of which type (keyframe or curves) is open
+                    this.dialog.close();
+                }
+
+                if ( isFaceTimeline ){
+                    that.bsTimeline.drawTrackWithCurves = that.bsTimeline.bulkAdditionDrawTrack;
+                }else{
+                    that.skeletonTimeline.drawTrackWithKeyframes = that.skeletonTimeline.bulkAdditionDrawTrack;
+                }
+             
+                this.dialog = new LX.Dialog( "Bulk addition in selected tracks", p => {
+                    p.addNumber( "Num Keyframes", this.n, (v,e)=>{ this.n = v}, {min: 1, step: 1 } );
+                    p.addNumber( "Start Time", this.startTime, (v,e)=>{ this.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
+                    p.addNumber( "Duration", this.duration, (v,e)=>{ this.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
+                    
+                    p.sameLine();
+                    p.addButton( "Cancel", "Cancel", (v,e)=>{ this.dialog.close(); }, {width: "50%", hideName: true} );
+                    p.addButton( "Add", "Add", (v,e)=>{ 
+
+                        if ( isFaceTimeline ){
+                            this._commitAddFace();
+                        }else{
+                            this._commitAddSkeleton();
+                        }
+
+                        this.dialog.close();
+
+                    }, {width: "50%", hideName: true} );
+                    p.endLine();
+
+                }, { closable:true, onBeforeClose: (v)=>{
+                    this.dialog = null;
+                    if ( isFaceTimeline ){
+                        that.bsTimeline.drawTrackWithCurves = that.bsTimeline.originalDrawTrack;
+                    }else{
+                        that.skeletonTimeline.drawTrackWithKeyframes = that.skeletonTimeline.originalDrawTrack;
+                    }
+                }});
+
+                this.dialog.root.style.zIndex = 99; // so tour is above it
+
+                const title = this.dialog.root.getElementsByClassName("lexdialogtitle")[0];
+                const icon = LX.makeIcon("CircleQuestionMark");
+                icon.addEventListener( "click", (e) =>{
+                    const tour = new LX.Tour([
+                        {
+                            title: "Bulk Addition",
+                            content: "This tool allows you to add evenly spaced keyframes across multiple tracks. The number of keyframes and the duration determine the spacing between each new frame.",
+                            reference: this.dialog.root,
+                            align: "center"
+                        },
+                        {
+                            title: "Bulk Addition",
+                            content: "Tracks can be selected directly on the timeline's left panel. Clicking on an item will remove the previous selection. Clicking while pressing the 'shift' key will add the item to the selection.",
+                            reference: that.editor.activeTimeline.trackTreesComponent.innerTree.domEl,
+                            side: "top",
+                            align: "center"
+                        }
+                    ]);
+
+                    tour.begin();
+                });
+                title.prepend(icon);
+            },
+
+            _commitAddSkeleton(){ // skeleton timeline
+                const n = this.n;
+                const start = this.startTime;
+                const spf = n == 1 ? 1 : this.duration / (n-1);
+
+                const selectedTracks = that.skeletonTimeline.selectedTracks;
+
+                // TO DO TODO
+                // find bones. This could be already precomputed inside the animation tracks. 
+                // Optionally, this could be avoided by interpolating frames directly, but Position, Scale, Quaternions needs particular interpolations
+                // Although this might be slower, it is probably not a big performance issue
+                const selectedBones = new Array(selectedTracks.length);
+                for( let i = 0; i < selectedTracks.length; ++i ){
+                    const idx = findIndexOfBoneByName( that.editor.currentCharacter.skeletonHelper.skeleton, selectedTracks[i].groupId ); // assuming it exists
+                    selectedBones[i] = that.editor.currentCharacter.skeletonHelper.skeleton.bones[idx]; 
+                }
+
+                const srcTime = that.editor.currentTime;
+                
+                let saveTrackCombine = false;
+                let lockedTracks = false;
+                let duplicateKeyframes = false;
+
+                // for all selected tracks
+                for( let t = 0; t < selectedTracks.length; ++t ){
+                    if ( !selectedBones[t] ){ continue; }
+                    
+                    let values = [];
+                    let times = [];
+                    let pos = start;
+                    
+                    const track = selectedTracks[t];
+                    const bone = selectedBones[t];
+
+                    if ( track.locked ){
+                        lockedTracks = true;
+                        continue;
+                    }
+
+                    // for all new frames
+                    for( let i = 0; i < n; ++i ){
+                        that.editor.setTime( pos + that.editor.startTimeOffset );
+                        
+                        const frame = that.skeletonTimeline.getNearestKeyFrame(track, pos, 0); // probably can be optimized to not use this function, if more performance is necessary.
+                        if ( frame != -1 && Math.abs(track.times[frame]-pos) < 0.001 ){ // keyframe already exists in that position
+                            pos += spf;
+                            continue;
+                        }
+    
+                        values.push( bone[ track.id ].toArray() );
+                        times.push( pos );
+                        pos += spf;
+                    }
+
+                    // addkeyframes, but save all tracks together. Avoid addkeyframes function's internal saving
+                    that.skeletonTimeline.saveState( track.trackIdx, saveTrackCombine );
+                    saveTrackCombine = true;
+
+                    that.skeletonTimeline.historySaveEnabler = false;
+                    const newFrames = that.skeletonTimeline.addKeyFrames( track.trackIdx, values, times, 0, LX.KeyFramesTimeline.ADDKEY_VALUESINARRAYS ) ?? [];
+                    that.skeletonTimeline.historySaveEnabler = true;
+
+                    duplicateKeyframes |= newFrames.length != this.n;
+                }
+
+                that.editor.setTime( srcTime );
+
+                LX.toast("Bulk Addition", `Keyframes have been added to the selected tracks.`, { timeout: 7000 } );
+                if ( duplicateKeyframes ){
+                    LX.toast("Bulk Addition Duplicated Keyframes", `Duplicate keyframes have been discarded`, { timeout: 7000 } );
+                }
+                if ( lockedTracks ){
+                    LX.toast("Bulk Addition Locked Tracks", `Locked tracks have been discarded for this operation`,  { timeout: 7000 } );
+                }
+            },
+
+            _commitAddFace(){ // bs timeline
+                const n = this.n;
+                const start = this.startTime;
+                const spf = n == 1 ? 1 : this.duration / (n-1);
+
+                let newTimes = []; // helper functions does some splice. Float32Array does not have splice
+                for( let i = 0; i < n; ++i ){
+                    newTimes.push(start + spf * i);
+                }
+
+                const selectedTracks = that.bsTimeline.selectedTracks;
+                let saveCombine = false;
+
+                let lockedTracks = false;
+                let duplicateKeyframes = false;
+
+                for( let i = 0; i < selectedTracks.length; ++i ){
+                    if ( selectedTracks[i].locked ){ 
+                        lockedTracks = true;
+                        continue;
+                    }
+
+                    that.bsTimeline.saveState(selectedTracks[i].trackIdx, saveCombine );
+                    saveCombine = true;
+
+                    that.bsTimeline.historySaveEnabler = false;
+                    const newFrames = this._helperNewBSMultipleKeyframes( selectedTracks[i], newTimes.slice() ) ?? []; // saves track (deactivated this), adds keyframe and calls select callback (on last frame)
+                    that.bsTimeline.historySaveEnabler = true;
+
+                    duplicateKeyframes |= newTimes.length == newFrames.length;
+                }
+
+                that.editor.setTime( newTimes[0] );
+                
+                LX.toast("Bulk Addition", `Keyframes have been added to the selected tracks.`, { timeout: 7000 } );
+                if ( duplicateKeyframes ){
+                    LX.toast("Bulk Addition Duplicated Keyframes", `Duplicate keyframes have been discarded`, { timeout: 7000 } );
+                }
+                if ( lockedTracks ){
+                    LX.toast("Bulk Addition Locked Tracks", `Locked tracks have been discarded for this operation`,  { timeout: 7000 } );
+                }
+            },
+            
+            _helperNewBSMultipleKeyframes( track, newTimes ) { // function used also in bsTimeline.showContextMenu
+                // "this" is bulkKeyframeAddition object
+                if ( track.locked ){ 
+                    return null; 
+                }
+
+                let newValues = [];
+
+                const values = track.values;
+                const times = track.times;
+                const timeThreshold = 0.001;
+                for( let i = 0; i < newTimes.length; ++i ){
+                    let nearest = that.bsTimeline.getNearestKeyFrame( track, newTimes[i], 0 );
+                    if ( nearest == -1 ){
+                        newValues.push(0);
+                        continue;
+                    }
+
+                    const newFrameTime = newTimes[i];
+                    if ( Math.abs(times[nearest] - newFrameTime) < timeThreshold ){ 
+                        newTimes.splice(i,1);
+                        --i;
+                        continue;
+                    }
+
+                    const prevFrame = times[nearest] > newFrameTime ? (nearest-1) : nearest;
+                    const postFrame = times[nearest] > newFrameTime ? nearest : (nearest+1);
+
+                    if (prevFrame == -1){
+                        newValues.push(values[postFrame]);
+                    }else if (postFrame >= times.length){
+                        newValues.push( values[prevFrame] );
+                    }else{
+                        let dt = times[postFrame] - times[prevFrame];
+                        let f = 0;
+                        if( dt > 0 ){
+                            f = ( newFrameTime - times[prevFrame] ) / dt;
+                        }
+                        newValues.push( values[prevFrame] * (1-f) + values[postFrame] * f );
+                    }
+                }
+                
+                let newFrames = that.bsTimeline.addKeyFrames( track.trackIdx, newValues, newTimes ); // aleady does a saves history
+                
+                if( !that.propagationWindow.enabler ){
+                    for( let i = newFrames.length-1; i > -1; --i ){
+                        that.bsTimeline.selectKeyFrame(track.trackIdx, newFrames[i], i == 0); // do callback only on last keyframe
+                    }
+                }
+
+                return newFrames;
+            }
+
+        }; // end of bulk addition
+
+        this.skeletonTimeline.originalDrawTrack = this.skeletonTimeline.drawTrackWithKeyframes;
+        this.skeletonTimeline.bulkAdditionDrawTrack = function( ctx, trackHeight, track ){
+            this.originalDrawTrack( ctx, trackHeight, track );
+
+            if ( !track.isSelected ){
+                return;
+            }
+
+            // render bulk keyframes
+            const n = that.bulkKeyframeAddition.n;
+            const startPixel = this.timeToX( that.bulkKeyframeAddition.startTime );
+            const endPixel = this.timeToX( that.bulkKeyframeAddition.startTime + that.bulkKeyframeAddition.duration );
+            const ppf = n == 1 ? 1 : (endPixel - startPixel) / (n-1);
+            let pos = startPixel;
+
+            ctx.fillStyle = "#FFC69D";
+            const size = this.keyframeSize / Math.SQRT2; // square is rotated. H^2 = C^2 + C^2 ->  h = sqrt2 * c
+            for( let i = 0; i < n; ++i ){
+                
+                ctx.save();
+                ctx.translate(pos, trackHeight * 0.5);
+                ctx.rotate(45 * Math.PI / 180);		
+                ctx.fillRect( -size*0.5, -size*0.5, size, size);
+                ctx.restore();
+                
+                pos += ppf;
+            }
+        }
+
         this.skeletonTimeline.showContextMenu = function( e ) {
             // THIS here means the timeline, not the GUI
             e.preventDefault();
             e.stopPropagation();
     
             let actions = [];
+
+            if(e.track) {
+                // TODO select this entry's track if not selected. Keep the current track selection otherwise
+
+                if ( e.track.groupId != that.editor.selectedBone ){
+                    that.editor.setSelectedBone( e.track.groupId, false );
+                }
+
+                const type = e.track.id;
+                if(that.boneProperties[type]) {
+                    const trackName =  e.track.groupId + "@" + e.track.id;
+                    actions.push(
+                    {
+                        title: trackName + "/Add Keyframe Here",
+                        callback: () => {
+                            // "this" is the timeline
+                            this.deselectAllElements();
+
+                            if ( e.track.locked ){
+                                return
+                            }
+
+                            const selectedTime = this.xToTime(e.localX);
+                            const currentTime = that.editor.currentTime;
+
+                            this.setTime(selectedTime);
+                            let newFrame = this.addKeyFrames( e.track.trackIdx,that.boneProperties[type].toArray(), [selectedTime] );
+                            
+                            if( that.propagationWindow.enabler ){
+                                this.setTime(currentTime);
+                            }else{
+                                this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
+                            }
+                        }
+                    },
+                    {
+                        title: trackName + "/Add Keyframe At current time",
+                        callback: () => {
+                            // "this" is the timeline
+                            this.deselectAllElements();
+
+                            if ( e.track.locked ){
+                                return;
+                            }
+
+                            let newFrame = this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
+                            this.selectKeyFrame(e.track.trackIdx, newFrame[0]);
+                        }
+                    },
+                    {
+                        title: trackName + "/Add Keyframe Bulk Addition",
+                        callback: () => {
+    
+                            // TODO select this entry's track only
+    
+                            // "this" is the timeline
+                            this.deselectAllElements();
+                            that.bulkKeyframeAddition.createDialog( false );
+                        }
+                    },
+                    {
+                        title: trackName + "/Optimize Track",
+                        callback: () => {
+                            // "this" is the timeline
+                            this.optimizeTrack( e.track.trackIdx );
+                        }
+                    },
+                    {
+                        title: trackName + "/Clear Track",
+                        callback: () => {
+                            that.editor.clearTracks( [e.track.trackIdx] );
+                        }
+                    },
+                    );
+                    
+                }
+            }// end of if e.track
+            
+            if(this.clipboard && this.clipboard.keyframes)
+            {
+                actions.push(
+                    {
+                        title: "Paste Keyframes/Here",
+                        callback: () => {
+                            this.pasteContent( this.xToTime(e.localX) );
+                        }
+                    },
+                    {
+                        title: "Paste Keyframes/At Current Time",
+                        callback: () => {
+                            this.pasteContent( this.currentTime );
+                        }
+                    }
+                );
+            }            
+
             if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
                 actions.push(
                     {
-                        title: "Copy",
+                        title: "Selected Keyframes/Copy",
                         callback: () => {
                             this.copySelectedContent();
                         }
@@ -1752,17 +2322,16 @@ class KeyframesGui extends Gui {
                 );
                 actions.push(
                     {
-                        title: "Delete",
+                        title: "Selected Keyframes/Delete",
                         callback: () => {
                             this.deleteSelectedContent();
                         }
                     }
                 );
-                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value)
-                {
+                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value) {
                     actions.push(
                         {
-                            title: "Paste Value",
+                            title: "Selected Keyframes/Paste Value",
                             callback: () => {
                                 this.pasteContentValue();
                             }
@@ -1770,183 +2339,47 @@ class KeyframesGui extends Gui {
                     );
                 }
             }
-            else{
 
-                if(!e.track) {
-                    return;
-                }
-                
-                const type = e.track.id;
-                if(that.boneProperties[type]) {
-                    actions.push(
-                        {
-                            title: "Add Here",
-                            callback: () => {
-                                this.addKeyFrames( e.track.trackIdx,[0,0,0,1] /*that.boneProperties[type].toArray()*/, [this.xToTime(e.localX)] );
-                            }
-                        }
-                    );
-                    actions.push(
-                        {
-                            title: "Add",
-                            callback: () => {
-                                this.addKeyFrames( e.track.trackIdx, that.boneProperties[type].toArray(), [this.currentTime] );
-                            }
-                        }
-                    );
-
-                }    
-            }
-    
-            if(this.clipboard && this.clipboard.keyframes)
-            {
+            if( this.selectedTracks.length ){
                 actions.push(
                     {
-                        title: "Paste Here",
-                        callback: () => {
-                            this.pasteContent( this.xToTime(e.localX) );
+                        title: "Selected Tracks/Add Keyframe Bulk Addition",
+                        callback: () =>{ 
+                            this.deselectAllElements();
+                            that.bulkKeyframeAddition.createDialog( false );
                         }
-                    }
-                );
-                actions.push(
+                    },
                     {
-                        title: "Paste",
-                        callback: () => {
-                            this.pasteContent( this.currentTime );
-                        }
+                        title: "Selected Tracks/Optimize Tracks",
+                        callback: that.menubar.getItem("Edit/Optimize/Selected Tracks").callback
+                    },
+                    {
+                        title: "Selected Tracks/Clear Tracks",
+                        callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+                    },
+                    {
+                        title: "Selected Tracks/Deselect Tracks",
+                        callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); }
                     }
+
+                    
                 );
             }
             
             LX.addContextMenu("Options", e, (m) => {
                 for(let i = 0; i < actions.length; i++) {
-                    m.add(actions[i].title,  actions[i].callback )
+                    m.add(actions[i].title,  actions[i] );
                 }
             });
     
         }
 
-        this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.stop(); } }
-        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null);
-        this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx] );}
+        this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.disableTransform(); } }
+        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
+        this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );}
         this.skeletonTimeline.onOptimizeTracks = (idx = -1) => { 
-            this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, idx == -1 ? null : [idx]);
+            this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, idx == -1 ? null : [idx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
-
-        /* Curves Timeline */
-        this.auTimeline = new LX.KeyFramesTimeline("Action Units", {
-            title: "Action Units",
-            onCreateAfterTopBar: (panel) =>{
-                panel.addNumber("Speed", + this.editor.playbackRate.toFixed(3), (value, event) => {
-                    this.editor.setPlaybackRate(value);
-                }, {
-                    step: 0.01,
-                    signal: "@on_set_speed",
-                    nameWidth: "auto"
-                });
-            },
-            onCreateSettingsButtons: (panel) => {
-                const closebtn = panel.addButton( null, "X", (e,v) =>{ 
-                    this.setKeyframeClip(null);
-                }, { tooltip: true, icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white" });
-
-                panel.addButton("", "Clear track/s", (value, event) =>  {
-                    this.editor.clearAllTracks();
-                }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
-            },
-            onShowConfiguration: (dialog) => {
-                dialog.addNumber("Num Action Units", Object.keys(this.auTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
-                dialog.addNumber("Num tracks", this.auTimeline.animationClip ? this.auTimeline.animationClip.tracks.length : 0, null, {disabled: true});
-                dialog.addNumber("Optimize Threshold", this.auTimeline.optimizeThreshold ?? 0.01, v => {
-                        this.auTimeline.optimizeThreshold = v;
-                    }, {min: 0, max: 1, step: 0.001, precision: 4}
-                );
-
-                dialog.branch("Propagation Window");
-                this.propagationWindow.onOpenConfig(dialog);
-
-                dialog.merge();
-            },
-            disableNewTracks: true
-        });
-
-        this.auTimeline.leftPanel.parent.root.style.zIndex = 1;
-        this.auTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
-        this.auTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
-        this.auTimeline.onBeforeDrawContent = this.propagationWindow.draw.bind(this.propagationWindow);
-
-        this.auTimeline.onChangeLoopMode = (loop) => {
-                this.updateLoopModeGui( loop );
-        };
-        this.auTimeline.onSetTime = (t) => {
-            this.editor.setTime(this.editor.startTimeOffset + t, true);
-            this.propagationWindow.setTime(t);
-            if ( !this.editor.state ){ // update ui if not playing
-                this.editor.updateFacePropertiesPanel(this.auTimeline, -1);
-            }
-        };
-        this.auTimeline.onSetDuration = (t) => { 
-            let currentClip = this.editor.currentKeyFrameClip;
-            if (!currentClip){ return; }
-            currentClip.mixerBodyAnimation.duration = t;
-            currentClip.mixerFaceAnimation.duration = t;
-
-            if( this.skeletonTimeline.duration != t ){
-	            this.skeletonTimeline.setDuration(t, true, true);			
-			}
-            if( this.bsTimeline.duration != t ){
-	            this.bsTimeline.setDuration(t, true, true);
-			}
-
-            currentClip.duration = t;
-            if ( currentClip.start + currentClip.duration > this.globalTimeline.animationClip.duration ){
-                this.globalTimeline.setDuration( currentClip.start + currentClip.duration, true, true );
-            }
-        };
-
-        this.auTimeline.onContentMoved = (trackIdx, keyframeIdx)=> this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, [trackIdx], this.auTimeline.animationClip);
-        this.auTimeline.onUpdateTrack = (indices) => {
-            this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, indices, this.auTimeline.animationClip); 
-            this.editor.updateFacePropertiesPanel(this.auTimeline, indices.length == 1 ? indices[0] : -1);
-        }
-        this.auTimeline.onDeleteKeyFrames = (trackIdx, tidx) => this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, [trackIdx], this.auTimeline.animationClip);
-        this.auTimeline.onSelectKeyFrame = (selection) => {
-            this.propagationWindow.setTime( this.auTimeline.currentTime );
-
-            if ( this.auTimeline.lastKeyFramesSelected.length < 2 ){
-                this.editor.updateFacePropertiesPanel(this.auTimeline, selection[0]);
-            }
-
-            if ( this.propagationWindow.enabler ){
-                this.auTimeline.deselectAllKeyFrames();
-            }
-
-            // Highlight panel slider
-            const elements = document.getElementsByClassName("bg-accent");
-            for(let el of elements) {
-                el.classList.remove("bg-accent");
-            }
-            const el = document.querySelector(`[title='${this.auTimeline.animationClip.tracks[selection[0]].id}']`);
-
-            if(el) {
-                el.parentElement.classList.add("bg-accent");
-            }
-        };
-        
-        this.auTimeline.onStateChange = (state) => {
-            if(state != this.editor.state) {
-                this.menubar.getButton("Play").swap(); // click();
-            }
-        }
-        this.auTimeline.onStateStop = () => {
-            this.menubar.getButton("Stop").setState(true); // click();
-        }
-        this.auTimeline.onOptimizeTracks = (idx = -1) => { 
-            this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, idx == -1 ? null : [idx], this.auTimeline.animationClip);
-            this.editor.updateFacePropertiesPanel(this.auTimeline, idx < 0 ? -1 : idx);
-        }
-        this.auTimeline.onSetTrackState = (track, oldState) => {this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, [track.trackIdx], this.auTimeline.animationClip);}
-
 
         /* Curves Blendshapes Timeline */
         this.bsTimeline = new LX.KeyFramesTimeline("Blendshapes", { 
@@ -1964,10 +2397,6 @@ class KeyframesGui extends Gui {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
                 }, { icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white "});
-
-                panel.addButton("", "Clear track/s", (value, event) =>  {
-                    this.editor.clearAllTracks();     
-                }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
             onShowConfiguration: (dialog) => {             
                 dialog.addNumber("Num tracks", this.bsTimeline.animationClip ? this.bsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
@@ -1976,14 +2405,59 @@ class KeyframesGui extends Gui {
                     }, {min: 0, max: 1, step: 0.001, precision: 4}
                 );
 
+                dialog.addRange("Keyframe Size", this.bsTimeline.keyframeSize / this.bsTimeline.trackHeight, (v,e) =>{
+                    this.bsTimeline.setKeyframeSize( v * this.bsTimeline.trackHeight, v * this.bsTimeline.trackHeight + 5 );
+                }, {min: 0, max:1, step: 0.0001});
+                dialog.addNumber("Track Height", this.bsTimeline.trackHeight, (v,e) =>{
+                    let keyframeSize = this.bsTimeline.keyframeSize / this.bsTimeline.trackHeight;
+                    this.bsTimeline.setTrackHeight( v );
+                    this.bsTimeline.setKeyframeSize( keyframeSize * this.bsTimeline.trackHeight, keyframeSize * this.bsTimeline.trackHeight + 5 );
+                }, { min: parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25 });
+
+                dialog.addVector2("Keyframe Value Range", this.bsTimeline.defaultCurvesRange.slice(), (v,e) =>{
+
+                    if ( v[0] != this.bsTimeline.defaultCurvesRange[0] ){
+                        v[0] = Math.min( v[0], this.bsTimeline.defaultCurvesRange[1] );
+                    }else{
+                        v[1] = Math.max( this.bsTimeline.defaultCurvesRange[0], v[1] );
+                    }
+
+                    dialog.components["Keyframe Value Range"].set( v, true ); // skip callback
+
+                    this.bsTimeline.defaultCurvesRange[0] = v[0];
+                    this.bsTimeline.defaultCurvesRange[1] = v[1];
+
+                    if ( !this.bsTimeline.animationClip ){
+                        return;
+                    }
+
+                    const tracks = this.bsTimeline.animationClip.tracks;
+                    for( let i = 0; i < tracks.length; ++i ){
+                        tracks[i].curvesRange[0] = v[0];
+                        tracks[i].curvesRange[1] = v[1];
+                    }
+
+                    if ( this.sidePanelBlendshapeSlidersPanel){
+                        const cmps = this.sidePanelBlendshapeSlidersPanel.components;
+                        for( let name in cmps ){
+                            if (cmps[name].type != LX.BaseComponent.NUMBER){ continue; }
+                            cmps[name].setLimits( v[0], v[1], 0.001 );
+                        }
+                    }
+
+                }, { step: 0.001, precision: 3, onRelease: ()=>{ if ( this.sidePanelBlendshapeSlidersPanel ) {this.sidePanelBlendshapeSlidersPanel.refresh(); } } });
+
                 dialog.branch("Propagation Window");
                 this.propagationWindow.onOpenConfig(dialog);
 
                 dialog.merge();
             },
+            onShowOptimizeMenu: false,
             disableNewTracks: true
         });
 
+        this.bsTimeline.setTrackHeight( 32 );
+        this.bsTimeline.setKeyframeSize( this.bsTimeline.trackHeight * 0.33, this.bsTimeline.trackHeight * 0.33 + 5 );
         this.bsTimeline.leftPanel.parent.root.style.zIndex = 1;
         this.bsTimeline.onMouse = this.propagationWindow.onMouse.bind(this.propagationWindow);
         this.bsTimeline.onDblClick = this.propagationWindow.onDblClick.bind(this.propagationWindow);
@@ -1991,6 +2465,11 @@ class KeyframesGui extends Gui {
         this.bsTimeline.onChangeLoopMode = (loop) => this.updateLoopModeGui( loop );
         this.bsTimeline.onSetSpeed = (v) => this.editor.setPlaybackRate(v);
         this.bsTimeline.onSetTime = (t) => {
+
+            if ( this.bsTimeline.lastKeyFramesSelected.length && this.bsTimeline.grabbingTimeBar ){
+                this.bsTimeline.deselectAllKeyFrames();
+            }
+
             this.editor.setTime(this.editor.startTimeOffset + t, true);
             this.propagationWindow.setTime(t);
             if ( !this.editor.state ){ // update ui if not playing
@@ -2006,9 +2485,6 @@ class KeyframesGui extends Gui {
             if( this.skeletonTimeline.duration != t ){
 	            this.skeletonTimeline.setDuration(t, true, true);			
 			}
-            if( this.auTimeline.duration != t ){
-	            this.auTimeline.setDuration(t, true, true);
-			}
 
             currentClip.duration = t;
             if ( currentClip.start + currentClip.duration > this.globalTimeline.animationClip.duration ){
@@ -2016,19 +2492,153 @@ class KeyframesGui extends Gui {
             }
         };
 
+        this.bsTimeline.onTrackTreeEvent = this.skeletonTimeline.onTrackTreeEvent; //reusing function
+        this.bsTimeline.originalDrawTrack = this.bsTimeline.drawTrackWithCurves;
+        this.bsTimeline.bulkAdditionDrawTrack = this.skeletonTimeline.bulkAdditionDrawTrack; // reuse function
+        this.bsTimeline.showContextMenu = function( e ) {
+            // THIS here means the timeline, not the GUI
+            e.preventDefault();
+            e.stopPropagation();
+    
+            let actions = [];
+
+            if(e.track) {
+                // TODO select this entry's track if not selected. Keep the current track selection otherwise
+
+                const trackName = "@" + e.track.id;
+                actions.push(
+                {
+                    title: trackName + "/Add Keyframe Here",
+                    callback: () => {
+                        // "this" is the timeline
+                        const selectedTime = this.xToTime(e.localX);
+                        const newFrames = that.bulkKeyframeAddition._helperNewBSMultipleKeyframes( e.track, [selectedTime] ); // saves track, adds keyframe and calls select callback (on last frame) 
+                        if ( newFrames && newFrames.length ){
+                            this.setTime(selectedTime);
+                        }
+                    }
+                },
+                {
+                    title: trackName + "/Add Keyframe At Current Time",
+                    callback: () => {
+                        // "this" is the timeline
+                        that.bulkKeyframeAddition._helperNewBSMultipleKeyframes( e.track, that.editor.currentTime ); // saves track, adds keyframe and calls select callback (on last frame)
+                    }
+                },
+                {
+                    title: trackName + "/Add Keyframe Bulk Addition",
+                    callback: () => {
+                        // "this" is the timeline
+                        this.deselectAllElements();
+                        that.bulkKeyframeAddition.createDialog( true );
+                    }
+                },
+                {
+                    title: trackName + "/Optimize Track",
+                    callback: () => {
+                        // "this" is the timeline
+                        this.optimizeTrack( e.track.trackIdx );
+                    }
+                },
+                {
+                    title: trackName + "/Clear Track",
+                    callback: () => {
+                        that.editor.clearTracks( [e.track.trackIdx] );
+                    }
+                },
+                );
+            }
+
+            if(this.clipboard && this.clipboard.keyframes)
+            {
+                actions.push(
+                    {
+                        title: "Paste Keyframes/Here",
+                        callback: () => {
+                            this.pasteContent( this.xToTime(e.localX) );
+                        }
+                    },
+                    {
+                        title: "Paste Keyframes/At Current Time",
+                        callback: () => {
+                            this.pasteContent( this.currentTime );
+                        }
+                    }
+                );
+            }
+
+            if(this.lastKeyFramesSelected && this.lastKeyFramesSelected.length) {
+                actions.push(
+                    {
+                        title: "Selected Keyframes/Copy",
+                        callback: () => {
+                            this.copySelectedContent();
+                        }
+                    }
+                );
+                actions.push(
+                    {
+                        title: "Selected Keyframes/Delete",
+                        callback: () => {
+                            this.deleteSelectedContent();
+                        }
+                    }
+                );
+                if(this.lastKeyFramesSelected.length == 1 && this.clipboard && this.clipboard.value) {
+                    actions.push(
+                        {
+                            title: "Selected Keyframes/Paste Value",
+                            callback: () => {
+                                this.pasteContentValue();
+                            }
+                        }
+                    );
+                }
+            }
+
+            if( this.selectedTracks.length ){
+                actions.push(
+                    {
+                        title: "Selected Tracks/Add Keyframe Bulk Addition",
+                        callback: () =>{ 
+                            this.deselectAllElements();
+                            that.bulkKeyframeAddition.createDialog( true );
+                        }
+                    },
+                    {
+                        title: "Selected Tracks/Optimize Tracks",
+                        callback: that.menubar.getItem("Edit/Optimize/Selected Tracks").callback
+                    },
+                    {
+                        title: "Selected Tracks/Clear Tracks",
+                        callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+                    },
+                    {
+                        title: "Selected Tracks/Deselect Tracks",
+                        callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); }
+                    }
+
+                    
+                );
+            }
+
+            LX.addContextMenu("Options", e, (m) => {
+                for(let i = 0; i < actions.length; i++) {
+                    m.add(actions[i].title,  actions[i] );
+                }
+            });
+        }
+
         this.bsTimeline.onContentMoved = (trackIdx, keyframeIdx)=> {
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx]);
-            this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation,  [trackIdx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx], this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
         }
         this.bsTimeline.onUpdateTrack = (indices) => {
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : null);
-            this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, indices);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, indices.length == 1 ? indices : null, this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, indices.length == 1 ? indices[0] : -1);
         }
         this.bsTimeline.onDeleteKeyFrames = (trackIdx, tidx) => {
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx]);
-            this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, [trackIdx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [trackIdx], this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, [trackIdx]);
         }
         
@@ -2044,14 +2654,14 @@ class KeyframesGui extends Gui {
             }
             
             // Highlight panel slider
-            const elements = document.getElementsByClassName("bg-accent");
+            const elements = this.sidePanelBlendshapeSlidersPanel.root.getElementsByClassName("bg-accent");
             for(let el of elements) {
                 el.classList.remove("bg-accent");
             }
-            const el = document.querySelector(`[title='${this.bsTimeline.animationClip.tracks[selection[0]].id}']`);
-
+            const el = this.sidePanelBlendshapeSlidersPanel.components[this.bsTimeline.animationClip.tracks[selection[0]].id];
             if(el) {
-                el.parentElement.classList.add("bg-accent");
+                el.root.classList.add("bg-accent");
+                el.root.scrollIntoViewIfNeeded();
             }     
         };
         
@@ -2064,18 +2674,15 @@ class KeyframesGui extends Gui {
             this.menubar.getButton("Stop").setState(true); // click();
         }
         this.bsTimeline.onOptimizeTracks = (idx = -1) => { 
-            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, idx == -1 ? null : [idx]);
-            this.editor.updateActionUnitsAnimation(this.editor.currentKeyFrameClip.auAnimation, idx == -1 ? null : [idx]);
+            this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, idx == -1 ? null : [idx], this.editor.currentKeyFrameClip.bsAnimation);
             this.editor.updateFacePropertiesPanel(this.bsTimeline, idx < 0 ? -1 : idx);
         }
-        this.bsTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx]);}
+        this.bsTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.bsAnimation);}
 
         this.timelineArea.attach(this.globalTimeline.root);
         this.timelineArea.attach(this.skeletonTimeline.root);
-        this.timelineArea.attach(this.auTimeline.root);
         this.timelineArea.attach(this.bsTimeline.root);
         this.skeletonTimeline.hide();
-        this.auTimeline.hide();
         this.bsTimeline.hide();
         this.globalTimeline.show();
         this.editor.activeTimeline = this.globalTimeline;
@@ -2084,7 +2691,7 @@ class KeyframesGui extends Gui {
     setKeyframeClip(clip){
         if (!clip){
             this.editor.currentKeyFrameClip = null; // this before any setTime.
-            if ( !this.skeletonTimeline.historyUndo.length && !this.auTimeline.historyUndo.length && !this.bsTimeline.historyUndo.length ){
+            if ( !this.skeletonTimeline.historyUndo.length && !this.bsTimeline.historyUndo.length ){
                 this.globalTimeline.historyUndo.pop(); // nothing was changed, duplication was unnecessary
             }
             this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation());
@@ -2092,10 +2699,20 @@ class KeyframesGui extends Gui {
             this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
 
+            const menubarEdit = this.menubar.getItem("Edit");
+            menubarEdit._setMode(0);
+            const menubarView = this.menubar.getItem("View");
+            menubarView._setMode(0);
             return;
         }
 
         const sourceAnimation = clip.source; // might not exist
+
+        const menubarEdit = this.menubar.getItem("Edit");
+        menubarEdit._setMode(1);
+        const menubarView = this.menubar.getItem("View");
+        menubarView._setMode( sourceAnimation && sourceAnimation.type == "video" );
+        
         this.editor.currentKeyFrameClip = clip;
         this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation()); // now that there is a currentKeyframeClip, update mixer actions
         this.globalTimeline.saveState( clip.trackIdx ); // cloneClips must have a currentKeyFrameClip to duplicate, which is waht we need now
@@ -2105,9 +2722,6 @@ class KeyframesGui extends Gui {
         this.skeletonTimeline.setAnimationClip(clip.skeletonAnimation, false);
         this.skeletonTimeline.setTime(localTime, true);
         this.skeletonTimeline.setSelectedItems([this.editor.selectedBone]);
-        this.auTimeline.setAnimationClip(clip.auAnimation, false);
-        this.auTimeline.setSelectedItems([this.editor.selectedAU]);
-        this.auTimeline.setTime(localTime, true);
         this.bsTimeline.setAnimationClip(clip.bsAnimation, false);
         this.bsTimeline.setSelectedItems(Object.keys(clip.bsAnimation.tracks));
         this.bsTimeline.setTime(localTime, true);
@@ -2179,7 +2793,7 @@ class KeyframesGui extends Gui {
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
-    createSidePanel() {
+    createSidePanel( selectedTab = null ) {
         // remove signals to avoid memory leaks
         for( let i = 0; i < this.sidePanelSpecialSignals.length; ++i ){
             delete LX.signals[ this.sidePanelSpecialSignals[i] ];
@@ -2196,13 +2810,15 @@ class KeyframesGui extends Gui {
             this.panelTabs.root.remove();
         }
 
+        const defaultTabSelected = selectedTab ? selectedTab : "Animation";
+
         // Animation & Character tabs
         const panelTabs = this.panelTabs = this.sidePanelArea.addTabs({fit: true});
 
         // Animation tab content
         const animationArea = new LX.Area({id: 'Animation'});
         const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {}});
+        panelTabs.add( "Animation", animationArea, {selected: defaultTabSelected == "Animation", onSelect: (e,v) => {}});
 
         this.animationPanel = animSide.addPanel({id: "animation", icon: "PersonStanding"});
         this.updateAnimationPanel( );
@@ -2212,7 +2828,12 @@ class KeyframesGui extends Gui {
         const characterPanel = characterArea.addPanel();
         this.createCharactersPanel( characterPanel ) ;
         
-        panelTabs.add( "Character", characterArea, {selected: false, onSelect: (e,v) => {}});
+        panelTabs.add( "Character", characterArea, {selected: defaultTabSelected == "Character", onSelect: (e,v) => {
+            if ( this.characterPanel && this.characterPanel.selectedCard ){
+                const el = this.characterPanel.selectedCard;
+                setTimeout(el.scrollIntoViewIfNeeded.bind(el), 1);
+            }
+        }});
 
 
         // SIDE PANEL FOR GLOBAL TIMELINE
@@ -2232,14 +2853,14 @@ class KeyframesGui extends Gui {
                 } )
 
                 p.addColor("Clip Colour", clip.clipColor, (v,e) =>{
-                    // saving color here floods the historyUndo. There should be some onPress or something similar to the RangeInput event
+                    // savingState here floods the historyUndo. There should be some onPress or something similar to the RangeInput event
                     // this.globalTimeline.saveState( clip.trackIdx ); // shallow copy
                     clip.clipColor = v;
                 });
 
-                p.addToggle("State", clip.active, (v,e) =>{
+                p.addToggle("Active", this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active & clip.active, (v,e) =>{
                     if ( !this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ){
-                        p.components["State"].set(false, true);
+                        p.components["Active"].set(false, true);
                         return;
                     }
                     if ( clip.active == v ){ return; }
@@ -2250,6 +2871,94 @@ class KeyframesGui extends Gui {
 
                 }, { className: "success", label: this.editor.getCurrentBoundAnimation().tracks[clip.trackIdx].active ? "" : "Track is disabled !", signal: "@on_set_clip_state" });
                 this.sidePanelSpecialSignals.push("@on_set_clip_state");
+
+                p.addNumber("Clip Speed", clip.speed, (v,e) =>{
+                    v = Math.max( 0.001, v );
+                    let newDuration = Math.max(0.001, clip.duration * clip.speed / v);
+
+                    // there might be other clips in track. Clips in the same track cannot overlap 
+                    let newEndTime = clip.start + newDuration;
+                    const trackClips = this.globalTimeline.animationClip.tracks[clip.trackIdx].clips;
+                    for( let i = 0; i < trackClips.length; ++i ){
+                        if (trackClips[i].start > clip.start ){ 
+                            if ( trackClips[i].start < newEndTime ){
+                                newEndTime = trackClips[i].start - 0.00001;
+                            }
+                            break;
+                        }
+                    }
+
+                    // duration might have changed because of limits. Need to recompute speed. Widget will be updated on release
+                    newDuration = Math.max( newEndTime - clip.start, 0.00001 );
+                    v = clip.duration * clip.speed / newDuration;
+
+                    clip.duration = newDuration;
+                    clip.speed = v;
+
+                    // if not a mouse drag event, but a manual number setting through keyboard
+                    if ( e.type == "change" ){ 
+                        p.components["Clip Speed"].options.onRelease();
+                    }
+                },{
+                    onPress: () =>{ 
+                        clip.speed = clip.speed ?? 1;
+                        clip._oldSpeed = clip.speed;
+                    },
+                    onRelease: () =>{
+                        // TODO: find a better way of doing this.
+                        //  Modifying keyframes directly might generate problems because of numerical stability 
+
+                        const newSp = clip.speed ?? 1;
+                        const oldSp = clip._oldSpeed ?? clip.speed;
+                        const newDuration = clip.duration;
+
+                        if ( clip._oldSpeed == clip.speed ){ return; }
+
+                        clip.speed = oldSp; // old Speed
+                        clip.duration = clip.duration * newSp / oldSp; // old Duration
+                        this.currentKeyFrameClip = clip; // HACK to deepclone
+                        this.globalTimeline.saveState(clip.trackIdx); // deepclone, cloneClips will manage it
+                        this.currentKeyFrameClip = null; // END HACK to deepclone
+
+                        clip.speed = newSp;
+                        clip.duration = newDuration;
+
+                        clip.skeletonAnimation.duration = newDuration;
+                        clip.bsAnimation.duration = newDuration; 
+                        clip.mixerBodyAnimation.duration = newDuration;
+                        clip.mixerFaceAnimation.duration = newDuration;
+
+                        clip.skeletonAnimation.tracks.forEach((track)=>{
+                            let lastTime = 0;
+                            for( let i = 0; i < track.times.length; ++i ){
+                                lastTime = Math.max( lastTime, track.times[i] * ( oldSp / newSp ) );
+                                track.times[i] = lastTime;
+                            }
+                        });
+
+                        clip.bsAnimation.tracks.forEach((track)=>{
+                            let lastTime = 0;
+                            for( let i = 0; i < track.times.length; ++i ){
+                                lastTime = Math.max( lastTime, track.times[i] * ( oldSp / newSp ) );
+                                track.times[i] = lastTime;
+                            }
+                        });
+
+                        clip._oldSpeed = newSp;
+
+                        this.editor.updateMixerAnimation(clip.mixerBodyAnimation, null, clip.skeletonAnimation, false );
+                        this.editor.updateMixerAnimation(clip.mixerFaceAnimation, null, clip.bsAnimation, false );
+                        this.globalTimeline.setDuration( this.globalTimeline.animationClip.duration, true, true ); // clipsTimeline already validates max duration. Force recomputation
+                        this.editor.globalAnimMixerManagementSingleClip(this.editor.currentCharacter.mixer, clip);
+                        this.editor.setTime(this.editor.currentTime); // update mixer
+
+                        p.components["Clip Speed"].set(clip.speed, true); // in case duration is limited by space, speed will also be limited. Update widget, without callback
+
+                    },
+                    min: 0.001,
+                    step: 0.001,
+                    precision: 3
+                });
 
                 p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
                     this.setKeyframeClip(clip);
@@ -2316,9 +3025,9 @@ class KeyframesGui extends Gui {
                         panel.queuedContainer.appendChild( text ); // hack
 
                         panel.addButton(null, "Add bind pose", (v,e)=>{
-                            this.currentKeyFrameClip = clip; // hack to deepclone
-                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
-                            this.currentKeyFrameClip = null; // end hack to deepclone
+                            this.editor.currentKeyFrameClip = clip; // HACK to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone, cloneClips will manage it
+                            this.editor.currentKeyFrameClip = null; // END HACK to deepclone
 
                             const skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
                             const skeletonclip = clip.skeletonAnimation;
@@ -2362,7 +3071,7 @@ class KeyframesGui extends Gui {
                             }
                             this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
-                        }, { buttonClass: "error dashed" });
+                        }, { buttonClass: "warning dashed" });
                     },
                     on_Additive: (panel) => {
                         const text = LX.makeContainer( [ "100%", "auto" ], "p-2 whitespace-pre-wrap", 
@@ -2372,9 +3081,9 @@ class KeyframesGui extends Gui {
                         panel.queuedContainer.appendChild( text ); // hack
 
                         panel.addButton(null, "Subtract bind pose", (v,e)=>{
-                            this.currentKeyFrameClip = clip; // hack to deepclone
-                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
-                            this.currentKeyFrameClip = null; // end hack to deepclone
+                            this.editor.currentKeyFrameClip = clip; // HACK to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone, cloneClips will manage it
+                            this.editor.currentKeyFrameClip = null; // END HACK to deepclone
                             
                             const skeleton = this.editor.currentCharacter.skeletonHelper.skeleton;
                             const skeletonclip = clip.skeletonAnimation;
@@ -2419,12 +3128,12 @@ class KeyframesGui extends Gui {
                             }
                             this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
-                        }, { buttonClass: "error dashed" });
+                        }, { buttonClass: "warning dashed" });
 
                         panel.addButton(null, "Subtract first frame pose", (v,e) =>{
-                            this.currentKeyFrameClip = clip; // hack to deepclone
-                            this.globalTimeline.saveState(clip.trackIdx); // deepclone
-                            this.currentKeyFrameClip = null; // end hack to deepclone
+                            this.editor.currentKeyFrameClip = clip; // HACK to deepclone
+                            this.globalTimeline.saveState(clip.trackIdx); // deepclone, cloneClips will manage it
+                            this.editor.currentKeyFrameClip = null; // END HACK to deepclone
                             
                             const skeletonclip = clip.skeletonAnimation;
     
@@ -2457,7 +3166,7 @@ class KeyframesGui extends Gui {
                             }
                             this.editor.updateMixerAnimation( clip.mixerBodyAnimation, null, skeletonclip );
                             this.editor.setTime(this.editor.currentTime);
-                        }, { buttonClass: "error dashed" });
+                        }, { buttonClass: "warning dashed" });
 
                     }   
                 });
@@ -2489,7 +3198,7 @@ class KeyframesGui extends Gui {
             }
             else { // if is in AU mode or is not defined
                 this.editor.setTimeline(this.editor.animationModes.FACEAU);
-                this.propagationWindow.setTimeline( this.auTimeline );
+                this.propagationWindow.setTimeline( this.bsTimeline );
                 this.selectActionUnitArea(this.editor.getSelectedActionUnit());
                 setTimeout(this.imageMap.resize.bind(this.imageMap), 0.01); // are is not visible yet. It has no properly defined clientHeight. Let it finish before resizing
             }
@@ -2512,7 +3221,14 @@ class KeyframesGui extends Gui {
             {
                 name: "Action Units", icon: "ScanFace", selected: this.editor.animationMode == this.editor.animationModes.FACEAU,
                 onCreate: p => {
-                    p.addTitle("Action Units", { style: { background: "none", fontSize: "15px" } });
+                    const title = p.addTitle("Action Units", { style: { background: "none", fontSize: "15px" } });
+
+                    const helpIcon = LX.makeIcon( "CircleQuestionMark", { title: "Help" } );
+                    helpIcon.classList.add("inline-flex", "pl-2");
+                    helpIcon.addEventListener("click", (e) =>{ this.faceTabs._tourAU.begin(); } );
+                    title.root.appendChild( helpIcon );
+
+                    p.endLine();
                     faceTop.root.style.minHeight = "20px";
                     faceTop.root.style.height = "auto";
                     faceBottom.root.style.minHeight = "20px";
@@ -2526,7 +3242,7 @@ class KeyframesGui extends Gui {
                     this.editor.setTimeline(this.editor.animationModes.FACEAU);
                     this.selectActionUnitArea(this.editor.getSelectedActionUnit());
                     
-                    this.propagationWindow.setTimeline( this.auTimeline );
+                    this.propagationWindow.setTimeline( this.bsTimeline );
                     this.faceTabs.selected = this.editor.animationModes.FACEAU;
                     if(this.imageMap) {
                         this.imageMap.resize();
@@ -2536,7 +3252,13 @@ class KeyframesGui extends Gui {
             {
                 name: "Blendshapes", icon: "SlidersHorizontal", selected: this.editor.selected == this.editor.animationModes.FACEBS,
                 onCreate: p => {
-                    p.addTitle("Blendshapes", { style: { background: "none", fontSize: "15px" } });
+                    const title = p.addTitle("Blendshapes", { style: { background: "none", fontSize: "15px" } });
+
+                    const helpIcon = LX.makeIcon( "CircleQuestionMark", { title: "Help" } );
+                    helpIcon.classList.add("inline-flex", "pl-2");
+                    helpIcon.addEventListener("click", (e) =>{ this.faceTabs._tourBS.begin(); } );
+                    title.root.appendChild( helpIcon );
+
                     this.createBlendshapesPanel( bsArea );
                     p.queuedContainer.appendChild(bsArea.root);
                 },
@@ -2550,7 +3272,79 @@ class KeyframesGui extends Gui {
             }
         ], { vertical: true, height : "100%" });
 
-        bodyArea.split({type: "vertical", resize: true, sizes: "auto"});
+        this.faceTabs._tourBS = new LX.Tour([
+            {
+                title: "Blendshapes",
+                content: "3D character's faces are usually modeled by combining a set of Blendshapes. A Blendshape usually targets a specific area/muscle of the face. However, each character has its own set of Blendshapes. \
+                    Action Units (based on FACS) are a more standard way of defining face movements and emotions. Each Action Unit may be represented by several Blendshapes.",
+                reference: bsArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Blendshapes",
+                content: "Each Blendshapes has a numeric slider that directly modifies the values of its track in the animation.",
+                reference: this.sidePanelBlendshapeSlidersPanel ? this.sidePanelBlendshapeSlidersPanel.root : bsArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Blendshapes Value Range",
+                content: "The value range of the track can be changed from the timeline settings.",
+                reference: this.bsTimeline.header.root.querySelector("[title=Settings]") ?? this.bsTimeline.header.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Blendshapes",
+                content: "Each Blendshapes has a numeric slider that directly modifies the values of its track in the animation.",
+                reference: this.sidePanelBlendshapeSlidersPanel ? this.sidePanelBlendshapeSlidersPanel.root : bsArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Blendshapes and Timeline",
+                content: "All Blendshapes can be hidden/shown at once by clicking these buttons.",
+                reference: bsArea.root.children.length ? bsArea.root.children[0] : bsArea.root,
+                side: "left",
+                align: "center"
+            }
+        ]);
+
+        this.faceTabs._tourAU = new LX.Tour([
+            {
+                title: "Action Units",
+                content: "3D character's faces are usually modeled by combining a set of Blendshapes. A Blendshape usually targets a specific area/muscle of the face. However, each character has its own set of Blendshapes. \
+                    Action Units (based on FACS) are a more standard way of defining face movements and emotions. Each Action Unit may be represented by several Blendshapes.",
+                reference: auArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Face Map",
+                content: "Action Units are grouped into face areas, accessible by clicking directly into the desired area.",
+                reference: this.imageMap ? this.imageMap.img : auArea.root,
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Face Map List",
+                content: "Here, all Action Units of the selected group are shown. Changing the number (either writing it or dragging it with the mouse) will automatically modify the related Blendshape tracks",
+                reference: faceBottom.root,
+                side: "left",
+                align: "center"
+            },
+            { // if this step is moved, createActionUnitsPanel -> tabs.onSelect needs to update the step number
+                title: "Action Units and Timeline",
+                content: "These buttons hide and show the related Blendshape tracks on the timeline. These upper buttons will hide/show tracks for all the Action Units in this group. Each Action Unit has the same button, only hiding/showing their respective tracks.",
+                reference: this.facePanel.tabs[ this.facePanel.selected ].children[1],
+                side: "left",
+                align: "center"
+            }
+        ]);
+
+
+        bodyArea.split({type: "vertical", resize: true, sizes: ["50%","50%"]});
         const [bodyTop, bodyBottom] = bodyArea.sections;
         this.createSkeletonPanel( bodyTop, {firstBone: true, itemSelected: this.editor.selectedBone || this.editor.currentCharacter.skeletonHelper.bones[0].name} );
         this.createBonePanel( bodyBottom );
@@ -2583,7 +3377,7 @@ class KeyframesGui extends Gui {
     updateAnimationPanel( options = {}) {
         let panel = this.animationPanel;
 
-        panel.onRefresh = (o) => {
+        panel.refresh = (o) => {
 
             o = o || {};
             panel.clear();
@@ -2622,7 +3416,7 @@ class KeyframesGui extends Gui {
 
             panel.addSeparator();
         }
-        panel.onRefresh(options);
+        panel.refresh(options);
     }
 
     createFacePanel(area) {
@@ -2773,8 +3567,7 @@ class KeyframesGui extends Gui {
     }
 
     createActionUnitsPanel( baseArea ) {
-        // const baseArea = this.bodyFaceTabs.tabs.Face.sections[1]; // take bottom area of Face tab
-        baseArea = baseArea || this.faceTabs.tabs["Action Units"].sections[1];
+
         // clear area before redoing all sliders
         while (baseArea.root.firstChild) {
             baseArea.root.removeChild(baseArea.root.lastChild);
@@ -2784,12 +3577,15 @@ class KeyframesGui extends Gui {
         // now start building the content
         
         const tabs = baseArea.addTabs({fit:true});
-        const animation = this.auTimeline.animationClip;
-        if ( !animation ){
+
+        if ( !this.bsTimeline.animationClip ){
             return;
         }
         
         const areas = this.editor.mapNames.parts;
+
+        const auToBs = this.editor.currentCharacter.config ? this.editor.currentCharacter.config.faceController.blendshapeMap : this.editor.currentCharacter.blendshapesManager.mapNames.characterMap;
+        let auToBsIndices = JSON.parse(JSON.stringify(auToBs)); // auName : [ [bsTimelineTrackIndex, factor] ]. Still needs to be computed, right now bsTimelineTrackIndex are still names
 
         for(let area in areas) {
 
@@ -2799,29 +3595,193 @@ class KeyframesGui extends Gui {
             area, 
             tabContainer, 
             { wordBreak: "break-word", lineHeight: "1.5rem" } );
-            
-            let panel = new LX.Panel({id: "au-"+ area});
+
+            // area where the buttons AddAll and RemoveAll will be. These buttons need the slider's panel to exists first
+            const addRemoveAllContainer = LX.makeContainer( [ "100%", "auto" ], "overflow-hidden justify-center flex flex-row", null, tabContainer );
+
+            // sliders' panel
+            let panel = new LX.Panel({id: "au-"+ area, className:"showScrollBar"});
             tabContainer.appendChild(panel.root);
+            
+            // name of actions units in this group
+            let auIds = areas[area];
+            auIds.sort();
 
-            for(let id in areas[area]) {
-                const name = areas[area][id];
-                const signal = "@on_change_face_" + name;
-                for(let i = 0; i < animation.tracks.length; i++) {
-                    const track = animation.tracks[i];
-                    if(track.groupId == area && track.id == name) {
-                        let frame = this.auTimeline.getCurrentKeyFrame(track, this.auTimeline.currentTime, 0.1);
-                        frame = frame == -1 ? 0 : frame;
+            // returns an array with all BS tracks required by the specified AUs, without repetitions 
+            const innerGetTracksToSelect = (auNames) => {
+                let result = [];
+                for( let i = 0; i < auNames.length; ++i ){
+                    let bss = auToBsIndices[ auNames[i] ] ?? [];
+                    for ( let b = 0; b < bss.length; ++b ){
+                        const trackIdx = bss[b][0];
+                        let needsSelection = true;
 
-                        panel.addNumber(name, track.values.length ? track.values[frame] : 0, (v,e) => {                           
-                            this.editor.updateBlendshapesProperties(name, v, (tracksIds) => {
-                                this.editor.updateBlendshapesAnimation(this.editor.currentKeyFrameClip.bsAnimation, tracksIds, this.auTimeline.animationClip);
-                            });
-                        }, {min: 0, max: 1, step: 0.01, signal: signal, onPress: ()=>{ this.auTimeline.saveState(track.trackIdx) }});
+                        // check if it was already added to the results. It could be assumed that blendshapes are unique inside the AU. But just in case, check all results
+                        for( let t = 0; t < result.length; ++t ){
+                            if ( result[t] == trackIdx ){
+                                needsSelection = false;
+                                break;
+                            }
+                        }
 
-                        this.sidePanelSpecialSignals.push( signal );
-                        break;
+                        if ( needsSelection ){
+                            result.push( bss[b][0] );
+                        }
                     }
                 }
+
+                return result;
+            }
+
+            // returns an array with all BS tracks required by the specified AUs, without repetitions. Tracks already visible in the timeline are not excluded  
+            const innerGetTracksToAdd = (auNames) => {
+                const timelineItems = this.bsTimeline.selectedItems;
+                let result = innerGetTracksToSelect( auNames );
+
+                // remove tracks that are already visible in the timeline
+                for ( let b = 0; b < result.length; ++b ){
+                    const trackIdx = result[b];
+                    for( let t = 0; t < timelineItems.length; ++t ){
+                        if ( timelineItems[t].trackIdx == trackIdx ){
+                            result.splice(b,1);
+                            b--;
+                            break;
+                        }
+                    }
+                }
+                return result;
+            }
+
+            const innerGetTracksToRemove = (auNames) => {
+                let result = innerGetTracksToSelect( auNames );
+                const timelineItems = this.bsTimeline.selectedItems;
+
+                // keep only tracks that are already visible in the timeline
+                for ( let b = 0; b < result.length; ++b ){
+                    const trackIdx = result[b];
+                    let keep = false;
+                    for( let t = 0; t < timelineItems.length; ++t ){
+                        if ( timelineItems[t].trackIdx == trackIdx ){
+                            keep = true;
+                            break;
+                        }
+                    }
+
+                    if ( !keep ){
+                        result.splice(b,1);
+                        b--;
+                    }
+                }
+
+                return result;
+            }
+
+            const innerSelectTracks = (auNames) =>{
+                const tracksToSelect = innerGetTracksToSelect(auNames);
+
+                // set checkboxes to false
+                for( let t = 0; t < this.bsTimeline.selectedItems.length; ++t ){
+                    LX.emit( "@bs_checkbox_" + this.bsTimeline.selectedItems[t].id, false ); // default already skipscallback
+                }
+
+                this.bsTimeline.setSelectedItems( tracksToSelect );
+
+                // set checkboxes to true
+                for( let t = 0; t < this.bsTimeline.selectedItems.length; ++t ){
+                    LX.emit( "@bs_checkbox_" + this.bsTimeline.selectedItems[t].id, true ); // default already skipscallback
+                }
+            }
+
+            const innerSelectAddTracks = (auNames) =>{
+                const tracksToAdd = innerGetTracksToAdd(auNames);
+
+                this.bsTimeline.changeSelectedItems( tracksToAdd );
+                // set checkboxes to true
+                for( let t = 0; t < tracksToAdd.length; ++t ){
+                    LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[tracksToAdd[t]].id, true ); // default already skipscallback
+                }
+            }
+
+            const innerSelectRemoveTracks = (auNames) =>{
+                const tracksToRemove = innerGetTracksToRemove(auNames);
+                this.bsTimeline.changeSelectedItems( null, tracksToRemove );
+    
+                // set checkboxes to true
+                for( let t = 0; t < tracksToRemove.length; ++t ){
+                    LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[tracksToRemove[t]].id, false ); // default already skipscallback
+                }
+            }
+
+            // addAll and removeAll buttons
+            const addAllButton = new LX.Button( "AddAll", null, (v,e) =>{
+                innerSelectTracks(auIds);
+            }, { title: "Left-click to SELECT all AUs in this group in Timeline\nRight-click to ADD all AUs in this group to Timeline", hideName: true, icon: "ListCollapse" } );
+
+            addAllButton.root.addEventListener("contextmenu", (e)=>{
+                innerSelectAddTracks(auIds);
+            });
+
+            const removeAllButton = new LX.Button( "RemoveAll", null, (v,e) =>{
+                innerSelectRemoveTracks(auIds);
+            }, { title: "Hide all AU's blendshapes in this group from Timeline", hideName: true, icon: "ListX" } );
+            addRemoveAllContainer.appendChild( addAllButton.root );
+            addRemoveAllContainer.appendChild( removeAllButton.root );
+
+            // sliders
+            for(let id = 0; id < auIds.length; ++id) {
+                const name = areas[area][id];
+
+                // compute au to bs mapping changing names to timeline track idx
+                const auMapping = auToBsIndices[name] ?? [];
+                for( let a = 0; a < auMapping.length; ++a ){
+                    const t = this.bsTimeline.getTrack(auMapping[a][0]);
+                    if ( !t ){
+                        auMapping.splice(a, 1);
+                        a--;
+                        continue;
+                    }
+                    auMapping[a][0] = t.trackIdx;
+                }
+
+                panel.sameLine();
+
+                // add tracks to timeline button
+                const toTimelineButton = panel.addButton(null, null, (v,e)=>{
+                    innerSelectTracks([name]);
+                }, { title: "Left-click to SELECT in Timeline\nRight-click to ADD to Timeline", hideName: true, icon: "ListCollapse" } );
+
+                toTimelineButton.root.querySelector("button").addEventListener("contextmenu", (e)=>{
+                    innerSelectAddTracks([name]);
+                });
+
+                // remove tracks from timeline button
+                panel.addButton(null, null, (v,e)=>{
+                    innerSelectRemoveTracks([name]);
+                }, { title: "Hide AU's blendshapes from Timeline", hideName: true, icon: "ListX" } );
+
+                // value
+                panel.addNumber(name, 0, (v,e) => {
+                    const delta = v - (panel.components[name].prevValue ?? 0);
+                    
+                    // for all blendshapes inside mapping
+                    for( let bs = 0; bs < auMapping.length; ++bs ){
+                        this.editor.updateBlendshapesProperties(auMapping[bs][0], auMapping[bs][1] * delta, true);
+                        this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerFaceAnimation, [auMapping[bs][0]], this.bsTimeline.animationClip);
+                    }
+
+                    panel.components[name].prevValue = v;
+                }, {
+                    width: "100%",
+                    minWidth:"0%",
+                    nameWidth: "50%", skipReset: true, precision: 3, step: 0.001, 
+                    onPress: ()=>{ 
+                        for( let bs = 0; bs < auMapping.length; ++bs ){
+                            this.bsTimeline.saveState(auMapping[bs][0], bs != 0);  
+                        }
+                    }
+                });
+
+                panel.endLine();
             }
                         
             tabs.add(area, tabContainer, { selected: this.editor.getSelectedActionUnit() == area, onSelect : (e, v) => {
@@ -2831,6 +3791,11 @@ class KeyframesGui extends Gui {
                         document.getElementsByClassName("map-container")[0].style.backgroundImage ="url('" +"./data/imgs/masks/face areas2 " + v + ".png"+"')";
                     }
                     this.propagationWindow.updateCurve(true); // resize
+
+                    // update reference to the add/remove tracks from timeline, from the tour
+                    if( this.faceTabs && this.faceTabs._tourAU ){
+                        this.faceTabs._tourAU.steps[3].reference = this.facePanel.tabs[ v ].children[1];
+                    }
                 }
             });
         }
@@ -2849,7 +3814,6 @@ class KeyframesGui extends Gui {
 
     createBlendshapesPanel( area ) {
 
-        area = area || this.faceTabs.tabs["Blendshapes"];
         area.root.innerHTML = "";
 
         const animation = this.bsTimeline.animationClip;
@@ -2857,33 +3821,90 @@ class KeyframesGui extends Gui {
             return;
         }
 
-        let panel = new LX.Panel({id: "bs-"+ area});
-
-        for(let i = 0; i < animation.tracks.length; i++) {
-            const track = animation.tracks[i];
-
-            const name = track.id;
-            let frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
-
-            if( (!this.bsTimeline.lastKeyFramesSelected.length || this.bsTimeline.lastKeyFramesSelected[0][2] != frame)) {
-                this.bsTimeline.selectKeyFrame(track.trackIdx, frame);
-            }
-
-            const signal = "@on_change_face_" + name;
-            this.sidePanelSpecialSignals.push(signal);
-            panel.addNumber(name, frame == -1 ? 0 : track.values[frame], (v,e) => {    
-                const boundAnimation = this.editor.currentKeyFrameClip;
-                this.editor.updateBlendshapesProperties(name, v, (tracksIds) => {
-                    this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, tracksIds);
-                    this.editor.updateActionUnitsAnimation(this.auTimeline.animationClip, tracksIds);
-                });
-                
-            }, {nameWidth: "40%", min: 0, max: 1, step: 0.01, signal: signal, onPress: () => {
-                this.bsTimeline.saveState(track.trackIdx);
-            }});
-        }
+        area.root.classList.add( "flex", "flex-col" );
         
-        area.attach(panel);
+        // area where the buttons AddAll and RemoveAll will be
+        const addRemoveAllContainer = LX.makeContainer( [ "100%", "fit-content" ], "overflow-hidden justify-center flex flex-row", null, area );
+        // addAll and removeAll buttons
+        const addAllButton = new LX.Button( "AddAll", null, (v,e) =>{
+            this.bsTimeline.setSelectedItems( Object.keys( this.bsTimeline.animationClip.tracks ) );
+            for( let i = 0; i < this.bsTimeline.animationClip.tracks.length; ++i){
+                LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[i].id, true );
+            }
+        }, { title: "Add all blendshape tracks to the timeline", hideName: true, icon: "ListCollapse" } );
+
+        const removeAllButton = new LX.Button( "RemoveAll", null, (v,e) =>{
+            this.bsTimeline.setSelectedItems( [] );
+            for( let i = 0; i < this.bsTimeline.animationClip.tracks.length; ++i){
+                LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[i].id, false );
+            }
+        }, { title: "Hide all blendshape tracks from Timeline", hideName: true, icon: "ListX" } );
+        addRemoveAllContainer.appendChild( addAllButton.root );
+        addRemoveAllContainer.appendChild( removeAllButton.root );
+
+
+        
+        let panel = this.sidePanelBlendshapeSlidersPanel = area.addPanel({id: "bs-sliders", className: "showScrollBar"});
+        panel.root.style.flex = "1 1 auto";
+        panel.refresh = ()=>{
+            this.sidePanelBlendshapeSlidersPanel.clear();
+
+            for(let i = 0; i < animation.tracks.length; i++) {
+                const track = animation.tracks[i];
+                
+                const name = track.id;
+                
+                panel.sameLine();
+
+                let signal;
+
+                // find if track is selected or not
+                let state = false;
+                for( let t = 0; t < this.bsTimeline.selectedItems.length; ++t ){
+                    if ( this.bsTimeline.selectedItems[t].trackIdx == track.trackIdx ){
+                        state = true;
+                        break;
+                    }
+                }
+                signal = "@bs_checkbox_" + name;
+                this.sidePanelSpecialSignals.push(signal);
+                panel.addCheckbox("Check me with Label", state, (value, event) => {
+                    if ( value ){
+                        this.bsTimeline.changeSelectedItems( [ track.trackIdx ] ); // append track
+                    }else{
+                        this.bsTimeline.changeSelectedItems( null, [ track.trackIdx ] ); // remove track
+                    }
+                }, { label: "", title: "show/hide this track in the timeline", hideName: true, signal: signal, className: "contrast" } );
+
+
+
+                // TODO fix this system. It does not work properly
+                signal = "@on_change_face_" + name;
+                this.sidePanelSpecialSignals.push(signal);
+                const frame = this.bsTimeline.getCurrentKeyFrame(track, this.bsTimeline.currentTime, 0.1);
+                const guiValue = frame == -1 ? 0 : track.values[frame];
+                panel.addNumber(name, guiValue, (v,e) => {    
+                    const boundAnimation = this.editor.currentKeyFrameClip;
+
+                    const delta = v - panel.components[name]._prevValue;
+                    panel.components[name]._prevValue = v;
+                    this.editor.updateBlendshapesProperties(track.trackIdx, delta, true);
+                    this.editor.updateMixerAnimation(boundAnimation.mixerFaceAnimation, [track.trackIdx], animation);
+                    
+                }, {nameWidth: "40%", width: "100%", minWidth: "0%", skipReset: true, 
+                    min: this.bsTimeline.defaultCurvesRange[0], max: this.bsTimeline.defaultCurvesRange[1], step: 0.01, 
+                    signal: signal, 
+                    onPress: () => {
+                        this.bsTimeline.saveState(track.trackIdx);
+                        panel.components[name]._prevValue = panel.components[name].onGetValue();
+                    }
+                });
+                panel.components[name]._prevValue = guiValue;
+                panel.endLine();
+            }
+        }
+
+        panel.refresh();
     }
 
     createSkeletonPanel(root, options) {
@@ -2897,12 +3918,34 @@ class KeyframesGui extends Gui {
         
         const mytree = this.updateNodeTree();
     
+        const lastFixedSelection = this.treeWidget ? this.treeWidget._fixedSelection : [];
         this.treeWidget = skeletonPanel.addTree("Skeleton bones", mytree, { 
             // icons: tree_icons, 
             filter: true,
             rename: false,
+            draggable: false,
+            icons: [  // Warning! if order of buttons change, check the tour still points to the correct icons
+                { 
+                    name: "Fix Bones to Timeline", icon: "Pin", 
+                    callback: (v,e) =>{ 
+                        this.treeWidget._fixedSelection = this.skeletonTimeline.selectedItems.slice();
+                        this.skeletonTimeline.updateLeftPanel();
+                        LX.toast("Fixed Bones To Timeline", `${this.treeWidget._fixedSelection}`, { timeout: 7000 } );
+                    }
+                },
+                {
+                    name: "Unfix Timeline Bones", icon: "PinOff", 
+                    callback: (v,e) =>{ 
+                        const selectionLength = this.treeWidget._fixedSelection.length;
+                        this.treeWidget._fixedSelection = [];
+                        if ( selectionLength ){
+                            this.skeletonTimeline.updateLeftPanel();
+                        }
+                        LX.toast("Unfixed Bones From Timeline", null, { timeout: 7000 } );
+                    }
+                },
+            ],
             onevent: (event) => { 
-                console.log(event.string());
     
                 switch(event.type) {
                     case LX.TreeEvent.NODE_SELECTED: 
@@ -2935,118 +3978,248 @@ class KeyframesGui extends Gui {
                         break;
                     case LX.TreeEvent.NODE_VISIBILITY:
                         const tracksInItem = this.skeletonTimeline.animationClip.tracksPerGroup[event.node.id];
-                        for( let i = 0; i < tracksInItem.length; ++i ){
-                            this.skeletonTimeline.setTrackState(tracksInItem[i].trackIdx, event.value);
+                        for( let i = tracksInItem.length-1; i > -1; --i ){
+                            this.skeletonTimeline.setTrackState(tracksInItem[i].trackIdx, event.value, false, i == 0 ); // update tree panel only on last track
                         }
                         console.log(event.node.id + " visibility: " + event.value); 
                         break;
                 }
             },
         });
+
+        this.treeWidget.innerTree.select(this.editor.selectedBone);
+
+        this.treeWidget._fixedSelection = lastFixedSelection;
+        this.treeWidget._tour = new LX.Tour([
+            {
+                title: "Bone Selection",
+                content: "Bones can be selected by clicking on the bone's name from this panel ...",
+                reference: this.treeWidget.root.querySelector("ul"),
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Bone Selection",
+                content: " .. or by left-clicking the joint from the canvas.",
+                reference: this.editor.renderer.domElement,
+                side: "right",
+                align: "center"
+            },
+            {
+                title: "Timeline and Bones",
+                content: "A selected bone will be automatically displayed in the timeline, hiding any previous bones shown in it.",
+                reference: this.skeletonTimeline.root,
+                side: "top",
+                align: "center"
+            },
+            {
+                title: "Timeline and Bones",
+                content: "The immediate children/parent and the entire descendant/ascendant hierarchy of a bone can be added to the timeline through the buttons to the right of its name.",
+                reference: this.treeWidget.root.querySelector("ul"),
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Timeline and Bones",
+                content: "Right-clicking on the joint nodes will add them to the timeline without removing the previous visible bones.",
+                reference: this.editor.renderer.domElement,
+                side: "right",
+                align: "center"
+            },
+            {
+                title: "Fixing Timeline Bones",
+                content: `This button will force the current bones to always be visible, regardless of the bones selected.`,
+                reference: this.treeWidget.root.querySelector("div.lextreetools > a:nth-child(1)"), // Warning! order of buttons may change
+                side: "left",
+                align: "center"
+            },
+            {
+                title: "Unfixing Timeline Bones",
+                content: `This button will unfix bones from the timeline. Any subsequent bone selection will remove all unfixed bones from the timeline.`,
+                reference: this.treeWidget.root.querySelector("div.lextreetools > a:nth-child(2)"), // Warning! order of buttons may change
+                side: "left",
+                align: "center"
+            }
+        ]);
+
+        const helpIcon = LX.makeIcon( "CircleQuestionMark", { title: "Help" } );
+        helpIcon.classList.add("inline-flex", "pl-2");
+        helpIcon.addEventListener("click", (e) =>{ this.treeWidget._tour.begin(); } );
+        const title = this.treeWidget.root.querySelector("span");
+        title.style.padding = "0";
+        title.appendChild( helpIcon );
+
+        // Hack lexgui. Tree behaviour works for the timeline's left panel, but not for the skeleton panel
+        // make only the hierarchy scrollable
+        this.treeWidget.root.style.height = "100%";
+        const ul = this.treeWidget.root.getElementsByTagName("ul")[0];
+        ul.style.minWidth = "fit-content";
+        ul.style.width = "100%";
+        const oldUlParent = ul.parentElement;
+        oldUlParent.classList.add("flex");
+        oldUlParent.classList.add("flex-col");
+        oldUlParent.style.height = "100%";
+        const newUlParent = document.createElement("div"); // make div take the remaining space of the tree component for the hierarchy display
+        newUlParent.style.flex = "1 1 auto";
+        newUlParent.style.overflow = "scroll";
+        ul.remove();
+        newUlParent.appendChild(ul);
+        oldUlParent.appendChild(newUlParent);
     }
 
     updateNodeTree() {
         
         const rootBone = this.editor.currentCharacter.skeletonHelper.bones[0];
         
-        let mytree = { 
-            id: rootBone.name, 
-            selected: rootBone.name == this.editor.selectedBone 
-        };
-        let children = [];
-        
-        const addChildren = (bone, array) => {
-            
+        const buildBoneHierarchy = (bone) => {
+            if ( ! bone.isBone ){ return null; }
+            let children = [];
             for( let b of bone.children ) {
-                
-                if ( ! b.isBone ){ continue; }
-                let child = {
-                    id: b.name,
-                    children: [],
-                    closed: true,
-                    selected: b.name == this.editor.selectedBone
+                let result = buildBoneHierarchy( b );
+                if( result ){
+                    children.push(result);
                 }
-                
-                array.push( child );
-                
-                addChildren(b, child.children);
             }
-        };
+
+            // maxRecursiveSteps == 0 adds children of b, 1 also adds children of children
+            // maxRecursiveSteps < 0 adds all children
+            const innerSelectDescendants = (b, maxRecursiveSteps = 0, selectedDescendants = [] ) => {        
+                for(let i = 0; i < b.children.length; ++i ){
+                    if( ! b.children[i].isBone ){ continue; }
+
+                    if ( this.skeletonTimeline.selectedItems.indexOf( b.children[i].name ) == -1 ){
+                        selectedDescendants.push( b.children[i].name );
+                    }
+                    
+                    if ( maxRecursiveSteps != 0 ){
+                        innerSelectDescendants( b.children[i], maxRecursiveSteps - 1, selectedDescendants );
+                    }
+                }
+                return selectedDescendants
+            }
+            
+            const innerSelectAscendants = (b, maxRecursiveSteps = 0, selectedAscendants = [] ) => {        
+                if ( b.parent && b.parent.isBone ){
+                    if ( this.skeletonTimeline.selectedItems.indexOf( b.parent.name ) == -1 ){
+                        selectedAscendants.push( b.parent.name );
+                    }
+
+                    if ( maxRecursiveSteps != 0 ){
+                        innerSelectAscendants( b.parent, maxRecursiveSteps - 1, selectedAscendants );
+                    }
+                }
+                return selectedAscendants;
+            }
+
+            return {
+                id: bone.name,
+                children: children,
+                closed: bone != rootBone,
+                // selected: bone.name == this.editor.selectedBone,
+                skipVisibility: true,
+                _bone: bone,
+                actions: [
+                    { icon: "AlignVerticalJustifyStart", name: "Add Parent to Timeline", callback:(v,e)=>{
+                            let ascendants = innerSelectAscendants( v._bone, 0 );
+                            this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( ascendants ) );
+                        } 
+                    },
+                    { icon: "arrow-up-narrow-wide", name: "Add Ascendants to Timeline", callback:(v,e)=>{
+                            let ascendants = innerSelectAscendants( v._bone, -1 );
+                            this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( ascendants ) );
+                        }
+                    },
+                    { icon: "AlignVerticalJustifyEnd", name: "Add Children to Timeline", callback:(v,e)=>{
+                            let descendants = innerSelectDescendants( v._bone, 0 );
+                            this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( descendants ) );
+                        } 
+                    },
+                    { icon: "arrow-down-narrow-wide", name: "Add Descendants to Timeline", callback:(v,e)=>{
+                            let descendants = innerSelectDescendants( v._bone, -1 );
+                            this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( descendants ) );
+                        } 
+                    },
+                ]
+            }
+        }
         
-        addChildren(rootBone, children);
-        
-        mytree['children'] = children;
-        return mytree;
+        return buildBoneHierarchy(rootBone);
     }
 
     createBonePanel(root, options = {}) {
 
-        let bonePanel = new LX.Panel({id:"bone"});
-        root.attach(bonePanel);
+        this.bonePanel = root.addPanel({id:"bone", className:"showScrollBar"});
         // Editor widgets 
-        this.bonePanel = bonePanel;
         options.itemSelected = options.itemSelected ?? this.editor.selectedBone;
-        this.updateSkeletonPanel();
+        this.updateBonePanel();
 
     }
 
-    updateSkeletonPanel() {
+    updateBonePanel() {
 
         if ( !this.bonePanel ){ 
             return;
         }
 
-        let widgets = this.bonePanel;
+        const panel = this.bonePanel;
 
-        widgets.onRefresh = () => {
-            widgets.clear();
+        panel.refresh = () => {
+            panel.clear();
 
             const boneSelected = this.editor.currentCharacter.skeletonHelper.bones[this.editor.gizmo.selectedBone];
             const animationClip = this.skeletonTimeline.animationClip;
-            if(boneSelected && animationClip ) {
+            if( boneSelected && animationClip ) {
 
-                const tracks = this.skeletonTimeline.getTracksGroup(boneSelected.name); 
+                const tracks = this.skeletonTimeline.getTracksGroup(boneSelected.name); // tracks of the bone
                 if ( !tracks || !tracks.length ){
                     return;
                 }
-                const numTracks = tracks.length;
 
-                let trackType = this.editor.getGizmoMode();
+                let currentTrackSelected = null;
+                if( this.skeletonTimeline.lastKeyFramesSelected.length ){
+                    const selectedKeyframe = this.skeletonTimeline.lastKeyFramesSelected[0];
+                    currentTrackSelected = this.skeletonTimeline.animationClip.tracks[ selectedKeyframe[0] ];
+                }
 
-                let active = this.editor.getGizmoMode();
+                // Tools Available -----
 
                 const toolsValues = [ 
-                    { value: "Joint", selected: this.editor.getGizmoTool() == "Joint", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} },
-                    { value: "Follow", selected: this.editor.getGizmoTool() == "Follow", callback: (v,e) => {this.editor.setGizmoTool(v); widgets.onRefresh();} 
-                }];
-                const _Tools = this.editor.hasGizmoSelectedBoneIk() ? toolsValues : [toolsValues[0]];
+                    { value: "Joint", selected: this.editor.getGizmoTool() == "Joint", callback: (v,e) => { this.editor.setGizmoTool(v); panel.refresh(); }},
+                    { value: "Follow", selected: this.editor.getGizmoTool() == "Follow", callback: (v,e) => { this.editor.setGizmoTool(v); panel.refresh(); }}
+                ];
+
+                const hasIk = this.editor.hasGizmoSelectedBoneIk();
+                const _Tools = hasIk ? toolsValues : [toolsValues[0]];
+                if ( !hasIk ){
+                    this.editor.setGizmoTool("Joint");
+                }
+
+                this.editor.gizmo.setJointMode( currentTrackSelected ? currentTrackSelected.id : "rotate" );
+
+
+                panel.branch("Gizmo", { icon:"Axis3DArrows", settings: (e) => this.openSettings( 'gizmo' ) });
                 
-                widgets.branch("Gizmo", { icon:"Axis3DArrows", settings: (e) => this.openSettings( 'gizmo' ) });
-                
-                widgets.addComboButtons( "Tool", _Tools, { });
+                panel.addComboButtons( "Tool", _Tools, { });
                 
                 if( this.editor.getGizmoTool() == "Joint" ){
                     
                     let _Modes = [];
                     
                     for(let i = 0; i < tracks.length; i++) {
-                        if(this.skeletonTimeline.lastKeyFramesSelected.length && this.skeletonTimeline.lastKeyFramesSelected[0][0] == tracks[i].trackIdx) {
-                            trackType = tracks[i].id;                            
-                        }
-
+                       
                         if(tracks[i].id == "position") {
                             const mode = {
                                 value: "Translate", 
                                 selected: this.editor.getGizmoMode() == "Translate",
                                 callback: (v,e) => {
-                                
-                                    const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i], this.skeletonTimeline.currentTime, 0.01); 
+                                    const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i], this.skeletonTimeline.currentTime, 0.01);
                                     if( frame > -1 ) {
                                         this.skeletonTimeline.deselectAllKeyFrames();
                                         this.skeletonTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
+                                        this.editor.gizmo.setJointMode("translate");
+                                        this.editor.gizmo.enableTransform();
                                     }
-                                    this.editor.setGizmoMode(v); 
-                                    widgets.onRefresh();
+                                    panel.refresh();
                                 }
                             }
                             _Modes.push(mode);
@@ -3056,14 +4229,16 @@ class KeyframesGui extends Gui {
                                 value: "Rotate",
                                 selected: this.editor.getGizmoMode() == "Rotate",
                                 callback: (v,e) => {
-                                
-                                    const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i].trackIdx, this.skeletonTimeline.currentTime, 0.01); 
+                                    
+                                    const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i], this.skeletonTimeline.currentTime, 0.01);
                                     if( frame > -1 ) {
                                         this.skeletonTimeline.deselectAllKeyFrames();
                                         this.skeletonTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
+                                        this.editor.gizmo.setJointMode("rotate");
+                                        this.editor.gizmo.enableTransform();
                                     }
-                                    this.editor.setGizmoMode(v); 
-                                    widgets.onRefresh();
+                                    
+                                    panel.refresh();
                                 }
                             }
                             _Modes.push(mode);
@@ -3073,36 +4248,26 @@ class KeyframesGui extends Gui {
                                 value: "Scale",
                                 selected: this.editor.getGizmoMode() == "Scale",
                                 callback: (v,e) => {
-                                
-                                    const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i], this.skeletonTimeline.currentTime, 0.01); 
+                                    const frame = this.skeletonTimeline.getCurrentKeyFrame(tracks[i], this.skeletonTimeline.currentTime, 0.01);
                                     if( frame > -1 ) {
                                         this.skeletonTimeline.deselectAllKeyFrames();
                                         this.skeletonTimeline.selectKeyFrame(tracks[i].trackIdx, frame, true);
+                                        this.editor.gizmo.setJointMode("scale");
+                                        this.editor.gizmo.enableTransform();
                                     }
-                                    this.editor.setGizmoMode(v); 
-                                    widgets.onRefresh();
+                                    panel.refresh();
                                 }
                             }
                             _Modes.push(mode);
                         }                        
                     }
 
-                    if(trackType == "position") {
-                        this.editor.setGizmoMode("Translate");
-                    }
-                    else if(trackType == "quaternion" || numTracks <= 1 ){ 
-                        this.editor.setGizmoMode("Rotate"); 
-                    }
-                    else if(trackType == "scale") {
-                        this.editor.setGizmoMode("Scale");
-                    }
-                    widgets.addComboButtons( "Mode", _Modes, { });
-
+                    panel.addComboButtons( "Mode", _Modes, { });
                     const _Spaces = [
-                        { value: "Local", selected: this.editor.getGizmoSpace() == "Local", callback: v =>  this.editor.setGizmoSpace(v)},
-                        { value: "World", selected: this.editor.getGizmoSpace() == "World", callback: v =>  this.editor.setGizmoSpace(v)}
+                        { value: "Local", selected: this.editor.getGizmoSpace() == "Local", callback: v => this.editor.setGizmoSpace(v)},
+                        { value: "World", selected: this.editor.getGizmoSpace() == "World", callback: v => this.editor.setGizmoSpace(v)}
                     ]
-                    widgets.addComboButtons( "Space", _Spaces, { });
+                    panel.addComboButtons( "Space", _Spaces, { });
                 }
 
                 if ( this.editor.getGizmoTool() == "Follow" ){
@@ -3110,76 +4275,159 @@ class KeyframesGui extends Gui {
                     let modesValues = [];
                     let current = this.editor.getGizmoIkMode();
                     if ( this.editor.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.LARGECHAIN ) ){
-                        modesValues.push( {value:"Multiple", selected: current == "Multiple", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
+                        modesValues.push( {value:"Multiple", selected: current == "Multiple", callback: (v,e) => {this.editor.setGizmoIkMode(v); panel.refresh();} } );
                     } else { // default
                         current = "Single";
                     }
 
                     if ( this.editor.hasGizmoSelectedBoneIk( Gizmo.ToolIkModes.ONEBONE ) ){
-                        modesValues.push( {value:"Single", selected: current == "Single", callback: (v,e) => {this.editor.setGizmoIkMode(v); widgets.onRefresh();} } );
+                        modesValues.push( {value:"Single", selected: current == "Single", callback: (v,e) => {this.editor.setGizmoIkMode(v); panel.refresh();} } );
                     }
 
-                    widgets.addComboButtons( "Mode", modesValues, { });
+                    panel.addComboButtons( "Mode", modesValues, { });
                     this.editor.setGizmoIkMode( current );
                 }
                 
-                widgets.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
+                panel.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
 
-                widgets.addSeparator();
+                panel.merge();
+
+                panel.addSeparator();
                 
 
-                const innerUpdate = (attribute, value) => {
-            
-                    if(attribute == 'quaternion') {
-                        boneSelected.quaternion.fromArray( value ).normalize(); 
-                        let rot = boneSelected.rotation.toArray().slice(0,3); // radians
-                        widgets.components['Rotation (XYZ)'].set( rot, true ); // skip onchange event
+                panel.branch("Bone", { icon: "Bone" });
+                panel.addText("Name", boneSelected.name, null, {disabled: true});
+
+
+                const innerPress = ( jointMode ) =>{
+                    this.editor.gizmo.setJointMode(jointMode);
+    
+                    // fake a transform move
+                    if ( this.skeletonTimeline.lastKeyFramesSelected.length || this.propagationWindow.enabler ){
+                        const realTool = this.editor.gizmo.toolSelected;
+                        this.editor.gizmo.toolSelected = Gizmo.Tools.JOINT; // hack, make onTransformMouseDown think it is simply changing a joint
+                        this.editor.gizmo._onTransformMouseDown();
+                        this.editor.gizmo.toolSelected = realTool;
                     }
-                    else if(attribute == 'rotation') {
-                        boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
-                        widgets.components['Quaternion'].set(boneSelected.quaternion.toArray(), true ); // skip onchange event
-                    }
-                    else if(attribute == 'position') {
-                        boneSelected.position.fromArray( value );
+                }
+
+                const innerRelease = () => {
+                    // check if there was any change in innerUpdate
+                    if ( !this._temp_sidePanelSliders || (!this.propagationWindow.enabler && this.skeletonTimeline.lastKeyFramesSelected.length != 1) ){ 
+                        return;
                     }
 
-                    this.editor.gizmo.onGUI(attribute);
+                    delete this._temp_sidePanelSliders;
+                    // fake a transform move
+                    const realTool = this.editor.gizmo.toolSelected;
+                    this.editor.gizmo.toolSelected = Gizmo.Tools.JOINT; // hack, make onTransformMouseUp think it is simply changing a joint
+                    this.editor.gizmo._onTransformMouseUp();
+                    this.editor.gizmo.toolSelected = realTool;
+                }
+
+                const innerUpdate = (attribute, value, event) => {
+                    
+                    if ( this.skeletonTimeline.lastKeyFramesSelected.length == 1 || this.propagationWindow.enabler ){
+
+                        if(attribute == 'quaternion') {
+                            boneSelected.quaternion.fromArray( value ).normalize(); 
+                            let rot = boneSelected.rotation.toArray().slice(0,3); // radians
+                            panel.components['Rotation (XYZ)'].set( rot, true ); // skip onchange event
+
+                        }
+                        else if(attribute == 'rotation') {
+                            boneSelected.rotation.set( value[0] * UTILS.deg2rad, value[1] * UTILS.deg2rad, value[2] * UTILS.deg2rad ); 
+                            panel.components['Quaternion'].set(boneSelected.quaternion.toArray(), true ); // skip onchange event
+
+                        }
+                        else if(attribute == 'position') {
+                            boneSelected.position.fromArray( value );
+                        }
+
+                        this._temp_sidePanelSliders = true;
+                        // writing numbers instead of sliding does not call the release event. It is called only on mouse up
+                        if ( event.constructor == Event ){ // mouse would be CustomEvent
+                            innerRelease();
+                        }
+                    }
                 };
 
-
-                widgets.branch("Bone", { icon: "Bone" });
-                widgets.addText("Name", boneSelected.name, null, {disabled: true});
-                widgets.addText("Num tracks", numTracks ?? 0, null, {disabled: true});
+                const currentGizmoMode = this.editor.gizmo.jointMode;
 
                 // Only edit position for root bone
                 if(boneSelected.children.length && boneSelected.parent.constructor !== boneSelected.children[0].constructor) {
+
                     this.boneProperties['position'] = boneSelected.position;
-                    widgets.addVector3('Position', boneSelected.position.toArray(), (v) => innerUpdate("position", v), {disabled: this.editor.state || active != 'Translate', precision: 3, step: 0.01, className: 'bone-position'});
+                    panel.addVector3('Position', boneSelected.position.toArray(), (v,e) => innerUpdate("position", v, e), {
+                        disabled: this.editor.state || currentGizmoMode != 'translate', precision: 3, step: 0.01, className: 'bone-position',
+                        onPress: ()=>{ innerPress("position"); },
+                        onRelease: ()=>{ innerRelease(); }
+                    });
 
                     this.boneProperties['scale'] = boneSelected.scale;
-                    widgets.addVector3('Scale', boneSelected.scale.toArray(), (v) => innerUpdate("scale", v), {disabled: this.editor.state || active != 'Scale', precision: 3, className: 'bone-scale'});
+                    panel.addVector3('Scale', boneSelected.scale.toArray(), (v,e) => { innerUpdate("scale", v, e) }, {
+                        disabled: this.editor.state || currentGizmoMode != 'scale', precision: 3, className: 'bone-scale',
+                        onPress: ()=>{ innerPress("scale"); },
+                        onRelease: ()=>{ innerRelease(); }
+                    });
                 }
 
                 this.boneProperties['rotation'] = boneSelected.rotation;
                 let rot = boneSelected.rotation.toArray().slice(0,3); // toArray returns [x,y,z,order]
                 rot[0] = rot[0] * UTILS.rad2deg; rot[1] = rot[1] * UTILS.rad2deg; rot[2] = rot[2] * UTILS.rad2deg;
-                widgets.addVector3('Rotation (XYZ)', rot, (v) => {innerUpdate("rotation", v)}, {step:1, disabled: this.editor.state || active != 'Rotate', precision: 3, className: 'bone-euler'});
+                panel.addVector3('Rotation (XYZ)', rot, (v,e) => {innerUpdate("rotation", v, e)}, {
+                    step:1, disabled: this.editor.state || currentGizmoMode != 'rotate', precision: 3, className: 'bone-euler',
+                    onPress: ()=>{ innerPress("rotation"); },
+                    onRelease: ()=>{ innerRelease(); }
+                });
 
                 this.boneProperties['quaternion'] = boneSelected.quaternion;
-                widgets.addVector4('Quaternion', boneSelected.quaternion.toArray(), (v) => {innerUpdate("quaternion", v)}, {step:0.01, disabled: true, precision: 3, className: 'bone-quaternion'});
+                panel.addVector4('Quaternion', boneSelected.quaternion.toArray(), null, {step:0.01, disabled: true, precision: 3, className: 'bone-quaternion'});
+                
+                panel.merge();
             }
 
         };
 
-        widgets.onRefresh();
+        panel.refresh();
     }
 
+
+    // flags
+    
     /**
      * 
      * @param {Array of String} toInsert name of loadedAnimations to insert 
      */
     showInsertModeAnimationDialog( toInsert = [], showDoNotInsert = true ){
         const dialog = new LX.Dialog( "How would you like to insert the imported animations?", p => {
+         
+
+            // IMPORT SETTINGS
+            let faceMapMode = KeyframeEditor.IMPORTSETTINGS_FACEBSAU;
+            let auMapSrcAvatar = null;
+
+            p.branch("Advanced Settings");
+            let charactersNames = Object.keys( this.editor.loadedCharacters );
+            charactersNames.unshift("AUTOMATIC");
+
+            p.addTextArea(null, "Choose the character that will be used to extract the Action Units from the animations. These Action Units will then be mapped to the current avatar", null, {disabled: true, fitHeight: true })
+            p.addSelect("Face Mapping Source", charactersNames, "AUTOMATIC", (v,e)=>{
+                if ( v == "AUTOMATIC" ){
+                    auMapSrcAvatar = null;
+                }else{
+                    auMapSrcAvatar = this.editor.loadedCharacters[v];
+                }
+            } );
+
+            p.addTextArea(null, "Choose whether to keep matching Blendshape tracks, convert to Action Units before mapping, or both. Matching blendshape tracks will overwrite the output from the Action Units", null, {disabled: true, fitHeight: true })
+            const faceMapping = [ "None", "Only Blendshapes", "Only Action Units", "Blendshapes and Action Units" ];
+            p.addSelect("Face Mapping Mode", faceMapping, faceMapping[faceMapMode], (v,e)=>{
+                faceMapMode = faceMapping.indexOf(v); // this will not work if there are more than 0x03 mapping types (IMPORTSETTINGS_FACE)
+            } );
+            p.merge();
+
+            // BOTTOM BUTTONS
             p.sameLine(showDoNotInsert ? 3 : 2);
             
             if( showDoNotInsert ){
@@ -3195,27 +4443,27 @@ class KeyframesGui extends Gui {
                 }
 
                 for( let i = 0; i < toInsert.length; ++i ){
-                    this.editor.bindAnimationToCharacter( toInsert[i] );
+                    this.editor.bindAnimationToCharacter( toInsert[i], null, {faceMapMode, auMapSrcAvatar} );
                 }
 
                 this.editor.setTimeline( this.editor.animationModes.GLOBAL );
-                dialog.close() ;
+                dialog.close();
             }, { title: "Insert as clips into the current global animation", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
             p.addButton("Animation", toInsert.length == 1 ? "Add as a new global animation" : "Add as new global animations", (v, e) => { 
                 let lastGlobalAnimation = null;
                 for( let i = 0; i < toInsert.length; ++i ){
                     lastGlobalAnimation = this.editor.createGlobalAnimation( toInsert[i], 1 ); // find suitable name
-                    this.editor.bindAnimationToCharacter( toInsert[i], lastGlobalAnimation );
+                    this.editor.bindAnimationToCharacter( toInsert[i], lastGlobalAnimation, {faceMapMode, auMapSrcAvatar} );
                 }
                 if ( lastGlobalAnimation ){
                     this.editor.setGlobalAnimation( lastGlobalAnimation.id );
                 }
-                dialog.close() ;
+                dialog.close();
             }, { title: "Insert as new global animations", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
 
-        }, {modal: true, size: ["50%", "auto"]});
+        }, {modal: true, size: ["50%", "fit-content"]});
 
     }
 
@@ -3232,6 +4480,11 @@ class KeyframesGui extends Gui {
             p.addButton("Ok", "Add", (v, e) => { 
                 e.stopPropagation();
                 let selectedAnimations = table.getSelectedRows();
+
+                if ( selectedAnimations.length == 0 ){
+                    return;
+                }
+
                 let animationNames = [];
                 for( let i = 0; i < selectedAnimations.length; ++i ){
                     animationNames.push( selectedAnimations[i][0] );
@@ -3242,7 +4495,87 @@ class KeyframesGui extends Gui {
                 }
             }, { buttonClass: "accent", hideName: true, width: "50%" });
 
-        }, {modal: true, size: ["50%", "auto"]});
+        }, {modal: true, size: ["50%", "fit-content"]});
+
+    }
+
+    showInsertFromBoundAnimations(){
+        const dialog = this.prompt = new LX.Dialog( "Insert from Character Animations", p => {
+            const table = this.createAvailableAnimationsTable( false, Object.keys(this.editor.loadedCharacters) );
+            p.attach( table );
+
+
+            let faceMapMode = KeyframeEditor.IMPORTSETTINGS_FACEBSAU;
+            let auMapSrcAvatar = null;
+
+            p.branch("Advanced Settings");
+            let charactersNames = Object.keys( this.editor.loadedCharacters );
+            charactersNames.unshift("AUTOMATIC");
+
+            const faceMapping = [ "None", "Only Blendshapes", "Only Action Units", "Blendshapes and Action Units" ];
+            p.addTextArea(null, "Choose whether to keep matching Blendshape tracks, convert to Action Units before mapping, or both.\nMatching Blendshape tracks will overwrite the output from the Action Units", null, {disabled: true, fitHeight: true })
+            p.addSelect("Face Mapping Mode", faceMapping, faceMapping[faceMapMode], (v,e)=>{
+                faceMapMode = faceMapping.indexOf(v); // this will not work if there are more than 0x03 mapping types (IMPORTSETTINGS_FACE)
+            } );
+            p.merge();
+            // TODO import settings
+
+            p.sameLine(3);
+            p.addButton("Cancel", "Cancel", () => {
+                dialog.close();
+            }, {hideName: true, width: "33.3333%"} );
+            
+            p.addButton("AsClips", "Add as clips", (v, e) => { 
+                e.stopPropagation();
+                const selectedAnimations = table.getSelectedRows();
+
+                if( !selectedAnimations.length ){
+                    return;
+                }
+
+               // if the target animation is the same as the source animation, undesired animations may setTrackState. So first accumulate retargetedAnims
+               let retargetedClips = [];
+               for( let i = 0; i < selectedAnimations.length; ++i ){
+                   const globalAnim = this.editor.retargetGlobalAnimationFromAvatar( selectedAnimations[i][0], selectedAnimations[i][1], {faceMapMode} );
+                   for( let t = 0; t < globalAnim.tracks.length; ++t ){
+                       retargetedClips = retargetedClips.concat( globalAnim.tracks[t].clips );
+                   }
+               }
+
+               if( retargetedClips.length ){
+                   this.globalTimeline.addClips( retargetedClips, this.currentTime );
+               }
+
+                dialog.close();
+            }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
+
+            p.addButton("AsGlobal", "Add as new global animations", (v, e) => { 
+                e.stopPropagation();
+                const selectedAnimations = table.getSelectedRows();
+                if( !selectedAnimations.length ){
+                    return;
+                }
+                
+                let lastId;
+                for( let i = 0; i < selectedAnimations.length; ++i ){
+                    const globalAnim = this.editor.retargetGlobalAnimationFromAvatar( selectedAnimations[i][0], selectedAnimations[i][1], {faceMapMode} );
+
+                    const resultingGlobalAnim = this.editor.createGlobalAnimation( globalAnim.id, 1 ); // find suitable name. Do not overwrite existing animations
+
+                    // resultingGlobalAnim is already in boundAnimations. Shallow copy everything from globalAnim into resultingGlobalAnim
+                    const resultingId = lastId = resultingGlobalAnim.id; // store correct id
+                    Object.assign( resultingGlobalAnim, globalAnim );
+                    resultingGlobalAnim.id = resultingId;
+                }
+
+                if( selectedAnimations.length ){
+                    this.editor.setGlobalAnimation( lastId );
+                }
+
+                dialog.close();
+            }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
+
+        }, {modal: true, size: ["50%", "fit-content"]});
 
     }
 
@@ -3277,22 +4610,47 @@ class KeyframesGui extends Gui {
         return table;
     }
 
-    createAvailableAnimationsTable(){
+    /**
+     * Creates a table with all bound animations of the specified avatars
+     * @param {Boolean} selectCurrentAnimation name of the animations to show as selected in the table. If null, all animations are selected
+     * @param {Array of Strings} avatarNames avatars to take into account. If null, the currentCharacter is shown 
+     * @returns 
+     */
+    createAvailableAnimationsTable( selectCurrentAnimation = true, avatarNames = null ){
 
         const animations = this.editor.boundAnimations;
-        const characterName = this.editor.currentCharacter.name;
+        if ( !avatarNames ){
+            avatarNames = [ this.editor.currentCharacter.name ];
+        }
+
         let availableAnimations = [];
-        for ( let aName in animations ){
-            if ( !animations[aName][characterName] ){
+        let checkMap = {};
+        for( let i = 0; i < avatarNames.length; ++i ){
+            if ( !animations[ avatarNames[i] ] ){
                 continue;
             }
-            let numClips = 0;
-            animations[aName][characterName].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
-            availableAnimations.push([ aName, numClips, animations[aName][characterName].duration.toFixed(3) ]);
+            
+            const characterName = avatarNames[i];
+            const character = this.editor.loadedCharacters[characterName];
+
+            for ( let aName in animations[characterName] ){
+                let numClips = 0;
+                animations[characterName][aName].tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
+
+                const entry = [ aName, characterName, numClips, animations[characterName][aName].duration.toFixed(3) ];
+                
+                if ( selectCurrentAnimation && character == this.editor.currentCharacter && aName == this.editor.currentAnimation ){
+                    const entryId = LX.getSupportedDOMName( entry.join( '-' ) ).substr(0, 32);
+                    checkMap[entryId] = true;
+                }
+
+                availableAnimations.push(entry);
+
+            }
         }
 
         let table = new LX.Table(null, {
-                head: ["Name",  "Num. Clips", "Duration (s)"],
+                head: ["Name",  "Character", "Num. Clips", "Duration (s)"],
                 body: availableAnimations
             },
             {
@@ -3300,9 +4658,16 @@ class KeyframesGui extends Gui {
                 sortable: true,
                 toggleColumns: true,
                 filter: "Name",
+                customFilters: [
+                    { name: "Character", options: Object.keys(this.editor.loadedCharacters) }
+                ],
                 // TODO add a row icon to modify the animations name
             }
         );
+
+        table.data.checkMap = checkMap; // hack
+        table.refresh();
+
         return table;
     }
 
@@ -3425,8 +4790,8 @@ class KeyframesGui extends Gui {
                             
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Upload to server', 
@@ -3437,8 +4802,8 @@ class KeyframesGui extends Gui {
                             
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvh",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -3447,8 +4812,8 @@ class KeyframesGui extends Gui {
                         const items = this.editor.localStorage[0].children[0].children;
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));  
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/Local/clips",
                     name: 'Delete', 
@@ -3457,8 +4822,8 @@ class KeyframesGui extends Gui {
                         const items = this.editor.localStorage[0].children[0].children;
                         this.editor.localStorage[0].children[0].children = items.slice(0, i).concat(items.slice(i+1));                        
                     }
-                });             
-                previewActions.push({
+                },
+                {
                     type: "bvh",
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
@@ -3476,8 +4841,8 @@ class KeyframesGui extends Gui {
                             // this.closeDialogs();                            
                         });
                     }
-                });
-                previewActions.push({
+                },
+                {
                     type: "bvhe",
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
@@ -3518,7 +4883,7 @@ class KeyframesGui extends Gui {
        
         }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
-            onBeforeClose: ( dilog ) => {
+            onBeforeClose: ( dialog ) => {
 
                 if ( this.assetViewer ){
                     this.assetViewer.clear(); // clear signals
@@ -3665,10 +5030,12 @@ class KeyframesGui extends Gui {
                 {
                     name: 'Skin',
                     property: 'showSkin',
-                    icon: 'UserX',
+                    icon: 'UserRoundCheck',
                     selectable: true,
-                    callback: (v) =>  {
-                        editor.showSkin = !editor.showSkin;
+                    selected: true,
+                    callback: (v,e) =>  {
+                        this.menubar.getItem( "View/Appearance/Avatar" ).checked = v; // a bit of a circular dependency
+                        editor.showSkin = v;
                         let model = editor.scene.getObjectByName("Armature");
                         model.visible = editor.showSkin;
                         
@@ -3680,53 +5047,69 @@ class KeyframesGui extends Gui {
                     icon: 'Bone',
                     selectable: true,
                     selected: false,
-                    callback: (value,event) =>  {
-                        editor.showSkeleton = this.canvasAreaOverlayButtons.buttons["Skeleton"].root.children[0].classList.contains("selected");
+                    callback: (v,e) =>  {
+                        this.menubar.getItem( "View/Appearance/Skeleton" ).checked = v; // a bit of a circular dependency
+
+                        editor.showSkeleton = v;
                         let skeleton = editor.scene.getObjectByName("SkeletonHelper");
                         skeleton.visible = editor.showSkeleton;
                         editor.scene.getObjectByName('GizmoPoints').visible = editor.showSkeleton;
                         if(!editor.showSkeleton) 
-                            editor.gizmo.stop();
+                            editor.gizmo.disableTransform();
                     }
                 }
             ];       
         }
-        
+
         canvasButtons.push(
             {
-                name: 'GUI',
-                property: 'showGUI',
+                name: 'Grid',
+                property: 'showGrid',
                 icon: 'Grid',
                 selectable: true,
                 selected: true,
                 callback: (v, e) => {
-                    editor.showGUI = !editor.showGUI;
+                    this.editor.scene.getObjectByName("Grid").visible = v;
+                    this.menubar.getItem( "View/Appearance/Scene Grid" ).checked = v; // a bit of a circular dependency
+                }
+            },
+            {
+                name: 'GUI',
+                property: 'showGUI',
+                icon: 'PanelLeftClose',
+                selectable: true,
+                selected: true,
+                callback: (v, e) => {
+                    editor.showGUI = v;
+                    this.menubar.getItem( "View/Appearance/GUI" ).checked = v; // a bit of a circular dependency
 
                     if( editor.scene.getObjectByName('Armature') ) {
-                        editor.scene.getObjectByName('SkeletonHelper').visible = editor.showGUI;
+                        this.canvasAreaOverlayButtons.buttons["Skeleton"].setState( v );
                     }
 
-                    if( editor.gizmo ) {
-                        editor.scene.getObjectByName('GizmoPoints').visible = editor.showGUI;
-                    }
+                    this.canvasAreaOverlayButtons.buttons["Grid"].setState( v );
 
-                    editor.scene.getObjectByName('Grid').visible = editor.showGUI;
-                    
                     if(!editor.showGUI) {
                         if(editor.gizmo) {
-                            editor.gizmo.stop();
+                            editor.gizmo.disableTransform();
                         }
                         this.hideTimeline();
                         this.sidePanelArea.parentArea.extend();
-                        this.hideVideoOverlay();                       
+                        this.hideVideoOverlay();
                     } else {
                         this.showTimeline();
-                        this.sidePanelArea.parentArea.reduce();  
+                        this.sidePanelArea.parentArea.reduce();
                         const currentAnim = this.editor.currentKeyFrameClip;
                         if ( currentAnim && currentAnim.type == "video" && this.showVideo ){
                             this.showVideoOverlay();
                         }
-                    }                  
+                    }
+
+                    setTimeout( ()=>{
+                        this.editor.delayedResizeTime = 1;
+                        this.editor.delayedResize();
+                        this.editor.delayedResizeTime = 500;
+                    }, 120);
                 }
             }
         )
@@ -3787,16 +5170,72 @@ class ScriptGui extends Gui {
             { name: "Preview in PERFORMS", icon: "StreetView", callback: () => this.editor.showPreview() },
         );
 
-        const timelineMenu = entries.find( e => e.name == "Timeline" )?.submenu;
-        console.assert(timelineMenu, "Timeline menu not found" );
-        timelineMenu.push(
+        const editMenu = entries.find( e => e.name == "Edit" )?.submenu;
+        console.assert(editMenu, "Edit menu not found" );
+        editMenu.push(
             { name: "Reorder Clips", icon: "Magnet", submenu: [
                 { name: "Type", icon:"Star", callback: () => this.reorderClips(0) },
                 { name: "Type and Handedness", icon: "StarHalf", callback: () => this.reorderClips(1) },
+            ] },
+            { name: "Clear Tracks", icon: "Trash2", submenu: [
+
+                { name: "Selected Tracks", icon: "Trash2",
+                    callback: () => {
+                        let indices = [];
+                        const selected = this.editor.activeTimeline.selectedTracks;
+                        for( let i = 0; i < selected.length; ++i ){
+                            indices.push( selected[i].trackIdx );
+                        }
+                        this.editor.clearTracks( indices );
+                    }
+                },
+                { name: "All Tracks", icon: "Trash2", callback: () => this.editor.clearTracks() }
+                
             ] }
         );
 
-        const shortcutsMenu = timelineMenu.find( e => e.name == "Shortcuts" )?.submenu;
+
+        const showHideMenu = {
+            name: "Appearance", // warning: check all occurrence of this menu before changing the name
+            submenu: [
+                {
+                    name: "Scene Overlay Panel",
+                    checked: false,
+                    callback: (title, v,e)=>{
+                        if ( v ){
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.remove("hidden");
+                        }else{
+                            this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
+                        }
+                    }
+                },
+                {
+                    name: "GUI",
+                    checked: true,
+                    callback: (title, v, e) => {
+                        this.canvasAreaOverlayButtons.buttons["GUI"].setState(v);
+                    }
+                },
+                {
+                    name: "Scene Grid",
+                    checked: true,
+                    callback: (title, v,e)=>{
+                        this.canvasAreaOverlayButtons.buttons["Grid"].setState(v);
+                    }
+                }
+            ]
+        }
+        const viewMenu = entries.find( e => e.name == "View" )?.submenu;
+        viewMenu.push( showHideMenu );
+
+        const helpMenu = entries.find( e => e.name == "Help" )?.submenu;
+        console.assert(helpMenu, "Help menu not found" );
+        helpMenu.push(
+            { name: "Documentation", icon: "BookOpen", callback: () => window.open( window.location.origin + "/docs/script", "_blank" )},
+            { name: "BML Instructions", icon: "CodeSquare", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") },
+            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}
+        );
+        const shortcutsMenu = helpMenu.find( e => e.name == "Shortcuts" )?.submenu;
         console.assert(shortcutsMenu, "Shortcuts menu not found" );
 
         shortcutsMenu.push(
@@ -3815,15 +5254,7 @@ class ScriptGui extends Gui {
             { name: "Select Multiple", kbd: "LSHIFT + LClick" },
             { name: "Select Box", kbd: "LSHIFT + LClick + Drag" }
         );
-
-        const aboutMenu = entries.find( e => e.name == "About" )?.submenu;
-        console.assert(aboutMenu, "About menu not found" );
-        aboutMenu.push(
-            { name: "Documentation", icon: "BookOpen", callback: () => window.open("https://animics.gti.upf.edu/docs/script_animation.html", "_blank")},
-            { name: "BML Instructions", icon: "CodeSquare", callback: () => window.open("https://github.com/upf-gti/performs/blob/main/docs/InstructionsBML.md", "_blank") },
-            { name: "Github", icon: "Github", callback: () => window.open("https://github.com/upf-gti/animics", "_blank")}                                
-        );
-        
+       
 
     }
 
@@ -3857,16 +5288,19 @@ class ScriptGui extends Gui {
             },
             onCreateSettingsButtons: (panel) => {
                 panel.addButton("", "clearTracks", (value, event) =>  {
-                    this.editor.clearAllTracks();     
+                    this.editor.clearTracks();     
                     this.updateAnimationPanel();
                 }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
-                
             },
             onShowConfiguration: (dialog) => {
+                dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
                 dialog.addNumber("Framerate", this.editor.animationFrameRate, (v) => {
                     this.editor.animationFrameRate = v;
-                }, {min: 0, disabled: false});
-                dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
+                }, {min: 1, disabled: false, title: "BML animations are transformed to keyframe animations to display them or when exporting to BVH files. This will be their framerate (frames per second)"});
+
+                dialog.addNumber("Track Height", this.clipsTimeline.trackHeight, (v,e) =>{
+                    this.clipsTimeline.setTrackHeight( v );    
+                }, { min: parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.25 });
             },
         });
 
@@ -3894,14 +5328,15 @@ class ScriptGui extends Gui {
         this.clipsTimeline.onSelectClip = this.updateClipPanel.bind(this);
 
         this.clipsTimeline.onContentMoved = (clip, offset)=> {
+
+            if ( !this.clipsTimeline.dragClipMode || !this.clipsTimeline.dragClipMode.length ){ 
+                return;
+            }
+
             if(clip.strokeStart) clip.strokeStart+=offset;
             if(clip.stroke) clip.stroke+=offset;
             if(clip.strokeEnd) clip.strokeEnd+=offset;
             this.updateClipSyncGUI();
-            if(clip.onChangeStart)  {
-                clip.onChangeStart(offset);
-            }
-
             this.delayedUpdateTracks();
         };
 
@@ -3937,6 +5372,35 @@ class ScriptGui extends Gui {
             return clipsToReturn;
         }
 
+        this.clipsTimeline.onTrackTreeEvent = (event) =>{
+            switch( event.type ){
+                case LX.TreeEvent.NODE_CONTEXTMENU:
+                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
+                        if ( event.node.trackData ){
+                            if ( !event.node.trackData.isSelected ){
+                                this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                                this.editor.activeTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
+                            }
+                        }
+
+                        menu.add( "Clear", (e)=>{
+                            const activeTimeline = this.editor.activeTimeline;
+                            const selectedTracks = activeTimeline.selectedTracks;
+
+                            let indices = [];
+                            for( let i = 0; i < selectedTracks.length; ++i ){
+                                indices.push( selectedTracks[i].trackIdx );
+                            }
+                            this.editor.clearTracks( indices );
+                        });
+
+                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
+
+                    });
+                    break;
+            }
+        }
+
         this.clipsTimeline.showContextMenu = ( e ) => {
 
             e.preventDefault();
@@ -3960,17 +5424,11 @@ class ScriptGui extends Gui {
                     {
                         title: "Create preset",
                         callback: () => {
-                            this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                                if(a[0]<b[0]) 
-                                    return -1;
-                                return 1;
-                            });
-                            this.createSaveDialog( "presets");
-                            // this.createNewPresetDialog(this.clipsTimeline.lastClipsSelected);
+                            this.createPresetSaveDialog( "presets" );
                         }
                     }
                 );
-                if(this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
+                if(e.track && this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
                     let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
                     if(clip.type == "glossa") {                        
                         actions.push(
@@ -4055,7 +5513,7 @@ class ScriptGui extends Gui {
     reorderClips( mode = 0x00 ){
         const clipTypesOrder = [
             ANIM.SuperClip, 
-            ANIM.FaceLexemeClip, ANIM.FaceFACSClip, ANIM.FaceEmotionClip, ANIM.FacePresetClip, ANIM.MouthingClip,
+            ANIM.FaceEmotionClip, ANIM.FaceLexemeClip, ANIM.FaceFACSClip, ANIM.FacePresetClip, ANIM.MouthingClip,
             ANIM.GazeClip, ANIM.HeadClip,  
             ANIM.ElbowRaiseClip, ANIM.ShoulderClip, ANIM.BodyMovementClip,
             ANIM.ArmLocationClip,
@@ -4250,7 +5708,7 @@ class ScriptGui extends Gui {
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
-    createSidePanel() {
+    createSidePanel( selectedTab = null ) {
         // remove signals to avoid memory leaks
         for( let i = 0; i < this.sidePanelSpecialSignals.length; ++i ){
             delete LX.signals[ this.sidePanelSpecialSignals[i] ];
@@ -4262,10 +5720,12 @@ class ScriptGui extends Gui {
             this.sidePanelArea.root.children[0].remove();
         }
         this.sidePanelArea.sections = [];
-
+        
         if(this.panelTabs) {
             this.panelTabs.root.remove();
         }
+
+        const defaultTabSelected = selectedTab ? selectedTab : "Animation";
 
         // Animation & Character tabs
         const panelTabs = this.panelTabs = this.sidePanelArea.addTabs({fit: true});
@@ -4273,9 +5733,7 @@ class ScriptGui extends Gui {
         // Animation tab content
         const animationArea = new LX.Area({id: 'Animation'});
         const [animSide, tabsSide] = animationArea.split({id: "panel", type: "vertical", sizes: ["auto", "auto"], resize: false});
-        panelTabs.add( "Animation", animationArea, {selected: true, onSelect: (e,v) => {
-            
-        }});
+        panelTabs.add( "Animation", animationArea, {selected: defaultTabSelected == "Animation", onSelect: (e,v) => {}});
 
         this.animationPanel = new LX.Panel({id: "animation", icon: "PersonStanding"});
         animSide.attach(this.animationPanel);
@@ -4290,20 +5748,20 @@ class ScriptGui extends Gui {
         const characterPanel = characterArea.addPanel();
         this.createCharactersPanel( characterPanel ) ;
         
-        panelTabs.add( "Character", characterArea, {selected: false });
+        panelTabs.add( "Character", characterArea, {selected:  defaultTabSelected == "Character" });
     }
 
     updateAnimationPanel( options = {}) {
-        let widgets = this.animationPanel;
+        let panel = this.animationPanel;
 
-        widgets.onRefresh = (o) => {
+        panel.refresh = (o) => {
 
             o = o || {};
-            widgets.clear();
-            widgets.addTitle("Animation");
+            panel.clear();
+            panel.addTitle("Animation");
 
             const animation = this.editor.loadedAnimations[this.editor.currentAnimation] ?? {};
-            widgets.addText("Name", animation.name, (v) =>{ 
+            panel.addText("Name", animation.name, (v) =>{ 
                     if( v.length == 0){
                         LX.toast("Animation Rename: name cannot be empty", null, { timeout: 7000 } );
                     }
@@ -4315,16 +5773,16 @@ class ScriptGui extends Gui {
                     }
             } );
 
-            widgets.addSeparator();
-            widgets.addComboButtons("Dominant hand", [
+            panel.addSeparator();
+            panel.addComboButtons("Dominant hand", [
                 { value: "Left", selected: this.editor.dominantHand == "Left", callback: v => this.editor.dominantHand = v },
                 { value: "Right", selected: this.editor.dominantHand == "Right", callback: v => this.editor.dominantHand = v }
             ], {});
-            widgets.addButton(null, "Add behaviour", () => this.createClipsDialog(), {title: "CTRL+K"} )
-            widgets.addButton(null, "Add animation", () => this.createServerClipsDialog(), {title: "CTRL+L"} )
-            widgets.addSeparator();
+            panel.addButton(null, "Add behaviour", () => this.createClipsDialog(), {title: "CTRL+K"} )
+            panel.addButton(null, "Add animation", () => this.createServerClipsDialog(), {title: "CTRL+L"} )
+            panel.addSeparator();
         }
-        widgets.onRefresh(options);
+        panel.refresh(options);
     }
 
     updateClipSyncGUI(checkCurve = true){
@@ -4338,15 +5796,15 @@ class ScriptGui extends Gui {
             return; 
         }
 
-        const widgets = this.clipPanel;
+        const panel = this.clipPanel;
         const clip = this.clipsTimeline.animationClip.tracks[this.clipsTimeline.lastClipsSelected[0][0]].clips[this.clipsTimeline.lastClipsSelected[0][1]];
         let w = null;
 
-        w = widgets.get("Start");
+        w = panel.get("Start");
         if ( w ) { 
             w.set(clip.start, true);
         }
-        w = widgets.get("Duration");
+        w = panel.get("Duration");
         if ( w ) { 
             w.set(clip.duration, true);
         }
@@ -4354,13 +5812,13 @@ class ScriptGui extends Gui {
 
         if( clip.fadein != undefined ) { 
             clip.fadein = Math.clamp(clip.fadein, clip.start, clip.start + clip.duration); 
-            w = widgets.get("Attack Peak (s)");
+            w = panel.get("Attack Peak (s)");
             if ( w ) { 
                 clip.attackPeak = clip.fadein;
                 w.setLimits(0, clip.fadeout - clip.start, 0.001);
                 w.set(clip.fadein - clip.start, true);
             }
-            w = widgets.get("Ready (s)");
+            w = panel.get("Ready (s)");
             if ( w ) { 
                 clip.ready = clip.fadein;
                 w.setLimits(0, clip.fadeout - clip.start, 0.001);
@@ -4371,7 +5829,7 @@ class ScriptGui extends Gui {
 
         if( clip.fadeout != undefined ) { 
             clip.fadeout = Math.clamp(clip.fadeout, clip.fadein, clip.start + clip.duration); 
-            w = widgets.get("Relax (s)");
+            w = panel.get("Relax (s)");
             if ( w ) { 
                 clip.relax = clip.fadeout;
                 w.setLimits( clip.fadein - clip.start, clip.duration, 0.001);
@@ -4381,7 +5839,7 @@ class ScriptGui extends Gui {
 
         if( clip.strokeStart != undefined ) { 
             clip.strokeStart = Math.clamp(clip.strokeStart, clip.fadein, clip.fadeout); 
-            w = widgets.get("Stroke start (s)");
+            w = panel.get("Stroke start (s)");
             if ( w ) { 
                 w.setLimits( clip.fadein - clip.start, clip.fadeout - clip.start, 0.001);
                 w.set(clip.strokeStart - clip.start, true);
@@ -4389,7 +5847,7 @@ class ScriptGui extends Gui {
         }
         if( clip.strokeEnd != undefined ) { 
             clip.strokeEnd = Math.clamp(clip.strokeEnd, clip.strokeStart ?? clip.fadein, clip.fadeout); 
-            w = widgets.get("Stroke end (s)");
+            w = panel.get("Stroke end (s)");
             if ( w ) { 
                 w.setLimits( (clip.strokeStart ?? clip.fadein) - clip.start, clip.fadeout-clip.start, 0.001);
                 w.set(clip.strokeEnd - clip.start, true);
@@ -4397,7 +5855,7 @@ class ScriptGui extends Gui {
         }
         if( clip.stroke != undefined ) { 
             clip.stroke = Math.clamp(clip.stroke, clip.strokeStart ?? clip.fadein, clip.strokeEnd ?? clip.fadeout); 
-            w = widgets.get("Stroke (s)");
+            w = panel.get("Stroke (s)");
             if ( w ) { 
                 w.setLimits( (clip.strokeStart ?? clip.fadein) - clip.start, (clip.strokeEnd ?? clip.fadeout) - clip.start, 0.001);
                 w.set(clip.stroke - clip.start, true);
@@ -4405,7 +5863,7 @@ class ScriptGui extends Gui {
         }
 
         if ( checkCurve ) {
-            w = widgets.get("Synchronization");
+            w = panel.get("Synchronization");
             if ( w ) {
                 w.set([[(clip.fadein-clip.start)/clip.duration,0.5],[(clip.fadeout-clip.start)/clip.duration,0.5]], true);
             }
@@ -4416,17 +5874,17 @@ class ScriptGui extends Gui {
     /** Non -manual features based on BML */
     updateClipPanel(clip) {
         
-        let widgets = this.clipPanel;
+        let panel = this.clipPanel;
         if(this.clipsTimeline.lastClipsSelected.length > 1) {
             clip = null;
         }
 
-        widgets.onRefresh = (clip) => {
+        panel.refresh = (clip) => {
 
-            widgets.clear();
+            panel.clear();
             if(!clip) {
                 if(this.clipsTimeline.lastClipsSelected.length > 1) {
-                    widgets.addButton(null, "Create preset", (v, e) => this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
+                    panel.addButton(null, "Create preset", (v, e) => this.createPresetSaveDialog( "presets" ))//this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
                 }
                 return;
             }
@@ -4456,13 +5914,13 @@ class ScriptGui extends Gui {
                 icon = "ClapperboardClosed";
 
             let clipName = clip.constructor.name.includes("Super") ? "Glossa Clip" : clip.constructor.name.match(/[A-Z][a-z]+|[0-9]+/g).join(" ");
-            widgets.addTitle(clipName, {icon} );
-            widgets.addText("Id", clip.id, (v) => this.clipInPanel.id = v)
+            panel.addTitle(clipName, {icon} );
+            panel.addText("Id", clip.id, (v) => this.clipInPanel.id = v)
             
-            widgets.branch("Content");
+            panel.branch("Content");
             if(clip.showInfo)
             {
-                clip.showInfo(widgets, updateTracks);
+                clip.showInfo(panel, updateTracks);
             }
             else{
                 for(var i in clip.properties)
@@ -4472,7 +5930,7 @@ class ScriptGui extends Gui {
                     {
                         
                         case String:
-                            widgets.addText(i, property, (v, e, n) =>
+                            panel.addText(i, property, (v, e, n) =>
                             {
                                 this.clipInPanel.properties[n] = v;
                             });
@@ -4480,14 +5938,14 @@ class ScriptGui extends Gui {
                         case Number:
                             if(i=="amount")
                             {
-                                widgets.addNumber(i, property, (v,e,n) => 
+                                panel.addNumber(i, property, (v,e,n) => 
                                 {
                                     this.clipInPanel.properties[n] = v;
                                     updateTracks();
                                 }, {min:0, max:1, step:0.01, precision: 2});
                             }
                             else{
-                                widgets.addNumber(i, property, (v, e, n) =>
+                                panel.addNumber(i, property, (v, e, n) =>
                                 {
                                     this.clipInPanel.properties[n] = v;
                                     updateTracks();
@@ -4495,14 +5953,14 @@ class ScriptGui extends Gui {
                             }
                             break;
                         case Boolean:
-                            widgets.addCheckbox(i, property, (v, e, n) =>
+                            panel.addCheckbox(i, property, (v, e, n) =>
                             {
                                 this.clipInPanel.properties[n] = v;
                                 updateTracks();
                             });
                             break;
                         case Array:
-                            widgets.addArray(i, property, (v, e, n) =>
+                            panel.addArray(i, property, (v, e, n) =>
                             {
                                 this.clipInPanel.properties[n] = v;
                                 updateTracks();
@@ -4511,10 +5969,10 @@ class ScriptGui extends Gui {
                     }
                 }
             }
-            widgets.merge()
-            widgets.branch("Time", {icon: "Clock"});
+            panel.merge()
+            panel.branch("Time", {icon: "Clock"});
 	
-            widgets.addNumber("Start", clip.start.toFixed(2), (v) =>
+            panel.addNumber("Start", clip.start.toFixed(2), (v) =>
             {     
                 const selectedClip = this.clipsTimeline.lastClipsSelected[0];
                 const trackIdx = selectedClip[0];
@@ -4538,15 +5996,12 @@ class ScriptGui extends Gui {
                 this.clipInPanel.start = v;
                 clip.start = v;
                 
-                if(clip.onChangeStart) {
-                    clip.onChangeStart(diff);
-                }
 				this.updateClipSyncGUI();
                 updateTracks();
                 
             }, {min:0, step:0.01, precision:2});
 
-            widgets.addNumber("Duration", clip.duration.toFixed(2), (v) =>
+            panel.addNumber("Duration", clip.duration.toFixed(2), (v) =>
             {
 
                 const selectedClip = this.clipsTimeline.lastClipsSelected[0];
@@ -4563,9 +6018,9 @@ class ScriptGui extends Gui {
             }, {min:0.01, step:0.001, precision:2, disabled: clip.type == "custom"});
 
             if(clip.fadein!= undefined && clip.fadeout!= undefined)  {
-                widgets.merge();
-                widgets.branch("Sync points", {icon: "SplinePointer"});
-                widgets.addTextArea(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true, className: "nobg"});
+                panel.merge();
+                panel.branch("Sync points", {icon: "SplinePointer"});
+                panel.addTextArea(null, "These sync points define the dynamic progress of the action. They are normalized by duration.", null, {disabled: true, className: "nobg"});
                 const syncvalues = [];
                 
                 if(clip.fadein != undefined)
@@ -4573,7 +6028,7 @@ class ScriptGui extends Gui {
                     syncvalues.push([(clip.fadein - clip.start)/clip.duration, 0.5]);
                     if(clip.attackPeak != undefined)
                         // clip.attackPeak = clip.fadein = Math.clamp(clip.start, clip.relax);
-                        widgets.addNumber("Attack Peak (s)", (clip.fadein - clip.start).toFixed(2), (v) =>
+                        panel.addNumber("Attack Peak (s)", (clip.fadein - clip.start).toFixed(2), (v) =>
                         {              
                             clip.attackPeak = clip.fadein = v + clip.start;
                             this.updateClipSyncGUI();
@@ -4582,7 +6037,7 @@ class ScriptGui extends Gui {
                         }, {min:0, max: clip.fadeout - clip.start, step:0.001, precision:2, title: "Maximum action achieved"});
                     
                     if(clip.ready != undefined)
-                        widgets.addNumber("Ready (s)", (clip.fadein - clip.start).toFixed(2), (v) =>
+                        panel.addNumber("Ready (s)", (clip.fadein - clip.start).toFixed(2), (v) =>
                         {              
                             clip.ready = clip.fadein = v + clip.start;
                             this.updateClipSyncGUI();
@@ -4594,7 +6049,7 @@ class ScriptGui extends Gui {
                 if(clip.strokeStart != undefined) {
 
                     // clip.strokeStart = Math.clamp(clip.strokeStart, clip.ready, clip.stroke);
-                    widgets.addNumber("Stroke start (s)", (clip.strokeStart - clip.start).toFixed(2), (v) =>
+                    panel.addNumber("Stroke start (s)", (clip.strokeStart - clip.start).toFixed(2), (v) =>
                     {              
                         clip.strokeStart = v + clip.start;
                         this.updateClipSyncGUI();
@@ -4605,7 +6060,7 @@ class ScriptGui extends Gui {
                 if(clip.stroke != undefined) {
                     // clip.stroke = Math.clamp(clip.stroke, clip.strokeStart, clip.strokeEnd);
                     
-                    widgets.addNumber("Stroke (s)", (clip.stroke - clip.start).toFixed(2), (v) =>
+                    panel.addNumber("Stroke (s)", (clip.stroke - clip.start).toFixed(2), (v) =>
                     {              
                         clip.stroke = v + clip.start;
                         this.updateClipSyncGUI();
@@ -4616,7 +6071,7 @@ class ScriptGui extends Gui {
                 if(clip.strokeEnd != undefined) {
                     // clip.strokeEnd = Math.clamp(clip.strokeEnd, clip.stroke, clip.relax); 
 
-                    widgets.addNumber("Stroke end (s)", (clip.strokeEnd - clip.start).toFixed(2), (v) =>
+                    panel.addNumber("Stroke end (s)", (clip.strokeEnd - clip.start).toFixed(2), (v) =>
                     {              
                         clip.strokeEnd = v + clip.start;
                         this.updateClipSyncGUI();
@@ -4631,7 +6086,7 @@ class ScriptGui extends Gui {
                     
                     if(clip.relax != undefined)
                         // clip.relax = clip.fadeout = Math.clamp(clip.relax, clip.strokeEnd, clip.start + clip.duration); 
-                        widgets.addNumber("Relax (s)", (clip.fadeout - clip.start).toFixed(2), (v) =>
+                        panel.addNumber("Relax (s)", (clip.fadeout - clip.start).toFixed(2), (v) =>
                         {              
                             clip.relax = clip.fadeout = v + clip.start;
                             if(clip.attackPeak != undefined)
@@ -4647,7 +6102,7 @@ class ScriptGui extends Gui {
 
                 if(syncvalues.length) {
                    
-                    this.curve = widgets.addCurve("Synchronization", syncvalues, (value, event) => {
+                    this.curve = panel.addCurve("Synchronization", syncvalues, (value, event) => {
                         // if(event && event.type != "mouseup") return;
                         if(clip.fadein!= undefined) {
                             clip.fadein = value[0][0]*clip.duration + clip.start;
@@ -4663,10 +6118,10 @@ class ScriptGui extends Gui {
                         updateTracks();
                     }, {xrange: [0, 1], yrange: [0, 1], skipReset: true, allowAddValues: false, moveOutAction: LX.CURVE_MOVEOUT_CLAMP, draggableY: false, smooth: 0.2});
                 }
-                widgets.merge();
+                panel.merge();
             }
 
-            widgets.addButton(null, "Delete", (v, e) => {
+            panel.addButton(null, "Delete", (v, e) => {
                 const selection = this.clipsTimeline.lastClipsSelected[this.clipsTimeline.lastClipsSelected.length - 1];
                 this.clipsTimeline.deleteClip(selection[0], selection[1]);
                 clip = null;  
@@ -4676,33 +6131,44 @@ class ScriptGui extends Gui {
             });
             
         }
-        widgets.onRefresh(clip);
+        panel.refresh(clip);
         
     }
 
     showGuide() {       
         this.prompt = new LX.Dialog("How to start?", (p) =>{
-            LX.makeContainer( [ "100%", "auto" ], "p-8 whitespace-pre-wrap text-lg", 
+            LX.makeContainer( [ "100%", "fit-content" ], "p-8 whitespace-pre-wrap text-lg", 
                 "You can create an animation from a selected clip or from a preset configuration. You can also import animations or presets in JSON format following the BML standard. <br> <br> Go to 'Help' for more information about the application.", 
                 p.root, 
                 { wordBreak: "break-word", lineHeight: "1.5rem" } );
-        }, {closable: true, onBeforeClose: (dialog) => {
-            this.prompt = null;
-            LX.popup("Click on Timeline tab to discover all the available interactions.", "Useful info!", {position: [ "10px", "50px"], timeout: 5000})
-        },
-        modal: true
-    })
+        }, {closable: true, size: ["25%", "fit-content"], onBeforeClose: (dialog) => {
+                this.prompt = null;
+                LX.popup("Click on Timeline tab to discover all the available interactions.", "Useful info!", {position: [ "10px", "50px"], timeout: 5000})
+            },
+            modal: true
+        });
+
+        // this.prompt.root.style.height = "fit-content";
 
     }
 
-    createAvailableAnimationsTable(){
+    createAvailableAnimationsTable( selectCurrentAnimation = true ){
 
         const animations = this.editor.loadedAnimations;
         let availableAnimations = [];
+        let checkMap = {};
         for ( let aName in animations ){
             let numClips = 0;
             animations[aName].scriptAnimation.tracks.forEach((v,i,arr) =>{ numClips += v.clips.length } );
-            availableAnimations.push([ aName, numClips , animations[aName].scriptAnimation.duration.toFixed(3) ]);
+           
+            const entry = [ aName, numClips , animations[aName].scriptAnimation.duration.toFixed(3) ];
+
+            if ( selectCurrentAnimation && aName == this.editor.currentAnimation ){
+                const entryId = LX.getSupportedDOMName( entry.join( '-' ) ).substr(0, 32);
+                checkMap[entryId] = true;
+            }
+
+            availableAnimations.push(entry);
         }
 
         let table = new LX.Table(null, {
@@ -4717,6 +6183,9 @@ class ScriptGui extends Gui {
                 // TODO add a row icon to modify the animations name
             }
         );
+
+        table.data.checkMap = checkMap; // hack
+        table.refresh();
         return table;
     }
 
@@ -4724,9 +6193,10 @@ class ScriptGui extends Gui {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = ( location ) => {
+                const selectedClips = Array.from(this.clipsTimeline.lastClipsSelected);
                 let animations = this.editor.export(info.selectedAnimations, info.format, false);
                 if(info.from == "Selected clips") {
-                    this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                   selectedClips.sort((a,b) => {
                         if( a[0]<b[0] ) {
                             return -1;
                         }
@@ -4737,18 +6207,31 @@ class ScriptGui extends Gui {
 
                     let globalStart = 10000;
                     let globalEnd = -10000;
-                    let clips = this.clipsTimeline.lastClipsSelected;
+                    let clips = selectedClips;
                     for( let i = 0; i < clips.length; i++ ) {
                         const [trackIdx, clipIdx] = clips[i];
-                        const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                        if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                        if(clip.ready!=undefined) clip.ready = clip.fadein;
-                        if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                        if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                        if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                        const clipToCopy = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                        const type = clipToCopy.constructor.name;
+                        const clip = new ANIM[type](clipToCopy);
+                        if(clipToCopy.attackPeak!=undefined) clip.attackPeak = clipToCopy.fadein;
+                        if(clipToCopy.ready!=undefined) clip.ready = clip.fadein;
+                        if(clipToCopy.strokeStart!=undefined) clip.strokeStart = clipToCopy.fadein;
+                        if(clipToCopy.relax!=undefined) clip.relax = clipToCopy.fadeout;
+                        if(clipToCopy.strokeEnd!=undefined) clip.strokeEnd = clipToCopy.fadeout;
                         presetData.clips.push(clip);
                         globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
                         globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                    }
+                    for( let i = 0; i < presetData.clips.length; i++ ) {
+                        
+                        const clip = presetData.clips[i];
+                        clip.start -= globalStart;
+            
+                        if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
+                        if(clip.ready!=undefined) clip.ready -= globalStart;
+                        if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
+                        if(clip.relax!=undefined) clip.relax -= globalStart;
+                        if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
                     }
                     presetData.duration = globalEnd - globalStart;
                     presetData.preset = animations[0].name;
@@ -4777,13 +6260,114 @@ class ScriptGui extends Gui {
                         this.showLoginModal();
                     }, {width:"50%", buttonClass:"accent"});
                     btn.root.style.margin = "0 auto";
-                }, {closable: true, modal: true})
+                }, {closable: true, modal: true, size: ["30%", "fit-content"]});
                 
             }
             else {
                 saveDataToServer("server");
             }
         }, {formats: [ "BML"], folders:["signs",  "presets"], from: ["All clips", "Selected clips"], selectedFolder: folder, selectedFrom: (folder == "signs" ? "All clips" : null) } );
+    }
+
+    createPresetSaveDialog( folder ) {
+
+        let value = "";
+        const saveDataToServer = ( location ) => {
+            this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                if( a[0]<b[0] ) {
+                    return -1;
+                }
+                return 1;
+            });
+            
+            const presetData = { clips:[], duration:0 };
+
+            let globalStart = 10000;
+            let globalEnd = -10000;
+            let clips = this.clipsTimeline.lastClipsSelected;
+            for( let i = 0; i < clips.length; i++ ) {
+                const [trackIdx, clipIdx] = clips[i];
+                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                if(clip.ready!=undefined) clip.ready = clip.fadein;
+                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                presetData.clips.push( clip );
+
+                globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
+                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+            }
+
+            presetData.duration = globalEnd - globalStart;
+            presetData.preset = value;
+            const preset = new ANIM.FacePresetClip( presetData );
+
+            //Convert data to bml file format
+            const data = preset.toJSON();
+            
+            for( let i = 0; i < data.clips.length; i++ ) {
+                    
+                const clip = data.clips[i];
+                clip.start -= globalStart;
+    
+                if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
+                if(clip.ready!=undefined) clip.ready -= globalStart;
+                if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
+                if(clip.relax!=undefined) clip.relax -= globalStart;
+                if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
+                if(clip.end!=undefined) clip.end -= globalStart;
+            }
+
+            const presetAnim = {name: value + ".bml", data: UTILS.dataToFile(JSON.stringify(data.clips), value, "application/json")};
+        
+            this.editor.uploadData(presetAnim.name, presetAnim.data, folder, location, () => {
+                this.closeDialogs();
+                LX.popup('"' + value + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+            })
+        }
+            
+        const dialog = this.prompt = new LX.Dialog("Save preset", p => {
+            
+            p.addText("Name", value, (v) => {
+                value = v;
+            });
+           
+            p.sameLine(2);
+            p.addButton("exportCancel", "Cancel", () => { dialog.close();}, {hideName: true, width: "50%"} );
+            p.addButton("exportOk", "OK", (v, e) => { 
+                e.stopPropagation();
+                if(value === '') {
+
+                    text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
+                    dialog.close() ;
+                }
+                else {
+                    const session = this.editor.remoteFileSystem.session;
+                    const user = session ? session.user : "";
+                    if( !user || user.username == "guest" ) {
+                        if ( !this._PresetNeedsLoginWasDisplayed ){
+                            this._PresetNeedsLoginWasDisplayed = true;
+                            const alertDialog = new LX.Dialog("Alert", panel => {
+                                panel.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
+                                const btn = panel.addButton(null, "Login", () => {
+                                    alertDialog.close();
+                                    this.showLoginModal();
+                                }, {width:"50%", buttonClass:"accent"});
+                                btn.root.style.margin = "0 auto";
+                            }, {closable: true, modal: true})
+                        }
+                        saveDataToServer("local");
+                    }
+                    else {
+                        saveDataToServer("server");
+                    }
+                    dialog.close() ;
+                }
+                
+            }, { buttonClass: "accent", hideName: true, width: "50%" });
+        }, {modal: true, size: ["50%", "fit-content"]});
+
     }
 
     createClipsDialog() {
@@ -4820,17 +6404,29 @@ class ScriptGui extends Gui {
                 asset_browser.clear();
                 dialog.close();
         }
-        let previewActions =  [{
-            type: "Clip",
-            name: 'Add clip', 
-            callback: innerSelect,
-            allowedTypes: ["Clip"]
-        }];
+
+        const createPreviewActionClipType = ( type ) =>{
+            return {
+                type: type,
+                name: 'Add clip', 
+                callback: innerSelect,
+                allowedTypes: ["Clip"]
+            }
+        }
+
+        let previewActions =  [ createPreviewActionClipType( "Clip" ) ];
+
 
         let asset_browser = null;
         let dialog = this.prompt = new LX.Dialog('Available behaviours', (p) => {
 
-            let asset_data = [{id: "Face", type: "folder", children: []}, {id: "Head", type: "folder",  children: []}, {id: "Arms", type: "folder",  children: []}, {id: "Hands", type: "folder",  children: []}, {id: "Body", type: "folder",  children: []}];
+            let asset_data = [
+                {id: "Face", type: "folder", children: []},
+                {id: "Head", type: "folder",  children: []},
+                {id: "Arms", type: "folder",  children: []},
+                {id: "Hands", type: "folder",  children: []},
+                {id: "Body", type: "folder",  children: []}
+            ];
                 
             // FACE CLIP
 
@@ -4845,20 +6441,9 @@ class ScriptGui extends Gui {
                 }
                 lexemes.push(data);
             }
-            previewActions.push({
-                type: "FaceLexemeClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
             // Face lexemes & Mouthing clips
-            asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Mouthing", type: "MouthingClip"}];
-            previewActions.push({
-                type: "MouthingClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
+            asset_data[0].children = [{ id: "Face lexemes", type: "folder", children: lexemes}, {id: "Face emotion", type: "FaceEmotionClip"}, {id: "Mouthing", type: "MouthingClip"}];
+
             // HEAD
             // Gaze clip
             values = ANIM.GazeClip.influences;
@@ -4871,13 +6456,7 @@ class ScriptGui extends Gui {
                 gazes.push(data);
             }
 
-            previewActions.push({
-                type: "GazeClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            // Head movemen clip
+            // Head movement clip
             values = ANIM.HeadClip.lexemes;
             let movements = [];
             for(let i = 0; i < values.length; i++){
@@ -4887,84 +6466,29 @@ class ScriptGui extends Gui {
                 }
                 movements.push(data);
             }
-            previewActions.push({
-                type: "HeadClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
             asset_data[1].children = [{ id: "Gaze", type: "folder", children: gazes}, {id: "Head movement", type: "folder", children: movements}];
-
             asset_data[2].children = [{id: "Elbow Raise", type: "ElbowRaiseClip"}, {id: "Shoulder Raise", type: "ShoulderClip"}, {id:"Shoulder Hunch", type: "ShoulderClip"}, {id: "Arm Location", type: "ArmLocationClip"}, {id: "Hand Constellation", type: "HandConstellationClip"}, {id: "Directed Motion", type: "DirectedMotionClip"}, {id: "Circular Motion", type: "CircularMotionClip"}];
-            previewActions.push({
-                type: "ElbowRaiseClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "ShoulderClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "ArmLocationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "HandConstellationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "DirectedMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "CircularMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
             asset_data[3].children = [{id: "Palm Orientation", type: "PalmOrientationClip"}, {id: "Hand Orientation", type: "HandOrientationClip"}, {id: "Handshape", type: "HandshapeClip"}, {id: "Wrist Motion", type: "WristMotionClip"}, {id: "Fingerplay Motion", type: "FingerplayMotionClip"}];
-            previewActions.push({
-                type: "PalmOrientationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "HandOrientationClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "WristMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            previewActions.push({
-                type: "FingerplayMotionClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
-            // BODY
             asset_data[4].children.push({id: "Body movement", type: "BodyMovementClip"});
-            previewActions.push({
-                type: "BodyMovementClip",
-                name: 'Add clip', 
-                callback: innerSelect,
-                allowedTypes: ["Clip"]
-            })
+            
+            previewActions.push( 
+                createPreviewActionClipType( "FaceLexemeClip" ),
+                createPreviewActionClipType( "FaceEmotionClip" ),
+                createPreviewActionClipType( "MouthingClip" ),
+                createPreviewActionClipType( "GazeClip" ),
+                createPreviewActionClipType( "HeadClip" ),
+                createPreviewActionClipType( "ElbowRaiseClip" ),
+                createPreviewActionClipType( "ShoulderClip" ),
+                createPreviewActionClipType( "ArmLocationClip" ),
+                createPreviewActionClipType( "HandConstellationClip" ),
+                createPreviewActionClipType( "DirectedMotionClip" ),
+                createPreviewActionClipType( "CircularMotionClip" ),
+                createPreviewActionClipType( "PalmOrientationClip" ),
+                createPreviewActionClipType( "HandOrientationClip" ),
+                createPreviewActionClipType( "WristMotionClip" ),
+                createPreviewActionClipType( "FingerplayMotionClip" ),
+                createPreviewActionClipType( "BodyMovementClip" )
+            );
 
             asset_browser = new LX.AssetView({ previewActions });
             p.attach( asset_browser );
@@ -5108,8 +6632,8 @@ class ScriptGui extends Gui {
                                 
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bml",
                         path: "@/Local/" + folder,
                         name: 'Upload to server', 
@@ -5120,8 +6644,8 @@ class ScriptGui extends Gui {
                                 
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bvh",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -5134,8 +6658,8 @@ class ScriptGui extends Gui {
                                 }
                             })
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bvhe",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
@@ -5148,8 +6672,8 @@ class ScriptGui extends Gui {
                                 }
                             })                        
                         }
-                    });    
-                    previewActions.push({
+                    },
+                    {
                         type: "sigml",
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
@@ -5167,8 +6691,8 @@ class ScriptGui extends Gui {
                                 // this.closeDialogs();                            
                             });
                         }
-                    });
-                    previewActions.push({
+                    },
+                    {
                         type: "bml",
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
@@ -5309,7 +6833,7 @@ class ScriptGui extends Gui {
                                 this.closeDialogs();
                                 onSelectFile(e.item, v);
                             }, {width: "33%"});
-                        }, {modal:true, closable: true, id: "choice-insert-mode"})
+                        }, {modal:true, closable: true, id: "choice-insert-mode", size:["50%", "fit-content"]});
                     }
                     break;
 
@@ -5401,33 +6925,50 @@ class ScriptGui extends Gui {
 
     createSceneUI(area) {
 
-        let editor = this.editor;
         let canvasButtons = [
             {
-                name: 'GUI',
-                property: 'showGUI',
+                name: 'Grid',
+                property: 'showGrid',
                 icon: 'Grid',
                 selectable: true,
                 selected: true,
                 callback: (v, e) => {
-                    editor.showGUI = !editor.showGUI;
+                    this.editor.scene.getObjectByName("Grid").visible = v;
+                    this.menubar.getItem( "View/Appearance/Scene Grid" ).checked = v; // a bit of a circular dependency
+                }
+            },
+            {
+                name: 'GUI',
+                property: 'showGUI',
+                icon: 'PanelLeftClose',
+                selectable: true,
+                selected: true,
+                callback: (v, e) => {
+                    this.editor.showGUI = v;
+                    this.menubar.getItem( "View/Appearance/GUI" ).checked = v; // a bit of a circular dependency
 
-                    editor.scene.getObjectByName('Grid').visible = editor.showGUI;
+                    this.canvasAreaOverlayButtons.buttons["Grid"].setState( this.editor.showGUI );
                   
-                    if(editor.showGUI) {
+                    if(this.editor.showGUI) {
                         this.showTimeline();
-                        this.sidePanelArea.parentArea.reduce();                       
-                        
+                        this.sidePanelArea.parentArea.reduce();                        
                     } else {
                         this.hideTimeline();
                         this.sidePanelArea.parentArea.extend();
-
                     }
+
+                    // if this is not done, canvas might not resize properly. Panel resize transition lasts for 0.1 seconds
+                    setTimeout( ()=>{
+                        this.editor.delayedResizeTime = 1; //hack to make it immediate
+                        this.editor.delayedResize();
+                        this.editor.delayedResizeTime = 500;
+                    }, 120);
                 }
             },
     
         ]
         this.canvasAreaOverlayButtons = area.addOverlayButtons(canvasButtons, { float: "htc" } );
+        this.canvasAreaOverlayButtons.area.root.querySelector(".lexoverlaybuttons").classList.add("hidden");
     }
 
     
@@ -5549,6 +7090,7 @@ class PropagationWindow {
         this.setGradient([[0.5,1]]); 
         this.makeCurvesSelectorMenu();
         
+        this.onSetEnabler = null;
         this.updateTheme();
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
             // Retrieve again the color using LX.getThemeColor, which checks the applied theme
@@ -5626,16 +7168,20 @@ class PropagationWindow {
         this.borderColor = LX.getThemeColor( "global-text-secondary" );
     }
 
-    setEnabler( v ){
+    setEnabler( v, skipCallback = false ){
         this.enabler = v;
         if(!v) {
             this.setVisualState( PropagationWindow.STATE_BASE );
         }
+
+        if( this.onSetEnabler && !skipCallback ){
+            this.onSetEnabler( this.enabler );
+        }
         LX.emit( "@propW_enabler", this.enabler );
     }
     
-    toggleEnabler(){
-        this.setEnabler( !this.enabler );
+    toggleEnabler( skipCallback = false ){
+        this.setEnabler( !this.enabler, skipCallback );
     }
 
     saveGradient( gradientToSave, leftSize, rightSize ){
@@ -5765,7 +7311,7 @@ class PropagationWindow {
 
     onMouse( e, time ){
 
-        if( !this.enabler ){ return false; }
+        if( !this.enabler || this.timeline.playing ){ return false; }
 
         const timeline = this.timeline;
 
@@ -5796,7 +7342,7 @@ class PropagationWindow {
         }
         else if(!this.resizing) { // outside of window
             
-            if(e.type == "mousedown" && this.visualState && e.localY > timeline.lastTrackTreesWidgetOffset ) {
+            if(e.type == "mousedown" && this.visualState && e.localY > timeline.lastTrackTreesComponentOffset ) {
                 this.setVisualState( PropagationWindow.STATE_BASE );
             }
             else if( this.visualState == PropagationWindow.STATE_HOVERED ){
@@ -5851,7 +7397,7 @@ class PropagationWindow {
     }
 
     onDblClick( e ) {
-        if ( !this.enabler ){ return; }
+        if ( !this.enabler || this.timeline.playing ){ return; }
 
         const timeline = this.timeline;
         const lpos = timeline.timeToX( this.time - this.leftSide );
@@ -5967,7 +7513,7 @@ class PropagationWindow {
         let { rightSize, leftSize, rectWidth, rectHeight, rectPosX, rectPosY } = this._getBoundingRectInnerWindow();
 
         // compute radii
-        let radii = this.visualState == PropagationWindow.STATE_SELECTED ? (timeline.trackHeight * 0.4) : timeline.trackHeight;
+        let radii = this.visualState == PropagationWindow.STATE_SELECTED ? (timeline.trackHeight * 0.4) : timeline.trackHeight * 0.6;
         let leftRadii = leftSize > radii ? radii : leftSize;
         leftRadii = rectHeight > leftRadii ? leftRadii : rectHeight;
         
@@ -5980,7 +7526,7 @@ class PropagationWindow {
         radiusTR = rightRadii;
         radiusBR = this.visualState ? 0 : rightRadii;
 
-        // draw window rect
+        // draw window rect gradient
         if ( this.visualState && this.opacity ){
             let gradient = ctx.createLinearGradient(rectPosX, rectPosY, rectPosX + rectWidth, rectPosY );
             gradient.addColorStop(0, this.gradientColorLimits);
@@ -6008,41 +7554,89 @@ class PropagationWindow {
             ctx.globalAlpha = 1;
         }
         
-        // borders
+        // borders round corners
         ctx.strokeStyle = this.borderColor;
 
         ctx.lineWidth = 4;
 
         ctx.beginPath();
-        ctx.moveTo(rectPosX, rectPosY + radiusTL*0.5);
-        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL*0.5, rectPosY );
-        ctx.moveTo( rectPosX + rectWidth - radiusTR*0.5, rectPosY );
-        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR*0.5 );
-        ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR*0.5 );
-        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR*0.5, rectPosY + rectHeight );
-        ctx.moveTo( rectPosX + radiusBL*0.5, rectPosY + rectHeight );
-        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL*0.5 );
+        ctx.moveTo(rectPosX, rectPosY + radiusTL);
+        ctx.quadraticCurveTo(rectPosX, rectPosY, rectPosX + radiusTL, rectPosY );
+        ctx.moveTo( rectPosX + rectWidth - radiusTR, rectPosY );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY, rectPosX + rectWidth, rectPosY + radiusTR );
+        ctx.moveTo( rectPosX + rectWidth, rectPosY + rectHeight - radiusBR );
+        ctx.quadraticCurveTo(rectPosX + rectWidth, rectPosY + rectHeight, rectPosX + rectWidth - radiusBR, rectPosY + rectHeight );
+        ctx.moveTo( rectPosX + radiusBL, rectPosY + rectHeight );
+        ctx.quadraticCurveTo(rectPosX, rectPosY + rectHeight, rectPosX, rectPosY + rectHeight - radiusBL );
         ctx.stroke();
+        
+        // border sublines
         ctx.lineWidth = 1.5;
 
-        let lineSize = timeline.trackHeight;
-        let remaining = rectHeight - timeline.trackHeight;
-        let amount = 0;
-        if (lineSize > 0){
-            amount = Math.ceil(remaining/lineSize);
-            lineSize = remaining / amount;
-        }
+        this._drawSubLines(ctx, rectPosX + radiusTL, rectWidth - radiusTL - radiusTR, rectPosY, false );
+        this._drawSubLines(ctx, rectPosX + radiusBL, rectWidth - radiusBL - radiusBR, rectPosY + rectHeight - 2, false );
 
-        let start = rectPosY + timeline.trackHeight * 0.5;
-        for( let i = 0; i < amount; ++i ){
-            ctx.moveTo(rectPosX, start + lineSize * i + lineSize*0.3);
-            ctx.lineTo(rectPosX, start + lineSize * i + lineSize*0.7);
-            ctx.moveTo(rectPosX + rectWidth, start + lineSize * i + lineSize*0.3);
-            ctx.lineTo(rectPosX + rectWidth, start + lineSize * i + lineSize*0.7);
-        }
+        this._drawSubLines(ctx, rectPosY + radiusTL, rectHeight - radiusTL - radiusBL, rectPosX, true );
+        this._drawSubLines(ctx, rectPosY + radiusTR, rectHeight - radiusTR - radiusBR, rectPosX + rectWidth, true );
+
+
         ctx.stroke();
         ctx.lineWidth = 1;
         // end of borders
+    }
+
+    _drawSubLines(ctx, start, width, staticCoord, isVertical ){
+        let lineSize = 32; //timelin.trackHeight;
+        let remaining;
+        let amount = 0;
+        const margin = 15;
+        
+        start += margin;
+        remaining = Math.max( 0, width - margin - margin );
+        if( lineSize > 0 ){
+            amount = Math.ceil( remaining / lineSize );
+            lineSize = remaining / amount;
+        }
+
+        if ( start < 0 ){
+            let n = Math.ceil( start / lineSize ); // start is negative, ceil instead of floor
+            amount += n; // n is negative
+            start -= n * lineSize;
+        }
+
+        if ( isVertical ){
+            // vertical lines
+            if( staticCoord < 0 || staticCoord > ctx.canvas.width ){
+                return;
+            }
+
+            if( (start + amount * lineSize) > ctx.canvas.height ){
+                amount -= Math.floor( (start + amount*lineSize - ctx.canvas.height) / lineSize ); // remove lines outside of canvas
+            }
+
+            let loopStart = start;
+            for( let i = 0; i < amount; ++i ){
+                ctx.moveTo(staticCoord, loopStart + lineSize*0.3);
+                ctx.lineTo(staticCoord, loopStart + lineSize*0.7);
+                loopStart += lineSize;
+            }
+            return;
+        }
+
+        // horizontal lines
+        if( staticCoord < 0 || staticCoord > ctx.canvas.height ){
+            return;
+        }
+
+        if( (start + amount * lineSize) > ctx.canvas.width ){
+            amount -= Math.floor( (start + amount*lineSize - ctx.canvas.width) / lineSize ); // remove lines outside of canvas
+        }
+        let loopStart = start;
+        for( let i = 0; i < amount; ++i ){
+            ctx.moveTo(loopStart + lineSize*0.3, staticCoord);
+            ctx.lineTo(loopStart + lineSize*0.7, staticCoord);
+            loopStart += lineSize;
+        }
     }
 }
 

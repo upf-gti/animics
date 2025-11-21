@@ -23,6 +23,8 @@
 }
 
 /* ----- Lexgui style overrides ----- */
+.lexbutton.warning { --button-color: var(--global-color-warning); --border-color: #793205; color: black;  }
+
 .showScrollBar::-webkit-scrollbar{
 	display: block !important
 }

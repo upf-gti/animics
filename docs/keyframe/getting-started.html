@@ -1,0 +1,44 @@
+<script type="text/javascript">
+
+    MAKE_HEADER("Getting Started", "h1", "getting-started");
+
+    MAKE_PARAGRAPH(`Use this guide to learn how the <a target="_blank"  href="https://animics.gti.upf.edu/">Animics</a> tool can help you create, generate and edit animations from scratch, pre-recorded videos, the webcam or from a BVH file.`);
+    MAKE_LINE_BREAK();
+    MAKE_PARAGRAPH(`If you are new to Animics or to keyframe edition, you can start with this documentation to work your way through a project.`);
+
+    MAKE_HEADER("Landing Page", "h2", "init");
+    MAKE_PARAGRAPH(`There are multiple ways you can create an animation using Animics. After starting the application, the browser window should look like this:`);
+    INSERT_IMAGE(`../imgs/landing-page-login.jpg`, "landing page");
+
+    MAKE_PARAGRAPH(`From here you can create a new animation in different ways through the corresponding buttons:`);
+    MAKE_BULLET_LIST([
+        `Create a new project from scratch`,
+        `Generate from video(s)`,
+        `Generate via real-time capture (webcam)`,
+        `Upload an existing animation file`
+    ]);
+    MAKE_PARAGRAPH(`You can also drag and drop compatible files (bvh, bvhe, json), videos or already created keyframe animations.`);
+    MAKE_LINE_BREAK();
+
+    MAKE_PARAGRAPH(`In the bottom section you can see your recent projects. You must be logged in to access this feature.`);
+    MAKE_LINE_BREAK();
+
+    MAKE_CARDS("Where to Start", "Learn how to use our platform effectively.", [
+        {
+            title: "Generate Animations",
+            img: "../imgs/trimming-station.jpg",
+            link: "generate-animations.html"
+        },
+        {
+            title: "Upload Animations",
+            img: "../imgs/landing-page.png",
+            link: "upload-animations.html"
+        },
+        {
+            title: "Edit Animations",
+            img: "../imgs/keyframe-editing-station.png",
+            link: "edit-animations.html"
+        },
+    ]);
+
+</script>

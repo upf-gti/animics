@@ -53,7 +53,7 @@ class RemoteFileSystem {
                 return;
             }
 
-            this.login(user, pass, () => {
+            this.login( user, password, () => {
                 this.loadUnits();
             
                 this.createFolders();

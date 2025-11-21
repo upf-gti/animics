@@ -3,7 +3,7 @@
     MAKE_HEADER("Side Panel", "h1", "side-panel");
 
     MAKE_PARAGRAPH(`The side panel is located at the right side of the screen. This panel first displays the current animation save name, which will be used as its file name when exporting the animation. The rest of the panel is devoted to the features offered by each of the animation modes: <b>body</b> and <b>face</b>.`);
-    INSERT_IMAGE(`./imgs/side-panel/side-panels.png`, "Side Panel");
+    INSERT_IMAGE(`../imgs/side-panel/side-panels.png`, "Side Panel");
 
     MAKE_HEADER("Body Panel", "h2", "body-panel");
     MAKE_PARAGRAPH(`Displays three main elements:`);
@@ -29,7 +29,7 @@
         </ul>
         <li><b>Snap</b>: Either to allow continuous or a staircased edition. E.g. a snapped rotation would rotate either 0 or 5 degrees, but not 2.3.</li>`,
     ]);
-    INSERT_IMAGE(`./imgs/side-panel/gizmo-features.png`, "Body Panel");
+    INSERT_IMAGE(`../imgs/side-panel/gizmo-features.png`, "Body Panel");
 
     MAKE_HEADER("Bone", "h3", "bone");
     MAKE_PARAGRAPH(`A set of attributes that can be modified for the selected bone. The attributes are displayed as a set of sliders and text boxes that allow the user to modify the bone's position, scale and rotation (both in Euler angles and Quaternion). The values can be modified by dragging the sliders or by typing in the text boxes.`);
@@ -42,17 +42,17 @@
     MAKE_CARDS("Editor Zones", "Learn more about the other zones in the editor.", [
         {
             title: "Top Menu",
-            img: "./imgs/keyframe_animation.png",
+            img: "../imgs/keyframe_animation.png",
             link: "edit/top-menu.html"
         },
         {
             title: "3D Scene",
-            img: "./imgs/3d-scene/selected-bone.png",
+            img: "../imgs/3d-scene/selected-bone.png",
             link: "edit/3d-scene.html"
         },
         {
             title: "Timeline",
-            img: "./imgs/timeline/timeline-face.png",
+            img: "../imgs/timeline/timeline-face.png",
             link: "edit/timeline.html"
         }
     ]);

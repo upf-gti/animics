@@ -4,15 +4,15 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>Animics Docs</title>
-    <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui@0.7.7/build/lexgui.css">
-    <link rel="stylesheet" href="style.css">
-    <script type="module" src="docmaker.js"></script>
+    <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui/build/lexgui.css">
+    <link rel="stylesheet" href="../style.css">
+    <script type="text/javascript" src="../docmaker.js"></script>
     <link rel="icon" type="image/x-icon" href="../data/imgs/logos/animics_favicon.png" />
     <script type="importmap">
         {
           "imports": {
-            "lexgui": "https://cdn.skypack.dev/lexgui@0.7.7/build/lexgui.module.js",
-            "lexgui/extensions/": "https://cdn.skypack.dev/lexgui@0.7.7/build/extensions/"
+            "lexgui": "https://cdn.skypack.dev/lexgui/build/lexgui.module.js",
+            "lexgui/extensions/": "https://cdn.skypack.dev/lexgui/build/extensions/"
           }
         }
     </script>
@@ -135,9 +135,9 @@
                         console.error(err);
                         '';
                     }),
-            headerImage: "../data/imgs/animics_monster.png",
+            headerImage: "../../data/imgs/animics_monster.png",
             footerTitle: "TÀNDEM",
-            footerImage: "../data/imgs/tandem_monster.png",
+            footerImage: "../../data/imgs/tandem_monster.png",
             onHeaderPressed: (e) => { console.log("onHeaderPressed") },
             onFooterPressed: (e, element) => {
                 new LX.DropdownMenu(element, [
@@ -180,8 +180,12 @@
             m.group("Manual");
             m.add("Getting Started", { callback: open.bind(this, "getting-started.html", null) });
             m.add("Generate Animations", { callback: open.bind(this, "generate-animations.html", null) });
-            m.add("Upload Animations", { callback: open.bind(this, "upload-animations.html", null) });
-
+            // for (const w of ["Face Lexeme", "Mouthing"]) {
+            //     const url = w.toLowerCase().replace(/\s/g, '-') + ".html";
+            //     m.add("Behaviour Clips/" + w, { callback: open.bind(this, "clips/" + url, null) });
+            //     LX.registerCommandbarEntry(w, open.bind(this, "clips/" + url, null));
+            // }
+            // m.add("Upload Animations", { callback: open.bind(this, "upload-animations.html", null) });
             m.add("Edit Animations", { callback: open.bind(this, "edit-animations.html", null) });
             for (const w of ["Top Menu", "3D Scene", "Timeline", "Side Panel"]) {
                 const url = w.toLowerCase().replace(/\s/g, '-') + ".html";
@@ -190,7 +194,7 @@
                 LX.registerCommandbarEntry(w, open.bind(this, "edit/" + url, null));
             }
 
-            m.add("Database", { callback: open.bind(this, "database.html", null) });
+            // m.add("Database", { callback: open.bind(this, "database.html", null) });
         };
 
         if( mobile )
