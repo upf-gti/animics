@@ -5424,11 +5424,6 @@ class ScriptGui extends Gui {
                     {
                         title: "Create preset",
                         callback: () => {
-                            this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                                if(a[0]<b[0]) 
-                                    return -1;
-                                return 1;
-                            });
                             this.createPresetSaveDialog( "presets" );
                         }
                     }
@@ -6278,57 +6273,59 @@ class ScriptGui extends Gui {
 
         let value = "";
         const saveDataToServer = ( location ) => {
-                this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                    if( a[0]<b[0] ) {
-                        return -1;
-                    }
-                    return 1;
-                });
-                
-                const presetData = { clips:[], duration:0 };
-
-                let globalStart = 10000;
-                let globalEnd = -10000;
-                let clips = this.clipsTimeline.lastClipsSelected;
-                for( let i = 0; i < clips.length; i++ ) {
-                    const [trackIdx, clipIdx] = clips[i];
-                    const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                    if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                    if(clip.ready!=undefined) clip.ready = clip.fadein;
-                    if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                    if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                    if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                    presetData.clips.push(clip);
-                    globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
-                    globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+            this.clipsTimeline.lastClipsSelected.sort((a,b) => {
+                if( a[0]<b[0] ) {
+                    return -1;
                 }
-                for( let i = 0; i < presetData.clips.length; i++ ) {
-                        
-                    const clip = presetData.clips[i];
-                    clip.start -= globalStart;
-        
-                    if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
-                    if(clip.ready!=undefined) clip.ready -= globalStart;
-                    if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
-                    if(clip.relax!=undefined) clip.relax -= globalStart;
-                    if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
-                }
-                presetData.duration = globalEnd - globalStart;
-                presetData.preset = value;
-                const preset = new ANIM.FacePresetClip( presetData );
-
-                //Convert data to bml file format
-                const data = preset.toJSON();
-                presetData.data = data.clips;
-                const presetAnim = {name: value + ".bml", data: UTILS.dataToFile(JSON.stringify(presetData.data), value, "application/json")};
+                return 1;
+            });
             
+            const presetData = { clips:[], duration:0 };
 
-                this.editor.uploadData(presetAnim.name, presetAnim.data, folder, location, () => {
-                    this.closeDialogs();
-                    LX.popup('"' + value + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-                })
-                
+            let globalStart = 10000;
+            let globalEnd = -10000;
+            let clips = this.clipsTimeline.lastClipsSelected;
+            for( let i = 0; i < clips.length; i++ ) {
+                const [trackIdx, clipIdx] = clips[i];
+                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
+                if(clip.ready!=undefined) clip.ready = clip.fadein;
+                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
+                if(clip.relax!=undefined) clip.relax = clip.fadeout;
+                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
+                presetData.clips.push( clip );
+
+                globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
+                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
             }
+
+            presetData.duration = globalEnd - globalStart;
+            presetData.preset = value;
+            const preset = new ANIM.FacePresetClip( presetData );
+
+            //Convert data to bml file format
+            const data = preset.toJSON();
+            
+            for( let i = 0; i < data.clips.length; i++ ) {
+                    
+                const clip = data.clips[i];
+                clip.start -= globalStart;
+    
+                if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
+                if(clip.ready!=undefined) clip.ready -= globalStart;
+                if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
+                if(clip.relax!=undefined) clip.relax -= globalStart;
+                if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
+                if(clip.end!=undefined) clip.end -= globalStart;
+            }
+
+            const presetAnim = {name: value + ".bml", data: UTILS.dataToFile(JSON.stringify(data.clips), value, "application/json")};
+        
+            this.editor.uploadData(presetAnim.name, presetAnim.data, folder, location, () => {
+                this.closeDialogs();
+                LX.popup('"' + value + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+            })
+        }
             
         const dialog = this.prompt = new LX.Dialog("Save preset", p => {
             

@@ -547,7 +547,7 @@ class FacePresetClip extends BaseClip {
 		this.clipColor = FacePresetClip.clipColor;
 		
 		if(o)
-		this.configure(o);
+			this.configure(o);
 		
 		this.id = this.properties.preset + "-" + Math.ceil(getTime());
 		this.addPreset(this.properties.preset);
@@ -734,7 +734,7 @@ class FacePresetClip extends BaseClip {
 		}
 
 		for(var i = 0; i < this.clips.length; i++) {
-			json.clips.push(this.clips[i].toJSON());
+			json.clips.push(this.clips[i].toJSON ? this.clips[i].toJSON() : JSON.parse(JSON.stringify(this.clips[i]))  );
 		}
 		return json;
 	}
