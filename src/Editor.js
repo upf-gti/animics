@@ -165,7 +165,6 @@ class Editor {
             window.stop();
             return "Be sure you have exported the animation. If you exit now, your data will be lost."
         }
-
         await this.processPendingResources(settings);
 
         if( !settings.capture ){

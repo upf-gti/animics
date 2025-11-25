@@ -362,6 +362,7 @@ class Gui {
         let format = null;
         let folder = null;
         let from = null;
+        let text = "";
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             
             const availableTable = this.createAvailableAnimationsTable( true );
@@ -385,6 +386,26 @@ class Gui {
                 }
                 p.addComboButtons("Save in", buttons, {});
             }
+            const treeData = {};
+            let repo = this.editor.remoteFileSystem.repository;
+            let units = Object.values(this.editor.remoteFileSystem.session.units);
+            units = units.filter( (v) => v.mode == "ADMIN");
+            units = units.map( (v) => v.name)
+            repo = repo.filter( v => units.indexOf(v.id) > -1);
+            const tree = p.addTree("Save in", this.editor.remoteFileSystem.repository, {
+                // icons: dataTreeIcons,
+                // rename: true,
+                onevent: (event) => {
+                    switch (event.type) {
+                        case LX.TreeEvent.NODE_SELECTED:
+                            console.log("Selected:", event.node.id);
+                            break;
+                        case LX.TreeEvent.NODE_DBLCLICKED:
+                            console.log("Double click!")
+                            break;
+                    }
+                }
+            });
 
             if( options.formats && options.formats.length ) {
                 format = format || options.selectedFormat || options.formats[0];
@@ -403,9 +424,15 @@ class Gui {
             p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true, width: "50%"} );
             p.addButton("exportOk", options.accept || "OK", (v, e) => { 
                 e.stopPropagation();
+                
+                folder = tree.innerTree.selected;
                 if(options.required && value === '') {
 
                     text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
+                    dialog.close() ;
+                }
+                else if( !folder.length ) {
+                    text += "\nYou must select a folder.";
                     dialog.close() ;
                 }
                 else {
@@ -417,8 +444,7 @@ class Gui {
                         if ( selectedAnimations.length == 0 ){
                             return;
                         }
-
-                        callback({selectedAnimations, format, folder, from});
+                        callback({selectedAnimations, format, folder: folder[0].id, from});
                     }
                     dialog.close() ;
                 }
@@ -4912,7 +4938,30 @@ class KeyframesGui extends Gui {
                             // this.closeDialogs();                            
                         });
                     }
-                });            
+                });
+                
+                previewActions.push({
+                    type: "folder",
+                    path: "@/"+ username + "/" + folder,
+                    name: 'Delete', 
+                    callback: async (item)=> {
+                        if( item.id == "clips" ) {
+                            LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            return;
+                        }
+                        const value = await this.editor.remoteFileSystem.deleteFolder( item.fullpath );
+                        if(value) {
+                            if(value) {
+                                LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                                assetViewer._deleteItem(item);
+                            }
+                            else {
+                                LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                        }
+                        
+                    }
+                });
             }
             
             const assetViewer = new LX.AssetView({  allowedTypes: ["bvh", "bvhe", "glb", "gltf"],  previewActions: previewActions, contextMenu: false});
@@ -4986,13 +5035,32 @@ class KeyframesGui extends Gui {
                     }
                     break;
                 case LX.AssetViewEvent.ASSET_DELETED: 
+                {
+                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
+                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.fullpath );
+                    assetViewer._refreshContent();
                     console.log(e.item.id + " deleted"); 
+                }
                     break;
-                case LX.AssetViewEvent.ASSET_CLONED: 
-                    console.log(e.item.id + " cloned"); 
+                case LX.AssetViewEvent.ASSET_CLONED:
+                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
+                    e.item.id = e.item.id.replace(`.${e.item.type}`, ` copy.${e.item.type}`);
+                    const cloned = await this.editor.remoteFileSystem.uploadFile( folder, e.item.id, e.item.content);
+                    assetViewer._refreshContent();
+                    if(cloned) {
+                        console.log(e.item.id + " cloned"); 
+                    }
                     break;
                 case LX.AssetViewEvent.ASSET_RENAMED:
-                    console.log(e.item.id + " is now called " + e.value); 
+                    if( e.item.id == e.value ) {
+                        return;
+                    }
+                    const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
+                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.fullpath, newPath );
+                    if( renamed ) {
+                        e.item.filename = e.item.id;
+                        console.log(e.value + " is now called " + e.item.id);
+                    }
                     break;
                 case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                     if(e.item.type != "folder") {
@@ -5033,32 +5101,7 @@ class KeyframesGui extends Gui {
                             assetViewer._refreshContent();
 
                             assetViewer.parent.loadingArea.hide();
-                        })
-                        // this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
-                        //     const files_data = [];
-                        //     if( files ) {                                        
-                        //         for( let f = 0; f < files.length; f++ ) {
-                        //             files[f].id = files[f].filename;
-                        //             files[f].folder = e.item;
-                        //             files[f].type = UTILS.getExtension(files[f].filename);
-                        //             files[f].lastModified = files[f].timestamp;
-                        //             if(files[f].type == "txt")
-                        //                 continue;
-                        //             files_data.push(files[f]);
-                        //         }
-                        //         e.item.children = files_data;
-                        //     }
-                        //     assetViewer.currentData = files_data;
-                        //     assetViewer._updatePath(assetViewer.currentData);
-
-                        //     if( !assetViewer.skipBrowser ) {
-                        //         assetViewer._createTreePanel();
-                        //     }
-
-                        //     assetViewer._refreshContent();
-
-                        //     assetViewer.parent.loadingArea.hide();
-                        // });
+                        })                       
                     }                
                     break;
             }
@@ -6424,11 +6467,12 @@ class ScriptGui extends Gui {
                 dialog.close();
         }
         let previewActions =  [{
-            type: "Clip",
-            name: 'Add clip', 
-            callback: innerSelect,
-            allowedTypes: ["Clip"]
-        }];
+                type: "Clip",
+                name: 'Add clip', 
+                callback: innerSelect,
+                allowedTypes: ["Clip"]
+            }
+        ];
 
         let asset_browser = null;
         let dialog = this.prompt = new LX.Dialog('Available behaviours', (p) => {
@@ -6640,6 +6684,8 @@ class ScriptGui extends Gui {
                     case "Breakdown into action clips":
                         this.mode = ClipModes.Actions;
                         break;
+                    case "New folder":
+                        break;
                 }
                 this.clipsTimeline.deselectAllClips();
                 asset.animation.name = asset.id;
@@ -6692,7 +6738,35 @@ class ScriptGui extends Gui {
                     type: "bml",
                     name: 'Breakdown into action clips', 
                     callback: innerSelect
-                }
+                },
+                {
+                        type: "folder",
+                        // path: "@/"+ username + "/" + folder,
+                        name: 'New folder', 
+                        callback: (item)=> {
+                            LX.prompt("Folder name", "New folder", async ( result ) => {
+                                const value = await this.editor.remoteFileSystem.createFolder( item.fullpath + "/" + result);
+                                if(value) {
+                                    if(value) {
+                                        LX.popup('"' + result + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
+                                        const newItem = {id: result, type: "folder",  children: []};
+                                        item.children.push(newItem);
+                                        assetViewer._processData(newItem, item);
+                                        newItem.fullpath = item.fullpath + "/" + result;
+                                        assetViewer._refreshContent(assetViewer.searchValue, assetViewer.filter);
+                                        // assetViewer._addItem(newItem);
+                                        assetViewer.tree.refresh();
+                                    }
+                                    else {
+                                        LX.popup('"' + result + '"' + " couldn't be created.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+        
+                                    }
+                                    // this.closeDialogs();                            
+                                }
+                            })
+                        },
+                        // allowedTypes: ["folder"]
+                    }
             ];
 
             if( username != "guest" ) {
@@ -6788,6 +6862,30 @@ class ScriptGui extends Gui {
                                 }
                                 // this.closeDialogs();                            
                             });
+                        }
+                    });
+
+                    previewActions.push({
+                        type: "folder",
+                        path: "@/"+ username + "/" + folder,
+                        name: 'Delete', 
+                        callback: async (item)=> {
+                            if( item.id == "signs" || item.id == "presets" ) {
+                                LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                                return;
+                            }
+                            const value = await this.editor.remoteFileSystem.deleteFolder( item.fullpath );
+                            if(value) {
+                                if(value) {
+                                    LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                                    assetViewer._deleteItem(item);
+                                }
+                                else {
+                                    LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                                }
+                            }
+                            
                         }
                     });
                 }
@@ -6889,10 +6987,14 @@ class ScriptGui extends Gui {
                     }
                     break;
                 case LX.AssetViewEvent.ASSET_RENAMED:
-                    const newPath = e.item.fullpath.replace(`/${e.item.id}`, `/${e.value}`);
+                    if( e.item.id == e.value ) {
+                        return;
+                    }
+                    const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
                     const renamed = await this.editor.remoteFileSystem.moveFile( e.item.fullpath, newPath );
                     if( renamed ) {
-                        console.log(e.item.id + " is now called " + e.value);
+                        e.item.filename = e.item.id;
+                        console.log(e.value + " is now called " + e.item.id);
                     }
                     break;
                 case LX.AssetViewEvent.ASSET_DBLCLICKED: 
@@ -6945,6 +7047,7 @@ class ScriptGui extends Gui {
                         this.editor.remoteFileSystem.loadAssets(e.item.unit, e.item.fullpath, 1, ( assets ) => {
 
                             e.item.children = assets;
+                            assetViewer._processData(e.item, e.item.folder)
                             assetViewer.currentData = assets;
                             assetViewer._updatePath(assetViewer.currentData);
 
@@ -6956,32 +7059,6 @@ class ScriptGui extends Gui {
 
                             assetViewer.parent.loadingArea.hide();
                         })
-                        // this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
-                        //     const files_data = [];
-                        //     if( files ) {
-                                
-                        //         for( let f = 0; f < files.length; f++ ) {
-                        //             files[f].id = files[f].filename;
-                        //             files[f].folder = e.item;
-                        //             files[f].type = UTILS.getExtension(files[f].filename);
-                        //             files[f].lastModified = files[f].timestamp;
-                        //             if(files[f].type == "txt") {
-                        //                 continue;
-                        //             }
-                        //             files_data.push(files[f]);
-                        //         }
-                        //         e.item.children = files_data;
-                        //     }
-                        //     assetViewer.currentData = files_data;
-                        //     assetViewer._updatePath(assetViewer.currentData);
-
-                        //     if( !assetViewer.skipBrowser ) {
-                        //         assetViewer._createTreePanel();
-                        //     }
-                        //     assetViewer._refreshContent();
-
-                        //     assetViewer.parent.loadingArea.hide();
-                        // })
                     }
                     break;
             }

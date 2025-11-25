@@ -253,6 +253,42 @@ class RemoteFileSystem {
         session.createFolder( session.user.username + "/animics/clips/", (v, r) => {console.log(v)} );
     }
 
+    async createFolder( fullpath ) {
+        return new Promise( (resolve, reject) => {
+            const session = this.session;
+            if( !session ) {
+                reject( "no session" );
+            }
+            session.createFolder( fullpath,
+                (v, r) => {
+                    resolve(v);
+                    console.log(v);
+                },
+                (err) => {
+                    reject( err );
+                }
+            );
+        })
+    }
+
+    async deleteFolder( fullpath ) {
+        return new Promise( (resolve, reject) => {
+            const session = this.session;
+            if( !session ) {
+                reject( "no session" );
+            }
+            session.deleteFolder( fullpath,
+                (v, r) => {
+                    resolve(v);
+                    console.log(v, r);
+                },
+                (err) => {
+                    reject( err );
+                }
+            );
+        })
+    }
+
     async loadUnits() {
         // this.repository = {signs:[], presets: [], clips: []};
         this.repository = [];
