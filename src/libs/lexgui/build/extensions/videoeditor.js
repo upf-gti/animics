@@ -354,8 +354,8 @@ class TimeBar {
     }
 
     resize( size ) {
-        this.canvas.width = size[0];
-        this.canvas.height = size[1];
+        this.canvas.width = Math.max(0, size[0]);
+        this.canvas.height = Math.max(0, size[1]);
 
         let newWidth = size[0] - this.offset * 2;
         newWidth = newWidth < 0.00001 ? 0.00001 : newWidth; // actual width of the line = canvas.width - offsetleft - offsetRight
@@ -471,8 +471,8 @@ class VideoEditor {
         this.controlsPanelLeft.refresh = () => {
             this.controlsPanelLeft.clear();
             this.controlsPanelLeft.sameLine();
-            this.controlsPanelLeft.addButton('', "", (v) => {
-                this.playing = !this.playing;
+            let playbtn = this.controlsPanelLeft.addButton('Play', "", (v) => {
+                this.playing = v;
                 if(this.playing) {
                     if( this.video.currentTime + 0.000001 >= this.endTime) {
                         this.video.currentTime = this.startTime;
@@ -482,21 +482,14 @@ class VideoEditor {
                 else {
                     this.video.pause();
                 }
-                this.controlsPanelLeft.refresh();
-            }, { width: '40px', icon: (this.playing ? 'Pause@solid' : 'Play@solid'), className: "justify-center"});
+            }, { width: '40px', icon: 'Play@solid', swap: 'Pause@solid', hideName: true, className: "justify-center"});
+            playbtn.setState( this.playing, true );
 
             if(this.speedDialog) {
                 this.speedDialog.close();
             }
             this.speedDialog = null;
-            const btn = this.controlsPanelLeft.addButton('', '', (v, e) => {
-                
-                // if(this.speedDialog) {
-                //     this.speedDialog.close();
-                //     this.speedDialog = null;
-                //     return;
-                // }
-                
+            this.controlsPanelLeft.addButton('', '', (v, e) => {
                 const panel = new LX.Panel();
                 panel.addRange("Speed", this.speed, (v) => {
                     this.speed = v;
@@ -551,11 +544,8 @@ class VideoEditor {
             this.moveCropArea( this.cropArea.normCoords.x, this.cropArea.normCoords.y, true );
             this.resizeCropArea( this.cropArea.normCoords.w, this.cropArea.normCoords.h, true );
         }
-        window.addEventListener('resize', (v) => {
-            this.resize();
-        })
-
         area.onresize = this.resize.bind(this);
+        window.addEventListener('resize', area.onresize);
 
         this.onKeyUp = (event) => {
             if( this.controls && event.key == " " ) {
@@ -578,35 +568,20 @@ class VideoEditor {
 
         window.addEventListener( "keyup", this.onKeyUp);
 
-        // videoArea.onresize = (v) => {
-        //     if( bottomArea.parentArea ) {
-        //         bottomArea.setSize([bottomArea.parentArea.root.clientWidth, 40]);
-        //     }
-            
-        //     // const ratio = this.video.clientHeight / this.video.videoHeight;
-        //     // this.cropArea.style.height = this.video.clientHeight + "px";
-        //     // this.cropArea.style.width = this.video.videoWidth * ratio + "px";
-        // }
-
-
-        // timeBarArea.onresize = (v) => {
-        //     let availableWidth = this.controlsArea.root.clientWidth - controlsLeft.root.clientWidth - controlsRight.root.clientWidth - 20;
-        //     this.timebar.resize([availableWidth, v.height]);
-        // }
-
         const parent = controlsArea.parentElement ? controlsArea.parentElement : controlsArea.root.parentElement;
 
         // Add canvas event listeneres
-        parent.addEventListener( "mousedown", (event) => {
-            // if(this.controls) {
-            //     this.timebar.onMouseDown(event);
-            // }
-        });
+        // parent.addEventListener( "mousedown", (event) => {
+        //     // if(this.controls) {
+        //     //     this.timebar.onMouseDown(event);
+        //     // }
+        // });
 
         this._onCropMouseUp = (event) => {
             // if(this.controls) {
             //     this.timebar.onMouseUp(event);
             // }
+            
             event.preventDefault();
             event.stopPropagation();
             if( ( this.isDragging || this.isResizing ) && this.onCropArea ) {
@@ -615,14 +590,16 @@ class VideoEditor {
             this.isDragging = false;
             this.isResizing = false;
 
-            window.removeEventListener( "mouseup", this._onCropMouseUp ); // self destroy. Added during mouseDown on cropArea and handles
-            window.removeEventListener( "mousemove", this._onCropMouseMove ); // self destroy. Added during mouseDown on cropArea and handles
+            document.removeEventListener( "mouseup", this._onCropMouseUp ); // self destroy. Added during mouseDown on cropArea and handles
+            document.removeEventListener( "mousemove", this._onCropMouseMove ); // self destroy. Added during mouseDown on cropArea and handles
         };
 
         this._onCropMouseMove = (event) => {
             // if(this.controls) {
             //     this.timebar.onMouseMove(event);
             // }
+
+            window.getSelection()?.removeAllRanges();
             event.preventDefault();
             event.stopPropagation();
             
@@ -1028,8 +1005,8 @@ class VideoEditor {
 
         window.removeEventListener("keyup", this.onKeyUp);
 
-        window.removeEventListener("mouseup", this._onCropMouseUp );
-        window.removeEventListener("mousemove", this._onCropMouseMove );
+        document.removeEventListener("mouseup", this._onCropMouseUp );
+        document.removeEventListener("mousemove", this._onCropMouseMove );
 
     }
 }

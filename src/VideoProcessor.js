@@ -45,7 +45,7 @@ class VideoProcessor {
         this.menubar.setButtonIcon("Return", "ArrowLeftCircle", () => this.cancelProcess(), {float: "left"});
 
         // Add show/hide right panel button (expand/reduce panel area)
-        videoEditorArea.addOverlayButtons([{
+        const ob = videoEditorArea.addOverlayButtons([{
             selectable: true,
             selected: true,
             icon: "Info",
@@ -57,10 +57,9 @@ class VideoProcessor {
                 else {
                     this.processorArea.extend();
                 }
-                const box = this.canvasVideo.getBoundingClientRect();
-                this.videoEditor.cropArea.style.left = box.x + "px";
             }
-        }], {float: 'tvr'});
+        }], {float: 'tvr'});        
+        ob.buttons.Estimator.root.parentElement.style.zIndex = 101; // hack, videoEditor cropArea has zindex 100
 
         this.createVideoArea(videoEditorArea);
         this.createSidePanel(rightArea);
@@ -182,16 +181,11 @@ class VideoProcessor {
 
         // on mouse up of the croparea
         this.videoEditor.onCropArea = ( rect ) => {
-            const videoRect = this.videoEditor.video.getBoundingClientRect();
-            let cropRect = this.videoEditor.getCroppedArea();
-            const width = cropRect.width < 0.0001 ? 1 : (cropRect.width / videoRect.width);
-            const height = cropRect.height < 0.0001 ? 1 : (cropRect.height / videoRect.height);
-            const left = cropRect.width < 0.0001 ? 0 : ((cropRect.x - videoRect.x) / videoRect.width);
-            const top = cropRect.height < 0.0001 ? 0 : ((cropRect.y - videoRect.y) / videoRect.height);
-            const right = left + width;
-            const bottom = top + height;
-
-            rect = {x: left, y: top, width,height};
+            rect = {x: this.videoEditor.cropArea.normCoords.x,
+                y: this.videoEditor.cropArea.normCoords.y, 
+                width: this.videoEditor.cropArea.normCoords.w,
+                height: this.videoEditor.cropArea.normCoords.h
+            };
             this.mediapipe.cropRect = rect;
             if ( this.mediapipeOnlineEnabler ) { 
                 this.mediapipe.processFrame(recordedVideo, rect);
@@ -221,7 +215,7 @@ class VideoProcessor {
         // Create expanded AU info area    
         panel.addBlank();
         panel.addTitle("User positioning");
-        panel.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto" }) 
+        panel.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto", fitHeight: true }) 
         
         panel.addProgress('Distance to the camera', 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, id: 'progressbar-torso'});
         panel.addProgress('Left Hand visibility', 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, id: 'progressbar-lefthand'});
@@ -316,6 +310,9 @@ class VideoProcessor {
     
             }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-secondary fg-primary border"});
         }
+
+        this.videoEditor.resize();
+
     }
 
     createCaptureArea() {
@@ -420,19 +417,16 @@ class VideoProcessor {
             if( !animation ) {
                 return null;
             }
-            const videoRect = this.videoEditor.video.getBoundingClientRect();
-            let cropRect = this.videoEditor.getCroppedArea();
-            const left = (cropRect.x - videoRect.x)/ videoRect.width;
-            const top = (cropRect.y - videoRect.y)/ videoRect.height;
-            // TODO refactor videoeditor so it uses cached sizes instead of dom. This way crop area can be hidden and still have width and height.
-            // As it is, a hidden crop area has zero width-height. Batch processing has the crop area hidden. Could be changed to opacity=0. 
-            const width = cropRect.width < 0.0001 ? 1 : (cropRect.width / videoRect.width);
-            const height = cropRect.height < 0.0001 ? 1 : (cropRect.height / videoRect.height);
-            const right = left + width;
-            const bottom = top + height;
- 
+            const cropRectCoords = this.videoEditor.getCroppedArea().normCoords; 
            
-            animation.rect = {left, right, top, bottom, width, height};
+            animation.rect = {
+                left: cropRectCoords.x, 
+                right: cropRectCoords.x + cropRectCoords.w, 
+                top: cropRectCoords.y, 
+                bottom: cropRectCoords.y + cropRectCoords.h, 
+                width: cropRectCoords.w, 
+                height: cropRectCoords.h
+            };
             UTILS.hideLoading();
             animations.push( animation );
         }
@@ -534,18 +528,9 @@ class VideoProcessor {
         this.mediapipe.setOptions( { autoDraw: true } );
 
         const promise = new Promise( resolve => {
-            const videoRect = video.getBoundingClientRect();
-            let cropRect = this.videoEditor.getCroppedArea();
+            let cropRectCoords = this.videoEditor.getCroppedArea().normCoords;
 
-            
-            // TODO refactor videoeditor so it uses cached sizes instead of dom. This way crop area can be hidden and still have width and height.
-            // As it is, a hidden crop area has zero width-height. Batch processing has the crop area hidden. Could be changed to opacity=0. 
-            const width = cropRect.width < 0.0001 ? 1 : (cropRect.width / videoRect.width);
-            const height = cropRect.height < 0.0001 ? 1 : (cropRect.height / videoRect.height);
-            const left = cropRect.width < 0.0001 ? 0 : ((cropRect.x - videoRect.x) / videoRect.width);
-            const top = cropRect.height < 0.0001 ? 0 : ((cropRect.y - videoRect.y) / videoRect.height);
-
-            const rect = {x: left, y: top, width,height};
+            const rect = {x: cropRectCoords.x, y: cropRectCoords.y, width: cropRectCoords.w, height: cropRectCoords.h};
 
             this.mediapipe.processVideoOffline( video, { startTime: animationData.startTime, endTime: animationData.endTime, dt: animationData.dt, callback: () =>{
                 animationData.landmarks = this.mediapipe.landmarks;
@@ -612,19 +597,16 @@ class VideoProcessor {
                 if( !animation ) {
                     return null;
                 }
-                const videoRect = this.videoEditor.video.getBoundingClientRect();
-                const cropRect = this.videoEditor.getCroppedArea();
-                
-                // TODO refactor videoeditor so it uses cached sizes instead of dom. This way crop area can be hidden and still have width and height.
-                // As it is, a hidden crop area has zero width-height. Batch processing has the crop area hidden. Could be changed to opacity=0. 
-                const width = cropRect.width < 0.0001 ? 1 : (cropRect.width / videoRect.width);
-                const height = cropRect.height < 0.0001 ? 1 : (cropRect.height / videoRect.height);
-                const left = cropRect.width < 0.0001 ? 0 : ((cropRect.x - videoRect.x) / videoRect.width);
-                const top = cropRect.height < 0.0001 ? 0 : ((cropRect.y - videoRect.y) / videoRect.height);
-                const right = left + width;
-                const bottom = top + height;
+                const cropRectNormCoords = this.videoEditor.getCroppedArea().normCoords;
             
-                animation.rect = {left, right, top, bottom, width, height};
+                animation.rect = {
+                    left: cropRectNormCoords.x,
+                    right: cropRectNormCoords.x + cropRectNormCoords.w,
+                    top: cropRectNormCoords.y,
+                    bottom: cropRectNormCoords.y + cropRectNormCoords.h,
+                    width: cropRectNormCoords.w,
+                    height: cropRectNormCoords.h
+                };
                 UTILS.hideLoading();
                 return animation;              
             } 
