@@ -132,12 +132,12 @@ class VideoProcessor {
 
         // const [leftArea, rightArea] = area.split({sizes:["75%","25%"], minimizable: true});
 
-        this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo, crop: true})
+        this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo, crop: true});
         this.videoEditor.hideControls();
         this.videoEditor.onResize = (size) => {
             let width = size[0];
             let height = size[1];
-            let aspectRatio = canvasVideo.height / canvasVideo.width;
+            let aspectRatio = recordedVideo.videoHeight / recordedVideo.videoWidth;
             if(width != canvasVideo.width) {
                 height = size[0] * aspectRatio;
                 if(height > size[1])  {
@@ -152,12 +152,21 @@ class VideoProcessor {
                     height = width * aspectRatio;
                 }
             }
+
             canvasVideo.width  =  recordedVideo.width = width;
             canvasVideo.height =  recordedVideo.height = height;
-            recordedVideo.style.width = width + "px";
-            recordedVideo.style.height = height + "px";
+            recordedVideo.style.width = canvasVideo.style.width = width + "px";
+            recordedVideo.style.height = canvasVideo.style.height = height + "px";
 
-            this.mediapipe.processFrame(recordedVideo);
+            // avoid mediapipe process frame until last resize
+            if ( this._delayedProcessFrame ){
+                clearTimeout( this._delayedProcessFrame );
+            }
+            this._delayedProcessFrame = setTimeout( () =>{
+                this.mediapipe.processFrame(recordedVideo);
+                delete this._delayedProcessFrame;
+            }, 500 );
+            
         }
         
         this.videoEditor.onVideoLoaded = async (video) => {
@@ -271,10 +280,10 @@ class VideoProcessor {
         recordedVideo.style.height = canvasVideo.height + "px";
 
         this.videoEditor.video = recordedVideo;
-        await this.videoEditor._loadVideo();
+        await this.videoEditor.loadVideo();
         
-        this.videoEditor.dragCropArea( { clientX: -1, clientY: -1 } );
-        this.videoEditor.resizeCropArea( { clientX: window.screen.width, clientY: window.screen.height } );
+        this.videoEditor.moveCropArea( 0, 0, true );
+        this.videoEditor.resizeCropArea( 1, 1, true );
         
         this.buttonsPanel.clear();
 
@@ -488,8 +497,8 @@ class VideoProcessor {
                     this.createTrimArea( {enable_redo: false} );
                 }
                 else {
-                    this.videoEditor.dragCropArea( { clientX: -1, clientY: -1 } );
-                    this.videoEditor.resizeCropArea( { clientX: window.screen.width, clientY: window.screen.height } );
+                    this.videoEditor.moveCropArea( 0, 0, true );
+                    this.videoEditor.resizeCropArea( 1, 1, true );
                     const animation = await this.generateRawAnimation(video);
                     this.currentResolve(animation);
                     this.currentResolve = null;
