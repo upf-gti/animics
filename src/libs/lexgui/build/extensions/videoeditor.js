@@ -381,6 +381,15 @@ LX.TimeBar = TimeBar;
 
 class VideoEditor {
 
+    static CROP_HANDLE_L = 0x01;
+    static CROP_HANDLE_R = 0x02;
+    static CROP_HANDLE_T = 0x04;
+    static CROP_HANDLE_B = 0x08;
+    static CROP_HANDLE_TL = VideoEditor.CROP_HANDLE_L | VideoEditor.CROP_HANDLE_T;
+    static CROP_HANDLE_BL = VideoEditor.CROP_HANDLE_L | VideoEditor.CROP_HANDLE_B;
+    static CROP_HANDLE_TR = VideoEditor.CROP_HANDLE_R | VideoEditor.CROP_HANDLE_T;
+    static CROP_HANDLE_BR = VideoEditor.CROP_HANDLE_R | VideoEditor.CROP_HANDLE_B;
+
     constructor( area, options = {} ) {
 
         this.playing = false;
@@ -408,11 +417,10 @@ class VideoEditor {
         this.cropArea.id = "cropArea";
         this.cropArea.className = "resize-area hidden";
         this.cropArea.normCoords = { x: 0, y:0, w: 1, h: 1 };
-
-        this.brCrop = document.createElement("div");
-        this.brCrop.className = " resize-handle br"; // bottom right
-        this.cropArea.append(this.brCrop);
-
+        
+        const flags = 0x0f;
+        this.setCropAreaHandles( flags )
+        
         this.crop = options.crop;
         this.dragOffsetX = 0;
         this.dragOffsetY = 0;
@@ -490,23 +498,21 @@ class VideoEditor {
                 // }
                 
                 const panel = new LX.Panel();
-                panel.addNumber("Speed", this.speed, (v) => {
+                panel.addRange("Speed", this.speed, (v) => {
                     this.speed = v;
                     this.video.playbackRate = v;
                     if( this.onChangeSpeed ) {
                         this.onChangeSpeed( v );
                     }
-                }, {min: 0, max: 2.5, step: 0.01, nameWidth: "50px"})
+                }, {min: 0, max: 2.5, step: 0.01, hideName: true});
                 
                 new LX.Popover( e.target, [ panel ], { align: "start", side: "top", sideOffset: 12 } );
               
             }, { width: '40px', title: 'speed', icon: "Timer@solid", className: "justify-center" } );
             
             this.controlsPanelLeft.addButton('', 'Loop', (v) => {
-                this.loop = !this.loop;
-                
-                this.controlsPanelLeft.refresh();
-            }, { width: '40px', title: 'loop', icon: ( 'Repeat@solid'), className: `justify-center`, buttonClass: `${(this.loop ? 'bg-accent' : '')}`});
+                this.loop = v;
+            }, { width: '40px', title: 'loop', icon: ( 'Repeat@solid'), className: `justify-center`, selectable: true, selected: this.loop });
 
             this.controlsPanelLeft.addLabel(this.startTimeString, {width: "100px"});
             this.controlsPanelLeft.endLine();
@@ -596,34 +602,79 @@ class VideoEditor {
             //     this.timebar.onMouseDown(event);
             // }
         });
-        parent.addEventListener( "mouseup", (event) => {
+
+        this._onCropMouseUp = (event) => {
             // if(this.controls) {
             //     this.timebar.onMouseUp(event);
             // }
-
+            event.preventDefault();
+            event.stopPropagation();
             if( ( this.isDragging || this.isResizing ) && this.onCropArea ) {
-                if( this.onCropArea ) {
-                    this.onCropArea( this.getCroppedArea() );
-                }
+                this.onCropArea( this.getCroppedArea() );
             }
             this.isDragging = false;
             this.isResizing = false;
 
-        });
-        parent.addEventListener( "mousemove", (event) => {
+            window.removeEventListener( "mouseup", this._onCropMouseUp ); // self destroy. Added during mouseDown on cropArea and handles
+            window.removeEventListener( "mousemove", this._onCropMouseMove ); // self destroy. Added during mouseDown on cropArea and handles
+        };
+
+        this._onCropMouseMove = (event) => {
             // if(this.controls) {
             //     this.timebar.onMouseMove(event);
             // }
-
+            event.preventDefault();
+            event.stopPropagation();
+            
             if ( this.isResizing ) {
-                const rect = this.cropArea.getBoundingClientRect();
-                this.resizeCropArea( event.clientX - rect.left, event.clientY - rect.top, false );
+
+                const rectCrop = this.cropArea.getBoundingClientRect();
+                const rectVideo = this.video.getBoundingClientRect();
+                const mov = this.isResizing.movement;
+
+                let x = rectCrop.left, y = rectCrop.top, w = rectCrop.width, h = rectCrop.height;
+
+                if ( mov & VideoEditor.CROP_HANDLE_L ){
+                    let mouseX = Math.min( rectCrop.right - 4, Math.max( rectVideo.left, event.clientX ) ); // -4 because of border
+                    w = rectCrop.left + rectCrop.width - mouseX;
+                    x = mouseX;
+                    if ( mouseX < rectCrop.left ){
+                        this.moveCropArea( x, y, false );
+                        this.resizeCropArea( w, h, false );
+                    }else{
+                        this.resizeCropArea( w, h, false );
+                        this.moveCropArea( x, y, false );
+                    }
+                }
+                if ( mov & VideoEditor.CROP_HANDLE_R ){
+                    w = event.clientX - rectCrop.left;
+                    this.resizeCropArea( w, h, false );
+                }
+                if ( mov & VideoEditor.CROP_HANDLE_T ){
+                    const mouseY = Math.min( rectCrop.bottom - 4, Math.max( rectVideo.top, event.clientY ) ); 
+                    h = rectCrop.top + rectCrop.height - mouseY;
+                    y = mouseY
+
+                    if ( mouseY < rectCrop.top ){
+                        this.moveCropArea( x, y, false );
+                        this.resizeCropArea( w, h, false );
+                    }else{
+                        this.resizeCropArea( w, h, false );
+                        this.moveCropArea( x, y, false );
+                    }
+
+                }
+                if ( mov & VideoEditor.CROP_HANDLE_B ){
+                    h = event.clientY - rectCrop.top;
+                    this.resizeCropArea( w, h, false );
+                }
+
             }
             
             if( this.isDragging ) {
                 this.moveCropArea( event.clientX - this.dragOffsetX, event.clientY - this.dragOffsetY, false );
             }
-        });
+        };
 
         this.cropArea.addEventListener( "mousedown", (event) => {
 
@@ -634,23 +685,48 @@ class VideoEditor {
 
                 this.dragOffsetX = event.clientX - rect.left;
                 this.dragOffsetY = event.clientY - rect.top;
+
+                document.addEventListener( "mouseup", this._onCropMouseUp );
+                document.addEventListener( "mousemove", this._onCropMouseMove );
             }
-        });
-
-        document.querySelectorAll(".resize-handle" ).forEach( handle => {
-
-            handle.addEventListener("mousedown", ( e ) => {
-
-                e.stopPropagation();
-                if (handle.classList[1] === 'br') {
-                    this.isResizing = true;
-                }
-            });
         });
 
         this.onChangeStart = null;
         this.onChangeEnd = null;
     }
+
+    setCropAreaHandles( flags ){
+        const resizers = this.cropArea.getElementsByClassName("resize-handle");
+        
+        // remove existing resizer handles
+        for( let i = resizers.length -1 ; i > -1; --i ){
+            resizers.remove();
+        }
+
+        const buildResizer = ( className, movement ) => {
+            const handle = document.createElement("div");
+            handle.className = " resize-handle " + className;
+            handle.movement = movement;
+            this.cropArea.append(handle);
+            handle.addEventListener("mousedown", ( e ) => {
+                e.stopPropagation();
+                e.preventDefault();
+                this.isResizing = handle;
+
+                document.addEventListener( "mouseup", this._onCropMouseUp );
+                document.addEventListener( "mousemove", this._onCropMouseMove );
+            });
+        }
+
+        if ( flags & VideoEditor.CROP_HANDLE_L ){ buildResizer( "l", VideoEditor.CROP_HANDLE_L ); }
+        if ( flags & VideoEditor.CROP_HANDLE_R ){ buildResizer( "r", VideoEditor.CROP_HANDLE_R ); }
+        if ( flags & VideoEditor.CROP_HANDLE_T ){ buildResizer( "t", VideoEditor.CROP_HANDLE_T ); }
+        if ( flags & VideoEditor.CROP_HANDLE_B ){ buildResizer( "b", VideoEditor.CROP_HANDLE_B ); }
+        if ( (flags & VideoEditor.CROP_HANDLE_TL) == VideoEditor.CROP_HANDLE_TL ){ buildResizer( "tl", VideoEditor.CROP_HANDLE_TL ); }
+        if ( (flags & VideoEditor.CROP_HANDLE_BL) == VideoEditor.CROP_HANDLE_BL ){ buildResizer( "bl", VideoEditor.CROP_HANDLE_BL ); }
+        if ( (flags & VideoEditor.CROP_HANDLE_TR) == VideoEditor.CROP_HANDLE_TR ){ buildResizer( "tr", VideoEditor.CROP_HANDLE_TR ); }
+        if ( (flags & VideoEditor.CROP_HANDLE_BR) == VideoEditor.CROP_HANDLE_BR ){ buildResizer( "br", VideoEditor.CROP_HANDLE_BR ); }
+    }   
 
     resizeCropArea( sx, sy, isNormalized = true ){
         
@@ -951,6 +1027,10 @@ class VideoEditor {
         this.video.src = "";
 
         window.removeEventListener("keyup", this.onKeyUp);
+
+        window.removeEventListener("mouseup", this._onCropMouseUp );
+        window.removeEventListener("mousemove", this._onCropMouseMove );
+
     }
 }
 
