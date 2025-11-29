@@ -677,7 +677,7 @@ class VideoEditor {
         
         // remove existing resizer handles
         for( let i = resizers.length -1 ; i > -1; --i ){
-            resizers.remove();
+            resizers[i].remove();
         }
 
         const buildResizer = ( className, movement ) => {
