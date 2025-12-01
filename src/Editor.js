@@ -1318,7 +1318,7 @@ class KeyframeEditor extends Editor {
         // Create GUI
         this.gui = new KeyframesGui(this);
 
-        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", children: []}]}];
+        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", icon: "ClapperboardClosed", children: []}]}];
 
         this._clipsUniqueIDSeed = 0;
     }
@@ -3694,7 +3694,7 @@ class ScriptEditor extends Editor {
 
         // Create GUI
         this.gui = new ScriptGui(this);
-        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "presets", type:"folder", children: []}, {id: "signs", type:"folder", children: []}]} ];
+        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "presets", type:"folder", icon: "Tags", children: []}, {id: "signs", type:"folder", icon: "HandsAslInterpreting", children: []}]} ];
     }
 
     onKeyDown( event ) {

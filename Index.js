@@ -566,7 +566,7 @@ function showCreateAccountDialog(session = {user: "", password: ""}) {
                         
                             prompt.close();
                             prompt = null;
-                            let el = document.querySelector("#Login");
+                            let el = document.querySelector("#login-button");
                             el.innerText = session.user;
                             showLoginModal( { user: user, password: pass});
                         }, (request)  => {

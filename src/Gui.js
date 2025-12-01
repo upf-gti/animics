@@ -296,7 +296,7 @@ class Gui {
                 p.addButton(null, "Sign up", (v) => {
                     this.prompt.close();
                     this.prompt = null;
-                    this.showCreateAccountDialog({username, password});
+                    this.showCreateAccountDialog({user: username, password});
                 })
             }
             refresh(p);
@@ -335,8 +335,9 @@ class Gui {
                             
                                 this.prompt.close();
                                 this.prompt = null;
-                                let el = document.querySelector("#Login");
-                                el.innerText = session.user;
+                                this.changeLoginButton(session.user);
+                                // let el = document.querySelector("#login-button");
+                                // el.innerText = session.user;
                                 // this.showLoginModal( { user: user, password: pass});
                             }, (request)  => {
                                 refresh(p, "Server status: " + (request.msg ||  "Can't connect to the server. Try again!"));
@@ -388,11 +389,10 @@ class Gui {
             }
             const treeData = {};
             let repo = this.editor.remoteFileSystem.repository;
-            let units = Object.values(this.editor.remoteFileSystem.session.units);
-            units = units.filter( (v) => v.mode == "ADMIN");
-            units = units.map( (v) => v.name)
-            repo = repo.filter( v => units.indexOf(v.id) > -1);
-            const tree = p.addTree("Save in", this.editor.remoteFileSystem.repository, {
+
+            repo = repo.filter( (v) => v.mode == "ADMIN");
+
+            const tree = p.addTree("Save in", repo, {
                 // icons: dataTreeIcons,
                 // rename: true,
                 onevent: (event) => {
@@ -404,7 +404,7 @@ class Gui {
                             console.log("Double click!")
                             break;
                     }
-                }
+                }, onlyFolders: true, skipVisibility: true
             });
 
             if( options.formats && options.formats.length ) {
@@ -1468,10 +1468,11 @@ class KeyframesGui extends Gui {
                 },
                 {
                     selectable: true,
-                    sortable: true,
+                    sortable: false,
                     toggleColumns: true,
                     filter: "Name",
-                    customFilters: [ {name: "Video Formats", options: availableVideoTypes } ]
+                    customFilters: [ {name: "Video Formats", options: availableVideoTypes } ],
+                    rowActions: [{ name: "Rename", icon: "Edit", callback: () => { console.log("rename file")}}]
                 }
             );
 
@@ -4678,10 +4679,10 @@ class KeyframesGui extends Gui {
             },
             {
                 selectable: true,
-                sortable: true,
+                sortable: false,
                 toggleColumns: true,
                 filter: "Name",
-                // TODO add a row icon to modify the animations name
+                rowActions: [{ name: "Rename", icon: "Edit", callback: () => { console.log("rename file")}}]
             }
         );
         return table;
@@ -4732,13 +4733,13 @@ class KeyframesGui extends Gui {
             },
             {
                 selectable: true,
-                sortable: true,
+                sortable: false,
                 toggleColumns: true,
                 filter: "Name",
                 customFilters: [
                     { name: "Character", options: Object.keys(this.editor.loadedCharacters) }
                 ],
-                // TODO add a row icon to modify the animations name
+                rowActions: [{ name: "Rename", icon: "Edit", callback: () => { console.log("rename file")}}]
             }
         );
 
@@ -5009,29 +5010,30 @@ class KeyframesGui extends Gui {
                         return;
                     }
                     if( !e.item.lastModified ) {
-                        await this.editor.remoteFileSystem.getFileInfo( e.item.fullpath, async (info) => {
-                           
-                            e.item.lastModified = info.timestamp;
-                            e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
-                            e.item.filename = info.filename;
-                            assetViewer._previewAsset( e.item );
+                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.fullpath);
+                        if( !info ) {
+                            return;
+                        }
+                        e.item.lastModified = info.timestamp;
+                        e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
+                        e.item.filename = info.filename;
+                        assetViewer._previewAsset( e.item );
 
-                            if(!e.item.animation) {
-                                const promise = new Promise((resolve) => {
-                                    this.editor.fileToAnimation(e.item, ( file ) => {
-                                        if( file ) {
-                                            resolve(file);
-                                        }
-                                        else {
-                                            resolve( null );
-                                        }
-                                    });
-                                })
-                                const parsedFile = await promise;
-                                e.item.animation = parsedFile.animation;
-                                e.item.content = parsedFile.content;
-                            }
-                        })
+                        if(!e.item.animation) {
+                            const promise = new Promise((resolve) => {
+                                this.editor.fileToAnimation(e.item, ( file ) => {
+                                    if( file ) {
+                                        resolve(file);
+                                    }
+                                    else {
+                                        resolve( null );
+                                    }
+                                });
+                            })
+                            const parsedFile = await promise;
+                            e.item.animation = parsedFile.animation;
+                            e.item.content = parsedFile.content;
+                        }
                     }
                     break;
                 case LX.AssetViewEvent.ASSET_DELETED: 
@@ -5086,9 +5088,12 @@ class KeyframesGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    if( e.item.unit && !e.item.children.length ) {
+                    // if( e.item.unit && !e.item.children.length ) {
+                    if( e.item.unit ) { 
+
                         assetViewer.parent.loadingArea.show();
-                        this.editor.remoteFileSystem.loadAssets(e.item.unit, e.item.fullpath, 1, ( assets ) => {
+                        const assets = this.editor.remoteFileSystem.loadAssets(e.item.unit, e.item.fullpath, ["clips"]);
+                        if( assets ) {
 
                             e.item.children = assets;
                             assetViewer.currentData = assets;
@@ -5097,11 +5102,10 @@ class KeyframesGui extends Gui {
                             if( !assetViewer.skipBrowser ) {
                                 assetViewer._createTreePanel();
                             }
-
                             assetViewer._refreshContent();
+                        }
 
-                            assetViewer.parent.loadingArea.hide();
-                        })                       
+                        assetViewer.parent.loadingArea.hide();
                     }                
                     break;
             }
@@ -6251,10 +6255,10 @@ class ScriptGui extends Gui {
             },
             {
                 selectable: true,
-                sortable: true,
+                sortable: false,
                 toggleColumns: true,
                 filter: "Name",
-                // TODO add a row icon to modify the animations name
+                rowActions: [{ name: "Rename", icon: "Edit", callback: () => { console.log("rename file")}}]
             }
         );
 
@@ -6831,18 +6835,16 @@ class ScriptGui extends Gui {
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
                         callback: (item)=> {
-                            this.editor.remoteFileSystem.deleteFile( item.fullpath, (v) => {
-                                if(v) {
-                                    LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                    item.folder.children = v;
-                                    assetViewer._deleteItem(item);
-                                }
-                                else {
-                                    LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-    
-                                }
-                                // this.closeDialogs();                            
-                            });
+                            const deleted = this.editor.remoteFileSystem.deleteFile( item.fullpath);
+                            if(deleted) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                item.folder.children = deleted;
+                                assetViewer._deleteItem(item);
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            // this.closeDialogs();
                         }
                     });
                     previewActions.push({
@@ -6850,18 +6852,15 @@ class ScriptGui extends Gui {
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
                         callback: (item)=> {
-                            this.editor.remoteFileSystem.deleteFile( item.fullpath, (v) => {
-                                if(v) {
-                                    LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                    item.folder.children = v;
-                                    assetViewer._deleteItem(item);
-                                }
-                                else {
-                                    LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-    
-                                }
-                                // this.closeDialogs();                            
-                            });
+                            const deleted = this.editor.remoteFileSystem.deleteFile( item.fullpath);
+                            if(deleted) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                item.folder.children = deleted;
+                                assetViewer._deleteItem(item);
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            }
                         }
                     });
 
@@ -6876,16 +6875,13 @@ class ScriptGui extends Gui {
                             }
                             const value = await this.editor.remoteFileSystem.deleteFolder( item.fullpath );
                             if(value) {
-                                if(value) {
-                                    LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
-                                    assetViewer._deleteItem(item);
-                                }
-                                else {
-                                    LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                                }
+                                LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                                assetViewer._deleteItem(item);
                             }
-                            
+                            else {
+                                LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }                            
                         }
                     });
                 }
@@ -6938,27 +6934,29 @@ class ScriptGui extends Gui {
                     }
                     
                     if( !e.item.lastModified ) {
-                        await this.editor.remoteFileSystem.getFileInfo( e.item.fullpath, async (info) => {
-                            e.item.lastModified = info.timestamp;
-                            e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
-                            e.item.filename = info.filename;
-                            assetViewer._previewAsset( e.item );
-                            if(!e.item.animation) {
-                                const promise = new Promise((resolve) => {
-                                    this.editor.fileToAnimation(e.item, ( file ) => {
-                                        if( file ) {
-                                            resolve(file);
-                                        }
-                                        else {
-                                            resolve( null );
-                                        }
-                                    });
-                                })
-                                const parsedFile = await promise;
-                                e.item.animation = parsedFile.animation;
-                                e.item.content = parsedFile.content;
-                            }
-                        })
+                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.fullpath);
+                        if( !info ) {
+                            return;
+                        }
+                        e.item.lastModified = info.timestamp;
+                        e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
+                        e.item.filename = info.filename;
+                        assetViewer._previewAsset( e.item );
+                        if(!e.item.animation) {
+                            const promise = new Promise((resolve) => {
+                                this.editor.fileToAnimation(e.item, ( file ) => {
+                                    if( file ) {
+                                        resolve(file);
+                                    }
+                                    else {
+                                        resolve( null );
+                                    }
+                                });
+                            })
+                            const parsedFile = await promise;
+                            e.item.animation = parsedFile.animation;
+                            e.item.content = parsedFile.content;
+                        }
                     }
                     
                     if(e.multiple) {
@@ -7041,24 +7039,26 @@ class ScriptGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    if( e.item.unit && !e.item.children.length ) { 
+                    // if( e.item.unit && !e.item.children.length ) { 
+                    if( e.item.unit ) { 
+
                         assetViewer.parent.loadingArea.show();
 
-                        this.editor.remoteFileSystem.loadAssets(e.item.unit, e.item.fullpath, 1, ( assets ) => {
-
+                        const assets = await this.editor.remoteFileSystem.loadAssets(e.item.unit, e.item.fullpath, ["scripts"]);
+                        if( assets ) {
                             e.item.children = assets;
                             assetViewer._processData(e.item, e.item.folder)
                             assetViewer.currentData = assets;
                             assetViewer._updatePath(assetViewer.currentData);
-
+    
                             if( !assetViewer.skipBrowser ) {
                                 assetViewer._createTreePanel();
                             }
+                        }
 
-                            assetViewer._refreshContent();
+                        assetViewer._refreshContent();
 
-                            assetViewer.parent.loadingArea.hide();
-                        })
+                        assetViewer.parent.loadingArea.hide();
                     }
                     break;
             }

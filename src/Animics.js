@@ -58,7 +58,7 @@ class Animics {
         let allowFolders = []
         if( this.editor.constructor == ScriptEditor ) {
             this.mode = Animics.Modes.SCRIPT;
-            allowFolders = ["presets", "signs"];
+            allowFolders = ["scripts"];
         }
         else {
             this.mode = Animics.Modes.KEYFRAME;
