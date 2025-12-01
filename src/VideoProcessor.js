@@ -57,6 +57,8 @@ class VideoProcessor {
                 else {
                     this.processorArea.extend();
                 }
+
+                setTimeout( this.videoEditor.resize.bind(), 200 ); // extend & reduce have a transition of 0.1 seconds. Ensure last resize done is the real final size
             }
         }], {float: 'tvr'});        
         ob.buttons.Estimator.root.parentElement.style.zIndex = 101; // hack, videoEditor cropArea has zindex 100
@@ -200,31 +202,43 @@ class VideoProcessor {
         
         /* Create right panel */
         LX.makeContainer( ["auto", "50px"], "text-xl p-4", "Estimator", area );
-        const panel = this.sidePanel = area.addPanel({ className: "p-4"});         
+        const panel = this.sidePanel = area.addPanel({ className: "p-4"});
             
         if(panel.root.id) {
             panel.addTitle(panel.root.id);
         }
-
-        panel.addTitle("Mediapipe");
         
-        panel.addToggle("Enable", true, (value, event) => {
+        panel.addToggle("Preview Pose Estimation", true, (value, event) => {
             this.enableMediapipeOnline( value );
-        });                                
+        }, {label: "", title: "Previewing the estimation has a great impact on performance. Disable it to get a smoother experience on less powerful devices.", skipReset: true, nameWidth: "50%"});
+        
+        panel.addButton("", "Reset Video Crop Area", ()=>{
+            this.videoEditor.moveCropArea( 0, 0, true );
+            this.videoEditor.resizeCropArea( 1, 1, true );
+
+            if ( !this.mediapipeOnlineEnabler ){
+                return;
+            }
+
+            this.mediapipe.processFrame(this.recordedVideo);
+
+        }, { icon: "Crop", iconPosition: "start", title: "Resets the video crop area so it covers the full video size", hideName: true });
 
         // Create expanded AU info area    
         panel.addBlank();
-        panel.addTitle("User positioning");
-        panel.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto", fitHeight: true }) 
         
+        panel.branch("User positioning");
+        panel.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto", fitHeight: true }) 
         panel.addProgress('Distance to the camera', 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, id: 'progressbar-torso'});
         panel.addProgress('Left Hand visibility', 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, id: 'progressbar-lefthand'});
         panel.addProgress('Right Hand visibility', 0, {min: 0, max: 1, low: 0.3, optimum: 1, high: 0.6, id: 'progressbar-righthand'});
-        
-        panel.addBlank();
-        panel.addBlank();
+        panel.merge();
+
+        panel.addSeparator();
+
         panel.branch("Blendshapes weights");
         const bs = ["BrowDownLeft", "BrowDownRight", "BrowInnerUp", "BrowOuterUpLeft", "BrowOuterUpRight", "CheekPuff", "CheekSquintLeft", "CheekSquintRight", "EyeBlinkLeft", "EyeBlinkRight", "EyeLookDownLeft", "EyeLookDownRight", "EyeLookInLeft", "EyeLookInRight", "EyeLookOutLeft", "EyeLookOutRight", "EyeLookUpLeft", "EyeLookUpRight", "EyeSquintLeft", "EyeSquintRight", "EyeWideLeft", "EyeWideRight", "JawForward", "JawLeft", "JawOpen", "JawRight", "MouthClose", "MouthDimpleLeft", "MouthDimpleRight", "MouthFrownLeft", "MouthFrownRight", "MouthFunnel", "MouthLeft", "MouthLowerDownLeft", "MouthLowerDownRight", "MouthPressLeft", "MouthPressRight", "MouthPucker", "MouthRight", "MouthRollLower", "MouthRollUpper", "MouthShrugLower", "MouthShrugUpper", "MouthSmileLeft", "MouthSmileRight", "MouthStretchLeft", "MouthStretchRight", "MouthUpperUpLeft", "MouthUpperUpRight", "NoseSneerLeft", "NoseSneerRight"];
+
 
         for( let i = 0; i < bs.length; i++ ) {
         
@@ -234,6 +248,7 @@ class VideoProcessor {
         panel.root.style.maxHeight = "calc(100% - 57px)";
         panel.root.style.overflowY = "scroll";
         panel.root.style.flexWrap = "wrap";
+        panel.merge();
     }
 
     // online Mediapipe might make the pc slow. Allow user to disable it. (video processing is not affected. It is offline Mediapipe)
@@ -254,6 +269,8 @@ class VideoProcessor {
             this.mediapipe.stopVideoProcessing();
             this.canvasVideo.classList.add("hidden");
         }
+
+        this.videoEditor.resizeCropArea( this.videoEditor.cropArea.normCoords.w, this.videoEditor.cropArea.normCoords.w, true ); // update hidden elements crop area 
     }
 
     /**
@@ -481,7 +498,7 @@ class VideoProcessor {
                 video.style.height = height + "px";
 
                 if( !this.mediapipe.loaded ) {
-                    UTILS.makeLoading("Loading MediaPipe...");
+                    UTILS.makeLoading("Loading Pose Estimator...");
                     await this.mediapipe.init();
                 }
                 
@@ -561,7 +578,7 @@ class VideoProcessor {
         this.mode = "webcam";
 
         if( !this.mediapipe.loaded ) {
-            UTILS.makeLoading("Loading MediaPipe...");
+            UTILS.makeLoading("Loading Pose Estimator...");
             await this.mediapipe.init();
             UTILS.hideLoading();
         }
