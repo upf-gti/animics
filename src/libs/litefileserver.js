@@ -752,12 +752,30 @@ Session.prototype.getUnitsAndFolders = function( on_complete )
 }
 
 //folders
-Session.prototype.getFolders = function( unit, on_complete, on_error )
+Session.prototype.getFoldersTree = function( unit, on_complete, on_error )
 {
     if(!unit)
         throw("no fullpath specified");
 
-    return this.request( this.server_url,{ action: "files/getFolders", unit: unit }, function(resp){
+    return this.request( this.server_url,{ action: "files/getFoldersTree", unit: unit }, function(resp){
+        if(resp.status != 1)
+        {
+            if(on_error)
+                on_error(resp.msg);
+            return;
+        }
+
+        if(on_complete)
+            on_complete( resp.data, resp );
+    });
+}
+
+Session.prototype.getFolders = function( unit, fullpath, on_complete, on_error )
+{
+    if(!unit)
+        throw("no fullpath specified");
+
+    return this.request( this.server_url,{ action: "files/getFolders", unit: unit, fullpath: fullpath }, function(resp){
         if(resp.status != 1)
         {
             if(on_error)
@@ -829,12 +847,12 @@ Session.prototype.deleteFolder = function( fullpath, on_complete, on_error )
 
 
 //folders and files (fullpath without unit name)
-Session.prototype.getFoldersAndFiles = function( unit, fullpath, depth, on_complete, on_error )
+Session.prototype.getFoldersAndFiles = function( unit, fullpath, on_complete, on_error )
 {
 	if(!unit)
 		throw("no unit specified");
 
-	return this.request( this.server_url,{ action: "files/getFoldersAndFiles", unit: unit, fullpath, depth }, function(resp){
+	return this.request( this.server_url,{ action: "files/getFoldersAndFiles", unit: unit, fullpath }, function(resp){
 		if(resp.status != 1)
 		{
 			if(on_error)

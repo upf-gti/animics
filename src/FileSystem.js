@@ -261,15 +261,15 @@ class RemoteFileSystem {
     //     session.getUnitsAndFolders(onFolders);
     // }
 
-    createFolders() {
+    async createFolders() {
         const session = this.session;
         if( !session ) {
             return;
         }
 
-        session.createFolder( session.user.username + "/animics/scripts/presets/", (v, r) => {console.log(v)} );
-        session.createFolder( session.user.username + "/animics/scripts/signs/", (v, r) => {console.log(v)} );
-        session.createFolder( session.user.username + "/animics/clips/", (v, r) => {console.log(v)} );
+        await session.createFolder( session.user.username + "/animics/clips/", (v, r) => {console.log(v)} );
+        await session.createFolder( session.user.username + "/animics/scripts/presets/", (v, r) => {console.log(v)} );
+        await session.createFolder( session.user.username + "/animics/scripts/signs/", (v, r) => {console.log(v)} );
     }
 
     async createFolder( fullpath ) {
@@ -341,53 +341,54 @@ class RemoteFileSystem {
     }
 
     //Get folders from each user unit
-    async loadFolders( folder , callback) {
-        const session = this.session;
-        let count = 0;
-        for( let i = 0; i < this.repository.length; i++ ) {
+    async loadFolders(unit, folder, allowFolders) {
+        if( !this.session ) {
+            return;
+        }
+        return new Promise( async (resolve, reject) => {
 
-            const unit = this.repository[i];
-            const unitName = unit.id;
-            const variable = "refresh" + ( folder  == "signs" ? "Signs" : "Presets") + "Repository";
-            //get all folders for empty units
-            if( !(unitName == "Local" || this.repository[i].children.length) || this[variable] && unitName == session.user.username ) {
+            await this.session.getFolders(unit, folder, async ( folders ) =>  {
 
-                await session.getFolders( unitName, async ( folders ) =>  {
-                    const mainFolder = folders.animics[ folder ];
-                    const assets = [];
-                    if( mainFolder ) {
-                        for( let folder in mainFolder ) {
-                            assets.push({id: folder, type: "folder", folder: folder , children: [], unit: unitName, mode: unit.mode})
+                const getAssetInfo = (unitName, assets, path, allowFolders = []) => {
+                    const extraData = [];
+                    for( let asset in assets ) {
+                        if( allowFolders.length && allowFolders.indexOf(asset) < 0) {
+                            continue;
                         }
-                    }
-                    else if( folders.animics.hasOwnProperty( folder ) ) {
-                        assets.push({id: folder, type: "folder", folder: folder , children: [], unit: unitName, mode: unit.mode})
-                    }
-
-                    this.repository[i].children = assets;
-                    count++;
-                    
-                    if( this.repository.length == count ) {
-                        if( callback ) {
-                            callback();
+                        const data = {id: null, type: null, folder: null, children: [], unit: unitName, fullpath: path};
+                        if( typeof(assets[asset]) == 'object' ) {
+                            data.id = asset;
+                            data.type = "folder";
+                            data.folder = asset;
+                            data.fullpath += "/"+asset;
+                            data.children = getAssetInfo(unitName, assets[asset], data.fullpath);
+                            if( asset == "presets" ) {
+                                data.icon = "Tags";
+                            }
+                            else if( asset == "signs") {
+                                data.icon = "HandsAslInterpreting";
+                            }
+                            else if( asset == "clips") {
+                                data.icon = "ClapperboardClosed";
+                            }
                         }
+                        else {
+                            const filename = assets[asset];
+                            const type = UTILS.getExtension( filename );
+                            data.id = filename;
+                            data.type = type;
+                            data.fullpath += "/"+filename;
+                        }
+                        extraData.push( data )
                     }
-                })
-                
-            }
-            else {
-                // if( unit == "Local" ) {
-                //     this.repository[i] = this.localStorage[ folder ];
-                // }
-
-                count++;
-                if( this.repository[i].length == count ) {
-                    if(callback) {
-                        callback();
-                    }
+                    return extraData;
                 }
-            }
-        }        
+                console.log(folders)
+                const mainFolder = Object.keys(folders)[0];
+                const data = getAssetInfo(unit, folders[mainFolder], folder, allowFolders);
+                resolve( data );
+            })
+        })
     }
 
     async loadAssets( unit, folder, allowFolders = [] ) {
@@ -513,7 +514,7 @@ class RemoteFileSystem {
             //         }
             //     }
             // })
-            await session.getFolders( unitName, async ( folders ) =>  {
+            await session.getFoldersTree( unitName, async ( folders ) =>  {
 
                 const getAssetInfo = (unitName, assets, path, allowFolders = []) => {
                     const extraData = [];
@@ -567,6 +568,61 @@ class RemoteFileSystem {
                 }
             })
         }
+    }
+
+    async loadFoldersAndFiles(unit, folder, allowFolders) {
+
+        if( !this.session ) {
+            return;
+        }
+
+        return new Promise( async (resolve, reject) => {
+            const files = await this.loadAssets(unit, folder, allowFolders);
+            const folders = await this.loadFolders(unit, folder, allowFolders);
+            const data = [...folders, ...files];
+            resolve(data);
+            // await this.session.getFoldersAndFiles( unit, folder, async ( folders ) =>  {
+
+            //     const getAssetInfo = (unit, assets, path, allowFolders = []) => {
+            //         const extraData = [];
+            //         for( let asset in assets ) {
+            //             if( allowFolders.length && allowFolders.indexOf(asset) < 0) {
+            //                 continue;
+            //             }
+            //             const data = {id: null, type: null, folder: null, children: [], unit: unit, fullpath: path};
+            //             if( typeof(assets[asset]) == 'object' ) {
+            //                 data.id = asset;
+            //                 data.type = "folder";
+            //                 data.folder = asset;
+            //                 data.fullpath += "/"+asset;
+            //                 data.children = getAssetInfo(unit, assets[asset], data.fullpath);
+            //                 if( asset == "presets" ) {
+            //                     data.icon = "Tags";
+            //                 }
+            //                 else if( asset == "signs") {
+            //                     data.icon = "HandsAslInterpreting";
+            //                 }
+            //                 else if( asset == "clips") {
+            //                     data.icon = "ClapperboardClosed";
+            //                 }
+            //             }
+            //             else {
+            //                 const filename = assets[asset];
+            //                 const type = UTILS.getExtension( filename );
+            //                 data.id = filename;
+            //                 data.type = type;
+            //                 // data.lastModified = assets[asset].timestamp;
+            //                 data.fullpath += "/"+filename;
+            //             }
+            //             extraData.push( data )
+            //         }
+            //         return extraData;
+            //     }
+            //     const data = getAssetInfo(unit, folders, folder, allowFolders);
+                
+            //     resolve(data);
+            // })
+        })
     }
 
     deleteFile( fullpath ) {

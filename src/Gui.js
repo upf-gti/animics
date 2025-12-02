@@ -212,7 +212,7 @@ class Gui {
                 { name: "Logout", icon: "LogOut", callback: () => { 
                     this.editor.remoteFileSystem.logout(() => {
                         this.editor.remoteFileSystem.login("guest", "guest", () => {
-                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
+                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["scripts"];
                             this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
                         })
                         this.changeLoginButton();
@@ -281,7 +281,7 @@ class Gui {
                     this.editor.remoteFileSystem.login(username, password, (session, response) => {
                         if(response.status == 1) {
                             this.changeLoginButton(session.user.username);
-                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
+                            const folders = this.constructor == KeyframesGui ? ["clips"] : ["scripts"] ;
                             this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
                             this.prompt.close();
                             this.prompt = null;
@@ -5089,24 +5089,29 @@ class KeyframesGui extends Gui {
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
                     // if( e.item.unit && !e.item.children.length ) {
-                    if( e.item.unit ) { 
+                    if( e.item.unit && e.item.unit != e.item.id ) { 
 
                         assetViewer.parent.loadingArea.show();
-                        const assets = this.editor.remoteFileSystem.loadAssets(e.item.unit, e.item.fullpath, ["clips"]);
-                        if( assets ) {
-
+                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.fullpath);
+                        if( assets.length ) {
+                            // for( let i = 0; i < assets.length; i++ ) {
+                            //     const asset = assets[i];
+                            //     if( e.item.children.indexOf(asset) < 0) {
+                            //         e.item.children.push(asset);
+                            //     }
+                            // }
                             e.item.children = assets;
-                            assetViewer.currentData = assets;
+                            assetViewer.currentData = assets//e.item.children;
                             assetViewer._updatePath(assetViewer.currentData);
 
-                            if( !assetViewer.skipBrowser ) {
-                                assetViewer._createTreePanel();
-                            }
+                            // if( !assetViewer.skipBrowser ) {
+                            //     assetViewer._createTreePanel();
+                            // }
                             assetViewer._refreshContent();
+                            assetViewer._previewAsset(e.item);
                         }
-
                         assetViewer.parent.loadingArea.hide();
-                    }                
+                    }
                     break;
             }
         })
@@ -6887,7 +6892,11 @@ class ScriptGui extends Gui {
                 }
             }
             
-            const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: true});
+            const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: true, itemContextMenuOptions: [{
+                name: "Move",
+                callback: (v) => console.move(v),
+
+            }]});
             p.attach( assetViewer );
             this.assetViewer = assetViewer;
             
@@ -7039,25 +7048,28 @@ class ScriptGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    // if( e.item.unit && !e.item.children.length ) { 
-                    if( e.item.unit ) { 
+                    // if( e.item.unit && !e.item.children.length ) {
+                    if( e.item.unit && e.item.unit != e.item.id ) { 
 
                         assetViewer.parent.loadingArea.show();
-
-                        const assets = await this.editor.remoteFileSystem.loadAssets(e.item.unit, e.item.fullpath, ["scripts"]);
-                        if( assets ) {
+                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.fullpath);
+                        if( assets.length ) {
+                            // for( let i = 0; i < assets.length; i++ ) {
+                            //     const asset = assets[i];
+                            //     if( e.item.children.indexOf(asset) < 0) {
+                            //         e.item.children.push(asset);
+                            //     }
+                            // }
                             e.item.children = assets;
-                            assetViewer._processData(e.item, e.item.folder)
-                            assetViewer.currentData = assets;
+                            assetViewer.currentData = assets//e.item.children;
                             assetViewer._updatePath(assetViewer.currentData);
-    
-                            if( !assetViewer.skipBrowser ) {
-                                assetViewer._createTreePanel();
-                            }
+
+                            // if( !assetViewer.skipBrowser ) {
+                            //     assetViewer._createTreePanel();
+                            // }
+                            assetViewer._refreshContent();
+                            assetViewer._previewAsset(e.item);
                         }
-
-                        assetViewer._refreshContent();
-
                         assetViewer.parent.loadingArea.hide();
                     }
                     break;
