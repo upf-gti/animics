@@ -826,6 +826,34 @@ Session.prototype.downloadFolder = function( fullpath, on_complete, on_error )
     });
 }
 
+Session.prototype.moveFolder = function( fullpath, target_fullpath, on_complete, on_error )
+{
+    if(fullpath.substr(0,5) == "http://")
+        throw("LFS does not support full URLs as fullpath");
+
+    var info = LFS.parsePath( target_fullpath );
+    if( !info )
+    {
+        if(on_error)
+            on_error("Folder has invalid characters");
+        console.error("Folder has invalid characters: " + target_fullpath);
+        return;
+    }
+
+    return this.request( this.server_url,{ action: "files/moveFolder", fullpath: fullpath, target_fullpath: target_fullpath }, function(resp){
+
+        if(resp.status != 1)
+        {
+            if(on_error)
+                on_error(resp.msg);
+            return;
+        }
+
+        if(on_complete)
+            on_complete(resp.status, resp);
+    }, on_error );
+}
+
 Session.prototype.deleteFolder = function( fullpath, on_complete, on_error )
 {
     if(!fullpath)

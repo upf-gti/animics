@@ -1119,13 +1119,14 @@ class Editor {
         }
     }
 
-    uploadFileToServer(filename, data, type, callback = () => {}) {
+    uploadFileToServer(filename, data, folder, callback = () => {}) {
         const session = this.remoteFileSystem.session;
         const username = session.user.username;
-        const folder = "animics/"+ type;
+        //const folder = "animics/"+ type;
 
         // Check if the file already exists
-        session.getFileInfo(username + "/" + folder + "/" + filename, async (file) => {
+        // session.getFileInfo(username + "/" + folder + "/" + filename, async (file) => {
+        session.getFileInfo(folder + "/" + filename, async (file) => {
 
             if( file && file.size ) {
               

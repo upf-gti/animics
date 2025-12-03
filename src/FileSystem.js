@@ -136,7 +136,8 @@ class RemoteFileSystem {
 
             const session = this.session;
             const unit = session.user.username;
-            const path = unit + "/" + folder + "/" + filename;
+            // const path = unit + "/" + folder + "/" + filename;
+            const path = folder + "/" + filename;
 
             session.uploadFile( path, data, { "metadata": metadata }, 
                 (e) => {
@@ -290,6 +291,23 @@ class RemoteFileSystem {
         })
     }
 
+    // move folder or rename folder
+    async moveFolder( fullpath, new_path) {
+        if( !this.session ) {
+            return;
+        }
+        return new Promise((resolve, reject) => {
+            this.session.moveFolder( fullpath, new_path,
+                ( e ) => {
+                    resolve(true);
+                }, (err) => {
+                    console.error( err );
+                    resolve(false);
+                }
+            )
+         });
+    }
+
     async deleteFolder( fullpath ) {
         return new Promise( (resolve, reject) => {
             const session = this.session;
@@ -408,6 +426,7 @@ class RemoteFileSystem {
                             files[f].id = files[f].filename;
                             files[f].folder = folder.replace("animics/", "");
                             files[f].type = extension;
+                            files[f].children = [];
                             if(files[f].type == "txt")
                                 continue;
                             files_data.push(files[f]);

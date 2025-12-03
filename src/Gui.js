@@ -436,6 +436,7 @@ class Gui {
                     dialog.close() ;
                 }
                 else {
+                    folder = folder[0].fullpath;
                     if( callback ) {
                         let selectedAnimations = [];
                         availableTable.getSelectedRows().forEach((v)=>{ selectedAnimations.push(v[0]) });
@@ -444,7 +445,7 @@ class Gui {
                         if ( selectedAnimations.length == 0 ){
                             return;
                         }
-                        callback({selectedAnimations, format, folder: folder[0].id, from});
+                        callback({selectedAnimations, format, folder, from});
                     }
                     dialog.close() ;
                 }
@@ -4969,6 +4970,13 @@ class KeyframesGui extends Gui {
             p.attach( assetViewer );
             this.assetViewer = assetViewer;
             
+            assetViewer.onItemDragged = async ( node, value) => {
+                if( node.type == "folder" ) {
+                    const moved = await this.editor.remoteFileSystem.moveFolder(node.fullpath, value.fullpath+"/"+node.id);
+                    console.log(node.id, moved)
+                }
+            }
+            
             const loadingArea = p.loadingArea = this.createLoadingArea(p);
 
             if( !repository.length ) {
@@ -6894,9 +6902,19 @@ class ScriptGui extends Gui {
             
             const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: true, itemContextMenuOptions: [{
                 name: "Move",
-                callback: (v) => console.move(v),
+                callback: (v) => {
+                    //this.editor.remoteFileSystem.moveFolder()
+                },
 
             }]});
+            
+            assetViewer.onItemDragged = async ( node, value) => {
+                if( node.type == "folder" ) {
+                    const moved = await this.editor.remoteFileSystem.moveFolder(node.fullpath, value.fullpath+"/"+node.id);
+                    console.log(node.id, moved)
+                }
+            }
+
             p.attach( assetViewer );
             this.assetViewer = assetViewer;
             
