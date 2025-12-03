@@ -1,5 +1,6 @@
 "use strict";
 
+import {LX} from "lexgui"
 //ANIM by Eva Valls (2021) to define Agent Behaviors through the time
 //************************************
 //This file contains the code necessary to define BEHAVIORS (verbal and non-verbal) based on the extended BML
@@ -1410,6 +1411,130 @@ class BodyMovementClip extends BaseClip {
 
 ANIM.registerClipType( BodyMovementClip );
 
+// helper function to add a widget to add directions
+function makeDirectionsInput ( id, panel, targetArray, callback, options= {} ) {
+
+	const directions = options.directions ?? ( 0x01 | 0x02 | 0x04 ); // horizontal | vertical | depth
+
+	panel.sameLine();
+	let tags = panel.addTags( id, "", (v,e)=>{
+		if ( e instanceof KeyboardEvent ){
+			let srcLength = v.length;
+			let itemStart = v.pop()[0].toUpperCase();					
+			if ( directions & 0x01 ){
+				if ( itemStart == "L" ){ v.push("Left"); }
+				if ( itemStart == "R" ){ v.push("Right"); }
+			}
+			if ( directions & 0x02 ){
+				if ( itemStart == "U" ){ v.push("Up"); }
+				if ( itemStart == "D" ){ v.push("Down"); }
+			}
+			if ( directions & 0x04 ){
+				if ( itemStart == "I" ){ v.push("Inwards"); }
+				if ( itemStart == "O" ){ v.push("Outwards"); }
+			}
+			tags.generateTags( v );
+
+			// invalid tag that was not added. Nothing to update
+			if ( srcLength != v.length ){
+				return;
+			}
+		} 
+		targetArray.length = 0;
+		targetArray.splice( 0, 0, ...v );
+
+		if( callback ){
+			callback();
+		}
+
+	}, Object.assign( {skipDuplicates: false, width: "90%"}, options ) );
+	tags.generateTags( targetArray );
+
+	
+	panel.addButton( "DirectionsPopover", "", ( v, event ) => { 
+
+		const popoverArea = new LX.Area( { className: "", skipAppend: true } );
+		const popoverPanel = popoverArea.addPanel( );
+
+		const gridPopover = LX.makeContainer( [ "100%", "auto" ], "p-1 whitespace-pre-wrap", 
+			"", 
+			popoverPanel.root, 
+			{ display: "grid", gridTemplateColumns: "" } 
+		);
+
+		const makeButton = (name, tag) => {
+			let b = new LX.Button("", name, (v,e)=>{ 
+				targetArray.push(tag); 
+				tags.generateTags( targetArray );
+				
+				if( callback ){
+					callback();
+				}
+
+			}, { hideName: true, width: "100%", height:"100%" } );
+			b.root.style.padding = "1px";
+			gridPopover.appendChild(b.root);
+		}
+
+		// first row
+		if ( directions & 0x01 ){ makeButton( "L", "Left" ); gridPopover.style.gridTemplateColumns += " auto"; }
+		if ( directions & 0x02 ){ makeButton( "U", "Up" ); gridPopover.style.gridTemplateColumns += " auto"; }
+		if ( directions & 0x04 ){ makeButton( "I", "Inwards" ); gridPopover.style.gridTemplateColumns += " auto"; }
+
+		// second row
+		if ( directions & 0x01 ){ makeButton( "R", "Right" ); }
+		if ( directions & 0x02 ){ makeButton( "D", "Down" ); }
+		if ( directions & 0x04 ){ makeButton( "O", "Outwards" ); }
+
+		new LX.Popover( event.target, [ popoverArea ], { side: "bottom" } );
+	}, { icon: "Move", height: "100%", width: "10%", buttonClass: "", className: "self-center", hideName: true } );
+	panel.endLine();
+}
+
+/**
+ * Transforms strings of bml directions "ulr" to an Array of readable strings ["up", "left", "right"] 
+ * @param {string} str source string to parse of the style "ulr" meaning up left right 
+ * @param {integer} validDirections flags: 1 left-right, 2 up-down, 4 in-out 
+ * @param {array} targetArray where to put resulting strings 
+ * @returns 
+ */
+function strToDirection ( str, validDirections = 0x01 | 0x02 | 0x04, targetArray = [] ) {
+	for(let i = 0; i < str.length; i++) {
+		switch(	str[i].toLowerCase() ) {
+			case "l":
+				if( validDirections & 0x01 ){ targetArray.push( "Left" ); }
+				break;
+			case "r":
+				if( validDirections & 0x01 ){ targetArray.push( "Right" ); }
+				break;
+			case "u":
+				if( validDirections & 0x02 ){ targetArray.push( "Up" ); }
+				break;
+			case "d":
+				if( validDirections & 0x02 ){ targetArray.push( "Down" ); }
+				break;
+			case "i":
+				if( validDirections & 0x04 ){ targetArray.push( "Inwards" ); }
+				break;
+			case "o":
+				if( validDirections & 0x04 ){ targetArray.push( "Outwards" ); }
+				break;
+		}
+	}
+
+	return targetArray;
+}
+
+function directionsToStr( array ){
+	let str = "";
+	for(let i = 0; i < array.length; i++) {
+		str += array[i].toLowerCase()[0];
+	}
+	return str;
+}
+
+
+
 //ArmLocationClip
 class ArmLocationClip extends BaseClip {
 	static type = "gesture";
@@ -1449,7 +1574,7 @@ class ArmLocationClip extends BaseClip {
 			secondSide: "", // string
 		
 			distance: 0, // [0,1] how far from the body to locate the hand. 0 = close, 1 = arm extended
-			displace: "", // string, 26 directions. Location will be offseted into that direction
+			displace: [], // string, 26 directions. Location will be offseted into that direction
 			displaceDistance: 0.05, // number how far to move to the indicated side. Metres 
 			 
 			//Following attributes describe which part of the hand will try to reach the locationBodyArm location 
@@ -1508,31 +1633,10 @@ class ArmLocationClip extends BaseClip {
 			}
 		}
 		if(o.displace) {
-			this.properties.displace = "";
-			for(let i = 0; i < o.displace.length; i++) {
-				this.properties.displace += i > 0 ? " " : "";
-				let char = o.displace[i];
-				switch(char) {
-					case "u":
-						this.properties.displace += "Up";
-						break;
-					case "d":
-						this.properties.displace +=	"Down";
-						break;
-					case "l":
-						this.properties.displace += "Left";
-						break;
-					case "r":
-						this.properties.displace += "Right";
-						break;
-					case "i":
-						this.properties.displace += "In";
-						break;
-					case "o": 
-						this.properties.displace += "Out";
-					break;
-	
-				}
+			if ( Array.isArray( o.displace ) ){
+				this.properties.displace = o.displace.slice();
+			}else{
+				this.properties.displace = strToDirection( o.displace, 0x07 );
 			}
 		}
 		if(o.srcFinger) this.properties.srcFinger = ArmLocationClip.fingers[o.srcFinger];
@@ -1550,14 +1654,10 @@ class ArmLocationClip extends BaseClip {
 		}
 		for(let i in this.properties)
 		{
-			if( i == "side" || i == "secondSide") 
+			if( i == "side" || i == "secondSide" ) 
 				json[i] = ArmLocationClip.sides[this.properties[i]];
-			else if ( i == "displace" && this.properties[i] != "") {
-				let d = this.properties[i].split(" ");
-				json[i] = "";
-				for(let j = 0; j < d.length; j++) {
-					json[i] += d[j][0].toLowerCase();
-				}
+			else if ( i == "displace" ) {
+				json[i] = directionsToStr( this.properties[i] );
 			}
 			else if(i == "srcFinger") {
 				json[i] = ArmLocationClip.fingers.indexOf(this.properties[i])
@@ -1641,15 +1741,10 @@ class ArmLocationClip extends BaseClip {
 		}, {precision: 2, min: 0, max: 1, step: 0.01, title: "How far from the body to locate the hand. 0 = close, 1 = arm extended"});
 	
 		// Displacement property
-		panel.addSelect("Displace", ["", ...ArmLocationClip.directions], this.properties.displace, (v, e, name) => {
-		
-			this.properties.displace = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true, title: "Location will be offseted into that direction"});
-	
-		if(this.properties.displace) {
+		makeDirectionsInput( "Displace", panel, this.properties.displace, callback, { directions: 0x07, title: "Location will be offseted into that direction" }); // LRUDIO
+
+
+		if(this.properties.displace.length) {
 	
 			// Displace distance
 			panel.addNumber("Displace distance", this.properties.displaceDistance, (v, e, name) =>
@@ -1747,10 +1842,10 @@ class PalmOrientationClip extends BaseClip {
 	
 		this.properties = {
 			hand: "Right",
-			palmor: "Up", //string 8 directions. Relative to arm (not to world coordinates )
+			palmor: ["Up"], //string 8 directions. Relative to arm (not to world coordinates )
 		
 			// optionals
-			secondPalmor: "", // string 8 directions. Will compute midpoint between palmor and secondPalmor.
+			secondPalmor: [], // string 8 directions. Will compute midpoint between palmor and secondPalmor.
 			shift: false,
 			lrSym: null,
 			udSym: null,
@@ -1774,46 +1869,18 @@ class PalmOrientationClip extends BaseClip {
 		}
 	
 		if(o.palmor) {
-			this.properties.palmor = "";
-			for(let i = 0; i < o.palmor.length; i++) {
-				this.properties.palmor += i > 0 ? " " : "";
-				let char = o.palmor[i];
-				switch(char) {
-					case "u":
-						this.properties.palmor += "Up";
-						break;
-					case "d":
-						this.properties.palmor +=	"Down";
-						break;
-					case "l":
-						this.properties.palmor += "Left";
-						break;
-					case "r":
-						this.properties.palmor += "Right";
-						break;
-				}
+			if ( Array.isArray( o.palmor ) ){
+				this.properties.palmor = o.palmor.slice();
+			}else{
+				this.properties.palmor = strToDirection( o.palmor, 0x03 );
 			}
 		}
 	
 		if(o.secondPalmor) {
-			this.properties.secondPalmor = "";
-			for(let i = 0; i < o.secondPalmor.length; i++) {
-				this.properties.secondPalmor += i > 0 ? " " : "";
-				let char = o.secondPalmor[i];
-				switch(char) {
-					case "u":
-						this.properties.secondPalmor += "Up";
-						break;
-					case "d":
-						this.properties.secondPalmor +=	"Down";
-						break;
-					case "l":
-						this.properties.secondPalmor += "Left";
-						break;
-					case "r":
-						this.properties.secondPalmor += "Right";
-						break;
-				}
+			if ( Array.isArray( o.secondPalmor ) ){
+				this.properties.secondPalmor = o.secondPalmor.slice();
+			}else{
+				this.properties.secondPalmor = strToDirection( o.secondPalmor, 0x03 );
 			}
 		}
 	}
@@ -1830,14 +1897,8 @@ class PalmOrientationClip extends BaseClip {
 		}
 		for(var i in this.properties)
 		{
-			if ( (i == "palmor" || i == "secondPalmor") && this.properties[i] != "") {
-				let d = this.properties[i].split(" ");
-				json[i] = "";
-				for(let j = 0; j < d.length; j++) {
-					if(!d[j][0]) 
-							continue;
-					json[i] += d[j][0].toLowerCase();
-				}
+			if ( (i == "palmor" || i == "secondPalmor") ) {
+				json[i] = directionsToStr( this.properties[i] );
 			}
 			else 
 				json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
@@ -1853,14 +1914,8 @@ class PalmOrientationClip extends BaseClip {
 	
 		panel.addTextArea(null, "Roll of the wrist joint", null, {disabled: true});
 		// Direction property
-		panel.addSelect("Direction", PalmOrientationClip.directions, this.properties.palmor, (v, e, name) => {
+		makeDirectionsInput( "Direction", panel, this.properties.palmor, callback, { directions: 0x01 | 0x02, title: "Direction relative to arm (not to world coordinates)" }); // LRUD
 			
-			this.properties.palmor = v;
-			if(callback)
-				callback();
-			
-		}, {filter: true, title: "Direction relative to arm (not to world coordinates)"});
-	
 		// Hand property
 		panel.addSelect("Hand", PalmOrientationClip.hands, this.properties.hand, (v, e, name) => {
 					
@@ -1881,13 +1936,7 @@ class PalmOrientationClip extends BaseClip {
 		},{className: "contrast", label: ""});
 		
 		// Second direction side
-		panel.addSelect("Second direction", ["", ...PalmOrientationClip.directions], this.properties.secondPalmor, (v, e, name) => {
-			
-			this.properties.secondPalmor = v;
-			if(callback)
-				callback();
-			
-		}, {filter: true, title: "Will compute midpoint between direction and second direction"});
+		makeDirectionsInput( "Second direction", panel, this.properties.secondPalmor, callback, { directions: 0x01 | 0x02, title: "Will compute midpoint between direction and second direction" }); // LRUD
 	
 		panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
 		{
@@ -1939,10 +1988,10 @@ class HandOrientationClip extends BaseClip {
 	
 		this.properties = {
 			hand: "Right",
-			extfidir: "Left", // string  26 directions
+			extfidir: ["Left"], // string  26 directions
 		
 			// optionals
-			secondExtfidir: "", // string 26 directions. Will compute midpoint between extifidir and secondExtfidir  
+			secondExtfidir: [], // string 26 directions. Will compute midpoint between extifidir and secondExtfidir  
 			shift: false, // optional
 			lrSym: null,
 			udSym: null,
@@ -1965,58 +2014,18 @@ class HandOrientationClip extends BaseClip {
 		}
 	
 		if(o.extfidir) {
-			this.properties.extfidir = "";
-			for(let i = 0; i < o.extfidir.length; i++) {
-				let char = o.extfidir[i];
-				this.properties.extfidir += i > 0 ? " " : "";
-				switch(char) {
-					case "u":
-						this.properties.extfidir += "Up";
-						break;
-					case "d":
-						this.properties.extfidir +=	"Down";
-						break;
-					case "l":
-						this.properties.extfidir += "Left";
-						break;
-					case "r":
-						this.properties.extfidir += "Right";
-						break;
-					case "i":
-						this.properties.extfidir += "In";
-						break;
-					case "o":
-						this.properties.extfidir += "Out";
-						break;
-				}
+			if ( Array.isArray( o.extfidir ) ){
+				this.properties.extfidir = o.extfidir.slice();
+			}else{
+				this.properties.extfidir = strToDirection( o.extfidir, 0x07 ); // all directions
 			}
 		}
 	
 		if(o.secondExtfidir) {
-			this.properties.secondExtfidir = "";
-			for(let i = 0; i < o.secondExtfidir.length; i++) {
-				let char = o.secondExtfidir[i];
-				this.properties.secondExtfidir += i > 0 ? " " : "";
-				switch(char) {
-					case "u":
-						this.properties.secondExtfidir += "Up";
-						break;
-					case "d":
-						this.properties.secondExtfidir += "Down";
-						break;
-					case "l":
-						this.properties.secondExtfidir += "Left";
-						break;
-					case "r":
-						this.properties.secondExtfidir += "Right";
-						break;
-					case "i":
-						this.properties.secondExtfidir += "In";
-						break;
-					case "o":
-						this.properties.secondExtfidir += "Out";
-						break;
-				}
+			if ( Array.isArray( o.secondExtfidir ) ){
+				this.properties.secondExtfidir = o.secondExtfidir.slice();
+			}else{
+				this.properties.secondExtfidir = strToDirection( o.secondExtfidir, 0x07 ); // all directions
 			}
 		}
 	}
@@ -2035,14 +2044,8 @@ class HandOrientationClip extends BaseClip {
 		{
 			for(var i in this.properties)
 			{
-				if ( (i == "extfidir" || i == "secondExtfidir") && this.properties[i] != "") {
-					let d = this.properties[i].split(" ");
-					json[i] = "";
-					for(let j = 0; j < d.length; j++) {
-						if(!d[j][0]) 
-							continue;
-						json[i] += d[j][0].toLowerCase();
-					}
+				if ( i == "extfidir" || i == "secondExtfidir" ) {
+					json[i] = directionsToStr( this.properties[i] );
 				}
 				else 
 					json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
@@ -2058,13 +2061,7 @@ class HandOrientationClip extends BaseClip {
 	{
 		panel.addTextArea(null,"Yaw and pitch rotation of the wrist joint", null, {disabled: true});
 		// Direction property
-		panel.addSelect("Direction", HandOrientationClip.directions, this.properties.extfidir, (v, e, name) => {
-			
-			this.properties.extfidir = v;
-			if(callback)
-				callback();
-			
-		}, {filter: true, title: "Direction relative to arm (not to world coordinates)"});
+		makeDirectionsInput( "Direction", panel, this.properties.extfidir, callback, { directions: 0x01 | 0x02 | 0x04, title: "Direction relative to arm (not to world coordinates)" }); // LRUDIO
 	
 		// Hand property
 		panel.addSelect("Hand", HandOrientationClip.hands, this.properties.hand, (v, e, name) => {
@@ -2086,13 +2083,7 @@ class HandOrientationClip extends BaseClip {
 		},{className: "contrast", label: ""});
 		
 		// Second direction side
-		panel.addSelect("Second direction", ["", ...HandOrientationClip.directions], this.properties.secondExtfidir, (v, e, name) => {
-			
-			this.properties.secondExtfidir = v;
-			if(callback)
-				callback();
-			
-		}, {filter: true, title: "Will compute midpoint between direction and second direction"});
+		makeDirectionsInput( "Second direction", panel, this.properties.secondExtfidir, callback, { directions: 0x01 | 0x02 | 0x04, title: "Direction relative to arm (not to world coordinates)" }); // LRUDIO
 	
 		panel.addCheckbox("Left-Right symmetry", this.properties.lrSym, (v, e, name) =>
 		{
@@ -2580,7 +2571,7 @@ class HandConstellationClip extends BaseClip {
 	
 			// optionals
 			distance: 0, //[-ifinity,+ifninity] where 0 is touching and 1 is the arm size. Distance between endpoints. 
-			distanceDirection: "", // string, any combination of the main directions. If not provided, defaults to horizontal outwards direction ?!!!!!!!!!!!!!!!!! 26 DIRECTIONS?????
+			distanceDirection: [], // string, any combination of the main directions. If not provided, defaults to horizontal outwards direction ?!!!!!!!!!!!!!!!!! 26 DIRECTIONS?????
 			
 			keepUpdatingContact: false, // once peak is reached, the location will be updated only if this is true. 
 							// i.e.: set to false; contact tip of index; reach destination. Afterwards, changing index finger state will not modify the location
@@ -2651,31 +2642,10 @@ class HandConstellationClip extends BaseClip {
 			}
 		}
 		if(o.distanceDirection) {
-			this.properties.distanceDirection = "";
-			for(let i = 0; i < o.distanceDirection.length; i++) {
-				this.properties.distanceDirection += i > 0 ? " " : "";
-				let char = o.distanceDirection[i];
-				switch(char) {
-					case "u":
-						this.properties.distanceDirection += "Up";
-						break;
-					case "d":
-						this.properties.distanceDirection += "Down";
-						break;
-					case "l":
-						this.properties.distanceDirection += "Left";
-						break;
-					case "r":
-						this.properties.distanceDirection += "Right";
-						break;
-					case "i":
-						this.properties.distanceDirection += "In";
-						break;
-					case "o": 
-						this.properties.distanceDirection += "Out";
-					break;
-	
-				}
+			if ( Array.isArray( o.distanceDirection ) ){
+				this.properties.distanceDirection = o.distanceDirection.slice();
+			}else{
+				this.properties.distanceDirection = strToDirection( o.distanceDirection, 0x07 );
 			}
 		}
 	
@@ -2695,12 +2665,8 @@ class HandConstellationClip extends BaseClip {
 		}
 		for(let i in this.properties)
 		{
-			if ( i == "distanceDirection" && this.properties[i] != "") {
-				let d = this.properties[i].split(" ");
-				json[i] = "";
-				for(let j = 0; j < d.length; j++) {
-					json[i] += d[j][0].toLowerCase();
-				}
+			if ( i == "distanceDirection") {
+				json[i] = directionsToStr( this.properties[i] );
 			}
 			else if(i == "srcFinger" || i == "dstFinger") {
 				json[i] = HandConstellationClip.fingers.indexOf(this.properties[i])
@@ -2824,13 +2790,7 @@ class HandConstellationClip extends BaseClip {
 		}, {precision: 2, min: 0, max: 1, step: 0.01});
 	
 		// Displacement property
-		panel.addSelect("Distance direction", ArmLocationClip.directions, this.properties.distanceDirection, (v, e, name) => {
-		
-			this.properties.distanceDirection = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
+		makeDirectionsInput( "Distance direction", panel, this.properties.distanceDirection, callback, { directions: 0x07 }); // LRUDIO
 	
 	}
 }
@@ -2864,15 +2824,15 @@ class DirectedMotionClip extends BaseClip {
 		
 		this.properties = {
 			hand: "Right",
-			direction: "Out", // string 26 directions. Axis of rotation		
+			direction: ["Out"], // string 26 directions. Axis of rotation		
 			motion: "Directed",
 			// optionals
-			secondDirection: "", // string 8 directions. Will compute midpoint between direction and secondDirection.
+			secondDirection: [], // string 8 directions. Will compute midpoint between direction and secondDirection.
 			distance: 0.05, // number, metres of the displacement. Default 0.2 m (20 cm)
-			curve: "", // string 8 directions. Default to none
-			secondCurve: "", // string 8 directions. Will compute midpoint between curve and secondCurve.
+			curve: [], // string 8 directions. Default to none
+			secondCurve: [], // string 8 directions. Will compute midpoint between curve and secondCurve.
 			curveSize: 1, // number meaning the sharpness of the curve
-			zigzag: "", // string 26 directions
+			zigzag: [], // string 26 directions
 			zigzagSize: 0.05, // amplitude of zigzag (from highest to lowest point) in metres. Default 0.01 m (1 cm)
 			zigzagSpeed: 2, // oscillations per second. Default 2
 			lrSym: null,
@@ -2898,127 +2858,47 @@ class DirectedMotionClip extends BaseClip {
 		}
 	
 		if(o.direction) {
-			this.properties.direction = "";
-			for(let i = 0; i < o.direction.length; i++) {
-				this.properties.direction += i > 0 ? " " : "";
-				let char = o.direction[i];
-				switch(char) {
-					case "u":
-						this.properties.direction += "Up";
-						break;
-					case "d":
-						this.properties.direction += "Down";
-						break;
-					case "l":
-						this.properties.direction += "Left";
-						break;
-					case "r":
-						this.properties.direction += "Right";
-						break;
-					case "i":
-						this.properties.direction += "In";
-						break;
-					case "o": 
-						this.properties.direction += "Out";
-					break;
-	
-				}
+			if ( Array.isArray( o.direction ) ){
+				this.properties.direction = o.direction.slice();
+			}else{
+				this.properties.direction = strToDirection( o.direction, 0x07 );
 			}
 		}
 	
 		if(o.secondDirection) {
-			this.properties.secondDirection = "";
-			for(let i = 0; i < o.secondDirection.length; i++) {
-				this.properties.secondDirection += i > 0 ? " " : "";
-				let char = o.secondDirection[i];
-				switch(char) {
-					case "u":
-						this.properties.secondDirection += "Up";
-						break;
-					case "d":
-						this.properties.secondDirection += "Down";
-						break;
-					case "l":
-						this.properties.secondDirection += "Left";
-						break;
-					case "r":
-						this.properties.secondDirection += "Right";
-						break;
-				}
+			if ( Array.isArray( o.secondDirection ) ){
+				this.properties.secondDirection = o.secondDirection.slice();
+			}else{
+				this.properties.secondDirection = strToDirection( o.secondDirection, 0x07 );
 			}
 		}
 	
 		if(o.curve) {
-			this.properties.curve = "";
-			for(let i = 0; i < o.curve.length; i++) {
-				this.properties.curve += i > 0 ? " " : "";
-				let char = o.curve[i];
-				switch(char) {
-					case "u":
-						this.properties.curve += "Up";
-						break;
-					case "d":
-						this.properties.curve += "Down";
-						break;
-					case "l":
-						this.properties.curve += "Left";
-						break;
-					case "r":
-						this.properties.curve += "Right";
-						break;
-				}
+			if ( Array.isArray( o.curve ) ){
+				this.properties.curve = o.curve.slice();
+			}else{
+				this.properties.curve = strToDirection( o.curve, 0x07 );
 			}
 		}
 	
 		if(o.secondCurve) {
-			this.properties.secondCurve = "";
-			for(let i = 0; i < o.secondCurve.length; i++) {
-				this.properties.secondCurve += i > 0 ? " " : "";
-				let char = o.secondCurve[i];
-				switch(char) {
-					case "u":
-						this.properties.secondCurve += "Up";
-						break;
-					case "d":
-						this.properties.secondCurve += "Down";
-						break;
-					case "l":
-						this.properties.secondCurve += "Left";
-						break;
-					case "r":
-						this.properties.secondCurve += "Right";
-						break;
-				}
+			if ( Array.isArray( o.secondCurve ) ){
+				this.properties.secondCurve = o.secondCurve.slice();
+			}else{
+				this.properties.secondCurve = strToDirection( o.secondCurve, 0x07 );
 			}
 		}
 	
 		if(o.zigzag) {
-			this.properties.zigzag = "";
-			for(let i = 0; i < o.zigzag.length; i++) {
-				this.properties.zigzag += i > 0 ? " " : "";
-				let char = o.zigzag[i];
-				switch(char) {
-					case "u":
-						this.properties.zigzag += "Up";
-						break;
-					case "d":
-						this.properties.zigzag += "Down";
-						break;
-					case "l":
-						this.properties.zigzag += "Left";
-						break;
-					case "r":
-						this.properties.zigzag += "Right";
-						break;
-					case "i":
-						this.properties.zigzag += "In";
-						break;
-					case "o": 
-						this.properties.zigzag += "Out";
-					break;
-	
-				}
+			if ( Array.isArray( o.zigzag ) ){
+				this.properties.zigzag = o.zigzag.slice();
+			}else{
+				this.properties.zigzag = strToDirection( o.zigzag, 0x07 );
 			}
+		}
+		
+		if ( this.properties.zigzag.length ){
+			this.zigzag = true;
 		}
 	}
 	
@@ -3034,12 +2914,8 @@ class DirectedMotionClip extends BaseClip {
 		}
 		for(let i in this.properties)
 		{
-			if ( (i == "direction" || i == "secondDirection" || i == "zigzag") && this.properties[i] != "") {
-				let d = this.properties[i].split(" ");
-				json[i] = "";
-				for(let j = 0; j < d.length; j++) {
-					json[i] += d[j][0].toLowerCase();
-				}
+			if ( i == "direction" || i == "secondDirection" || i == "curve" || i == "secondCurve" || i == "zigzag" ) {
+				json[i] = directionsToStr( this.properties[i] );
 			}
 			else 
 				json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
@@ -3064,26 +2940,14 @@ class DirectedMotionClip extends BaseClip {
 		}, {filter: true});
 	
 		// Movement direction property
-		panel.addSelect("Direction", DirectedMotionClip.directions, this.properties.direction, (v, e, name) => {
-					
-			this.properties.direction = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
+		makeDirectionsInput( "Direction", panel, this.properties.direction, callback, { directions: 0x07 }); // LRUDIO
 	
 		panel.addSeparator();
 		
 		panel.addTitle( "Optionals");
 		
 		// Displacement property
-		panel.addSelect("Second direction", ["", ...DirectedMotionClip.directions], this.properties.secondDirection, (v, e, name) => {
-		
-			this.properties.secondDirection = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
+		makeDirectionsInput( "Second direction", panel, this.properties.secondDirection, callback, { directions: 0x07 }); // LRUDIO
 	
 		// Distance property 
 		panel.addNumber("Distance (m)", this.properties.distance, (v, e, name) =>
@@ -3093,21 +2957,9 @@ class DirectedMotionClip extends BaseClip {
 				callback();
 		}, {precision: 3, min: 0, step: 0.01, title: "Meters of the displacement"});
 	
-		panel.addSelect("Curve direction", ["", ...DirectedMotionClip.directions], this.properties.curve, (v, e, name) => {
+		makeDirectionsInput( "Curve direction", panel, this.properties.curve, callback, { directions: 0x07 }); // LRUDIO
 		
-			this.properties.curve = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
-	
-		panel.addSelect("Second curve direction", ["", ...DirectedMotionClip.directions], this.properties.secondCurve, (v, e, name) => {
-		
-			this.properties.secondCurve = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
+		makeDirectionsInput( "Second curve direction", panel, this.properties.secondCurve, callback, { directions: 0x07 }); // LRUDIO
 	
 		panel.addNumber("Curve amplitude (m)", this.properties.curveSize, (v, e, name) =>
 		{
@@ -3119,7 +2971,7 @@ class DirectedMotionClip extends BaseClip {
 		panel.addCheckbox("Apply zig-zag", this.zigzag, (v, e, name) =>
 		{
 			this.zigzag = v;
-			this.properties.zigzag = v ? this.properties.zigzag: ""; // string 26 directions
+			this.properties.zigzag = v ? this.properties.zigzag: []; // string 26 directions
 			this.properties.zigzagSize = v ? this.properties.zigzagSize: null; // amplitude of zigzag (from highest to lowest point) in metres. Default 0.01 m (1 cm)
 			this.properties.zigzagSpeed = v ? this.properties.zigzagSpeed : null;
 	
@@ -3129,13 +2981,7 @@ class DirectedMotionClip extends BaseClip {
 			className: "contrast", label: "",
 			suboptions: (p) =>{
 	
-				p.addSelect("Zig zag direction", ["", ...DirectedMotionClip.directions], this.properties.zigzag ?? "", (v, e, name) => {
-						
-					this.properties.zigzag = v;
-					if(callback)
-						callback(true);
-					
-				}, {filter: true});
+				makeDirectionsInput( "Zig zag direction", p, this.properties.zigzag, callback, { directions: 0x07 }); // LRUDIO
 		
 				p.addNumber("Zig zag amplitude", this.properties.zigzagSize ?? 0.01, (v, e, name) =>
 				{
@@ -3206,17 +3052,17 @@ class CircularMotionClip extends BaseClip {
 		
 		this.properties = {
 			hand: "Right",
-			direction: "Out", // string 26 directions. Axis of rotation
+			direction: ["Out"], // string 26 directions. Axis of rotation
 			motion:  "Circular",
 			
 			// optionals
-			secondDirection: "", // string 8 directions. Will compute midpoint between direction and secondDirection.
+			secondDirection: [], // string 8 directions. Will compute midpoint between direction and secondDirection.
 			distance: 0.05, // number, radius in metres of the circle. Default 0.05 m (5 cm)
 			startAngle: 0, // where in the circle to start. 0º indicates up. Indicated in degrees. Default to 0º. [-infinity, +infinity]
 			endAngle: 360, // where in the circle to finish. 0º indicates up. Indicated in degrees. Default to 360º. [-infinity, +infinity]
-			ellipseAxisDirection: "", // string, direction of the major axis of the ellipse if the direction were set as 'O' (out). 'I' and 'O' are ignored. If unspecified, defaults to 'L'. 
+			ellipseAxisDirection: [], // string, direction of the major axis of the ellipse if the direction were set as 'O' (out). 'I' and 'O' are ignored. If unspecified, defaults to 'L'. 
 			ellipseAxisRatio: 1, // number. Sets the ellipse axes ratio minor/major, where 1 is a circle with radius "distance". If unspecified, defaults to 1. 
-			zigzag: "", // string 26 directions
+			zigzag: [], // string 26 directions
 			zigzagSize: "", // amplitude of zigzag (from highest to lowest point) in metres. Default 0.01 m (1 cm)
 			zigzagSpeed: "", // oscillations per second. Default 2
 			lrSym: null,
@@ -3242,105 +3088,38 @@ class CircularMotionClip extends BaseClip {
 		}
 	
 		if(o.direction) {
-			this.properties.direction = "";
-			for(let i = 0; i < o.direction.length; i++) {
-				this.properties.direction += i > 0 ? " " : "";
-				let char = o.direction[i];
-				switch(char) {
-					case "u":
-						this.properties.direction += "Up";
-						break;
-					case "d":
-						this.properties.direction += "Down";
-						break;
-					case "l":
-						this.properties.direction += "Left";
-						break;
-					case "r":
-						this.properties.direction += "Right";
-						break;
-					case "i":
-						this.properties.direction += "In";
-						break;
-					case "o": 
-						this.properties.direction += "Out";
-					break;
-	
-				}
+			if ( Array.isArray( o.direction ) ){
+				this.properties.direction = o.direction.slice();
+			}else{
+				this.properties.direction = strToDirection( o.direction, 0x07 );
 			}
 		}
 		if(o.secondDirection) {
-			this.properties.secondDirection = "";
-			for(let i = 0; i < o.secondDirection.length; i++) {
-				this.properties.secondDirection += i > 0 ? " " : "";
-				let char = o.secondDirection[i];
-				switch(char) {
-					case "u":
-						this.properties.secondDirection += "Up";
-						break;
-					case "d":
-						this.properties.secondDirection += "Down";
-						break;
-					case "l":
-						this.properties.secondDirection += "Left";
-						break;
-					case "r":
-						this.properties.secondDirection += "Right";
-						break;
-				}
+			if ( Array.isArray( o.secondDirection ) ){
+				this.properties.secondDirection = o.secondDirection.slice();
+			}else{
+				this.properties.secondDirection = strToDirection( o.secondDirection, 0x07 );
 			}
 		}
 	
 		if(o.ellipseAxisDirection) {
-			this.properties.ellipseAxisDirection = "";
-			for(let i = 0; i < o.ellipseAxisDirection.length; i++) {
-				this.properties.ellipseAxisDirection += i > 0 ? " " : "";
-				let char = o.ellipseAxisDirection[i];
-				switch(char) {
-					case "u":
-						this.properties.ellipseAxisDirection += "Up";
-						break;
-					case "d":
-						this.properties.ellipseAxisDirection += "Down";
-						break;
-					case "l":
-						this.properties.ellipseAxisDirection += "Left";
-						break;
-					case "r":
-						this.properties.ellipseAxisDirection += "Right";
-						break;
-				}
+			if ( Array.isArray( o.ellipseAxisDirection ) ){
+				this.properties.ellipseAxisDirection = o.ellipseAxisDirection.slice();
+			}else{
+				this.properties.ellipseAxisDirection = strToDirection( o.ellipseAxisDirection, 0x07 );
 			}
 		}
 		
-	
 		if(o.zigzag) {
-			this.properties.zigzag = "";
-			for(let i = 0; i < o.zigzag.length; i++) {
-				this.properties.zigzag += i > 0 ? " " : "";
-				let char = o.zigzag[i];
-				switch(char) {
-					case "u":
-						this.properties.zigzag += "Up";
-						break;
-					case "d":
-						this.properties.zigzag += "Down";
-						break;
-					case "l":
-						this.properties.zigzag += "Left";
-						break;
-					case "r":
-						this.properties.zigzag += "Right";
-						break;
-					case "i":
-						this.properties.zigzag += "In";
-						break;
-					case "o": 
-						this.properties.zigzag += "Out";
-					break;
-	
-				}
+			if ( Array.isArray( o.zigzag ) ){
+				this.properties.zigzag = o.zigzag.slice();
+			}else{
+				this.properties.zigzag = strToDirection( o.zigzag, 0x07 );
 			}
+		}
+
+		if ( this.properties.zigzag.length ){
+			this.zigzag = true;
 		}
 	}
 	
@@ -3356,12 +3135,8 @@ class CircularMotionClip extends BaseClip {
 		}
 		for(let i in this.properties)
 		{
-			if ( (i == "direction" || i == "secondDirection" || i == "ellipseAxisDirection"  || i == "zigzag") && this.properties[i] != "") {
-				let d = this.properties[i].split(" ");
-				json[i] = "";
-				for(let j = 0; j < d.length; j++) {
-					json[i] += d[j][0].toLowerCase();
-				}
+			if ( i == "direction" || i == "secondDirection" || i == "ellipseAxisDirection"  || i == "zigzag" ) {
+				json[i] = directionsToStr( this.properties[i] );
 			}
 			else 
 				json[i] = typeof(this.properties[i]) == 'string' ? this.properties[i].replaceAll(" ", "_").toUpperCase() : this.properties[i];
@@ -3386,26 +3161,14 @@ class CircularMotionClip extends BaseClip {
 		}, {filter: true});
 	
 		// Movement direction property
-		panel.addSelect("Direction", CircularMotionClip.directions, this.properties.direction, (v, e, name) => {
-					
-			this.properties.direction = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
+		makeDirectionsInput( "Direction", panel, this.properties.direction, callback, { directions: 0x07 }); // LRUDIO
 	
 		panel.addSeparator();
 		
 		panel.addTitle( "Optionals");
 		
 		// Displacement property
-		panel.addSelect("Second direction", ["", ...CircularMotionClip.second_directions], this.properties.secondDirection, (v, e, name) => {
-		
-			this.properties.secondDirection = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true});
+		makeDirectionsInput( "Second direction", panel, this.properties.secondDirection, callback, { directions: 0x07 }); // LRUDIO
 	
 		// Distance property 
 		panel.addNumber("Radius of the circle (m)", this.properties.distance, (v, e, name) =>
@@ -3431,13 +3194,8 @@ class CircularMotionClip extends BaseClip {
 	
 		panel.addTextArea(null, "Define an ellipse motion", null, {disabled: true});
 	
-		panel.addSelect("Ellipse axis direction", [" ", ...CircularMotionClip.second_directions], this.properties.ellipseAxisDirection, (v, e, name) => {
-					
-			this.properties.ellipseAxisDirection = v;
-			if(callback)
-				callback(true);
-			
-		}, {filter: true, title: "Direction of the axis of the ellipse. Defines the plane orientation."});
+		makeDirectionsInput( "Ellipse axis direction", panel, this.properties.ellipseAxisDirection, callback, { directions: 0x07, title: "Direction of the axis of the ellipse. Defines the plane orientation." }); // LRUDIO
+
 	
 		panel.addNumber("Ellipse axis ratio", this.properties.ellipseAxisRatio, (v, e, name) =>
 		{
@@ -3449,7 +3207,7 @@ class CircularMotionClip extends BaseClip {
 		panel.addCheckbox("Apply zig-zag", this.zigzag, (v, e, name) =>
 		{
 			this.zigzag = v;
-			this.properties.zigzag = v ? this.properties.zigzag: ""; // string 26 directions
+			this.properties.zigzag = v ? this.properties.zigzag: []; // string 26 directions
 			this.properties.zigzagSize = v ? this.properties.zigzagSize: null; // amplitude of zigzag (from highest to lowest point) in metres. Default 0.01 m (1 cm)
 			this.properties.zigzagSpeed = v ? this.properties.zigzagSpeed : null;
 	
@@ -3458,22 +3216,16 @@ class CircularMotionClip extends BaseClip {
 		}, {
 			className: "contrast", label: "",
 			suboptions: (p) =>{
-				panel.addSelect("Zig zag direction", ["", ...CircularMotionClip.directions], this.properties.zigzag ?? "", (v, e, name) => {
-						
-					this.properties.zigzag = v;
-					if(callback)
-						callback(true);
-					
-				}, {filter: true});
+				makeDirectionsInput( "Zig zag direction", p, this.properties.zigzag, callback, { directions: 0x07, title: "Direction of the axis of the ellipse. Defines the plane orientation." }); // LRUDIO
 		
-				panel.addNumber("Zig zag amplitude (m)", this.properties.zigzagSize ?? 0.01, (v, e, name) =>
+				p.addNumber("Zig zag amplitude (m)", this.properties.zigzagSize ?? 0.01, (v, e, name) =>
 				{
 					this.properties.zigzagSize = v;
 					if(callback)
 						callback();
 				}, {precision: 2, min: 0, step: 0.01});
 		
-				panel.addNumber("Oscillations per second", this.properties.zigzagSpeed ?? 2, (v, e, name) =>
+				p.addNumber("Oscillations per second", this.properties.zigzagSpeed ?? 2, (v, e, name) =>
 				{
 					this.properties.zigzagSpeed = v;
 					if(callback)
@@ -4143,4 +3895,6 @@ global.RGB = RGB;
 global.HSL = HSL;
 
 
-})(this);
+})(window);
+
+export{}
