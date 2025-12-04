@@ -187,65 +187,66 @@ class Animics {
         return data;
     }
 
-    updateData(filename, data, type, location, callback) {
-        const extension = filename.split(".")[1];
-
-        if(location == "server") {
-            if(data.constructor.name == "Object") {
-                data = JSON.stringify(data, null, 4);
-            }
-    
-            this.uploadFile(filename, data, type, (v) => {
-                let refreshType = "Signs";
-                if(type == "presets") {
-                    refreshType = "Presets";
-                }
-                else if (type == "clips") {
-                    refreshType = ""
-                }
-                this["refresh" + refreshType + "Repository"] = true; 
-                if(callback) 
-                    callback(v);
-            });   
-            
-        }
-        else {
-            const id = filename.replace("." + extension, "");
-            this.localStorage[type].children.push({filename: id, id: id, folder: type, type: extension, data: data});
-            
-            if(callback)
-                callback(filename);
-        }
-    }
-
+    /**
+     * uploads file to the remote database
+     * Displays a menu to rename the file in case of an existing file
+     * @param {String} filename 
+     * @param {String or Object} data file data
+     * @param {String} type (folder) data type: "clips" (Keyframes Mode), "signs" (Script Mode), "presets" (Script Mode)
+     * @param {String} callback (renamedFilename, files of user). If user did no rename, "renamedFilename" has the same value as "filename"
+     */
     uploadFile(filename, data, type, callback = () => {}) {
         const session = this.remoteFileSystem.getSession();
         const username = session.user.username;
         const folder = "animics/"+ type;
 
-        session.getFileInfo(username + "/" + folder + "/" + filename, (file) => {
+        // Check if the file already exists
+        session.getFileInfo(username + "/" + folder + "/" + filename, async (file) => {
 
             if(file && file.size) {
-                // files = files.filter(e => e.unit === username && e.filename === filename);
 
-                // if(files.length)
-                // {
-                    LX.prompt("Do you want to overwrite the file?", "File already exists", () => {
-                        this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then( () => callback(filename));
-                    }, {input: false, on_cancel: () => {
-                        LX.prompt("Rename the file", "Save file", (v) => {
-                            if(v === "" || !v) {
-                                alert("You have to write a name.");
-                                return;
-                            }
-                            this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + v, new File([data], filename ), []).then( () => callback(v));
-                        }, {input: filename} )
-                    }} )
-                // }
-                
+                let overwriteDialog = new LX.Dialog( `Failed to upload "${filename}"`, overwritePanel=>{
+                    const text = LX.makeContainer( 
+                        ["100%", "auto"], "p-2 fg-primary", 
+                        `Another file <em><strong>${filename}</strong></em> exists in the database`, 
+                    overwritePanel.root );
+
+                    overwritePanel.sameLine(2);
+                    overwritePanel.addButton("overwrite", "Overwrite", async () => {
+                        const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                        callback(filename, files);
+                        overwriteDialog.close(); 
+                    }, {hideName: true, buttonClass: "error", width: "50%"} );
+                    overwritePanel.addButton("ok", "Rename", async () => {
+                        let extensionIdx = filename.lastIndexOf(".");
+                        if ( extensionIdx == -1 ){ 
+                            extensionIdx = filename.length;
+                        }
+                        let nameWithoutExtension = filename.slice( 0, extensionIdx );
+                        let extension = filename.slice( extensionIdx, filename.length );
+    
+                        let renameDialog = new LX.Dialog( `Rename file "${nameWithoutExtension}" before uploading`, p=>{
+                            p.addText("Rename", nameWithoutExtension, (v)=>{
+                                nameWithoutExtension = v;
+                            }, {hideName: true, width: "100%", skipReset:true } );
+    
+                            p.sameLine(2);
+                            p.addButton("cancel", "Omit", () => { renameDialog.close(); }, {hideName: true, buttonClass: "warning", width: "50%"} );
+                            p.addButton("ok", "Rename", async () => {
+                                if ( !nameWithoutExtension.length ){ return; }
+                                this.uploadFile(nameWithoutExtension + extension, data, type, callback);
+                                renameDialog.close(); 
+                            }, {hideName: true, buttonClass: "accent", width: "50%"} );
+                        }, { modal: true, size: ["33%", "fit-content"] });
+                        // end of renameDialog
+                        overwriteDialog.close(); 
+
+                    }, {hideName: true, buttonClass: "accent", width: "50%"} );
+                }, { modal: true, size: ["33%", "fit-content"]});      
             }
             else {
-                this.remoteFileSystem.uploadFile(username + "/" + folder + "/" + filename, new File([data], filename ), []).then(() => callback(filename));
+                const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                callback(filename, files);
             }
         },
         () => {

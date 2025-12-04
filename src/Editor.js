@@ -1074,7 +1074,7 @@ class Editor {
     }
 
     /**
-     * 
+     * Uploads a file either to the local or remote server, depending on "location"
      * @param {String} filename 
      * @param {String or Object} data file data
      * @param {String} type (folder) data type: "clips" (Keyframes Mode), "signs" (Script Mode), "presets" (Script Mode)
@@ -1089,13 +1089,13 @@ class Editor {
                 data = JSON.stringify(data, null, 4);
             }
     
-            this.uploadFileToServer(filename, data, type, (v) => {
+            this.ANIMICS.uploadFile(filename, data, type, (newFilename, files) => {
                 const unit = this.remoteFileSystem.session.user.username;
                 this.remoteFileSystem.repository.map( item => {
                     if(item.id == unit) {
                         for(let i = 0; i < item.children.length; i++) {
                             if( item.children[i].id == type ) {
-                                item.children[i].children = v;
+                                item.children[i].children = files;
                                 break;
                             }
                         }
@@ -1103,7 +1103,7 @@ class Editor {
                 })
                 
                 if( callback ) {
-                    callback(v);
+                    callback(newFilename, files);
                 }
             });   
             
