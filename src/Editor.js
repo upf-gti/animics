@@ -1231,7 +1231,7 @@ class Editor {
                 const files = this.export(info.selectedAnimations, "BVH extended", false);
                 const data = {type: "bvhe", data: files};
                 openPreview(data);
-            })            
+            });
         }        
     }
 
@@ -1636,7 +1636,7 @@ class KeyframeEditor extends Editor {
             let count = 1;
             let countName = name;
             while( characterBoundAnimations[countName] ){
-                countName = name + ` (${count++})`;
+                countName = name + `_${count++}`; // parenthesis are not accepted by litefilesystem
             }
             name = countName;
         }
@@ -1701,7 +1701,7 @@ class KeyframeEditor extends Editor {
             let count = 1;
             let countName = newName;
             while( characterBoundAnimations[countName] ){
-                countName = newName + ` (${count++})`;
+                countName = newName + `_${count++}`; // parenthesis are not accepted by litefilesystem
             }
             newName = countName;
         }else{
@@ -1856,7 +1856,7 @@ class KeyframeEditor extends Editor {
         let count = 1;
         let countName = data.name;
         while( this.loadedAnimations[countName] ){
-            countName = data.name + ` (${count++})`;
+            countName = data.name + `_${count++}`; // parenthesis are not accepted by litefilesystem
         }
         data.name = countName;
 
@@ -1965,7 +1965,7 @@ class KeyframeEditor extends Editor {
         let count = 1;
         let countName = name;
         while( this.loadedAnimations[countName] ){
-            countName = name + ` (${count++})`;
+            countName = name + `_${count++}`; // parenthesis are not accepted by litefilesystem
         }
         name = countName;
 
@@ -3788,7 +3788,7 @@ class ScriptEditor extends Editor {
             let count = 1;
             let countName = newName;
             while( characterBoundAnimations[countName] ){
-                countName = newName + ` (${count++})`;
+                countName = newName + `_${count++}`; // parenthesis are not accepted by litefilesystem
             }
             newName = countName;
         }else{
@@ -3921,7 +3921,7 @@ class ScriptEditor extends Editor {
         let count = 1;
         let countName = name;
         while ( this.loadedAnimations[countName] ){
-            countName = name + ` (${count++})`;
+            countName = name + `_${count++}`; // parenthesis are not accepted by litefilesystem
         }
         name = countName;
 

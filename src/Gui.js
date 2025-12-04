@@ -258,27 +258,16 @@ class Gui {
         } );  
     }
 
-    showExportAnimationsDialog(title, callback, options = { formats: [], folders: [], from: [] }) {
+    showExportAnimationsDialog(title, callback, options = { formats: [], folders: [] }) {
         options.modal = true;
 
         let value = "";
         let format = null;
         let folder = null;
-        let from = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
             
             const availableTable = this.createAvailableAnimationsTable( true );
             p.attach( availableTable );
-
-
-            if ( options.from && options.from.length ) {
-                from = from || options.selectedFrom || options.from[0];               
-                const buttons = [];
-                for(let i = 0; i < options.from.length; i++) {
-                    buttons.push({ value: options.from[i], selected: options.from[i] == from, callback: (v) => {from = v} });
-                }
-                p.addComboButtons("Save from", buttons, {});
-            }
 
             if( options.folders && options.folders.length ) {
                 folder = folder || options.selectedFolder || options.folders[0];
@@ -324,7 +313,7 @@ class Gui {
                             return;
                         }
 
-                        callback({selectedAnimations, format, folder, from});
+                        callback({selectedAnimations, format, folder});
                     }
                     dialog.close() ;
                 }
@@ -5140,12 +5129,7 @@ class ScriptGui extends Gui {
                 name: "New Animation",
                 icon: "Plus",
                 callback: () => {
-                    let count = 1;
-                    let countName = "new animation";
-                    while( this.editor.loadedAnimations[countName] ){
-                        countName = `new animation (${count++})`; 
-                    }
-                    this.editor.loadAnimation(countName, {});
+                    this.editor.loadAnimation("new animation", {});
                     this.updateAnimationPanel();
                 }
             },
@@ -5420,14 +5404,6 @@ class ScriptGui extends Gui {
                         callback: () => this.clipsTimeline.deleteSelectedContent()
                     }
                 );
-                actions.push(
-                    {
-                        title: "Create preset",
-                        callback: () => {
-                            this.createPresetSaveDialog( "presets" );
-                        }
-                    }
-                );
                 if(e.track && this.clipsTimeline.lastClipsSelected.length == 1 && e.track.trackIdx == this.clipsTimeline.lastClipsSelected[0][0]) {
                     let clip = e.track.clips[this.clipsTimeline.lastClipsSelected[0][1]];
                     if(clip.type == "glossa") {                        
@@ -5435,9 +5411,30 @@ class ScriptGui extends Gui {
                             {
                                 title: "Break down into actions",
                                 callback: () => {
+                                    
+                                    this.clipsTimeline.saveState( e.track.trackIdx, false );
+                                    
                                     this.clipsTimeline.deleteSelectedContent(true); // skip callback
                                     this.mode = ClipModes.Actions;
-                                    this.clipsTimeline.addClips(clip.clips, this.clipsTimeline.currentTime);
+                                    
+                                    if ( clip.clips.length ){
+                                        let superClipState = this.clipsTimeline.historyUndo.pop();
+                                        let clipsToAdd = this.clipsTimeline.cloneClips( clip.clips, clip.start ); // need to clone because of undo/redo
+                                        this.clipsTimeline.addClips(clipsToAdd, 0);
+                                        
+                                        // in case a clip writes in the same track as the superclip
+                                        let newState = this.clipsTimeline.historyUndo[ this.clipsTimeline.historyUndo.length -1 ];
+                                        let a = 0;
+                                        for( ; a < newState.length; ++a ){
+                                            if ( newState[a].trackIdx == superClipState[0].trackIdx ){
+                                                newState[a] = superClipState[0];
+                                                break;
+                                            }
+                                        }
+                                        if ( a >= newState.length ){ // superclip track was not overwriten. Add this track to saveState 
+                                            newState.push( superClipState[0] );
+                                        }
+                                    }
                                 }
                             }
                         );
@@ -5445,16 +5442,17 @@ class ScriptGui extends Gui {
                 }
                 actions.push(
                     {
+                        title: "Create preset",
+                        callback: () => {
+                            this.createSelectedClipsSaveDialog( "presets" );
+                        }
+                    }
+                );
+                actions.push(
+                    {
                         title: "Create sign",
                         callback: () => {
-                            
-                                this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                                    if(a[0]<b[0]) 
-                                        return -1;
-                                    return 1;
-                                });
-                                this.createSaveDialog();
-                                // this.createNewSignDialog(this.clipsTimeline.lastClipsSelected, "server");                            
+                            this.createSelectedClipsSaveDialog( "signs" );
                         }
                     }
                 );
@@ -5884,7 +5882,8 @@ class ScriptGui extends Gui {
             panel.clear();
             if(!clip) {
                 if(this.clipsTimeline.lastClipsSelected.length > 1) {
-                    panel.addButton(null, "Create preset", (v, e) => this.createPresetSaveDialog( "presets" ))//this.createSaveDialog( "presets" ))//this.createNewPresetDialog());
+                    panel.addButton(null, "Create preset", (v, e) => this.createSelectedClipsSaveDialog( "presets" ));
+                    panel.addButton(null, "Create sign", (v, e) => this.createSelectedClipsSaveDialog( "signs" ));
                 }
                 return;
             }
@@ -6189,59 +6188,12 @@ class ScriptGui extends Gui {
         return table;
     }
 
+    // save entire animation
     createSaveDialog( folder ) {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
             const saveDataToServer = ( location ) => {
-                const selectedClips = Array.from(this.clipsTimeline.lastClipsSelected);
                 let animations = this.editor.export(info.selectedAnimations, info.format, false);
-                if(info.from == "Selected clips") {
-                   selectedClips.sort((a,b) => {
-                        if( a[0]<b[0] ) {
-                            return -1;
-                        }
-                        return 1;
-                    });
-                    
-                    const presetData = { clips:[], duration:0 };
-
-                    let globalStart = 10000;
-                    let globalEnd = -10000;
-                    let clips = selectedClips;
-                    for( let i = 0; i < clips.length; i++ ) {
-                        const [trackIdx, clipIdx] = clips[i];
-                        const clipToCopy = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                        const type = clipToCopy.constructor.name;
-                        const clip = new ANIM[type](clipToCopy);
-                        if(clipToCopy.attackPeak!=undefined) clip.attackPeak = clipToCopy.fadein;
-                        if(clipToCopy.ready!=undefined) clip.ready = clip.fadein;
-                        if(clipToCopy.strokeStart!=undefined) clip.strokeStart = clipToCopy.fadein;
-                        if(clipToCopy.relax!=undefined) clip.relax = clipToCopy.fadeout;
-                        if(clipToCopy.strokeEnd!=undefined) clip.strokeEnd = clipToCopy.fadeout;
-                        presetData.clips.push(clip);
-                        globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
-                        globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
-                    }
-                    for( let i = 0; i < presetData.clips.length; i++ ) {
-                        
-                        const clip = presetData.clips[i];
-                        clip.start -= globalStart;
-            
-                        if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
-                        if(clip.ready!=undefined) clip.ready -= globalStart;
-                        if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
-                        if(clip.relax!=undefined) clip.relax -= globalStart;
-                        if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
-                    }
-                    presetData.duration = globalEnd - globalStart;
-                    presetData.preset = animations[0].name;
-                    const preset = new ANIM.FacePresetClip( presetData );
-    
-                    //Convert data to bml file format
-                    const data = preset.toJSON();
-                    presetData.data = data.clips;
-                    animations = [{name: animations[0].name, data: UTILS.dataToFile(JSON.stringify(presetData.data), animations[0].name, "application/json")}]
-                }
 
                 for( let i = 0; i < animations.length; i++ ) {                    
                     this.editor.uploadData(animations[i].name, animations[i].data, info.folder, location, () => {
@@ -6269,80 +6221,82 @@ class ScriptGui extends Gui {
         }, {formats: [ "BML"], folders:["signs",  "presets"], from: ["All clips", "Selected clips"], selectedFolder: folder, selectedFrom: (folder == "signs" ? "All clips" : null) } );
     }
 
-    createPresetSaveDialog( folder ) {
+    // save only selected clips. Clip timings will be made relative to the global start of the set
+    createSelectedClipsSaveDialog( folder ) {
 
-        let value = "";
+        let fileName = "";
         const saveDataToServer = ( location ) => {
-            this.clipsTimeline.lastClipsSelected.sort((a,b) => {
-                if( a[0]<b[0] ) {
-                    return -1;
-                }
-                return 1;
-            });
             
             const presetData = { clips:[], duration:0 };
 
             let globalStart = 10000;
             let globalEnd = -10000;
-            let clips = this.clipsTimeline.lastClipsSelected;
-            for( let i = 0; i < clips.length; i++ ) {
-                const [trackIdx, clipIdx] = clips[i];
-                const clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-                if(clip.attackPeak!=undefined) clip.attackPeak = clip.fadein;
-                if(clip.ready!=undefined) clip.ready = clip.fadein;
-                if(clip.strokeStart!=undefined) clip.strokeStart = clip.fadein;
-                if(clip.relax!=undefined) clip.relax = clip.fadeout;
-                if(clip.strokeEnd!=undefined) clip.strokeEnd = clip.fadeout;
-                presetData.clips.push( clip );
+            const selectedClips = this.clipsTimeline.lastClipsSelected;
+            let resultingClips = [];
+            for( let i = 0; i < selectedClips.length; i++ ) {
+                const [trackIdx, clipIdx] = selectedClips[i];
+                let clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+
+                if( clip.toJSON ) {
+                    clip = clip.toJSON();
+                }
+                if( clip ) {
+                    if( clip.type == "glossa") {
+                        const actions = [ "faceLexeme", "gaze", "head", "gesture", "speech" ];
+
+                        for( let a = 0; a < actions.length; ++a ){
+                            if( clip[ actions[a] ] ) {
+                                resultingClips = resultingClips.concat( clip[ actions[a] ] );
+                            }
+                        }
+                    }
+                    else {
+                        resultingClips.push( clip );
+                    }
+                }
 
                 globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
-                globalEnd = Math.max(globalEnd, clip.end || (clip.duration + clip.start) || globalEnd);
+                globalEnd = Math.max(globalEnd, clip.end ?? ((clip.duration + clip.start) ?? globalEnd));
             }
 
-            presetData.duration = globalEnd - globalStart;
-            presetData.preset = value;
-            const preset = new ANIM.FacePresetClip( presetData );
-
-            //Convert data to bml file format
-            const data = preset.toJSON();
-            
-            for( let i = 0; i < data.clips.length; i++ ) {
+            // make all clips relative to the global start time
+            for( let i = 0; i < resultingClips.length; i++ ) {
                     
-                const clip = data.clips[i];
+                const clip = resultingClips[i];
                 clip.start -= globalStart;
     
                 if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
                 if(clip.ready!=undefined) clip.ready -= globalStart;
                 if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
-                if(clip.relax!=undefined) clip.relax -= globalStart;
+                if(clip.stroke!=undefined) clip.stroke -= globalStart;
                 if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
+                if(clip.relax!=undefined) clip.relax -= globalStart;
                 if(clip.end!=undefined) clip.end -= globalStart;
             }
+          
 
-            const presetAnim = {name: value + ".bml", data: UTILS.dataToFile(JSON.stringify(data.clips), value, "application/json")};
+            const presetAnim = {
+                name: fileName + ".bml",
+                data: UTILS.dataToFile(JSON.stringify(resultingClips), fileName, "application/json")
+            };
         
             this.editor.uploadData(presetAnim.name, presetAnim.data, folder, location, () => {
                 this.closeDialogs();
-                LX.popup('"' + value + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                LX.popup('"' + fileName + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
             })
         }
             
-        const dialog = this.prompt = new LX.Dialog("Save preset", p => {
+        const dialog = this.prompt = new LX.Dialog("Save " + (folder == "presets" ? "preset" : "sign"), p => {
             
-            p.addText("Name", value, (v) => {
-                value = v;
+            p.addText("Name", fileName, (v) => {
+                fileName = v;
             });
-           
+
             p.sameLine(2);
-            p.addButton("exportCancel", "Cancel", () => { dialog.close();}, {hideName: true, width: "50%"} );
+            p.addButton("exportCancel", "Cancel", () => { dialog.close(); }, {hideName: true, width: "50%"} );
             p.addButton("exportOk", "OK", (v, e) => { 
                 e.stopPropagation();
-                if(value === '') {
-
-                    text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
-                    dialog.close() ;
-                }
-                else {
+                if(fileName.length) {
                     const session = this.editor.remoteFileSystem.session;
                     const user = session ? session.user : "";
                     if( !user || user.username == "guest" ) {

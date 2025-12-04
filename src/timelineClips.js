@@ -1024,7 +1024,7 @@ class HeadClip extends BaseClip {
 			end: this.start + this.duration,
 			ready: this.fadein,
 			strokeStart: this.strokeStart,
-			stroke : this.stroke ,
+			stroke : this.stroke,
 			strokeEnd: this.strokeEnd,
 			relax: this.fadeout,
 			type: this.type
