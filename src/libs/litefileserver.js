@@ -770,12 +770,12 @@ Session.prototype.getFoldersTree = function( unit, on_complete, on_error )
     });
 }
 
-Session.prototype.getFolders = function( unit, fullpath, on_complete, on_error )
+Session.prototype.getFolders = function( unit, folder_id, on_complete, on_error )
 {
     if(!unit)
         throw("no fullpath specified");
 
-    return this.request( this.server_url,{ action: "files/getFolders", unit: unit, fullpath: fullpath }, function(resp){
+    return this.request( this.server_url,{ action: "files/getFolders", unit: unit, folder_id: folder_id }, function(resp){
         if(resp.status != 1)
         {
             if(on_error)
@@ -917,12 +917,12 @@ Session.processFileList = function(list)
     }
 }
 
-Session.prototype.getFiles = function( unit, folder, on_complete, on_error )
+Session.prototype.getFilesInFolder = function( unit, folder_id, on_complete, on_error )
 {
     if(!unit)
         throw("no unit specified");
 
-    return this.request( this.server_url,{ action: "files/getFilesInFolder", unit: unit, folder: folder }, function(resp){
+    return this.request( this.server_url,{ action: "files/getFilesInFolder", unit: unit, folder_id: folder_id }, function(resp){
 
         if(resp.status < 1)
         {
@@ -931,7 +931,7 @@ Session.prototype.getFiles = function( unit, folder, on_complete, on_error )
             return;
         }
 
-        Session.processFileList( resp.data, unit + "/" + folder );
+        Session.processFileList( resp.data );
 
         if(on_complete)
             on_complete(resp.data, resp);
@@ -995,9 +995,9 @@ Session.prototype.checkFolderExist = function( fullpath, on_complete )
     });
 }
 
-Session.prototype.getFileInfo = function( fullpath, on_complete )
+Session.prototype.getFileInfo = function( id, on_complete )
 {
-    return this.request( this.server_url,{ action: "files/getFileInfo", fullpath: fullpath }, function(resp){
+    return this.request( this.server_url,{ action: "files/getFileInfo", id: id }, function(resp){
         if(on_complete)
             on_complete(resp.data, resp);
     });

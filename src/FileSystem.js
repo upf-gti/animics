@@ -227,12 +227,12 @@ class RemoteFileSystem {
          });
     }
 
-    async getFiles( unit, folder) {
+    async getFiles( unit, folder_id) {
         if( !this.session ) {
             return
         }
         return new Promise((resolve, reject) => {
-            this.session.getFiles( unit, folder, 
+            this.session.getFilesInFolder( unit, folder_id, 
                 ( files ) => {
                     resolve(files);
                 }, (err) => {
@@ -243,12 +243,12 @@ class RemoteFileSystem {
         });
     }
 
-    async getFileInfo( fullpath ) {
+    async getFileInfo( id ) {
         if( !this.session ) {
             return;
         }
         return new Promise((resolve, reject) => {
-            this.session.getFileInfo( fullpath, 
+            this.session.getFileInfo( id, 
                 ( info ) => {
                     resolve(info);
                 }, (err) => {
@@ -361,30 +361,33 @@ class RemoteFileSystem {
     }
 
     //Get folders from each user unit
-    async loadFolders(unit, folder, allowFolders) {
+    async loadFolders(unit, folder_id, allowFolders) {
         if( !this.session ) {
             return;
         }
         return new Promise( async (resolve, reject) => {
 
-            await this.session.getFolders(unit, folder, async ( folders ) =>  {
-
+            await this.session.getFolders(unit, folder_id, async ( folders ) =>  {
+                const data = [];
+                for(let i = 0; i < folders.length; i++) {
+                    data.push(this.parseAssetInfo(unit, folders[i], folders[i].folder, allowFolders));
+                }
                 console.log(folders)
-                const data = folders.length ? this.parseAssetInfo(unit, folders[0], folder, allowFolders) : [];
+                // const data = folders.length ? this.parseAssetInfo(unit.id, folders[0], folders[0].folder, allowFolders) : [];
                 resolve( data );
             })
         })
     }
 
-    async loadAssets( unit, folder, allowFolders = [] ) {
+    async loadAssets( unit, folder_id, allowFolders = [] ) {
     
         const session = this.session;
-        if( !session || !folder ) {
+        if( !session || folder_id == null ) {
             return;
         }
         return new Promise( (resolve, reject) => {
 
-            session.getFilesByPath( folder,
+            session.getFilesInFolder( unit, folder_id,
                 (files) => {
                     const files_data = [];
                     if( files ) {                                        
@@ -392,7 +395,7 @@ class RemoteFileSystem {
                             let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
                             files[f].asset_id = files[f].id;
                             files[f].id = files[f].filename;
-                            files[f].folder = folder.replace("animics/", "");
+                            files[f].folder = files[f].folder;
                             files[f].type = extension;
                             files[f].children = [];
                             if(files[f].type == "txt")
@@ -430,7 +433,7 @@ class RemoteFileSystem {
                 if( folders.length ) {
                     folders = folders.filter( ( folder ) => folder.folder == "animics");
                     if ( folders.length ) {
-                        data.children.push(this.parseAssetInfo(unit, folders[0], unitName, allowFolders));
+                        data.children.push(this.parseAssetInfo(unit.id, folders[0], unitName, allowFolders));
                     }
                 }
                 
@@ -450,15 +453,15 @@ class RemoteFileSystem {
         }
     }
 
-    async loadFoldersAndFiles(unit, folder, allowFolders) {
+    async loadFoldersAndFiles(unit, folder_id, folder, allowFolders) {
 
         if( !this.session ) {
             return;
         }
 
         return new Promise( async (resolve, reject) => {
-            const files = await this.loadAssets(unit, folder, allowFolders);
-            const folders = await this.loadFolders(unit, folder, allowFolders);
+            const files = await this.loadAssets(unit, folder_id, allowFolders);
+            const folders = await this.loadFolders(unit, folder_id, allowFolders);
             const data = [...folders, ...files];
             resolve(data);            
         })
@@ -500,10 +503,11 @@ class RemoteFileSystem {
         data.type = type;
         data.id = name;
         data.asset_id = asset.id;
-        data.fullpath += "/"+name;
+        data.fullpath = unit + "/" + asset.fullpath;
         
         return data;
     }
+
     deleteFile( fullpath ) {
         const session = this.session;
         if( !session ) {

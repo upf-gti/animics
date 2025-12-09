@@ -5100,7 +5100,7 @@ class KeyframesGui extends Gui {
                     if( e.item.unit && e.item.unit != e.item.id ) { 
 
                         assetViewer.parent.loadingArea.show();
-                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.fullpath);
+                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.fullpath);
                         if( assets.length ) {
                             // for( let i = 0; i < assets.length; i++ ) {
                             //     const asset = assets[i];
@@ -6961,7 +6961,7 @@ class ScriptGui extends Gui {
                     }
                     
                     if( !e.item.lastModified ) {
-                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.fullpath);
+                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.asset_id);
                         if( !info ) {
                             return;
                         }
@@ -7070,7 +7070,7 @@ class ScriptGui extends Gui {
                     if( e.item.unit && e.item.unit != e.item.id ) { 
 
                         assetViewer.parent.loadingArea.show();
-                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.fullpath);
+                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.fullpath);
                         if( assets.length ) {
                             // for( let i = 0; i < assets.length; i++ ) {
                             //     const asset = assets[i];
