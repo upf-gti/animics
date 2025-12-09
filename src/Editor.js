@@ -442,27 +442,15 @@ class Editor {
             this.scene.remove(this.currentCharacter.skeletonHelper);
         }
 
+        const previousCharacter = this.currentCharacter;
         // Add current character to the scene
         this.currentCharacter = this.loadedCharacters[characterName];
         this.scene.add( this.currentCharacter.model );
         this.scene.add( this.currentCharacter.skeletonHelper );
         this.setPlaybackRate(this.playbackRate);
 
-        // Gizmo stuff
-        if(this.gizmo) {
-            this.gizmo.begin(this.currentCharacter.skeletonHelper);            
-            this.setBoneSize(0.12);
-        }
-  
-        for(let anim in this.loadedAnimations) {
-            if(!this.boundAnimations[characterName][anim]) {
-                this.setGlobalAnimation(anim); // create animation to avatar
-            }
-        }
-
-        this.setGlobalAnimation(this.currentAnimation); 
-        
-        this.gui.createSidePanel( this.panelTabs ? this.panelTabs.selected : null );
+        this.onChangeCharacter(previousCharacter);
+       
         UTILS.hideLoading();
     }
 
@@ -978,6 +966,7 @@ class Editor {
         this.gui.resize(width, height);
     }
     
+    // exports animations only for the current character
     export(animsToExport = null, type = null, download = true, name = null) {
         let files = [];
         if(!animsToExport) {
@@ -993,9 +982,21 @@ class Editor {
 
                 for(let a in animsToExport) {
                     const animationName = animsToExport[a];
-                    const boundAnim = this.boundAnimations[this.currentCharacter.name][animationName];
-                    if ( !boundAnim ){
-                        continue;
+                    let boundAnim = this.boundAnimations[this.currentCharacter.name][animationName];
+                    if ( this.isScriptMode() ){ // in script mode, avatars use the bml from loadedAnimations. All avatars know about all animations
+                        const realCurrentAnimation = this.currentAnimation;
+                        this.currentAnimation = animationName; // hack
+                        if ( !boundAnim ){
+                            this.bindAnimationToCharacter( animationName, false );
+                            boundAnim = this.boundAnimations[this.currentCharacter.name][animationName];
+                        }else{
+                            this.updateMixerAnimation( this.loadedAnimations[animationName].scriptAnimation );
+                        }
+                        this.currentAnimation = realCurrentAnimation; // end of hack
+                    }else{ // in keyframe mode, each avatar has its own animations
+                        if ( !boundAnim ){
+                            continue;
+                        }
                     }
                     
                     let tracks = []; 
@@ -1021,14 +1022,25 @@ class Editor {
                 let skeleton = this.currentCharacter.skeletonHelper.skeleton;
                 const fileType = "text/plain";
 
-                for( let a in animsToExport ) { // can be an array of loadedAnimations, or an object with animations (loadedAnimations itself)
+                for( let a in animsToExport ) { // can be an array of loadedAnimations, or an object with animations
                     const animationName = animsToExport[a];
-                    const boundAnim = this.boundAnimations[this.currentCharacter.name][animationName];
-                    if ( !boundAnim ){
-                        continue;
+                    let boundAnim = this.boundAnimations[this.currentCharacter.name][animationName];
+                    if ( this.isScriptMode() ){ // in script mode, avatars use the bml from loadedAnimations. All avatars know about all animations
+                        const realCurrentAnimation = this.currentAnimation;
+                        this.currentAnimation = animationName; // hack
+                        if ( !boundAnim ){
+                            this.bindAnimationToCharacter( animationName, false );
+                            boundAnim = this.boundAnimations[this.currentCharacter.name][animationName];
+                        }else{
+                            this.updateMixerAnimation( this.loadedAnimations[animationName].scriptAnimation );
+                        }
+                        this.currentAnimation = realCurrentAnimation; // end of hack
+                    }else{ // in keyframe mode, each avatar has its own animations
+                        if ( !boundAnim ){
+                            continue;
+                        }
                     }
 
-                    // Check if it already has extension
                     let clipName = animationName;
 
                     let bvh = "";
@@ -1070,7 +1082,6 @@ class Editor {
                     }
                 }
                 break;
-    
         }
         // bvhexport sets avatar to bindpose. Avoid user seeing this
         this.setGlobalAnimation(this.currentAnimation);
@@ -1506,27 +1517,8 @@ class KeyframeEditor extends Editor {
         });
     }
 
-    async changeCharacter(characterName) {
-        // Check if the character is already loaded
-        if( !this.loadedCharacters[characterName] ) {
-            console.warn(characterName + " not loaded");
-            const modelToLoad = this.characterOptions[characterName];
-            await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], characterName);
-            return;
-        }
-
-        // Remove current character from the scene
-        if(this.currentCharacter) {
-            this.scene.remove(this.currentCharacter.model);
-            this.scene.remove(this.currentCharacter.skeletonHelper);
-        }
-
-        // Add current character to the scene
-        this.currentCharacter = this.loadedCharacters[characterName];
-        this.scene.add( this.currentCharacter.model );
-        this.scene.add( this.currentCharacter.skeletonHelper );
-        this.setPlaybackRate(this.playbackRate);
-
+    // called from changeCharacter
+    onChangeCharacter( previousCharacter ){
         // Gizmo stuff
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);
@@ -1534,9 +1526,9 @@ class KeyframeEditor extends Editor {
         }
 
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
-        
+
         let avatarFirstBoundAnimation = null;
-        for(let anim in this.boundAnimations[characterName]) {
+        for(let anim in this.boundAnimations[this.currentCharacter.name]) {
             avatarFirstBoundAnimation = anim;
             break;
         }
@@ -1546,15 +1538,13 @@ class KeyframeEditor extends Editor {
             this.createGlobalAnimation( "New Animation" );
             this.setGlobalAnimation( "New Animation" );
         }else{
-            if(this.boundAnimations[characterName][this.currentAnimation]) {                
+            if(this.boundAnimations[this.currentCharacter.name][this.currentAnimation]) {                
                 this.setGlobalAnimation( this.currentAnimation );
             }else{
                 this.setGlobalAnimation( avatarFirstBoundAnimation );
             }
         }
         this.gui.createSidePanel( tab );
-
-        UTILS.hideLoading();
     }
 
     retargetGlobalAnimationFromAvatar( animationName, avatarName, options = {} ){
@@ -3753,6 +3743,15 @@ class ScriptEditor extends Editor {
         await this.loadCharacter(modelToLoad[0], modelToLoad[1], modelToLoad[2], modelToLoad[3]);
     }
 
+    // called from changeCharacter
+    onChangeCharacter( previousCharacter ){
+        const tab = this.gui.panelTabs ? this.gui.panelTabs.selected : null;
+  
+        this.setGlobalAnimation( this.currentAnimation ); 
+        
+        this.gui.createSidePanel( tab );
+    }
+
     setGlobalAnimation( name ){
 
         if( !this.loadedAnimations[name] ){
@@ -3804,6 +3803,9 @@ class ScriptEditor extends Editor {
         // change for all avatars
         for( let charactername in this.boundAnimations ){
             const bound = this.boundAnimations[charactername][currentName];
+
+            if ( !bound ){ continue; }
+
             delete this.boundAnimations[charactername][currentName];
             this.boundAnimations[charactername][newName] = bound; 
             bound.id = newName;
@@ -3871,28 +3873,28 @@ class ScriptEditor extends Editor {
                         }
                         else {
                             UTILS.hideLoading()
-                            this.gui.prompt = new LX.Dialog("Import animation" , ( panel ) => {
+                            let prompt = new LX.Dialog("Import animation" , ( panel ) => {
                                 panel.addTextArea("", "There is already an animation. What do you want to do?", null, {hideName: true, disabled: true, resize: false, fitHeight: true, className: "nobg"});
                                 panel.sameLine(3);
-                                panel.addButton(null, "New animation", () => { 
+                                panel.addButton(null, "New animation", () => {
                                     this.loadAnimation( file.name, animation );
-                                    this.gui.prompt.close();
+                                    prompt.close();
                                     resolve(file.animation);
                                     UTILS.hideLoading();
                                 }, { buttonClass: "accent", width: "33%" });
 
                                 panel.addButton(null, "Concatenate", () => { 
-                                    this.gui.loadBMLClip( animation );
+                                    this.gui.loadBMLClip( animation, this.gui.clipsTimeline.currentTime );
                                     this.updateMixerAnimation( this.loadedAnimations[this.currentAnimation].scriptAnimation );
                                     this.setTime(this.currentTime); // force a mixer.update
-                                    this.gui.prompt.close();
+                                    prompt.close();
                                     resolve(file.animation);
                                     UTILS.hideLoading();
 
                                 }, { buttonClass: "accent", width: "33%" });
 
                                 panel.addButton(null, "Cancel", () => { 
-                                    this.gui.prompt.close();
+                                    prompt.close();
                                     resolve();
                                     UTILS.hideLoading();
                                 }, { width: "33%" });
@@ -3949,7 +3951,7 @@ class ScriptEditor extends Editor {
      * ScriptEditor: fetches a loaded animation and applies it to the character. The first time an animation is bound, it is processed and saved. Afterwards, this functino just changes between existing animations 
      * @param {String} animationName 
     */    
-    bindAnimationToCharacter( animationName ) {
+    bindAnimationToCharacter( animationName, updateGUI = true ) {
         
         const animation = this.loadedAnimations[animationName];
         if( !animation ) {
@@ -3966,7 +3968,11 @@ class ScriptEditor extends Editor {
         };
     
         this.updateMixerAnimation( animation.scriptAnimation );
-        this.gui.updateAnimationPanel();
+
+        if ( updateGUI ){
+            this.gui.updateAnimationPanel();
+        }
+
         return true;
     }
 

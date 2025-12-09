@@ -5698,9 +5698,9 @@ class ScriptGui extends Gui {
         return {clips: clips, duration: duration};
     }
 
-    loadBMLClip(clip, mode = ClipModes.Actions) {         
+    loadBMLClip(clip, timeOffset = 0, mode = ClipModes.Actions) {         
         let {clips, duration} = this.dataToBMLClips(clip, mode);
-        this.clipsTimeline.addClips(clips, this.clipsTimeline.currentTime);
+        this.clipsTimeline.addClips(clips, timeOffset);
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
@@ -6517,7 +6517,7 @@ class ScriptGui extends Gui {
                 asset.animation.name = asset.id;
 
                 dialog.panel.loadingArea.show();
-                this.loadBMLClip(asset.animation, insertMode);
+                this.loadBMLClip(asset.animation, this.clipsTimeline.currentTime, insertMode);
                 dialog.panel.loadingArea.hide();
     
                 assetViewer.clear();

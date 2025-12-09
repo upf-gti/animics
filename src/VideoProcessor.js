@@ -270,7 +270,7 @@ class VideoProcessor {
             this.canvasVideo.classList.add("hidden");
         }
 
-        this.videoEditor.resizeCropArea( this.videoEditor.cropArea.normCoords.w, this.videoEditor.cropArea.normCoords.w, true ); // update hidden elements crop area 
+        this.videoEditor.resizeCropArea( this.videoEditor.cropArea.normCoords.w, this.videoEditor.cropArea.normCoords.h, true ); // update hidden elements crop area 
     }
 
     /**
@@ -434,7 +434,7 @@ class VideoProcessor {
             if( !animation ) {
                 return null;
             }
-            const cropRectCoords = this.videoEditor.getCroppedArea().normCoords; 
+            const cropRectCoords = this.videoEditor.cropArea.normCoords; 
            
             animation.rect = {
                 left: cropRectCoords.x, 
@@ -545,7 +545,7 @@ class VideoProcessor {
         this.mediapipe.setOptions( { autoDraw: true } );
 
         const promise = new Promise( resolve => {
-            let cropRectCoords = this.videoEditor.getCroppedArea().normCoords;
+            let cropRectCoords = this.videoEditor.cropArea.normCoords;
 
             const rect = {x: cropRectCoords.x, y: cropRectCoords.y, width: cropRectCoords.w, height: cropRectCoords.h};
 
@@ -614,7 +614,7 @@ class VideoProcessor {
                 if( !animation ) {
                     return null;
                 }
-                const cropRectNormCoords = this.videoEditor.getCroppedArea().normCoords;
+                const cropRectNormCoords = this.videoEditor.cropArea.normCoords;
             
                 animation.rect = {
                     left: cropRectNormCoords.x,
