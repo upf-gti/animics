@@ -5114,7 +5114,6 @@ class ScriptGui extends Gui {
         
         super(editor);
         
-        this.mode = ClipModes.Actions;
         this.delayedUpdateID = null; // onMoveContent and onUpdateTracks. Avoid updating after every single change, which makes the app unresponsive
         this.delayedUpdateTime = 500; //ms
     }
@@ -5129,7 +5128,7 @@ class ScriptGui extends Gui {
                 name: "New Animation",
                 icon: "Plus",
                 callback: () => {
-                    this.editor.loadAnimation("new animation", {});
+                    this.editor.loadAnimation("new animation", null);
                     this.updateAnimationPanel();
                 }
             },
@@ -5415,7 +5414,6 @@ class ScriptGui extends Gui {
                                     this.clipsTimeline.saveState( e.track.trackIdx, false );
                                     
                                     this.clipsTimeline.deleteSelectedContent(true); // skip callback
-                                    this.mode = ClipModes.Actions;
                                     
                                     if ( clip.clips.length ){
                                         let superClipState = this.clipsTimeline.historyUndo.pop();
@@ -5700,8 +5698,8 @@ class ScriptGui extends Gui {
         return {clips: clips, duration: duration};
     }
 
-    loadBMLClip(clip) {         
-        let {clips, duration} = this.dataToBMLClips(clip, this.mode);
+    loadBMLClip(clip, mode = ClipModes.Actions) {         
+        let {clips, duration} = this.dataToBMLClips(clip, mode);
         this.clipsTimeline.addClips(clips, this.clipsTimeline.currentTime);
     }
 
@@ -6505,22 +6503,21 @@ class ScriptGui extends Gui {
                 if(choice) {
                     choice.remove();
                 }
+
+                let insertMode = ClipModes.Actions;
                 switch(button) {
                     case "Add as single clip":
-                        this.mode = ClipModes.Phrase;
+                        insertMode = ClipModes.Phrase;
                         break;
                     case "Breakdown into glosses":
-                        this.mode = ClipModes.Glosses;
-                        break;
-                    case "Breakdown into action clips":
-                        this.mode = ClipModes.Actions;
+                        insertMode = ClipModes.Glosses;
                         break;
                 }
                 this.clipsTimeline.deselectAllClips();
                 asset.animation.name = asset.id;
 
                 dialog.panel.loadingArea.show();
-                this.loadBMLClip(asset.animation)
+                this.loadBMLClip(asset.animation, insertMode);
                 dialog.panel.loadingArea.hide();
     
                 assetViewer.clear();
@@ -6771,19 +6768,16 @@ class ScriptGui extends Gui {
                             p.sameLine(3);
                             p.addButton(null, "Add as single clip", (v) => {
                                 dialog.close();
-                                this.mode = ClipModes.Phrase;
                                 this.closeDialogs();
                                 onSelectFile(e.item, v);
                             }, {width: "33%"});
                             p.addButton(null, "Breakdown into glosses", (v) => {
                                 dialog.close();
-                                this.mode = ClipModes.Glosses;
                                 this.closeDialogs();
                                 onSelectFile(e.item, v);
                             }, {width: "33%"});
                             p.addButton(null, "Breakdown into action clips", (v) => {
                                 dialog.close();
-                                this.mode = ClipModes.Actions;
                                 this.closeDialogs();
                                 onSelectFile(e.item, v);
                             }, {width: "33%"});

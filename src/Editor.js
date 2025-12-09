@@ -680,12 +680,16 @@ class Editor {
                     }
                 }
                 else if( type.includes( "bml" ) ) {
-                    data.animation = JSON.parse( content );
-                    if( Array.isArray(data.animation) ) {
-                        data.animation = { behaviours: data.animation };
-                    }
-                    else if( Array.isArray(data.animation.data) ) {
-                        data.animation.behaviours = data.animation.data;
+                    try {
+                        data.animation = JSON.parse( content ); 
+                        if( Array.isArray(data.animation) ) {
+                            data.animation = { behaviours: data.animation };
+                        }
+                        else if( Array.isArray(data.animation.data) ) {
+                            data.animation.behaviours = data.animation.data;
+                        }
+                    } catch (error) {
+                        data.animation = { behaviours: [] };
                     }
                 }
                 else {
@@ -3927,7 +3931,9 @@ class ScriptEditor extends Editor {
 
         // implicit setglobalAnimation
         const animationClip = this.gui.clipsTimeline.setAnimationClip({id: name}, true); //generate empty animation 
-        this.gui.loadBMLClip(animationData); // process bml and add clips
+        if ( animationData ){
+            this.gui.loadBMLClip(animationData); // process bml and add clips
+        }
 
         this.loadedAnimations[name] = {
             name: name,

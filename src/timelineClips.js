@@ -162,14 +162,20 @@ class BaseClip {
 		}
 
 		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset); // fadeout is from LX.Timeline
+		
+		// parse valid properties from input
 		if(o.properties)
 		{
-			Object.assign(this.properties, o.properties);
+			for(let validProperty in this.properties){
+				if(o[validProperty] != undefined){
+					this.properties[validProperty] = o[validProperty];
+				}
+			}
 		}
 		
-		for(let property in this.properties) {
-			if(o[property] != undefined){
-				this.properties[property] = o[property];
+		for(let validProperty in this.properties) {
+			if(o[validProperty] != undefined){
+				this.properties[validProperty] = o[validProperty];
 			}
 		}
 
@@ -210,9 +216,10 @@ class FaceLexemeClip extends BaseClip {
 		this.attackPeak = this.fadein = 0.25;
 		this.relax = this.fadeout = 0.75;
 		
-		this.properties = {};
-		this.properties.amount = 0.8;
-		this.properties.lexeme = lexeme;
+		this.properties = {
+			amount: 0.8,
+			lexeme: lexeme
+		};
 		/*permanent : false,*/
 		
 		this.font = "11px Calibri";
@@ -334,19 +341,6 @@ class FaceFACSClip extends BaseClip {
 		return json;
 	}
 
-	fromJSON( json )
-	{
-		this.id = json.id;
-		this.properties.amount = json.amount;
-		this.start = json.start;
-		this.properties.attackPeak = json.attackPeak;
-		this.properties.relax = json.relax;
-		this.duration = json.duration;
-		this.properties.au = json.au;
-		/*this.properties.permanent = json.permanent;*/
-		this.properties.side = json.side;
-	}
-
 	showInfo( panel )
 	{
 		for(var i in this.properties)
@@ -380,11 +374,6 @@ class FaceFACSClip extends BaseClip {
 						else{
 							panel.addNumber(i, property, {callback: function(i,v)
 							{
-								if(i == "start"){
-									var dt = v - this.properties[i];
-									this.properties.attackPeak += dt;
-									this.properties.relax += dt;
-								}
 								this.properties[i] = v;
 							}.bind(this,i)});
 						}
@@ -418,7 +407,7 @@ class FaceEmotionClip extends BaseClip {
 	static id = ANIM.FACEEMOTION ? ANIM.FACEEMOTION: ANIM.clipTypes.length;
 	static clipColor = "#00BDFF";
 
-	constructor()
+	constructor(o)
 	{
 		super();
 		this.id= "faceEmotion";
@@ -429,8 +418,13 @@ class FaceEmotionClip extends BaseClip {
 		
 		this.properties = {
 			amount : 0.5,
-			emotion : "HAPPINESS", 
+			emotion : "HAPPINESS",
+			valaro : null, 
 		}
+
+		if(o)
+			this.configure(o);
+
 		this.font = "11px Calibri";
 		this.clipColor = FaceEmotionClip.clipColor;
 		this.type = FaceEmotionClip.type;
@@ -538,9 +532,11 @@ class FacePresetClip extends BaseClip {
 		this.start = 0;
 		this.duration = 1;
 		
-		this.properties = {};
-		this.properties.amount = 0.5;
-		this.properties.preset = preset;
+		this.properties = {
+			amount: 0.5,
+			preset: preset
+
+		};
 		/*permanent : false,*/
 		this.clips = [];
 		
@@ -735,7 +731,7 @@ class FacePresetClip extends BaseClip {
 		}
 
 		for(var i = 0; i < this.clips.length; i++) {
-			json.clips.push(this.clips[i].toJSON ? this.clips[i].toJSON() : JSON.parse(JSON.stringify(this.clips[i]))  );
+			json.clips.push( this.clips[i].toJSON ? this.clips[i].toJSON() : JSON.parse(JSON.stringify(this.clips[i])) );
 		}
 		return json;
 	}
@@ -779,11 +775,6 @@ class FacePresetClip extends BaseClip {
 						else{
 							panel.addNumber(i, property, {callback: function(i,v)
 							{
-								if(i == "start"){
-									var dt = v - this.properties[i];
-									this.properties.attackPeak += dt;
-									this.properties.relax += dt;
-								}
 								this.properties[i] = v;
 								if(callback)
 									callback();
@@ -1006,7 +997,7 @@ class HeadClip extends BaseClip {
 		super.configure(o);
 
 		if(o.strokeStart) this.strokeStart = o.strokeStart;
-		if(o.stroke) this.stroke  = o.stroke ;
+		if(o.stroke) this.stroke = o.stroke;
 		if(o.strokeEnd) this.strokeEnd = o.strokeEnd;
 
 		for(let p in this.properties) {
@@ -1085,7 +1076,6 @@ ANIM.registerClipType( HeadClip );
 class ElbowRaiseClip extends BaseClip {
 	static type = "gesture";
 	static hands = ["Left", "Right", "Both"];
-	static movements = ["Raise", "Hunch"];
 	static id = ANIM.ELBOW ? ANIM.ELBOW: ANIM.clipTypes.length;
 	static clipColor = "#a757c1";
 
@@ -1100,9 +1090,8 @@ class ElbowRaiseClip extends BaseClip {
 		this.relax = this.fadeout = 0.75; //if it's not permanent
 	
 		this.properties = {
-			hand: "Right",	
-			elbowRaise : 0.8,	
-			amount: 0.8,
+			hand: "Right",
+			amount: 0.8, // on export will change to elbowRaise
 			shift : false,
 			lrSym: null,
 			udSym: null,
@@ -1213,9 +1202,8 @@ class ShoulderClip extends BaseClip {
 	
 		this.movementType = "Raise";
 		this.properties = {
-			hand: "Right",	
-			shoulderRaise : 0.8,	
-			amount: 0.8,
+			hand: "Right",
+			amount: 0.8, // on export will change to either shoulderRaise or shoulderHunch
 			shift : false,
 			lrSym: null,
 			udSym: null,
@@ -1256,7 +1244,7 @@ class ShoulderClip extends BaseClip {
 			type: "gesture"
 		}
 	
-		json["shoulder" + this.movementType] = this.properties["shoulder" + this.movementType] = this.properties.amount;
+		json["shoulder" + this.movementType] = this.properties.amount;
 	
 		for(var i in this.properties)
 		{
@@ -1273,9 +1261,6 @@ class ShoulderClip extends BaseClip {
 		panel.addTextArea(null, "Moves the shoulder forward or up", null, {disabled: true});
 		// Movement type
 		panel.addSelect("Movement", ShoulderClip.movements, this.movementType, (v, e, name) => {
-			delete this.properties.shoulderRaise;
-			delete this.properties.shoulderHunch;
-	
 			this.movementType = v;
 			if(this.id == "Shoulder Raise" || this.id == "Shoulder Hunch" ) {
 				this.id = "Shoulder "+ this.movementType;
@@ -2153,7 +2138,13 @@ class HandshapeClip extends BaseClip {
 			lrSym: null,
 			udSym: null,
 			ioSym: null,
-			specialFingers: ""
+			specialFingers: "",
+
+			thumbTarget: null, // where the thumb should go to. Accepts hand locations in compact format "fingerDigit_location_side". E.G. "HAND_PALMAR", "2_BASE_PALMAR", "4_TIP" 
+    		thumbDistance: 0, // optional - thumb contact status with respect to target. Distance mesured in whole thumb size. Direction perpendicular to hand palm. Defaults to 0
+    		thumbSource: "PAD", // optional - either "TIP" or "PAD". Which part of the thumb should move to target. Defaults to tip.
+    		thumbSplay: 0, // optional - sepparates base of thumb without changing target.
+
 		}
 	
 		if(o)
@@ -2226,6 +2217,13 @@ class HandshapeClip extends BaseClip {
 	
 			if(json[i] === "" || json[i] == null || i == "shift" && !json[i])
 				delete json[i];
+		}
+
+		if ( !this.applyThumbTarget || !this.properties.thumbTarget || !this.properties.thumbTarget.length ){
+			delete json.thumbTarget;
+			delete json.thumbDistance;
+			delete json.thumbSource;
+			delete json.thumbSplay;
 		}
 	
 		return json;
@@ -2342,32 +2340,7 @@ class HandshapeClip extends BaseClip {
 		}, {precision: 2, min: 0, max: 1, step: 0.01});
 
 		panel.addCheckbox("Thumb Target", this.applyThumbTarget, (v, e) => {
-			const changed = v != this.applyThumbTarget;
 			this.applyThumbTarget = v;
-	
-			if(!v) {
-				this.backupProperties.thumbTargetInfo = {
-					thumbTarget : this.properties.thumbTarget,
-					thumbDistance : this.properties.thumbDistance,
-					thumbSource : this.properties.thumbSource,
-					// thumbSplay : this.properties.thumbSplay,
-				}
-				this.properties.thumbTarget = undefined;
-				this.properties.thumbDistance = undefined;
-				this.properties.thumbSource = undefined;
-				// this.properties.thumbSplay = undefined;
-			}else if( this.backupProperties.thumbTargetInfo ) {
-				this.properties.thumbTarget = this.backupProperties.thumbTargetInfo.thumbTarget;
-				this.properties.thumbDistance = this.backupProperties.thumbTargetInfo.thumbDistance;
-				this.properties.thumbSource = this.backupProperties.thumbTargetInfo.thumbSource;
-				// this.properties.thumbSplay = this.backupProperties.thumbTargetInfo.thumbSplay;
-			}else{
-				this.properties.thumbTarget = "2_TIP";
-				this.properties.thumbSource = "TIP";
-				this.properties.thumbDistance = 0;
-				// ignore thumbSplay for now. System already applies a splay. The Thumbsplay overwrites the automatic splay
-				// this.properties.thumbSplay = this.backupProperties.thumbTargetInfo.thumbSplay;
-			}
 			if(callback)
 				callback(true);
 		}, {
@@ -2428,6 +2401,12 @@ class HandshapeClip extends BaseClip {
 					if(callback)
 						callback(true);
 				}, { min: 0, max: 1, step: 0.01, title: "0 means contact, 1 a distance equal to the thumb's size" } );
+	
+				p.addNumber("Thumb Splay", this.properties.thumbSplay ?? 0, (v,e)=>{
+					this.properties.thumbSplay = v;
+					if(callback)
+						callback(true);
+				}, { min: -1, max: 1, step: 0.01 } );
 	
 				// ignore thumbSplay for now. System already applies a splay. The Thumbsplay overwrites the automatic splay
 			}
@@ -2566,6 +2545,13 @@ class HandConstellationClip extends BaseClip {
 			// optionals
 			distance: 0, //[-ifinity,+ifninity] where 0 is touching and 1 is the arm size. Distance between endpoints. 
 			distanceDirection: [], // string, any combination of the main directions. If not provided, defaults to horizontal outwards direction ?!!!!!!!!!!!!!!!!! 26 DIRECTIONS?????
+	
+			secondSrcFinger:   "",
+			secondSrcLocation: "",
+			secondSrcSide:     "",
+			secondDstFinger:   "",
+			secondDstLocation: "",
+			secondDstSide:     "",
 			
 			keepUpdatingContact: false, // once peak is reached, the location will be updated only if this is true. 
 							// i.e.: set to false; contact tip of index; reach destination. Afterwards, changing index finger state will not modify the location
