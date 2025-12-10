@@ -4908,7 +4908,7 @@ class KeyframesGui extends Gui {
                     name: 'Delete', 
                     callback: ( item )=> {
                         //this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
-                        this.editor.remoteFileSystem.deleteFile( item.fullpath, (v) => { 
+                        this.editor.remoteFileSystem.deleteFile( item.asset_id, (v) => { 
                             if(v) {
                                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
                                 item.folder.children = v;
@@ -4927,7 +4927,7 @@ class KeyframesGui extends Gui {
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
                     callback: ( item )=> {
-                        this.editor.remoteFileSystem.deleteFile( item.fullpath, (v) => {
+                        this.editor.remoteFileSystem.deleteFile( item.asset_id, (v) => {
                             if(v) {
                                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
                                 item.folder.children = v;
@@ -4972,7 +4972,7 @@ class KeyframesGui extends Gui {
             
             assetViewer.onItemDragged = async ( node, value) => {
                 if( node.type == "folder" ) {
-                    const moved = await this.editor.remoteFileSystem.moveFolder(node.fullpath, value.fullpath+"/"+node.id);
+                    const moved = await this.editor.remoteFileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
                     console.log(node.id, moved)
                 }
             }
@@ -5018,7 +5018,7 @@ class KeyframesGui extends Gui {
                         return;
                     }
                     if( !e.item.lastModified ) {
-                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.fullpath);
+                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.asset_id);
                         if( !info ) {
                             return;
                         }
@@ -5047,7 +5047,7 @@ class KeyframesGui extends Gui {
                 case LX.AssetViewEvent.ASSET_DELETED: 
                 {
                     const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
-                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.fullpath );
+                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.asset_id );
                     assetViewer._refreshContent();
                     console.log(e.item.id + " deleted"); 
                 }
@@ -5055,7 +5055,7 @@ class KeyframesGui extends Gui {
                 case LX.AssetViewEvent.ASSET_CLONED:
                     const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
                     e.item.id = e.item.id.replace(`.${e.item.type}`, ` copy.${e.item.type}`);
-                    const cloned = await this.editor.remoteFileSystem.uploadFile( folder, e.item.id, e.item.content);
+                    const cloned = await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
                     assetViewer._refreshContent();
                     if(cloned) {
                         console.log(e.item.id + " cloned"); 
@@ -5066,7 +5066,7 @@ class KeyframesGui extends Gui {
                         return;
                     }
                     const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
-                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.fullpath, newPath );
+                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.asset_id, newPath );
                     if( renamed ) {
                         e.item.filename = e.item.id;
                         console.log(e.value + " is now called " + e.item.id);
@@ -6848,7 +6848,7 @@ class ScriptGui extends Gui {
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
                         callback: (item)=> {
-                            const deleted = this.editor.remoteFileSystem.deleteFile( item.fullpath);
+                            const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
                             if(deleted) {
                                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
                                 item.folder.children = deleted;
@@ -6865,7 +6865,7 @@ class ScriptGui extends Gui {
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
                         callback: (item)=> {
-                            const deleted = this.editor.remoteFileSystem.deleteFile( item.fullpath);
+                            const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
                             if(deleted) {
                                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
                                 item.folder.children = deleted;
@@ -6886,7 +6886,7 @@ class ScriptGui extends Gui {
                                 LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
                                 return;
                             }
-                            const value = await this.editor.remoteFileSystem.deleteFolder( item.fullpath );
+                            const value = await this.editor.remoteFileSystem.deleteFolder( item.asset_id, item.unit );
                             if(value) {
                                 LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
                                 assetViewer._deleteItem(item);
@@ -6910,7 +6910,7 @@ class ScriptGui extends Gui {
             
             assetViewer.onItemDragged = async ( node, value) => {
                 if( node.type == "folder" ) {
-                    const moved = await this.editor.remoteFileSystem.moveFolder(node.fullpath, value.fullpath+"/"+node.id);
+                    const moved = await this.editor.remoteFileSystem.moveFolder(node.asset_id, node.unit , value.fullpath+"/"+node.id);
                     console.log(node.id, moved)
                 }
             }
@@ -6997,15 +6997,16 @@ class ScriptGui extends Gui {
                 case LX.AssetViewEvent.ASSET_DELETED: 
                 {
                     const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
-                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.fullpath );
+                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.asset_id );
                     assetViewer._refreshContent();
                     console.log(e.item.id + " deleted"); 
                 }
                     break;
                 case LX.AssetViewEvent.ASSET_CLONED:
-                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
+                    const folder = e.item.fullpath.replace( `/${e.item.id}`, "");
                     e.item.id = e.item.id.replace(`.${e.item.type}`, ` copy.${e.item.type}`);
-                    const cloned = await this.editor.remoteFileSystem.uploadFile( folder, e.item.id, e.item.content);
+                    const cloned = await this.editor.remoteFileSystem.copyFile(e.item.asset_id, folder+"/"+ e.item.id )
+                    //const cloned = await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
                     assetViewer._refreshContent();
                     if(cloned) {
                         console.log(e.item.id + " cloned"); 
@@ -7016,7 +7017,7 @@ class ScriptGui extends Gui {
                         return;
                     }
                     const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
-                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.fullpath, newPath );
+                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.asset_id, newPath );
                     if( renamed ) {
                         e.item.filename = e.item.id;
                         console.log(e.value + " is now called " + e.item.id);
@@ -7070,7 +7071,7 @@ class ScriptGui extends Gui {
                     if( e.item.unit && e.item.unit != e.item.id ) { 
 
                         assetViewer.parent.loadingArea.show();
-                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.fullpath);
+                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.id);
                         if( assets.length ) {
                             // for( let i = 0; i < assets.length; i++ ) {
                             //     const asset = assets[i];
@@ -7122,16 +7123,29 @@ class ScriptGui extends Gui {
             }
             return value;
         });
+
+        let obj = null;
+        try{ obj = JSON.parse(text); }
+        catch(e){ obj = null; }
+        
+        if( !obj ){
+            try{ obj = JSON.parse("["+text+"]"); }
+            catch(e){ obj = null; }
+        }
+
         if( asset.type == "sigml" ) {
-            codeEditor.addTab("sigml", true, name, { language: "XML" } );
-            codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
-            codeEditor.addTab("bml", false, name, { language: "JSON" } );
-            codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
+            codeEditor.addTab("sigml", true, name, { language: "XML", codeLines: asset.content.split('\n') } );
+            // codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
+            codeEditor.addTab("bml", false, name, { language: "JSON", codeLines: JSON.stringify(obj, void 0, 4).split('\n') } );
+            // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
             codeEditor._changeLanguage( "XML" );
         }
         else {
             codeEditor.addTab("bml", true, name, { language: "JSON" } );
-            codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
+            
+            
+            codeEditor.setText(JSON.stringify(obj, void 0, 4));
+            // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
             codeEditor._changeLanguage( "JSON" );
         }
         

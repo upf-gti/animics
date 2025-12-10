@@ -315,7 +315,7 @@ function _makeProjectItem( item ) {
     </div>
     `, projectItems );
     itemContainer.addEventListener( "click", () => {
-        onLoadFiles([{name: item.filename, fullpath: item.unit + "/" + item.folder + "/" + item.filename, type: "application/json"}]);
+        onLoadFiles([{name: item.filename, fullpath: item.fullpath, type: "application/json"}]);
     })
     const optionsIcon = itemContainer.querySelector( ".lexicon" );
     optionsIcon.listen( "click", () => {

@@ -129,20 +129,20 @@ class RemoteFileSystem {
         });
     }
 
-    async uploadFile(folder, filename, data, metadata){
+    async uploadFile(unit, folder_id, filename, data, metadata){
 
 
         return new Promise((resolve, reject) => {
 
             const session = this.session;
-            const unit = session.user.username;
+            //const unit = session.user.username;
             // const path = unit + "/" + folder + "/" + filename;
-            const path = folder + "/" + filename;
+           // const path = folder + "/" + filename;
 
-            session.uploadFile( path, data, { "metadata": metadata }, 
+            session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata }, 
                 (e) => {
                     console.log("complete", e);
-                    this.getFiles( unit, folder, (files) => {
+                    this.getFiles( unit, folder_id, (files) => {
                         const files_data = [];
                         if( files ) {                                        
                             for( let f = 0; f < files.length; f++ ) {
@@ -172,17 +172,17 @@ class RemoteFileSystem {
                 //                    e => console.log("progress",e));
     }
 
-    async uploadData(folder, data, filename, metadata){
+    async uploadData(unit, folder_id, data, filename, metadata){
 
         return new Promise((resolve, reject) => {
 
             var session = this.session;
-            let path = session.user.username + "/" + folder + "/" + filename;
+            //let path = session.user.username + "/" + folder + "/" + filename;
 
-			session.uploadFile( path, data, { "metadata": metadata }, 
+			session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata }, 
                 (e) => {
                     console.log("complete", e);
-                    this.getFiles( unit, folder, (files) => {
+                    this.getFiles( unit, folder_id, (files) => {
                         const files_data = [];
                         if( files ) {                                        
                             for( let f = 0; f < files.length; f++ ) {
@@ -190,6 +190,7 @@ class RemoteFileSystem {
                                 files[f].id = files[f].filename;
                                 files[f].folder = folder.replace("animics/", "");
                                 files[f].type = UTILS.getExtension(files[f].filename);
+                                delete files[f].path;
                                 if(files[f].type == "txt")
                                     continue;
                                 files_data.push(files[f]);
@@ -211,12 +212,29 @@ class RemoteFileSystem {
     }
 
     // move file or rename file
-    async moveFile( fullpath, new_path) {
+    async moveFile( file_id, new_path) {
         if( !this.session ) {
             return;
         }
         return new Promise((resolve, reject) => {
-            this.session.moveFile( fullpath, new_path,
+            this.session.moveFile( file_id, new_path,
+                ( e ) => {
+                    resolve(true);
+                }, (err) => {
+                    console.error( err );
+                    resolve(false);
+                }
+            )
+         });
+    }
+
+    // copy/clone file 
+    async copyFile( file_id, new_path) {
+        if( !this.session ) {
+            return;
+        }
+        return new Promise((resolve, reject) => {
+            this.session.copyFile( file_id, new_path,
                 ( e ) => {
                     resolve(true);
                 }, (err) => {
@@ -294,12 +312,12 @@ class RemoteFileSystem {
     }
 
     // move folder or rename folder
-    async moveFolder( fullpath, new_path) {
+    async moveFolder( folder_id, unit, new_path) {
         if( !this.session ) {
             return;
         }
         return new Promise((resolve, reject) => {
-            this.session.moveFolder( fullpath, new_path,
+            this.session.moveFolder( folder_id, unit, new_path,
                 ( e ) => {
                     resolve(true);
                 }, (err) => {
@@ -310,13 +328,13 @@ class RemoteFileSystem {
          });
     }
 
-    async deleteFolder( fullpath ) {
+    async deleteFolder( folder_id, unit ) {
         return new Promise( (resolve, reject) => {
             const session = this.session;
             if( !session ) {
                 reject( "no session" );
             }
-            session.deleteFolder( fullpath,
+            session.deleteFolder( folder_id, unit,
                 (v, r) => {
                     resolve(v);
                     console.log(v, r);
@@ -367,7 +385,7 @@ class RemoteFileSystem {
         }
         return new Promise( async (resolve, reject) => {
 
-            await this.session.getFolders(unit, folder_id, async ( folders ) =>  {
+            await this.session.getFolder(unit, folder_id, async ( folders ) =>  {
                 const data = [];
                 for(let i = 0; i < folders.length; i++) {
                     data.push(this.parseAssetInfo(unit, folders[i], folders[i].folder, allowFolders));
@@ -398,6 +416,7 @@ class RemoteFileSystem {
                             files[f].folder = files[f].folder;
                             files[f].type = extension;
                             files[f].children = [];
+                            delete files[f].path;
                             if(files[f].type == "txt")
                                 continue;
                             files_data.push(files[f]);
@@ -476,6 +495,7 @@ class RemoteFileSystem {
                             
         if( asset.subfolders ) {
             name = asset.folder;
+            data.fullpath = unit + "/" + asset.path;
             if( asset.folder == "presets" ) {
                 data.icon = "Tags";
             }
@@ -503,19 +523,19 @@ class RemoteFileSystem {
         data.type = type;
         data.id = name;
         data.asset_id = asset.id;
-        data.fullpath = unit + "/" + asset.fullpath;
+        //data.fullpath = unit + "/" + asset.fullpath;
         
         return data;
     }
 
-    deleteFile( fullpath ) {
+    deleteFile( file_id ) {
         const session = this.session;
         if( !session ) {
             return;
         }
 
         new Promise( (resolve, reject) => {
-            session.deleteFile( fullpath, 
+            session.deleteFile( file_id, 
                 (deleted) => {
                     resolve( deleted );
                 },

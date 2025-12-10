@@ -75,6 +75,7 @@ var LiteFileServer = {
                 on_complete(null);
             return;
         }
+        
         return this.request( this.server_url,{action: "user/checkToken", token: old_token}, function(resp){
             if(!resp.user)
                 localStorage.removeItem( LiteFileServer.TOKEN_NAME );
@@ -286,31 +287,36 @@ var LiteFileServer = {
     },
 
     cleanPath: function(path)
-    {
-        var protocol = "";
-        var protocol_index = path.indexOf("://");
-        if( protocol_index != -1 )
-        {
-            protocol = path.substr(0, protocol_index + 3 );
-            path = path.substr( protocol_index + 3 );
-        }
+	{
+		var protocol = "";
+		var protocol_index = path.indexOf("://");
+		if( protocol_index != -1 )
+		{
+			protocol = path.substr(0, protocol_index + 3 );
+			path = path.substr( protocol_index + 3 );
+		}
 
 
-        var t = path.split("/");
-        t = t.filter( function(v) { return !!v;} );
+		var t = path.split("/");
+		t = t.filter( function(v) { return !!v;} );
 
-        //apply "../", sometimes this gives me problems
-        var result = [];
-        for(var i = 0; i < t.length; i++)
-        {
-            if(t[i] == "..")
-                result.pop();
-            else
-                result.push( t[i] );
-        }
+		//apply "../", sometimes this gives me problems
+		var result = [];
+		for(var i = 0; i < t.length; i++)
+		{
+			if(t[i] == "..")
+			{
+				if(result.length) //removing ".." when they are at the beginning is problematic as they refer to the hostname path
+					result.pop();
+				else
+					result.push("..");
+			}
+			else
+				result.push( t[i] );
+		}
 
-        return protocol + result.join("/");
-    },
+		return protocol + result.join("/");
+	},
 
     getFullpath: function(unit,folder,filename)
     {
@@ -770,12 +776,12 @@ Session.prototype.getFoldersTree = function( unit, on_complete, on_error )
     });
 }
 
-Session.prototype.getFolders = function( unit, folder_id, on_complete, on_error )
+Session.prototype.getFolder = function( unit, folder_id, on_complete, on_error )
 {
     if(!unit)
-        throw("no fullpath specified");
+        throw("no unit specified");
 
-    return this.request( this.server_url,{ action: "files/getFolders", unit: unit, folder_id: folder_id }, function(resp){
+    return this.request( this.server_url,{ action: "files/getFolder", unit: unit, folder_id: folder_id }, function(resp){
         if(resp.status != 1)
         {
             if(on_error)
@@ -807,30 +813,27 @@ Session.prototype.createFolder = function( fullpath, on_complete, on_error )
     });
 }
 
-Session.prototype.downloadFolder = function( fullpath, on_complete, on_error )
+Session.prototype.downloadFolder = function( folder_id, unit, on_complete, on_error )
 {
-    if(!fullpath)
-        throw("no fullpath specified");
+	if(!folder_id)
+		throw("no folder_id specified");
 
-    return this.request( this.server_url,{action: "files/downloadFolder", fullpath: fullpath }, function(resp){
+	return this.request( this.server_url,{action: "files/downloadFolder", folder_id: folder_id, unit: unit }, function(resp){
 
-        if(resp.status != 1)
-        {
-            if(on_error)
-                on_error(resp.msg);
-            return;
-        }
+		if(resp.status != 1)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
 
-        if(on_complete)
-            on_complete(resp.status == 1, resp );
-    });
+		if(on_complete)
+			on_complete(resp.status == 1, resp );
+	});
 }
 
-Session.prototype.moveFolder = function( fullpath, target_fullpath, on_complete, on_error )
+Session.prototype.moveFolder = function( folder_id, unit, target_fullpath, on_complete, on_error )
 {
-    if(fullpath.substr(0,5) == "http://")
-        throw("LFS does not support full URLs as fullpath");
-
     var info = LFS.parsePath( target_fullpath );
     if( !info )
     {
@@ -840,7 +843,7 @@ Session.prototype.moveFolder = function( fullpath, target_fullpath, on_complete,
         return;
     }
 
-    return this.request( this.server_url,{ action: "files/moveFolder", fullpath: fullpath, target_fullpath: target_fullpath }, function(resp){
+    return this.request( this.server_url,{ action: "files/moveFolder", folder_id: folder_id, target_fullpath: target_fullpath, unit: unit }, function(resp){
 
         if(resp.status != 1)
         {
@@ -854,23 +857,23 @@ Session.prototype.moveFolder = function( fullpath, target_fullpath, on_complete,
     }, on_error );
 }
 
-Session.prototype.deleteFolder = function( fullpath, on_complete, on_error )
+Session.prototype.deleteFolder = function( folder_id, unit, on_complete, on_error )
 {
-    if(!fullpath)
-        throw("no fullpath specified");
+	if(folder_id === null)
+		throw("no folder_id specified");
 
-    return this.request( this.server_url,{action: "files/deleteFolder", fullpath: fullpath }, function(resp){
+	return this.request( this.server_url,{action: "files/deleteFolder", folder_id: folder_id, unit: unit }, function(resp){
 
-        if(resp.status != 1)
-        {
-            if(on_error)
-                on_error(resp.msg);
-            return;
-        }
+		if(resp.status != 1)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
 
-        if(on_complete)
-            on_complete(resp.status == 1, resp );
-    });
+		if(on_complete)
+			on_complete(resp.status == 1, resp );
+	});
 }
 
 
@@ -896,67 +899,67 @@ Session.prototype.getFoldersAndFiles = function( unit, fullpath, on_complete, on
 
 Session.processFileList = function(list)
 {
-    if(!list)
-        return;
+	if(!list)
+		return;
 
-    for(var i in list)
-    {
-        var file = list[i];
-        file.fullpath = file.unit + "/" + file.folder + "/" + file.filename;
+	for(var i in list)
+	{
+		var file = list[i];
+		file.fullpath = file.unit + "/" + file.path + "/" + file.filename;
 
-        if(file.metadata)
-        {
-            try
-            {
-                file.metadata = JSON.parse(file.metadata);
-            }
-            catch (err)
-            {
-            }
-        }
-    }
+		if(file.metadata)
+		{
+			try
+			{
+				file.metadata = JSON.parse(file.metadata);
+			}
+			catch (err)
+			{
+			}
+		}
+	}
 }
 
 Session.prototype.getFilesInFolder = function( unit, folder_id, on_complete, on_error )
 {
-    if(!unit)
-        throw("no unit specified");
+	if(!unit)
+		throw("no unit specified");
 
-    return this.request( this.server_url,{ action: "files/getFilesInFolder", unit: unit, folder_id: folder_id }, function(resp){
+	return this.request( this.server_url,{ action: "files/getFilesInFolder", unit: unit, folder_id: folder_id }, function(resp){
 
-        if(resp.status < 1)
-        {
-            if(on_error)
-                on_error(resp.msg);
-            return;
-        }
+		if(resp.status < 1)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
 
-        Session.processFileList( resp.data );
+		Session.processFileList( resp.data );
 
-        if(on_complete)
-            on_complete(resp.data, resp);
-    });
+		if(on_complete)
+			on_complete(resp.data, resp);
+	});
 }
 
 Session.prototype.getFilesByPath = function( fullpath, on_complete, on_error )
 {
-    if(!fullpath)
-        throw("no fullpath specified");
+	if(!fullpath)
+		throw("no fullpath specified");
 
-    return this.request( this.server_url,{ action: "files/getFilesInFolder", fullpath: fullpath }, function(resp){
+	return this.request( this.server_url,{ action: "files/getFilesInFolder", fullpath: fullpath }, function(resp){
 
-        if(resp.status < 0)
-        {
-            if(on_error)
-                on_error(resp.msg);
-            return;
-        }
+		if(resp.status < 0)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
 
-        Session.processFileList(resp.data, fullpath );
+		Session.processFileList(resp.data, fullpath );
 
-        if(on_complete)
-            on_complete(resp.data, resp);
-    });
+		if(on_complete)
+			on_complete(resp.data, resp);
+	});
 }
 
 Session.prototype.searchByCategory = function( category, on_complete, on_error, on_progress  )
@@ -981,6 +984,18 @@ Session.prototype.searchByFilename = function( filename, on_complete, on_error, 
         if(on_complete)
             on_complete(resp.data);
     }, on_error, on_progress );
+}
+
+Session.prototype.checkFileExist = function( fullpath, on_complete )
+{
+    if(!fullpath)
+        throw("no fullpath specified");
+
+    fullpath = LiteFileServer.cleanPath( fullpath );
+    return this.request( this.server_url,{ action: "files/fileExist", fullpath: fullpath }, function(resp){
+        if(on_complete)
+            on_complete(resp.exist, resp);
+    });
 }
 
 Session.prototype.checkFolderExist = function( fullpath, on_complete )
@@ -1020,235 +1035,237 @@ Session.prototype.getFilesTree = function( folder, unit, on_complete )
 }
 
 
+
 /**
 * Uploads a file to the server (it allows to send other info too like preview)
 * @method uploadFile
 * @param {String} fullpath
-* @param {ArrayBuffer||Blob||File||String} data
+* @param {ArrayBuffer||Blob||File||String} data 
 * @param {Object} extra could be category, metadata (object or string), preview (in base64)
 * @param {Function} on_complete
 * @param {Function} on_error
 * @param {Function} on_progress receives info about how much data has been sent
 */
-Session.prototype.uploadFile = function( fullpath, data, extra, on_complete, on_error, on_progress )
+Session.prototype.uploadFile = function( unit, folder_id, filename, data, extra, on_complete, on_error, on_progress )
 {
-    if(data == null || data == undefined)
-        throw("Data cannot be null");
+	if(data == null || data == undefined)
+		throw("Data cannot be null");
 
-    var original_data = data;
+	var original_data = data;
 
-    var info = LFS.parsePath( fullpath );
-    if(!info)
-    {
-        if(on_error)
-            on_error("Filename has invalid characters");
-        console.error("Filename has invalid characters: " + fullpath );
-        return;
-    }
+	// var info = LFS.parsePath( fullpath );
+	// if(!info)
+	// {
+	// 	if(on_error)
+	// 		on_error("Filename has invalid characters");
+	// 	console.error("Filename has invalid characters: " + fullpath );
+	// 	return;
+	// }
 
-    var unit = info.unit;
-    if(!unit)
-    {
-        if(on_error)
-            on_error("Unit missing in file fullpath");
-        console.error("Unit missing in file fullpath");
-        return;
-    }
+	// var unit = info.unit;
+	if(!unit)
+	{
+		if(on_error)
+			on_error("Unit missing in file fullpath");
+		console.error("Unit missing in file fullpath");
+		return;
+	}
 
-    var folder = info.folder;
-    var filename = info.filename;
+	// var folder = info.folder;
+	// var filename = info.filename;
 
-    //check size
-    var max_size = LFS.system_info.max_filesize || 1000000;
-    var allow_big_files = LFS.system_info.allow_big_files;
-    var size = null;
+	//check size
+	var max_size = LFS.system_info.max_filesize || 1000000;
+	var allow_big_files = LFS.system_info.allow_big_files;
+	var size = null;
+	
+	//resolve encoding
+	var encoding = "";
+	if( data.constructor === ArrayBuffer )
+	{
+		//data = new Blob([data], {type: "application/octet-binary"});
+		//size = data.size;
+		size = data.byteLength;
+		encoding = "arraybuffer";
+	}
+	else if( data.constructor === File || data.constructor === Blob )
+	{
+		size = data.size;
+		encoding = "file";
+	}
+	else if( data.constructor === String )
+	{
+		size = data.length;
+		encoding = "string";
+	}
+	else
+		throw("Unknown data format, only string, ArrayBuffer, Blob and File supported");
 
-    //resolve encoding
-    var encoding = "";
-    if( data.constructor === ArrayBuffer )
-    {
-        //data = new Blob([data], {type: "application/octet-binary"});
-        //size = data.size;
-        size = data.byteLength;
-        encoding = "arraybuffer";
-    }
-    else if( data.constructor === File || data.constructor === Blob )
-    {
-        size = data.size;
-        encoding = "file";
-    }
-    else if( data.constructor === String )
-    {
-        size = data.length;
-        encoding = "string";
-    }
-    else
-        throw("Unknown data format, only string, ArrayBuffer, Blob and File supported");
+	if(size === undefined)
+		throw("Size is undefined");
 
-    if(size === undefined)
-        throw("Size is undefined");
+	var ext = filename.split('.').pop().toLowerCase();
+	var extensions = ["png","jpg","jpeg","webp"]; //generate previews of this formats
+	var params = { action: "files/uploadFile", unit: unit, folder_id: folder_id, filename: filename, encoding: encoding, data: data }; //, extra: extra
 
-    var ext = filename.split('.').pop().toLowerCase();
-    var extensions = ["png","jpg","jpeg","webp"]; //generate previews of this formats
-    var params = { action: "files/uploadFile", unit: unit, folder: folder, filename: filename, encoding: encoding, data: data }; //, extra: extra
+	if(extra)
+	{
+		if( typeof(extra) == "string")
+			params.category = extra;
+		else {
+			if(extra.category)
+				params.category = extra.category;
+			if(extra.metadata)
+				params.metadata = typeof(extra.metadata) == "object" ? JSON.stringify(extra.metadata) : extra.metadata;
+			if(extra.preview)
+				params.preview = extra.preview;
+		}
+	}
 
-    if(extra)
-    {
-        if( typeof(extra) == "string")
-            params.category = extra;
-        else {
-            if(extra.category)
-                params.category = extra.category;
-            if(extra.metadata)
-                params.metadata = typeof(extra.metadata) == "object" ? JSON.stringify(extra.metadata) : extra.metadata;
-            if(extra.preview)
-                params.preview = extra.preview;
-        }
-    }
+	var that = this;
 
-    var that = this;
+	//check size for file splitting in several files in case the size is bigger than what HTTP can support
+	if(size > max_size)
+	{
+		if(!allow_big_files)
+		{
+			if(on_error)
+				on_error('File too large (limit of ' + (max_size/(1024*1024)).toFixed(1) + ' MBs).');
+			return;
+		}
 
-    //check size for file splitting in several files in case the size is bigger than what HTTP can support
-    if(size > max_size)
-    {
-        if(!allow_big_files)
-        {
-            if(on_error)
-                on_error('File too large (limit of ' + (max_size/(1024*1024)).toFixed(1) + ' MBs).');
-            return;
-        }
+		//convert
+		if(data.constructor == Blob || data.constructor == File)
+		{
+			//convert to ArrayBuffer
+			var fileReader = new FileReader();
+			fileReader.onload = function() {
+				var arrayBuffer = this.result;
+				that.uploadFile( fullpath, arrayBuffer, extra, on_complete, on_error, on_progress );
+			};
+			fileReader.readAsArrayBuffer( data );
+			return null;
+		}
 
-        //convert
-        if(data.constructor == Blob || data.constructor == File)
-        {
-            //convert to ArrayBuffer
-            var fileReader = new FileReader();
-            fileReader.onload = function() {
-                var arrayBuffer = this.result;
-                that.uploadFile( fullpath, arrayBuffer, extra, on_complete, on_error, on_progress );
-            };
-            fileReader.readAsArrayBuffer( data );
-            return null;
-        }
+		//segment file
+		var num_parts = Math.ceil( size / max_size) + 1; //extra part to ensure no problems
+		var part_size = Math.ceil( size / num_parts );
+		var file_parts = [];
 
-        //segment file
-        var num_parts = Math.ceil( size / max_size) + 1; //extra part to ensure no problems
-        var part_size = Math.ceil( size / num_parts );
-        var file_parts = [];
+		if(data.constructor === String)
+		{
+			//TODO
+			throw("String big file split not implemented yet, " + filename);
+		}
+		else if(data.constructor === ArrayBuffer)
+		{
+			var data_buffer = new Uint8Array( data );
+			for(var i = 0; i < num_parts; ++i)
+			{
+				var part_start = i*part_size;
+				var part_end = (i+1)*part_size;
+				if( (part_end - part_start) > max_size)
+					part_end = part_start + max_size;
+				var part_size = part_end - part_start;
+				var part_data = data_buffer.subarray( part_start, part_end ); //second parameter is end, no size
+				if(!part_size || !part_data.length)
+					break;
+				file_parts.push({part: i, start: part_start, end: part_end, size: part_size, data: part_data});
+			}
+		}
 
-        if(data.constructor === String)
-        {
-            throw("String big file split not implemented yet, " + filename);
-        }
-        else if(data.constructor === ArrayBuffer)
-        {
-            var data_buffer = new Uint8Array( data );
-            for(var i = 0; i < num_parts; ++i)
-            {
-                var part_start = i*part_size;
-                var part_end = (i+1)*part_size;
-                if( (part_end - part_start) > max_size)
-                    part_end = part_start + max_size;
-                var part_size = part_end - part_start;
-                var part_data = data_buffer.subarray( part_start, part_end ); //second parameter is end, no size
-                if(!part_size || !part_data.length)
-                    break;
-                file_parts.push({part: i, start: part_start, end: part_end, size: part_size, data: part_data});
-            }
-        }
+		//create empty file before filling it
+		delete params["data"];
+		params.total_size = size;
 
-        //create empty file before filling it
-        delete params["data"];
-        params.total_size = size;
+		var req = that.request( that.server_url, params, function(resp){
+			
+			if(resp.status == -1)
+			{
+				if(on_error)
+					on_error(resp.msg,resp);
+				return;
+			}
 
-        var req = that.request( that.server_url, params, function(resp){
+			var total_parts = file_parts.length;
+			var parts_sent = 0;
 
-            if(resp.status == -1)
-            {
-                if(on_error)
-                    on_error(resp.msg,resp);
-                return;
-            }
+			inner_send_part();
 
-            var total_parts = file_parts.length;
-            var parts_sent = 0;
+			function inner_send_part()
+			{
+				var part = file_parts.shift();
+				params.action = "files/updateFilePart";
+				params.fullpath = fullpath;
+				params.offset = part.start;
+				params.total_size = size;
+				params.data = new Blob([part.data], {type: "application/octet-binary"});
+				params.encoding = "file";
 
-            inner_send_part();
-
-            function inner_send_part()
-            {
-                var part = file_parts.shift();
-                params.action = "files/updateFilePart";
-                params.fullpath = fullpath;
-                params.offset = part.start;
-                params.total_size = size;
-                params.data = new Blob([part.data], {type: "application/octet-binary"});
-                params.encoding = "file";
-
-                var req = that.request( that.server_url, params, function(resp){
-                    if(resp.status == -1)
-                    {
-                        if(on_error)
-                            on_error( resp.msg, resp );
-                        return;
-                    }
-                    parts_sent++;
-                    if(on_progress)
-                        on_progress(fullpath, parts_sent / total_parts);
-                    if( file_parts.length )
-                        inner_send_part();
-                    else
-                    {
-                        //FINISH
-                        if(on_complete)
-                            on_complete(fullpath);
-                    }
-                }, function(err){
-                    if(on_error)
-                        on_error( err );
-                }, function(v, e){
-                    if(on_progress)
-                        on_progress((parts_sent + v) / total_parts, e, params );
-                });
-            }
-
-
-        }, on_error);
-
-        return null;
-    }
-
-    //force FILE
-    if( params.encoding == "arraybuffer" )
-    {
-        params.encoding = "file";
-        params.data = new Blob([params.data], {type: "application/octet-binary"});
-    }
+				var req = that.request( that.server_url, params, function(resp){
+					if(resp.status == -1)
+					{
+						if(on_error)
+							on_error( resp.msg, resp );
+						return;
+					}
+					parts_sent++;
+					if(on_progress)
+						on_progress(fullpath, parts_sent / total_parts);
+					if( file_parts.length )
+						inner_send_part();
+					else
+					{
+						//FINISH
+						if(on_complete)
+							on_complete(fullpath);
+					}
+				}, function(err){
+					if(on_error)
+						on_error( err );
+				}, function(v, e){
+					if(on_progress)
+						on_progress((parts_sent + v) / total_parts, e, params );
+				});
+			}
 
 
-    //generate preview and request if they are images
-    if(!params.preview && LFS.generate_preview && LFS.previews == "local" && extensions.indexOf(ext) != -1 )
-    {
-        LFS.generatePreview( data, function( prev_data ) {
-            params.preview = prev_data;
-            that.request( that.server_url, params, on_resp, on_error, on_progress );
-        });
-    }
-    else
-        return this.request( this.server_url, params, on_resp, on_error, on_progress );
+		}, on_error);
 
-    function on_resp(resp)
-    {
-        if(resp.status != 1)
-        {
-            if(on_error)
-                on_error(resp.msg);
-            return;
-        }
+		return null;
+	}
 
-        if(on_complete)
-            on_complete(resp.status == 1, resp);
-    }
+	//force FILE
+	if( params.encoding == "arraybuffer" )
+	{
+		params.encoding = "file";
+		params.data = new Blob([params.data], {type: "application/octet-binary"});
+	}
+
+
+	//generate preview and request if they are images
+	if(!params.preview && LFS.generate_preview && LFS.previews == "local" && extensions.indexOf(ext) != -1 )
+	{
+		LFS.generatePreview( data, function( prev_data ) {
+			params.preview = prev_data;
+			that.request( that.server_url, params, on_resp, on_error, on_progress );
+		});
+	}
+	else
+		return this.request( this.server_url, params, on_resp, on_error, on_progress );
+
+	function on_resp(resp)
+	{
+		if(resp.status != 1)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
+
+		if(on_complete)
+			on_complete(resp.status == 1, resp);
+	}
 }
 
 Session.prototype.uploadRemoteFile = function( url, fullpath, on_complete, on_error )
@@ -1288,84 +1305,83 @@ Session.prototype.updateFilePreview = function( fullpath, preview, on_complete, 
             on_complete(resp.status, resp);
     }, on_error );
 }
-
-Session.prototype.updateFileContent = function( fullpath, data, on_complete, on_error )
+Session.prototype.updateFileContent = function( id, data, on_complete, on_error )
 {
-    if(fullpath.substr(0,5) == "http://")
-        throw("LFS does not support full URLs as fullpath");
+	// if(fullpath.substr(0,5) == "http://")
+	// 	throw("LFS does not support full URLs as fullpath");
 
-    var info = LFS.parsePath( fullpath );
-    if(!info)
-    {
-        if(on_error)
-            on_error("Filename has invalid characters");
-        console.error("Filename has invalid characters: " + fullpath);
-        return;
-    }
+	// var info = LFS.parsePath( fullpath );
+	// if(!info)
+	// {
+	// 	if(on_error)
+	// 		on_error("Filename has invalid characters");
+	// 	console.error("Filename has invalid characters: " + fullpath);
+	// 	return;
+	// }
 
-    //resolve encoding
-    var encoding = "";
-    if( data.constructor == ArrayBuffer )
-    {
-        data = new Blob([data.data], {type: "application/octet-binary"});
-        encoding = "file";
-    }
-    else if( typeof(data) != "string" )
-        encoding = "file";
+	//resolve encoding
+	var encoding = "";
+	if( data.constructor == ArrayBuffer )
+	{
+		data = new Blob([data.data], {type: "application/octet-binary"});
+		encoding = "file";
+	}
+	else if( typeof(data) != "string" )
+		encoding = "file";
 
-    return this.request( this.server_url,{ action: "files/updateFile", fullpath: fullpath, data: data, encoding: encoding }, function(resp){
+	return this.request( this.server_url,{ action: "files/updateFile", file_id: id, data: data, encoding: encoding }, function(resp){
 
-        if(resp.status != 1)
-        {
-            if(on_error)
-                on_error(resp.msg);
-            return;
-        }
+		if(resp.status != 1)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
 
-        if(on_complete)
-            on_complete(resp.data);
-    }, on_error );
+		if(on_complete)
+			on_complete(resp.data);
+	}, on_error );
 }
 
 //info must be object with optional fields: metadata and category
-Session.prototype.updateFileInfo = function( fullpath, info, on_complete, on_error )
+Session.prototype.updateFileInfo = function( file_id, info, on_complete, on_error )
 {
-    if(fullpath.substr(0,5) == "http://")
-        throw("LFS does not support full URLs as fullpath");
+	// if(fullpath.substr(0,5) == "http://")
+	// 	throw("LFS does not support full URLs as fullpath");
 
-    if(typeof(info) == "object")
-        info = JSON.stringify(info);
+	if(typeof(info) == "object")
+		info = JSON.stringify(info);
 
-    return this.request( this.server_url, { action: "files/updateFileInfo", fullpath: fullpath, info: info }, function(resp){
+	return this.request( this.server_url, { action: "files/updateFileInfo", file_id: file_id, info: info }, function(resp){
 
-        if(resp.status != 1)
-        {
-            if(on_error)
-                on_error(resp.msg);
-            return;
-        }
+		if(resp.status != 1)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
 
-        if(on_complete)
-            on_complete(resp.status == 1);
-    }, on_error );
+		if(on_complete)
+			on_complete(resp.status == 1);
+	}, on_error );
 }
 
-Session.prototype.copyFile = function( fullpath, target_fullpath, on_complete, on_error )
+Session.prototype.copyFile = function( file_id, target_fullpath, on_complete, on_error )
 {
-    if(fullpath.substr(0,5) == "http://")
-        throw("LFS does not support full URLs as fullpath");
+    // if(fullpath.substr(0,5) == "http://")
+    //     throw("LFS does not support full URLs as fullpath");
 
-    var info = LFS.parsePath( fullpath );
-    var target_info = LFS.parsePath( fullpath );
-    if( !info || !target_info )
+    // var info = LFS.parsePath( fullpath );
+    var target_info = LFS.parsePath( target_fullpath );
+    if(  !target_info )
     {
         if(on_error)
             on_error("Filename has invalid characters");
-        console.error("Filename has invalid characters: " + fullpath );
+        console.error("Filename has invalid characters: " + target_fullpath );
         return;
     }
 
-    return this.request( this.server_url,{ action: "files/copyFile", fullpath: fullpath, target_fullpath: target_fullpath }, function(resp){
+    return this.request( this.server_url,{ action: "files/copyFile", file_id: file_id, target_fullpath: target_fullpath }, function(resp){
 
         if(resp.status != 1)
         {
@@ -1379,40 +1395,37 @@ Session.prototype.copyFile = function( fullpath, target_fullpath, on_complete, o
     }, on_error );
 }
 
-Session.prototype.moveFile = function( fullpath, target_fullpath, on_complete, on_error )
+Session.prototype.moveFile = function( file_id, target_fullpath, on_complete, on_error )
 {
-    if(fullpath.substr(0,5) == "http://")
-        throw("LFS does not support full URLs as fullpath");
+	var info = LFS.parsePath( target_fullpath );
+	if( !info )
+	{
+		if(on_error)
+			on_error("Filename has invalid characters");
+		console.error("Filename has invalid characters: " + target_fullpath);
+		return;
+	}
 
-    var info = LFS.parsePath( target_fullpath );
-    if( !info )
-    {
-        if(on_error)
-            on_error("Filename has invalid characters");
-        console.error("Filename has invalid characters: " + target_fullpath);
-        return;
-    }
+	return this.request( this.server_url,{ action: "files/moveFile", file_id: file_id, target_fullpath: target_fullpath }, function(resp){
 
-    return this.request( this.server_url,{ action: "files/moveFile", fullpath: fullpath, target_fullpath: target_fullpath }, function(resp){
+		if(resp.status != 1)
+		{
+			if(on_error)
+				on_error(resp.msg);
+			return;
+		}
 
-        if(resp.status != 1)
-        {
-            if(on_error)
-                on_error(resp.msg);
-            return;
-        }
-
-        if(on_complete)
-            on_complete(resp.status, resp);
-    }, on_error );
+		if(on_complete)
+			on_complete(resp.status, resp);
+	}, on_error );
 }
 
-Session.prototype.deleteFile = function( fullpath, on_complete, on_error )
+Session.prototype.deleteFile = function( file_id, on_complete, on_error )
 {
-    if(fullpath.substr(0,5) == "http://")
-        throw("LFS does not support full URLs as fullpath");
+    // if(fullpath.substr(0,5) == "http://")
+    //     throw("LFS does not support full URLs as fullpath");
 
-    return this.request( this.server_url,{ action: "files/deleteFile", fullpath: fullpath }, function(resp){
+    return this.request( this.server_url,{ action: "files/deleteFile", file_id: file_id }, function(resp){
 
         if(resp.status != 1)
         {
