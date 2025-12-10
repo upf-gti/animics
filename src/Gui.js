@@ -5253,6 +5253,7 @@ class ScriptGui extends Gui {
                                
         this.clipsTimeline = new LX.ClipsTimeline("clipsTimelineId", {
             title: "Behaviour actions",
+            skipLock: true,
             onCreateBeforeTopBar: (panel) => {
                 // panel.addButton
                 panel.addSelect("Animation", Object.keys(this.editor.loadedAnimations), this.editor.currentAnimation, (v)=> {
@@ -5495,7 +5496,7 @@ class ScriptGui extends Gui {
         }
 
         this.clipsTimeline.onUpdateTrack = this.delayedUpdateTracks.bind(this); 
-        this.clipsTimeline.onChangeTrackVisibility = (track, oldState) => { this.editor.updateTracks(); }
+        this.clipsTimeline.onSetTrackState = (track, oldState) => { this.editor.updateTracks(); }
         this.timelineArea.attach(this.clipsTimeline.mainArea);
         this.clipsTimeline.canvas.tabIndex = 1;
 

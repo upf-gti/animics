@@ -163,16 +163,17 @@ class BaseClip {
 
 		this.relax = this.fadeout = (o.relax || this.start + this.duration - offset); // fadeout is from LX.Timeline
 		
-		// parse valid properties from input
+		// parse valid properties from input.properties (usually resulting from a clone of a clip)
 		if(o.properties)
 		{
 			for(let validProperty in this.properties){
-				if(o[validProperty] != undefined){
-					this.properties[validProperty] = o[validProperty];
+				if(o.properties[validProperty] != undefined){
+					this.properties[validProperty] = o.properties[validProperty];
 				}
 			}
 		}
 		
+		// parse valid properties from input (usually when parsing a raw bml into clips)
 		for(let validProperty in this.properties) {
 			if(o[validProperty] != undefined){
 				this.properties[validProperty] = o[validProperty];
