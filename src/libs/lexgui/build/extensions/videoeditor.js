@@ -419,7 +419,7 @@ class VideoEditor {
         this.cropArea.normCoords = { x: 0, y:0, w: 1, h: 1 };
         
         const flags = 0x0f;
-        this.setCropAreaHandles( flags )
+        this.setCropAreaHandles( flags );
         
         this.crop = options.crop;
         this.dragOffsetX = 0;

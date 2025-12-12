@@ -63,7 +63,7 @@ function createMenuBar( area ) {
     userButton.listen( "click", () => {
         new LX.DropdownMenu( userButton, [
             
-            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.upf.edu/src/", "_blank")} },
+            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://dev-lfs.gti.upf.edu/src/", "_blank")} },
             { name: "Refresh", icon: "RotateCcw", callback: () => {
                 offset = 0;
                 appendAnimationFiles( true );
@@ -315,7 +315,7 @@ function _makeProjectItem( item ) {
     </div>
     `, projectItems );
     itemContainer.addEventListener( "click", () => {
-        onLoadFiles([{name: item.filename, fullpath: item.unit + "/" + item.folder + "/" + item.filename, type: "application/json"}]);
+        onLoadFiles([{name: item.filename, fullpath: item.fullpath, type: "application/json"}]);
     })
     const optionsIcon = itemContainer.querySelector( ".lexicon" );
     optionsIcon.listen( "click", () => {

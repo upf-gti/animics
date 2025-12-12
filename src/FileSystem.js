@@ -1,11 +1,11 @@
 import { LFS } from './libs/litefileserver.js';
-
+import { UTILS } from './Utils.js';
 class RemoteFileSystem {
     
     constructor( callback, folders = []) {
         this.session = null;
 
-        this.host = "https://signon-lfs.gti.upf.edu/";
+        this.host = "https://dev-lfs.gti.upf.edu/";
         this.root = this.host + "files/";
         
         // this.repository = {signs:[], presets: [], clips:[]};
@@ -129,23 +129,25 @@ class RemoteFileSystem {
         });
     }
 
-    async uploadFile(folder, filename, data, metadata){
+    async uploadFile(unit, folder_id, filename, data, metadata){
 
 
         return new Promise((resolve, reject) => {
 
             const session = this.session;
-            const unit = session.user.username;
-            const path = unit + "/" + folder + "/" + filename;
+            //const unit = session.user.username;
+            // const path = unit + "/" + folder + "/" + filename;
+           // const path = folder + "/" + filename;
 
-            session.uploadFile( path, data, { "metadata": metadata }, 
+            session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata }, 
                 (e) => {
                     console.log("complete", e);
-                    this.getFiles( unit, folder, (files) => {
+                    this.getFiles( unit, folder_id, (files) => {
                         const files_data = [];
                         if( files ) {                                        
                             for( let f = 0; f < files.length; f++ ) {
                                 let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
+                                files[f].asset_id = files[f].id;
                                 files[f].id = files[f].filename;
                                 files[f].folder = folder.replace("animics/", "");
                                 files[f].type = extension;
@@ -170,23 +172,25 @@ class RemoteFileSystem {
                 //                    e => console.log("progress",e));
     }
 
-    async uploadData(folder, data, filename, metadata){
+    async uploadData(unit, folder_id, data, filename, metadata){
 
         return new Promise((resolve, reject) => {
 
             var session = this.session;
-            let path = session.user.username + "/" + folder + "/" + filename;
+            //let path = session.user.username + "/" + folder + "/" + filename;
 
-			session.uploadFile( path, data, { "metadata": metadata }, 
+			session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata }, 
                 (e) => {
                     console.log("complete", e);
-                    this.getFiles( unit, folder, (files) => {
+                    this.getFiles( unit, folder_id, (files) => {
                         const files_data = [];
                         if( files ) {                                        
                             for( let f = 0; f < files.length; f++ ) {
+                                files[f].asset_id = files[f].id;
                                 files[f].id = files[f].filename;
                                 files[f].folder = folder.replace("animics/", "");
                                 files[f].type = UTILS.getExtension(files[f].filename);
+                                delete files[f].path;
                                 if(files[f].type == "txt")
                                     continue;
                                 files_data.push(files[f]);
@@ -207,11 +211,70 @@ class RemoteFileSystem {
         });
     }
 
-    getFiles( unit, folder, on_complete, on_error ) {
+    // move file or rename file
+    async moveFile( file_id, new_path) {
         if( !this.session ) {
-            on_error();
+            return;
         }
-        this.session.getFiles( unit, folder, on_complete, on_error );
+        return new Promise((resolve, reject) => {
+            this.session.moveFile( file_id, new_path,
+                ( e ) => {
+                    resolve(true);
+                }, (err) => {
+                    console.error( err );
+                    resolve(false);
+                }
+            )
+         });
+    }
+
+    // copy/clone file 
+    async copyFile( file_id, new_path) {
+        if( !this.session ) {
+            return;
+        }
+        return new Promise((resolve, reject) => {
+            this.session.copyFile( file_id, new_path,
+                ( e ) => {
+                    resolve(true);
+                }, (err) => {
+                    console.error( err );
+                    resolve(false);
+                }
+            )
+         });
+    }
+
+    async getFiles( unit, folder_id) {
+        if( !this.session ) {
+            return
+        }
+        return new Promise((resolve, reject) => {
+            this.session.getFilesInFolder( unit, folder_id, 
+                ( files ) => {
+                    resolve(files);
+                }, (err) => {
+                    console.error( err );
+                    reject(err);
+                }
+            );
+        });
+    }
+
+    async getFileInfo( id ) {
+        if( !this.session ) {
+            return;
+        }
+        return new Promise((resolve, reject) => {
+            this.session.getFileInfo( id, 
+                ( info ) => {
+                    resolve(info);
+                }, (err) => {
+                    console.error( err );
+                    reject(err);
+                }
+            );
+        });
     }
 
     // async getFolders( onFolders ) {
@@ -219,15 +282,68 @@ class RemoteFileSystem {
     //     session.getUnitsAndFolders(onFolders);
     // }
 
-    createFolders() {
+    async createFolders() {
         const session = this.session;
         if( !session ) {
             return;
         }
 
-        session.createFolder( session.user.username + "/animics/presets/", (v, r) => {console.log(v)} );
-        session.createFolder( session.user.username + "/animics/signs/", (v, r) => {console.log(v)} );
-        session.createFolder( session.user.username + "/animics/clips/", (v, r) => {console.log(v)} );
+        await session.createFolder( session.user.username + "/animics/clips", (v, r) => {console.log(v)} );
+        await session.createFolder( session.user.username + "/animics/scripts/presets", (v, r) => {console.log(v)} );
+        await session.createFolder( session.user.username + "/animics/scripts/signs", (v, r) => {console.log(v)} );
+    }
+
+    async createFolder( fullpath ) {
+        return new Promise( (resolve, reject) => {
+            const session = this.session;
+            if( !session ) {
+                reject( "no session" );
+            }
+            session.createFolder( fullpath,
+                (v, r) => {
+                    resolve(v);
+                    console.log(v);
+                },
+                (err) => {
+                    reject( err );
+                }
+            );
+        })
+    }
+
+    // move folder or rename folder
+    async moveFolder( folder_id, unit, new_path) {
+        if( !this.session ) {
+            return;
+        }
+        return new Promise((resolve, reject) => {
+            this.session.moveFolder( folder_id, unit, new_path,
+                ( e ) => {
+                    resolve(true);
+                }, (err) => {
+                    console.error( err );
+                    resolve(false);
+                }
+            )
+         });
+    }
+
+    async deleteFolder( folder_id, unit ) {
+        return new Promise( (resolve, reject) => {
+            const session = this.session;
+            if( !session ) {
+                reject( "no session" );
+            }
+            session.deleteFolder( folder_id, unit,
+                (v, r) => {
+                    resolve(v);
+                    console.log(v, r);
+                },
+                (err) => {
+                    reject( err );
+                }
+            );
+        })
     }
 
     async loadUnits() {
@@ -247,6 +363,7 @@ class RemoteFileSystem {
                         id: units[i].name,
                         type: "folder",
                         unit: units[i].name,
+                        mode: units[i].mode,
                         children: []
                     };
     
@@ -262,52 +379,54 @@ class RemoteFileSystem {
     }
 
     //Get folders from each user unit
-    async loadFolders( folder , callback) {
-        const session = this.session;
-        let count = 0;
-        for( let i = 0; i < this.repository.length; i++ ) {
+    async loadFolders(unit, folder_id, allowFolders) {
+        if( !this.session ) {
+            return;
+        }
+        return new Promise( async (resolve, reject) => {
 
-            const unit = this.repository[i].id;
-            const variable = "refresh" + ( folder  == "signs" ? "Signs" : "Presets") + "Repository";
-            //get all folders for empty units
-            if( !(unit == "Local" || this.repository[i].children.length) || this[variable] && unit == session.user.username ) {
-
-                await session.getFolders( unit, async ( folders ) =>  {
-                    const mainFolder = folders.animics[ folder ];
-                    const assets = [];
-                    if( mainFolder ) {
-                        for( let folder in mainFolder ) {
-                            assets.push({id: folder, type: "folder", folder: folder , children: [], unit: unit})
-                        }
-                    }
-                    else if( folders.animics.hasOwnProperty( folder ) ) {
-                        assets.push({id: folder, type: "folder", folder: folder , children: [], unit: unit})
-                    }
-
-                    this.repository[i].children = assets;
-                    count++;
-                    
-                    if( this.repository.length == count ) {
-                        if( callback ) {
-                            callback();
-                        }
-                    }
-                })
-                
-            }
-            else {
-                // if( unit == "Local" ) {
-                //     this.repository[i] = this.localStorage[ folder ];
-                // }
-
-                count++;
-                if( this.repository[i].length == count ) {
-                    if(callback) {
-                        callback();
-                    }
+            await this.session.getFolder(unit, folder_id, async ( folders ) =>  {
+                const data = [];
+                for(let i = 0; i < folders.length; i++) {
+                    data.push(this.parseAssetInfo(unit, folders[i], folders[i].folder, allowFolders));
                 }
-            }
-        }        
+                console.log(folders)
+                // const data = folders.length ? this.parseAssetInfo(unit.id, folders[0], folders[0].folder, allowFolders) : [];
+                resolve( data );
+            })
+        })
+    }
+
+    async loadAssets( unit, folder_id, allowFolders = [] ) {
+    
+        const session = this.session;
+        if( !session || folder_id == null ) {
+            return;
+        }
+        return new Promise( (resolve, reject) => {
+
+            session.getFilesInFolder( unit, folder_id,
+                (files) => {
+                    const files_data = [];
+                    if( files ) {                                        
+                        for( let f = 0; f < files.length; f++ ) {
+                            let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
+                            files[f].asset_id = files[f].id;
+                            files[f].id = files[f].filename;
+                            files[f].folder = files[f].folder;
+                            files[f].type = extension;
+                            files[f].children = [];
+                            delete files[f].path;
+                            if(files[f].type == "txt")
+                                continue;
+                            files_data.push(files[f]);
+                        }
+                    }
+                    resolve( files_data );
+                },
+                (err) => reject(err)
+            )
+        })
     }
 
     async loadAllUnitsFolders( callback, allowFolders = [] ) {
@@ -321,32 +440,24 @@ class RemoteFileSystem {
         let count = 0;
 
         for( let i = 0; i < this.repository.length; i++ ) {
-            const unit = this.repository[i].id;
-            //get all folders for empty units
-            await session.getFolders( unit, async ( folders ) =>  {
-                const foldersData = [];
-                for( let folder in folders.animics ) {
-                    if( allowFolders.length && allowFolders.indexOf(folder) < 0 ) {
-                        continue;
+            const unit = this.repository[i];
+            const unitName = unit.id;
+            const unitMode = unit.mode;
+            
+            await session.getFoldersTree( unitName, async ( folders ) =>  {
+
+                
+                console.log(folders)
+                const data = {id: unitName, type: "folder", folder: null, children: [], unit: unitName, mode: unitMode};
+                if( folders.length ) {
+                    folders = folders.filter( ( folder ) => folder.folder == "animics");
+                    if ( folders.length ) {
+                        data.children.push(this.parseAssetInfo(unit.id, folders[0], unitName, allowFolders));
                     }
-                    const assets = [];
-                    const mainFolder = folders.animics[ folder ];
-                    if( mainFolder ) {
-                        for( let folderc in mainFolder ) {
-                            const data = {id: folderc, type: "folder", folder:  folderc , children: [], unit: unit, fullpath: "animics/"+ folder + "/" + folderc};                            
-                            assets.push( data );
-                        }
-                    }
-                    const folderData = {id: folder, type: "folder", folder: folder , children: assets, unit: unit, fullpath: "animics/"+ folder };
-                    if( folder == "presets" ) {
-                        folderData.icon = "Tags";
-                    }
-                    else if( folder == "signs") {
-                        folderData.icon = "HandsAslInterpreting";
-                    }
-                    foldersData.push( folderData )
                 }
-                const data = {id: unit, type: "folder", children: foldersData, unit: unit};
+                
+                console.log(data)
+                
                 this.repository[i] = data;
                 count++;
 
@@ -361,41 +472,106 @@ class RemoteFileSystem {
         }
     }
 
-    deleteFile( unit, folder, file, callback ) {
-        const session = this.session;
-        if( !session ) {
-            if( callback ) {
-                callback( false );
-                return;
-            }
+    async loadFoldersAndFiles(unit, folder_id, folder, allowFolders) {
+
+        if( !this.session ) {
+            return;
         }
 
-        session.deleteFile( unit + "/" + folder + "/" + file, (deleted) => {
-            if( deleted ) {
-                this.getFiles( unit, folder, (files) => {
-                    const files_data = [];
-                    if( files ) {                                        
-                        for( let f = 0; f < files.length; f++ ) {
-                            let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
-                            files[f].id = files[f].filename;
-                            files[f].folder = folder.replace("animics/", "");
-                            files[f].type = extension;
-                            if(files[f].type == "txt")
-                                continue;
-                            files_data.push(files[f]);
-                        }
-                    }
-                    callback( files_data );
+        return new Promise( async (resolve, reject) => {
+            const files = await this.loadAssets(unit, folder_id, allowFolders);
+            const folders = await this.loadFolders(unit, folder_id, allowFolders);
+            const data = [...folders, ...files];
+            resolve(data);            
+        })
+    }
+
+    parseAssetInfo(unit, asset, path, allowFolders = []) {
+        //const extraData = [];
+     
+        const data = {id: null, type: null, folder: null, children: [], unit: unit, fullpath: path};
+        let type = "folder";
+        let name = "";
+                            
+        if( asset.subfolders ) {
+            name = asset.folder;
+            data.fullpath = unit + "/" + asset.path;
+            if( asset.folder == "presets" ) {
+                data.icon = "Tags";
+            }
+            else if( asset.folder == "signs") {
+                data.icon = "HandsAslInterpreting";
+            }
+            else if( asset.folder == "clips") {
+                data.icon = "ClapperboardClosed";
+            }
+            
+            for( let i = 0; i < asset.subfolders.length; i++ ) {
+                const subfolder = asset.subfolders[i];
+                if( allowFolders.length && allowFolders.indexOf(subfolder.folder) < 0) {
+                    continue;
+                }
+
+                data.children.push( this.parseAssetInfo(unit, subfolder, data.fullpath) );
+            }
+        }
+        else {
+            name = asset.filename;
+            type = UTILS.getExtension( name );
+        }
+
+        data.type = type;
+        data.id = name;
+        data.asset_id = asset.id;
+        //data.fullpath = unit + "/" + asset.fullpath;
+        
+        return data;
+    }
+
+    deleteFile( file_id ) {
+        const session = this.session;
+        if( !session ) {
+            return;
+        }
+
+        new Promise( (resolve, reject) => {
+            session.deleteFile( file_id, 
+                (deleted) => {
+                    resolve( deleted );
                 },
                 (err) => {
-                    console.error(err);
-                    callback( false );
-                } );
-            }
-            else {
-                callback( deleted );
-            }
-        });
+                    reject( err );
+                }
+                // if( deleted ) {
+                //     // const url = fullpath.split("/");
+                //     // const unit = url[0];
+                //     // url.pop();
+                //     // url = url.slice(1);
+                //     // const folder = url.join("/");
+                //     // this.getFiles( unit, folder, (files) => {
+                //     //     const files_data = [];
+                //     //     if( files ) {                                        
+                //     //         for( let f = 0; f < files.length; f++ ) {
+                //     //             let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
+                //     //             files[f].id = files[f].filename;
+                //     //             files[f].folder = folder.replace("animics/", "");
+                //     //             files[f].type = extension;
+                //     //             if(files[f].type == "txt")
+                //     //                 continue;
+                //     //             files_data.push(files[f]);
+                //     //         }
+                //     //     }
+                //     //     callback( files_data );
+                //     // },
+                //     // (err) => {
+                //     //     console.error(err);
+                //     //     callback( false );
+                //     // } );
+                // }
+                // else {
+                //     callback( deleted );
+                // }
+            )})
     }
 }
 

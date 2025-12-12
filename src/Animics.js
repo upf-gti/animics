@@ -27,8 +27,9 @@ class Animics {
                 }
                 else if( this.editor ) {
                     this.editor.gui.changeLoginButton( session.user.username );
-                }   
+                }
                 resolve();
+                
             }, (error) => {
                 console.error("Server error. Can't connect to the FileSystem")
                 resolve()
@@ -138,15 +139,19 @@ class Animics {
                 alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml'\n\tKeyframe animation: 'bvh', 'bvhe', 'json'");
                 return false;  
         }
-        
+        let allowFolders = []
         if( this.editor.constructor == ScriptEditor ) {
             this.mode = Animics.Modes.SCRIPT;
+            allowFolders = ["scripts"];
         }
         else {
             this.mode = Animics.Modes.KEYFRAME;
             this.videoProcessor = new VideoProcessor(this);
+            allowFolders = ["clips"];
         }
         const session = this.remoteFileSystem.session;
+        await this.remoteFileSystem.loadAllUnitsFolders(() => {
+        }, allowFolders)
         this.editor.init(settings, !session || session.user.username == "guest");
         
         window.addEventListener("resize", this.onResize.bind(this));

@@ -210,7 +210,7 @@ class Gui {
                 { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
                 { name: "Logout", icon: "LogOut", callback: () => {
                     this.editor.ANIMICS._logout( () => {
-                        const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"];
+                        const folders = this.constructor == KeyframesGui ? ["clips"] : ["scripts"];
                         this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
                         this.changeLoginButton();
                     }); 
@@ -261,7 +261,6 @@ class Gui {
     showExportAnimationsDialog(title, callback, options = { formats: [], folders: [] }) {
         options.modal = true;
 
-        let value = "";
         let format = null;
         let folder = null;
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", p => {
@@ -277,6 +276,25 @@ class Gui {
                 }
                 p.addComboButtons("Save in", buttons, {});
             }
+            const treeData = {};
+            let repo = this.editor.remoteFileSystem.repository;
+
+            repo = repo.filter( (v) => v.mode == "ADMIN");
+
+            const tree = p.addTree("Save in", repo, {
+                // icons: dataTreeIcons,
+                // rename: true,
+                onevent: (event) => {
+                    switch (event.type) {
+                        case LX.TreeEvent.NODE_SELECTED:
+                            console.log("Selected:", event.node.id);
+                            break;
+                        case LX.TreeEvent.NODE_DBLCLICKED:
+                            console.log("Double click!")
+                            break;
+                    }
+                }, onlyFolders: true, skipVisibility: true
+            });
 
             if( options.formats && options.formats.length ) {
                 format = format || options.selectedFormat || options.formats[0];
@@ -298,12 +316,14 @@ class Gui {
             p.addButton("exportCancel", "Cancel", () => {if(options.on_cancel) options.on_cancel(); dialog.close();}, {hideName: true, width: "50%"} );
             p.addButton("exportOk", options.accept || "OK", (v, e) => { 
                 e.stopPropagation();
-                if(options.required && value === '') {
-
-                    text += text.includes("You must fill the input text.") ? "": "\nYou must fill the input text.";
+                
+                folder = tree.innerTree.selected;
+                if( !folder.length ) {
+                    console.error("\nYou must select a folder.");
                     dialog.close() ;
                 }
                 else {
+                    folder = folder[0].fullpath;
                     if( callback ) {
                         let selectedAnimations = [];
                         availableTable.getSelectedRows().forEach((v)=>{ selectedAnimations.push(v[0]) });
@@ -1380,10 +1400,11 @@ class KeyframesGui extends Gui {
                 },
                 {
                     selectable: true,
-                    sortable: true,
+                    sortable: false,
                     toggleColumns: true,
                     filter: "Name",
-                    customFilters: [ {name: "Video Formats", options: availableVideoTypes } ]
+                    customFilters: [ {name: "Video Formats", options: availableVideoTypes } ],
+                    rowActions: [{ name: "Rename", icon: "Edit", callback: () => { console.log("rename file")}}]
                 }
             );
 
@@ -4590,10 +4611,10 @@ class KeyframesGui extends Gui {
             },
             {
                 selectable: true,
-                sortable: true,
+                sortable: false,
                 toggleColumns: true,
                 filter: "Name",
-                // TODO add a row icon to modify the animations name
+                rowActions: [{ name: "Rename", icon: "Edit", callback: () => { console.log("rename file")}}]
             }
         );
         return table;
@@ -4644,13 +4665,13 @@ class KeyframesGui extends Gui {
             },
             {
                 selectable: true,
-                sortable: true,
+                sortable: false,
                 toggleColumns: true,
                 filter: "Name",
                 customFilters: [
                     { name: "Character", options: Object.keys(this.editor.loadedCharacters) }
                 ],
-                // TODO add a row icon to modify the animations name
+                rowActions: [{ name: "Rename", icon: "Edit", callback: () => { console.log("rename file")}}]
             }
         );
 
@@ -4817,7 +4838,8 @@ class KeyframesGui extends Gui {
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
                     callback: ( item )=> {
-                        this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                        //this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                        this.editor.remoteFileSystem.deleteFile( item.asset_id, (v) => { 
                             if(v) {
                                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
                                 item.folder.children = v;
@@ -4836,7 +4858,7 @@ class KeyframesGui extends Gui {
                     path: "@/"+ username + "/clips",
                     name: 'Delete', 
                     callback: ( item )=> {
-                        this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
+                        this.editor.remoteFileSystem.deleteFile( item.asset_id, (v) => {
                             if(v) {
                                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
                                 item.folder.children = v;
@@ -4849,12 +4871,42 @@ class KeyframesGui extends Gui {
                             // this.closeDialogs();                            
                         });
                     }
-                });            
+                });
+                
+                previewActions.push({
+                    type: "folder",
+                    path: "@/"+ username + "/" + folder,
+                    name: 'Delete', 
+                    callback: async (item)=> {
+                        if( item.id == "clips" ) {
+                            LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            return;
+                        }
+                        const value = await this.editor.remoteFileSystem.deleteFolder( item.fullpath );
+                        if(value) {
+                            if(value) {
+                                LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                                assetViewer._deleteItem(item);
+                            }
+                            else {
+                                LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                        }
+                        
+                    }
+                });
             }
             
             const assetViewer = new LX.AssetView({  allowedTypes: ["bvh", "bvhe", "glb", "gltf"],  previewActions: previewActions, contextMenu: false});
             p.attach( assetViewer );
             this.assetViewer = assetViewer;
+            
+            assetViewer.onItemDragged = async ( node, value) => {
+                if( node.type == "folder" ) {
+                    const moved = await this.editor.remoteFileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
+                    console.log(node.id, moved)
+                }
+            }
             
             const loadingArea = p.loadingArea = this.createLoadingArea(p);
 
@@ -4895,31 +4947,61 @@ class KeyframesGui extends Gui {
                 case LX.AssetViewEvent.ASSET_SELECTED:
                     if(e.item.type == "folder") {
                         return;
-                    }                      
-                    if(!e.item.animation) {
-                        const promise = new Promise((resolve) => {
-                            this.editor.fileToAnimation(e.item, ( file ) => {
-                                if( file ) {
-                                    resolve(file);
-                                }
-                                else {
-                                    resolve( null );
-                                }
-                            });
-                        })
-                        const parsedFile = await promise;
-                        e.item.animation = parsedFile.animation;
-                        e.item.content = parsedFile.content;
+                    }
+                    if( !e.item.lastModified ) {
+                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.asset_id);
+                        if( !info ) {
+                            return;
+                        }
+                        e.item.lastModified = info.timestamp;
+                        e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
+                        e.item.filename = info.filename;
+                        assetViewer._previewAsset( e.item );
+
+                        if(!e.item.animation) {
+                            const promise = new Promise((resolve) => {
+                                this.editor.fileToAnimation(e.item, ( file ) => {
+                                    if( file ) {
+                                        resolve(file);
+                                    }
+                                    else {
+                                        resolve( null );
+                                    }
+                                });
+                            })
+                            const parsedFile = await promise;
+                            e.item.animation = parsedFile.animation;
+                            e.item.content = parsedFile.content;
+                        }
                     }
                     break;
                 case LX.AssetViewEvent.ASSET_DELETED: 
+                {
+                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
+                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.asset_id );
+                    assetViewer._refreshContent();
                     console.log(e.item.id + " deleted"); 
+                }
                     break;
-                case LX.AssetViewEvent.ASSET_CLONED: 
-                    console.log(e.item.id + " cloned"); 
+                case LX.AssetViewEvent.ASSET_CLONED:
+                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
+                    e.item.id = e.item.id.replace(`.${e.item.type}`, ` copy.${e.item.type}`);
+                    const cloned = await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
+                    assetViewer._refreshContent();
+                    if(cloned) {
+                        console.log(e.item.id + " cloned"); 
+                    }
                     break;
                 case LX.AssetViewEvent.ASSET_RENAMED:
-                    console.log(e.item.id + " is now called " + e.value); 
+                    if( e.item.id == e.value ) {
+                        return;
+                    }
+                    const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
+                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.asset_id, newPath );
+                    if( renamed ) {
+                        e.item.filename = e.item.id;
+                        console.log(e.value + " is now called " + e.item.id);
+                    }
                     break;
                 case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                     if(e.item.type != "folder") {
@@ -4945,35 +5027,30 @@ class KeyframesGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    if( e.item.unit && !e.item.children.length ) {
-                        assetViewer.parent.loadingArea.show();
+                    // if( e.item.unit && !e.item.children.length ) {
+                    if( e.item.unit && e.item.unit != e.item.id ) { 
 
-                        this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
-                            const files_data = [];
-                            if( files ) {                                        
-                                for( let f = 0; f < files.length; f++ ) {
-                                    files[f].id = files[f].filename;
-                                    files[f].folder = e.item;
-                                    files[f].type = UTILS.getExtension(files[f].filename);
-                                    files[f].lastModified = files[f].timestamp;
-                                    if(files[f].type == "txt")
-                                        continue;
-                                    files_data.push(files[f]);
-                                }
-                                e.item.children = files_data;
-                            }
-                            assetViewer.currentData = files_data;
+                        assetViewer.parent.loadingArea.show();
+                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.fullpath);
+                        if( assets.length ) {
+                            // for( let i = 0; i < assets.length; i++ ) {
+                            //     const asset = assets[i];
+                            //     if( e.item.children.indexOf(asset) < 0) {
+                            //         e.item.children.push(asset);
+                            //     }
+                            // }
+                            e.item.children = assets;
+                            assetViewer.currentData = assets//e.item.children;
                             assetViewer._updatePath(assetViewer.currentData);
 
-                            if( !assetViewer.skipBrowser ) {
-                                assetViewer._createTreePanel();
-                            }
-
+                            // if( !assetViewer.skipBrowser ) {
+                            //     assetViewer._createTreePanel();
+                            // }
                             assetViewer._refreshContent();
-
-                            assetViewer.parent.loadingArea.hide();
-                        });
-                    }                
+                            assetViewer._previewAsset(e.item);
+                        }
+                        assetViewer.parent.loadingArea.hide();
+                    }
                     break;
             }
         })
@@ -5003,7 +5080,7 @@ class KeyframesGui extends Gui {
 
         this.sourceCodeDialog = new LX.PocketDialog("Editor", p => {
             p.attach( area );                     
-        }, { size: ["40%", "600px"], closable: true, onBeforeClose: (dialog)=>{
+        }, { size: ["40%", "600px"], closable: true, className: "z-1000", onBeforeClose: (dialog)=>{
             codeEditor.clear();
             this.sourceCodeDialog = null;
         } });
@@ -6175,10 +6252,10 @@ class ScriptGui extends Gui {
             },
             {
                 selectable: true,
-                sortable: true,
+                sortable: false,
                 toggleColumns: true,
                 filter: "Name",
-                // TODO add a row icon to modify the animations name
+                rowActions: [{ name: "Rename", icon: "Edit", callback: () => { console.log("rename file")}}]
             }
         );
 
@@ -6513,6 +6590,8 @@ class ScriptGui extends Gui {
                     case "Breakdown into glosses":
                         insertMode = ClipModes.Glosses;
                         break;
+                    case "New folder":
+                        break;
                 }
                 this.clipsTimeline.deselectAllClips();
                 asset.animation.name = asset.id;
@@ -6565,7 +6644,35 @@ class ScriptGui extends Gui {
                     type: "bml",
                     name: 'Breakdown into action clips', 
                     callback: innerSelect
-                }
+                },
+                {
+                        type: "folder",
+                        // path: "@/"+ username + "/" + folder,
+                        name: 'New folder', 
+                        callback: (item)=> {
+                            LX.prompt("Folder name", "New folder", async ( result ) => {
+                                const value = await this.editor.remoteFileSystem.createFolder( item.fullpath + "/" + result);
+                                if(value) {
+                                    if(value) {
+                                        LX.popup('"' + result + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
+                                        const newItem = {id: result, type: "folder",  children: []};
+                                        item.children.push(newItem);
+                                        assetViewer._processData(newItem, item);
+                                        newItem.fullpath = item.fullpath + "/" + result;
+                                        assetViewer._refreshContent(assetViewer.searchValue, assetViewer.filter);
+                                        // assetViewer._addItem(newItem);
+                                        assetViewer.tree.refresh();
+                                    }
+                                    else {
+                                        LX.popup('"' + result + '"' + " couldn't be created.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+        
+                                    }
+                                    // this.closeDialogs();                            
+                                }
+                            })
+                        },
+                        // allowedTypes: ["folder"]
+                    }
             ];
 
             if( username != "guest" ) {
@@ -6630,18 +6737,16 @@ class ScriptGui extends Gui {
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
                         callback: (item)=> {
-                            this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
-                                if(v) {
-                                    LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                    item.folder.children = v;
-                                    assetViewer._deleteItem(item);
-                                }
-                                else {
-                                    LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-    
-                                }
-                                // this.closeDialogs();                            
-                            });
+                            const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
+                            if(deleted) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                item.folder.children = deleted;
+                                assetViewer._deleteItem(item);
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                            // this.closeDialogs();
                         }
                     },
                     {
@@ -6649,24 +6754,56 @@ class ScriptGui extends Gui {
                         path: "@/"+ username + "/" + folder,
                         name: 'Delete', 
                         callback: (item)=> {
-                            this.editor.remoteFileSystem.deleteFile( item.folder.unit, "animics/" + item.folder.id, item.id, (v) => {
-                                if(v) {
-                                    LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                    item.folder.children = v;
-                                    assetViewer._deleteItem(item);
-                                }
-                                else {
-                                    LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-    
-                                }
-                                // this.closeDialogs();                            
-                            });
+                            const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
+                            if(deleted) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                item.folder.children = deleted;
+                                assetViewer._deleteItem(item);
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                        }
+                    });
+
+                    previewActions.push({
+                        type: "folder",
+                        path: "@/"+ username + "/" + folder,
+                        name: 'Delete', 
+                        callback: async (item)=> {
+                            if( item.id == "signs" || item.id == "presets" ) {
+                                LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                                return;
+                            }
+                            const value = await this.editor.remoteFileSystem.deleteFolder( item.asset_id, item.unit );
+                            if(value) {
+                                LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                                assetViewer._deleteItem(item);
+                            }
+                            else {
+                                LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+
+                            }                            
                         }
                     });
                 }
             }
             
-            const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: false});
+            const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: true, itemContextMenuOptions: [{
+                name: "Move",
+                callback: (v) => {
+                    //this.editor.remoteFileSystem.moveFolder()
+                },
+
+            }]});
+            
+            assetViewer.onItemDragged = async ( node, value) => {
+                if( node.type == "folder" ) {
+                    const moved = await this.editor.remoteFileSystem.moveFolder(node.asset_id, node.unit , value.fullpath+"/"+node.id);
+                    console.log(node.id, moved)
+                }
+            }
+
             p.attach( assetViewer );
             this.assetViewer = assetViewer;
             
@@ -6712,21 +6849,30 @@ class ScriptGui extends Gui {
                         return;
                     }
                     
-                    if( !e.item.animation ) {
-                        const promise = new Promise((resolve) => {
-                            this.editor.fileToAnimation(e.item, ( file ) => {
-                                if( file ) {
-                                    resolve(file);
-                                }
-                                else {
-                                    resolve( null );
-                                }
-                            });
-                        })
-
-                        const parsedFile = await promise;
-                        e.item.animation = parsedFile.animation;
-                        e.item.content = parsedFile.content;
+                    if( !e.item.lastModified ) {
+                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.asset_id);
+                        if( !info ) {
+                            return;
+                        }
+                        e.item.lastModified = info.timestamp;
+                        e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
+                        e.item.filename = info.filename;
+                        assetViewer._previewAsset( e.item );
+                        if(!e.item.animation) {
+                            const promise = new Promise((resolve) => {
+                                this.editor.fileToAnimation(e.item, ( file ) => {
+                                    if( file ) {
+                                        resolve(file);
+                                    }
+                                    else {
+                                        resolve( null );
+                                    }
+                                });
+                            })
+                            const parsedFile = await promise;
+                            e.item.animation = parsedFile.animation;
+                            e.item.content = parsedFile.content;
+                        }
                     }
                     
                     if(e.multiple) {
@@ -6738,13 +6884,33 @@ class ScriptGui extends Gui {
                         
                     break;
                 case LX.AssetViewEvent.ASSET_DELETED: 
+                {
+                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
+                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.asset_id );
+                    assetViewer._refreshContent();
                     console.log(e.item.id + " deleted"); 
+                }
                     break;
-                case LX.AssetViewEvent.ASSET_CLONED: 
-                    console.log(e.item.id + " cloned"); 
+                case LX.AssetViewEvent.ASSET_CLONED:
+                    const folder = e.item.fullpath.replace( `/${e.item.id}`, "");
+                    e.item.id = e.item.id.replace(`.${e.item.type}`, ` copy.${e.item.type}`);
+                    const cloned = await this.editor.remoteFileSystem.copyFile(e.item.asset_id, folder+"/"+ e.item.id )
+                    //const cloned = await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
+                    assetViewer._refreshContent();
+                    if(cloned) {
+                        console.log(e.item.id + " cloned"); 
+                    }
                     break;
                 case LX.AssetViewEvent.ASSET_RENAMED:
-                    console.log(e.item.id + " is now called " + e.value); 
+                    if( e.item.id == e.value ) {
+                        return;
+                    }
+                    const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
+                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.asset_id, newPath );
+                    if( renamed ) {
+                        e.item.filename = e.item.id;
+                        console.log(e.value + " is now called " + e.item.id);
+                    }
                     break;
                 case LX.AssetViewEvent.ASSET_DBLCLICKED: 
                     if(e.item.type != "folder") {
@@ -6787,35 +6953,29 @@ class ScriptGui extends Gui {
                     break;
 
                 case LX.AssetViewEvent.ENTER_FOLDER:
-                    if( e.item.unit && !e.item.children.length ) { 
-                        assetViewer.parent.loadingArea.show();
+                    // if( e.item.unit && !e.item.children.length ) {
+                    if( e.item.unit && e.item.unit != e.item.id ) { 
 
-                        this.editor.remoteFileSystem.getFiles(e.item.unit, e.item.fullpath, (files, resp) => {
-                            const files_data = [];
-                            if( files ) {
-                                
-                                for( let f = 0; f < files.length; f++ ) {
-                                    files[f].id = files[f].filename;
-                                    files[f].folder = e.item;
-                                    files[f].type = UTILS.getExtension(files[f].filename);
-                                    files[f].lastModified = files[f].timestamp;
-                                    if(files[f].type == "txt") {
-                                        continue;
-                                    }
-                                    files_data.push(files[f]);
-                                }
-                                e.item.children = files_data;
-                            }
-                            assetViewer.currentData = files_data;
+                        assetViewer.parent.loadingArea.show();
+                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.id);
+                        if( assets.length ) {
+                            // for( let i = 0; i < assets.length; i++ ) {
+                            //     const asset = assets[i];
+                            //     if( e.item.children.indexOf(asset) < 0) {
+                            //         e.item.children.push(asset);
+                            //     }
+                            // }
+                            e.item.children = assets;
+                            assetViewer.currentData = assets//e.item.children;
                             assetViewer._updatePath(assetViewer.currentData);
 
-                            if( !assetViewer.skipBrowser ) {
-                                assetViewer._createTreePanel();
-                            }
+                            // if( !assetViewer.skipBrowser ) {
+                            //     assetViewer._createTreePanel();
+                            // }
                             assetViewer._refreshContent();
-
-                            assetViewer.parent.loadingArea.hide();
-                        })
+                            assetViewer._previewAsset(e.item);
+                        }
+                        assetViewer.parent.loadingArea.hide();
                     }
                     break;
             }
@@ -6849,23 +7009,36 @@ class ScriptGui extends Gui {
             }
             return value;
         });
+
+        let obj = null;
+        try{ obj = JSON.parse(text); }
+        catch(e){ obj = null; }
+        
+        if( !obj ){
+            try{ obj = JSON.parse("["+text+"]"); }
+            catch(e){ obj = null; }
+        }
+
         if( asset.type == "sigml" ) {
-            codeEditor.addTab("sigml", true, name, { language: "XML" } );
-            codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
-            codeEditor.addTab("bml", false, name, { language: "JSON" } );
-            codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
+            codeEditor.addTab("sigml", true, name, { language: "XML", codeLines: asset.content.split('\n') } );
+            // codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
+            codeEditor.addTab("bml", false, name, { language: "JSON", codeLines: JSON.stringify(obj, void 0, 4).split('\n') } );
+            // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
             codeEditor._changeLanguage( "XML" );
         }
         else {
             codeEditor.addTab("bml", true, name, { language: "JSON" } );
-            codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
+            
+            
+            codeEditor.setText(JSON.stringify(obj, void 0, 4));
+            // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
             codeEditor._changeLanguage( "JSON" );
         }
         
         // open dialog
         this.sourceCodeDialog = new LX.PocketDialog("Editor", p => {
             p.attach( area );
-        }, { size: ["40%", "600px"], closable: true, onBeforeClose: (dialog)=>{
+        }, { size: ["40%", "600px"], closable: true, className: "z-1000", onBeforeClose: (dialog)=>{
             codeEditor.clear();
             this.sourceCodeDialog = null;
         } });

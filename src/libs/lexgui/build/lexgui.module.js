@@ -7,7 +7,7 @@
 */
 
 const LX = {
-    version: "0.7.10",
+    version: "0.7.15",
     ready: false,
     extensions: [], // Store extensions used
     signals: {}, // Events and triggers
@@ -651,9 +651,9 @@ class TreeEvent {
         this.type = type || TreeEvent.NONE;
         this.node = node;
         this.value = value;
+        this.event = event;
         this.multiple = false; // Multiple selection
         this.panel = null;
-        this.event = event;
     }
 
     string() {
@@ -5322,11 +5322,12 @@ LX.guidGenerator = guidGenerator;
 function buildTextPattern( options = {} )
 {
     let patterns = [];
-    if ( options.lowercase ) patterns.push("(?=.*[a-z])");
-    if ( options.uppercase ) patterns.push("(?=.*[A-Z])");
-    if ( options.digit ) patterns.push("(?=.*\\d)");
-    if ( options.specialChar ) patterns.push("(?=.*[@#$%^&+=!])");
-    if ( options.noSpaces ) patterns.push("(?!.*\\s)");
+    if( options.lowercase ) patterns.push("(?=.*[a-z])");
+    if( options.uppercase ) patterns.push("(?=.*[A-Z])");
+    if( options.digit ) patterns.push("(?=.*\\d)");
+    if( options.specialChar ) patterns.push("(?=.*[@#$%^&+=!])");
+    if( options.noSpaces ) patterns.push("(?!.*\\s)");
+    if( options.email ) patterns.push("(^[^\s@]+@[^\s@]+\.[^\s@]+$)");
 
     let minLength = options.minLength || 0;
     let maxLength = options.maxLength || ""; // Empty means no max length restriction
@@ -5336,6 +5337,45 @@ function buildTextPattern( options = {} )
 }
 
 LX.buildTextPattern = buildTextPattern;
+
+/**
+ * Checks a value against a set of pattern requirements and returns an array
+ * of specific error messages for all criteria that failed.
+ * @param { String } value The string to validate.
+ * @param { Object } pattern The pattern options
+ * @returns { Array } An array of error messages for failed criteria.
+ */
+function validateValueAtPattern( value, pattern = {}, ...args )
+{
+    const errors = [];
+    const minLength = pattern.minLength || 0;
+    const maxLength = pattern.maxLength; // undefined means no max limit
+
+    // Length requirements
+    if( value.length < minLength ) errors.push(`Must be at least ${ minLength } characters long.`);
+    else if( maxLength !== undefined && value.length > maxLength ) errors.push(`Must be no more than ${ maxLength } characters long.`);
+
+    // Check for Lowercase, Uppercase, Digits
+    if( pattern.lowercase && !/[a-z]/.test( value ) ) errors.push( "Must contain at least one lowercase letter (a-z)." );
+    if( pattern.uppercase && !/[A-Z]/.test( value ) ) errors.push( "Must contain at least one uppercase letter (A-Z)." );
+    if( pattern.digit && !/\d/.test( value ) ) errors.push( "Must contain at least one number (0-9)." );
+
+    // Check for No Spaces (The original regex was (?!.*\s), meaning 'not followed by any character and a space')
+    if( pattern.noSpaces && /\s/.test(value)) errors.push("Must NOT contain any spaces.");
+
+    // Check for Special Character (using the same set as buildTextPattern)
+    if( pattern.specialChar && !/[@#$%^&+=!]/.test( value ) ) errors.push("Must contain at least one special character (e.g., @, #, $, %, ^, &, +, =, !).");
+
+    // Check email formatting
+    if( pattern.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test( value ) ) errors.push("Must have a valid email format.");
+
+    // Check match to any other text word
+    if( pattern.fieldMatchName && value !== ( args[ 0 ] ) ) errors.push(`Must match ${ pattern.fieldMatchName  } field.`);
+
+    return errors;
+}
+
+LX.validateValueAtPattern = validateValueAtPattern;
 
 /**
  * @method makeDraggable
@@ -7946,8 +7986,8 @@ class BaseComponent {
         BaseComponent.PROGRESS
     ];
 
-    constructor( type, name, value, options = {} ) {
-
+    constructor( type, name, value, options = {} )
+    {
         this.type = type;
         this.name = name;
         this.options = options;
@@ -8045,13 +8085,14 @@ class BaseComponent {
         this.options = options;
     }
 
-    static _dispatchEvent( element, type, data, bubbles, cancelable ) {
+    static _dispatchEvent( element, type, data, bubbles, cancelable )
+    {
         let event = new CustomEvent( type, { 'detail': data, 'bubbles': bubbles, 'cancelable': cancelable } );
         element.dispatchEvent( event );
     }
 
-    _addResetProperty( container, callback ) {
-
+    _addResetProperty( container, callback )
+    {
         const domEl = LX.makeIcon( "Undo2", { iconClass: "ml-0 mr-1 px-1", title: "Reset" } );
         domEl.style.display = "none";
         domEl.addEventListener( "click", callback );
@@ -8059,7 +8100,8 @@ class BaseComponent {
         return domEl;
     }
 
-    _canPaste() {
+    _canPaste()
+    {
         let pasteAllowed = this.type === BaseComponent.CUSTOM ?
             ( navigator.clipboard.customIdx !== undefined && this.customIdx == navigator.clipboard.customIdx ) : navigator.clipboard.type === this.type;
 
@@ -8073,8 +8115,8 @@ class BaseComponent {
         return pasteAllowed;
     }
 
-    _trigger( event, callback, scope = this ) {
-
+    _trigger( event, callback, scope = this )
+    {
         if( !callback )
         {
             return;
@@ -8083,8 +8125,8 @@ class BaseComponent {
         callback.call( scope, event.value, event.domEvent, event.name );
     }
 
-    value() {
-
+    value()
+    {
         if( this.onGetValue )
         {
             return this.onGetValue();
@@ -8093,8 +8135,8 @@ class BaseComponent {
         console.warn( "Can't get value of " + this.typeName() );
     }
 
-    set( value, skipCallback, event ) {
-
+    set( value, skipCallback, event )
+    {
         if( this.onSetValue )
         {
             let resetButton = this.root.querySelector( ".lexcomponentname .lexicon" );
@@ -8102,12 +8144,13 @@ class BaseComponent {
             {
                 resetButton.style.display = ( value != this.value() ? "block" : "none" );
 
-                const equalInitial = value.constructor === Array ? (function arraysEqual(a, b) {
-                    if (a === b) return true;
-                    if (a == null || b == null) return false;
-                    if (a.length !== b.length) return false;
-                    for (var i = 0; i < a.length; ++i) {
-                        if (a[ i ] !== b[ i ]) return false;
+                const equalInitial = value.constructor === Array ? (function arraysEqual( a, b ) {
+                    if( a === b ) return true;
+                    if( a == null || b == null ) return false;
+                    if( a.length !== b.length ) return false;
+                    for( var i = 0; i < a.length; ++i )
+                    {
+                        if( a[ i ] !== b[ i ] ) return false;
                     }
                     return true;
                 })( value, this._initialValue ) : ( value == this._initialValue );
@@ -8118,11 +8161,11 @@ class BaseComponent {
             return this.onSetValue( value, skipCallback ?? false, event );
         }
 
-        console.warn("Can't set value of " + this.typeName());
+        console.warn( `Can't set value of ${ this.typeName() }`);
     }
 
-    oncontextmenu( e ) {
-
+    oncontextmenu( e )
+    {
         if( BaseComponent.NO_CONTEXT_TYPES.includes( this.type ) )
         {
             return;
@@ -8134,14 +8177,16 @@ class BaseComponent {
         });
     }
 
-    copy() {
+    copy()
+    {
         navigator.clipboard.type = this.type;
         navigator.clipboard.customIdx = this.customIdx;
         navigator.clipboard.data = this.value();
         navigator.clipboard.writeText( navigator.clipboard.data );
     }
 
-    paste() {
+    paste()
+    {
         if( !this._canPaste() )
         {
             return;
@@ -8150,8 +8195,8 @@ class BaseComponent {
         this.set( navigator.clipboard.data );
     }
 
-    typeName() {
-
+    typeName()
+    {
         switch( this.type )
         {
             case BaseComponent.TEXT: return "Text";
@@ -8203,8 +8248,8 @@ function ADD_CUSTOM_COMPONENT( customComponentName, options = {} )
 {
     let customIdx = LX.guidGenerator();
 
-    LX.Panel.prototype[ 'add' + customComponentName ] = function( name, instance, callback ) {
-
+    LX.Panel.prototype[ 'add' + customComponentName ] = function( name, instance, callback )
+    {
         const userParams = Array.from( arguments ).slice( 3 );
 
         let component = new BaseComponent( BaseComponent.CUSTOM, name, null, options );
@@ -8390,8 +8435,8 @@ LX.ADD_CUSTOM_COMPONENT = ADD_CUSTOM_COMPONENT;
 
 class NodeTree {
 
-    constructor( domEl, data, options ) {
-
+    constructor( domEl, data, options )
+    {
         this.domEl = domEl;
         this.data = data;
         this.onevent = options.onevent;
@@ -8413,8 +8458,8 @@ class NodeTree {
         }
     }
 
-    _createItem( parent, node, level = 0, selectedId ) {
-
+    _createItem( parent, node, level = 0, selectedId )
+    {
         const that = this;
         const nodeFilterInput = this.domEl.querySelector( ".lexnodetreefilter" );
 
@@ -8440,7 +8485,7 @@ class NodeTree {
         if( this.options.onlyFolders )
         {
             let hasFolders = false;
-            node.children.forEach( c => hasFolders |= (c.type == 'folder') );
+            node.children.forEach( c => hasFolders |= ( c.type == 'folder' ) );
             isParent = !!hasFolders;
         }
 
@@ -8611,7 +8656,7 @@ class NodeTree {
 
                     if( ok && that.onevent )
                     {
-                        const event = new LX.TreeEvent( LX.TreeEvent.NODE_DELETED, node, [node], null );
+                        const event = new LX.TreeEvent( LX.TreeEvent.NODE_DELETED, node, [ node ], null );
                         that.onevent( event );
                     }
 
@@ -8686,7 +8731,7 @@ class NodeTree {
 
                 if( that.onevent )
                 {
-                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_RENAMED, node, this.value, e);
+                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_RENAMED, node, this.value, e );
                     that.onevent( event );
                 }
 
@@ -8760,7 +8805,7 @@ class NodeTree {
                 // Trigger node dragger event
                 if( that.onevent )
                 {
-                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_DRAGGED, dragged, target, e);
+                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_DRAGGED, dragged, target, e );
                     that.onevent( event );
                 }
 
@@ -8801,7 +8846,7 @@ class NodeTree {
 
                 if( that.onevent )
                 {
-                    const event = new LX.TreeEvent(LX.TreeEvent.NODE_CARETCHANGED, node, node.closed, e);
+                    const event = new LX.TreeEvent( LX.TreeEvent.NODE_CARETCHANGED, node, node.closed, e );
                     that.onevent( event );
                 }
                 that.frefresh( node.id );
@@ -8818,16 +8863,22 @@ class NodeTree {
             for( let i = 0; i < node.actions.length; ++i )
             {
                 const action = node.actions[ i ];
-                const actionIcon = LX.makeIcon( action.icon, { title: action.name } );
-                actionIcon.addEventListener("click", function( e ) {
+                const actionBtn = new LX.Button( null, "", ( swapValue, event ) => {
+                    event.stopPropagation();
                     if( action.callback )
                     {
-                        action.callback( node, actionIcon );
-                        e.stopPropagation();
+                        action.callback( node, swapValue, event );
                     }
-                });
+                }, { icon: action.icon, swap: action.swap, title: action.name, hideName:true, className: "p-0 m-0", buttonClass: "p-0 m-0 bg-none" } );
+                actionBtn.root.style.minWidth = "fit-content";
+                actionBtn.root.style.margin = "0"; // adding classes does not work
+                actionBtn.root.style.padding = "0"; // adding classes does not work
+                const _btn = actionBtn.root.querySelector("button");
+                _btn.style.minWidth = "fit-content";
+                _btn.style.margin = "0"; // adding classes does not work
+                _btn.style.padding = "0"; // adding classes does not work
 
-                inputContainer.appendChild( actionIcon );
+                inputContainer.appendChild( actionBtn.root );
             }
         }
 
@@ -8895,21 +8946,34 @@ class NodeTree {
     }
 
     /* Refreshes the tree and focuses current element */
-    frefresh( id ) {
-
+    frefresh( id )
+    {
         this.refresh();
-        var el = this.domEl.querySelector( "#" + id );
+        var el = this.domEl.querySelector( `#${ id }` );
         if( el )
         {
             el.focus();
         }
     }
 
-    select( id ) {
+    select( id )
+    {
+        const nodeFilter = this.domEl.querySelector( ".lexnodetreefilter" );
+        if( nodeFilter )
+        {
+            nodeFilter.value = "";
+        }
 
         this.refresh( null, id );
 
         this.domEl.querySelectorAll( ".selected" ).forEach( i => i.classList.remove( "selected" ) );
+
+        // Unselect
+        if( !id )
+        {
+            this.selected.length = 0;
+            return;
+        }
 
         // Element should exist, since tree was refreshed to show it
         const el = this.domEl.querySelector( "#" + id );
@@ -8920,8 +8984,8 @@ class NodeTree {
         el.focus();
     }
 
-    deleteNode( node ) {
-
+    deleteNode( node )
+    {
         const dataAsArray = ( this.data.constructor === Array );
 
         // Can be either Array or Object type data
@@ -8957,10 +9021,10 @@ LX.NodeTree = NodeTree;
  * @description Blank Component
  */
 
-class Blank extends BaseComponent {
-
-    constructor( width, height ) {
-
+class Blank extends BaseComponent
+{
+    constructor( width, height )
+    {
         super( BaseComponent.BLANK );
 
         this.root.style.width = width ?? "auto";
@@ -8975,10 +9039,10 @@ LX.Blank = Blank;
  * @description Title Component
  */
 
-class Title extends BaseComponent {
-
-    constructor( name, options = {} ) {
-
+class Title extends BaseComponent
+{
+    constructor( name, options = {} )
+    {
         console.assert( name, "Can't create Title Component without text!" );
 
         // Note: Titles are not registered in Panel.components by now
@@ -9019,10 +9083,10 @@ LX.Title = Title;
  * @description TextInput Component
  */
 
-class TextInput extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class TextInput extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         super( BaseComponent.TEXT, name, String( value ), options );
 
         this.onGetValue = () => {
@@ -9031,7 +9095,14 @@ class TextInput extends BaseComponent {
 
         this.onSetValue = ( newValue, skipCallback, event ) => {
 
-            if( !this.valid( newValue ) || ( this._lastValueTriggered == newValue ) )
+            let skipTrigger = ( this._lastValueTriggered == newValue );
+
+            if( !options.ignoreValidation )
+            {
+                skipTrigger |=  ( !this.valid( newValue ) );
+            }
+
+            if( skipTrigger )
             {
                 return;
             }
@@ -9051,11 +9122,11 @@ class TextInput extends BaseComponent {
             container.style.width = options.inputWidth ?? `calc( 100% - ${ realNameWidth })`;
         };
 
-        this.valid = ( v ) => {
+        this.valid = ( v, matchField ) => {
             v = v ?? this.value();
-            if( ( wValue.pattern ?? "" ) == "" ) return true;
-            const regexp = new RegExp( wValue.pattern );
-            return regexp.test( v );
+            if( !options.pattern ) return true;
+            const errs = LX.validateValueAtPattern( v, options.pattern, matchField );
+            return ( errs.length == 0 );
         };
 
         let container = document.createElement( 'div' );
@@ -9084,7 +9155,7 @@ class TextInput extends BaseComponent {
 
             if( options.pattern )
             {
-                wValue.setAttribute( "pattern", options.pattern );
+                wValue.setAttribute( "pattern", LX.buildTextPattern( options.pattern ) );
             }
 
             const trigger = options.trigger ?? "default";
@@ -9109,7 +9180,7 @@ class TextInput extends BaseComponent {
                 });
             }
 
-            wValue.addEventListener( "mousedown", function( e ){
+            wValue.addEventListener( "mousedown", function( e ) {
                 e.stopImmediatePropagation();
                 e.stopPropagation();
             });
@@ -9159,10 +9230,10 @@ LX.TextInput = TextInput;
  * @description TextArea Component
  */
 
-class TextArea extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class TextArea extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         super( BaseComponent.TEXTAREA, name, value, options );
 
         this.onGetValue = () => {
@@ -9260,10 +9331,10 @@ LX.TextArea = TextArea;
  * @description Button Component
  */
 
-class Button extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class Button extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         super( BaseComponent.BUTTON, name, null, options );
 
         this.onGetValue = () => {
@@ -9482,10 +9553,10 @@ LX.Button = Button;
  * @description ComboButtons Component
  */
 
-class ComboButtons extends BaseComponent {
-
-    constructor( name, values, options = {} ) {
-
+class ComboButtons extends BaseComponent
+{
+    constructor( name, values, options = {} )
+    {
         const shouldSelect = !( options.noSelection ?? false );
         let shouldToggle = shouldSelect && ( options.toggle ?? false );
 
@@ -9643,10 +9714,10 @@ LX.ComboButtons = ComboButtons;
  * @description Card Component
  */
 
-class Card extends BaseComponent {
-
-    constructor( name, options = {} ) {
-
+class Card extends BaseComponent
+{
+    constructor( name, options = {} )
+    {
         options.hideName = true;
 
         super( BaseComponent.CARD, name, null, options );
@@ -9706,10 +9777,10 @@ LX.Card = Card;
  * @description Form Component
  */
 
-class Form extends BaseComponent {
-
-    constructor( name, data, callback, options = {} ) {
-
+class Form extends BaseComponent
+{
+    constructor( name, data, callback, options = {} )
+    {
         if( data.constructor != Object )
         {
             console.error( "Form data must be an Object" );
@@ -9754,13 +9825,14 @@ class Form extends BaseComponent {
 
             if( entryData.constructor != Object )
             {
-                const oldValue = JSON.parse( JSON.stringify( entryData ) );
+                const oldValue = LX.deepCopy( entryData );
                 entryData = { value: oldValue };
                 data[ entry ] = entryData;
             }
 
-            entryData.placeholder = entryData.placeholder ?? ( entryData.label ?? `Enter ${ entry }` );
             entryData.width = "100%";
+            entryData.placeholder = entryData.placeholder ?? ( entryData.label ?? `Enter ${ entry }` );
+            entryData.ignoreValidation = true;
 
             if( !( options.skipLabels ?? false ) )
             {
@@ -9776,14 +9848,14 @@ class Form extends BaseComponent {
             container.formData[ entry ] = entryData.constructor == Object ? entryData.value : entryData;
         }
 
-        const buttonContainer = LX.makeContainer( ["100%", "auto"], "flex flex-row", "", container );
+        const buttonContainer = LX.makeContainer( ["100%", "auto"], "flex flex-row mt-2", "", container );
 
         if( options.secondaryActionName || options.secondaryActionCallback )
         {
             const secondaryButton = new LX.Button( null, options.secondaryActionName ?? "Cancel", ( value, event ) => {
-                if( callback )
+                if( options.secondaryActionCallback )
                 {
-                    callback( container.formData, event );
+                    options.secondaryActionCallback( container.formData, event );
                 }
             }, { width: "100%", minWidth: "0", buttonClass: options.secondaryButtonClass ?? "primary" } );
 
@@ -9798,9 +9870,22 @@ class Form extends BaseComponent {
             {
                 let entryData = data[ entry ];
 
-                if( !entryData.textComponent.valid() )
+                const pattern = entryData.pattern;
+                const matchField = pattern?.fieldMatchName ? container.formData[ pattern.fieldMatchName ] : undefined;
+
+                if( !entryData.textComponent.valid( undefined, matchField ) )
                 {
-                    errors.push( { type: "input_not_valid", entry } );
+                    const err = { entry, type: "input_not_valid" };
+                    err.messages = [];
+                    if( pattern )
+                    {
+                        err.messages = LX.validateValueAtPattern(
+                            container.formData[ entry ],
+                            pattern,
+                            matchField
+                        );
+                    }
+                    errors.push( err );
                 }
             }
 
@@ -9821,10 +9906,10 @@ LX.Form = Form;
  * @description Select Component
  */
 
-class Select extends BaseComponent {
-
-    constructor( name, values, value, callback, options = {} ) {
-
+class Select extends BaseComponent
+{
+    constructor( name, values, value, callback, options = {} )
+    {
         super( BaseComponent.SELECT, name, value, options );
 
         this.onGetValue = () => {
@@ -10233,10 +10318,10 @@ LX.Select = Select;
  * @description Curve Component
  */
 
-class Curve extends BaseComponent {
-
-    constructor( name, values, callback, options = {} ) {
-
+class Curve extends BaseComponent
+{
+    constructor( name, values, callback, options = {} )
+    {
         let defaultValues = JSON.parse( JSON.stringify( values ) );
 
         super( BaseComponent.CURVE, name, defaultValues, options );
@@ -10294,10 +10379,10 @@ LX.Curve = Curve;
  * @description Dial Component
  */
 
-class Dial extends BaseComponent {
-
-    constructor( name, values, callback, options = {} ) {
-
+class Dial extends BaseComponent
+{
+    constructor( name, values, callback, options = {} )
+    {
         let defaultValues = JSON.parse( JSON.stringify( values ) );
 
         super( BaseComponent.DIAL, name, defaultValues, options );
@@ -10351,10 +10436,10 @@ LX.Dial = Dial;
  * @description Layers Component
  */
 
-class Layers extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class Layers extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         super( BaseComponent.LAYERS, name, value, options );
 
         this.onGetValue = () => {
@@ -10435,10 +10520,10 @@ LX.Layers = Layers;
  * @description ItemArray Component
  */
 
-class ItemArray extends BaseComponent {
-
-    constructor( name, values = [], callback, options = {} ) {
-
+class ItemArray extends BaseComponent
+{
+    constructor( name, values = [], callback, options = {} )
+    {
         options.nameWidth = "100%";
 
         super( BaseComponent.ARRAY, name, null, options );
@@ -10553,10 +10638,10 @@ LX.ItemArray = ItemArray;
  * @description List Component
  */
 
-class List extends BaseComponent {
-
-    constructor( name, values, value, callback, options = {} ) {
-
+class List extends BaseComponent
+{
+    constructor( name, values, value, callback, options = {} )
+    {
         super( BaseComponent.LIST, name, value, options );
 
         this.onGetValue = () => {
@@ -10653,10 +10738,10 @@ LX.List = List;
  * @description Tags Component
  */
 
-class Tags extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class Tags extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         value = value.replace( /\s/g, '' ).split( ',' );
 
         let defaultValue = [].concat( value );
@@ -10742,10 +10827,10 @@ LX.Tags = Tags;
  * @description Checkbox Component
  */
 
-class Checkbox extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class Checkbox extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         if( !name && !options.label )
         {
             throw( "Set Component Name or at least a label!" );
@@ -10825,10 +10910,10 @@ LX.Checkbox = Checkbox;
  * @description Toggle Component
  */
 
-class Toggle extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class Toggle extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         if( !name && !options.label )
         {
             throw( "Set Component Name or at least a label!" );
@@ -10909,10 +10994,10 @@ LX.Toggle = Toggle;
  * @description RadioGroup Component
  */
 
-class RadioGroup extends BaseComponent {
-
-    constructor( name, label, values, callback, options = {} ) {
-
+class RadioGroup extends BaseComponent
+{
+    constructor( name, label, values, callback, options = {} )
+    {
         super( BaseComponent.RADIO, name, null, options );
 
         let currentIndex = null;
@@ -10988,10 +11073,10 @@ LX.RadioGroup = RadioGroup;
  * @description ColorInput Component
  */
 
-class ColorInput extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class ColorInput extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         value = value ?? "#000000";
 
         const useAlpha = options.useAlpha ??
@@ -11111,10 +11196,10 @@ LX.ColorInput = ColorInput;
  * @description RangeInput Component
  */
 
-class RangeInput extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class RangeInput extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         const ogValue = LX.deepCopy( value );
 
         super( BaseComponent.RANGE, name, LX.deepCopy( ogValue ), options );
@@ -11325,10 +11410,10 @@ LX.RangeInput = RangeInput;
  * @description NumberInput Component
  */
 
-class NumberInput extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class NumberInput extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         super( BaseComponent.NUMBER, name, value, options );
 
         this.onGetValue = () => {
@@ -11547,10 +11632,10 @@ LX.NumberInput = NumberInput;
  * @description Vector Component
  */
 
-class Vector extends BaseComponent {
-
-    constructor( numComponents, name, value, callback, options = {} ) {
-
+class Vector extends BaseComponent
+{
+    constructor( numComponents, name, value, callback, options = {} )
+    {
         numComponents = LX.clamp( numComponents, 2, 4 );
         value = value ?? new Array( numComponents ).fill( 0 );
 
@@ -11797,10 +11882,10 @@ LX.Vector = Vector;
  * @description SizeInput Component
  */
 
-class SizeInput extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class SizeInput extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         super( BaseComponent.SIZE, name, value, options );
 
         this.onGetValue = () => {
@@ -11885,10 +11970,10 @@ LX.SizeInput = SizeInput;
  * @description OTPInput Component
  */
 
-class OTPInput extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class OTPInput extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         const pattern = options.pattern ?? "xxx-xxx";
         const patternSize = ( pattern.match(/x/g) || [] ).length;
 
@@ -12043,10 +12128,10 @@ LX.OTPInput = OTPInput;
  * @description Pad Component
  */
 
-class Pad extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class Pad extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         super( BaseComponent.PAD, name, null, options );
 
         this.onGetValue = () => {
@@ -12163,10 +12248,10 @@ LX.Pad = Pad;
  * @description Progress Component
  */
 
-class Progress extends BaseComponent {
-
-    constructor( name, value, options = {} ) {
-
+class Progress extends BaseComponent
+{
+    constructor( name, value, options = {} )
+    {
         super( BaseComponent.PROGRESS, name, value, options );
 
         this.onGetValue = () => {
@@ -12300,10 +12385,10 @@ LX.Progress = Progress;
  * @description FileInput Component
  */
 
-class FileInput extends BaseComponent {
-
-    constructor( name, callback, options = { } ) {
-
+class FileInput extends BaseComponent
+{
+    constructor( name, callback, options = { } )
+    {
         super( BaseComponent.FILE, name, null, options );
 
         let local = options.local ?? true;
@@ -12385,10 +12470,10 @@ LX.FileInput = FileInput;
  * @description Tree Component
  */
 
-class Tree extends BaseComponent {
-
-    constructor( name, data, options = {} ) {
-
+class Tree extends BaseComponent
+{
+    constructor( name, data, options = {} )
+    {
         options.hideName = true;
 
         super( BaseComponent.TREE, name, null, options );
@@ -12467,10 +12552,10 @@ LX.Tree = Tree;
  * @description TabSections Component
  */
 
-class TabSections extends BaseComponent {
-
-    constructor( name, tabs, options = {} ) {
-
+class TabSections extends BaseComponent
+{
+    constructor( name, tabs, options = {} )
+    {
         options.hideName = true;
 
         super( BaseComponent.TABS, name, null, options );
@@ -12574,10 +12659,10 @@ LX.TabSections = TabSections;
  * @description Counter Component
  */
 
-class Counter extends BaseComponent {
-
-    constructor( name, value, callback, options = { } ) {
-
+class Counter extends BaseComponent
+{
+    constructor( name, value, callback, options = { } )
+    {
         super( BaseComponent.COUNTER, name, value, options );
 
         this.onGetValue = () => {
@@ -12644,10 +12729,10 @@ LX.Counter = Counter;
  * @description Table Component
  */
 
-class Table extends BaseComponent {
-
-    constructor( name, data, options = { } ) {
-
+class Table extends BaseComponent
+{
+    constructor( name, data, options = { } )
+    {
         if( !data )
         {
             throw( "Data is needed to create a table!" );
@@ -12674,18 +12759,19 @@ class Table extends BaseComponent {
         this.filter = options.filter ?? false;
         this.customFilters = options.customFilters ?? false;
         this._toggleColumns = options.toggleColumns ?? false;
+        this._sortColumns = options.sortColumns ?? true;
         this._currentFilter = options.filterValue;
 
         data.head = data.head ?? [];
         data.body = data.body ?? [];
         data.checkMap = { };
         data.colVisibilityMap = { };
-        data.head.forEach( (col, index) => { data.colVisibilityMap[ index ] = true; });
+        data.head.forEach( ( col, index ) => { data.colVisibilityMap[ index ] = true; });
         this.data = data;
 
-        const compareFn = ( idx, order, a, b) => {
-            if (a[idx] < b[idx]) return -order;
-            else if (a[idx] > b[idx]) return order;
+        const compareFn = ( idx, order, a, b ) => {
+            if( a[ idx ] < b[ idx ] ) return -order;
+            else if( a[ idx ] > b[ idx ] ) return order;
             return 0;
         };
 
@@ -12855,10 +12941,10 @@ class Table extends BaseComponent {
                             icon: "Check",
                             callback: () => {
                                 data.colVisibilityMap[ idx ] = !data.colVisibilityMap[ idx ];
-                                const cells = table.querySelectorAll(`tr > *:nth-child(${idx + this.rowOffsetCount + 1})`);
-                                cells.forEach(cell => {
-                                    cell.style.display = (cell.style.display === "none") ? "" : "none";
-                                });
+                                const cells = table.querySelectorAll( `tr > *:nth-child(${idx + this.rowOffsetCount + 1})` );
+                                cells.forEach( cell => {
+                                    cell.style.display = ( cell.style.display === "none" ) ? "" : "none";
+                                } );
                             }
                         };
                         if( !data.colVisibilityMap[ idx ] ) delete item.icon;
@@ -12940,28 +13026,62 @@ class Table extends BaseComponent {
                         th.classList.add( "centered" );
                     }
 
-                    const menuOptions = [
-                        { name: "Asc", icon: "ArrowUpAZ", callback: sortFn.bind( this, idx, 1 ) },
-                        { name: "Desc", icon: "ArrowDownAZ", callback: sortFn.bind( this, idx, -1 ) }
-                    ];
+                    const menuOptions = [];
 
-                    if( this._toggleColumns )
+                    if( options.columnActions )
                     {
-                        menuOptions.push(
-                            null,
+                        for( let action of options.columnActions )
+                        {
+                            if( !action.name )
                             {
-                                name: "Hide", icon: "EyeOff", callback: () => {
-                                    data.colVisibilityMap[ idx ] = false;
-                                    const cells = table.querySelectorAll(`tr > *:nth-child(${idx + this.rowOffsetCount + 1})`);
-                                    cells.forEach(cell => {
-                                        cell.style.display = (cell.style.display === "none") ? "" : "none";
-                                    });
-                                }
+                                console.warn( "Invalid column action (missing name):", action );
+                                continue;
                             }
+
+                            menuOptions.push( { name: action.name, icon: action.icon, className: action.className, callback: () => {
+                                const colRows = this.data.body.map( row => [ row[ idx ] ] );
+                                const mustRefresh = action.callback( colRows, table );
+                                if( mustRefresh )
+                                {
+                                    this.refresh();
+                                }
+                            } } );
+                        }
+                    }
+
+                    if( this._sortColumns )
+                    {
+                        if(  menuOptions.length > 0 )
+                        {
+                            menuOptions.push( null );
+                        }
+
+                        menuOptions.push(
+                            { name: "Asc", icon: "ArrowUpAZ", callback: sortFn.bind( this, idx, 1 ) },
+                            { name: "Desc", icon: "ArrowDownAZ", callback: sortFn.bind( this, idx, -1 ) }
                         );
                     }
 
+                    if( this._toggleColumns )
+                    {
+                        if(  menuOptions.length > 0 )
+                        {
+                            menuOptions.push( null );
+                        }
+
+                        menuOptions.push( {
+                            name: "Hide", icon: "EyeOff", callback: () => {
+                                data.colVisibilityMap[ idx ] = false;
+                                const cells = table.querySelectorAll(`tr > *:nth-child(${idx + this.rowOffsetCount + 1})`);
+                                cells.forEach( cell => {
+                                    cell.style.display = ( cell.style.display === "none" ) ? "" : "none";
+                                } );
+                            }
+                        } );
+                    }
+
                     th.addEventListener( 'click', event => {
+                        if( menuOptions.length === 0 ) return;
                         new LX.DropdownMenu( event.target, menuOptions, { side: "bottom", align: "start" });
                     });
 
@@ -13327,10 +13447,10 @@ class Table extends BaseComponent {
                 const idx = parseInt( v );
                 if( !data.colVisibilityMap[ idx ] )
                 {
-                    const cells = table.querySelectorAll(`tr > *:nth-child(${idx + this.rowOffsetCount + 1})`);
-                    cells.forEach(cell => {
-                        cell.style.display = (cell.style.display === "none") ? "" : "none";
-                    });
+                    const cells = table.querySelectorAll( `tr > *:nth-child(${idx + this.rowOffsetCount + 1})` );
+                    cells.forEach( cell => {
+                        cell.style.display = ( cell.style.display === "none" ) ? "" : "none";
+                    } );
                 }
             }
         };
@@ -13340,8 +13460,8 @@ class Table extends BaseComponent {
         LX.doAsync( this.onResize.bind( this ) );
     }
 
-    getSelectedRows() {
-
+    getSelectedRows()
+    {
         const selectedRows = [];
 
         for( const row of this.data.body )
@@ -13356,8 +13476,8 @@ class Table extends BaseComponent {
         return selectedRows;
     }
 
-    _setCentered( v ) {
-
+    _setCentered( v )
+    {
         if( v.constructor == Boolean )
         {
             const container = this.root.querySelector( ".lextable" );
@@ -13390,10 +13510,10 @@ LX.Table = Table;
  * @description DatePicker Component
  */
 
-class DatePicker extends BaseComponent {
-
-    constructor( name, dateValue, callback, options = { } ) {
-
+class DatePicker extends BaseComponent
+{
+    constructor( name, dateValue, callback, options = { } )
+    {
         super( BaseComponent.DATE, name, null, options );
 
         const dateAsRange = ( dateValue?.constructor === Array );
@@ -13508,10 +13628,10 @@ LX.DatePicker = DatePicker;
  * @description Map2D Component
  */
 
-class Map2D extends BaseComponent {
-
-    constructor( name, points, callback, options = {} ) {
-
+class Map2D extends BaseComponent
+{
+    constructor( name, points, callback, options = {} )
+    {
         super( BaseComponent.MAP2D, name, null, options );
 
         this.onGetValue = () => {
@@ -13555,13 +13675,13 @@ LX.Map2D = Map2D;
  * @description Rate Component
  */
 
-class Rate extends BaseComponent {
-
-    constructor( name, value, callback, options = {} ) {
-
+class Rate extends BaseComponent
+{
+    constructor( name, value, callback, options = {} )
+    {
         const allowHalf = options.allowHalf ?? false;
 
-        if( !allowHalf)
+        if( !allowHalf )
         {
             value = Math.floor( value );
         }
@@ -15104,8 +15224,8 @@ LX.Branch = Branch;
 
 class Menubar {
 
-    constructor( items, options = {} ) {
-
+    constructor( items, options = {} )
+    {
         this.root = document.createElement( "div" );
         this.root.className = "lexmenubar";
 
@@ -15122,8 +15242,8 @@ class Menubar {
         this.createEntries();
     }
 
-    _resetMenubar( focus ) {
-
+    _resetMenubar( focus )
+    {
         this.root.querySelectorAll(".lexmenuentry").forEach( e => {
             e.classList.remove( 'selected' );
             delete e.dataset[ "built" ];
@@ -15143,8 +15263,8 @@ class Menubar {
      * @method createEntries
      */
 
-    createEntries() {
-
+    createEntries()
+    {
         for( let item of this.items )
         {
             let key = item.name;
@@ -15210,7 +15330,8 @@ class Menubar {
      * @param {String} name
      */
 
-    getButton( name ) {
+    getButton( name )
+    {
         return this.buttons[ name ];
     }
 
@@ -15219,26 +15340,23 @@ class Menubar {
      * @param {Object} item: parent item
      * @param {Array} tokens: split path strings
     */
-    getSubitem( item, tokens ) {
-
-        let subitem = null;
-        let path = tokens[ 0 ];
-
-        for( let i = 0; i < item.length; i++ )
+    getSubitem( item, tokens )
+    {
+        for( const s of item )
         {
-            if( item[ i ][ path ] )
+            if ( s?.name != tokens[ 0 ] )
             {
-                if( tokens.length == 1 )
-                {
-                    subitem = item[ i ];
-                    return subitem;
-                }
-                else
-                {
-                    tokens.splice( 0, 1 );
-                    return this.getSubitem( item[ i ][ path ], tokens );
-                }
+                continue;
+            }
 
+            if( tokens.length == 1 )
+            {
+                return s;
+            }
+            else if ( s.submenu )
+            {
+                tokens.shift();
+                return this.getSubitem( s.submenu, tokens );
             }
         }
     }
@@ -15247,12 +15365,11 @@ class Menubar {
      * @method getItem
      * @param {String} path
     */
-    getItem( path ) {
-
-        // process path
-        const tokens = path.split("/");
-
-        return this.getSubitem(this.items, tokens)
+    getItem( path )
+    {
+        // Process path
+        const tokens = path.split( '/' );
+        return this.getSubitem( this.items, tokens );
     }
 
     /**
@@ -15263,8 +15380,8 @@ class Menubar {
      * @param {Object} options
      */
 
-    setButtonIcon( name, icon, callback, options = {} ) {
-
+    setButtonIcon( name, icon, callback, options = {} )
+    {
         if( !name )
         {
             throw( "Set Button Name!" );
@@ -15319,8 +15436,8 @@ class Menubar {
      * @param {Object} options
      */
 
-    setButtonImage( name, src, callback, options = {} ) {
-
+    setButtonImage( name, src, callback, options = {} )
+    {
         if( !name )
         {
             throw( "Set Button Name!" );
@@ -15329,14 +15446,14 @@ class Menubar {
         let button = this.buttons[ name ];
         if( button )
         {
-            button.querySelector('img').src = src;
+            button.querySelector( 'img' ).src = src;
             return;
         }
 
         // Otherwise, create it
-        button = document.createElement('div');
+        button = document.createElement( 'div' );
         const disabled = options.disabled ?? false;
-        button.className = "lexmenubutton main" + (disabled ? " disabled" : "");
+        button.className = "lexmenubutton main" + ( disabled ? " disabled" : "" );
         button.title = name;
         button.innerHTML = "<a><image src='" + src + "' class='lexicon' style='height:32px;'></a>";
 
@@ -15360,11 +15477,11 @@ class Menubar {
 
         const _b = button.querySelector('a');
 
-        _b.addEventListener( "mousedown", (e) => {
+        _b.addEventListener( "mousedown", e => {
             e.preventDefault();
         });
 
-        _b.addEventListener( "mouseup", (e) => {
+        _b.addEventListener( "mouseup", e => {
             if( callback && !disabled )
             {
                 callback.call( this, _b, e );
@@ -15381,8 +15498,8 @@ class Menubar {
      * float: center (Default), right
      */
 
-    addButtons( buttons, options = {} ) {
-
+    addButtons( buttons, options = {} )
+    {
         if( !buttons )
         {
             throw( "No buttons to add!" );
@@ -15409,9 +15526,8 @@ class Menubar {
             }
         }
 
-        for( let i = 0; i < buttons.length; ++i )
+        for( const data of buttons )
         {
-            const data = buttons[ i ];
             const title = data.title;
             const button = new LX.Button( title, data.label, data.callback, {
                 title,
@@ -16247,8 +16363,9 @@ class AssetView {
         this.onlyFolders = options.onlyFolders ?? true;
         this.allowMultipleSelection = options.allowMultipleSelection ?? false;
         this.previewActions = options.previewActions ?? [];
-        this.contextMenu = options.contextMenu ?? [];
+        this.itemContextMenuOptions = options.itemContextMenuOptions;
         this.onRefreshContent = options.onRefreshContent;
+        this.onItemDragged = options.onItemDragged;
 
         // Append temporarily to the dom
         document.body.appendChild( this.root );
@@ -16275,6 +16392,7 @@ class AssetView {
 
         this._processData( this.data, null );
 
+        this.currentFolder = null;
         this.currentData = this.data;
         this.path = ['@'];
 
@@ -16318,6 +16436,284 @@ class AssetView {
         this._refreshContent();
 
         this.onevent = onevent;
+    }
+
+    /**
+    * @method addItem
+    */
+
+    addItem( item, childIndex, updateTree = true ) {
+
+        const isListLayout = ( this.layout == AssetView.LAYOUT_LIST );
+        const isGridLayout = ( this.layout == AssetView.LAYOUT_GRID ); // default
+        const type = item.type.charAt( 0 ).toUpperCase() + item.type.slice( 1 );
+        const extension = LX.getExtension( item.id );
+        const isFolder = type === "Folder";
+        const that = this;
+
+        let itemEl = document.createElement('li');
+        itemEl.className = "lexassetitem " + item.type.toLowerCase();
+        itemEl.tabIndex = -1;
+        this.content.insertChildAtIndex( itemEl, childIndex );
+
+        if( item.lastModified && !item.lastModifiedDate )
+        {
+            item.lastModifiedDate = this._lastModifiedToStringDate( item.lastModified );
+        }
+
+        if( !this.useNativeTitle )
+        {
+            let desc = document.createElement( 'span' );
+            desc.className = 'lexitemdesc';
+            desc.id = `floatingTitle_${ item.id.replace( /\s/g, '_' ).replaceAll( ".", "_" ) }`;
+            desc.innerHTML = `File: ${ item.id }<br>Type: ${ type }`;
+            this.content.insertChildAtIndex( desc, childIndex ? childIndex + 1 : undefined );
+
+            itemEl.addEventListener( "mousemove", e => {
+
+                if( !isGridLayout )
+                {
+                    return;
+                }
+
+                const dialog = itemEl.closest('dialog');
+                const rect = itemEl.getBoundingClientRect();
+                const targetRect = e.target.getBoundingClientRect();
+
+                let localOffsetX = rect.x + e.offsetX;
+                let localOffsetY = rect.y + e.offsetY;
+
+                if( dialog )
+                {
+                    const dialogRect = dialog.getBoundingClientRect();
+                    localOffsetX -= dialogRect.x;
+                    localOffsetY -= dialogRect.y;
+                }
+
+                if( e.target.classList.contains( "lexassettitle" ) )
+                {
+                    localOffsetY += ( targetRect.y - rect.y );
+                }
+
+                desc.style.left = ( localOffsetX ) + "px";
+                desc.style.top = ( localOffsetY - 36 ) + "px";
+            } );
+        }
+        else
+        {
+            itemEl.title = type + ": " + item.id;
+        }
+
+        if( this.allowMultipleSelection )
+        {
+            let checkbox = document.createElement( 'input' );
+            checkbox.type = "checkbox";
+            checkbox.className = "lexcheckbox";
+            checkbox.checked = item.selected;
+            checkbox.addEventListener('change', ( e, v ) => {
+                item.selected = !item.selected;
+                if( this.onevent )
+                {
+                    const event = new AssetViewEvent(AssetViewEvent.ASSET_CHECKED, e.shiftKey ? [item] : item );
+                    event.multiple = !!e.shiftKey;
+                    this.onevent( event );
+                }
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            });
+
+            itemEl.appendChild( checkbox );
+        }
+
+        let title = document.createElement('span');
+        title.className = "lexassettitle";
+        title.innerText = item.id;
+        itemEl.appendChild( title );
+
+        if( !this.skipPreview )
+        {
+            if( item.type === 'video' )
+            {
+                const itemVideo = LX.makeElement( 'video', 'absolute left-0 top-0 w-full border-none pointer-events-none', '', itemEl );
+                itemVideo.setAttribute( 'disablePictureInPicture', false );
+                itemVideo.setAttribute( 'disableRemotePlayback', false );
+                itemVideo.setAttribute( 'loop', true );
+                itemVideo.setAttribute( 'async', true );
+                itemVideo.style.transition = 'opacity 0.2s ease-out';
+                itemVideo.style.opacity = item.preview ? '0' : '1';
+                itemVideo.src = item.src;
+                itemVideo.volume = item.videoVolume ?? 0.4;
+            }
+
+            let preview = null;
+
+            const previewSrc    = item.preview ?? item.src;
+            const hasImage = previewSrc && (
+                (() => {
+                    const ext = LX.getExtension( previewSrc.split( '?' )[ 0 ].split( '#' )[ 0 ]); // get final source without url parameters/anchors
+                    return ext ? ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'avif'].includes( ext.toLowerCase() ) : false;
+                })()
+                || previewSrc.startsWith( 'data:image/' )
+            );
+
+            if( hasImage || isFolder || !isGridLayout )
+            {
+                const defaultPreviewPath    = `${ this.rootPath }images/file.png`;
+                const defaultFolderPath     = `${ this.rootPath }images/folder.png`;
+
+                preview = document.createElement('img');
+                let realSrc = item.unknownExtension ? defaultPreviewPath : ( isFolder ? defaultFolderPath : previewSrc );
+                preview.src = ( isGridLayout || isFolder ? realSrc : defaultPreviewPath );
+                itemEl.appendChild( preview );
+            }
+            else
+            {
+                preview = document.createElement( 'svg' );
+                preview.className = 'asset-file-preview';
+                itemEl.appendChild( preview );
+
+                let textEl = document.createElement( 'text' );
+                textEl.innerText = ( !extension || extension == item.id ) ? item.type.toUpperCase() : ( `${ extension.toUpperCase() }` ); // If no extension, e.g. Clip, use the type...
+                preview.appendChild( textEl );
+
+                var newLength = textEl.innerText.length;
+                var charsPerLine = 2.5;
+                var newEmSize = charsPerLine / newLength;
+                var textBaseSize = 64;
+
+                if( newEmSize < 1 )
+                {
+                    var newFontSize = newEmSize * textBaseSize;
+                    textEl.style.fontSize = newFontSize + 'px';
+                    preview.style.paddingTop = `calc(50% - ${ ( textEl.offsetHeight * 0.5 + 10 ) }px)`;
+                }
+            }
+        }
+
+        // Add item type info
+        let itemInfoHtml = type;
+
+        if( isListLayout )
+        {
+            if( item.bytesize ) itemInfoHtml += ` | ${ LX.formatBytes( item.bytesize ) }`;
+            if( item.lastModifiedDate ) itemInfoHtml += ` | ${ item.lastModifiedDate }`;
+        }
+
+        LX.makeContainer( [ 'auto', 'auto' ], 'lexassetinfo', itemInfoHtml, itemEl );
+
+        itemEl.addEventListener('click', function( e ) {
+            e.stopImmediatePropagation();
+            e.stopPropagation();
+
+            const isDoubleClick = ( e.detail == LX.MOUSE_DOUBLE_CLICK );
+
+            if( !isDoubleClick )
+            {
+                if( !e.shiftKey )
+                {
+                    that.content.querySelectorAll( '.lexassetitem').forEach( i => i.classList.remove( 'selected' ) );
+                }
+
+                this.classList.add( 'selected' );
+                that.selectedItem = item;
+
+                if( !that.skipPreview )
+                {
+                    that._previewAsset( item );
+                }
+            }
+            else if( isFolder )
+            {
+                that._enterFolder( item );
+                return;
+            }
+
+            if( that.onevent )
+            {
+                const event = new AssetViewEvent(isDoubleClick ? AssetViewEvent.ASSET_DBLCLICKED : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
+                event.multiple = !!e.shiftKey;
+                that.onevent( event );
+            }
+        });
+
+        itemEl.addEventListener('contextmenu', function( e ) {
+            e.preventDefault();
+
+            const multiple = that.content.querySelectorAll('.selected').length;
+
+            LX.addContextMenu( multiple > 1 ? ( multiple + " selected" ) : isFolder ? item.id : item.type, e, m =>
+            {
+                if( multiple <= 1 )
+                {
+                    m.add("Rename", that._renameItem.bind( that, item ));
+                }
+
+                if( !isFolder )
+                {
+                    m.add("Clone", that._cloneItem.bind( that, item ));
+                }
+
+                m.add("Delete", that._deleteItem.bind( that, item ));
+
+                if( that.itemContextMenuOptions )
+                {
+                    m.add("");
+
+                    for( let o of that.itemContextMenuOptions )
+                    {
+                        if( !o.name || !o.callback ) continue;
+                        m.add( o.name, o.callback?.bind( that, item ) );
+                    }
+                }
+            });
+        });
+
+        itemEl.addEventListener("dragstart", function( e ) {
+            e.preventDefault();
+        }, false );
+
+        itemEl.addEventListener( "mouseenter", ( e ) => {
+
+            if( !that.useNativeTitle && isGridLayout )
+            {
+                const desc = that.content.querySelector( `#floatingTitle_${ item.id.replace( /\s/g, '_' ).replaceAll( ".", "_" ) }` );
+                if( desc ) desc.style.display = "unset";
+            }
+
+            if( item.type !== "video" ) return;
+            e.preventDefault();
+            const video = itemEl.querySelector( "video" );
+            video.style.opacity = "1";
+            video.play();
+        } );
+
+        itemEl.addEventListener( "mouseleave", ( e ) => {
+
+            if( !that.useNativeTitle && isGridLayout )
+            {
+                setTimeout( () => {
+                    const desc = that.content.querySelector( `#floatingTitle_${ item.id.replace( /\s/g, '_' ).replaceAll( ".", "_" ) }` );
+                    if( desc ) desc.style.display = "none";
+                }, 100 );
+            }
+
+            if( item.type !== "video" ) return;
+            e.preventDefault();
+            const video = itemEl.querySelector( "video" );
+            video.pause();
+            video.currentTime = 0;
+            if( item.preview )
+            {
+                video.style.opacity = "0";
+            }
+        } );
+
+        if( !this.skipBrowser && updateTree )
+        {
+            this.tree.refresh();
+        }
+
+        return itemEl;
     }
 
     /**
@@ -16365,21 +16761,26 @@ class AssetView {
     * @method _updatePath
     */
 
-    _updatePath( data ) {
+    _updatePath() {
 
         this.path.length = 0;
 
-        const push_parents_id = i => {
-            if( !i ) return;
-            let list = i.children ? i.children : i;
-            let c = list[ 0 ];
-            if( !c ) return;
-            if( !c.folder ) return;
-            this.path.push( c.folder.id ?? '@' );
-            push_parents_id( c.folder.folder );
-        };
+        if( this.currentFolder && this.currentFolder.parent )
+        {
+            this.path.push( this.currentFolder.id );
 
-        push_parents_id( data );
+            const push_parents_id = i => {
+                if( !i ) return;
+                this.path.push( i.parent ? i.id : '@' );
+                push_parents_id( i.parent );
+            };
+
+            push_parents_id( this.currentFolder.parent );
+        }
+        else
+        {
+            this.path.push( '@' );
+        }
 
         LX.emit( "@on_folder_change", this.path.reverse().join('/') );
     }
@@ -16417,24 +16818,62 @@ class AssetView {
                 switch( event.type )
                 {
                     case LX.TreeEvent.NODE_SELECTED:
-                        if( !event.multiple )
+                    {
+                        if( event.multiple )
                         {
-                            this._enterFolder( node );
+                            return;
                         }
                         if( !node.parent )
                         {
-                            this.prevData.push( this.currentData );
+                            if( this.currentFolder )
+                            {
+                                this.prevData.push( this.currentFolder );
+                            }
+
+                            this.currentFolder = null;
                             this.currentData = this.data;
                             this._refreshContent();
+                            this._updatePath();
+                        }
+                        else
+                        {
+                            this._enterFolder( node.type === "folder" ? node : node.parent );
 
-                            this.path = ['@'];
-                            LX.emit("@on_folder_change", this.path.join('/'));
+                            this._previewAsset( node );
+
+                            if( node.type !== "folder" )
+                            {
+                                this.content.querySelectorAll( '.lexassetitem').forEach( i => i.classList.remove( 'selected' ) );
+                                const dom = node.domEl;
+                                dom?.classList.add( 'selected' );
+                            }
+
+                            this.selectedItem = node;
                         }
                         break;
+                    }
                     case LX.TreeEvent.NODE_DRAGGED:
-                        node.folder = value;
+                    {
+                        if( node.parent )
+                        {
+                            const idx = node.parent.children.indexOf( node );
+                            node.parent.children.splice( idx, 1 );
+                        }
+
+                        node.folder = node.parent = value;
+
+                        if( !value.children ) value.children = [];
+
+                        value.children.push( node );
+
+                        if( this.onItemDragged )
+                        {
+                            this.onItemDragged( node, value );
+                        }
+
                         this._refreshContent();
                         break;
+                    }
                 }
             },
         });
@@ -16531,22 +16970,17 @@ class AssetView {
                         value: "Left",
                         icon: "ArrowLeft",
                         callback: domEl => {
-                            if(!this.prevData.length) return;
-                            this.nextData.push( this.currentData );
-                            this.currentData = this.prevData.pop();
-                            this._refreshContent();
-                            this._updatePath( this.currentData );
+                            if( !this.prevData.length || !this.currentFolder ) return;
+                            this.nextData.push( this.currentFolder );
+                            this._enterFolder( this.prevData.pop(), false );
                         }
                     },
                     {
                         value: "Right",
                         icon: "ArrowRight",
                         callback: domEl => {
-                            if(!this.nextData.length) return;
-                            this.prevData.push( this.currentData );
-                            this.currentData = this.nextData.pop();
-                            this._refreshContent();
-                            this._updatePath( this.currentData );
+                            if( !this.nextData.length || !this.currentFolder ) return;
+                            this._enterFolder( this.nextData.pop() );
                         }
                     },
                     {
@@ -16557,7 +16991,7 @@ class AssetView {
                 ], { noSelection: true } );
 
                 this.toolsPanel.addText(null, this.path.join('/'), null, {
-                    inputClass: "nobg", disabled: true, signal: "@on_folder_change",
+                    width: "75%", inputClass: "nobg", disabled: true, signal: "@on_folder_change",
                     style: { fontWeight: "600", fontSize: "15px" }
                 });
 
@@ -16594,7 +17028,6 @@ class AssetView {
 
     _refreshContent( searchValue, filter ) {
 
-        const isGridLayout = ( this.layout == AssetView.LAYOUT_GRID ); // default
         const isCompactLayout = ( this.layout == AssetView.LAYOUT_COMPACT );
         const isListLayout = ( this.layout == AssetView.LAYOUT_LIST );
 
@@ -16602,268 +17035,6 @@ class AssetView {
         this.searchValue = searchValue ?? ( this.searchValue ?? "" );
         this.content.innerHTML = "";
         this.content.className = `lexassetscontent${ isCompactLayout ? " compact" : ( isListLayout ? " list" : "" ) }`;
-        let that = this;
-
-        const _addItem = function( item )
-        {
-            const type = item.type.charAt( 0 ).toUpperCase() + item.type.slice( 1 );
-            const extension = LX.getExtension( item.id );
-            const isFolder = type === "Folder";
-
-            let itemEl = document.createElement('li');
-            itemEl.className = "lexassetitem " + item.type.toLowerCase();
-            itemEl.tabIndex = -1;
-            that.content.appendChild( itemEl );
-
-            if( item.lastModified && !item.lastModifiedDate )
-            {
-                item.lastModifiedDate = that._lastModifiedToStringDate( item.lastModified );
-            }
-
-            if( !that.useNativeTitle )
-            {
-                let desc = document.createElement( 'span' );
-                desc.className = 'lexitemdesc';
-                desc.id = `floatingTitle_${ item.id }`;
-                desc.innerHTML = `File: ${ item.id }<br>Type: ${ type }`;
-                that.content.appendChild( desc );
-
-                itemEl.addEventListener( "mousemove", e => {
-
-                    if( !isGridLayout )
-                    {
-                        return;
-                    }
-
-                    const dialog = itemEl.closest('dialog');
-                    const rect = itemEl.getBoundingClientRect();
-                    const targetRect = e.target.getBoundingClientRect();
-
-                    let localOffsetX = rect.x + e.offsetX;
-                    let localOffsetY = rect.y + e.offsetY;
-
-                    if( dialog )
-                    {
-                        const dialogRect = dialog.getBoundingClientRect();
-                        localOffsetX -= dialogRect.x;
-                        localOffsetY -= dialogRect.y;
-                    }
-
-                    if( e.target.classList.contains( "lexassettitle" ) )
-                    {
-                        localOffsetY += ( targetRect.y - rect.y );
-                    }
-
-                    desc.style.left = ( localOffsetX ) + "px";
-                    desc.style.top = ( localOffsetY - 36 ) + "px";
-                } );
-            }
-            else
-            {
-                itemEl.title = type + ": " + item.id;
-            }
-
-            if( that.allowMultipleSelection )
-            {
-                let checkbox = document.createElement( 'input' );
-                checkbox.type = "checkbox";
-                checkbox.className = "lexcheckbox";
-                checkbox.checked = item.selected;
-                checkbox.addEventListener('change', ( e, v ) => {
-                    item.selected = !item.selected;
-                    if( that.onevent )
-                    {
-                        const event = new AssetViewEvent(AssetViewEvent.ASSET_CHECKED, e.shiftKey ? [item] : item );
-                        event.multiple = !!e.shiftKey;
-                        that.onevent( event );
-                    }
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                });
-
-                itemEl.appendChild( checkbox );
-            }
-
-            let title = document.createElement('span');
-            title.className = "lexassettitle";
-            title.innerText = item.id;
-            itemEl.appendChild( title );
-
-            if( !that.skipPreview )
-            {
-                if( item.type === 'video' )
-                {
-                    const itemVideo = LX.makeElement( 'video', 'absolute left-0 top-0 w-full border-none pointer-events-none', '', itemEl );
-                    itemVideo.setAttribute( 'disablePictureInPicture', false );
-                    itemVideo.setAttribute( 'disableRemotePlayback', false );
-                    itemVideo.setAttribute( 'loop', true );
-                    itemVideo.setAttribute( 'async', true );
-                    itemVideo.style.transition = 'opacity 0.2s ease-out';
-                    itemVideo.style.opacity = item.preview ? '0' : '1';
-                    itemVideo.src = item.src;
-                    itemVideo.volume = item.videoVolume ?? 0.4;
-                }
-
-                let preview = null;
-
-                const previewSrc    = item.preview ?? item.src;
-                const hasImage = previewSrc && (
-                    (() => {
-                        const ext = LX.getExtension( previewSrc.split( '?' )[ 0 ].split( '#' )[ 0 ]); // get final source without url parameters/anchors
-                        return ext ? ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'avif'].includes( ext.toLowerCase() ) : false;
-                    })()
-                    || previewSrc.startsWith( 'data:image/' )
-                );
-
-                if( hasImage || isFolder || !isGridLayout )
-                {
-                    const defaultPreviewPath    = `${ that.rootPath }images/file.png`;
-                    const defaultFolderPath     = `${ that.rootPath }images/folder.png`;
-
-                    preview = document.createElement('img');
-                    let realSrc = item.unknownExtension ? defaultPreviewPath : ( isFolder ? defaultFolderPath : previewSrc );
-                    preview.src = ( isGridLayout || isFolder ? realSrc : defaultPreviewPath );
-                    itemEl.appendChild( preview );
-                }
-                else
-                {
-                    preview = document.createElement( 'svg' );
-                    preview.className = 'asset-file-preview';
-                    itemEl.appendChild( preview );
-
-                    let textEl = document.createElement( 'text' );
-                    textEl.innerText = ( !extension || extension == item.id ) ? item.type.toUpperCase() : ( `.${ extension.toUpperCase() }` ); // If no extension, e.g. Clip, use the type...
-                    preview.appendChild( textEl );
-
-                    var newLength = textEl.innerText.length;
-                    var charsPerLine = 2.5;
-                    var newEmSize = charsPerLine / newLength;
-                    var textBaseSize = 64;
-
-                    if( newEmSize < 1 )
-                    {
-                        var newFontSize = newEmSize * textBaseSize;
-                        textEl.style.fontSize = newFontSize + 'px';
-                        preview.style.paddingTop = `calc(50% - ${ ( textEl.offsetHeight * 0.5 + 10 ) }px)`;
-                    }
-                }
-            }
-
-            // Add item type info
-            let itemInfoHtml = type;
-
-            if( isListLayout )
-            {
-                if( item.bytesize ) itemInfoHtml += ` | ${ LX.formatBytes( item.bytesize ) }`;
-                if( item.lastModifiedDate ) itemInfoHtml += ` | ${ item.lastModifiedDate }`;
-            }
-
-            LX.makeContainer( [ 'auto', 'auto' ], 'lexassetinfo', itemInfoHtml, itemEl );
-
-            itemEl.addEventListener('click', function( e ) {
-                e.stopImmediatePropagation();
-                e.stopPropagation();
-
-                const isDoubleClick = ( e.detail == LX.MOUSE_DOUBLE_CLICK );
-
-                if( !isDoubleClick )
-                {
-                    if( !e.shiftKey )
-                    {
-                        that.content.querySelectorAll( '.lexassetitem').forEach( i => i.classList.remove( 'selected' ) );
-                    }
-
-                    this.classList.add( 'selected' );
-                    that.selectedItem = item;
-
-                    if( !that.skipPreview )
-                    {
-                        that._previewAsset( item );
-                    }
-                }
-                else if( isFolder )
-                {
-                    that._enterFolder( item );
-                    return;
-                }
-
-                if( that.onevent )
-                {
-                    const event = new AssetViewEvent(isDoubleClick ? AssetViewEvent.ASSET_DBLCLICKED : AssetViewEvent.ASSET_SELECTED, e.shiftKey ? [item] : item );
-                    event.multiple = !!e.shiftKey;
-                    that.onevent( event );
-                }
-            });
-
-            if( that.contextMenu )
-            {
-                itemEl.addEventListener('contextmenu', function( e ) {
-                    e.preventDefault();
-
-                    const multiple = that.content.querySelectorAll('.selected').length;
-
-                    LX.addContextMenu( multiple > 1 ? (multiple + " selected") :
-                                isFolder ? item.id : item.type, e, m => {
-                        if( multiple <= 1 )
-                        {
-                            m.add("Rename");
-                        }
-                        if( !isFolder )
-                        {
-                            m.add("Clone", that._cloneItem.bind( that, item ));
-                        }
-                        if( multiple <= 1 )
-                        {
-                            m.add("Properties");
-                        }
-                        m.add("");
-                        m.add("Delete", that._deleteItem.bind( that, item ));
-                    });
-                });
-            }
-
-            itemEl.addEventListener("dragstart", function( e ) {
-                e.preventDefault();
-            }, false );
-
-            itemEl.addEventListener( "mouseenter", ( e ) => {
-
-                if( !that.useNativeTitle && isGridLayout )
-                {
-                    const desc = that.content.querySelector( `#floatingTitle_${ item.id }` );
-                    if( desc ) desc.style.display = "unset";
-                }
-
-                if( item.type !== "video" ) return;
-                e.preventDefault();
-                const video = itemEl.querySelector( "video" );
-                video.style.opacity = "1";
-                video.play();
-            } );
-
-            itemEl.addEventListener( "mouseleave", ( e ) => {
-
-                if( !that.useNativeTitle && isGridLayout )
-                {
-                    setTimeout( () => {
-                        const desc = that.content.querySelector( `#floatingTitle_${ item.id }` );
-                        if( desc ) desc.style.display = "none";
-                    }, 100 );
-                }
-
-                if( item.type !== "video" ) return;
-                e.preventDefault();
-                const video = itemEl.querySelector( "video" );
-                video.pause();
-                video.currentTime = 0;
-                if( item.preview )
-                {
-                    video.style.opacity = "0";
-                }
-            } );
-
-            return itemEl;
-        };
 
         const fr = new FileReader();
 
@@ -16899,7 +17070,7 @@ class AssetView {
                 } });
             }else
             {
-                item.domEl = _addItem( item );
+                item.domEl = this.addItem( item, null, false );
             }
         }
 
@@ -16920,6 +17091,11 @@ class AssetView {
 
     _previewAsset( file ) {
 
+        if( this.skipPreview )
+        {
+            return;
+        }
+
         const is_base_64 = file.src && file.src.includes("data:image/");
 
         this.previewPanel.clear();
@@ -16932,6 +17108,11 @@ class AssetView {
             {
                 this.previewPanel.addImage( null, file.src, { style: { width: "100%" } } );
             }
+        }
+
+        if( file.lastModified && !file.lastModifiedDate )
+        {
+            file.lastModifiedDate = this._lastModifiedToStringDate( file.lastModified );
         }
 
         const options = { disabled: true };
@@ -17039,15 +17220,27 @@ class AssetView {
         this._refreshContent();
     }
 
-    _enterFolder( folderItem ) {
+    _enterFolder( folderItem, storeCurrent = true ) {
 
-        this.prevData.push( this.currentData );
-        this.currentData = folderItem.children;
+        const child = this.currentData[ 0 ];
+        const sameFolder = child?.parent?.id === folderItem.id;
+
+        if( storeCurrent )
+        {
+            this.prevData.push( this.currentFolder ?? { id: "/", children: this.data } );
+        }
+
+        this.currentFolder = folderItem;
+        this.currentData = this.currentFolder.children;
         this.contentPage = 1;
-        this._refreshContent();
+
+        if( !sameFolder )
+        {
+            this._refreshContent();
+        }
 
         // Update path
-        this._updatePath(this.currentData);
+        this._updatePath();
 
         // Trigger event
         if( this.onevent )
@@ -17075,7 +17268,16 @@ class AssetView {
             this.onevent( event );
         }
 
-        this.tree.refresh();
+        if( !this.skipBrowser )
+        {
+            this.tree.refresh();
+        }
+
+        if( this.previewPanel )
+        {
+            this.previewPanel.clear();
+        }
+
         this._processData( this.data );
     }
 
@@ -17101,6 +17303,60 @@ class AssetView {
         }
 
         this._processData( this.data );
+    }
+
+    _renameItem( item ) {
+
+        const idx = this.currentData.indexOf( item );
+        if( idx < 0 )
+        {
+            return;
+        }
+
+        const oldName = item.id;
+        const wasSelected = item.domEl.hasClass( "selected" );
+
+        const onRename = ( value ) =>
+        {
+            p.destroy();
+
+            const hoverTitle = this.content.querySelector( `#floatingTitle_${ item.id.replace( /\s/g, '_' ).replaceAll( ".", "_" ) }` );
+            hoverTitle.remove();
+            item.domEl.remove();
+
+            item.id = value;
+            item.domEl = this.addItem( item, idx * 2 );
+
+            if( this.onevent )
+            {
+                const event = new AssetViewEvent( AssetViewEvent.ASSET_RENAMED, item, oldName );
+                this.onevent( event );
+            }
+
+            if( wasSelected )
+            {
+                this._previewAsset( item );
+            }
+
+            if( !this.skipBrowser )
+            {
+                this.tree.refresh();
+            }
+
+            this._processData( this.data );
+        };
+
+        let newName = item.id;
+        const panel = new LX.Panel();
+        panel.addText( null, item.id, ( v, e ) => {
+            newName = v;
+            if( e.constructor === KeyboardEvent ) onRename( v );
+        });
+        panel.addButton( null, "Save", ( v ) => {
+            onRename( newName );
+        }, { buttonClass: "contrast" });
+
+        const p = new LX.Popover( item.domEl, [ panel ], { align: "center", side: "bottom", sideOffset: -128 });
     }
 
     _lastModifiedToStringDate( lm ) {

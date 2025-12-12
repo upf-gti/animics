@@ -1136,18 +1136,19 @@ class Editor {
         }
     }
 
-    uploadFileToServer(filename, data, type, callback = () => {}) {
+    uploadFileToServer(unit, folder, filename, data, folder_id, callback = () => {}) {
         const session = this.remoteFileSystem.session;
         const username = session.user.username;
-        const folder = "animics/"+ type;
-
+        //const folder = "animics/"+ type;
+        const fullpath = unit + "/"+ folder + "/" + filename;
         // Check if the file already exists
-        session.getFileInfo(username + "/" + folder + "/" + filename, async (file) => {
+        // session.getFileInfo(username + "/" + folder + "/" + filename, async (file) => {
+        session.checkFileExist(fullpath, async (file) => {
 
-            if( file && file.size ) {
+            if( file ) {
               
                 LX.prompt("Do you want to overwrite the file?", "File already exists", async () => {
-                        const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                        const files = await this.remoteFileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), []);
                         callback(files);
                     }, 
                     {
@@ -1158,14 +1159,14 @@ class Editor {
                                 alert("You have to write a name.");
                                 return;
                             }
-                            const files = await this.remoteFileSystem.uploadFile(folder, v, new File([data], v ), []);
+                            const files = await this.remoteFileSystem.uploadFile(unit, folder_id, v, new File([data], v ), []);
                             callback(files);
                         }, {input: filename, accept: "Yes"} )
                     }
                 } )                
             }
             else {
-                const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                const files = await this.remoteFileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), []);
                 callback(files);
             }
         },
@@ -1335,7 +1336,7 @@ class KeyframeEditor extends Editor {
         // Create GUI
         this.gui = new KeyframesGui(this);
 
-        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", children: []}]}];
+        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", icon: "ClapperboardClosed", children: []}]}];
 
         this._clipsUniqueIDSeed = 0;
     }
@@ -3690,7 +3691,7 @@ class ScriptEditor extends Editor {
 
         // Create GUI
         this.gui = new ScriptGui(this);
-        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "presets", type:"folder", children: []}, {id: "signs", type:"folder", children: []}]} ];
+        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "presets", type:"folder", icon: "Tags", children: []}, {id: "signs", type:"folder", icon: "HandsAslInterpreting", children: []}]} ];
     }
 
     onKeyDown( event ) {
