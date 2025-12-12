@@ -209,9 +209,9 @@ class Gui {
                 
                 { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
                 { name: "Logout", icon: "LogOut", callback: () => {
-                    this.editor.ANIMICS._logout( () => {
+                    this.editor.ANIMICS._logout( async () => {
                         const folders = this.constructor == KeyframesGui ? ["clips"] : ["scripts"];
-                        this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
+                        await this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
                         this.changeLoginButton();
                     }); 
                 } },
@@ -251,10 +251,10 @@ class Gui {
     }
 
     showLoginModal() {
-        this.editor.ANIMICS.showLoginModal( (session, response) => {
+        this.editor.ANIMICS.showLoginModal( async (session, response) => {
                 this.changeLoginButton(session.user.username);
-                const folders = this.constructor == KeyframesGui ? ["clips"] : ["signs", "presets"] ;
-                this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
+                const folders = this.constructor == KeyframesGui ? ["clips"] : ["scripts"] ;            
+                await this.editor.remoteFileSystem.loadAllUnitsFolders(null, folders);
         } );  
     }
 
