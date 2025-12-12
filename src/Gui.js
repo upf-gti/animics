@@ -4688,10 +4688,11 @@ class KeyframesGui extends Gui {
                 const animations = this.editor.export(info.selectedAnimations, info.format, false);
                 for( let i = 0; i < animations.length; i++ ) {
                     
-                    this.editor.uploadData( animations[i].name, animations[i].data, "clips", location, (newFilename) => {
-                        this.closeDialogs();
-                        LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-                    })
+                    //TO DO: uploadData(animations[i].name, animations[i].data, "clips", {folderId, unitName, folderPath}, (newFilename) ...
+                    // this.editor.uploadData( animations[i].name, animations[i].data, "clips", location, (newFilename) => {
+                    //     this.closeDialogs();
+                    //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                    // })
                 }
             }
 
@@ -4794,11 +4795,12 @@ class KeyframesGui extends Gui {
                     path: "@/Local/clips",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.uploadData(item.filename, item.data, "clips", "server", (newFilename) => {
-                            this.closeDialogs();
-                            LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                        //TO DO: uploadData(item.filename, item.data, "clips", {folderId, unitName, folderPath}, (newFilename) ...
+                        // this.editor.uploadData(item.filename, item.data, "clips", "server", (newFilename) => {
+                        //     this.closeDialogs();
+                        //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                             
-                        });
+                        // });
                     }
                 },
                 {
@@ -4806,11 +4808,12 @@ class KeyframesGui extends Gui {
                     path: "@/Local/clips",
                     name: 'Upload to server', 
                     callback: (item)=> {
-                        this.editor.uploadData(item.filename, item.data, "clips", "server", (newFilename) => {
-                            this.closeDialogs();
-                            LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                        //TO DO: uploadData(item.filename, item.data, "clips", {folderId, unitName, folderPath}, (newFilename) ...
+                        // this.editor.uploadData(item.filename, item.data, "clips", "server", (newFilename) => {
+                        //     this.closeDialogs();
+                        //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
                             
-                        });
+                        // });
                     }
                 },
                 {
@@ -6272,10 +6275,11 @@ class ScriptGui extends Gui {
                 let animations = this.editor.export(info.selectedAnimations, info.format, false);
 
                 for( let i = 0; i < animations.length; i++ ) {                    
-                    this.editor.uploadData(animations[i].name, animations[i].data, info.folder, location, (newFilename) => {
-                        this.closeDialogs();
-                        LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-                    })
+                    //TO DO: uploadData(animations[i].name, animations[i].data, info.folder, {folderId, unitName, folderPath}, (newFilename) ...
+                    // this.editor.uploadData(animations[i].name, animations[i].data, info.folder, location, (newFilename) => {
+                    //     this.closeDialogs();
+                    //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                    // })
                 }
             }
             const session = this.editor.remoteFileSystem.session;
@@ -6356,10 +6360,11 @@ class ScriptGui extends Gui {
                 data: UTILS.dataToFile(JSON.stringify(resultingClips), fileName, "application/json")
             };
         
-            this.editor.uploadData(presetAnim.name, presetAnim.data, folder, location, (newFilename) => {
-                this.closeDialogs();
-                LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-            })
+            //TO DO: uploadData(presetAnim.name, presetAnim.data, folder, {folderId, unitName, folderPath}, (newFilename) ...
+            // this.editor.uploadData(presetAnim.name, presetAnim.data, folder, location, (newFilename) => {
+            //     this.closeDialogs();
+            //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+            // })
         }
             
         const dialog = this.prompt = new LX.Dialog("Save " + (folder == "presets" ? "preset" : "sign"), p => {
@@ -6685,11 +6690,12 @@ class ScriptGui extends Gui {
                         path: "@/Local/" + folder,
                         name: 'Upload to server', 
                         callback: (item)=> {
-                            this.editor.uploadData(item.filename + ".sigml", item.data, folder, "server", (newFilename) => {
-                                this.closeDialogs();
-                                LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New "+ folder +"!", {position: [ "10px", "50px"], timeout: 5000});
+                            //TO DO: uploadData(item.filename + ".sigml", item.data, folder, {folderId, unitName, folderPath}, (newFilename) ...
+                            // this.editor.uploadData(item.filename + ".sigml", item.data, folder, "server", (newFilename) => {
+                            //     this.closeDialogs();
+                            //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New "+ folder +"!", {position: [ "10px", "50px"], timeout: 5000});
                                 
-                            });
+                            // });
                         }
                     },
                     {
@@ -6697,11 +6703,12 @@ class ScriptGui extends Gui {
                         path: "@/Local/" + folder,
                         name: 'Upload to server', 
                         callback: (item)=> {
-                            this.editor.uploadData(item.filename + ".bml", item.data, folder, "server", (newFilename) => {
-                                this.closeDialogs();
-                                LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New "+ folder +"!", {position: [ "10px", "50px"], timeout: 5000});
+                            //TO DO: uploadData(item.filename + ".sigml", item.data, folder, {folderId, unitName, folderPath}, (newFilename) ...
+                            // this.editor.uploadData(item.filename + ".bml", item.data, folder, "server", (newFilename) => {
+                            //     this.closeDialogs();
+                            //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New "+ folder +"!", {position: [ "10px", "50px"], timeout: 5000});
                                 
-                            });
+                            // });
                         }
                     },
                     {

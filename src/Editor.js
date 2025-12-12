@@ -1099,12 +1099,12 @@ class Editor {
     uploadData(filename, data, type, location, callback) {
         const extension = filename.split(".")[1];
 
-        if(location == "server") {
+        if(location.constructor.name == "Object") { //server
             if(data.constructor.name == "Object") {
                 data = JSON.stringify(data, null, 4);
             }
-    
-            this.ANIMICS.uploadFile(filename, data, type, (newFilename, files) => {
+            
+            this.ANIMICS.uploadFile(filename, data, type, location, (newFilename, files) => {
                 const unit = this.remoteFileSystem.session.user.username;
                 this.remoteFileSystem.repository.map( item => {
                     if(item.id == unit) {

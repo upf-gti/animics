@@ -198,17 +198,19 @@ class Animics {
      * @param {String} filename 
      * @param {String or Object} data file data
      * @param {String} type (folder) data type: "clips" (Keyframes Mode), "signs" (Script Mode), "presets" (Script Mode)
-     * @param {String} callback (renamedFilename, files of user). If user did no rename, "renamedFilename" has the same value as "filename"
+    * @param {Object} location file location {folderId, unitName, folderPath}
+    * @param {String} callback (renamedFilename, files of user). If user did no rename, "renamedFilename" has the same value as "filename"
      */
-    uploadFile(filename, data, type, callback = () => {}) {
+        // await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
+
+    uploadFile(filename, data, type, location, callback = () => {}) {
         const session = this.remoteFileSystem.getSession();
         const username = session.user.username;
-        const folder = "animics/"+ type;
-
+        // const folder = "animics/"+ type;
+        const fullpath = location.unitName + "/"+ location.folderPath + "/" + filename;
         // Check if the file already exists
-        session.getFileInfo(username + "/" + folder + "/" + filename, async (file) => {
-
-            if(file && file.size) {
+        session.checkFileExist(fullpath, async (file) => {
+            if(file) {
 
                 let overwriteDialog = new LX.Dialog( `Failed to upload "${filename}"`, overwritePanel=>{
                     const text = LX.makeContainer( 
@@ -218,7 +220,7 @@ class Animics {
 
                     overwritePanel.sameLine(2);
                     overwritePanel.addButton("overwrite", "Overwrite", async () => {
-                        const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                        const files = await this.remoteFileSystem.uploadFile(location.unitName, location.folderId, filename, new File([data] ), []);
                         callback(filename, files);
                         overwriteDialog.close(); 
                     }, {hideName: true, buttonClass: "error", width: "50%"} );
@@ -239,7 +241,7 @@ class Animics {
                             p.addButton("cancel", "Omit", () => { renameDialog.close(); }, {hideName: true, buttonClass: "warning", width: "50%"} );
                             p.addButton("ok", "Rename", async () => {
                                 if ( !nameWithoutExtension.length ){ return; }
-                                this.uploadFile(nameWithoutExtension + extension, data, type, callback);
+                                this.uploadFile(nameWithoutExtension + extension, data, type, location, callback);
                                 renameDialog.close(); 
                             }, {hideName: true, buttonClass: "accent", width: "50%"} );
                         }, { modal: true, size: ["33%", "fit-content"] });
@@ -250,13 +252,15 @@ class Animics {
                 }, { modal: true, size: ["33%", "fit-content"]});      
             }
             else {
-                const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                const files = await this.remoteFileSystem.uploadFile(location.unitName, location.folderId, filename, new File([data]), []);
                 callback(filename, files);
             }
         },
-        () => {
+            () => {
             //create folder
-        });
+            }
+        );
+    
     }
     
     deleteData(fullpath, type, location, callback) {
