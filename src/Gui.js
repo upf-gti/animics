@@ -234,6 +234,227 @@ class Gui {
         }
     }
 
+    loadAssets( assetViewer, repository ) {
+        assetViewer.load( repository , async e => {
+            switch(e.type) {
+                case LX.AssetViewEvent.ASSET_SELECTED: 
+                    //request data
+                    if( e.item.type == "folder" ) {
+                        return;
+                    }
+                    
+                    if( !e.item.lastModified ) {
+                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.asset_id);
+                        if( !info ) {
+                            return;
+                        }
+                        e.item.lastModified = info.timestamp;
+                        e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
+                        e.item.filename = info.filename;
+                        assetViewer._previewAsset( e.item );
+                        if(!e.item.animation) {
+                            const promise = new Promise((resolve) => {
+                                this.editor.fileToAnimation(e.item, ( file ) => {
+                                    if( file ) {
+                                        resolve(file);
+                                    }
+                                    else {
+                                        resolve( null );
+                                    }
+                                });
+                            })
+                            const parsedFile = await promise;
+                            e.item.animation = parsedFile.animation;
+                            e.item.content = parsedFile.content;
+                        }
+                    }
+                    
+                    if(e.multiple) {
+                        console.log("Selected: ", e.item);
+                    }
+                    else {
+                        console.log(e.item.id + " selected");
+                    }
+                        
+                    break;
+                case LX.AssetViewEvent.ASSET_DELETED: 
+                {
+                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
+                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.asset_id );
+                    assetViewer._refreshContent();
+                    if( deleted )
+                        console.log(e.item.id + " deleted"); 
+                }
+                    break;
+                case LX.AssetViewEvent.ASSET_CLONED:
+                    const folder = e.item.fullpath.replace( `/${e.item.id}`, "");
+                    e.item.id = e.item.filename = e.item.id.replace(`.${e.item.type}`, ` copy`);
+                    let exists = await this.editor.remoteFileSystem.checkFileExists(`${folder}/${e.item.id}.${e.item.type}`);
+                    let count = 0;
+                    while( exists ) {
+                        count++;
+                        exists = await this.editor.remoteFileSystem.checkFileExists(`${folder}/${e.item.id} (${count}).${e.item.type}`);
+                    }
+                    if( count ) {
+                        e.item.id += ` (${count})`;
+                    }
+
+                    e.item.filename = e.item.id += `.${e.item.type}`;
+
+                    const cloned = await this.editor.remoteFileSystem.copyFile(e.item.asset_id, folder+"/"+ e.item.id )
+                    //const cloned = await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
+                    assetViewer._refreshContent();
+                    if(cloned) {
+                        e.item.asset_id = cloned;
+                        console.log(e.item.id + " cloned"); 
+                    }
+                    break;
+                case LX.AssetViewEvent.ASSET_RENAMED:
+                    if( e.item.id == e.value ) {
+                        return;
+                    }
+                    const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
+                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.asset_id, newPath );
+                    if( renamed ) {
+                        e.item.filename = e.item.id;
+                        console.log(e.value + " is now called " + e.item.id);
+                    }
+                    break;
+                case LX.AssetViewEvent.ASSET_DBLCLICKED: 
+                    if( this.onAssetDblClicked ) {
+                        this.onAssetDblClicked( e.item );
+                    }
+                    break;
+
+                case LX.AssetViewEvent.ENTER_FOLDER:
+                    if( e.item.unit && e.item.unit != e.item.id ) { 
+
+                        assetViewer.parent.loadingArea.show();
+                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.id);
+                        if( assets.length ) {
+                            
+                            e.item.children = assets;
+                            assetViewer.currentData = assets;
+                            assetViewer._updatePath(assetViewer.currentData);
+
+                            assetViewer._refreshContent();
+                            assetViewer._previewAsset(e.item);
+                        }
+                        assetViewer.parent.loadingArea.hide();
+                    }
+                    break;
+            }
+        })
+    }
+
+    addFolderActions( folder, actions ) {
+
+        for( let i = 0; i < folder.children.length; i++ ) {
+            const child = folder.children[i];
+            if( child.type == "folder" ) {
+                // New Folder action 
+                actions.push( {
+                    type: "folder",
+                    path: "@/"+ child.fullpath,
+                    name: 'New folder', 
+                    callback: ( item ) => {
+                        LX.prompt("Folder name", "New folder", async ( result ) => {
+                            const value = await this.editor.remoteFileSystem.createFolder( item.fullpath + "/" + result);
+                            if(value) {
+                                if(value) {
+                                    LX.popup('"' + result + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
+                                    const newItem = {id: result, type: "folder",  children: []};
+                                    item.children.push(newItem);
+                                    assetViewer._processData(newItem, item);
+                                    newItem.fullpath = item.fullpath + "/" + result;
+                                    assetViewer._refreshContent(assetViewer.searchValue, assetViewer.filter);
+                                    assetViewer.tree.refresh();
+                                }
+                                else {
+                                    LX.popup('"' + result + '"' + " couldn't be created.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                                }
+                            }
+                        })
+                    }
+                } );
+    
+                // Delete Folder action
+                actions.push( {
+                    type: "folder",
+                    path: "@/"+ child.fullpath,
+                    name: 'Delete', 
+                    callback: async (item)=> {
+                        // if( item.id == "signs" || item.id == "presets" ) {
+                        //     LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                        //     return;
+                        // }
+                        const value = await this.editor.remoteFileSystem.deleteFolder( item.asset_id, item.unit );
+                        if(value) {
+                            LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                            assetViewer._deleteItem(item);
+                        }
+                        else {
+                            LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+    
+                        }                            
+                    }
+                } );
+    
+                this.addFolderActions(child, actions);
+            }
+            else {
+                // const folder = child.fullpath.replace("/"+child.filename, "")
+                // actions.push( {
+                //     type: child.type,
+                //     path: "@/"+ folder,
+                //     name: 'Delete', 
+                //     callback: ( item )=> {
+                //         const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
+                //         if(deleted) {
+                //             LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                //             item.folder.children = deleted;
+                //             assetViewer._deleteItem(item);
+                //         }
+                //         else {
+                //             LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                //         }
+                //     }
+                // } );
+            }
+        }
+    }
+
+    addFileActions( folder, types, actions ) {
+
+        for( let i = 0; i < folder.children.length; i++ ) {
+            const child = folder.children[i];
+
+            // Delete File action
+
+            for( let j = 0; j < types.length; j++ ) {
+                const type = types[j];
+                actions.push( {
+                    type: type,
+                    path: "@/"+ child.fullpath,
+                    name: 'Delete', 
+                    callback: async ( item )=> {
+                        const deleted = await this.editor.remoteFileSystem.deleteFile( item.asset_id);
+                        if(deleted) {
+                            LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                            
+                            this.assetViewer._deleteItem(item);
+                        }
+                        else {
+                            LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                        }
+                    }
+                } );
+    
+            }
+            this.addFileActions(child, types, actions);
+        }
+    }
+
     changeLoginButton( username = "Login" ) {
         const loginButton = document.getElementById("login-button");
         const userButton = document.getElementById("user-button");
@@ -323,7 +544,7 @@ class Gui {
                     dialog.close() ;
                 }
                 else {
-                    folder = folder[0].fullpath;
+                    folder = folder[0];
                     if( callback ) {
                         let selectedAnimations = [];
                         availableTable.getSelectedRows().forEach((v)=>{ selectedAnimations.push(v[0]) });
@@ -4729,32 +4950,6 @@ class KeyframesGui extends Gui {
         // Create a new dialog
         const dialog = this.prompt = new LX.Dialog('Available clips', async (p) => {
             
-            const innerSelect = async (asset, button, e, action) => {                
-                const choice = document.getElementById("choice-insert-mode");
-                if( choice ) {
-                    choice.remove();
-                }
-                
-                if( !asset.animation ) {
-                    dialog.close();
-                    this.closeDialogs();
-                    LX.popup("The file is empty or has an incorrect format.", "Oops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });
-
-                    return;
-                }
-
-                asset.animation.name = asset.id;
-
-                dialog.panel.loadingArea.show();
-                let animName = this.editor.loadAnimation( asset.id, asset.animation, false ); // only load. Do not bind
-                dialog.panel.loadingArea.hide();
-    
-                this.showInsertModeAnimationDialog( [animName], false );
-
-                assetViewer.clear();
-                dialog.close();
-            }
-
             const previewActions = [
                 {
                     type: "bvh",
@@ -4764,7 +4959,7 @@ class KeyframesGui extends Gui {
                 {
                     type: "bvh",
                     name: 'Add as a clip', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },
                 {
                     type: "bvhe",
@@ -4774,17 +4969,17 @@ class KeyframesGui extends Gui {
                 {
                     type: "bvhe",
                     name: 'Add as a clip', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },             
                 {
                     type: "glb",
                     name: 'Add as a clip', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },             
                 {
                     type: "gltf",
                     name: 'Add as a clip', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },             
             ];
 
@@ -4876,28 +5071,14 @@ class KeyframesGui extends Gui {
                     }
                 });
                 
-                previewActions.push({
-                    type: "folder",
-                    path: "@/"+ username + "/" + folder,
-                    name: 'Delete', 
-                    callback: async (item)=> {
-                        if( item.id == "clips" ) {
-                            LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                            return;
-                        }
-                        const value = await this.editor.remoteFileSystem.deleteFolder( item.fullpath );
-                        if(value) {
-                            if(value) {
-                                LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
-                                assetViewer._deleteItem(item);
-                            }
-                            else {
-                                LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                        }
-                        
+                for( let i = 0; i < repository.length; i++ ) {
+                    const unit = repository[i];
+                    if( unit.mode != "ADMIN") {
+                        continue;
                     }
-                });
+                    this.addFolderActions( unit, previewActions );   
+                    this.addFileActions( unit, ["bvh", "bvhe", "glb", "gltf"], previewActions)                 
+                }
             }
             
             const assetViewer = new LX.AssetView({  allowedTypes: ["bvh", "bvhe", "glb", "gltf"],  previewActions: previewActions, contextMenu: false});
@@ -4916,12 +5097,12 @@ class KeyframesGui extends Gui {
             if( !repository.length ) {
                 await this.editor.remoteFileSystem.loadAllUnitsFolders(() => {
                     let repository = this.editor.remoteFileSystem.repository;
-                    this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
+                    this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], this.onSelectFile.bind(this) );
                     loadingArea.hide();
                 }, ["clips"]);
             }            
             else {
-                this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
+                this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], this.onSelectFile.bind(this) );
                 loadingArea.hide();
             }
        
@@ -4944,119 +5125,68 @@ class KeyframesGui extends Gui {
         });
     }
 
-    loadAssets( assetViewer, repository, onSelectFile ) {
-        assetViewer.load( repository, async e => {
-            switch(e.type) {
-                case LX.AssetViewEvent.ASSET_SELECTED:
-                    if(e.item.type == "folder") {
-                        return;
-                    }
-                    if( !e.item.lastModified ) {
-                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.asset_id);
-                        if( !info ) {
-                            return;
+    async onAssetDblClicked( asset ) {
+
+        if(asset.type != "folder") {
+            if( !asset.animation ) {
+                const promise = new Promise((resolve) => {
+                    this.editor.fileToAnimation(asset, (file) => {
+                        if( file ) {
+                            resolve(file);
                         }
-                        e.item.lastModified = info.timestamp;
-                        e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
-                        e.item.filename = info.filename;
-                        assetViewer._previewAsset( e.item );
-
-                        if(!e.item.animation) {
-                            const promise = new Promise((resolve) => {
-                                this.editor.fileToAnimation(e.item, ( file ) => {
-                                    if( file ) {
-                                        resolve(file);
-                                    }
-                                    else {
-                                        resolve( null );
-                                    }
-                                });
-                            })
-                            const parsedFile = await promise;
-                            e.item.animation = parsedFile.animation;
-                            e.item.content = parsedFile.content;
+                        else {
+                            resolve( null );
                         }
-                    }
-                    break;
-                case LX.AssetViewEvent.ASSET_DELETED: 
-                {
-                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
-                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.asset_id );
-                    assetViewer._refreshContent();
-                    console.log(e.item.id + " deleted"); 
-                }
-                    break;
-                case LX.AssetViewEvent.ASSET_CLONED:
-                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
-                    e.item.id = e.item.id.replace(`.${e.item.type}`, ` copy.${e.item.type}`);
-                    const cloned = await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
-                    assetViewer._refreshContent();
-                    if(cloned) {
-                        console.log(e.item.id + " cloned"); 
-                    }
-                    break;
-                case LX.AssetViewEvent.ASSET_RENAMED:
-                    if( e.item.id == e.value ) {
-                        return;
-                    }
-                    const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
-                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.asset_id, newPath );
-                    if( renamed ) {
-                        e.item.filename = e.item.id;
-                        console.log(e.value + " is now called " + e.item.id);
-                    }
-                    break;
-                case LX.AssetViewEvent.ASSET_DBLCLICKED: 
-                    if(e.item.type != "folder") {
-                        if( !e.item.animation ) {
-                            const promise = new Promise((resolve) => {
-                                this.editor.fileToAnimation(e.item, (file) => {
-                                    if( file ) {
-                                        resolve(file);
-                                    }
-                                    else {
-                                        resolve( null );
-                                    }
-                                });
-                            })
-                            const parsedFile = await promise;
-                            e.item.animation = parsedFile.animation;
-                            e.item.content = parsedFile.content;
-                        }
-
-                        this.closeDialogs(); 
-                        onSelectFile(e.item);
-                    }
-                    break;
-
-                case LX.AssetViewEvent.ENTER_FOLDER:
-                    // if( e.item.unit && !e.item.children.length ) {
-                    if( e.item.unit && e.item.unit != e.item.id ) { 
-
-                        assetViewer.parent.loadingArea.show();
-                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.fullpath);
-                        if( assets.length ) {
-                            // for( let i = 0; i < assets.length; i++ ) {
-                            //     const asset = assets[i];
-                            //     if( e.item.children.indexOf(asset) < 0) {
-                            //         e.item.children.push(asset);
-                            //     }
-                            // }
-                            e.item.children = assets;
-                            assetViewer.currentData = assets//e.item.children;
-                            assetViewer._updatePath(assetViewer.currentData);
-
-                            // if( !assetViewer.skipBrowser ) {
-                            //     assetViewer._createTreePanel();
-                            // }
-                            assetViewer._refreshContent();
-                            assetViewer._previewAsset(e.item);
-                        }
-                        assetViewer.parent.loadingArea.hide();
-                    }
-                    break;
+                    });
+                })
+                const parsedFile = await promise;
+                asset.animation = parsedFile.animation;
+                asset.content = parsedFile.content;
             }
-        })
+
+            this.closeDialogs(); 
+            this.onSelectFile(asset);
+        }
+    }
+
+    onSelectFile( asset ) {
+
+        const choice = document.getElementById("choice-insert-mode");
+        if(choice) {
+            choice.remove();
+        }
+        
+        if( !asset.animation ) {
+            if( this.prompt ) {
+                this.prompt.close();
+            }
+            this.closeDialogs();
+            LX.popup("The file is empty or has an incorrect format.", "Oops! Animation Load Issue!", {timeout: 9000, position: [ "10px", "50px"] });
+
+            return;
+        }
+
+        asset.animation.name = asset.id;
+
+        if( this.prompt ) {
+            this.prompt.panel.loadingArea.show();
+        }
+        
+        let animName = this.editor.loadAnimation( asset.id, asset.animation, false ); // only load. Do not bind
+        
+        if( this.prompt ) {
+            this.prompt.panel.loadingArea.hide();
+            this.prompt.close();
+        }
+
+        this.showInsertModeAnimationDialog( [animName], false );
+
+        if( this.prompt ) {
+            this.prompt.panel.loadingArea.hide();
+            this.prompt.close();
+        }
+
+        this.assetViewer.clear();
     }
 
     showSourceCode( asset ) {
@@ -6271,15 +6401,15 @@ class ScriptGui extends Gui {
     createSaveDialog( folder ) {
         this.showExportAnimationsDialog( "Save animations in server", ( info ) => {
 
-            const saveDataToServer = ( location ) => {
+            const saveDataToServer = ( folder ) => {
                 let animations = this.editor.export(info.selectedAnimations, info.format, false);
 
                 for( let i = 0; i < animations.length; i++ ) {                    
                     //TO DO: uploadData(animations[i].name, animations[i].data, info.folder, {folderId, unitName, folderPath}, (newFilename) ...
-                    // this.editor.uploadData(animations[i].name, animations[i].data, info.folder, location, (newFilename) => {
-                    //     this.closeDialogs();
-                    //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-                    // })
+                    this.editor.uploadData(animations[i].name, animations[i].data, folder.id, folder, (newFilename) => {
+                        this.closeDialogs();
+                        LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+                    })
                 }
             }
             const session = this.editor.remoteFileSystem.session;
@@ -6296,7 +6426,7 @@ class ScriptGui extends Gui {
                 
             }
             else {
-                saveDataToServer("server");
+                saveDataToServer(info.folder);
             }
         }, {formats: [ "BML"], folders:["signs",  "presets"], from: ["All clips", "Selected clips"], selectedFolder: folder, selectedFrom: (folder == "signs" ? "All clips" : null) } );
     }
@@ -6410,34 +6540,35 @@ class ScriptGui extends Gui {
         let that = this;
         if(this.prompt && this.prompt.root.checkVisibility())
             return;
+        
         const innerSelect = (asset) => {
-           
-                that.clipsTimeline.deselectAllClips();
-                let config = {properties: {hand: this.editor.dominantHand}};
-                switch(asset.type) {
-                    case "FaceLexemeClip": case "HeadClip":
-                        config = {lexeme: asset.id.toUpperCase()};
-                        break;
-                    case "GazeClip":
-                        config = {influence: asset.id.toUpperCase()};
-                        break;
-                    case "ShoulderClip":
-                        let type = asset.id.split(" ")[1];
-                        config["shoulder" + type] = 0.8;
-                        break;
-                    case "HandConstellationClip":
-                        config.srcFinger = 1;
-                        config.srcLocation = "Pad";
-                        config.srcSide = "Back";
-                        config.dstFinger = 1;
-                        config.dstLocation = "Base";
-                        config.dstSide = "Palmar"; 
-                        break;    
-                }
+        
+            that.clipsTimeline.deselectAllClips();
+            let config = {properties: {hand: this.editor.dominantHand}};
+            switch(asset.type) {
+                case "FaceLexemeClip": case "HeadClip":
+                    config = {lexeme: asset.id.toUpperCase()};
+                    break;
+                case "GazeClip":
+                    config = {influence: asset.id.toUpperCase()};
+                    break;
+                case "ShoulderClip":
+                    let type = asset.id.split(" ")[1];
+                    config["shoulder" + type] = 0.8;
+                    break;
+                case "HandConstellationClip":
+                    config.srcFinger = 1;
+                    config.srcLocation = "Pad";
+                    config.srcSide = "Back";
+                    config.dstFinger = 1;
+                    config.dstLocation = "Base";
+                    config.dstSide = "Palmar"; 
+                    break;    
+            }
 
-                that.clipsTimeline.addClip( new ANIM[asset.type](config), -1, that.clipsTimeline.currentTime);
-                asset_browser.clear();
-                dialog.close();
+            that.clipsTimeline.addClip( new ANIM[asset.type](config), -1, that.clipsTimeline.currentTime);
+            asset_browser.clear();
+            dialog.close();
         }
 
         const createPreviewActionClipType = ( type ) =>{
@@ -6581,34 +6712,6 @@ class ScriptGui extends Gui {
         // Create a new dialog
         const dialog = this.prompt = new LX.Dialog('Available animations', async (p) => {
             
-            const innerSelect = async (asset, button, e, action) => {
-                const choice = document.getElementById("choice-insert-mode");
-                if(choice) {
-                    choice.remove();
-                }
-
-                let insertMode = ClipModes.Actions;
-                switch(button) {
-                    case "Add as single clip":
-                        insertMode = ClipModes.Phrase;
-                        break;
-                    case "Breakdown into glosses":
-                        insertMode = ClipModes.Glosses;
-                        break;
-                    case "New folder":
-                        break;
-                }
-                this.clipsTimeline.deselectAllClips();
-                asset.animation.name = asset.id;
-
-                dialog.panel.loadingArea.show();
-                this.loadBMLClip(asset.animation, this.clipsTimeline.currentTime, insertMode);
-                dialog.panel.loadingArea.hide();
-    
-                assetViewer.clear();
-                dialog.close();
-            }
-
             const previewActions = [
                 {
                     type: "sigml",
@@ -6618,17 +6721,17 @@ class ScriptGui extends Gui {
                 {
                     type: "sigml",
                     name: 'Add as single clip', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },
                 {
                     type: "sigml",
                     name: 'Breakdown into glosses', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },
                 {
                     type: "sigml",
                     name: 'Breakdown into action clips', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },
                 {
                     type: "bml",
@@ -6638,50 +6741,22 @@ class ScriptGui extends Gui {
                 {
                     type: "bml",
                     name: 'Add as single clip', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },
                 {
                     type: "bml",
                     name: 'Breakdown into glosses', 
-                    callback: innerSelect
+                    callback: this.onSelectFile.bind(this)
                 },
                 {
                     type: "bml",
                     name: 'Breakdown into action clips', 
-                    callback: innerSelect
-                },
-                {
-                        type: "folder",
-                        // path: "@/"+ username + "/" + folder,
-                        name: 'New folder', 
-                        callback: (item)=> {
-                            LX.prompt("Folder name", "New folder", async ( result ) => {
-                                const value = await this.editor.remoteFileSystem.createFolder( item.fullpath + "/" + result);
-                                if(value) {
-                                    if(value) {
-                                        LX.popup('"' + result + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
-                                        const newItem = {id: result, type: "folder",  children: []};
-                                        item.children.push(newItem);
-                                        assetViewer._processData(newItem, item);
-                                        newItem.fullpath = item.fullpath + "/" + result;
-                                        assetViewer._refreshContent(assetViewer.searchValue, assetViewer.filter);
-                                        // assetViewer._addItem(newItem);
-                                        assetViewer.tree.refresh();
-                                    }
-                                    else {
-                                        LX.popup('"' + result + '"' + " couldn't be created.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-        
-                                    }
-                                    // this.closeDialogs();                            
-                                }
-                            })
-                        },
-                        // allowedTypes: ["folder"]
-                    }
+                    callback: this.onSelectFile.bind(this)
+                }
             ];
 
             if( username != "guest" ) {
-                const folders = ["signs", "presets", "clips"];
+                const folders = ["scripts", "clips"];
                 for( let i = 0; i < folders.length; i++ ) {
                     const folder = folders[i];
                     previewActions.push(
@@ -6710,23 +6785,9 @@ class ScriptGui extends Gui {
                                 
                             // });
                         }
-                    },
+                    },                   
                     {
-                        type: "bvh",
-                        path: "@/Local/" + folder,
-                        name: 'Delete', 
-                        callback: ( item )=> {
-                            this.editor.localStorage[0].children.map( child => {
-                                if( child.id == folder ) {
-                                    const i = child.children.indexOf(item);
-                                    const items = child.children;
-                                    child.children = items.slice(0, i).concat(items.slice(i+1));  
-                                }
-                            })
-                        }
-                    },
-                    {
-                        type: "bvhe",
+                        type: "sigml",
                         path: "@/Local/" + folder,
                         name: 'Delete', 
                         callback: ( item )=> {
@@ -6740,59 +6801,62 @@ class ScriptGui extends Gui {
                         }
                     },
                     {
-                        type: "sigml",
-                        path: "@/"+ username + "/" + folder,
+                        type: "bml",
+                        path: "@/Local/" + folder,
                         name: 'Delete', 
-                        callback: (item)=> {
-                            const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
-                            if(deleted) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                item.folder.children = deleted;
-                                assetViewer._deleteItem(item);
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                            // this.closeDialogs();
+                        callback: ( item )=> {
+                            cthis.editor.localStorage[0].children.map( child => {
+                                if( child.id == folder ) {
+                                    const i = child.children.indexOf(item);
+                                    const items = child.children;
+                                    child.children = items.slice(0, i).concat(items.slice(i+1));  
+                                }
+                            })                        
                         }
                     },
-                    {
-                        type: "bml",
-                        path: "@/"+ username + "/" + folder,
-                        name: 'Delete', 
-                        callback: (item)=> {
-                            const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
-                            if(deleted) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                item.folder.children = deleted;
-                                assetViewer._deleteItem(item);
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                        }
-                    });
+                    // {
+                    //     // type: "sigml",
+                    //     path: "@/"+ username + "/" + folder,
+                    //     name: 'Delete', 
+                    //     callback: (item)=> {
+                    //         const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
+                    //         if(deleted) {
+                    //             LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                    //             item.folder.children = deleted;
+                    //             assetViewer._deleteItem(item);
+                    //         }
+                    //         else {
+                    //             LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                    //         }
+                    //         // this.closeDialogs();
+                    //     }
+                    // },
+                //     {
+                //         // type: "bml",
+                //         path: "@/"+ username + "/" + folder,
+                //         name: 'Delete', 
+                //         callback: (item)=> {
+                //             const deleted = this.editor.remoteFileSystem.deleteFile( item.asset_id);
+                //             if(deleted) {
+                //                 LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                //                 item.folder.children = deleted;
+                //                 assetViewer._deleteItem(item);
+                //             }
+                //             else {
+                //                 LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                //             }
+                //         }
+                    // }
+                );
+                }
 
-                    previewActions.push({
-                        type: "folder",
-                        path: "@/"+ username + "/" + folder,
-                        name: 'Delete', 
-                        callback: async (item)=> {
-                            if( item.id == "signs" || item.id == "presets" ) {
-                                LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                                return;
-                            }
-                            const value = await this.editor.remoteFileSystem.deleteFolder( item.asset_id, item.unit );
-                            if(value) {
-                                LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
-                                assetViewer._deleteItem(item);
-                            }
-                            else {
-                                LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-
-                            }                            
-                        }
-                    });
+                for( let i = 0; i < repository.length; i++ ) {
+                    const unit = repository[i];
+                    if( unit.mode != "ADMIN") {
+                        continue;
+                    }
+                    this.addFolderActions( unit, previewActions );                    
+                    this.addFileActions( unit, ["sigml", "bml"], previewActions);
                 }
             }
             
@@ -6819,12 +6883,12 @@ class ScriptGui extends Gui {
             if( !repository.length ) {
                 await this.editor.remoteFileSystem.loadAllUnitsFolders( () => {
                     let repository = this.editor.remoteFileSystem.repository;
-                    this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
+                    this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], this.onSelectFile.bind(this) );
                     loadingArea.hide();
                 }, ["signs", "presets"]);
             }
             else {            
-                this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], innerSelect );
+                this.loadAssets( assetViewer, [...repository, ...this.editor.localStorage], this.onSelectFile.bind(this) );
                 loadingArea.hide();
             }
 
@@ -6847,146 +6911,80 @@ class ScriptGui extends Gui {
         });
     }
 
-    loadAssets( assetViewer, repository, onSelectFile ) {
-        assetViewer.load( repository , async e => {
-            switch(e.type) {
-                case LX.AssetViewEvent.ASSET_SELECTED: 
-                    //request data
-                    if( e.item.type == "folder" ) {
-                        return;
-                    }
-                    
-                    if( !e.item.lastModified ) {
-                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.asset_id);
-                        if( !info ) {
-                            return;
-                        }
-                        e.item.lastModified = info.timestamp;
-                        e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
-                        e.item.filename = info.filename;
-                        assetViewer._previewAsset( e.item );
-                        if(!e.item.animation) {
-                            const promise = new Promise((resolve) => {
-                                this.editor.fileToAnimation(e.item, ( file ) => {
-                                    if( file ) {
-                                        resolve(file);
-                                    }
-                                    else {
-                                        resolve( null );
-                                    }
-                                });
-                            })
-                            const parsedFile = await promise;
-                            e.item.animation = parsedFile.animation;
-                            e.item.content = parsedFile.content;
-                        }
-                    }
-                    
-                    if(e.multiple) {
-                        console.log("Selected: ", e.item);
-                    }
-                    else {
-                        console.log(e.item.id + " selected");
-                    }
-                        
-                    break;
-                case LX.AssetViewEvent.ASSET_DELETED: 
-                {
-                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
-                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.asset_id );
-                    assetViewer._refreshContent();
-                    console.log(e.item.id + " deleted"); 
-                }
-                    break;
-                case LX.AssetViewEvent.ASSET_CLONED:
-                    const folder = e.item.fullpath.replace( `/${e.item.id}`, "");
-                    e.item.id = e.item.id.replace(`.${e.item.type}`, ` copy.${e.item.type}`);
-                    const cloned = await this.editor.remoteFileSystem.copyFile(e.item.asset_id, folder+"/"+ e.item.id )
-                    //const cloned = await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
-                    assetViewer._refreshContent();
-                    if(cloned) {
-                        console.log(e.item.id + " cloned"); 
-                    }
-                    break;
-                case LX.AssetViewEvent.ASSET_RENAMED:
-                    if( e.item.id == e.value ) {
-                        return;
-                    }
-                    const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
-                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.asset_id, newPath );
-                    if( renamed ) {
-                        e.item.filename = e.item.id;
-                        console.log(e.value + " is now called " + e.item.id);
-                    }
-                    break;
-                case LX.AssetViewEvent.ASSET_DBLCLICKED: 
-                    if(e.item.type != "folder") {
-                        const dialog = new LX.Dialog("Add clip", async (p) => {
-                            if( !e.item.animation ) {
-                                const promise = new Promise((resolve) => {
-                                    this.editor.fileToAnimation(e.item, (file) => {
-                                        if( file ) {
-                                            resolve(file);
-                                        }
-                                        else {
-                                            resolve( null );
-                                        }
-                                    });
-                                })
-                                const parsedFile = await promise;
-                                e.item.animation = parsedFile.animation;
-                                e.item.content = parsedFile.content;
+    async onAssetDblClicked( asset ) {
+
+        if(asset.type != "folder") {
+            const dialog = new LX.Dialog("Add clip", async (p) => {
+                if( !asset.animation ) {
+                    const promise = new Promise((resolve) => {
+                        this.editor.fileToAnimation(asset, (file) => {
+                            if( file ) {
+                                resolve(file);
                             }
+                            else {
+                                resolve( null );
+                            }
+                        });
+                    })
+                    const parsedFile = await promise;
+                    asset.animation = parsedFile.animation;
+                    asset.content = parsedFile.content;
+                }
 
-                            p.addTextArea(null, "How do you want to insert the clip?", null, {disabled:true, className: "nobg"});
-                            p.sameLine(3);
-                            p.addButton(null, "Add as single clip", (v) => {
-                                dialog.close();
-                                this.closeDialogs();
-                                onSelectFile(e.item, v);
-                            }, {width: "33%"});
-                            p.addButton(null, "Breakdown into glosses", (v) => {
-                                dialog.close();
-                                this.closeDialogs();
-                                onSelectFile(e.item, v);
-                            }, {width: "33%"});
-                            p.addButton(null, "Breakdown into action clips", (v) => {
-                                dialog.close();
-                                this.closeDialogs();
-                                onSelectFile(e.item, v);
-                            }, {width: "33%"});
-                        }, {modal:true, closable: true, id: "choice-insert-mode", size:["50%", "fit-content"]});
-                    }
+                p.addTextArea(null, "How do you want to insert the clip?", null, {disabled:true, className: "nobg"});
+                p.sameLine(3);
+                p.addButton(null, "Add as single clip", (v) => {
+                    dialog.close();
+                    this.closeDialogs();
+                    this.onSelectFile(asset, v);
+                }, {width: "33%"});
+                p.addButton(null, "Breakdown into glosses", (v) => {
+                    dialog.close();
+                    this.closeDialogs();
+                    this.onSelectFile(asset, v);
+                }, {width: "33%"});
+                p.addButton(null, "Breakdown into action clips", (v) => {
+                    dialog.close();
+                    this.closeDialogs();
+                    this.onSelectFile(asset, v);
+                }, {width: "33%"});
+            }, {modal:true, closable: true, id: "choice-insert-mode", size:["50%", "fit-content"]});
+        }
+    }
+
+    onSelectFile( asset, button ) {
+
+        const choice = document.getElementById("choice-insert-mode");
+        if(choice) {
+            choice.remove();
+        }
+        
+        let insertMode = ClipModes.Actions;
+        switch(button) {
+            case "Add as single clip":
+                insertMode = ClipModes.Phrase;
+                break;
+                case "Breakdown into glosses":
+                    insertMode = ClipModes.Glosses;
                     break;
-
-                case LX.AssetViewEvent.ENTER_FOLDER:
-                    // if( e.item.unit && !e.item.children.length ) {
-                    if( e.item.unit && e.item.unit != e.item.id ) { 
-
-                        assetViewer.parent.loadingArea.show();
-                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.id);
-                        if( assets.length ) {
-                            // for( let i = 0; i < assets.length; i++ ) {
-                            //     const asset = assets[i];
-                            //     if( e.item.children.indexOf(asset) < 0) {
-                            //         e.item.children.push(asset);
-                            //     }
-                            // }
-                            e.item.children = assets;
-                            assetViewer.currentData = assets//e.item.children;
-                            assetViewer._updatePath(assetViewer.currentData);
-
-                            // if( !assetViewer.skipBrowser ) {
-                            //     assetViewer._createTreePanel();
-                            // }
-                            assetViewer._refreshContent();
-                            assetViewer._previewAsset(e.item);
-                        }
-                        assetViewer.parent.loadingArea.hide();
+                    case "New folder":
+                        break;
                     }
-                    break;
-            }
-        })
+                    this.clipsTimeline.deselectAllClips();
+                    asset.animation.name = asset.id;
+                    
+        if( this.prompt ) {
+            this.prompt.panel.loadingArea.show();
+        }
+        this.loadBMLClip(asset.animation, this.clipsTimeline.currentTime, insertMode);
+        if( this.prompt ) {
+            this.prompt.panel.loadingArea.hide();
+            this.prompt.close();
+        }
+
+        if( this.assetViewer ) {
+            this.assetViewer.clear();
+        }
     }
 
     showSourceCode (asset) {

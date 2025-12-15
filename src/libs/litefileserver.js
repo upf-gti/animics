@@ -986,27 +986,27 @@ Session.prototype.searchByFilename = function( filename, on_complete, on_error, 
     }, on_error, on_progress );
 }
 
-Session.prototype.checkFileExist = function( fullpath, on_complete )
+Session.prototype.checkFileExists = function( fullpath, on_complete )
 {
     if(!fullpath)
         throw("no fullpath specified");
 
     fullpath = LiteFileServer.cleanPath( fullpath );
-    return this.request( this.server_url,{ action: "files/fileExist", fullpath: fullpath }, function(resp){
+    return this.request( this.server_url,{ action: "files/fileExists", fullpath: fullpath }, function(resp){
         if(on_complete)
-            on_complete(resp.exist, resp);
+            on_complete(resp.exists, resp);
     });
 }
 
-Session.prototype.checkFolderExist = function( fullpath, on_complete )
+Session.prototype.checkFolderExists = function( fullpath, on_complete )
 {
     if(!fullpath)
         throw("no fullpath specified");
 
     fullpath = LiteFileServer.cleanPath( fullpath );
-    return this.request( this.server_url,{ action: "files/folderExist", fullpath: fullpath }, function(resp){
+    return this.request( this.server_url,{ action: "files/folderExists", fullpath: fullpath }, function(resp){
         if(on_complete)
-            on_complete(resp.exist, resp);
+            on_complete(resp.exists, resp);
     });
 }
 

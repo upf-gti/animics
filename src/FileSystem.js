@@ -235,8 +235,8 @@ class RemoteFileSystem {
         }
         return new Promise((resolve, reject) => {
             this.session.copyFile( file_id, new_path,
-                ( e ) => {
-                    resolve(true);
+                ( id ) => {
+                    resolve(id);
                 }, (err) => {
                     console.error( err );
                     resolve(false);
@@ -259,6 +259,23 @@ class RemoteFileSystem {
                 }
             );
         });
+    }
+
+    async checkFileExists( fullpath )
+    {
+        if( !this.session ) {
+            return
+        }
+        return new Promise((resolve, reject) => {
+            this.session.checkFileExists( fullpath,
+                ( exists ) => {
+                    resolve( exists );
+                }, (err) => {
+                    console.error( err );
+                    reject(err);
+                }
+            )
+        })
     }
 
     async getFileInfo( id ) {
@@ -534,7 +551,7 @@ class RemoteFileSystem {
             return;
         }
 
-        new Promise( (resolve, reject) => {
+        return new Promise( (resolve, reject) => {
             session.deleteFile( file_id, 
                 (deleted) => {
                     resolve( deleted );

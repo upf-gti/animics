@@ -203,64 +203,60 @@ class Animics {
      */
         // await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
 
-    uploadFile(filename, data, type, location, callback = () => {}) {
+    async uploadFile(filename, data, type, location, callback = () => {}) {
         const session = this.remoteFileSystem.getSession();
         const username = session.user.username;
         // const folder = "animics/"+ type;
-        const fullpath = location.unitName + "/"+ location.folderPath + "/" + filename;
+        const fullpath = location.fullpath + "/" + filename;
+        // const fullpath = location.unit + "/"+ location.fullpath + "/" + filename;
         // Check if the file already exists
-        session.checkFileExist(fullpath, async (file) => {
-            if(file) {
+        const exists = this.remoteFileSystem.checkFileExists(fullpath);
 
-                let overwriteDialog = new LX.Dialog( `Failed to upload "${filename}"`, overwritePanel=>{
-                    const text = LX.makeContainer( 
-                        ["100%", "auto"], "p-2 fg-primary", 
-                        `Another file <em><strong>${filename}</strong></em> exists in the database`, 
-                    overwritePanel.root );
+        if(exists) {
 
-                    overwritePanel.sameLine(2);
-                    overwritePanel.addButton("overwrite", "Overwrite", async () => {
-                        const files = await this.remoteFileSystem.uploadFile(location.unitName, location.folderId, filename, new File([data] ), []);
-                        callback(filename, files);
-                        overwriteDialog.close(); 
-                    }, {hideName: true, buttonClass: "error", width: "50%"} );
-                    overwritePanel.addButton("ok", "Rename", async () => {
-                        let extensionIdx = filename.lastIndexOf(".");
-                        if ( extensionIdx == -1 ){ 
-                            extensionIdx = filename.length;
-                        }
-                        let nameWithoutExtension = filename.slice( 0, extensionIdx );
-                        let extension = filename.slice( extensionIdx, filename.length );
-    
-                        let renameDialog = new LX.Dialog( `Rename file "${nameWithoutExtension}" before uploading`, p=>{
-                            p.addText("Rename", nameWithoutExtension, (v)=>{
-                                nameWithoutExtension = v;
-                            }, {hideName: true, width: "100%", skipReset:true } );
-    
-                            p.sameLine(2);
-                            p.addButton("cancel", "Omit", () => { renameDialog.close(); }, {hideName: true, buttonClass: "warning", width: "50%"} );
-                            p.addButton("ok", "Rename", async () => {
-                                if ( !nameWithoutExtension.length ){ return; }
-                                this.uploadFile(nameWithoutExtension + extension, data, type, location, callback);
-                                renameDialog.close(); 
-                            }, {hideName: true, buttonClass: "accent", width: "50%"} );
-                        }, { modal: true, size: ["33%", "fit-content"] });
-                        // end of renameDialog
-                        overwriteDialog.close(); 
+            let overwriteDialog = new LX.Dialog( `Failed to upload "${filename}"`, overwritePanel=>{
+                const text = LX.makeContainer( 
+                    ["100%", "auto"], "p-2 fg-primary", 
+                    `Another file <em><strong>${filename}</strong></em> exists in the database`, 
+                overwritePanel.root );
 
-                    }, {hideName: true, buttonClass: "accent", width: "50%"} );
-                }, { modal: true, size: ["33%", "fit-content"]});      
-            }
-            else {
-                const files = await this.remoteFileSystem.uploadFile(location.unitName, location.folderId, filename, new File([data]), []);
-                callback(filename, files);
-            }
-        },
-            () => {
-            //create folder
-            }
-        );
-    
+                overwritePanel.sameLine(2);
+                overwritePanel.addButton("overwrite", "Overwrite", async () => {
+                    const files = await this.remoteFileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
+                    callback(filename, files);
+                    overwriteDialog.close(); 
+                }, {hideName: true, buttonClass: "error", width: "50%"} );
+                overwritePanel.addButton("ok", "Rename", async () => {
+                    let extensionIdx = filename.lastIndexOf(".");
+                    if ( extensionIdx == -1 ){ 
+                        extensionIdx = filename.length;
+                    }
+                    let nameWithoutExtension = filename.slice( 0, extensionIdx );
+                    let extension = filename.slice( extensionIdx, filename.length );
+
+                    let renameDialog = new LX.Dialog( `Rename file "${nameWithoutExtension}" before uploading`, p=>{
+                        p.addText("Rename", nameWithoutExtension, (v)=>{
+                            nameWithoutExtension = v;
+                        }, {hideName: true, width: "100%", skipReset:true } );
+
+                        p.sameLine(2);
+                        p.addButton("cancel", "Omit", () => { renameDialog.close(); }, {hideName: true, buttonClass: "warning", width: "50%"} );
+                        p.addButton("ok", "Rename", async () => {
+                            if ( !nameWithoutExtension.length ){ return; }
+                            this.uploadFile(nameWithoutExtension + extension, data, type, location, callback);
+                            renameDialog.close(); 
+                        }, {hideName: true, buttonClass: "accent", width: "50%"} );
+                    }, { modal: true, size: ["33%", "fit-content"] });
+                    // end of renameDialog
+                    overwriteDialog.close(); 
+
+                }, {hideName: true, buttonClass: "accent", width: "50%"} );
+            }, { modal: true, size: ["33%", "fit-content"]});      
+        }
+        else {
+            const files = await this.remoteFileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
+            callback(filename, files);
+        }
     }
     
     deleteData(fullpath, type, location, callback) {

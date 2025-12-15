@@ -1093,7 +1093,7 @@ class Editor {
      * @param {String} filename 
      * @param {String or Object} data file data
      * @param {String} type (folder) data type: "clips" (Keyframes Mode), "signs" (Script Mode), "presets" (Script Mode)
-     * @param {String} location where the file has to be saved: it can be "server" or "local"
+     * @param {Object} location where the file has to be saved: it can be "server" or "local"
      * @param {*} callback 
      */
     uploadData(filename, data, type, location, callback) {
