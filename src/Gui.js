@@ -1,8 +1,9 @@
 import { UTILS } from "./Utils.js";
 import * as THREE from "three";
 import { LX } from 'lexgui';
-import 'lexgui/extensions/codeeditor.js';
-import 'lexgui/extensions/timeline.js';
+import 'lexgui/extensions/CodeEditor.js';
+import 'lexgui/extensions/Timeline.js';
+import 'lexgui/extensions/AssetView.js';
 import { Gizmo } from "./Gizmo.js";
 import { KeyframeEditor } from "./Editor.js";
 import { findIndexOfBoneByName } from "./retargeting.js";
@@ -188,7 +189,7 @@ class Gui {
         const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", menubar.root );
         loginButton.tabIndex = "1";
         loginButton.role = "button";
-        loginButton.listen( "click", () => {
+        LX.listen( loginButton, "click", () => {
             const session = this.editor.remoteFileSystem.session;
             const username = session ? session.user.username : "guest";
             if( this.prompt && this.prompt.root.checkVisibility() ) {
@@ -204,7 +205,7 @@ class Gui {
         const userButton = LX.makeContainer( ["100px", "auto"], "lexcontainer text-lg font-semibold rounded-lg p-2 ml-auto fg-primary hover:fg-primary self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
         userButton.tabIndex = "1";
         userButton.role = "button";
-        userButton.listen( "click", () => {
+        LX.listen( userButton, "click", () => {
             new LX.DropdownMenu( userButton, [
                 
                 { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
@@ -235,116 +236,174 @@ class Gui {
     }
 
     loadAssets( assetViewer, repository ) {
-        assetViewer.load( repository , async e => {
-            switch(e.type) {
-                case LX.AssetViewEvent.ASSET_SELECTED: 
-                    //request data
-                    if( e.item.type == "folder" ) {
-                        return;
-                    }
-                    
-                    if( !e.item.lastModified ) {
-                        const info = await this.editor.remoteFileSystem.getFileInfo( e.item.asset_id);
-                        if( !info ) {
-                            return;
-                        }
-                        e.item.lastModified = info.timestamp;
-                        e.item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
-                        e.item.filename = info.filename;
-                        assetViewer._previewAsset( e.item );
-                        if(!e.item.animation) {
-                            const promise = new Promise((resolve) => {
-                                this.editor.fileToAnimation(e.item, ( file ) => {
-                                    if( file ) {
-                                        resolve(file);
-                                    }
-                                    else {
-                                        resolve( null );
-                                    }
-                                });
-                            })
-                            const parsedFile = await promise;
-                            e.item.animation = parsedFile.animation;
-                            e.item.content = parsedFile.content;
-                        }
-                    }
-                    
-                    if(e.multiple) {
-                        console.log("Selected: ", e.item);
+
+        assetViewer.on( "enterFolder", async ( e ) => {
+            const item = e.to;
+            if( item.unit && item.unit != item.id ) { 
+
+                assetViewer.parent.loadingArea.show();
+                const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(item.unit, item.asset_id, item.id);
+                                    
+                item.children = assets ? assets : [];
+                assetViewer._previewAsset(item);
+            
+                assetViewer.parent.loadingArea.hide();
+                return true;
+            }
+        });
+
+        assetViewer.on( "beforeCreateFolder", async ( e ) => {
+            const from = e.from;
+
+            LX.prompt("Folder name", "New folder", async ( foldername ) => {
+                try {
+                    const created = await this.editor.remoteFileSystem.createFolder( from?.fullpath ?? "" + "/" + foldername);
+                    if(created) {
+                        LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
+                        resolve(foldername)
+                        // const newFolder = {id: result, type: "folder",  children: []};
+                        // from.children.push(newFolder);
+                        // assetViewer._processData(newFolder, from);
+                        // newFolder.fullpath = from.fullpath + "/" + result;
+                        // assetViewer._refreshContent(assetViewer.searchValue, assetViewer.filter);
+                        // assetViewer.tree.refresh();
                     }
                     else {
-                        console.log(e.item.id + " selected");
+                        // TO DO: RETURN EXACT ERROR
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
                     }
-                        
-                    break;
-                case LX.AssetViewEvent.ASSET_DELETED: 
-                {
-                    const folder = e.item.fullpath.replace(`${e.item.unit}/`, "").replace( `/${e.item.id}`, "");
-                    const deleted = await this.editor.remoteFileSystem.deleteFile( e.item.asset_id );
-                    assetViewer._refreshContent();
-                    if( deleted )
-                        console.log(e.item.id + " deleted"); 
                 }
-                    break;
-                case LX.AssetViewEvent.ASSET_CLONED:
-                    const folder = e.item.fullpath.replace( `/${e.item.id}`, "");
-                    e.item.id = e.item.filename = e.item.id.replace(`.${e.item.type}`, ` copy`);
-                    let exists = await this.editor.remoteFileSystem.checkFileExists(`${folder}/${e.item.id}.${e.item.type}`);
-                    let count = 0;
-                    while( exists ) {
-                        count++;
-                        exists = await this.editor.remoteFileSystem.checkFileExists(`${folder}/${e.item.id} (${count}).${e.item.type}`);
-                    }
-                    if( count ) {
-                        e.item.id += ` (${count})`;
-                    }
+                catch( err ) {
+                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
+                }
+                
+            })
+        });
 
-                    e.item.filename = e.item.id += `.${e.item.type}`;
+        assetViewer.on( "select", async ( e ) => {
+            const item = e.items[0];
+            //request data
+            if( item.type == "folder" ) {
+                return;
+            }
+            
+            if( !item.lastModified ) {
+                const info = await this.editor.remoteFileSystem.getFileInfo( item.asset_id);
+                if( !info ) {
+                    return;
+                }
+                item.lastModified = info.timestamp;
+                item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
+                item.filename = info.filename;
+                assetViewer._previewAsset( item );
+                if(!item.animation) {
+                    const promise = new Promise((resolve) => {
+                        this.editor.fileToAnimation(item, ( file ) => {
+                            if( file ) {
+                                resolve(file);
+                            }
+                            else {
+                                resolve( null );
+                            }
+                        });
+                    })
+                    const parsedFile = await promise;
+                    item.animation = parsedFile.animation;
+                    item.content = parsedFile.content;
+                }
+            }
+            
+            if( e.items.length > 1 ) {
+                console.log("Selected: ", e.items);
+            }
+            else {
+                console.log(item.id + " selected");
+            }
+        });
 
-                    const cloned = await this.editor.remoteFileSystem.copyFile(e.item.asset_id, folder+"/"+ e.item.id )
-                    //const cloned = await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
-                    assetViewer._refreshContent();
-                    if(cloned) {
-                        e.item.asset_id = cloned;
-                        console.log(e.item.id + " cloned"); 
-                    }
-                    break;
-                case LX.AssetViewEvent.ASSET_RENAMED:
-                    if( e.item.id == e.value ) {
-                        return;
-                    }
-                    const newPath = e.item.fullpath.replace(`/${e.value}`, `/${e.item.id}`);
-                    const renamed = await this.editor.remoteFileSystem.moveFile( e.item.asset_id, newPath );
-                    if( renamed ) {
-                        e.item.filename = e.item.id;
-                        console.log(e.value + " is now called " + e.item.id);
-                    }
-                    break;
-                case LX.AssetViewEvent.ASSET_DBLCLICKED: 
-                    if( this.onAssetDblClicked ) {
-                        this.onAssetDblClicked( e.item );
-                    }
-                    break;
-
-                case LX.AssetViewEvent.ENTER_FOLDER:
-                    if( e.item.unit && e.item.unit != e.item.id ) { 
-
-                        assetViewer.parent.loadingArea.show();
-                        const assets = await this.editor.remoteFileSystem.loadFoldersAndFiles(e.item.unit, e.item.asset_id, e.item.id);
-                        if( assets.length ) {
-                            
-                            e.item.children = assets;
-                            assetViewer.currentData = assets;
-                            assetViewer._updatePath(assetViewer.currentData);
-
-                            assetViewer._refreshContent();
-                            assetViewer._previewAsset(e.item);
-                        }
-                        assetViewer.parent.loadingArea.hide();
-                    }
-                    break;
+        assetViewer.on( "dblClick", ( e ) => {
+            const item = e.items[0];
+            if( this.onAssetDblClicked ) {
+                this.onAssetDblClicked( item );
             }
         })
+
+        assetViewer.on( "beforeRename", async ( e, resolve ) => {
+            const item = e.items[0];
+            if( e.oldName == e.newName ) {
+                return;
+            }
+            const newPath = item.fullpath.replace(`/${e.oldName}`, `/${e.newName}`);
+            let renamed = false;
+            if( item.type == "folder" ) {
+                moved = await this.editor.remoteFileSystem.moveFolder(item.asset_id, item.unit, newPath);
+            }
+            else {
+                renamed = await this.editor.remoteFileSystem.moveFile( item.asset_id, newPath ); //TO DO: lexgui doesnt return item for now
+            }
+            if( renamed ) {
+                //item.filename = item.id;
+                resolve();
+                console.log(e.oldName + " is now called " + e.newName);
+            }
+        });
+
+        assetViewer.on( "beforeClone", async ( e, resolve ) => {
+            const item = e.items[0];
+            const folder = item.fullpath.replace( `/${item.id}`, "");
+            item.id = item.filename = item.id.replace(`.${item.type}`, ` copy`);
+            const filename = assetViewer._getClonedName(item.id, item.dir);
+            const exists = await this.editor.remoteFileSystem.checkFileExists(`${folder}/${filename}`);
+            
+            if( exists ) {
+                return;
+            }
+            const cloned = await this.editor.remoteFileSystem.copyFile(item.asset_id, folder+"/"+ item.id )
+            //const cloned = await this.editor.remoteFileSystem.uploadFile( item.unit, item.asset_id, item.id, item.content);
+            // assetViewer._refreshContent();
+            if( cloned ) {
+                resolve( cloned );    
+                console.log(item.id + " cloned"); 
+            }
+        });
+
+        assetViewer.on( "clone", ( e, id ) => {
+            const item = e.result[0];
+            item.filename = item.id;
+            item.asset_id = id;
+        })
+
+        assetViewer.on( "beforeMove", async ( e, resolve ) => {
+            const item = e.items[0];
+            const fromFolder = e.from;
+            const toFolder = e.to;
+
+            let moved = false;
+            if( item.type == "folder" ) {
+                moved = await this.editor.remoteFileSystem.moveFolder(item.asset_id, toFolder.unit, toFolder.fullpath+"/"+ item.id);
+            }
+            else {
+                moved = await this.editor.remoteFileSystem.moveFile( item.asset_id, toFolder.fullpath + "/" + item.id);
+            }
+
+            if( moved ) {
+                resolve();
+            }
+
+        })
+
+        assetViewer.on( "beforeDelete", async ( e, resolve ) => {
+            const item = e.items[0];
+            const folder = item.fullpath.replace(`${item.unit}/`, "").replace( `/${item.id}`, "");
+            const deleted = await this.editor.remoteFileSystem.deleteFile( item.asset_id );
+            // assetViewer._refreshContent();
+            if( deleted ) {
+                resolve();
+                console.log(item.id + " deleted"); 
+            }
+        });
+
+        assetViewer.load( repository );
     }
 
     addFolderActions( folder, actions ) {
@@ -1902,7 +1961,7 @@ class KeyframesGui extends Gui {
                             }
 
                             this.editor.setTime(this.editor.currentTime); // update mixer
-                            LX.emit("@on_set_clip_state", true, {skipCallback:true});    
+                            LX.emitSignal("@on_set_clip_state", true, {skipCallback:true});    
 
                         } 
                     },
@@ -1915,7 +1974,7 @@ class KeyframesGui extends Gui {
                                 this.editor.globalAnimMixerManagementSingleClip( this.editor.currentCharacter.mixer, selected[i][2] );
                             }
                             this.editor.setTime(this.editor.currentTime); // update mixer
-                            LX.emit("@on_set_clip_state", false, {skipCallback:true});    
+                            LX.emitSignal("@on_set_clip_state", false, {skipCallback:true});    
                         } 
                     }
                 )
@@ -3912,14 +3971,14 @@ class KeyframesGui extends Gui {
 
                 // set checkboxes to false
                 for( let t = 0; t < this.bsTimeline.selectedItems.length; ++t ){
-                    LX.emit( "@bs_checkbox_" + this.bsTimeline.selectedItems[t].id, false ); // default already skipscallback
+                    LX.emitSignal( "@bs_checkbox_" + this.bsTimeline.selectedItems[t].id, false ); // default already skipscallback
                 }
 
                 this.bsTimeline.setSelectedItems( tracksToSelect );
 
                 // set checkboxes to true
                 for( let t = 0; t < this.bsTimeline.selectedItems.length; ++t ){
-                    LX.emit( "@bs_checkbox_" + this.bsTimeline.selectedItems[t].id, true ); // default already skipscallback
+                    LX.emitSignal( "@bs_checkbox_" + this.bsTimeline.selectedItems[t].id, true ); // default already skipscallback
                 }
             }
 
@@ -3929,7 +3988,7 @@ class KeyframesGui extends Gui {
                 this.bsTimeline.changeSelectedItems( tracksToAdd );
                 // set checkboxes to true
                 for( let t = 0; t < tracksToAdd.length; ++t ){
-                    LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[tracksToAdd[t]].id, true ); // default already skipscallback
+                    LX.emitSignal( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[tracksToAdd[t]].id, true ); // default already skipscallback
                 }
             }
 
@@ -3939,7 +3998,7 @@ class KeyframesGui extends Gui {
     
                 // set checkboxes to true
                 for( let t = 0; t < tracksToRemove.length; ++t ){
-                    LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[tracksToRemove[t]].id, false ); // default already skipscallback
+                    LX.emitSignal( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[tracksToRemove[t]].id, false ); // default already skipscallback
                 }
             }
 
@@ -4060,14 +4119,14 @@ class KeyframesGui extends Gui {
         const addAllButton = new LX.Button( "AddAll", null, (v,e) =>{
             this.bsTimeline.setSelectedItems( Object.keys( this.bsTimeline.animationClip.tracks ) );
             for( let i = 0; i < this.bsTimeline.animationClip.tracks.length; ++i){
-                LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[i].id, true );
+                LX.emitSignal( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[i].id, true );
             }
         }, { title: "Add all blendshape tracks to the timeline", hideName: true, icon: "ListCollapse" } );
 
         const removeAllButton = new LX.Button( "RemoveAll", null, (v,e) =>{
             this.bsTimeline.setSelectedItems( [] );
             for( let i = 0; i < this.bsTimeline.animationClip.tracks.length; ++i){
-                LX.emit( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[i].id, false );
+                LX.emitSignal( "@bs_checkbox_" + this.bsTimeline.animationClip.tracks[i].id, false );
             }
         }, { title: "Hide all blendshape tracks from Timeline", hideName: true, icon: "ListX" } );
         addRemoveAllContainer.appendChild( addAllButton.root );
@@ -5086,10 +5145,14 @@ class KeyframesGui extends Gui {
             this.assetViewer = assetViewer;
             
             assetViewer.onItemDragged = async ( node, value) => {
+                let moved = false;
                 if( node.type == "folder" ) {
-                    const moved = await this.editor.remoteFileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
-                    console.log(node.id, moved)
+                    moved = await this.editor.remoteFileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
                 }
+                else {
+                    moved = await this.editor.remoteFileSystem.moveFile( node.asset_id, value.fullpath + "/" + node.id);
+                }
+                console.log(node.id, moved)
             }
             
             const loadingArea = p.loadingArea = this.createLoadingArea(p);
@@ -7304,7 +7367,7 @@ class PropagationWindow {
         if( this.onSetEnabler && !skipCallback ){
             this.onSetEnabler( this.enabler );
         }
-        LX.emit( "@propW_enabler", this.enabler );
+        LX.emitSignal( "@propW_enabler", this.enabler );
     }
     
     toggleEnabler( skipCallback = false ){
@@ -7487,11 +7550,11 @@ class PropagationWindow {
             else if ( this.resizing == 1 ){
                 const t = Math.max( 0.001, time - this.time ); 
                 this.setSize( this.leftSide, t );
-                LX.emit("@propW_maxT", t, true); 
+                LX.emitSignal("@propW_maxT", t, true); 
             }else{
                 const t = Math.max( 0.001, this.time - time );
                 this.setSize( t, this.rightSide );
-                LX.emit("@propW_minT", t); 
+                LX.emitSignal("@propW_minT", t); 
             }
         }
         else if(timeline.grabbing && this.visualState) {

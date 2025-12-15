@@ -13,7 +13,7 @@ await animics.loadSession();
 const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
 const area = await LX.init( { rootClass: "" } );
 
-const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-blur z-1","", LX.main_area.root );
+const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-blur z-1","", LX.mainArea.root );
 dropOver.classList.add("hidden");
 
 // Menubar
@@ -44,7 +44,7 @@ function createMenuBar( area ) {
     const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto fg-primary border hover:bg-secondary self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
     signupButton.tabIndex = "1";
     signupButton.role = "button";
-    signupButton.listen( "click", () => {
+    LX.listen( signupButton, "click", () => {
         animics.showCreateAccountDialog( { user: "", password: "" }, _checkSession );
     } );			
     signupButton.id = "signup-button";
@@ -52,7 +52,7 @@ function createMenuBar( area ) {
     const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
     loginButton.tabIndex = "1";
     loginButton.role = "button";
-    loginButton.listen( "click", () => {
+    LX.listen( loginButton, "click", () => {
         animics.showLoginModal( _checkSession );
     } );
     loginButton.id = "login-button"
@@ -60,7 +60,7 @@ function createMenuBar( area ) {
     const userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.remoteFileSystem.session.user.username, buttonsContainer );
     userButton.tabIndex = "1";
     userButton.role = "button";
-    userButton.listen( "click", () => {
+    LX.listen( userButton, "click", () => {
         new LX.DropdownMenu( userButton, [
             
             { name: "Go to Database", icon: "Server", callback: () => { window.open("https://dev-lfs.gti.upf.edu/src/", "_blank")} },
@@ -318,7 +318,7 @@ function _makeProjectItem( item ) {
         onLoadFiles([{name: item.filename, fullpath: item.fullpath, type: "application/json"}]);
     })
     const optionsIcon = itemContainer.querySelector( ".lexicon" );
-    optionsIcon.listen( "click", () => {
+    LX.listen( optionsIcon, "click", () => {
         new LX.DropdownMenu( optionsIcon, [
             { name: "Duplicate", icon: "Copy", callback: () => {} },
             null,
@@ -349,7 +349,7 @@ function _makePersonItem( item, container ) {
     </div>
     `, container );
 
-    itemContainer.listen( "click", () => {
+    LX.listen( itemContainer, "click", () => {
         window.open(item.url, "_blank");
     })
 }
@@ -458,7 +458,7 @@ function startAnimics(settings) {
     loadingAnim.onfinish = () => {
         // Manually resetting lexgui
         LX.root.innerHTML = "";
-        LX.main_area = new LX.Area( { id: 'mainarea' } );
+        LX.mainArea = new LX.Area( { id: 'mainarea' } );
         LX.doAsync( () => animics.init(settings), 150 );
     };			
     window.global = {app: animics};
@@ -573,7 +573,7 @@ function appendAnimationFiles( refresh = false) {
             const loadMoreButton = LX.makeContainer( ["60%", "80px"], "text-md font-medium rounded-lg p-2 bg-accent fg-white border hover:scale self-center content-center text-center cursor-pointer select-none flex flex-col items-center justify-center", `${LX.makeIcon("MoreHorizontal", {svgClass:"xxl fg-white"}).innerHTML} <p class="text-lg">LOAD MORE</p>`, itemContainer );
             loadMoreButton.tabIndex = "1";
             loadMoreButton.role = "button";
-            loadMoreButton.listen( "click", () => { offset+=10;_checkSession()} );			
+            LX.listen( loadMoreButton, "click", () => { offset+=10;_checkSession()} );			
             loadMoreButton.id = "loadmore-button";
         }
     })

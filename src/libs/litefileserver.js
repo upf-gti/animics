@@ -16,6 +16,8 @@ var LiteFileServer = {
 
     TOKEN_NAME: "lfs_token", //used for the local storage storing
 
+    rg: /^[a-zA-Z0-9_\-()\/. ]+$/,
+
     setup: function( server_path, on_complete )
     {
         this.server_url = server_path + this.server_filename;
@@ -325,23 +327,20 @@ var LiteFileServer = {
 
     validateFilename: function( filename )
     {
-        var rg = /^[0-9a-zA-Z\_\- ... ]+$/;
-        return rg.test(fullpath);
+        return LFS.rg.test(fullpath);
     },
 
     validateFolder: function( folder )
     {
         if(!folder)
             return true;
-        var rg = /^[0-9a-zA-Z\/\_\- ... ]+$/;
-        return rg.test(folder);
+        return LFS.rg.test(folder);
     },
 
     parsePath: function(fullpath, is_folder)
     {
         //check for invalid characters (slashes supported)
-        var rg = /^[0-9a-zA-Z\/\_\- ... ]+$/;
-        if(!rg.test(fullpath))
+        if(!LFS.rg.test(fullpath))
             return null; //invalid name
 
         fullpath = this.cleanPath(fullpath); //remove slashes

@@ -711,7 +711,7 @@ class Editor {
         this.playbackRate = v;
         this.currentCharacter.mixer.timeScale = v;
 
-        LX.emit("@on_set_speed", v ); // skipcallbacks, only visual update
+        LX.emitSignal("@on_set_speed", v ); // skipcallbacks, only visual update
     }
 
     bindEvents() {
@@ -2761,7 +2761,7 @@ class KeyframeEditor extends Editor {
         this.playbackRate = v;
         this.currentCharacter.mixer.timeScale = v;
 
-        LX.emit("@on_set_speed", v ); // skipcallbacks, only update
+        LX.emitSignal("@on_set_speed", v ); // skipcallbacks, only update
     }
 
     setBoneSize(newSize) {
@@ -3127,7 +3127,7 @@ class KeyframeEditor extends Editor {
                 }
                 const frame = timeline.getNearestKeyFrame(track, timeline.currentTime);
                 if ( frame > -1 ){
-                    LX.emit("@on_change_face_" + track.id, track.values[frame]);
+                    LX.emitSignal("@on_change_face_" + track.id, track.values[frame]);
                 }
             }
 
@@ -3145,7 +3145,7 @@ class KeyframeEditor extends Editor {
         }
 
         if( frame > -1 ){
-            LX.emit("@on_change_face_" + track.id, track.values[frame]);
+            LX.emitSignal("@on_change_face_" + track.id, track.values[frame]);
         }
     }
 

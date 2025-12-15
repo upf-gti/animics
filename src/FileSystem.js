@@ -540,6 +540,7 @@ class RemoteFileSystem {
         data.type = type;
         data.id = name;
         data.asset_id = asset.id;
+        data.metadata = {};
         //data.fullpath = unit + "/" + asset.fullpath;
         
         return data;
