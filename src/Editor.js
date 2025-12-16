@@ -82,7 +82,7 @@ class Editor {
         this.delayedResizeTime = 500; //ms
 
         this.ANIMICS = animics;
-        this.remoteFileSystem = animics.remoteFileSystem;
+        this.fileSystem = animics.fileSystem;
 
         this.enabled = true;
         
@@ -507,7 +507,7 @@ class Editor {
         
         if(data.fullpath) {
             const extension = UTILS.getExtension(data.fullpath).toLowerCase();
-            LX.request({ url: this.remoteFileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
+            LX.request({ url: this.fileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
                 if( content == "{}" )  {
                     callback({content});
                     return;
@@ -1099,45 +1099,45 @@ class Editor {
     uploadData(filename, data, type, location, callback) {
         const extension = filename.split(".")[1];
 
-        if(location.constructor.name == "Object") { //server
+        // if(location.constructor.name == "Object") { //server
             if(data.constructor.name == "Object") {
                 data = JSON.stringify(data, null, 4);
             }
             
             this.ANIMICS.uploadFile(filename, data, type, location, (newFilename, files) => {
-                const unit = this.remoteFileSystem.session.user.username;
-                this.remoteFileSystem.repository.map( item => {
-                    if(item.id == unit) {
-                        for(let i = 0; i < item.children.length; i++) {
-                            if( item.children[i].id == type ) {
-                                item.children[i].children = files;
-                                break;
-                            }
-                        }
-                    }
-                })
+                const unit = this.fileSystem.session.user.username;
+                // this.fileSystem.repository.map( item => {
+                //     if(item.id == unit) {
+                //         for(let i = 0; i < item.children.length; i++) {
+                //             if( item.children[i].id == type ) {
+                //                 item.children[i].children = files;
+                //                 break;
+                //             }
+                //         }
+                //     }
+                // })
                 
                 if( callback ) {
                     callback(newFilename, files);
                 }
             });   
             
-        }
-        else {
-            this.localStorage[0].children.map ( child => {
-                if( child.id == type ) {
-                    child.children.push({filename: filename, id: filename, folder: type, type: extension, data: data});
-                }
-            })            
+        // }
+        // else {
+        //     this.localStorage[0].children.map ( child => {
+        //         if( child.id == type ) {
+        //             child.children.push({filename: filename, id: filename, folder: type, type: extension, data: data});
+        //         }
+        //     })            
             
-            if( callback ) {
-                callback(filename);
-            }
-        }
+        //     if( callback ) {
+        //         callback(filename);
+        //     }
+        // }
     }
 
     uploadFileToServer(unit, folder, filename, data, folder_id, callback = () => {}) {
-        const session = this.remoteFileSystem.session;
+        const session = this.fileSystem.session;
         const username = session.user.username;
         //const folder = "animics/"+ type;
         const fullpath = unit + "/"+ folder + "/" + filename;
@@ -1148,7 +1148,7 @@ class Editor {
             if( file ) {
               
                 LX.prompt("Do you want to overwrite the file?", "File already exists", async () => {
-                        const files = await this.remoteFileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), []);
+                        const files = await this.fileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), []);
                         callback(files);
                     }, 
                     {
@@ -1159,14 +1159,14 @@ class Editor {
                                 alert("You have to write a name.");
                                 return;
                             }
-                            const files = await this.remoteFileSystem.uploadFile(unit, folder_id, v, new File([data], v ), []);
+                            const files = await this.fileSystem.uploadFile(unit, folder_id, v, new File([data], v ), []);
                             callback(files);
                         }, {input: filename, accept: "Yes"} )
                     }
                 } )                
             }
             else {
-                const files = await this.remoteFileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), []);
+                const files = await this.fileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), []);
                 callback(files);
             }
         },
@@ -3691,7 +3691,11 @@ class ScriptEditor extends Editor {
 
         // Create GUI
         this.gui = new ScriptGui(this);
-        this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "presets", type:"folder", icon: "Tags", children: []}, {id: "signs", type:"folder", icon: "HandsAslInterpreting", children: []}]} ];
+        
+        this.fileSystem.localRepository[0].children.push( {id: "presets", type:"folder", icon: "Tags", fullpath: "Local/presets", children: []});
+        this.fileSystem.localRepository[0].children.push( {id: "signs", type:"folder", icon: "HandsAslInterpreting", fullpath: "Local/signs", children: []});
+        
+        // this.localStorage = [{ id: "Local", type:"folder", fullpath: "Local", mode: "ADMIN", children: [ {id: "presets", type:"folder", icon: "Tags", fullpath: "Local/presets", children: []}, {id: "signs", type:"folder", icon: "HandsAslInterpreting", fullpath: "Local/signs", children: []}]} ];
     }
 
     onKeyDown( event ) {

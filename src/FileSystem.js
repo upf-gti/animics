@@ -1,6 +1,6 @@
 import { LFS } from './libs/litefileserver.js';
 import { UTILS } from './Utils.js';
-class RemoteFileSystem {
+class FileSystem {
     
     constructor( callback, folders = []) {
         this.session = null;
@@ -11,6 +11,8 @@ class RemoteFileSystem {
         // this.repository = {signs:[], presets: [], clips:[]};
         this.repository = [];
 
+        this.localRepository = [{ id: "Local", type:"folder", fullpath: "Local", mode: "ADMIN", children: [ ]} ];
+        
         this.refreshRepository = true;
 
         // init server this.onReady.bind(this, user, pass, (s) => {this.session = s; callback;})
@@ -112,8 +114,7 @@ class RemoteFileSystem {
 
             // Only leave local and public remote files in the repo. Remove the ones from the server
             for( let folder in this.repository ) {
-                if( folder == "Local" || folder == "Public" ) {
-                    
+                if( folder == "Local" || folder == "Public" ) {         
                     repo[folder] = this.repository[folder];
                 }
                 // for( let i = 0; i < this.repository[folder].length; i++ ) {
@@ -140,16 +141,18 @@ class RemoteFileSystem {
            // const path = folder + "/" + filename;
 
             session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata }, 
-                (e) => {
-                    console.log("complete", e);
-                    this.getFiles( unit, folder_id, (files) => {
+                async (e) => {
+                    try {
+                        console.log("complete", e);
+                        const files = await this.getFiles( unit, folder_id);
+                        
                         const files_data = [];
                         if( files ) {                                        
                             for( let f = 0; f < files.length; f++ ) {
                                 let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
                                 files[f].asset_id = files[f].id;
                                 files[f].id = files[f].filename;
-                                files[f].folder = folder.replace("animics/", "");
+                                // files[f].folder = folder.replace("animics/", "");
                                 files[f].type = extension;
                                 if(files[f].type == "txt")
                                     continue;
@@ -157,11 +160,11 @@ class RemoteFileSystem {
                             }
                         }
                         resolve( files_data );
-                    },
-                    (err) => {
+                    }
+                    catch(err) {
                         console.error(err);
                         resolve( false );
-                    } );
+                    }
                 },
                 (e) => {
                     console.log("error", e);
@@ -180,28 +183,30 @@ class RemoteFileSystem {
             //let path = session.user.username + "/" + folder + "/" + filename;
 
 			session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata }, 
-                (e) => {
-                    console.log("complete", e);
-                    this.getFiles( unit, folder_id, (files) => {
+                async (e) => {
+                    try {
+                        console.log("complete", e);
+                        const files = await this.getFiles( unit, folder_id);
+                        
                         const files_data = [];
                         if( files ) {                                        
                             for( let f = 0; f < files.length; f++ ) {
+                                let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
                                 files[f].asset_id = files[f].id;
                                 files[f].id = files[f].filename;
-                                files[f].folder = folder.replace("animics/", "");
-                                files[f].type = UTILS.getExtension(files[f].filename);
-                                delete files[f].path;
+                                // files[f].folder = folder.replace("animics/", "");
+                                files[f].type = extension;
                                 if(files[f].type == "txt")
                                     continue;
                                 files_data.push(files[f]);
                             }
                         }
                         resolve( files_data );
-                    },
-                    (err) => {
+                    }
+                    catch(err) {
                         console.error(err);
                         resolve( false );
-                    } );
+                    }
                 },
                 (e) => {
                     console.log("error", e);
@@ -278,6 +283,22 @@ class RemoteFileSystem {
         })
     }
 
+    async checkFolderExists( fullpath )
+    {
+        if( !this.session ) {
+            return
+        }
+        return new Promise((resolve, reject) => {
+            this.session.checkFolderExists( fullpath,
+                ( exists ) => {
+                    resolve( exists );
+                }, (err) => {
+                    console.error( err );
+                    reject(err);
+                }
+            )
+        })
+    }
     async getFileInfo( id ) {
         if( !this.session ) {
             return;
@@ -396,7 +417,7 @@ class RemoteFileSystem {
     }
 
     //Get folders from each user unit
-    async loadFolders(unit, folder_id, allowFolders) {
+    async loadFolders(unit, folder_id, allowFolders, restrictFolders) {
         if( !this.session ) {
             return;
         }
@@ -405,7 +426,10 @@ class RemoteFileSystem {
             await this.session.getFolder(unit, folder_id, async ( folders ) =>  {
                 const data = [];
                 for(let i = 0; i < folders.length; i++) {
-                    data.push(this.parseAssetInfo(unit, folders[i], folders[i].folder, allowFolders));
+                    if( restrictFolders.indexOf(folders[i].folder) > -1 ) {
+                        continue;
+                    }
+                    data.push(this.parseAssetInfo(unit, folders[i], folders[i].folder, allowFolders, restrictFolders));
                 }
                 console.log(folders)
                 // const data = folders.length ? this.parseAssetInfo(unit.id, folders[0], folders[0].folder, allowFolders) : [];
@@ -430,7 +454,7 @@ class RemoteFileSystem {
                             let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
                             files[f].asset_id = files[f].id;
                             files[f].id = files[f].filename;
-                            files[f].folder = files[f].folder;
+                            // files[f].folder = files[f].folder;
                             files[f].type = extension;
                             files[f].children = [];
                             delete files[f].path;
@@ -465,7 +489,7 @@ class RemoteFileSystem {
 
                 
                 console.log(folders)
-                const data = {id: unitName, type: "folder", folder: null, children: [], unit: unitName, mode: unitMode};
+                const data = {id: unitName, type: "folder", folder: null, children: [], unit: unitName, mode: unitMode, draggable: false, rename: false};
                 if( folders.length ) {
                     folders = folders.filter( ( folder ) => folder.folder == "animics");
                     if ( folders.length ) {
@@ -489,7 +513,7 @@ class RemoteFileSystem {
         }
     }
 
-    async loadFoldersAndFiles(unit, folder_id, folder, allowFolders) {
+    async loadFoldersAndFiles(unit, folder_id,folderName, allowFolders, restrictFolders) {
 
         if( !this.session ) {
             return;
@@ -497,21 +521,25 @@ class RemoteFileSystem {
 
         return new Promise( async (resolve, reject) => {
             const files = await this.loadAssets(unit, folder_id, allowFolders);
-            const folders = await this.loadFolders(unit, folder_id, allowFolders);
+            const folders = await this.loadFolders(unit, folder_id, allowFolders, restrictFolders);
             const data = [...folders, ...files];
             resolve(data);            
         })
     }
 
-    parseAssetInfo(unit, asset, path, allowFolders = []) {
+    parseAssetInfo(unit, asset, path, allowFolders = [], restrictFolders = []) {
         //const extraData = [];
      
         const data = {id: null, type: null, folder: null, children: [], unit: unit, fullpath: path};
         let type = "folder";
         let name = "";
-                            
+             
         if( asset.subfolders ) {
             name = asset.folder;
+            if( name == "animics" ) {
+                data.draggable = false;
+                data.rename = false;
+            }
             data.fullpath = unit + "/" + asset.path;
             if( asset.folder == "presets" ) {
                 data.icon = "Tags";
@@ -525,7 +553,8 @@ class RemoteFileSystem {
             
             for( let i = 0; i < asset.subfolders.length; i++ ) {
                 const subfolder = asset.subfolders[i];
-                if( allowFolders.length && allowFolders.indexOf(subfolder.folder) < 0) {
+
+                if( allowFolders.length && allowFolders.indexOf(subfolder.folder) < 0 || restrictFolders.length && restrictFolders.indexOf(subfolder.folder) > -1) {
                     continue;
                 }
 
@@ -591,6 +620,27 @@ class RemoteFileSystem {
                 // }
             )})
     }
+
+    saveLocalFile( filename, data, folder ) {
+        const extension = filename.substr(filename.lastIndexOf(".") + 1);
+        this.localRepository[0].children.map ( child => {
+            if( child.id == folder.id ) {
+                child.children.push({filename: filename, id: filename, folder: folder.fullpath, type: extension, data: data});
+            }
+        })    
+    }
+
+    deleteLocalFile( file, folder ) {
+        this.localRepository[0].children.map( child => {
+            debugger;
+            // if( child.id == folder ) {
+            //     const i = child.children.indexOf(item);
+            //     const items = child.children;
+            //     child.children = items.slice(0, i).concat(items.slice(i+1));  
+            // }
+        })   
+        return true
+    }
 }
 
-export { RemoteFileSystem };
+export { FileSystem };

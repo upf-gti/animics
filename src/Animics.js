@@ -1,6 +1,6 @@
 import { KeyframeEditor, ScriptEditor } from "./Editor.js";
 import { VideoProcessor } from "./VideoProcessor.js";
-import { RemoteFileSystem } from "./FileSystem.js";
+import { FileSystem } from "./FileSystem.js";
 import { UTILS } from './Utils.js';
 
 import { LX } from 'lexgui';
@@ -9,18 +9,18 @@ class Animics {
     static Modes = {KEYFRAME: 0, SCRIPT: 1};
 
     constructor() {
-        this.remoteFileSystem = null;    
+        this.fileSystem = null;    
     }
 
     loadSession() {
         return new Promise( resolve => {
-            this.remoteFileSystem = new RemoteFileSystem( async (session) => {
+            this.fileSystem = new FileSystem( async (session) => {
                 if( !session ) {
                     console.log("Auto login of guest user")
         
-                    this.remoteFileSystem.login("guest", "guest", (session) => {
+                    this.fileSystem.login("guest", "guest", (session) => {
                         
-                        this.remoteFileSystem.loadUnits();
+                        this.fileSystem.loadUnits();
                         resolve();
                         return;
                     });
@@ -42,7 +42,7 @@ class Animics {
             
             const formData = { Username: "", Password: { value: "", type: "password" } };
             p.addForm("Login", formData, (value, event) => {
-                this.remoteFileSystem.login(value.Username, value.Password, (session, response) => {
+                this.fileSystem.login(value.Username, value.Password, (session, response) => {
                     if(response.status == 1) {
                         if ( onLoginCallback ){
                             onLoginCallback(session, response);
@@ -86,10 +86,10 @@ class Animics {
                 p.addButton(null, "Register",  () => {
                     if(pass === pass2)
                     {
-                        this.remoteFileSystem.createAccount(user, pass, email, (request) => {
+                        this.fileSystem.createAccount(user, pass, email, (request) => {
                             
                                 if ( onLoginCallback ){
-                                    onLoginCallback( this.remoteFileSystem.session, request );
+                                    onLoginCallback( this.fileSystem.session, request );
                                 }
                                 prompt.close();
                                 prompt = null;
@@ -111,8 +111,8 @@ class Animics {
 
     _logout( callback = null ) {
 
-        this.remoteFileSystem.logout(() => {
-            this.remoteFileSystem.login("guest", "guest", () => {                    
+        this.fileSystem.logout(() => {
+            this.fileSystem.login("guest", "guest", () => {                    
                 if ( callback ){
                     callback();
                 }
@@ -149,8 +149,8 @@ class Animics {
             this.videoProcessor = new VideoProcessor(this);
             allowFolders = ["clips"];
         }
-        const session = this.remoteFileSystem.session;
-        await this.remoteFileSystem.loadAllUnitsFolders(() => {
+        const session = this.fileSystem.session;
+        await this.fileSystem.loadAllUnitsFolders(() => {
         }, allowFolders)
         this.editor.init(settings, !session || session.user.username == "guest");
         
@@ -201,61 +201,66 @@ class Animics {
     * @param {Object} location file location {folderId, unitName, folderPath}
     * @param {String} callback (renamedFilename, files of user). If user did no rename, "renamedFilename" has the same value as "filename"
      */
-        // await this.editor.remoteFileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
+        // await this.editor.fileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
 
     async uploadFile(filename, data, type, location, callback = () => {}) {
-        const session = this.remoteFileSystem.getSession();
-        const username = session.user.username;
-        // const folder = "animics/"+ type;
         const fullpath = location.fullpath + "/" + filename;
-        // const fullpath = location.unit + "/"+ location.fullpath + "/" + filename;
-        // Check if the file already exists
-        const exists = this.remoteFileSystem.checkFileExists(fullpath);
+        if( location.toServer ) {
 
-        if(exists) {
-
-            let overwriteDialog = new LX.Dialog( `Failed to upload "${filename}"`, overwritePanel=>{
-                const text = LX.makeContainer( 
-                    ["100%", "auto"], "p-2 fg-primary", 
-                    `Another file <em><strong>${filename}</strong></em> exists in the database`, 
-                overwritePanel.root );
-
-                overwritePanel.sameLine(2);
-                overwritePanel.addButton("overwrite", "Overwrite", async () => {
-                    const files = await this.remoteFileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
-                    callback(filename, files);
-                    overwriteDialog.close(); 
-                }, {hideName: true, buttonClass: "error", width: "50%"} );
-                overwritePanel.addButton("ok", "Rename", async () => {
-                    let extensionIdx = filename.lastIndexOf(".");
-                    if ( extensionIdx == -1 ){ 
-                        extensionIdx = filename.length;
-                    }
-                    let nameWithoutExtension = filename.slice( 0, extensionIdx );
-                    let extension = filename.slice( extensionIdx, filename.length );
-
-                    let renameDialog = new LX.Dialog( `Rename file "${nameWithoutExtension}" before uploading`, p=>{
-                        p.addText("Rename", nameWithoutExtension, (v)=>{
-                            nameWithoutExtension = v;
-                        }, {hideName: true, width: "100%", skipReset:true } );
-
-                        p.sameLine(2);
-                        p.addButton("cancel", "Omit", () => { renameDialog.close(); }, {hideName: true, buttonClass: "warning", width: "50%"} );
-                        p.addButton("ok", "Rename", async () => {
-                            if ( !nameWithoutExtension.length ){ return; }
-                            this.uploadFile(nameWithoutExtension + extension, data, type, location, callback);
-                            renameDialog.close(); 
-                        }, {hideName: true, buttonClass: "accent", width: "50%"} );
-                    }, { modal: true, size: ["33%", "fit-content"] });
-                    // end of renameDialog
-                    overwriteDialog.close(); 
-
-                }, {hideName: true, buttonClass: "accent", width: "50%"} );
-            }, { modal: true, size: ["33%", "fit-content"]});      
+            const session = this.fileSystem.getSession();
+            const username = session.user.username;
+            // const folder = "animics/"+ type;
+            // const fullpath = location.unit + "/"+ location.fullpath + "/" + filename;
+            // Check if the file already exists
+            const exists = await this.fileSystem.checkFileExists(fullpath);
+    
+            if(exists) {   
+                let overwriteDialog = new LX.Dialog( `Failed to upload "${filename}"`, overwritePanel=>{
+                    const text = LX.makeContainer( 
+                        ["100%", "auto"], "p-2 fg-primary", 
+                        `Another file <em><strong>${filename}</strong></em> exists in the database`, 
+                    overwritePanel.root );
+    
+                    overwritePanel.sameLine(2);
+                    overwritePanel.addButton("overwrite", "Overwrite", async () => {
+                        const files = await this.fileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
+                        callback(filename, files);
+                        overwriteDialog.close(); 
+                    }, {hideName: true, buttonClass: "error", width: "50%"} );
+                    overwritePanel.addButton("ok", "Rename", async () => {
+                        let extensionIdx = filename.lastIndexOf(".");
+                        if ( extensionIdx == -1 ){ 
+                            extensionIdx = filename.length;
+                        }
+                        let nameWithoutExtension = filename.slice( 0, extensionIdx );
+                        let extension = filename.slice( extensionIdx, filename.length );
+    
+                        let renameDialog = new LX.Dialog( `Rename file "${nameWithoutExtension}" before uploading`, p=>{
+                            p.addText("Rename", nameWithoutExtension, (v)=>{
+                                nameWithoutExtension = v;
+                            }, {hideName: true, width: "100%", skipReset:true } );
+    
+                            p.sameLine(2);
+                            p.addButton("cancel", "Omit", () => { renameDialog.close(); }, {hideName: true, buttonClass: "warning", width: "50%"} );
+                            p.addButton("ok", "Rename", async () => {
+                                if ( !nameWithoutExtension.length ){ return; }
+                                this.uploadFile(nameWithoutExtension + extension, data, type, location, callback);
+                                renameDialog.close(); 
+                            }, {hideName: true, buttonClass: "accent", width: "50%"} );
+                        }, { modal: true, size: ["33%", "fit-content"] });
+                        // end of renameDialog
+                        overwriteDialog.close(); 
+    
+                    }, {hideName: true, buttonClass: "accent", width: "50%"} );
+                }, { modal: true, size: ["33%", "fit-content"]});      
+            }
+            else {
+                const files = await this.fileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
+                callback(filename, files);
+            }
         }
         else {
-            const files = await this.remoteFileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
-            callback(filename, files);
+            this.fileSystem.saveLocalFile(filename, new File([data], filename), location )
         }
     }
     
@@ -280,7 +285,7 @@ class Animics {
     }
 
     deleteFile(fullpath, callback = () => {}) {
-        const session = this.remoteFileSystem.getSession();
+        const session = this.fileSystem.getSession();
         session.deleteFile( fullpath, (v) => {callback(v)}, (v) => {callback(v)} )
     }
 }

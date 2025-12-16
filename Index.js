@@ -57,7 +57,7 @@ function createMenuBar( area ) {
     } );
     loginButton.id = "login-button"
 
-    const userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.remoteFileSystem.session.user.username, buttonsContainer );
+    const userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
     userButton.tabIndex = "1";
     userButton.role = "button";
     LX.listen( userButton, "click", () => {
@@ -527,7 +527,7 @@ function _checkSession() {
     const loginButton = document.getElementById("login-button");
     const userButton = document.getElementById("user-button");
 
-    if(!animics.remoteFileSystem.session || !animics.remoteFileSystem.session.user || animics.remoteFileSystem.session.user.username == "guest") {
+    if(!animics.fileSystem.session || !animics.fileSystem.session.user || animics.fileSystem.session.user.username == "guest") {
         signupButton.classList.remove("hidden");
         loginButton.classList.remove("hidden");
         userButton.classList.add("hidden");
@@ -544,14 +544,14 @@ function _checkSession() {
         signupButton.classList.add("hidden");
         loginButton.classList.add("hidden");
         userButton.classList.remove("hidden");
-        userButton.innerHTML = animics.remoteFileSystem.session.user.username;
+        userButton.innerHTML = animics.fileSystem.session.user.username;
         appendAnimationFiles();
     }
 }
 
 function appendAnimationFiles( refresh = false) {
 
-    animics.remoteFileSystem.session.getLastFiles(limit, offset, (files) => {
+    animics.fileSystem.session.getLastFiles(limit, offset, (files) => {
         const projectItems = document.getElementById("project-items-container");
         if(projectItems && projectItems.lastChild) {
             projectItems.lastChild.remove();
