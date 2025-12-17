@@ -27,7 +27,7 @@ class FileSystem {
                 // }
                 
             }, (error) => callback(error)); 
-        });        
+        }, (error) => callback(error));        
     }
     
     _setSession( session ) {

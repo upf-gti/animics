@@ -18,12 +18,12 @@ var LiteFileServer = {
 
     rg: /^[a-zA-Z0-9_\-()\/. ]+$/,
 
-    setup: function( server_path, on_complete )
+    setup: function( server_path, on_complete, on_error )
     {
         this.server_url = server_path + this.server_filename;
         this.server_path = server_path;
 
-        this.checkServer( on_complete );
+        this.checkServer( on_complete, on_error );
     },
 
     //create a session

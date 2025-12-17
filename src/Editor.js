@@ -1088,6 +1088,17 @@ class Editor {
         return files;
     }
 
+    saveAnimations( animationsToExport, format, folder, toServer ) {
+
+        const animations = this.export(animationsToExport, format, false);
+        folder.toServer = toServer;
+        for( let i = 0; i < animations.length; i++ ) {   
+            this.uploadData(animations[i].name, animations[i].data, folder.id, folder, (newFilename) => {
+                this.gui.closeDialogs();
+                LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
+            })
+        }
+    }
     /**
      * Uploads a file either to the local or remote server, depending on "location"
      * @param {String} filename 
@@ -1097,43 +1108,19 @@ class Editor {
      * @param {*} callback 
      */
     uploadData(filename, data, type, location, callback) {
-        const extension = filename.split(".")[1];
 
-        // if(location.constructor.name == "Object") { //server
-            if(data.constructor.name == "Object") {
-                data = JSON.stringify(data, null, 4);
+        if(data.constructor.name == "Object") {
+            data = JSON.stringify(data, null, 4);
+        }
+        
+        this.ANIMICS.uploadFile(filename, data, type, location, (newFilename, files) => {
+            const unit = this.fileSystem.session.user.username;
+            
+            
+            if( callback ) {
+                callback(newFilename, files);
             }
-            
-            this.ANIMICS.uploadFile(filename, data, type, location, (newFilename, files) => {
-                const unit = this.fileSystem.session.user.username;
-                // this.fileSystem.repository.map( item => {
-                //     if(item.id == unit) {
-                //         for(let i = 0; i < item.children.length; i++) {
-                //             if( item.children[i].id == type ) {
-                //                 item.children[i].children = files;
-                //                 break;
-                //             }
-                //         }
-                //     }
-                // })
-                
-                if( callback ) {
-                    callback(newFilename, files);
-                }
-            });   
-            
-        // }
-        // else {
-        //     this.localStorage[0].children.map ( child => {
-        //         if( child.id == type ) {
-        //             child.children.push({filename: filename, id: filename, folder: type, type: extension, data: data});
-        //         }
-        //     })            
-            
-        //     if( callback ) {
-        //         callback(filename);
-        //     }
-        // }
+        });
     }
 
     uploadFileToServer(unit, folder, filename, data, folder_id, callback = () => {}) {
@@ -1243,10 +1230,12 @@ class Editor {
             openPreview(data);
         }
         else {
-            this.gui.showExportAnimationsDialog("Preview animations", (info) => {
-                const files = this.export(info.selectedAnimations, "BVH extended", false);
-                const data = {type: "bvhe", data: files};
-                openPreview(data);
+            this.gui.showExportAnimationsDialog("Preview animations", { formats: ["BVH extended"], selectedFormat: "BVH extended", callback: 
+                (info) => {
+                    const files = this.export(info.selectedAnimations, "BVH extended", false);
+                    const data = {type: "bvhe", data: files};
+                    openPreview(data);
+                }
             });
         }        
     }
@@ -1364,9 +1353,11 @@ class KeyframeEditor extends Editor {
                 if( event.ctrlKey ) {
                     event.preventDefault();
                     event.stopImmediatePropagation();
-                    this.gui.showExportAnimationsDialog("Export animations", ( info ) => {
-                        this.export( info.selectedAnimations, info.format );
-                    }, {formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
+                    this.gui.showExportAnimationsDialog("Export animations", {formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended", callback:
+                        ( info ) => {
+                            this.export( info.selectedAnimations, info.format );
+                        }
+                    });
                 }
             break;
 
@@ -3704,9 +3695,11 @@ class ScriptEditor extends Editor {
                 if( event.ctrlKey ) {
                     event.preventDefault();
                     event.stopImmediatePropagation();
-                    this.gui.showExportAnimationsDialog("Export animations", ( info ) => {
-                        this.export( info.selectedAnimations, info.format );
-                    }, {formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
+                    this.gui.showExportAnimationsDialog("Export animations", {formats: ["BML","BVH", "BVH extended", "GLB"], selectedFormat: "BML", callback:
+                        ( info ) => {
+                            this.export( info.selectedAnimations, info.format );
+                        }
+                    });
                 }
             break;
 
