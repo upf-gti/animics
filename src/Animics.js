@@ -197,13 +197,12 @@ class Animics {
      * Displays a menu to rename the file in case of an existing file
      * @param {String} filename 
      * @param {String or Object} data file data
-     * @param {String} type (folder) data type: "clips" (Keyframes Mode), "signs" (Script Mode), "presets" (Script Mode)
     * @param {Object} location file location {folderId, unitName, folderPath}
     * @param {String} callback (renamedFilename, files of user). If user did no rename, "renamedFilename" has the same value as "filename"
      */
         // await this.editor.fileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
 
-    async uploadFile(filename, data, type, location, callback = () => {}) {
+    async uploadFile(filename, data, location, callback = () => {}) {
         const fullpath = location.fullpath + "/" + filename;
         if( location.toServer ) {
 
@@ -244,7 +243,7 @@ class Animics {
                             p.addButton("cancel", "Omit", () => { renameDialog.close(); }, {hideName: true, buttonClass: "warning", width: "50%"} );
                             p.addButton("ok", "Rename", async () => {
                                 if ( !nameWithoutExtension.length ){ return; }
-                                this.uploadFile(nameWithoutExtension + extension, data, type, location, callback);
+                                this.uploadFile(nameWithoutExtension + extension, data, location, callback);
                                 renameDialog.close(); 
                             }, {hideName: true, buttonClass: "accent", width: "50%"} );
                         }, { modal: true, size: ["33%", "fit-content"] });

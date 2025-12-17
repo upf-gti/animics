@@ -299,6 +299,15 @@ class Gui {
             })
         });
 
+        assetViewer.on( "createFolder", async ( e, foldername ) => {
+            const from = e.where;
+            
+            const assets = await this.editor.fileSystem.loadFoldersAndFiles(from.unit, from.asset_id, from.id, [], []);
+            from.children = assets;
+            assetViewer.currentData = assets;
+            assetViewer._refreshContent();
+        });
+
         assetViewer.on( "select", async ( e ) => {
             const item = e.items[0];
             //request data
@@ -433,18 +442,21 @@ class Gui {
                 return;
             }
 
-            let deleted = false;
-            if( item.type == "folder" ) {
-                deleted = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
-            }
-            else {
-                deleted = await this.editor.fileSystem.deleteFile( item.asset_id );
-            }
-            // assetViewer._refreshContent();
-            if( deleted ) {
-                resolve();
-                console.log(item.id + " deleted"); 
-            }
+            this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
+                let deleted = false;
+                if( item.type == "folder" ) {
+                    deleted = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
+                }
+                else {
+                    deleted = await this.editor.fileSystem.deleteFile( item.asset_id );
+                }
+                // assetViewer._refreshContent();
+                if( deleted ) {
+                    resolve();
+                    console.log(item.id + " deleted"); 
+                }
+            }, {input: false} )
+            
         });
 
         assetViewer.load( repository );
@@ -491,20 +503,18 @@ class Gui {
                     path: "@/"+ child.fullpath,
                     name: 'Delete', 
                     callback: async (item)=> {
-                        // if( item.id == "signs" || item.id == "presets" ) {
-                        //     LX.popup('"' + item.id + '"' + " couldn't be deleted. You don't have permissions", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                        //     return;
-                        // }
-                        const value = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
-                        if(value) {
-                            LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
-                            this.assetViewer._deleteItem(item);
-                            this.assetViewer._refreshContent();
-                        }
-                        else {
-                            LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-    
-                        }                            
+                        this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
+                            const value = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
+                            if(value) {
+                                LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                                this.assetViewer._deleteItem(item);
+                                this.assetViewer._refreshContent();
+                            }
+                            else {
+                                LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+        
+                            }                            
+                        }, { input: false});
                     }
                 } );
     
@@ -546,16 +556,19 @@ class Gui {
                     path: "@/"+ child.fullpath,
                     name: 'Delete', 
                     callback: async ( item )=> {
-                        const deleted = await this.editor.fileSystem.deleteFile( item.asset_id);
-                        if(deleted) {
-                            LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                            
-                            this.assetViewer._deleteItem(item);
-                            this.assetViewer._refreshContent();
-                        }
-                        else {
-                            LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                        }
+                        this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
+
+                            const deleted = await this.editor.fileSystem.deleteFile( item.asset_id);
+                            if(deleted) {
+                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                                
+                                this.assetViewer._deleteItem(item);
+                                this.assetViewer._refreshContent();
+                            }
+                            else {
+                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                            }
+                        }, { input: false});
                     }
                 } );
     
@@ -591,16 +604,22 @@ class Gui {
                     }
                 } );
                 actions.push({
-                    type: "bml",
+                    type: type,
                     path: "@/" + child.fullpath,
                     name: 'Upload to server', 
-                    callback: (item)=> {
+                    callback: async ( item ) => {
+                        const repo = this.editor.fileSystem.repository;
+                        const local = this.editor.fileSystem.localRepository;
+                        let folders = repo.filter( (v) => v.mode == "ADMIN");
+                        folders = folders.length ? folders : local;
+                        const selectedFolder = await this.showSaveInFolder( null, folders);
+                        selectedFolder.toServer = true;
                         //TO DO: uploadData(item.filename + ".sigml", item.data, folder, {folderId, unitName, folderPath}, (newFilename) ...
-                        // this.editor.uploadData(item.filename + ".bml", item.data, folder, "server", (newFilename) => {
-                        //     this.closeDialogs();
-                        //     LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New "+ folder +"!", {position: [ "10px", "50px"], timeout: 5000});
+                        this.editor.uploadData(item.filename, item.data || item.animation, selectedFolder, (newFilename) => {
+                            this.closeDialogs();
+                            LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New "+ type +"!", {position: [ "10px", "50px"], timeout: 5000});
                             
-                        // });
+                        });
                     }
                 })
             }
@@ -608,6 +627,21 @@ class Gui {
                 this.addFileLocalActions(child, types, actions);
             }
         }
+    }
+
+    searchFolder( hierarchy, folderName ) {
+        for(let i = 0; i < hierarchy.length; i++ ) {
+            if(hierarchy[i].id == folderName) {
+                return hierarchy[i];
+            }
+            else {
+                let found = this.searchFolder(hierarchy[i].children, folderName);
+                if( found ) {
+                    return found;
+                }
+            }
+        }
+        return false;
     }
 
     changeLoginButton( username = "Login" ) {
@@ -643,21 +677,6 @@ class Gui {
         const session = this.editor.fileSystem.session;
         const user = session ? session.user : ""
 
-        const searchFolder = function ( folders, folder ) {
-            for(let i = 0; i < folders.length; i++ ) {
-                if(folders[i].id == folder) {
-                    return folders[i];
-                }
-                else {
-                    let found = searchFolder(folders[i].children, folder);
-                    if( found ) {
-                        return found;
-                    }
-                }
-            }
-            return false;
-        }
-
         const dialog = this.prompt = new LX.Dialog(title || "Export all animations", async p => {
             
             const refresh = () => {
@@ -675,9 +694,9 @@ class Gui {
                 if( options.allowSelectFolders ) {
                     if( selectedFolder.constructor == String && !selectedFolder.includes("/") ) {
                         let userUnit = folders.filter( u => u.id == user.username);
-                        userUnit = userUnit.length ? userUnit[0] : folders;
+                        userUnit = userUnit.length ? userUnit[0] : folders[0];
                         // let selectedFolder = `${user.username}/animics/scripts/${folder}`;
-                        selectedFolder = searchFolder(userUnit.children, selectedFolder) || {};
+                        selectedFolder = this.searchFolder(userUnit.children, selectedFolder) || {};
                     }
                     
                     p.sameLine();
@@ -6700,7 +6719,15 @@ class ScriptGui extends Gui {
     }
 
     showSavingLocallyDialog( onCancel ) {
-        
+        // this.prompt = new LX.AlertDialog("Alert", "The animation will be saved locally. You must be logged in to save it into server.", () => {
+        //     this.prompt.close();
+        //     this.showLoginModal();
+        // }, { continueText: "Login", closable: true, modal: true, size: ["30%", "fit-content"]})
+        // if( onCancel ) {
+        //     onCancel();
+        // }
+        // this.prompt.close();
+
         this.prompt = new LX.prompt("The animation will be saved locally. You must be logged in to save it into server.", "Alert", d => {
             this.prompt.close();
             this.showLoginModal();
@@ -6717,75 +6744,68 @@ class ScriptGui extends Gui {
         });
     }
     
+    // Clip timings will be made relative to the global start of the set
+    generateSelectedClipsAnimation( fileName ) {
 
-    // save only selected clips. Clip timings will be made relative to the global start of the set
+        let globalStart = 10000;
+        let globalEnd = -10000;
+        const selectedClips = this.clipsTimeline.lastClipsSelected;
+        let resultingClips = [];
+        for( let i = 0; i < selectedClips.length; i++ ) {
+            const [trackIdx, clipIdx] = selectedClips[i];
+            let clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
+
+            if( clip.toJSON ) {
+                clip = clip.toJSON();
+            }
+            if( clip ) {
+                if( clip.type == "glossa") {
+                    const actions = [ "faceLexeme", "gaze", "head", "gesture", "speech" ];
+
+                    for( let a = 0; a < actions.length; ++a ){
+                        if( clip[ actions[a] ] ) {
+                            resultingClips = resultingClips.concat( clip[ actions[a] ] );
+                        }
+                    }
+                }
+                else {
+                    resultingClips.push( clip );
+                }
+            }
+
+            globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
+            globalEnd = Math.max(globalEnd, clip.end ?? ((clip.duration + clip.start) ?? globalEnd));
+        }
+
+        // make all clips relative to the global start time
+        for( let i = 0; i < resultingClips.length; i++ ) {
+                
+            const clip = resultingClips[i];
+            clip.start -= globalStart;
+
+            if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
+            if(clip.ready!=undefined) clip.ready -= globalStart;
+            if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
+            if(clip.stroke!=undefined) clip.stroke -= globalStart;
+            if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
+            if(clip.relax!=undefined) clip.relax -= globalStart;
+            if(clip.end!=undefined) clip.end -= globalStart;
+        }
+        
+
+        const animation = {
+            name: fileName + ".bml",
+            data: UTILS.dataToFile(JSON.stringify(resultingClips), fileName, "application/json")
+        };
+
+        return animation;
+    }
+
+    // save only selected clips. 
     createSelectedClipsSaveDialog( folder ) {
 
         let fileName = "";
-        const saveDataToServer = ( location, folder ) => {
-            
-            const presetData = { clips:[], duration:0 };
-
-            let globalStart = 10000;
-            let globalEnd = -10000;
-            const selectedClips = this.clipsTimeline.lastClipsSelected;
-            let resultingClips = [];
-            for( let i = 0; i < selectedClips.length; i++ ) {
-                const [trackIdx, clipIdx] = selectedClips[i];
-                let clip = this.clipsTimeline.animationClip.tracks[trackIdx].clips[clipIdx];
-
-                if( clip.toJSON ) {
-                    clip = clip.toJSON();
-                }
-                if( clip ) {
-                    if( clip.type == "glossa") {
-                        const actions = [ "faceLexeme", "gaze", "head", "gesture", "speech" ];
-
-                        for( let a = 0; a < actions.length; ++a ){
-                            if( clip[ actions[a] ] ) {
-                                resultingClips = resultingClips.concat( clip[ actions[a] ] );
-                            }
-                        }
-                    }
-                    else {
-                        resultingClips.push( clip );
-                    }
-                }
-
-                globalStart = Math.min(globalStart, clip.start >= 0 ? clip.start : globalStart);
-                globalEnd = Math.max(globalEnd, clip.end ?? ((clip.duration + clip.start) ?? globalEnd));
-            }
-
-            // make all clips relative to the global start time
-            for( let i = 0; i < resultingClips.length; i++ ) {
-                    
-                const clip = resultingClips[i];
-                clip.start -= globalStart;
-    
-                if(clip.attackPeak!=undefined) clip.attackPeak -= globalStart;
-                if(clip.ready!=undefined) clip.ready -= globalStart;
-                if(clip.strokeStart!=undefined) clip.strokeStart -= globalStart;
-                if(clip.stroke!=undefined) clip.stroke -= globalStart;
-                if(clip.strokeEnd!=undefined) clip.strokeEnd -= globalStart;
-                if(clip.relax!=undefined) clip.relax -= globalStart;
-                if(clip.end!=undefined) clip.end -= globalStart;
-            }
-          
-
-            const presetAnim = {
-                name: fileName + ".bml",
-                data: UTILS.dataToFile(JSON.stringify(resultingClips), fileName, "application/json")
-            };
-        
-            console.log("Location: ", location);
-            console.log("Folder: ", folder);
-            //TO DO: uploadData(presetAnim.name, presetAnim.data, folder, {folderId, unitName, folderPath}, (newFilename) ...
-            this.editor.uploadData(presetAnim.name, presetAnim.data, location, folder, (newFilename) => {
-                this.closeDialogs();
-                LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-            })
-        }
-            
+       
         const dialog = this.prompt = new LX.Dialog("Save " + (folder == "presets" ? "preset" : "sign"), p => {
             
             const session = this.editor.fileSystem.session;
@@ -6794,20 +6814,6 @@ class ScriptGui extends Gui {
             const local = this.editor.fileSystem.localRepository;
             let selectedFolder = folder;
 
-            const searchFolder = function ( hierarchy, folderName ) {
-                for(let i = 0; i < hierarchy.length; i++ ) {
-                    if(hierarchy[i].id == folderName) {
-                        return hierarchy[i];
-                    }
-                    else {
-                        let found = searchFolder(hierarchy[i].children, folderName);
-                        if( found ) {
-                            return found;
-                        }
-                    }
-                }
-                return false;
-            }
             let folders = repo.filter( (v) => v.mode == "ADMIN");
             folders = folders.length ? folders : local;
             selectedFolder = selectedFolder || folders[0];
@@ -6815,7 +6821,7 @@ class ScriptGui extends Gui {
             let userUnit = folders.filter( u => u.id == user.username);
             userUnit = userUnit.length ? userUnit[0] : folders[0];
             // let selectedFolder = `${user.username}/animics/scripts/${folder}`;
-            selectedFolder = searchFolder(userUnit.children, selectedFolder) || {};
+            selectedFolder = this.searchFolder(userUnit.children, selectedFolder) || {};
 
             const refresh = () => {
                 p.clear();
@@ -6830,7 +6836,6 @@ class ScriptGui extends Gui {
     
                     p.addButton(null, null, async () => {
                         selectedFolder = await this.showSaveInFolder( selectedFolder.fullpath, folders) || selectedFolder;
-                        
                         refresh();
                     }, {icon: "FolderOpen", width: "40px"} );
                     p.endLine();
@@ -6841,23 +6846,33 @@ class ScriptGui extends Gui {
                 p.addButton("exportOk", "Save", (v, e) => { 
                     e.stopPropagation();
                     if(fileName.length && selectedFolder && selectedFolder.fullpath) {
-                        
+                        const animation = this.generateSelectedClipsAnimation( fileName );
                         if( !user || user.username == "guest" ) {
-                            if ( !this._PresetNeedsLoginWasDisplayed ){
-                                this._PresetNeedsLoginWasDisplayed = true;
-                                const alertDialog = new LX.Dialog("Alert", panel => {
-                                    panel.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
-                                    const btn = panel.addButton(null, "Login", () => {
-                                        alertDialog.close();
-                                        this.showLoginModal();
-                                    }, {width:"50%", buttonClass:"accent"});
-                                    btn.root.style.margin = "0 auto";
-                                }, {closable: true, modal: true})
-                            }
-                            saveDataToServer("local");
+                            this.showSavingLocallyDialog( () => {
+                                selectedFolder.toServer = false;
+                                this.editor.uploadData(animation.name, animation.data, selectedFolder, (newFilename) => {
+                                    this.closeDialogs();
+                                    LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New " + folder +"!", {position: [ "10px", "50px"], timeout: 5000});
+                                })
+                            } )
+                            // if ( !this._PresetNeedsLoginWasDisplayed ){
+                            //     this._PresetNeedsLoginWasDisplayed = true;
+                            //     const alertDialog = new LX.Dialog("Alert", panel => {
+                            //         panel.addTextArea(null, "The animation will be saved locally. You must be logged in to save it into server.", null, {disabled:true, className: "nobg"});
+                            //         const btn = panel.addButton(null, "Login", () => {
+                            //             alertDialog.close();
+                            //             this.showLoginModal();
+                            //         }, {width:"50%", buttonClass:"accent"});
+                            //         btn.root.style.margin = "0 auto";
+                            //     }, {closable: true, modal: true})
+                            // }
                         }
                         else {
-                            saveDataToServer(folder, selectedFolder);
+                            selectedFolder.toServer = true;
+                            this.editor.uploadData(animation.name, animation.data, selectedFolder, (newFilename) => {
+                                this.closeDialogs();
+                                LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New " + folder +"!", {position: [ "10px", "50px"], timeout: 5000});
+                            })
                         }
                         dialog.close() ;
                     }

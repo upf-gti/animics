@@ -1091,31 +1091,33 @@ class Editor {
     saveAnimations( animationsToExport, format, folder, toServer ) {
 
         const animations = this.export(animationsToExport, format, false);
+        if( !animations ) {
+            return;
+        }
         folder.toServer = toServer;
         for( let i = 0; i < animations.length; i++ ) {   
-            this.uploadData(animations[i].name, animations[i].data, folder.id, folder, (newFilename) => {
+            this.uploadData(animations[i].name, animations[i].data, folder, (newFilename) => {
                 this.gui.closeDialogs();
                 LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
             })
         }
     }
+    
     /**
      * Uploads a file either to the local or remote server, depending on "location"
      * @param {String} filename 
      * @param {String or Object} data file data
-     * @param {String} type (folder) data type: "clips" (Keyframes Mode), "signs" (Script Mode), "presets" (Script Mode)
      * @param {Object} location where the file has to be saved: it can be "server" or "local"
      * @param {*} callback 
      */
-    uploadData(filename, data, type, location, callback) {
+    uploadData(filename, data, location, callback) {
 
         if(data.constructor.name == "Object") {
             data = JSON.stringify(data, null, 4);
         }
         
-        this.ANIMICS.uploadFile(filename, data, type, location, (newFilename, files) => {
+        this.ANIMICS.uploadFile(filename, data, location, (newFilename, files) => {
             const unit = this.fileSystem.session.user.username;
-            
             
             if( callback ) {
                 callback(newFilename, files);
@@ -4045,7 +4047,7 @@ class ScriptEditor extends Editor {
             }   
         }
         if( empty ) {
-            alert("You cannot export empty animations.")
+            alert("You can't export empty animations.")
             return null;
         }
        
