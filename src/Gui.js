@@ -264,7 +264,7 @@ class Gui {
         });
 
         assetViewer.on( "beforeCreateFolder", async ( e ) => {
-            const from = e.from;
+            const from = e.where;
 
             LX.prompt("Folder name", "New folder", async ( foldername ) => {
                 try {
