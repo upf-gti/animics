@@ -265,10 +265,18 @@ class Gui {
 
         assetViewer.on( "beforeCreateFolder", async ( e ) => {
             const from = e.where;
+            if( !from.fullpath ) {
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "No source folder selected.", { position: "bottom-center" } );
+                return;
+            }
 
             LX.prompt("Folder name", "New folder", async ( foldername ) => {
                 try {
-                    const created = await this.editor.fileSystem.createFolder( from?.fullpath ?? "" + "/" + foldername);
+                    if( !foldername ) {
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
+                        return;
+                    }
+                    const created = await this.editor.fileSystem.createFolder( from?.fullpath + "/" + foldername);
                     if(created) {
                         LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
                         resolve(foldername)
@@ -449,6 +457,10 @@ class Gui {
                     name: 'New folder', 
                     callback: ( item ) => {
                         LX.prompt("Folder name", "New folder", async ( result ) => {
+                            if( !result ) {
+                                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
+                                return;
+                            }
                             const value = await this.editor.fileSystem.createFolder( item.fullpath + "/" + result);
                             if(value) {
                                 if(value) {
