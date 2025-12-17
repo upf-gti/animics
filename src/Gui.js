@@ -439,7 +439,6 @@ class Gui {
 
     addFolderActions( folder, actions ) {
 
-        const assetViewer = this.assetViewer;
         for( let i = 0; i < folder.children.length; i++ ) {
             const child = folder.children[i];
             if( child.type == "folder" ) {
@@ -456,10 +455,10 @@ class Gui {
                                     LX.popup('"' + result + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
                                     const newItem = {id: result, type: "folder",  children: []};
                                     item.children.push(newItem);
-                                    assetViewer._processData(newItem, item);
+                                    this.assetViewer._processData(newItem, item);
                                     newItem.fullpath = item.fullpath + "/" + result;
-                                    assetViewer._refreshContent(assetViewer.searchValue, assetViewer.filter);
-                                    assetViewer.tree.refresh();
+                                    this.assetViewer._refreshContent(this.assetViewer.searchValue, this.assetViewer.filter);
+                                    this.assetViewer.tree.refresh();
                                 }
                                 else {
                                     LX.popup('"' + result + '"' + " couldn't be created.", "Error", {position: [ "10px", "50px"], timeout: 5000});
@@ -482,7 +481,7 @@ class Gui {
                         const value = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
                         if(value) {
                             LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
-                            assetViewer._deleteItem(item);
+                            this.assetViewer._deleteItem(item);
                         }
                         else {
                             LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
@@ -517,7 +516,6 @@ class Gui {
 
     addFileActions( folder, types, actions ) {
 
-        const assetViewer = this.assetViewer;
         for( let i = 0; i < folder.children.length; i++ ) {
             const child = folder.children[i];
 
@@ -550,7 +548,6 @@ class Gui {
 
     addFileLocalActions( folder, types, actions ) {
 
-        const assetViewer = this.assetViewer;
         for( let i = 0; i < folder.children.length; i++ ) {
             const child = folder.children[i];
 
@@ -567,8 +564,8 @@ class Gui {
                         if(deleted) {
                             LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
                             
-                            assetViewer._deleteItem(item);
-                            assetViewer._refreshContent();
+                            this.assetViewer._deleteItem(item);
+                            this.assetViewer._refreshContent();
                         }
                         else {
                             LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
