@@ -63,7 +63,7 @@ class Animics {
                 }
             });
 
-        }, {modal: true, closable: true} );
+        }, {modal: true, closable: true, size: ["25%","fit-content"] } );
         return prompt;
     }
     
@@ -214,8 +214,12 @@ class Animics {
                     overwritePanel.sameLine(2);
                     overwritePanel.addButton("overwrite", "Overwrite", async () => {
                         const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
+                        overwriteDialog.close();
                         callback(filename, files);
-                        overwriteDialog.close(); 
+
+                        // TODO CHANGE: HACK to force cache refresh for this file. This should not be necessary if file requests' headers contained Cache-Control: no-cache
+                        fetch( this.remoteFileSystem.root + "/" + username + "/" + folder + "/" + filename + "?version=" + performance.now() ); 
+                        
                     }, {hideName: true, buttonClass: "error", width: "50%"} );
                     overwritePanel.addButton("ok", "Rename", async () => {
                         let extensionIdx = filename.lastIndexOf(".");

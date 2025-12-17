@@ -507,6 +507,8 @@ class Editor {
         
         if(data.fullpath) {
             const extension = UTILS.getExtension(data.fullpath).toLowerCase();
+            // TODO: request should be with Control-Cache= no-cache (it means "file must be validated by the server before reusing from cache" ). Necessary to avoid some browsers not updating files when overwriting
+            // as it is now, multiple windows of animics might see diferent versions of the same file. No-cache would solve this.
             LX.request({ url: this.remoteFileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
                 if( content == "{}" )  {
                     callback({content});
