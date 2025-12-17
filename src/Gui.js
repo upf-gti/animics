@@ -263,7 +263,7 @@ class Gui {
             }
         });
 
-        assetViewer.on( "beforeCreateFolder", async ( e ) => {
+        assetViewer.on( "beforeCreateFolder", async ( e, resolve ) => {
             const from = e.where;
             if( !from.fullpath ) {
                 LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "No source folder selected.", { position: "bottom-center" } );
@@ -276,7 +276,7 @@ class Gui {
                         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
                         return;
                     }
-                    const created = await this.editor.fileSystem.createFolder( from?.fullpath + "/" + foldername);
+                    const created = await this.editor.fileSystem.createFolder( from.fullpath + "/" + foldername);
                     if(created) {
                         LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
                         resolve(foldername)
@@ -362,7 +362,6 @@ class Gui {
             const newPath = item.fullpath.replace(`/${e.oldName}`, `/${e.newName}`);
             let renamed = false;
             if( item.type == "folder" ) {
-                
                 renamed = await this.editor.fileSystem.moveFolder(item.asset_id, item.unit, newPath);
             }
             else {
@@ -433,8 +432,14 @@ class Gui {
                 LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${item.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
                 return;
             }
-            const folder = item.fullpath.replace(`${item.unit}/`, "").replace( `/${item.id}`, "");
-            const deleted = await this.editor.fileSystem.deleteFile( item.asset_id );
+
+            let deleted = false;
+            if( item.type == "folder" ) {
+                deleted = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
+            }
+            else {
+                deleted = await this.editor.fileSystem.deleteFile( item.asset_id );
+            }
             // assetViewer._refreshContent();
             if( deleted ) {
                 resolve();
@@ -494,6 +499,7 @@ class Gui {
                         if(value) {
                             LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
                             this.assetViewer._deleteItem(item);
+                            this.assetViewer._refreshContent();
                         }
                         else {
                             LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
@@ -6785,15 +6791,16 @@ class ScriptGui extends Gui {
             const session = this.editor.fileSystem.session;
             const user = session ? session.user : null;
             const repo = this.editor.fileSystem.repository;
-            let selectedFolder = {};
+            const local = this.editor.fileSystem.localRepository;
+            let selectedFolder = folder;
 
-            const searchFolder = function ( folders, folder ) {
-                for(let i = 0; i < folders.length; i++ ) {
-                    if(folders[i].id == folder) {
-                        return folders[i];
+            const searchFolder = function ( hierarchy, folderName ) {
+                for(let i = 0; i < hierarchy.length; i++ ) {
+                    if(hierarchy[i].id == folderName) {
+                        return hierarchy[i];
                     }
                     else {
-                        let found = searchFolder(folders[i].children, folder);
+                        let found = searchFolder(hierarchy[i].children, folderName);
                         if( found ) {
                             return found;
                         }
@@ -6801,19 +6808,23 @@ class ScriptGui extends Gui {
                 }
                 return false;
             }
+            let folders = repo.filter( (v) => v.mode == "ADMIN");
+            folders = folders.length ? folders : local;
+            selectedFolder = selectedFolder || folders[0];
+
+            let userUnit = folders.filter( u => u.id == user.username);
+            userUnit = userUnit.length ? userUnit[0] : folders[0];
+            // let selectedFolder = `${user.username}/animics/scripts/${folder}`;
+            selectedFolder = searchFolder(userUnit.children, selectedFolder) || {};
+
             const refresh = () => {
                 p.clear();
                 p.addText("Name", fileName, (v) => {
                     fileName = v;
                 });
                 
-                if( user || user.username != "guest" ) {
-                    const folders = repo.filter( (v) => v.mode == "ADMIN");
-                    let userUnit = folders.filter( u => u.id == user.username);
-                    userUnit = userUnit.length ? userUnit[0] : folders;
-                    // let selectedFolder = `${user.username}/animics/scripts/${folder}`;
-                    selectedFolder = searchFolder(userUnit.children, folder) || selectedFolder;
-
+                if( user && user.username != "guest" ) {
+                   
                     p.sameLine();
                     p.addText("Save in", selectedFolder.fullpath || "", null, { disabled: true, width: "calc(100% - 40px)"});
     
@@ -6824,7 +6835,7 @@ class ScriptGui extends Gui {
                     }, {icon: "FolderOpen", width: "40px"} );
                     p.endLine();
                 }
-    
+                else {}
                 p.sameLine(2);
                 p.addButton("exportCancel", "Cancel", () => { dialog.close(); }, {hideName: true, width: "50%"} );
                 p.addButton("exportOk", "Save", (v, e) => { 
