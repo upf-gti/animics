@@ -11,7 +11,7 @@ class FileSystem {
         // this.repository = {signs:[], presets: [], clips:[]};
         this.repository = [];
 
-        this.localRepository = [{ id: "Local", type:"folder", fullpath: "Local", mode: "ADMIN", children: [ ]} ];
+        this.localRepository = [{ id: "Local", type:"folder", fullpath: "Local", mode: "ADMIN", children: [ ], options: {rename: false, draggable: false}} ];
         
         this.refreshRepository = true;
 
@@ -494,7 +494,7 @@ class FileSystem {
 
                 
                 console.log(folders)
-                const data = {id: unitName, type: "folder", folder: null, children: [], unit: unitName, mode: unitMode, draggable: false, rename: false};
+                const data = {id: unitName, type: "folder", folder: null, children: [], unit: unitName, mode: unitMode, options: {draggable: false, rename: false}};
                 if( folders.length ) {
                     folders = folders.filter( ( folder ) => folder.folder == "animics");
                     if ( folders.length ) {
@@ -542,8 +542,7 @@ class FileSystem {
         if( asset.subfolders ) {
             name = asset.folder;
             if( name == "animics" ) {
-                data.draggable = false;
-                data.rename = false;
+                data.options = {rename: false, draggable: false};
             }
             data.fullpath = unit + "/" + asset.path;
             if( asset.folder == "presets" ) {
