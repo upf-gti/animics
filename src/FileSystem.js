@@ -240,8 +240,13 @@ class FileSystem {
         }
         return new Promise((resolve, reject) => {
             this.session.copyFile( file_id, new_path,
-                ( id ) => {
-                    resolve(id);
+                ( status, result ) => {
+                    if( status ) {
+                        resolve(result);
+                    }
+                    else {
+                        resolve(false);
+                    }
                 }, (err) => {
                     console.error( err );
                     resolve(false);

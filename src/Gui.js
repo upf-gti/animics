@@ -386,24 +386,26 @@ class Gui {
         assetViewer.on( "beforeClone", async ( e, resolve ) => {
             const item = e.items[0];
             const folder = item.fullpath.replace( `/${item.id}`, "");
-            item.id = item.filename = item.id.replace(`.${item.type}`, ` copy`);
+            // item.id = item.filename = item.id.replace(`.${item.type}`, ` copy`);
             const filename = assetViewer._getClonedName(item.id, item.dir);
-            const exists = await this.editor.fileSystem.checkFileExists(`${folder}/${filename}`);
+            const path = `${folder}/${filename}`;
+            const exists = await this.editor.fileSystem.checkFileExists( path );
             
             if( exists ) {
                 return;
             }
-            const cloned = await this.editor.fileSystem.copyFile(item.asset_id, folder+"/"+ item.id )
+            const cloned = await this.editor.fileSystem.copyFile(item.asset_id, path )
             //const cloned = await this.editor.fileSystem.uploadFile( item.unit, item.asset_id, item.id, item.content);
             // assetViewer._refreshContent();
             if( cloned ) {
-                resolve( cloned );    
+                resolve( cloned.id );    
                 console.log(item.id + " cloned"); 
             }
         });
 
         assetViewer.on( "clone", ( e, id ) => {
             const item = e.result[0];
+            item.fullpath = item.fullpath.replace(item.filename, item.id);
             item.filename = item.id;
             item.asset_id = id;
         })
