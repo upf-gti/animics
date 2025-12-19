@@ -808,7 +808,7 @@ class Editor {
                         e.preventDefault();
                         e.stopImmediatePropagation();
 
-                        this.gui.createServerClipsDialog();
+                        this.gui.showRepository();
                     }
                 break;
             }
