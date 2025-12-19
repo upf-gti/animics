@@ -3529,7 +3529,7 @@ class KeyframesGui extends Gui {
                     this.setKeyframeClip(clip);
                 }, { buttonClass: "accent" });
 
-                p.addBlank();
+                // p.addBlank(); // TO DO: fix it. commented because crashes with lexgui update
 
                 p.branch("Clip Blending");
 
@@ -7518,12 +7518,14 @@ class PropagationWindow {
                 this.recomputeGradient( gradient, 1, 1, this.leftSide, this.rightSide ); // stored gradient is centered. Readjust to current window size
                 this.setGradient( gradient ); 
             }, className: "p-1 my-0"});
-            card.root.children[0].children[1].remove();
-            card.root.children[0].children[0].style.height = "auto";
-            card.root.children[0].classList.add("my-0");
-            card.root.children[0].classList.add("pb-1");
-            card.root.children[0].children[0].classList.add("my-0");
-            card.root.children[0].children[0].classList.add("p-0");
+            if(card.root.children[0].children.length) { // TO DO: change it. added because crashes
+                card.root.children[0].children[1].remove();
+                card.root.children[0].children[0].style.height = "auto";
+                card.root.children[0].classList.add("my-0");
+                card.root.children[0].classList.add("pb-1");
+                card.root.children[0].children[0].classList.add("my-0");
+                card.root.children[0].children[0].classList.add("p-0");
+            }
             card.root.classList.add("leading-3");
             
         }
