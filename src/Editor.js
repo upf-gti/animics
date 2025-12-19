@@ -3685,8 +3685,8 @@ class ScriptEditor extends Editor {
         // Create GUI
         this.gui = new ScriptGui(this);
         
-        this.fileSystem.localRepository[0].children.push( {id: "presets", type:"folder", icon: "Tags", fullpath: "Local/presets", children: [],  rename: false, draggable: false});
-        this.fileSystem.localRepository[0].children.push( {id: "signs", type:"folder", icon: "HandsAslInterpreting", fullpath: "Local/signs", children: [], rename: false, draggable: false});
+        this.fileSystem.localRepository[0].children.push( {id: "presets", type:"folder", icon: "Tags", fullpath: "Local/presets", children: [], rename: false, draggable: false, parent: this.fileSystem.localRepository[0]});
+        this.fileSystem.localRepository[0].children.push( {id: "signs", type:"folder", icon: "HandsAslInterpreting", fullpath: "Local/signs", children: [], rename: false, draggable: false, parent: this.fileSystem.localRepository[0]});
         
         // this.localStorage = [{ id: "Local", type:"folder", fullpath: "Local", mode: "ADMIN", children: [ {id: "presets", type:"folder", icon: "Tags", fullpath: "Local/presets", children: []}, {id: "signs", type:"folder", icon: "HandsAslInterpreting", fullpath: "Local/signs", children: []}]} ];
     }

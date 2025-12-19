@@ -498,7 +498,9 @@ class FileSystem {
                 if( folders.length ) {
                     folders = folders.filter( ( folder ) => folder.folder == "animics");
                     if ( folders.length ) {
-                        data.children.push(this.parseAssetInfo(unit.id, folders[0], unitName, allowFolders));
+                        const child = this.parseAssetInfo(unit.id, folders[0], unitName, allowFolders);
+                        data.children.push( child );
+                        child.parent = data;
                     }
                 }
                 
@@ -562,8 +564,9 @@ class FileSystem {
                 if( allowFolders.length && allowFolders.indexOf(subfolder.folder) < 0 || restrictFolders.length && restrictFolders.indexOf(subfolder.folder) > -1) {
                     continue;
                 }
-
-                data.children.push( this.parseAssetInfo(unit, subfolder, data.fullpath) );
+                const child = this.parseAssetInfo(unit, subfolder, data.fullpath);
+                data.children.push( child );
+                child.parent = data;
             }
         }
         else {
@@ -628,21 +631,30 @@ class FileSystem {
 
     saveLocalFile( filename, data, folder ) {
         const extension = filename.substr(filename.lastIndexOf(".") + 1);
+        if(this.localRepository[0].id == folder.id) {
+            this.localRepository[0].children.push({filename: filename, id: filename, folder: folder.fullpath, type: extension, data: data});
+            return this.localRepository[0].children;
+        }
         this.localRepository[0].children.map ( child => {
             if( child.id == folder.id ) {
                 child.children.push({filename: filename, id: filename, folder: folder.fullpath, type: extension, data: data});
+                return child.children;
             }
-        })    
+        })
+        return false;
     }
 
     deleteLocalFile( file, folder ) {
+        if(this.localRepository[0].id == folder.id) {
+            const items = this.localRepository[0].children;
+            const i = items.indexOf(item);
+            this.localRepository[0].children = items.slice(0, i).concat(items.slice(i+1));  
+            return true;
+        }
         this.localRepository[0].children.map( child => {
-            debugger;
-            // if( child.id == folder ) {
-            //     const i = child.children.indexOf(item);
-            //     const items = child.children;
-            //     child.children = items.slice(0, i).concat(items.slice(i+1));  
-            // }
+            const items = child.children;
+            const i = items.indexOf(item);
+            child.children = items.slice(0, i).concat(items.slice(i+1));  
         })   
         return true
     }

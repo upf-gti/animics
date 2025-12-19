@@ -259,7 +259,10 @@ class Animics {
             }
         }
         else {
-            this.fileSystem.saveLocalFile(filename, new File([data], filename), location )
+            const files = this.fileSystem.saveLocalFile(filename, new File([data], filename), location );
+            if(files) {
+                callback(filename, files);
+            }
         }
     }
     

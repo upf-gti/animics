@@ -224,6 +224,30 @@ class Gui {
         this.changeLoginButton(loginName);
     }
 
+    changeLoginButton( username = "Login" ) {
+        const loginButton = document.getElementById("login-button");
+        const userButton = document.getElementById("user-button");
+
+        if( username == "Login" || username == "guest") {
+            loginButton.classList.remove("hidden");
+            userButton.innerHTML = "";
+            userButton.classList.add("hidden");
+        }
+        else {
+            loginButton.classList.add("hidden");
+            userButton.classList.remove("hidden");
+            userButton.innerHTML = username;
+        }
+    }
+
+    showLoginModal() {
+        this.editor.ANIMICS.showLoginModal( async (session, response) => {
+                this.changeLoginButton(session.user.username);
+                const folders = this.constructor == KeyframesGui ? ["clips"] : ["scripts"] ;            
+                await this.editor.fileSystem.loadAllUnitsFolders(null, folders);
+        } );  
+    }
+
     importFiles() {
         
         const input = document.createElement('input');
@@ -524,7 +548,7 @@ class Gui {
                 loadingArea.hide();
             }
        
-        }, { title:'Clips', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
+        }, { close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
     
             onBeforeClose: ( dialog ) => {
 
@@ -601,25 +625,6 @@ class Gui {
     
                 this.addFolderActions(child, actions);
             }
-            else {
-                // const folder = child.fullpath.replace("/"+child.filename, "")
-                // actions.push( {
-                //     type: child.type,
-                //     path: "@/"+ folder,
-                //     name: 'Delete', 
-                //     callback: ( item )=> {
-                //         const deleted = this.editor.fileSystem.deleteFile( item.asset_id);
-                //         if(deleted) {
-                //             LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                //             item.folder.children = deleted;
-                //             assetViewer._deleteItem(item);
-                //         }
-                //         else {
-                //             LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                //         }
-                //     }
-                // } );
-            }
         }
     }
 
@@ -629,7 +634,6 @@ class Gui {
             const child = folder.children[i];
 
             // Delete File action
-
             for( let j = 0; j < types.length; j++ ) {
                 const type = types[j];
                 actions.push( {
@@ -710,45 +714,6 @@ class Gui {
         }
     }
 
-    searchFolder( hierarchy, folderName ) {
-        for(let i = 0; i < hierarchy.length; i++ ) {
-            if(hierarchy[i].id == folderName) {
-                return hierarchy[i];
-            }
-            else {
-                let found = this.searchFolder(hierarchy[i].children, folderName);
-                if( found ) {
-                    return found;
-                }
-            }
-        }
-        return false;
-    }
-
-    changeLoginButton( username = "Login" ) {
-        const loginButton = document.getElementById("login-button");
-        const userButton = document.getElementById("user-button");
-
-        if( username == "Login" || username == "guest") {
-            loginButton.classList.remove("hidden");
-            userButton.innerHTML = "";
-            userButton.classList.add("hidden");
-        }
-        else {
-            loginButton.classList.add("hidden");
-            userButton.classList.remove("hidden");
-            userButton.innerHTML = username;
-        }
-    }
-
-    showLoginModal() {
-        this.editor.ANIMICS.showLoginModal( async (session, response) => {
-                this.changeLoginButton(session.user.username);
-                const folders = this.constructor == KeyframesGui ? ["clips"] : ["scripts"] ;            
-                await this.editor.fileSystem.loadAllUnitsFolders(null, folders);
-        } );  
-    }
-
     showExportAnimationsDialog(title, options = { formats: [], allowSelectFolders: false }) {
         options.modal = true;
 
@@ -777,14 +742,13 @@ class Gui {
                         let userUnit = folders.filter( u => u.id == user.username);
                         userUnit = userUnit.length ? userUnit[0] : folders[0];
                         // let selectedFolder = `${user.username}/animics/scripts/${folder}`;
-                        selectedFolder = this.searchFolder(userUnit.children, selectedFolder) || {};
+                        selectedFolder = this.searchFolder(userUnit.children, selectedFolder) || (userUnit.children.length ? userUnit.children[0]: userUnit);
                     }
                     
                     p.sameLine();
-                        p.addText("Save in", selectedFolder.fullpath || "", null, { disabled: true, width: "calc(100% - 40px)"});
-        
+                    p.addText("Save in", selectedFolder.fullpath || "", null, { disabled: true, width: "calc(100% - 40px)"});
                     p.addButton(null, null, async () => {
-                        selectedFolder = await this.showSaveInFolder( selectedFolder.fullpath, folders) || selectedFolder;
+                        selectedFolder = await this.showSaveInFolder( selectedFolder.fullpath, selectedFolder) || selectedFolder;
                         
                         refresh();
                     }, {icon: "FolderOpen", width: "40px"} );
@@ -858,6 +822,21 @@ class Gui {
         if( options.input !== false ) {
             dialog.root.querySelector('input').focus();
         }
+    }
+    
+    searchFolder( hierarchy, folderName ) {
+        for(let i = 0; i < hierarchy.length; i++ ) {
+            if(hierarchy[i].id == folderName) {
+                return hierarchy[i];
+            }
+            else if(hierarchy[i].children) {
+                let found = this.searchFolder(hierarchy[i].children, folderName);
+                if( found ) {
+                    return found;
+                }
+            }
+        }
+        return false;
     }
 
     showSaveInFolder( item, folders ) {
@@ -979,6 +958,45 @@ class Gui {
                 delete this.saveInFolderDialog;
             } });
         })
+    }
+
+    showSavingLocallyDialog( callback ) {
+        this.prompt = new LX.Dialog("Alert", 
+            (p) => {
+                p.addTextArea(null, 'The animation will be saved locally. You must be logged in to save it into server.', null, { disabled: true, fitHeight: true, inputClass: 'bg-none fg-tertiary' });
+                p.addButton(null, 'Login', () => {
+                    this.prompt.close();
+                    this.showLoginModal();
+                }, { buttonClass: 'contrast', width: "100px", class: "justify-end" })
+            }, 
+            { 
+                onBeforeClose: () => {
+                    this.prompt = null;
+                    if( callback ) {
+                        callback();
+                    }
+                },
+                closable: true, modal: true, size: ["30%", "fit-content"]
+            })   
+
+        // this.prompt = new LX.prompt("The animation will be saved locally. You must be logged in to save it into server.", "Alert", d => {
+        //     this.prompt.close();
+        //     this.showLoginModal();
+        // },
+        // {
+        //     on_cancel: () => { 
+        //         if( onCancel ) {
+        //             onCancel();
+        //         }
+        //         if(this.prompt) {
+        //             this.prompt.close();
+        //         }
+        //     },
+        //     // 
+            
+        //     closable: true, modal: true, size: ["30%", "fit-content"],
+        //     accept: "Login", input: false
+        // });
     }
 
     updateLoopModeGui( loop ){
@@ -5444,7 +5462,7 @@ class KeyframesGui extends Gui {
         }
     }
 
-    showSourceCode( asset ) {
+    async showSourceCode( asset ) {
         if( this.sourceCodeDialog ) {
             const fn = this.sourceCodeDialog.close ?? this.sourceCodeDialog.destroy;
             fn();
@@ -5462,6 +5480,21 @@ class KeyframesGui extends Gui {
             disable_edition: true
         });
         
+        if(!asset.animation) {
+            const promise = new Promise((resolve) => {
+                this.editor.fileToAnimation(asset, ( file ) => {
+                    if( file ) {
+                        resolve(file);
+                    }
+                    else {
+                        resolve( null );
+                    }
+                });
+            })
+            const parsedFile = await promise;
+            asset.animation = parsedFile.animation;
+            asset.content = parsedFile.content;
+        }
         codeEditor.setText( asset.content );
         codeEditor._changeLanguage( "JSON" );
 
@@ -6661,32 +6694,6 @@ class ScriptGui extends Gui {
     createSaveDialog( folder = "signs" ) {
         this.showExportAnimationsDialog( "Save animations", {formats: [ "BML"], from: ["All clips", "Selected clips"], selectedFolder: folder, allowSelectFolders: true} );
     }
-
-    showSavingLocallyDialog( onCancel ) {
-        // this.prompt = new LX.AlertDialog("Alert", "The animation will be saved locally. You must be logged in to save it into server.", () => {
-        //     this.prompt.close();
-        //     this.showLoginModal();
-        // }, { continueText: "Login", closable: true, modal: true, size: ["30%", "fit-content"]})
-        // if( onCancel ) {
-        //     onCancel();
-        // }
-        // this.prompt.close();
-
-        this.prompt = new LX.prompt("The animation will be saved locally. You must be logged in to save it into server.", "Alert", d => {
-            this.prompt.close();
-            this.showLoginModal();
-        },
-        {
-            on_cancel: () => { 
-                if( onCancel ) {
-                    onCancel();
-                }
-                this.prompt.close();
-            },
-            closable: true, modal: true, size: ["30%", "fit-content"],
-            accept: "Login", input: false
-        });
-    }
     
     // Clip timings will be made relative to the global start of the set
     generateSelectedClipsAnimation( fileName ) {
@@ -6777,9 +6784,9 @@ class ScriptGui extends Gui {
                    
                     p.sameLine();
                     p.addText("Save in", selectedFolder.fullpath || "", null, { disabled: true, width: "calc(100% - 40px)"});
-    
                     p.addButton(null, null, async () => {
-                        selectedFolder = await this.showSaveInFolder( selectedFolder.fullpath, folders) || selectedFolder;
+                        
+                        selectedFolder = await this.showSaveInFolder( selectedFolder.fullpath, selectedFolder) || selectedFolder;
                         refresh();
                     }, {icon: "FolderOpen", width: "40px"} );
                     p.endLine();
@@ -7106,7 +7113,7 @@ class ScriptGui extends Gui {
         }
     }
 
-    showSourceCode (asset) {
+    async showSourceCode (asset) {
         if( this.sourceCodeDialog ) {
             const fn = this.sourceCodeDialog.close ?? this.sourceCodeDialog.destroy;
             fn();
@@ -7122,6 +7129,22 @@ class ScriptGui extends Gui {
             // disableEdition : true // somehow breaks the editor
         });
         codeEditor.closeTab("untitled", true); // doesn't matter the name, eraseAll is set to true
+
+        if(!asset.animation) {
+            const promise = new Promise((resolve) => {
+                this.editor.fileToAnimation(asset, ( file ) => {
+                    if( file ) {
+                        resolve(file);
+                    }
+                    else {
+                        resolve( null );
+                    }
+                });
+            })
+            const parsedFile = await promise;
+            asset.animation = parsedFile.animation;
+            asset.content = parsedFile.content;
+        }
 
         const text = JSON.stringify(asset.animation.behaviours, (key, value) => {
             // limit precision of floats
