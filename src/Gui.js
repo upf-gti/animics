@@ -3626,18 +3626,16 @@ class KeyframesGui extends Gui {
                     this.setKeyframeClip(clip);
                 }, { buttonClass: "accent" });
 
-                // p.addBlank(); // TO DO: fix it. commented because crashes with lexgui update
-
-                p.branch("Clip Blending");
-
                 p.addRange( "Intensity", clip.weight, (v,e) => {
                     clip.weight = v; 
                     this.editor.computeKeyframeClipWeight(clip);
                     this.editor.setTime(this.editor.currentTime); // update visual skeleton pose
-                }, {min: 0, max: 1, step: 0.001, className: "contrast", onPress : (e, silder)=>{
+                }, {min: 0, max: 1, step: 0.001, className: "contrast", skipReset:true, onPress : (e, silder)=>{
                        this.globalTimeline.saveState( clip.trackIdx ); // shallow copy    
                     }
                 });
+
+                p.branch("Clip Blending");
 
                 const fadetable = ["None","Linear","Quadratic","Sinusoid"]; 
                 p.addSelect("Fade In Type", ["None", "Linear", "Quadratic", "Sinusoid"], fadetable[clip.fadeinType], (v,e) =>{
@@ -7400,24 +7398,26 @@ class PropagationWindow {
 
         const panelCurves  = this.panelCurves = new LX.Panel( {id:"panelCurves", width:"auto", height: "auto"});
         panelCurves.root.background = "transparent";
+
+        let ul = document.createElement("ul");
+        ul.classList.add( "cardList", "p-0", "m-0", "flex", "flex-col" );
+        panelCurves.attach(ul);
         for( let i = this.savedCurves.length-1; i > -1; --i ){
+            let itemEl = document.createElement("li");
             const values = this.savedCurves[i].values;
-            let card = panelCurves.addCard(null, { img: this.savedCurves[i].imgURL, callback:(v,e)=>{
+            itemEl.addEventListener( "mousedown", ()=>{
                 const gradient = JSON.parse(JSON.stringify(values));
                 this.recomputeGradient( gradient, 1, 1, this.leftSide, this.rightSide ); // stored gradient is centered. Readjust to current window size
                 this.setGradient( gradient ); 
-            }, className: "p-1 my-0"});
-            if(card.root.children[0].children.length) { // TO DO: change it. added because crashes
-                card.root.children[0].children[1].remove();
-                card.root.children[0].children[0].style.height = "auto";
-                card.root.children[0].classList.add("my-0");
-                card.root.children[0].classList.add("pb-1");
-                card.root.children[0].children[0].classList.add("my-0");
-                card.root.children[0].children[0].classList.add("p-0");
-            }
-            card.root.classList.add("leading-3");
-            
+            });
+
+            let img = document.createElement("img");
+            img.src = this.savedCurves[i].imgURL;
+            itemEl.appendChild(img);
+
+            ul.appendChild(itemEl);
         }
+        
         panelCurves.root.style.zIndex = "0.5";
         panelCurves.root.style.position = "fixed";
         panelCurves.root.style.background = "var(--global-color-tertiary)";
@@ -7750,7 +7750,7 @@ class PropagationWindow {
             if ( !this.panelCurves.root.classList.contains("hidden") ){
                 this.panelCurves.root.style.left = areaRect.x + windowRect.rectPosX + windowRect.rectWidth + 50 +"px";
                 this.panelCurves.root.style.top = areaRect.y + windowRect.rectPosY + 10 + "px";       
-                this.panelCurves.root.style.maxHeight = windowRect.rectHeight - 10 + "px";       
+                this.panelCurves.root.style.maxHeight = areaRect.bottom - (areaRect.y + windowRect.rectPosY) - 20 + "px"
             }
         }
 

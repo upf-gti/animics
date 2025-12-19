@@ -133,6 +133,40 @@ canvas {
 	top: 0px;
 }
 
+/* -------------- Propagation Window -------------- */
+.cardList {
+	gap: 5px;
+	width: 100%;
+	height: auto;
+}
+.cardList li {
+	outline: black 1px dashed;
+	border-radius: 10px;
+	font-size: 0px;
+	overflow: hidden;
+	transition: all 0.1s;
+}
+.cardList li:hover{
+	outline: black 2px solid;
+}
+.cardList li img {
+	gap: 5px;
+    -webkit-text-size-adjust: 100%;
+    cursor: pointer;
+    text-align: center;
+    border: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+	pointer-events: none;
+    transition: all 0.2s;
+}
+.cardList li:hover img{
+	transform: scale(1.12);
+}
+
+/* -------------- end of propagation window -------------- */
+
 /* -------------- Loading popups and animations -------------- */
 #loading {
 	background-color: #111;
