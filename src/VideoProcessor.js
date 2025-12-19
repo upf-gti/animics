@@ -225,7 +225,6 @@ class VideoProcessor {
         }, { icon: "Crop", iconPosition: "start", title: "Resets the video crop area so it covers the full video size", hideName: true });
 
         // Create expanded AU info area    
-        panel.addBlank();
         
         panel.branch("User positioning");
         panel.addTextArea(null, 'Position yourself centered on the image with the hands and troso visible. If the conditions are not met, reposition yourself or the camera.', null, { disabled: true, className: "auto", fitHeight: true }) 
