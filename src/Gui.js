@@ -464,7 +464,7 @@ class Gui {
         assetViewer.load( repository );
     }
 
-    createServerClipsDialog(title, types, mainFolder, previewActions, actions = {}) {
+    createRepositoryDialog(title, types, mainFolder, previewActions, actions = {}) {
         
         const session = this.editor.fileSystem.session;
         const username = session ? session.user.username : "guest";
@@ -5347,7 +5347,7 @@ class KeyframesGui extends Gui {
             } );
         }
 
-        this.createServerClipsDialog( title, types, mainFolder, actions, {selectFileActions: ["Add as a clip"], viewSourceActions: ["View source"]})
+        this.createRepositoryDialog( title, types, mainFolder, actions, {selectFileActions: ["Add as a clip"], viewSourceActions: ["View source"]})
     }
 
     addFileKeyframeActions( folder, types, actions ) {
@@ -7027,134 +7027,9 @@ class ScriptGui extends Gui {
             } );
         }
 
-        this.createServerClipsDialog( title, types, mainFolder, actions, {selectFileActions: ["Add as a clip"], viewSourceActions: ["View source"]})
+        this.createRepositoryDialog( title, types, mainFolder, actions, {selectFileActions: ["Add as a clip"], viewSourceActions: ["View source"]})
     }
     
-    // showRepository() {
-        
-    //     const session = this.editor.fileSystem.session;
-       
-    //     const username = session ? session.user.username : "guest";
-    //     const repository = this.editor.fileSystem.repository;
-    //     const localRepository = this.editor.fileSystem.localRepository;
-
-    //     if( this.prompt && this.prompt.root.checkVisibility() ) {
-    //         return;
-    //     }
-
-    //     // Create a new dialog
-    //     const dialog = this.prompt = new LX.Dialog('Available animations', async (p) => {
-            
-    //         const previewActions = [
-    //             {
-    //                 type: "sigml",
-    //                 name: 'View source', 
-    //                 callback: this.showSourceCode.bind(this)
-    //             },
-    //             {
-    //                 type: "sigml",
-    //                 name: 'Add as single clip', 
-    //                 callback: this.onSelectFile.bind(this)
-    //             },
-    //             {
-    //                 type: "sigml",
-    //                 name: 'Breakdown into glosses', 
-    //                 callback: this.onSelectFile.bind(this)
-    //             },
-    //             {
-    //                 type: "sigml",
-    //                 name: 'Breakdown into action clips', 
-    //                 callback: this.onSelectFile.bind(this)
-    //             },
-    //             {
-    //                 type: "bml",
-    //                 name: 'View source', 
-    //                 callback: this.showSourceCode.bind(this)
-    //             },
-    //             {
-    //                 type: "bml",
-    //                 name: 'Add as single clip', 
-    //                 callback: this.onSelectFile.bind(this)
-    //             },
-    //             {
-    //                 type: "bml",
-    //                 name: 'Breakdown into glosses', 
-    //                 callback: this.onSelectFile.bind(this)
-    //             },
-    //             {
-    //                 type: "bml",
-    //                 name: 'Breakdown into action clips', 
-    //                 callback: this.onSelectFile.bind(this)
-    //             }
-    //         ];
-
-    //         if( username != "guest" ) {
-    //             for( let i = 0; i < repository.length; i++ ) {
-    //                 const unit = repository[i];
-    //                 if( unit.mode != "ADMIN") {
-    //                     continue;
-    //                 }
-    //                 this.addFolderActions( unit, previewActions );                    
-    //                 this.addFileActions( unit, ["sigml", "bml"], previewActions);
-    //             }
-
-    //             this.addFileLocalActions( localRepository[0], ["sigml", "bml"], previewActions);
-    //         }
-            
-    //         const assetViewer = new LX.AssetView({  allowedTypes: ["sigml", "bml"],  previewActions: previewActions, contextMenu: true });
-            
-    //         assetViewer.onItemDragged = async ( node, value) => {
-    //             if( node.type == "folder" ) {
-    //                 const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-    //                 const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-    //                 if( restricted.indexOf(node.id) > -1 ) {
-    //                     LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
-    //                     return;
-    //                 }
-    //                 const moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit , value.fullpath+"/"+node.id);
-    //                 console.log(node.id, moved)
-    //             }
-    //             else {
-    //                 moved = await this.editor.fileSystem.moveFile( node.asset_id, value.fullpath + "/" + node.id);
-    //             }
-    //         }
-
-    //         p.attach( assetViewer );
-    //         this.assetViewer = assetViewer;
-            
-    //         const loadingArea = p.loadingArea = this.createLoadingArea(p);
-
-    //         if( !repository.length ) {
-    //             await this.editor.fileSystem.loadAllUnitsFolders( () => {
-    //                 const repository = this.editor.fileSystem.repository;
-    //                 this.loadAssets( assetViewer, [...repository, ...localRepository], this.onSelectFile.bind(this) );
-    //                 loadingArea.hide();
-    //             }, ["scripts"]);
-    //         }
-    //         else {            
-    //             this.loadAssets( assetViewer, [...repository, ...localRepository], this.onSelectFile.bind(this) );
-    //             loadingArea.hide();
-    //         }
-
-            
-    //     }, { title:'Available animations', close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false, modal: true,
-    
-    //         onBeforeClose: (dialog) => {
-
-    //             if ( this.assetViewer ){
-    //                 this.assetViewer.clear(); // clear signals
-    //                 this.assetViewer.root.remove(); // not really necessary
-    //                 this.assetViewer = null;
-    //             }  
-    //             this.prompt = null;
-              
-    //             if( this.choice ) {
-    //                 this.choice.close();
-    //             }
-    //         }
-    //     });
-    // }
-
     async onAssetDblClicked( asset ) {
 
         if(asset.type != "folder") {
