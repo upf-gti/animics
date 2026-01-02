@@ -462,6 +462,7 @@ class FileSystem {
                             // files[f].folder = files[f].folder;
                             files[f].type = extension;
                             files[f].children = [];
+                            files[f].metadata = {};
                             delete files[f].path;
                             if(files[f].type == "txt")
                                 continue;

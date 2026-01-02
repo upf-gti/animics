@@ -527,7 +527,7 @@ class Gui {
                 else {
                     moved = await this.editor.fileSystem.moveFile( node.asset_id, value.fullpath + "/" + node.id);
                 }
-                console.log(node.id, moved)
+                return moved;
             }
         
         // Create a new dialog
