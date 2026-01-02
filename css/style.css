@@ -7,9 +7,9 @@
 	--global-color-selected: #2d4471;
 	--global-color-selected-secondary: #5f88c9;
 	--primary: #0676ed;
-	--background: #161c21;
+	/* --background: #161c21; */
 	--warning: #f2a600;
-	--success: #12c99b;
+	/* --success: #12c99b; */
 	--error: #e41749;
 	--dark: #151a30;
 }
@@ -488,4 +488,20 @@ select option:focus {
 .lextab.selected svg {
 	color: var(--global-color-accent);
 	transform: scale(1.5);
+}
+
+.hidden {
+	display: none!important;
+}
+
+/* .bg-background {
+	background: var(--color-neutral-950);
+}
+
+.bg-secondary {
+    background-color: var(--color-neutral-900);
+} */
+
+.font-extrabold {
+	font-weight: var(--font-weight-extrabold);
 }

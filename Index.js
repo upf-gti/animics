@@ -13,7 +13,7 @@ await animics.loadSession();
 const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
 const area = await LX.init( { rootClass: "" } );
 
-const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-blur z-1","", LX.mainArea.root );
+const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-neutral-800 z-1","", LX.mainArea.root );
 dropOver.classList.add("hidden");
 
 // Menubar
@@ -41,7 +41,7 @@ function createMenuBar( area ) {
 
     buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2 ml-auto", "", menubar.root);
 
-    const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto fg-primary border hover:bg-secondary self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
+    const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto text-primary border hover:bg-accent self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
     signupButton.tabIndex = "1";
     signupButton.role = "button";
     LX.listen( signupButton, "click", () => {
@@ -49,7 +49,7 @@ function createMenuBar( area ) {
     } );			
     signupButton.id = "signup-button";
 
-    const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
+    const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-info text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
     loginButton.tabIndex = "1";
     loginButton.role = "button";
     LX.listen( loginButton, "click", () => {
@@ -57,7 +57,7 @@ function createMenuBar( area ) {
     } );
     loginButton.id = "login-button"
 
-    const userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
+    const userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-info text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
     userButton.tabIndex = "1";
     userButton.role = "button";
     LX.listen( userButton, "click", () => {
@@ -84,7 +84,7 @@ function createMenuBar( area ) {
             
 function createSideBar( area ) {
 
-    const starterTheme = LX.getTheme();
+    const starterTheme = LX.getMode();
 
     // so any theme trigger (browser, SO, anything) will update the image, not only the switch button
     LX.addSignal( "@on_new_color_scheme", ( el, value ) => {
@@ -115,8 +115,9 @@ function createSideBar( area ) {
             swap: starterTheme == "dark" ? "Moon" : "Sun",
             skipSelection: true, // Alex: This is new too. Useful to avoid non-selectable entries to be selected / deselect others
             callback:  (v) => {
-                const swapValue = LX.getTheme() == "dark";
-                LX.setTheme( swapValue ? "light" : "dark" );
+                const swapValue = LX.getMode() == "dark";
+                LX.switchMode();
+                // LX.setMode( swapValue ? "light" : "dark" );
             }
         });
         // m.add( "TÀNDEM", { callback: () => {} } );      
@@ -192,10 +193,10 @@ function createHome( content ) {
     headerContent.style.minHeight = "256px";
     
     const _makeProjectOptionItem = ( icon, innerText, outerText, id, parent ) => {
-        const item = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-tertiary cursor-pointer", ``, parent );
+        const item = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-accent cursor-pointer", ``, parent );
         LX.makeContainer( ["200px", "auto"], "flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button", `
-            ${LX.makeIcon(icon, {svgClass:"xxxl fg-secondary"}).innerHTML}
-            <p class="text-sm text-center px-4 fg-tertiary ">${ innerText }</p>
+            ${LX.makeIcon(icon, {svgClass:"xxxl text-foreground"}).innerHTML}
+            <p class="text-sm text-center px-4 text-tertiary ">${ innerText }</p>
         `, item );
         LX.makeContainer( ["auto", "auto"], "", `<p>${ outerText }</p>`, item );
         item.id = id;
@@ -229,7 +230,7 @@ function createHome( content ) {
     projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
     projectItems.id = "project-items-container";
 
-    const projectText = LX.makeContainer( ["auto", "auto"],"text-md fg-secondary", "<p> Login to see your last animations. </p>", projectsContent);
+    const projectText = LX.makeContainer( ["auto", "auto"],"text-md text-foreground", "<p> Login to see your last animations. </p>", projectsContent);
     projectText.id = "project-text";
 
     return mainContent;
@@ -239,7 +240,7 @@ function createAbout( content ) {
     const mainContent = LX.makeContainer( ["100%", "calc(100% - 38px)"], "main-content bg-secondary flex flex-col items-center py-6 rounded-lg hidden", "", content );
     mainContent.id = "about-container";
     
-    const swapValue = LX.getTheme() == "dark";
+    const swapValue = LX.getMode() == "dark";
 
     const headerContent = LX.makeContainer( ["auto", "25%"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="${mobile? "w-screen" : "h-full"}" src="data/imgs/logos/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
     
@@ -248,11 +249,11 @@ function createAbout( content ) {
     const infoContainer = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center py-10",'' , container );
     infoContainer.style.background = "linear-gradient(0deg, var(--global-color-primary), transparent)";
 
-    const textContent = LX.makeContainer( [`${mobile? "auto" : "30%"}`, "auto"], `flex justify-center ${mobile? "w-screen" : ""}`,`<p class="text-xxl font-light text-center p-5" >Animics is an online application to create and
+    const textContent = LX.makeContainer( [`${mobile? "auto" : "30%"}`, "auto"], `flex justify-center ${mobile? "w-screen" : ""}`,`<p class="text-2xl font-light text-center p-5" >Animics is an online application to create and
     edit animations for 3D humanoid characters,
     focused in Sign Language synthesis.</p>` , infoContainer );
 
-    const techContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , infoContainer);
+    const techContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 text-foreground font-bold", "" , infoContainer);
     const techText = LX.makeContainer(["auto","auto"], "py-6", `<p>Developed using</p>`, techContent);
 
     const techLinksContent = LX.makeContainer(["auto", "auto"], `flex ${mobile? "flex-col" : "flex-row"} justify-center items-center gap-12`, `
@@ -260,7 +261,7 @@ function createAbout( content ) {
     <a class="h-full" href="https://threejs.org/"><img class="hover:scale" style="height:60px;filter:invert(0.5);" src="https://needle.tools/_nuxt/logo-three.CiaNm32y.png" alt="Threejs"></a>
     <a class="h-full" href="https://github.com/jxarco/lexgui.js"><img class="hover:scale" style="height:60px; filter:grayscale(1) invert(0.5) brightness(1);" src="data/imgs/logos/lexgui.png" alt="Lexgui"></a>`, techContent)
 
-    const fundingContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 fg-secondary font-bold", "" , infoContainer);
+    const fundingContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 text-foreground font-bold", "" , infoContainer);
     const fundingText = LX.makeContainer(["auto","auto"], "py-6", `<p>Funded by</p>`, fundingContent);
     const linksContent = LX.makeContainer(["auto", "auto"], "flex flex-row justify-center gap-12", `
     <a class="h-full" href="https://signon-project.eu/"><img class="hover:scale" style="height:80px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_SignON.png" alt="SignON"></a>
@@ -287,29 +288,29 @@ function _makeProjectItem( item ) {
     let extension = item.filename.split('.');
     extension = extension[extension.length - 1];
 
-    let color = "--global-color-accent";
+    let color = "--color-info";
     switch(extension) {
         case "bml": case "sigml":
-            color = "--global-color-success";
+            color = "--color-success";
             break;
         case "glb":
-            color = "--global-color-warning";
+            color = "--color-accent";
             break;
     }
-    let div = `<div class="rounded-xl w-full bg-blur flex justify-center items-center overflow-hidden justify-center hover:scale" style="min-height: 130px;">
-       <p class="text-xxl font-extrabold fg-secondary" style="text-shadow: 1px 1px 0px var(${color});">.${extension.toUpperCase()}</p>
+    let div = `<div class="rounded-xl w-full flex justify-center items-center overflow-hidden justify-center hover:scale" style="min-height: 130px;background: var(--background-blur);">
+       <p class="text-2xl font-extrabold text-foreground" style="text-shadow: 1px 1px 0px var(${color});">.${extension.toUpperCase()}</p>
     </div>`
    if( item.img ) {
        div = `<img class="w-full hover:scale" style="object-fit:cover" src="${ item.img || "./docs/imgs/editStation.png"} ">`               
    }
-    const itemContainer = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-tertiary hover:scale cursor-pointer", `
+    const itemContainer = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-accent hover:scale cursor-pointer", `
     <div class="rounded-xl w-full overflow-hidden justify-center" style="height:130px;">
        ${div}
     </div>
     <div class="flex flex-row justify-between px-1">
         <div class="flex flex-col gap-0.5">
             <p>${ item.filename }</p>
-            <p class="text-sm fg-tertiary">Last modified ${ item.timestamp }</p>
+            <p class="text-sm text-tertiary">Last modified ${ item.timestamp }</p>
         </div>
         <a class="px-2 py-1 rounded-lg lexicon fa-solid fa-ellipsis-vertical"></a>
     </div>
@@ -330,7 +331,7 @@ function _makeProjectItem( item ) {
 
 function _makePersonItem( item, container ) {
     
-    const itemContainer = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-tertiary cursor-pointer", `
+    const itemContainer = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-4 p-4 text-md rounded-xl hover:bg-accent cursor-pointer", `
     <div class="rounded-xl w-full overflow-hidden card">
         <div class="card-inner">
             <div class="card-front">
@@ -344,7 +345,7 @@ function _makePersonItem( item, container ) {
     <div class="flex flex-row justify-center px-1">
         <div class="flex flex-col items-center gap-0.5">
             <p>${ item.name }</p>
-            <p class="text-sm fg-tertiary"> ${ item.email }</p>
+            <p class="text-sm text-tertiary"> ${ item.email }</p>
         </div>
     </div>
     `, container );
@@ -570,7 +571,7 @@ function appendAnimationFiles( refresh = false) {
 
         if(files.length >= limit) {
             const itemContainer = LX.makeContainer( ["auto", "162px"], "flex flex-col gap-4 p-4 text-md rounded-xl justify-center items-center", ``, projectItems);
-            const loadMoreButton = LX.makeContainer( ["60%", "80px"], "text-md font-medium rounded-lg p-2 bg-accent fg-white border hover:scale self-center content-center text-center cursor-pointer select-none flex flex-col items-center justify-center", `${LX.makeIcon("MoreHorizontal", {svgClass:"xxl fg-white"}).innerHTML} <p class="text-lg">LOAD MORE</p>`, itemContainer );
+            const loadMoreButton = LX.makeContainer( ["60%", "80px"], "text-md font-medium rounded-lg p-2 bg-info text-white border hover:scale self-center content-center text-center cursor-pointer select-none flex flex-col items-center justify-center", `${LX.makeIcon("MoreHorizontal", {svgClass:"xxl text-white"}).innerHTML} <p class="text-lg">LOAD MORE</p>`, itemContainer );
             loadMoreButton.tabIndex = "1";
             loadMoreButton.role = "button";
             LX.listen( loadMoreButton, "click", () => { offset+=10;_checkSession()} );			

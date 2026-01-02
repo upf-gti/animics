@@ -62,7 +62,7 @@ class Gui {
             this.showGuide();
         }
 
-        this.setColorTheme(LX.getTheme());
+        this.setColorTheme(LX.getMode());
     }
 
     showGuide() {
@@ -74,7 +74,7 @@ class Gui {
     }
 
     setColorTheme(scheme = "light"){
-        LX.setTheme(scheme);
+        LX.setMode(scheme);
 
         // Images are for dark mode. Applying a filter to adjust to light mode
         const faceAreas = document.getElementById("faceAreasContainer");
@@ -186,7 +186,7 @@ class Gui {
         const user = this.editor.fileSystem.session ? this.editor.fileSystem.session.user : "" ;
         const loginName = (!user || user.username == "guest") ? "Login" : user.username;
 
-        const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-accent fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", menubar.root );
+        const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-info fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", menubar.root );
         loginButton.tabIndex = "1";
         loginButton.role = "button";
         LX.listen( loginButton, "click", () => {
@@ -202,7 +202,7 @@ class Gui {
 
         loginButton.id = "login-button";
     
-        const userButton = LX.makeContainer( ["100px", "auto"], "lexcontainer text-lg font-semibold rounded-lg p-2 ml-auto fg-primary hover:fg-primary self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
+        const userButton = LX.makeContainer( ["100px", "auto"], "lexcontainer font-semibold rounded-lg p-2 ml-auto fg-primary hover:fg-primary self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
         userButton.tabIndex = "1";
         userButton.role = "button";
         LX.listen( userButton, "click", () => {
@@ -813,7 +813,7 @@ class Gui {
 
                     dialog.close() ;
                     
-                }, { buttonClass: "accent", hideName: true, width: "50%" });
+                }, { buttonClass: "selected", hideName: true, width: "50%" });
             }
             refresh();
         }, {modal: true, size: ["50%", "fit-content"]});
@@ -2112,7 +2112,7 @@ class KeyframesGui extends Gui {
                 el.click();
                 UTILS.hideLoading();
 
-            }, { buttonClass: "accent", width: "50%" });
+            }, { buttonClass: "selected", width: "50%" });
             p.addButton(null, "Cancel", () => {
                 dialog.close();
                 UTILS.hideLoading();
@@ -3316,13 +3316,13 @@ class KeyframesGui extends Gui {
             }
             
             // Highlight panel slider
-            const elements = this.sidePanelBlendshapeSlidersPanel.root.getElementsByClassName("bg-accent");
+            const elements = this.sidePanelBlendshapeSlidersPanel.root.getElementsByClassName("bg-info");
             for(let el of elements) {
-                el.classList.remove("bg-accent");
+                el.classList.remove("bg-info");
             }
             const el = this.sidePanelBlendshapeSlidersPanel.components[this.bsTimeline.animationClip.tracks[selection[0]].id];
             if(el) {
-                el.root.classList.add("bg-accent");
+                el.root.classList.add("bg-info");
                 el.root.scrollIntoViewIfNeeded();
             }     
         };
@@ -3624,7 +3624,7 @@ class KeyframesGui extends Gui {
 
                 p.addButton(null, "Edit Keyframe Clip", (v,e)=>{
                     this.setKeyframeClip(clip);
-                }, { buttonClass: "accent" });
+                }, { buttonClass: "selected" });
 
                 p.addRange( "Intensity", clip.weight, (v,e) => {
                     clip.weight = v; 
@@ -5108,7 +5108,7 @@ class KeyframesGui extends Gui {
 
                 this.editor.setTimeline( this.editor.animationModes.GLOBAL );
                 dialog.close();
-            }, { title: "Insert as clips into the current global animation", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
+            }, { title: "Insert as clips into the current global animation", buttonClass: "selected", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
             p.addButton("Animation", toInsert.length == 1 ? "Add as a new global animation" : "Add as new global animations", (v, e) => { 
                 let lastGlobalAnimation = null;
@@ -5120,7 +5120,7 @@ class KeyframesGui extends Gui {
                     this.editor.setGlobalAnimation( lastGlobalAnimation.id );
                 }
                 dialog.close();
-            }, { title: "Insert as new global animations", buttonClass: "accent", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
+            }, { title: "Insert as new global animations", buttonClass: "selected", hideName: true, width: showDoNotInsert ? "33%" : "49.5%" });
             
 
         }, {modal: true, size: ["50%", "fit-content"]});
@@ -5153,7 +5153,7 @@ class KeyframesGui extends Gui {
                 if ( animationNames.length ){
                     this.showInsertModeAnimationDialog( animationNames, false );
                 }
-            }, { buttonClass: "accent", hideName: true, width: "50%" });
+            }, { buttonClass: "selected", hideName: true, width: "50%" });
 
         }, {modal: true, size: ["50%", "fit-content"]});
 
@@ -5207,7 +5207,7 @@ class KeyframesGui extends Gui {
                }
 
                 dialog.close();
-            }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
+            }, { buttonClass: "selected", hideName: true, width: "33.3333%" });
 
             p.addButton("AsGlobal", "Add as new global animations", (v, e) => { 
                 e.stopPropagation();
@@ -5233,7 +5233,7 @@ class KeyframesGui extends Gui {
                 }
 
                 dialog.close();
-            }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
+            }, { buttonClass: "selected", hideName: true, width: "33.3333%" });
 
         }, {modal: true, size: ["50%", "fit-content"]});
 
@@ -6811,7 +6811,7 @@ class ScriptGui extends Gui {
                             //         const btn = panel.addButton(null, "Login", () => {
                             //             alertDialog.close();
                             //             this.showLoginModal();
-                            //         }, {width:"50%", buttonClass:"accent"});
+                            //         }, {width:"50%", buttonClass:"selected"});
                             //         btn.root.style.margin = "0 auto";
                             //     }, {closable: true, modal: true})
                             // }
@@ -6829,7 +6829,7 @@ class ScriptGui extends Gui {
                         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }You must write a name and select a folder.</span>`, null, { position: "bottom-center" } );
                     }
                     
-                }, { buttonClass: "accent", hideName: true, width: "50%" });
+                }, { buttonClass: "selected", hideName: true, width: "50%" });
 
             }
             refresh();
@@ -7268,7 +7268,7 @@ class PropagationWindow {
         this.lexguiColor = '#273162';
         this.gradientColorLimits = "rgba( 39, 49, 98, 0%)"; // relies on lexgui input
         this.gradientColor = "rgba( 39, 49, 98"; // relies on lexgui input
-        this.borderColor = LX.getThemeColor( "global-text-secondary" );
+        this.borderColor = LX.getCSSVariable( "secondary-foreground" );
         this.gradient = [ [0.5,1] ]; // implicit 0 in the borders. Shares array reference with curve Widget
         // radii = 100;
 
@@ -7360,7 +7360,7 @@ class PropagationWindow {
         this.onSetEnabler = null;
         this.updateTheme();
         LX.addSignal( "@on_new_color_scheme", (el, value) => {
-            // Retrieve again the color using LX.getThemeColor, which checks the applied theme
+            // Retrieve again the color using LX.getCSSVariable, which checks the applied theme
             this.updateTheme();
         } )
     }
@@ -7420,7 +7420,7 @@ class PropagationWindow {
         
         panelCurves.root.style.zIndex = "0.5";
         panelCurves.root.style.position = "fixed";
-        panelCurves.root.style.background = "var(--global-color-tertiary)";
+        panelCurves.root.style.background = "var(--muted-foreground)";
         panelCurves.root.style.borderRadius = "10px";
         panelCurves.root.classList.add("showScrollBar");
 
@@ -7436,7 +7436,7 @@ class PropagationWindow {
     }
 
     updateTheme(){
-        this.borderColor = LX.getThemeColor( "global-text-secondary" );
+        this.borderColor = LX.getCSSVariable( "secondary-foreground" );
     }
 
     setEnabler( v, skipCallback = false ){
