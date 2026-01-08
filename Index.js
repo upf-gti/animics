@@ -209,14 +209,14 @@ function createHome( content ) {
     _makeProjectOptionItem( "PlusCircle@solid", "Create from scratch", "Empty project", "keyframe-project", keyframeItems );
     _makeProjectOptionItem( "ClapperboardClosed@solid", "Upload video/s", "From video/s", "video-project", keyframeItems );
     _makeProjectOptionItem( "Camera@solid", "Record yourself", "Real-time capture", "webcam-project", keyframeItems );
-    LX.makeContainer(["2px", "auto"], "flex", '<span style="width: 2px;background: var(--global-color-accent);filter: blur(1px);margin: 100px 0px;"></span>', headerContent);
+    LX.makeContainer(["2px", "auto"], "flex", '<span style="width: 2px;background-color: var(--color-info);filter: blur(1px);margin: 100px 0px;"></span>', headerContent);
 
     const scriptContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Script Animation", scriptContent );
     const scriptItems = LX.makeContainer( ["auto", "auto"], "flex flex-row p-2", "", scriptContent );
 
     _makeProjectOptionItem( "PlusCircle@solid", "Create from scratch", "Empty project", "script-project", scriptItems );
-    LX.makeContainer(["2px", "auto"], "flex", '<span style="width: 2px;background: var(--global-color-accent);filter: blur(1px);margin: 100px 0px;"></span>', headerContent);
+    LX.makeContainer(["2px", "auto"], "flex", '<span style="width: 2px;background-color: var(--color-info);filter: blur(1px);margin: 100px 0px;"></span>', headerContent);
     
     const fileContent = LX.makeContainer( ["auto", "auto"], "flex flex-col", "", headerContent );
     LX.makeContainer( ["auto", "auto"], "p-2 font-bold", "Edit Animation", fileContent );
@@ -571,7 +571,7 @@ function appendAnimationFiles( refresh = false) {
 
         if(files.length >= limit) {
             const itemContainer = LX.makeContainer( ["auto", "162px"], "flex flex-col gap-4 p-4 text-md rounded-xl justify-center items-center", ``, projectItems);
-            const loadMoreButton = LX.makeContainer( ["60%", "80px"], "text-md font-medium rounded-lg p-2 bg-info text-white border hover:scale self-center content-center text-center cursor-pointer select-none flex flex-col items-center justify-center", `${LX.makeIcon("MoreHorizontal", {svgClass:"xxl text-white"}).innerHTML} <p class="text-lg">LOAD MORE</p>`, itemContainer );
+            const loadMoreButton = LX.makeContainer( ["60%", "80px"], "text-md font-medium rounded-lg p-2 bg-info text-white hover:scale self-center content-center text-center cursor-pointer select-none flex flex-col items-center justify-center", `${LX.makeIcon("MoreHorizontal", {svgClass:"xxl text-white"}).innerHTML} <p class="text-lg">LOAD MORE</p>`, itemContainer );
             loadMoreButton.tabIndex = "1";
             loadMoreButton.role = "button";
             LX.listen( loadMoreButton, "click", () => { offset+=10;_checkSession()} );			
