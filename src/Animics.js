@@ -290,8 +290,6 @@ class Animics {
         const session = this.fileSystem.getSession();
         session.deleteFile( fullpath, (v) => {callback(v)}, (v) => {callback(v)} )
     }
-
-    moveAsset()
 }
 
 export { Animics }
