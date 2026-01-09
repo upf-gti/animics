@@ -1168,7 +1168,7 @@ class Editor {
 
         let moved = false;
         const units = this.fileSystem.repository.map( folder => {return folder.id})
-        const restricted = ["scripts","animics", "Local", "public", ...units];
+        const restricted = ["scripts", "animics", "Local", "public", ...units];
         if( toFolder.id > -1 ) {
             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${asset.id}" can't be moved to ${toFolder.id}.</span>`, "Not allowed folder", { position: "bottom-center" } );
                 return;
@@ -1188,6 +1188,32 @@ class Editor {
             moved = await this.fileSystem.moveFile( asset.asset_id, toFolder.fullpath + "/" + asset.id);
         }
         return moved;
+        
+    }
+
+    async deleteAsset(asset, callback = () => {}) {
+
+        if( asset.type == "folder" ) {
+            const units = this.fileSystem.repository.map( folder => {return folder.id})
+            const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
+            if( restricted.indexOf(asset.id) > -1 ) {
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${asset.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
+                return;
+            }
+        }
+
+        return new Promise( (resolve, reject) => {
+            this.gui.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${asset.id}"?`, async () => {
+                let deleted = false;
+                if( asset.type == "folder" ) {
+                    deleted = await this.fileSystem.deleteFolder( asset.asset_id, asset.unit );
+                }
+                else {
+                    deleted = await this.fileSystem.deleteFile( asset.asset_id );
+                }
+                resolve(deleted);
+            }, {input: false} )
+        })
     }
 
     showPreview() {

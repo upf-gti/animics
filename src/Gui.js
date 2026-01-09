@@ -337,6 +337,7 @@ class Gui {
             from.children = assets;
             assetViewer.currentData = assets;
             assetViewer._refreshContent();
+            assetViewer.tree.refresh();
         });
 
         assetViewer.on( "select", async ( e ) => {
@@ -446,24 +447,6 @@ class Gui {
             const fromFolder = e.from;
             const toFolder = e.to;
             let moved = await this.editor.moveAsset(item, fromFolder, toFolder)
-            // let moved = false;
-            // const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-            // const restrictedTo = ["animics", "Local", "public", ...units];
-            // if( item.type == "folder" ) {
-            //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-            //     if( restricted.indexOf(item.id) > -1 ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${item.id}" can't be moved.</span>`, null, { position: "bottom-center" } );
-            //         return;
-            //     }
-            //     else if( restricted.indexOf(toFolder.id) > -1 ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${item.id}" can't be moved to ${toFolder.id}.</span>`, "Not allowed folder", { position: "bottom-center" } );
-            //         return;
-            //     }
-            //     moved = await this.editor.fileSystem.moveFolder(item.asset_id, toFolder.unit, toFolder.fullpath+"/"+ item.id);
-            // }
-            // else {
-            //     moved = await this.editor.fileSystem.moveFile( item.asset_id, toFolder.fullpath + "/" + item.id);
-            // }
 
             if( moved ) {
                 resolve();
@@ -473,28 +456,39 @@ class Gui {
 
         assetViewer.on( "beforeDelete", async ( e, resolve ) => {
             const item = e.items[0];
-            const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-            const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-            if( restricted.indexOf(item.id) > -1 ) {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${item.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
-                return;
-            }
+            const deleted = await this.editor.deleteAsset(item);
+            // const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
+            // const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
+            // if( restricted.indexOf(item.id) > -1 ) {
+            //     LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${item.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
+            //     return;
+            // }
 
-            this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
-                let deleted = false;
-                if( item.type == "folder" ) {
-                    deleted = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
-                }
-                else {
-                    deleted = await this.editor.fileSystem.deleteFile( item.asset_id );
-                }
-                // assetViewer._refreshContent();
-                if( deleted ) {
-                    resolve();
-                    console.log(item.id + " deleted"); 
-                }
-            }, {input: false} )
+            // this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
+            //     let deleted = false;
+            //     if( item.type == "folder" ) {
+            //         deleted = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
+            //     }
+            //     else {
+            //         deleted = await this.editor.fileSystem.deleteFile( item.asset_id );
+            //     }
+            //     // assetViewer._refreshContent();
+            //     if( deleted ) {
+            //         resolve();
+            //         console.log(item.id + " deleted"); 
+            //     }
+            // }, {input: false} )
+            if( deleted ) {
+                resolve();
+            }
             
+        });
+
+        assetViewer.on( "delete", async ( e, resolve ) => {
+            const item = e.items[0];
+            LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+            this.assetViewer._deleteItem(item);
+            this.assetViewer._refreshContent();
         });
 
         assetViewer.load( repository );
@@ -643,18 +637,26 @@ class Gui {
                     path: "@/"+ child.fullpath,
                     name: 'Delete', 
                     callback: async (item)=> {
-                        this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
-                            const value = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
-                            if(value) {
-                                LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
-                                this.assetViewer._deleteItem(item);
-                                this.assetViewer._refreshContent();
-                            }
-                            else {
-                                LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                        const deleted = await this.editor.deleteAsset(item);
+                        if( deleted ) {
+                            LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                            this.assetViewer._deleteItem(item);
+                            this.assetViewer._refreshContent();
+                            this.assetViewer.tree?.refresh();
         
-                            }                            
-                        }, { input: false});
+                        }
+                        // this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
+                        //     const value = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
+                        //     if(value) {
+                        //         LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                        //         this.assetViewer._deleteItem(item);
+                        //         this.assetViewer._refreshContent();
+                        //     }
+                        //     else {
+                        //         LX.popup('"' + item.id + '"' + " couldn't be deleted.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+        
+                        //     }                            
+                        // }, { input: false});
                     }
                 } );
     
@@ -676,19 +678,25 @@ class Gui {
                     path: "@/"+ child.fullpath,
                     name: 'Delete', 
                     callback: async ( item )=> {
-                        this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
+                        const deleted = await this.editor.deleteAsset(item);
+                        if( deleted ) {
+                            LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+                            this.assetViewer._deleteItem(item);
+                            this.assetViewer._refreshContent();
+                        }
+                        // this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
 
-                            const deleted = await this.editor.fileSystem.deleteFile( item.asset_id);
-                            if(deleted) {
-                                LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
+                        //     const deleted = await this.editor.fileSystem.deleteFile( item.asset_id);
+                        //     if(deleted) {
+                        //         LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
                                 
-                                this.assetViewer._deleteItem(item);
-                                this.assetViewer._refreshContent();
-                            }
-                            else {
-                                LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                            }
-                        }, { input: false});
+                        //         this.assetViewer._deleteItem(item);
+                        //         this.assetViewer._refreshContent();
+                        //     }
+                        //     else {
+                        //         LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                        //     }
+                        // }, { input: false});
                     }
                 } );
     
@@ -5373,12 +5381,15 @@ class KeyframesGui extends Gui {
     showRepository() {
 
         const title = "Available clips";
-        const types = ["bvh", "bvhe"];
+        const allowedTypes = {
+            "bvh": { color: "rose-800" },
+            "bvhe": { color: "orange-500" }
+        };
+
         const mainFolder = "clips";
         const actions = [];
 
-        for( let j = 0; j < types.length; j++ ) {
-            const type = types[j];
+        for( const type in allowedTypes ) {
             actions.push( {
                 type: type,
                 // path: "@/"+ child.fullpath,
@@ -5398,7 +5409,7 @@ class KeyframesGui extends Gui {
             } );
         }
 
-        this.createRepositoryDialog( title, types, mainFolder, actions, {selectFileActions: ["Add as a clip"], viewSourceActions: ["View source"]})
+        this.createRepositoryDialog( title, allowedTypes, mainFolder, actions, {selectFileActions: ["Add as a clip"], viewSourceActions: ["View source"]})
     }
 
     addFileKeyframeActions( folder, types, actions ) {
@@ -7024,12 +7035,15 @@ class ScriptGui extends Gui {
     showRepository() {
 
         const title = "Available animations";
-        const types = ["sigml", "bml"];
+        const allowedTypes = {
+            "bml": { color: "fuchsia-600" },
+            "sigml": { color: "emerald-300" }
+        }
+
         const mainFolder = "scripts";
         const actions = [];
 
-        for( let j = 0; j < types.length; j++ ) {
-            const type = types[j];
+        for( const type in allowedTypes ) {
             actions.push( {
                 type: type,
                 // path: "@/"+ child.fullpath,
@@ -7067,7 +7081,7 @@ class ScriptGui extends Gui {
             } );
         }
 
-        this.createRepositoryDialog( title, types, mainFolder, actions, {selectFileActions: ["Add as a clip"], viewSourceActions: ["View source"]})
+        this.createRepositoryDialog( title, allowedTypes, mainFolder, actions, {selectFileActions: ["Add as a clip"], viewSourceActions: ["View source"]})
     }
     
     async onAssetDblClicked( asset ) {
