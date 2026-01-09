@@ -216,10 +216,6 @@ class Animics {
                         const files = await this.remoteFileSystem.uploadFile(folder, filename, new File([data], filename ), []);
                         overwriteDialog.close();
                         callback(filename, files);
-
-                        // TODO CHANGE: HACK to force cache refresh for this file. This should not be necessary if file requests' headers contained Cache-Control: no-cache
-                        fetch( this.remoteFileSystem.root + "/" + username + "/" + folder + "/" + filename + "?version=" + performance.now() ); 
-                        
                     }, {hideName: true, buttonClass: "error", width: "50%"} );
                     overwritePanel.addButton("ok", "Rename", async () => {
                         let extensionIdx = filename.lastIndexOf(".");
