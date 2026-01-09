@@ -1164,6 +1164,32 @@ class Editor {
         });    
     }
 
+    async moveAsset(asset, fromFolder, toFolder, callback = () => {}) {
+
+        let moved = false;
+        const units = this.fileSystem.repository.map( folder => {return folder.id})
+        const restricted = ["scripts","animics", "Local", "public", ...units];
+        if( toFolder.id > -1 ) {
+            LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${asset.id}" can't be moved to ${toFolder.id}.</span>`, "Not allowed folder", { position: "bottom-center" } );
+                return;
+        }
+        if( asset.type == "folder" ) {
+            restricted.push("presets");
+            restricted.push("signs");
+            restricted.push("clips");
+            if( restricted.indexOf(asset.id) > -1 ) {
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${asset.id}" can't be moved.</span>`, null, { position: "bottom-center" } );
+                return;
+            }
+            
+            moved = await this.fileSystem.moveFolder(asset.asset_id, toFolder.unit, toFolder.fullpath+"/"+ asset.id);
+        }
+        else {
+            moved = await this.fileSystem.moveFile( asset.asset_id, toFolder.fullpath + "/" + asset.id);
+        }
+        return moved;
+    }
+
     showPreview() {
                 
         const openPreview = (data) => {

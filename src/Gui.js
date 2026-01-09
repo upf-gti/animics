@@ -445,25 +445,25 @@ class Gui {
             const item = e.items[0];
             const fromFolder = e.from;
             const toFolder = e.to;
-            this.editor.moveAsset(item, fromFolder, toFolder)
-            let moved = false;
-            const restrictedTo = ["animics", "Local", "public", ...units];
-            if( item.type == "folder" ) {
-                const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-                const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-                if( restricted.indexOf(item.id) > -1 ) {
-                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${item.id}" can't be moved.</span>`, null, { position: "bottom-center" } );
-                    return;
-                }
-                else if( restricted.indexOf(toFolder.id) > -1 ) {
-                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${item.id}" can't be moved to ${toFolder.id}.</span>`, "Not allowed folder", { position: "bottom-center" } );
-                    return;
-                }
-                moved = await this.editor.fileSystem.moveFolder(item.asset_id, toFolder.unit, toFolder.fullpath+"/"+ item.id);
-            }
-            else {
-                moved = await this.editor.fileSystem.moveFile( item.asset_id, toFolder.fullpath + "/" + item.id);
-            }
+            let moved = await this.editor.moveAsset(item, fromFolder, toFolder)
+            // let moved = false;
+            // const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
+            // const restrictedTo = ["animics", "Local", "public", ...units];
+            // if( item.type == "folder" ) {
+            //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
+            //     if( restricted.indexOf(item.id) > -1 ) {
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${item.id}" can't be moved.</span>`, null, { position: "bottom-center" } );
+            //         return;
+            //     }
+            //     else if( restricted.indexOf(toFolder.id) > -1 ) {
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${item.id}" can't be moved to ${toFolder.id}.</span>`, "Not allowed folder", { position: "bottom-center" } );
+            //         return;
+            //     }
+            //     moved = await this.editor.fileSystem.moveFolder(item.asset_id, toFolder.unit, toFolder.fullpath+"/"+ item.id);
+            // }
+            // else {
+            //     moved = await this.editor.fileSystem.moveFile( item.asset_id, toFolder.fullpath + "/" + item.id);
+            // }
 
             if( moved ) {
                 resolve();
@@ -526,21 +526,23 @@ class Gui {
         
         const assetViewer = this.assetViewer = new LX.AssetView({ allowedTypes: types,  previewActions: previewActions, contextMenu: false});
         assetViewer.on( "beforeNodeDragged", async ( e, resolve) => {
-            let moved = false;
             const node = e.items[0];
-            const value = e.to;
-            if( node.type == "folder" ) {
-                const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-                const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-                if( restricted.indexOf(node.id) > -1 ) {
-                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
-                    return;
-                }
-                moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
-            }
-            else {
-                moved = await this.editor.fileSystem.moveFile( node.asset_id, value.fullpath + "/" + node.id);
-            }
+            const toFolder = e.to;
+            let moved = await this.editor.moveAsset(node, node, toFolder);
+            
+            // let moved = false;
+            // if( node.type == "folder" ) {
+            //     const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
+            //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
+            //     if( restricted.indexOf(node.id) > -1 ) {
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
+            //         return;
+            //     }
+            //     moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
+            // }
+            // else {
+            //     moved = await this.editor.fileSystem.moveFile( node.asset_id, toFolder.fullpath + "/" + node.id);
+            // }
             if(moved) {
                 resolve();
             }
