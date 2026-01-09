@@ -1941,9 +1941,9 @@ class KeyframesGui extends Gui {
                 }
              
                 this.dialog = new LX.Dialog( "Bulk addition in selected tracks", p => {
-                    p.addNumber( "Num Keyframes", this.n, (v,e)=>{ this.n = v}, {min: 1, step: 1 } );
-                    p.addNumber( "Start Time", this.startTime, (v,e)=>{ this.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
-                    p.addNumber( "Duration", this.duration, (v,e)=>{ this.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
+                    p.addNumber( "Num Keyframes", this.n, (v,e)=>{ this.n = v}, {min: 1, step: 1, skipReset: true } );
+                    p.addNumber( "Start Time", this.startTime, (v,e)=>{ this.startTime = v; }, {min: 0, step: 0.001, precision: 3, skipReset: true } );
+                    p.addNumber( "Duration", this.duration, (v,e)=>{ this.duration = v; }, {min: 0.001, step: 0.001, precision: 3, skipReset: true } );
                     
                     p.sameLine();
                     p.addButton( "Cancel", "Cancel", (v,e)=>{ this.dialog.close(); }, {width: "50%", hideName: true} );
@@ -2256,9 +2256,9 @@ class KeyframesGui extends Gui {
                     {
                         title: trackName + "/Add Keyframe Bulk Addition",
                         callback: () => {
-    
-                            // TODO select this entry's track only
-    
+                            this.deselectAllTracks( false ); // no need to update left panel
+                            this.setTrackSelection( e.track.trackIdx, true ); // call callback and update left panel
+            
                             // "this" is the timeline
                             this.deselectAllElements();
                             that.bulkKeyframeAddition.createDialog( false );
@@ -2517,6 +2517,9 @@ class KeyframesGui extends Gui {
                 {
                     title: trackName + "/Add Keyframe Bulk Addition",
                     callback: () => {
+                        this.deselectAllTracks( false ); // no need to update left panel
+                        this.setTrackSelection( e.track.trackIdx, true ); // call callback and update left panel
+
                         // "this" is the timeline
                         this.deselectAllElements();
                         that.bulkKeyframeAddition.createDialog( true );
