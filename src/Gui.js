@@ -294,50 +294,45 @@ class Gui {
                 return;
             }
 
-            LX.prompt("Folder name", "New folder", async ( foldername ) => {
-                if( !foldername ) {
-                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
-                    return;
-                }
+            const data = await this.editor.createFolder(from);
+            if( data ) {
+                resolve( data.foldername, data.data)
+            }
+            // LX.prompt("Folder name", "New folder", async ( foldername ) => {
+            //     if( !foldername ) {
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
+            //         return;
+            //     }
             
-                const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-                const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-                if( restricted.indexOf(foldername) > -1 ) {
-                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, `"${foldername}" is a reserved word`, null, { position: "bottom-center" } );
-                    return;
-                }
-                try {
-                    const created = await this.editor.fileSystem.createFolder( from.fullpath + "/" + foldername);
-                    if(created) {
-                        LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
-                        resolve(foldername)
-                        // const newFolder = {id: result, type: "folder",  children: []};
-                        // from.children.push(newFolder);
-                        // assetViewer._processData(newFolder, from);
-                        // newFolder.fullpath = from.fullpath + "/" + result;
-                        // assetViewer._refreshContent(assetViewer.searchValue, assetViewer.filter);
-                        // assetViewer.tree.refresh();
-                    }
-                    else {
-                        // TO DO: RETURN EXACT ERROR
-                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
-                    }
-                }
-                catch( err ) {
-                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
-                }
+            //     const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
+            //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
+            //     if( restricted.indexOf(foldername) > -1 ) {
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, `"${foldername}" is a reserved word`, null, { position: "bottom-center" } );
+            //         return;
+            //     }
+            //     try {
+            //         const data = await this.editor.fileSystem.createFolder( from.fullpath + "/" + foldername);
+            //         if(data) {
+            //             LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
+            //             resolve(foldername, data)
+            //         }
+            //         else {
+            //             // TO DO: RETURN EXACT ERROR
+            //             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
+            //         }
+            //     }
+            //     catch( err ) {
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
+            //     }
                 
-            })
+            // })
         });
 
-        assetViewer.on( "createFolder", async ( e, foldername ) => {
+        assetViewer.on( "createFolder", async ( e, foldername, data ) => {
             const from = e.where;
-            
-            const assets = await this.editor.fileSystem.loadFoldersAndFiles(from.unit, from.asset_id, from.id, [], []);
-            from.children = assets;
-            assetViewer.currentData = assets;
-            assetViewer._refreshContent();
-            assetViewer.tree.refresh();
+            e.result[0].asset_id = data.id;
+            e.result[0].fullpath = data.data;
+            e.result[0].unit = from.unit;
         });
 
         assetViewer.on( "select", async ( e ) => {
@@ -612,20 +607,18 @@ class Gui {
                                 LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
                                 return;
                             }
-                            const value = await this.editor.fileSystem.createFolder( item.fullpath + "/" + result);
-                            if(value) {
-                                if(value) {
+                            const data = await this.editor.fileSystem.createFolder( item.fullpath + "/" + result);
+                            if(data) {
                                     LX.popup('"' + result + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
-                                    const newItem = {id: result, type: "folder",  children: []};
+                                    const newItem = {id: result, type: "folder",  children: [], asset_id: data.id, unit: item.unit};
                                     item.children.push(newItem);
                                     this.assetViewer._processData(newItem, item);
                                     newItem.fullpath = item.fullpath + "/" + result;
                                     this.assetViewer._refreshContent(this.assetViewer.searchValue, this.assetViewer.filter);
                                     this.assetViewer.tree.refresh();
-                                }
-                                else {
-                                    LX.popup('"' + result + '"' + " couldn't be created.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                                }
+                            }
+                            else {
+                                LX.popup('"' + result + '"' + " couldn't be created.", "Error", {position: [ "10px", "50px"], timeout: 5000});
                             }
                         })
                     }
@@ -889,103 +882,121 @@ class Gui {
         }
 
         let targetFolder = null;
+        let folderContainer;
+        let sfContainer;
         let bcContainer;
 
-        const _openFolder = function( p, container, updateBc = true )
-        {
-            container.innerHTML = "";
-
+        const _openFolder = function (p, container, updateBc = true) {
+            container.innerHTML = '';
             targetFolder = p;
-
-            for( let pi of ( targetFolder.children ?? targetFolder ) )
-            {
-                const row = LX.makeContainer( [ "100%", "auto" ], "flex flex-row px-1 items-center", "", container );
-                const isFolder = ( pi.type === "folder" );
-
-                const rowItem = LX.makeContainer( [ "100%", "auto" ],
-                    `move-item flex flex-row gap-1 py-1 px-3 cursor-pointer ${ isFolder ? "fg-primary font-medium" : "fg-quinary" } rounded-xxl ${ isFolder ? "hover:bg-secondary" : "hover:bg-primary" }`,
-                    `${ isFolder ? LX.makeIcon( "FolderOpen", { svgClass: "" } ).innerHTML : "" }${ pi.id }`,
-                    row
-                );
-
-                if( isFolder )
-                {
-                    rowItem.addEventListener( "click", () =>
-                    {
-                        container.querySelectorAll( ".move-item" ).forEach( ( el ) => LX.removeClass( el, "bg-quinary" ) );
-                        LX.addClass( rowItem, "bg-quinary" );
+            for (let pi of (targetFolder.children ?? targetFolder)) {
+                const row = LX.makeContainer(['100%', 'auto'], 'flex flex-row px-1 items-center', '', container);
+                const isFolder = pi.type === 'folder';
+                const rowItem = LX.makeContainer(['100%', 'auto'], `move-item flex flex-row gap-1 py-1 px-3 cursor-pointer items-center ${isFolder ? 'text-foreground font-medium' : 'text-muted-foreground'} rounded-2xl ${isFolder ? 'hover:bg-accent' : 'hover:bg-muted'}`, `${isFolder ? LX.makeIcon('FolderOpen', { svgClass: '' }).innerHTML : ''}${pi.id}`, row);
+                if (isFolder) {
+                    rowItem.addEventListener('click', () => {
+                        container.querySelectorAll('.move-item').forEach((el) => LX.removeClass(el, 'bg-primary text-primary-foreground'));
+                        LX.addClass(rowItem, 'bg-primary text-primary-foreground');
                         targetFolder = pi;
-                    } );
-
-                    const fPathButton = new LX.Button( null, "FPathButton", () => {
-                        _openFolder( pi, container );
-                    }, { icon: "ChevronRight", className: "ml-auto h-8", buttonClass: "bg-none hover:bg-secondary" } );
-                    row.appendChild( fPathButton.root );
+                        sfContainer.innerHTML = `<p>Selected: <span class="text-foreground">${targetFolder.id}</span></p>`;
+                    });
+                    const fPathButton = new LX.Button(null, 'FPathButton', () => {
+                        _openFolder(pi, container);
+                    }, { icon: 'ChevronRight', className: 'ml-auto h-8', buttonClass: 'ghost' });
+                    row.appendChild(fPathButton.root);
                 }
             }
-
-            if( !updateBc )
-            {
+            if (!updateBc) {
                 return;
             }
-
             const path = [];
-
-            if( targetFolder && targetFolder.parent )
-            {
-                path.push( targetFolder.id );
-
-                const _pushParentsId = ( i ) => {
-                    if( !i ) return;
-                    path.push( i.parent ? i.id : '@' );
-                    _pushParentsId( i.parent );
+            if (targetFolder && targetFolder.parent) {
+                path.push(targetFolder.id);
+                const _pushParentsId = (i) => {
+                    if (!i)
+                        return;
+                    path.push(i.parent ? i.id : '@');
+                    _pushParentsId(i.parent);
                 };
-
-                _pushParentsId( targetFolder.parent );
+                _pushParentsId(targetFolder.parent);
             }
-            else
-            {
-                path.push( '@' );
+            else {
+                path.push('@');
             }
 
-            bcContainer.innerHTML = "";
-            bcContainer.appendChild( LX.makeBreadcrumb( path.reverse().map( p => { return { title: p } } ), {
-                maxItems: 4, separatorIcon: "ChevronRight"
-            }) );
+            folderContainer.innerHTML = '';
+            if( targetFolder && targetFolder.parent ) {
+                folderContainer.innerHTML = `<p>${targetFolder.id}</p>`;
+                sfContainer.innerHTML = `<p>Selected: <span class="text-foreground">${targetFolder.id}</span></p>`;
+            }
+            bcContainer.innerHTML = '';
+            bcContainer.appendChild(LX.makeBreadcrumb(path.reverse().map((p) => {
+                return { title: p };
+            }), {
+                maxItems: 4,
+                separatorIcon: 'ChevronRight'
+            }));
         };
 
+
+        const _createFolder = async (from, foldername) => {
+            try {
+                const data = await this.editor.fileSystem.createFolder( from.fullpath + "/" + foldername);
+                if(data) {
+                    LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
+                    resolve(foldername, data)
+                }
+                else {
+                    // TO DO: RETURN EXACT ERROR
+                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
+                }
+            }
+            catch( err ) {
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
+            }
+        }
         return new Promise((resolve, reject) => {
 
-            this.saveInFolderDialog = new LX.Dialog( `Save in`, ( p ) =>
+            this.saveInFolderDialog = new LX.Dialog( `Saving in:`, ( p ) =>
             {
                 const area = new LX.Area({ className: "flex flex-col rounded-lg" });
                 p.attach( area );
     
+                folderContainer = LX.makeElement( "div" );
+                sfContainer = LX.makeElement( "div" );
                 const content = LX.makeContainer( [ "auto", "100%" ], "flex flex-auto-fill flex-col overflow-scroll py-2 gap-1", `` );
     
                 {
-                    const headerPanel = area.addPanel({ className: "p-2 border-bottom flex flex-auto", height: "auto" });
+                    const headerPanel = area.addPanel({ className: "p-2 border-bottom flex flex-auto", height: "auto" });  
                     headerPanel.sameLine( 2, "w-full" );
                     headerPanel.addButton( null, "BackButton", () =>
-                    {
-                        if( targetFolder && targetFolder.parent ) _openFolder( targetFolder.parent, content );
-                    }, { icon: "ArrowLeft", title: "Back", tooltip: true, className: "flex-auto", buttonClass: "bg-none hover:bg-secondary" } );
-    
-                    bcContainer = LX.makeElement( "div" );
-    
-                    headerPanel.addContent( "ITEM_MOVE_PATH", bcContainer, { signal: "@item_move_path", className: "flex-auto-fill" } );
-                }
+                        {
+                            if( targetFolder && targetFolder.parent ) _openFolder( targetFolder.parent, content );
+                        }, { icon: "ArrowLeft", title: "Back", tooltip: true, className: "flex-auto", buttonClass: "bg-none hover:bg-secondary" } );
+                        
+                        bcContainer = LX.makeElement( "div" );
+                        
+                        headerPanel.addContent( "", folderContainer, { className: "text-muted-foreground" } );
+                        headerPanel.addContent( "ITEM_MOVE_PATH", bcContainer, { signal: "@item_move_path", className: "flex-auto-fill" } );
+                    }
+                    
     
                 area.attach( content );
     
                 _openFolder( folders, content );
     
                 {
+                    // const footerPanel2 = area.addPanel({ className: "py-2 px-6 border-top flex flex-auto justify-end", height: "auto" });
+                    // footerPanel2.addContent( "", sfContainer, { className: "text-muted-foreground flex justify-end" } );
                     const footerPanel = area.addPanel({ className: "p-2 border-top flex flex-auto justify-between", height: "auto" });
-                    footerPanel.addButton( null, "NewFolderButton", () => {
-    
-                    }, { width: "auto", icon: "FolderPlus", title: "Create Folder", tooltip: true, className: "ml-2", buttonClass: "bg-none hover:bg-secondary" } );
-    
+                    footerPanel.addContent( "", sfContainer, { className: "text-muted-foreground" } );
+                    // footerPanel.addButton( null, "NewFolderButton", async () => {
+                    //     const data = await this.editor.createFolder(targetFolder);
+                    //     if( data ) {
+                    //         //resolve( data.foldername, data.data)
+                    //     }
+                        
+                    // }, { width: "auto", icon: "FolderPlus", title: "Create Folder", tooltip: true, className: "ml-2", buttonClass: "bg-none hover:bg-secondary" } );
                     footerPanel.sameLine( 2, "mr-2" );
                     footerPanel.addButton( null, "Cancel", () => {
                         this.saveInFolderDialog.close();

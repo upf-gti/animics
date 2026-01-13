@@ -1164,12 +1164,48 @@ class Editor {
         });    
     }
 
+    async createFolder(from) {
+
+        return new Promise( (resolve, reject) => {
+            LX.prompt("Folder name", "New folder", async ( foldername ) => {
+                    if( !foldername ) {
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
+                        return;
+                    }
+                
+                    const units = this.fileSystem.repository.map( folder => {return folder.id})
+                    const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
+                    if( restricted.indexOf(foldername) > -1 ) {
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, `"${foldername}" is a reserved word`, null, { position: "bottom-center" } );
+                        return;
+                    }
+                    try {
+                        const data = await this.fileSystem.createFolder( from.fullpath + "/" + foldername);
+                        if(data) {
+                            LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
+                            resolve({foldername, data})
+                        }
+                        else {
+                            // TO DO: RETURN EXACT ERROR
+                            LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
+                            resolve(false);
+                        }
+                    }
+                    catch( err ) {
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
+                        reject(err);
+                    }
+                    
+            })
+        })
+    }
+
     async moveAsset(asset, fromFolder, toFolder, callback = () => {}) {
 
         let moved = false;
         const units = this.fileSystem.repository.map( folder => {return folder.id})
         const restricted = ["scripts", "animics", "Local", "public", ...units];
-        if( toFolder.id > -1 ) {
+        if( toFolder.id > -1 ||  !toFolder.fullpath) {
             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${asset.id}" can't be moved to ${toFolder.id}.</span>`, "Not allowed folder", { position: "bottom-center" } );
                 return;
         }

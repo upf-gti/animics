@@ -344,7 +344,12 @@ class FileSystem {
             }
             session.createFolder( fullpath,
                 (v, r) => {
-                    resolve(v);
+                    if(v) {
+                        resolve(r);
+                    }
+                    else {
+                        resolve(v);
+                    }
                     console.log(v);
                 },
                 (err) => {
@@ -495,13 +500,22 @@ class FileSystem {
 
                 
                 console.log(folders)
-                const data = {id: unitName, type: "folder", folder: null, children: [], unit: unitName, mode: unitMode, draggable: false, rename: false};
+                let data = {id: unitName, type: "folder", folder: null, children: [], unit: unitName, mode: unitMode, draggable: false, rename: false};
                 if( folders.length ) {
                     folders = folders.filter( ( folder ) => folder.folder == "animics");
                     if ( folders.length ) {
-                        const child = this.parseAssetInfo(unit.id, folders[0], unitName, allowFolders);
-                        data.children.push( child );
-                        child.parent = data;
+                        // const child = this.parseAssetInfo(unit.id, folders[0], unitName, allowFolders);
+                        // data.children.push( child );
+                        // child.parent = data;
+                        for(let j = 0; j < folders[0].subfolders.length; j++ ) {
+                            const subfolder = folders[0].subfolders[j];
+                            if( allowFolders.length && allowFolders.indexOf(subfolder.folder) < 0) {
+                                continue;
+                            }
+                            const child = this.parseAssetInfo(unit.id, subfolder, unitName);
+                            data.children.push(child);
+                            child.parent = data;
+                        }                        
                     }
                 }
                 
@@ -566,8 +580,14 @@ class FileSystem {
                     continue;
                 }
                 const child = this.parseAssetInfo(unit, subfolder, data.fullpath);
-                data.children.push( child );
-                child.parent = data;
+                if(name == "animics") {
+                    data.parent.children.push( child );
+                    child.parent = data.parent;
+                }
+                else {
+                    data.children.push( child );
+                    child.parent = data;
+                }
             }
         }
         else {
@@ -598,35 +618,6 @@ class FileSystem {
                 (err) => {
                     reject( err );
                 }
-                // if( deleted ) {
-                //     // const url = fullpath.split("/");
-                //     // const unit = url[0];
-                //     // url.pop();
-                //     // url = url.slice(1);
-                //     // const folder = url.join("/");
-                //     // this.getFiles( unit, folder, (files) => {
-                //     //     const files_data = [];
-                //     //     if( files ) {                                        
-                //     //         for( let f = 0; f < files.length; f++ ) {
-                //     //             let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
-                //     //             files[f].id = files[f].filename;
-                //     //             files[f].folder = folder.replace("animics/", "");
-                //     //             files[f].type = extension;
-                //     //             if(files[f].type == "txt")
-                //     //                 continue;
-                //     //             files_data.push(files[f]);
-                //     //         }
-                //     //     }
-                //     //     callback( files_data );
-                //     // },
-                //     // (err) => {
-                //     //     console.error(err);
-                //     //     callback( false );
-                //     // } );
-                // }
-                // else {
-                //     callback( deleted );
-                // }
             )})
     }
 
