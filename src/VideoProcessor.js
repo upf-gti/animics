@@ -133,7 +133,7 @@ class VideoProcessor {
 
         // const [leftArea, rightArea] = area.split({sizes:["75%","25%"], minimizable: true});
 
-        this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo, crop: true, loop: true});
+        this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo, crop: true, loop: true, controlsLayout: 1});
         this.videoEditor.hideControls();
         this.videoEditor.onResize = (size) => {
             let width = size[0];
@@ -212,18 +212,6 @@ class VideoProcessor {
             this.enableMediapipeOnline( value );
         }, {label: "", title: "Previewing the estimation has a great impact on performance. Disable it to get a smoother experience on less powerful devices.", skipReset: true, nameWidth: "50%"});
         
-        panel.addButton("", "Reset Video Crop Area", ()=>{
-            this.videoEditor.moveCropArea( 0, 0, true );
-            this.videoEditor.resizeCropArea( 1, 1, true );
-
-            if ( !this.mediapipeOnlineEnabler ){
-                return;
-            }
-
-            this.mediapipe.processFrame(this.recordedVideo);
-
-        }, { icon: "Crop", iconPosition: "start", title: "Resets the video crop area so it covers the full video size", hideName: true });
-
         // Create expanded AU info area    
         panel.addBlank();
         
