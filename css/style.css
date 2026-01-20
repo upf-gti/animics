@@ -70,11 +70,11 @@
 	line-clamp: 1;
 }
 
-.lexcombobuttons .lexbutton.combo.selected {
+/* .lexcombobuttons .lexbutton.combo.selected {
 	--button-color: var(--global-color-accent);
 	color: #fff;
 	outline: none;
-}
+} */
 
 svg.xxxl { width: 3.5rem; height: 3.5rem; }
 

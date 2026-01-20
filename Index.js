@@ -11,6 +11,7 @@ const animics = new Animics();
 await animics.loadSession();		
 
 const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
+LX.setThemeColor( 'blue' );
 const area = await LX.init( { rootClass: "" } );
 
 const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-neutral-800 z-1","", LX.mainArea.root );
@@ -49,7 +50,7 @@ function createMenuBar( area ) {
     } );			
     signupButton.id = "signup-button";
 
-    const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-info text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
+    const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-primary text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", buttonsContainer );
     loginButton.tabIndex = "1";
     loginButton.role = "button";
     LX.listen( loginButton, "click", () => {
@@ -57,7 +58,7 @@ function createMenuBar( area ) {
     } );
     loginButton.id = "login-button"
 
-    const userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-info text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
+    const userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-primary text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
     userButton.tabIndex = "1";
     userButton.role = "button";
     LX.listen( userButton, "click", () => {
@@ -571,7 +572,7 @@ function appendAnimationFiles( refresh = false) {
 
         if(files.length >= limit) {
             const itemContainer = LX.makeContainer( ["auto", "162px"], "flex flex-col gap-4 p-4 text-md rounded-xl justify-center items-center", ``, projectItems);
-            const loadMoreButton = LX.makeContainer( ["60%", "80px"], "text-md font-medium rounded-lg p-2 bg-info text-white hover:scale self-center content-center text-center cursor-pointer select-none flex flex-col items-center justify-center", `${LX.makeIcon("MoreHorizontal", {svgClass:"xxl text-white"}).innerHTML} <p class="text-lg">LOAD MORE</p>`, itemContainer );
+            const loadMoreButton = LX.makeContainer( ["60%", "80px"], "text-md font-medium rounded-lg p-2 bg-primary text-white hover:scale self-center content-center text-center cursor-pointer select-none flex flex-col items-center justify-center", `${LX.makeIcon("MoreHorizontal", {svgClass:"xxl text-white"}).innerHTML} <p class="text-lg">LOAD MORE</p>`, itemContainer );
             loadMoreButton.tabIndex = "1";
             loadMoreButton.role = "button";
             LX.listen( loadMoreButton, "click", () => { offset+=10;_checkSession()} );			

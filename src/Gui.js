@@ -186,7 +186,7 @@ class Gui {
         const user = this.editor.fileSystem.session ? this.editor.fileSystem.session.user : "" ;
         const loginName = (!user || user.username == "guest") ? "Login" : user.username;
 
-        const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-info fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", menubar.root );
+        const loginButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-primary fg-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", "Login", menubar.root );
         loginButton.tabIndex = "1";
         loginButton.role = "button";
         LX.listen( loginButton, "click", () => {
@@ -3370,13 +3370,13 @@ class KeyframesGui extends Gui {
             }
             
             // Highlight panel slider
-            const elements = this.sidePanelBlendshapeSlidersPanel.root.getElementsByClassName("bg-info");
+            const elements = this.sidePanelBlendshapeSlidersPanel.root.getElementsByClassName("bg-primary");
             for(let el of elements) {
-                el.classList.remove("bg-info");
+                el.classList.remove("bg-primary");
             }
             const el = this.sidePanelBlendshapeSlidersPanel.components[this.bsTimeline.animationClip.tracks[selection[0]].id];
             if(el) {
-                el.root.classList.add("bg-info");
+                el.root.classList.add("bg-primary");
                 el.root.scrollIntoViewIfNeeded();
             }     
         };
