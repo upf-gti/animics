@@ -19,7 +19,7 @@ class VideoProcessor {
         this.mediapipeOnlineVideo = null; // pointer to current Video. Indicate whether it is in a stage that allows online mediapipe or not (null)
 
         this.inputVideo = null;
-        this.recordingVideo = null;
+        this.recordedVideo = null;
         this.canvasVideo = null; 
         
         this.createView();
@@ -34,6 +34,7 @@ class VideoProcessor {
         this.currentResolve = null;
     }
 
+    /** Internal function */
     createView() {
         // main area of the video processor
         this.processorArea = new LX.Area({id: "processor-area", width: "100%", height: "100%"});
@@ -97,12 +98,14 @@ class VideoProcessor {
         inputVideo.srcObject = null;
     }
 
+    /** Internal function */
     cancelProcess() {
 
         this.currentResolve( null );
         this.disable();
     }
 
+    /** Internal function */
     createVideoArea( area ) {
 
         /* Create video area*/
@@ -195,6 +198,7 @@ class VideoProcessor {
         }
     }
 
+    /** Internal function */
     createSidePanel(area, options = {}) {
         if ( this.sidePanel ){
             this.sidePanel.clear(); // remove signals from previous components
@@ -261,7 +265,7 @@ class VideoProcessor {
         this.videoEditor.resizeCropArea( this.videoEditor.cropArea.normCoords.w, this.videoEditor.cropArea.normCoords.h, true ); // update hidden elements crop area 
     }
 
-    /**
+    /** Internal function
      * @param {{}} [options={}] enable_redo: true/false to add redo button
      */
     async createTrimArea( options = {} ) {
@@ -320,6 +324,7 @@ class VideoProcessor {
 
     }
 
+    /** Internal function */
     createCaptureArea() {
         this.buttonsPanel.clear();
 
@@ -377,6 +382,7 @@ class VideoProcessor {
       
     }
 
+    /** Internal function */
     updateSidePanel( results ) {
         // update blendshape inspector both in capture and edition stages
 
@@ -439,6 +445,7 @@ class VideoProcessor {
     }
 
     /**
+     * Internal function
      * @description Processes a single video with/out trim stage
      * @param {File or URL} videoFile 
      * @param {boolean} [trimStage=true] If true, it redirects to trim stage after loading the video. Otherwise, directly generates the animation data
@@ -624,7 +631,7 @@ class VideoProcessor {
         }
     }
     
-    /**
+    /** Internal function
      * @description Set the webcam stream to the video element and create the mediarecorder, enables mediapipe. Called from processWebcam() and on redo the capture.
     */
     async prepareWebcamRecording() {
@@ -681,7 +688,7 @@ class VideoProcessor {
         }
     }
 
-    /**
+    /** Internal function
     * @description Processes a webcam video with/out trim stage
     * @param {boolean} [trimStage=true] If true, it redirects to trim stage after loading the video. Otherwise, directly generates the animation data
     */
