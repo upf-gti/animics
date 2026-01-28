@@ -999,10 +999,6 @@ class KeyframesGui extends Gui {
         super(editor);
         this.showVideo = true; // menu option, whether to show video overlay (if any exists)
 
-        this.inputVideo = null;
-        this.recordedVideo = null;
-        this.canvasVideo = null;
-
         this.faceAreas = {
             "rgb(255,0,255)": "Brow Left",
             "rgb(0,0,255)": "Brow Right",
@@ -2750,39 +2746,6 @@ class KeyframesGui extends Gui {
         this.createSidePanel();
         
     }
-    
-    
-    changeCaptureGUIVisivility(hidden) {
-        this.bsInspector.root.hidden = hidden || !this.bsInspector.root.hidden;
-    }
-
-    updateCaptureGUI(results, isRecording) {
-        // update blendshape inspector both in capture and edition stages
-
-        let {landmarksResults, blendshapesResults} = results;
-       
-
-        if(landmarksResults) {
-            this.bsInspector.get('Distance to the camera').onSetValue( landmarksResults.distanceToCamera ?? 0 );
-            this.bsInspector.get('Left Hand visibility').onSetValue( landmarksResults.leftHandVisibility ?? 0 );
-            this.bsInspector.get('Right Hand visibility').onSetValue( landmarksResults.rightHandVisibility ?? 0 );
-        }        
-
-        if(blendshapesResults && (!this.bsInspector.root.hidden || this.facePanel && !this.facePanel.root.hidden )) {
-
-            for(let i in blendshapesResults)
-            {
-                
-                let value = blendshapesResults[i];
-                value = value.toFixed(2);
-                let widget = this.bsInspector.root.hidden ? this.facePanel.tabs[this.facePanel.selected].get(i) : this.bsInspector.get(i);
-                if(!widget)
-                    continue;
-                widget.onSetValue(value);
-            // TO DO: emit @on_change_au_ + name
-            }
-        }
-    }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
     createSidePanel( selectedTab = null ) {
@@ -3526,6 +3489,7 @@ class KeyframesGui extends Gui {
                 coords[n] = areas[n].coords.split(',');
             }
             this.img = img;
+            // external library
             this.highlighter = new ImageMapHighlighter(img, {
                 strokeColor: '67aae9',
                 lineJoin: "round", 
@@ -4393,8 +4357,7 @@ class KeyframesGui extends Gui {
      */
     showInsertModeAnimationDialog( toInsert = [], showDoNotInsert = true ){
         const dialog = new LX.Dialog( "How would you like to insert the imported animations?", p => {
-         
-
+        
             // IMPORT SETTINGS
             let faceMapMode = KeyframeEditor.IMPORTSETTINGS_FACEBSAU;
             let auMapSrcAvatar = null;
@@ -4488,7 +4451,6 @@ class KeyframesGui extends Gui {
             }, { buttonClass: "accent", hideName: true, width: "50%" });
 
         }, {modal: true, size: ["50%", "fit-content"]});
-
     }
 
     showInsertFromBoundAnimations(){
@@ -4568,7 +4530,6 @@ class KeyframesGui extends Gui {
             }, { buttonClass: "accent", hideName: true, width: "33.3333%" });
 
         }, {modal: true, size: ["50%", "fit-content"]});
-
     }
 
     createLoadedAnimationsTable(){
