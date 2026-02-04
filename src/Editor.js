@@ -931,18 +931,6 @@ class Editor {
         return this.loadedAnimations[this.currentAnimation];
     }
 
-    getAnimationsToExport() {
-        const toExport = [];
-        for(let animationName in this.loadedAnimations) {
-            const animation = this.loadedAnimations[animationName];
-
-            if( animation.export ){
-                toExport.push(animation);
-            }
-        }
-        return toExport;
-    }
-
     resize( width = this.gui.canvasArea.root.clientWidth, height = this.gui.canvasArea.root.clientHeight ) {
         
         const aspect = width / height;
