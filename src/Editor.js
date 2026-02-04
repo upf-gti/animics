@@ -1209,12 +1209,20 @@ class Editor {
             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${asset.id}" can't be moved to ${toFolder.id}.</span>`, "Not allowed folder", { position: "bottom-center" } );
                 return;
         }
+        if( !fromFolder.unit ) {
+            if( toFolder.unit ) {
+                toFolder.toServer = true;
+                return new Promise( (resolve, reject) => this.uploadData(asset.filename, asset.data, toFolder, (newFilename) => { resolve(true)}));
+            }
+            else return true;
+        }
+
         if( asset.type == "folder" ) {
             restricted.push("presets");
             restricted.push("signs");
             restricted.push("clips");
             if( restricted.indexOf(asset.id) > -1 ) {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${asset.id}" can't be moved.</span>`, null, { position: "bottom-center" } );
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${asset.id}" can't be moved.</span>`, "Not allowed folder", { position: "bottom-center" } );
                 return;
             }
             
@@ -1233,7 +1241,7 @@ class Editor {
             const units = this.fileSystem.repository.map( folder => {return folder.id})
             const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
             if( restricted.indexOf(asset.id) > -1 ) {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${asset.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }"${asset.id}" can't be deleted.</span>`, null, { position: "bottom-center" } );
                 return;
             }
         }
@@ -1844,6 +1852,7 @@ class KeyframeEditor extends Editor {
             const extension = UTILS.getExtension(files[i].name).toLowerCase();                   
             if( animExtensions.includes(extension) ) {
                     const promise = new Promise((resolve) => {
+                        files[i].name = files[i].name.replace(`.${extension}`, "");
                         this.fileToAnimation(files[i], (file) => {
                             if( file.animation.constructor == Array ) { //glb animations
                                 let animationNames = [];

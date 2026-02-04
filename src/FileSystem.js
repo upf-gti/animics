@@ -467,7 +467,7 @@ class FileSystem {
                             // files[f].folder = files[f].folder;
                             files[f].type = extension;
                             files[f].children = [];
-                            files[f].metadata = {};
+                            files[f].metadata = { lastModified: files[f].timestamp};
                             delete files[f].path;
                             if(files[f].type == "txt")
                                 continue;
@@ -572,7 +572,9 @@ class FileSystem {
             else if( asset.folder == "clips") {
                 data.icon = "ClapperboardClosed";
             }
-            
+            else {
+                data.metadata = { lastModified: data.timestamp};
+            }
             for( let i = 0; i < asset.subfolders.length; i++ ) {
                 const subfolder = asset.subfolders[i];
 
@@ -598,7 +600,7 @@ class FileSystem {
         data.type = type;
         data.id = name;
         data.asset_id = asset.id;
-        data.metadata = {};
+        data.metadata = { lastModified: data.timestamp};
         //data.fullpath = unit + "/" + asset.fullpath;
         
         return data;

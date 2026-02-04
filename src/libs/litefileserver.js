@@ -16,7 +16,7 @@ var LiteFileServer = {
 
     TOKEN_NAME: "lfs_token", //used for the local storage storing
 
-    rg: /^[a-zA-Z0-9_\-()\/. ]+$/,
+    rg: /^[\p{L}\p{N}_\-()\/.% ]+$/u,
 
     setup: function( server_path, on_complete, on_error )
     {

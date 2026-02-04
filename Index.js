@@ -493,7 +493,7 @@ function onLoadFiles( files ) {
 
         // other valid file formats
         const extension = UTILS.getExtension(files[i].name).toLowerCase();
-                        
+
         if( animExtensions.includes(extension) ) {
             if ( !mode ) {
                 mode = "keyframe";

@@ -446,6 +446,9 @@ class Gui {
             if( moved ) {
                 resolve();
             }
+            else {
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Not moved!`, `"${item.id}" can't be moved.</span>`, { position: "bottom-center" } );
+            }
 
         })
 
@@ -481,9 +484,40 @@ class Gui {
 
         assetViewer.on( "delete", async ( e, resolve ) => {
             const item = e.items[0];
-            LX.popup('"' + item.id + '"' + " deleted successfully.", "Folder deleted!", {position: [ "10px", "50px"], timeout: 5000});
+            LX.popup('"' + item.id + '"' + " deleted successfully.", item.type == "folder" ? "Folder deleted!" : "File deleted!", {position: [ "10px", "50px"], timeout: 5000});
             this.assetViewer._deleteItem(item);
             this.assetViewer._refreshContent();
+        });
+
+        assetViewer.on( "beforeRefreshContent", async ( e, resolve ) => {
+            const currentFolder = assetViewer.currentFolder;
+            if( !e.userInitiated ) {
+                resolve();
+                return;
+            }
+            switch(currentFolder.id) {
+                case "/":  case "Local":
+                    resolve();
+                    break;
+                default:
+                    if( currentFolder.asset_id != undefined ) {
+                        const allowFolders = [];
+                        const restrictFolders = [];
+                        if(window.global.app.editor.gui.constructor == ScriptGui ) {
+                            // allowFolders.push("scripts");
+                            restrictFolders.push("clips");
+                        }
+                        else {
+                            // allowFolders.push("clips");
+                            restrictFolders.push("scripts");
+                        }
+
+                        const assets = await this.editor.fileSystem.loadFoldersAndFiles(currentFolder.unit, currentFolder.asset_id, currentFolder.id, allowFolders, restrictFolders);
+                        assetViewer.currentData = assets;
+                    }
+                    resolve();
+            }
+            
         });
 
         assetViewer.load( repository );
@@ -534,6 +568,9 @@ class Gui {
             // }
             if(moved) {
                 resolve();
+            }
+            else {
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Not moved!`, `"${node.id}" can't be moved.</span>`, { position: "bottom-center" } );
             }
             return moved;
         });
@@ -618,7 +655,7 @@ class Gui {
                                     this.assetViewer.tree.refresh();
                             }
                             else {
-                                LX.popup('"' + result + '"' + " couldn't be created.", "Error", {position: [ "10px", "50px"], timeout: 5000});
+                                LX.popup('"' + result + '"' + " couldn't be created or already exists.", "Error", {position: [ "10px", "50px"], timeout: 5000});
                             }
                         })
                     }
@@ -839,7 +876,7 @@ class Gui {
                             } );
                         }
                         else { //save in server
-                            this.editor.saveAnimations( info.selectedAnimations, info.format, info.folder, true);
+                            this.editor.saveAnimations( info.selectedAnimations, info.format, info.folder, info.folder.unit?true:false );
                         }
                     }
 
