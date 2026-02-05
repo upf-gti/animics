@@ -3674,9 +3674,6 @@ class ScriptEditor extends Editor {
         super(animics);
 
         this.dominantHand = "Right";
-        
-        this.onDrawTimeline = null;
-	    this.onDrawSettings = null;
 
         // Create GUI
         this.gui = new ScriptGui(this);
