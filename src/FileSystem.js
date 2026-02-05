@@ -513,8 +513,14 @@ class FileSystem {
                                 continue;
                             }
                             const child = this.parseAssetInfo(unit.id, subfolder, unitName);
-                            data.children.push(child);
-                            child.parent = data;
+                            if(subfolder.folder == "scripts") {
+                                data.children = child.children;
+                                child.children.map((v) => v.parent = data);
+                            }
+                            else {
+                                data.children.push(child);
+                                child.parent = data;
+                            }
                         }                        
                     }
                 }
