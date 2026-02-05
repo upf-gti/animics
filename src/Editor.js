@@ -1852,7 +1852,7 @@ class KeyframeEditor extends Editor {
             const extension = UTILS.getExtension(files[i].name).toLowerCase();                   
             if( animExtensions.includes(extension) ) {
                     const promise = new Promise((resolve) => {
-                        files[i].name = files[i].name.replace(`.${extension}`, "");
+                        // files[i].name = files[i].name.replace(`.${extension}`, "");
                         this.fileToAnimation(files[i], (file) => {
                             if( file.animation.constructor == Array ) { //glb animations
                                 let animationNames = [];
@@ -2006,7 +2006,7 @@ class KeyframeEditor extends Editor {
         }else{
             fileExtension = "unknown";
         }
-        
+        name = name.replace(fileExtension, "");
         let skeleton = null;
         let bodyAnimation = null;
         let faceAnimation = null;
