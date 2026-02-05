@@ -49,10 +49,10 @@ class Animics {
                         }
                     }
                     else {
-                        LX.popup(response.msg || "Can't connect to the server. Try again!", "Error");
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Error</span>`, response.msg || "Can't connect to the server. Try again!", { position: "top-center" } );
                     }
-                    prompt.close();
-                    prompt = null;
+                    // prompt.close();
+                    // prompt = null;
                 });
             }, {
                 primaryActionName: "Login",
@@ -64,7 +64,7 @@ class Animics {
                 }
             });
 
-        }, {modal: true, closable: true} );
+        }, {modal: false, closable: true} );
         return prompt;
     }
     

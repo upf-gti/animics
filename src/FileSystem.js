@@ -55,10 +55,10 @@ class FileSystem {
                 return;
             }
 
-            this.login( user, password, () => {
-                this.loadUnits();
+            this.login( user, password, async () => {
+                // this.loadUnits();
             
-                this.createFolders();
+                await this.createFolders();
                     
                 if(on_complete) {
                     on_complete(request);
@@ -331,9 +331,10 @@ class FileSystem {
             return;
         }
 
-        await session.createFolder( session.user.username + "/animics/clips", (v, r) => {console.log(v)} );
-        await session.createFolder( session.user.username + "/animics/scripts/presets", (v, r) => {console.log(v)} );
-        await session.createFolder( session.user.username + "/animics/scripts/signs", (v, r) => {console.log(v)} );
+        await this.createFolder( session.user.username + "/animics/clips", (v, r) => {console.log("Clips folder created:", v)} );
+        //await this.createFolder( session.user.username + "/animics/scripts", (v, r) => {console.log("Scripts folder created:", v)} );
+        await this.createFolder( session.user.username + "/animics/scripts/presets", (v, r) => {console.log("Presets folder created:", v)} );
+        await this.createFolder( session.user.username + "/animics/scripts/signs", (v, r) => {console.log("Signs folder created:", v)} );
     }
 
     async createFolder( fullpath ) {
