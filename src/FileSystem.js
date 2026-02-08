@@ -629,7 +629,26 @@ class FileSystem {
                 }
             )})
     }
+    
+    inviteUserToUnit( unit, username) {
 
+        const session = this.session;
+        if( !session || !unit ) {
+            return;
+        }
+
+        return new Promise( (resolve, reject) => {
+            session.inviteUserToUnit(unit.name, username, 
+                (done) => {
+                    resolve( done );
+                },
+                (err) => {
+                    reject( err );
+                }
+            )})
+    }
+
+    // Local system
     saveLocalFile( filename, data, folder ) {
         const extension = filename.substr(filename.lastIndexOf(".") + 1);
         if(this.localRepository[0].id == folder.id) {

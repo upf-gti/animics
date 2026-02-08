@@ -98,6 +98,13 @@ Generate animations from human motion captured in video.
 - **Pose Estimation**: 
     - [Mediapipe](https://github.com/google/mediapipe) - An open-source library from Google for building cross-platform multimodal applied ML pipelines.
 
+## 💬 Community
+
+We have a **Discord server** where you can ask questions, share ideas, and get support related to the project.  
+Everyone is welcome!
+
+🔗 **Discord:**: [Join here!](https://discord.gg/9YGrGjnycj)
+
 ---
 
 ## Developers
@@ -107,6 +114,7 @@ Generate animations from human motion captured in video.
 - Eva Valls [@evallsg](https://github.com/evallsg)
 - Carolina del Corral [@carolinadcf](https://github.com/carolinadcf)
 - Alex Rodríguez [@jxarco](https://github.com/jxarco)
+
 
 ## Acknowledgements
 We would like to extend our gratitude to the creators and maintainers of these libraries for their invaluable contributions to the open-source community.
