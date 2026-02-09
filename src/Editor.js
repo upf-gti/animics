@@ -114,8 +114,12 @@ class Editor {
             "Ada": [Editor.RESOURCES_PATH+'Ada/Ada.glb', Editor.RESOURCES_PATH+'Ada/Ada.json', 0, Editor.RESOURCES_PATH+'Ada/Ada.png'],
             "Victor": [Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.glb', Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.json', 0, Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.png'],
             "Ready Eva": [Editor.RESOURCES_PATH+'ReadyEva/ReadyEva.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva.json', 0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
-            "Female 1": [Editor.RESOURCES_PATH+'Female 1/Female 1.glb', Editor.RESOURCES_PATH+'Female 1/Female 1.json', 0, null],
-            "Female 2": [Editor.RESOURCES_PATH+'Female 2/Female 2.glb', Editor.RESOURCES_PATH+'Female 2/Female 2.json', 0, null],
+            "Sara": [Editor.RESOURCES_PATH+'Sara/Sara.glb', Editor.RESOURCES_PATH+'Sara/Sara.json', 0, Editor.RESOURCES_PATH+'Sara/Sara.png'],
+            "Nia": [Editor.RESOURCES_PATH+'Nia/Nia.glb', Editor.RESOURCES_PATH+'Nia/Nia.json', 0, Editor.RESOURCES_PATH+'Nia/Nia.png'],
+            "Joan": [Editor.RESOURCES_PATH+'Joan/Joan.glb', Editor.RESOURCES_PATH+'Joan/Joan.json', 0, Editor.RESOURCES_PATH+'Joan/Joan.png'],
+            "David": [Editor.RESOURCES_PATH+'David/David.glb', Editor.RESOURCES_PATH+'David/David.json', 0, Editor.RESOURCES_PATH+'David/David.png'],
+            "Alex": [Editor.RESOURCES_PATH+'Alex/Alex.glb', Editor.RESOURCES_PATH+'Alex/Alex.json', 0, Editor.RESOURCES_PATH+'Alex/Alex.png'],
+            "Noa": [Editor.RESOURCES_PATH+'Noa/Noa.glb', Editor.RESOURCES_PATH+'Noa/Noa.json', 0, Editor.RESOURCES_PATH+'Noa/Noa.png'],
             // "Ready Eva": ['https://models.readyplayer.me/66e30a18eca8fb70dcadde68.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva_v3.json',0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
         }
 
