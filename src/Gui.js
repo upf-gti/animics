@@ -13,6 +13,8 @@ LX.registerIcon( "arrow-down-narrow-wide", '<svg xmlns="http://www.w3.org/2000/s
 
 class Gui {
 
+    static THUMBNAIL = "data/imgs/animics_monster.png";
+
     constructor( editor)  {
        
         this.editor = editor;
@@ -290,7 +292,7 @@ class Gui {
         assetViewer.on( "beforeCreateFolder", async ( e, resolve ) => {
             const from = e.where;
             if( !from.fullpath ) {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "No source folder selected.", { position: "bottom-center" } );
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, "No source folder selected.", { position: "bottom-center" } );
                 return;
             }
 
@@ -300,14 +302,14 @@ class Gui {
             }
             // LX.prompt("Folder name", "New folder", async ( foldername ) => {
             //     if( !foldername ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
             //         return;
             //     }
             
             //     const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
             //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
             //     if( restricted.indexOf(foldername) > -1 ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, `"${foldername}" is a reserved word`, null, { position: "bottom-center" } );
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, `"${foldername}" is a reserved word`, null, { position: "bottom-center" } );
             //         return;
             //     }
             //     try {
@@ -318,11 +320,11 @@ class Gui {
             //         }
             //         else {
             //             // TO DO: RETURN EXACT ERROR
-            //             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
+            //             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
             //         }
             //     }
             //     catch( err ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
             //     }
                 
             // })
@@ -388,7 +390,7 @@ class Gui {
             const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
             const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
             if(restricted.indexOf(e.oldName) > -1 ) {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${e.oldName} can't be renamed.</span>`, null, { position: "bottom-center" } );
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${e.oldName} can't be renamed.</span>`, null, { position: "bottom-center" } );
                 return;
             }
 
@@ -447,7 +449,7 @@ class Gui {
                 resolve();
             }
             else {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Not moved!`, `"${item.id}" can't be moved.</span>`, { position: "bottom-center" } );
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Not moved!`, `"${item.id}" can't be moved.</span>`, { position: "bottom-center" } );
             }
 
         })
@@ -458,7 +460,7 @@ class Gui {
             // const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
             // const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
             // if( restricted.indexOf(item.id) > -1 ) {
-            //     LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${item.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
+            //     LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${item.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
             //     return;
             // }
 
@@ -558,7 +560,7 @@ class Gui {
             //     const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
             //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
             //     if( restricted.indexOf(node.id) > -1 ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
+            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
             //         return;
             //     }
             //     moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
@@ -570,7 +572,7 @@ class Gui {
                 resolve();
             }
             else {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Not moved!`, `"${node.id}" can't be moved.</span>`, { position: "bottom-center" } );
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Not moved!`, `"${node.id}" can't be moved.</span>`, { position: "bottom-center" } );
             }
             return moved;
         });
@@ -580,7 +582,7 @@ class Gui {
         //         const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
         //         const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
         //         if( restricted.indexOf(node.id) > -1 ) {
-        //             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
+        //             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
         //             return;
         //         }
         //         moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
@@ -609,7 +611,7 @@ class Gui {
                 loadingArea.hide();
             }
        
-        }, { close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: true,
+        }, { close: true, minimize: false, size: ["80%", "70%"], scroll: true, resizable: true, draggable: false,  modal: false,
     
             onBeforeClose: ( dialog ) => {
 
@@ -641,7 +643,7 @@ class Gui {
                     callback: ( item ) => {
                         LX.prompt("Folder name", "New folder", async ( result ) => {
                             if( !result ) {
-                                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
+                                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
                                 return;
                             }
                             const data = await this.editor.fileSystem.createFolder( item.fullpath + "/" + result);
@@ -855,7 +857,7 @@ class Gui {
 
                     // do not close the dialog
                     if ( selectedAnimations.length == 0 ){
-                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }You must select at least one animation.</span>`, null, { position: "bottom-center" } );
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }You must select at least one animation.</span>`, null, { position: "bottom-center" } );
                         return;
                     }
                     
@@ -866,7 +868,7 @@ class Gui {
                     if( options.allowSelectFolders ) {
                         if( !selectedFolder || !selectedFolder.fullpath ) {
                             console.error("\nYou must select a folder.");
-                            LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }You must select a folder.</span>`, null, { position: "bottom-center" } );
+                            LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }You must select a folder.</span>`, null, { position: "bottom-center" } );
                             return;
                         }
 
@@ -985,11 +987,11 @@ class Gui {
                 }
                 else {
                     // TO DO: RETURN EXACT ERROR
-                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
+                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
                 }
             }
             catch( err ) {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
+                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
             }
         }
         return new Promise((resolve, reject) => {
@@ -1038,7 +1040,7 @@ class Gui {
                     footerPanel.addButton( null, "Cancel", () => {
                         this.saveInFolderDialog.close();
                         resolve(false);
-                    }, { buttonClass: "bg-none fg-error" } );
+                    }, { buttonClass: "bg-none text-destructive" } );
                     footerPanel.addButton( null, "Select", () => {
                         //this._requestMoveItemToFolder( item, targetFolder );
                         resolve(targetFolder);
@@ -1307,9 +1309,9 @@ class Gui {
         for(let c = 0; c < characterNames.length; ++c) {
             const character = characterNames[c];  
             const isSelected = character == this.editor.currentCharacter.model.name;
-            const container = _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL, character, character, isSelected);
+            const container = _makeProjectOptionItem(this.editor.characterOptions[character][3] ?? Gui.THUMBNAIL, character, character, isSelected);
            
-            characters.push({ value: character, src: this.editor.characterOptions[character][3] ?? GUI.THUMBNAIL});
+            characters.push({ value: character, src: this.editor.characterOptions[character][3] ?? Gui.THUMBNAIL});
             characterContainer.appendChild( container );
 
             if ( isSelected ){
@@ -1398,7 +1400,7 @@ class Gui {
                                                     "Ready Player Me detected!", (value, event)=> {
                                 cfromFile = false;
                                 panel.refresh();
-                                panel.setValue("Config URL", Editor.RESOURCES_PATH+"ReadyEva/ReadyEva_v2.json");
+                                panel.setValue("Config URL", Editor.RESOURCES_PATH+"ReadyEva/ReadyEva_v3.json");
                                 
                             },{input: false, fitHeight: true})                            
                         }
@@ -1534,7 +1536,7 @@ class Gui {
             panel.addButton(null, "Upload", () => {
                 if (name && model) {
                     if (this.editor.characterOptions[name]) { LX.popup("This character name is taken. Please, change it.", null, { position: ["45%", "20%"]}); return; }
-                    let thumbnail = GUI.THUMBNAIL;
+                    let thumbnail = Gui.THUMBNAIL;
                     if( model.includes('models.readyplayer.me') ) {
                         model+= '?pose=T&morphTargets=ARKit&lod=1';
                         thumbnail =  "https://models.readyplayer.me/" + name + ".png?background=68,68,68";
@@ -6920,7 +6922,7 @@ class ScriptGui extends Gui {
                         dialog.close() ;
                     }
                     else {
-                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }You must write a name and select a folder.</span>`, null, { position: "bottom-center" } );
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }You must write a name and select a folder.</span>`, null, { position: "bottom-center" } );
                     }
                     
                 }, { buttonClass: "selected", hideName: true, width: "50%" });
