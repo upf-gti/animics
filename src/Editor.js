@@ -513,6 +513,8 @@ class Editor {
         
         if(data.fullpath) {
             const extension = UTILS.getExtension(data.fullpath).toLowerCase();
+            // TODO: request should be with Control-Cache= no-cache (it means "file must be validated by the server before reusing from cache" ). Necessary to avoid some browsers not updating files when overwriting
+            // as it is now, multiple windows of animics might see diferent versions of the same file. No-cache would solve this.
             LX.request({ url: this.fileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
                 if( content == "{}" )  {
                     callback({content});
@@ -933,18 +935,6 @@ class Editor {
 
     getCurrentAnimation() {
         return this.loadedAnimations[this.currentAnimation];
-    }
-
-    getAnimationsToExport() {
-        const toExport = [];
-        for(let animationName in this.loadedAnimations) {
-            const animation = this.loadedAnimations[animationName];
-
-            if( animation.export ){
-                toExport.push(animation);
-            }
-        }
-        return toExport;
     }
 
     resize( width = this.gui.canvasArea.root.clientWidth, height = this.gui.canvasArea.root.clientHeight ) {
@@ -3859,9 +3849,6 @@ class ScriptEditor extends Editor {
         super(animics);
 
         this.dominantHand = "Right";
-        
-        this.onDrawTimeline = null;
-	    this.onDrawSettings = null;
 
         // Create GUI
         this.gui = new ScriptGui(this);

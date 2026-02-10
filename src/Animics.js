@@ -223,8 +223,8 @@ class Animics {
                     overwritePanel.sameLine(2);
                     overwritePanel.addButton("overwrite", "Overwrite", async () => {
                         const files = await this.fileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
+                        overwriteDialog.close();
                         callback(filename, files);
-                        overwriteDialog.close(); 
                     }, {hideName: true, buttonClass: "error", width: "50%"} );
                     overwritePanel.addButton("ok", "Rename", async () => {
                         let extensionIdx = filename.lastIndexOf(".");

@@ -1764,10 +1764,6 @@ class KeyframesGui extends Gui {
         super(editor);
         this.showVideo = true; // menu option, whether to show video overlay (if any exists)
 
-        this.inputVideo = null;
-        this.recordedVideo = null;
-        this.canvasVideo = null;
-
         this.faceAreas = {
             "rgb(255,0,255)": "Brow Left",
             "rgb(0,0,255)": "Brow Right",
@@ -2707,9 +2703,9 @@ class KeyframesGui extends Gui {
                 }
              
                 this.dialog = new LX.Dialog( "Bulk addition in selected tracks", p => {
-                    p.addNumber( "Num Keyframes", this.n, (v,e)=>{ this.n = v}, {min: 1, step: 1 } );
-                    p.addNumber( "Start Time", this.startTime, (v,e)=>{ this.startTime = v; }, {min: 0, step: 0.001, precision: 3 } );
-                    p.addNumber( "Duration", this.duration, (v,e)=>{ this.duration = v; }, {min: 0.001, step: 0.001, precision: 3 } );
+                    p.addNumber( "Num Keyframes", this.n, (v,e)=>{ this.n = v}, {min: 1, step: 1, skipReset: true } );
+                    p.addNumber( "Start Time", this.startTime, (v,e)=>{ this.startTime = v; }, {min: 0, step: 0.001, precision: 3, skipReset: true } );
+                    p.addNumber( "Duration", this.duration, (v,e)=>{ this.duration = v; }, {min: 0.001, step: 0.001, precision: 3, skipReset: true } );
                     
                     p.sameLine();
                     p.addButton( "Cancel", "Cancel", (v,e)=>{ this.dialog.close(); }, {width: "50%", hideName: true} );
@@ -3022,9 +3018,9 @@ class KeyframesGui extends Gui {
                     {
                         title: trackName + "/Add Keyframe Bulk Addition",
                         callback: () => {
-    
-                            // TODO select this entry's track only
-    
+                            this.deselectAllTracks( false ); // no need to update left panel
+                            this.setTrackSelection( e.track.trackIdx, true ); // call callback and update left panel
+            
                             // "this" is the timeline
                             this.deselectAllElements();
                             that.bulkKeyframeAddition.createDialog( false );
@@ -3283,6 +3279,9 @@ class KeyframesGui extends Gui {
                 {
                     title: trackName + "/Add Keyframe Bulk Addition",
                     callback: () => {
+                        this.deselectAllTracks( false ); // no need to update left panel
+                        this.setTrackSelection( e.track.trackIdx, true ); // call callback and update left panel
+
                         // "this" is the timeline
                         this.deselectAllElements();
                         that.bulkKeyframeAddition.createDialog( true );
@@ -3512,39 +3511,6 @@ class KeyframesGui extends Gui {
         }
         this.createSidePanel();
         
-    }
-    
-    
-    changeCaptureGUIVisivility(hidden) {
-        this.bsInspector.root.hidden = hidden || !this.bsInspector.root.hidden;
-    }
-
-    updateCaptureGUI(results, isRecording) {
-        // update blendshape inspector both in capture and edition stages
-
-        let {landmarksResults, blendshapesResults} = results;
-       
-
-        if(landmarksResults) {
-            this.bsInspector.get('Distance to the camera').onSetValue( landmarksResults.distanceToCamera ?? 0 );
-            this.bsInspector.get('Left Hand visibility').onSetValue( landmarksResults.leftHandVisibility ?? 0 );
-            this.bsInspector.get('Right Hand visibility').onSetValue( landmarksResults.rightHandVisibility ?? 0 );
-        }        
-
-        if(blendshapesResults && (!this.bsInspector.root.hidden || this.facePanel && !this.facePanel.root.hidden )) {
-
-            for(let i in blendshapesResults)
-            {
-                
-                let value = blendshapesResults[i];
-                value = value.toFixed(2);
-                let widget = this.bsInspector.root.hidden ? this.facePanel.tabs[this.facePanel.selected].get(i) : this.bsInspector.get(i);
-                if(!widget)
-                    continue;
-                widget.onSetValue(value);
-            // TO DO: emit @on_change_au_ + name
-            }
-        }
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
@@ -4287,6 +4253,7 @@ class KeyframesGui extends Gui {
                 coords[n] = areas[n].coords.split(',');
             }
             this.img = img;
+            // external library
             this.highlighter = new ImageMapHighlighter(img, {
                 strokeColor: '67aae9',
                 lineJoin: "round", 
@@ -5131,8 +5098,7 @@ class KeyframesGui extends Gui {
      */
     showInsertModeAnimationDialog( toInsert = [], showDoNotInsert = true ){
         const dialog = new LX.Dialog( "How would you like to insert the imported animations?", p => {
-         
-
+        
             // IMPORT SETTINGS
             let faceMapMode = KeyframeEditor.IMPORTSETTINGS_FACEBSAU;
             let auMapSrcAvatar = null;
@@ -5226,7 +5192,6 @@ class KeyframesGui extends Gui {
             }, { buttonClass: "selected", hideName: true, width: "50%" });
 
         }, {modal: true, size: ["50%", "fit-content"]});
-
     }
 
     showInsertFromBoundAnimations(){
@@ -5306,7 +5271,6 @@ class KeyframesGui extends Gui {
             }, { buttonClass: "selected", hideName: true, width: "33.3333%" });
 
         }, {modal: true, size: ["50%", "fit-content"]});
-
     }
 
     createLoadedAnimationsTable(){
