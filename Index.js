@@ -58,7 +58,7 @@ function createMenuBar( area ) {
     } );
     loginButton.id = "login-button"
 
-    const userButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto bg-primary text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
+    const userButton = LX.makeContainer( ["auto", "auto"], "max-w-3xl text-md font-medium rounded-lg p-2 ml-auto bg-primary text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
     userButton.tabIndex = "1";
     userButton.role = "button";
     LX.listen( userButton, "click", () => {

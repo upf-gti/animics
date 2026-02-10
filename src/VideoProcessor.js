@@ -40,15 +40,14 @@ class VideoProcessor {
         //split main area. Left: video editor area, Right: helper/info panel (distance to the camera, blendhsapes' weights, etc)
         const [leftArea, rightArea] = this.processorArea.split({sizes:["75%","25%"], minimizable: true});
         // split left area. Top: video editor + selector. Bottom: buttons.
-        const [videoEditorArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
-        this.menubar = videoEditorArea.addMenubar();
-        this.menubar.setButtonIcon("Return", "ArrowLeftCircle", () => this.cancelProcess(), {float: "left"});
+        const [remainingArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
+        const [topArea, videoEditorArea] = remainingArea.split({sizes:["10px", null], minimizable: false, resize: false, type: "vertical"});
 
         // Add show/hide right panel button (expand/reduce panel area)
         const ob = videoEditorArea.addOverlayButtons([{
             selectable: true,
             selected: true,
-            icon: "Info",
+            icon: "PanelLeftClose",
             name: "Estimator",
             callback: (v, e) => {
                 if(this.processorArea.splitExtended) {
@@ -68,6 +67,26 @@ class VideoProcessor {
 
         // Capture panel buttons
         this.buttonsPanel = bottomArea.addPanel({id:"capture-buttons", width: "100%", height: "100%", style: {display: "flex", "flex-direction": "row", "justify-content": "center", "align-content": "flex-start", "flex-wrap": "wrap"}});  
+        
+        // return button
+        const arrowButton = window.bbb = new LX.Button("ReturnToEditor",null, () => this.cancelProcess(), {
+            icon: "ArrowLeftCircle",
+            width: "3.5rem",
+            height: "3.5rem",
+            hideName: true,
+            title: "Return to editor",
+            className: 'overlay-left overlay-top',
+            buttonClass: 'bg-none'
+        })
+
+        // hack to make the icon as big as the button. Nothing else was working
+        let item = arrowButton.root.getElementsByTagName("svg")[0];
+        while (item != arrowButton.root ){
+            item.style.width = "100%";
+            item.style.height = "100%";
+            item = item.parentElement;
+        }
+        videoEditorArea.root.appendChild( arrowButton.root );
     }
 
     enable() {
@@ -299,6 +318,19 @@ class VideoProcessor {
 
         this.mediapipe.mirrorCanvas = false; // we want the raw video. The mirror was only to make it easy to record for the user
 
+        if(options.enable_redo) {
+            this.buttonsPanel.addButton(null, "Redo", async () => {
+         
+                this.recording = false;
+                this.mediapipeOnlineVideo = this.inputVideo; 
+    
+                this.mediapipe.stopVideoProcessing();
+                this.videoEditor.hideControls();
+                this.prepareWebcamRecording();
+    
+            }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", title: "Redo Video", buttonClass: "outline"});
+        }
+
         this.buttonsPanel.addButton(null, "Convert to animation", async (v) => {
             canvasVideo.classList.remove("hidden");
             recordedVideo.classList.remove("hidden");
@@ -312,20 +344,7 @@ class VideoProcessor {
             this.processorArea.reduce();
             this.currentResolve(animation);
             this.currentResolve = null;
-        }, {width: "auto", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});//, {width: "100px"});
-
-        if(options.enable_redo) {
-            this.buttonsPanel.addButton(null, "Redo", async () => {
-         
-                this.recording = false;
-                this.mediapipeOnlineVideo = this.inputVideo; 
-    
-                this.mediapipe.stopVideoProcessing();
-                this.videoEditor.hideControls();
-                this.prepareWebcamRecording();
-    
-            }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-secondary fg-primary border"});
-        }
+        }, {width: "auto", buttonClass: "primary"});//, {width: "100px"});
 
         this.videoEditor.resize();
 
@@ -363,6 +382,16 @@ class VideoProcessor {
                 canvasVideo.classList.add("active");
                 
                 this.buttonsPanel.clear();
+                this.buttonsPanel.addButton(null, "Cancel", () => {
+                    this.recording = false;
+                    if( this.mediaRecorder ) {
+                        this.mediaRecorder.stop();
+                    }
+
+                    this.createCaptureArea();
+
+                }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", title: "Cancel Recording", buttonClass: "outline"});
+
                 this.buttonsPanel.addButton(null, "Stop", () => {
                     
                     this.mediapipe.stopVideoProcessing();
@@ -372,19 +401,10 @@ class VideoProcessor {
                     else {
                         this.recording = false;
                     }
-                }, {id:"stop_capture_btn", width: "100px", icon: "Stop@solid", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});
-                
-                this.buttonsPanel.addButton(null, "Cancel", () => {
-                    this.recording = false;
-                    if( this.mediaRecorder ) {
-                        this.mediaRecorder.stop();
-                    }
-
-                    this.createCaptureArea();
-
-                }, {id:"stop_capture_btn", width: "100px", icon: "RotateCcw", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-secondary fg-primary border"});
+                }, {id:"stop_capture_btn", width: "100px", icon: "Stop@solid", title:"Stop Recording", buttonClass: "primary"});
+            
             }
-        }, {id:"start_capture_btn", width: "150px", buttonClass: "text-md font-medium rounded-2xl p-2 ml-auto bg-accent fg-white"});
+        }, {id:"start_capture_btn", width: "150px", buttonClass: "primary"});
       
     }
 

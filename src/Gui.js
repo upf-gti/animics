@@ -204,7 +204,7 @@ class Gui {
 
         loginButton.id = "login-button";
     
-        const userButton = LX.makeContainer( ["100px", "auto"], "lexcontainer font-semibold rounded-lg p-2 ml-auto fg-primary hover:fg-primary self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
+        const userButton = LX.makeContainer( ["auto", "auto"], "max-w-3xl text-md font-medium rounded-lg p-2 ml-auto bg-primary text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", loginName, menubar.root );
         userButton.tabIndex = "1";
         userButton.role = "button";
         LX.listen( userButton, "click", () => {
@@ -1273,8 +1273,8 @@ class Gui {
         // p.sameLine();
         let characters = [];
         const _makeProjectOptionItem = ( icon, outerText, id, selected = false ) => {
-            const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-tertiary cursor-pointer ${selected ? "bg-tertiary" : "hover:scale"}`, ``, null );
-            const card = LX.makeContainer( ["200px", "auto"], `flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button card-color`, `
+            const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-accent cursor-pointer ${selected ? "bg-secondary" : ""}`, ``, null );
+            const card = LX.makeContainer( ["200px", "auto"], `flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button card-color hover:scale`, `
                <img src="${icon}" height="120px">
             `, item );
 
@@ -1282,7 +1282,7 @@ class Gui {
             if(selected) {
                 button = new LX.Button(null, "Edit Character", (e) => {
                     this.createEditCharacterDialog();
-                } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px", buttonClass: "bg-secondary"} );
+                } ,{ icon: "UserRoundPen", className: "justify-center", width: "50px", buttonClass: ""} );
             }
             const flexContainer = LX.makeContainer( ["auto", "auto"], "flex items-center", `<p>${ outerText }</p>`, item );
             if( selected ) {
@@ -2500,7 +2500,7 @@ class KeyframesGui extends Gui {
             onCreateSettingsButtons: (panel) => {
                 panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
-                }, { tooltip: true, icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white" });
+                }, { tooltip: true, icon: "Undo2", title: "Return to global animation", buttonClass: "warning outline" });
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Num bones", Object.keys(this.skeletonTimeline.animationClip.tracksPerGroup).length, null, {disabled: true});
@@ -2597,7 +2597,7 @@ class KeyframesGui extends Gui {
                             } 
                         } },
 
-                        { icon: "CircleX", name: "Remove from Timeline (does not remove the track from the animation)", callback: (node, swapValue, event) =>{ 
+                        { icon: "CircleX", title: "Remove from Timeline (does not remove the track from the animation)", callback: (node, swapValue, event) =>{ 
                             // unpin from timeline
                             const index = that.treeWidget._fixedSelection.indexOf( node.id );
                             if( index > -1 ){ 
@@ -3151,7 +3151,7 @@ class KeyframesGui extends Gui {
             onCreateSettingsButtons: (panel) => {
                 const closebtn = panel.addButton( null, "X", (e,v) =>{ 
                     this.setKeyframeClip(null);
-                }, { icon: "Undo2", title: "Return to global animation", buttonClass: "error fg-white "});
+                }, { icon: "Undo2", title: "Return to global animation", buttonClass: "warning outline"});
             },
             onShowConfiguration: (dialog) => {             
                 dialog.addNumber("Num tracks", this.bsTimeline.animationClip ? this.bsTimeline.animationClip.tracks.length : 0, null, {disabled: true});
@@ -4141,9 +4141,9 @@ class KeyframesGui extends Gui {
                 panel.addText("Clip Name", anim.id, (v) =>{ 
                     anim.id = v;
                 } )
-                panel.addButton(null, LX.makeIcon("Undo2", { svgClass: "fg-white" }).innerHTML + "Return to global animation", (v,e)=>{
+                panel.addButton(null, LX.makeIcon("Undo2", { svgClass: "warning" }).innerHTML + "Return to global animation", (v,e)=>{
                     this.setKeyframeClip(null);
-                }, { buttonClass: "error fg-white" });
+                }, { buttonClass: "warning outline" });
             }
             else{
                 panel.addTitle( "Animation" );
@@ -4697,48 +4697,25 @@ class KeyframesGui extends Gui {
                         LX.toast("Unfixed Bones From Timeline", null, { timeout: 7000 } );
                     }
                 },
-            ],
-            onevent: (event) => { 
-    
-                switch(event.type) {
-                    case LX.TreeEvent.NODE_SELECTED: 
-                        if(event.multiple)
-                            console.log("Selected: ", event.node); 
-                        else {
-                            if(!this.editor){
-                                throw("No editor attached");
-                            }
-                            
-                            const itemSelected = event.node.id;
-                            if ( itemSelected != this.editor.selectedBone ){
-                                this.editor.setSelectedBone( itemSelected );
-                            }
-                            this.showTimeline();
-                            console.log(itemSelected + " selected"); 
-                        }
-                        break;
-                    case LX.TreeEvent.NODE_DBLCLICKED: 
-                        console.log(event.node.id + " dbl clicked"); 
-                        break;
-                    case LX.TreeEvent.NODE_CONTEXTMENU: 
-                        console.log(event.node.id + " context menu");
-                        break;
-                    case LX.TreeEvent.NODE_DRAGGED: 
-                        console.log(event.node.id + " is now child of " + event.value.id); 
-                        break;
-                    case LX.TreeEvent.NODE_RENAMED:
-                        console.log(event.node.id + " is now called " + event.value); 
-                        break;
-                    case LX.TreeEvent.NODE_VISIBILITY:
-                        const tracksInItem = this.skeletonTimeline.animationClip.tracksPerGroup[event.node.id];
-                        for( let i = tracksInItem.length-1; i > -1; --i ){
-                            this.skeletonTimeline.setTrackState(tracksInItem[i].trackIdx, event.value, false, i == 0 ); // update tree panel only on last track
-                        }
-                        console.log(event.node.id + " visibility: " + event.value); 
-                        break;
-                }
-            },
+            ]
         });
+
+        this.treeWidget.on( "select", (event) => {
+            if(event.multiple)
+                console.log("Selected: ", event.node); 
+            else {
+                if(!this.editor){
+                    throw("No editor attached");
+                }
+                
+                const itemSelected = event.node.id;
+                if ( itemSelected != this.editor.selectedBone ){
+                    this.editor.setSelectedBone( itemSelected );
+                }
+                this.showTimeline();
+                console.log(itemSelected + " selected"); 
+            }
+        } );
 
         this.treeWidget.innerTree.select(this.editor.selectedBone);
 
@@ -4872,22 +4849,22 @@ class KeyframesGui extends Gui {
                 skipVisibility: true,
                 _bone: bone,
                 actions: [
-                    { icon: "AlignVerticalJustifyStart", name: "Add Parent to Timeline", callback:(v,e)=>{
+                    { icon: "AlignVerticalJustifyStart", title: "Add Parent to Timeline", callback:(v,e)=>{
                             let ascendants = innerSelectAscendants( v._bone, 0 );
                             this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( ascendants ) );
                         } 
                     },
-                    { icon: "arrow-up-narrow-wide", name: "Add Ascendants to Timeline", callback:(v,e)=>{
+                    { icon: "arrow-up-narrow-wide", title: "Add Ascendants to Timeline", callback:(v,e)=>{
                             let ascendants = innerSelectAscendants( v._bone, -1 );
                             this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( ascendants ) );
                         }
                     },
-                    { icon: "AlignVerticalJustifyEnd", name: "Add Children to Timeline", callback:(v,e)=>{
+                    { icon: "AlignVerticalJustifyEnd", title: "Add Children to Timeline", callback:(v,e)=>{
                             let descendants = innerSelectDescendants( v._bone, 0 );
                             this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( descendants ) );
                         } 
                     },
-                    { icon: "arrow-down-narrow-wide", name: "Add Descendants to Timeline", callback:(v,e)=>{
+                    { icon: "arrow-down-narrow-wide", title: "Add Descendants to Timeline", callback:(v,e)=>{
                             let descendants = innerSelectDescendants( v._bone, -1 );
                             this.skeletonTimeline.setSelectedItems( this.skeletonTimeline.selectedItems.concat( descendants ) );
                         } 
@@ -5041,7 +5018,7 @@ class KeyframesGui extends Gui {
                     this.editor.setGizmoIkMode( current );
                 }
                 
-                panel.addCheckbox( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap() );
+                panel.addToggle( "Snap", this.editor.isGizmoSnapActive(), () => this.editor.toggleGizmoSnap(), { className: "success", label: "" } );
 
                 panel.merge();
 
@@ -5867,10 +5844,6 @@ class ScriptGui extends Gui {
                 });
             },
             onCreateSettingsButtons: (panel) => {
-                panel.addButton("", "clearTracks", (value, event) =>  {
-                    this.editor.clearTracks();     
-                    this.updateAnimationPanel();
-                }, {icon: 'Trash2', tooltip: true, title: "Clear Tracks"});
             },
             onShowConfiguration: (dialog) => {
                 dialog.addNumber("Num tracks", this.clipsTimeline.animationClip ? this.clipsTimeline.animationClip.tracks.length : 0, null, {disabled: true});

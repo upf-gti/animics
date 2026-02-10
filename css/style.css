@@ -8,9 +8,9 @@
 	--global-color-selected-secondary: #5f88c9;
 	--primary: #0676ed;
 	/* --background: #161c21; */
-	--warning: #f2a600;
+	/* --warning: #f2a600; */
 	/* --success: #12c99b; */
-	--error: #e41749;
+	/* --error: #e41749; */
 	--dark: #151a30;
 }
 
@@ -23,14 +23,16 @@
 }
 
 /* ----- Lexgui style overrides ----- */
-.lexbutton.warning { --button-color: var(--global-color-warning); --border-color: #793205; color: black;  }
-
 .showScrollBar::-webkit-scrollbar{
 	display: block !important
 }
 
+.hover\:scale{
+	transform: scale(1);
+	transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19);
+}
 .hover\:scale:hover {
-	transform: scale(1.1);
+	transform: scale(1.05);
 	transition: transform 0.3s cubic-bezier(.42,.97,.52,1.19);
 }
 
