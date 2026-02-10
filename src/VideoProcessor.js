@@ -44,6 +44,7 @@ class VideoProcessor {
         const [remainingArea, bottomArea] = leftArea.split({sizes:["calc(100% - 80px)", null], minimizable: false, resize: false, type: "vertical"});
         const [topArea, videoEditorArea] = remainingArea.split({sizes:["10px", null], minimizable: false, resize: false, type: "vertical"});
 
+        videoEditorArea.root.classList.add("content-center");
         // Add show/hide right panel button (expand/reduce panel area)
         const ob = videoEditorArea.addOverlayButtons([{
             selectable: true,
@@ -152,7 +153,7 @@ class VideoProcessor {
         canvasVideo.classList.add("border-animation");
 
         videoArea.attach(canvasVideo);
-
+        videoArea.root.classList.add( "items-center" );
         // const [leftArea, rightArea] = area.split({sizes:["75%","25%"], minimizable: true});
 
         this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo, crop: true, loop: true, controlsLayout: 1});
