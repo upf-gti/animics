@@ -335,10 +335,20 @@ class MediaPipe {
                 let landmarks = handsData.landmarks[ i ]
                 let worldLandmarks = handsData.worldLandmarks[ i ];
                 if ( h.categoryName == 'Left' ) {
-                    results.LLM = landmarks; results.LWLM = worldLandmarks;
+                    // let visibility = 0;
+                    // landmarks.forEach( l => visibility+=l.visibility);
+                    // visibility /= landmarks.length;
+                    // if( visibility > 0.3 ) {
+                        results.LLM = landmarks; results.LWLM = worldLandmarks;
+                    // }
                 }
                 else {
-                    results.RLM = landmarks; results.RWLM = worldLandmarks;
+                    // let visibility = 0;
+                    // landmarks.forEach( l => visibility+=l.visibility);
+                    // visibility /= landmarks.length;
+                    // if( visibility > 0.3 ) {
+                        results.RLM = landmarks; results.RWLM = worldLandmarks;
+                    // }
                 }
             }
         }

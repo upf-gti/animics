@@ -2637,14 +2637,14 @@ class KeyframeEditor extends Editor {
 
             // right arm-hands
             computeQuatArm( skeleton, body, false );
-            if(worldLandmarksArray[i].rightHandVisibility > 0.3) {
+            if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
                 computeQuatHand( skeleton, rightHand, false); 
                 computeQuatPhalange( skeleton, bindQuats, rightHand, false );
             }
             
             // left arm-hands
             computeQuatArm( skeleton, body, true );
-            if(worldLandmarksArray[i].leftHandVisibility > 0.3) {
+            if(worldLandmarksArray[i].leftHandVisibility > 0.4) {
                 computeQuatHand( skeleton, leftHand, true ); 
                 computeQuatPhalange( skeleton, bindQuats, leftHand, true );
             }
