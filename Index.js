@@ -56,11 +56,13 @@ function createMenuBar( area ) {
     LX.listen( loginButton, "click", () => {
         animics.showLoginModal( _checkSession );
     } );
-    loginButton.id = "login-button"
+    loginButton.id = "login-button";
+    loginButton.style.minWidth = "100px";
 
     const userButton = LX.makeContainer( ["auto", "auto"], "max-w-3xl text-md font-medium rounded-lg p-2 ml-auto bg-primary text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
     userButton.tabIndex = "1";
     userButton.role = "button";
+    userButton.style.minWidth = "100px";
     LX.listen( userButton, "click", () => {
         new LX.DropdownMenu( userButton, [
             
@@ -196,7 +198,7 @@ function createHome( content ) {
     const _makeProjectOptionItem = ( icon, innerText, outerText, id, parent ) => {
         const item = LX.makeContainer( ["auto", "auto"], "flex flex-col gap-3 p-3 text-md rounded-lg hover:bg-accent cursor-pointer", ``, parent );
         LX.makeContainer( ["200px", "auto"], "flex flex-col py-6 justify-center items-center content-center rounded-lg gap-3 card-button", `
-            ${LX.makeIcon(icon, {svgClass:"xxxl text-foreground"}).innerHTML}
+            ${LX.makeIcon(icon, {svgClass:"xxxl text-secondary-foreground"}).innerHTML}
             <p class="text-sm text-center px-4 text-tertiary ">${ innerText }</p>
         `, item );
         LX.makeContainer( ["auto", "auto"], "", `<p>${ outerText }</p>`, item );
@@ -231,7 +233,7 @@ function createHome( content ) {
     projectItems.style.gridTemplateColumns = "repeat(auto-fill, minmax(280px, 1fr))";
     projectItems.id = "project-items-container";
 
-    const projectText = LX.makeContainer( ["auto", "auto"],"text-md text-foreground", "<p> Login to see your last animations. </p>", projectsContent);
+    const projectText = LX.makeContainer( ["auto", "auto"],"text-md text-secondary-foreground", "<p> Login to see your last animations. </p>", projectsContent);
     projectText.id = "project-text";
 
     return mainContent;
@@ -243,34 +245,34 @@ function createAbout( content ) {
     
     const swapValue = LX.getMode() == "dark";
 
-    const headerContent = LX.makeContainer( ["auto", "25%"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",`<img id="animics-img" class="${mobile? "w-screen" : "h-full"}" src="data/imgs/logos/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
+    const headerContent = LX.makeContainer( ["auto", "25%"], "flex flex-row gap-4 my-6 p-8 overflow-scroll items-end justify-center",`<img id="animics-img" class="${mobile? "w-screen" : "h-full"}" src="data/imgs/logos/animics_${(swapValue ? "white" : "black")}.png">` , mainContent );
     
     const container = LX.makeContainer( ["100%", "calc(100% - 25%)"], "flex flex-col overflow-scroll items-center",'' , mainContent );
     
-    const infoContainer = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center py-10",'' , container );
-    infoContainer.style.background = "linear-gradient(0deg, var(--global-color-primary), transparent)";
+    const infoContainer = LX.makeContainer( ["100%", "auto"], "flex flex-col items-center py-8",'' , container );
+    infoContainer.style.background = "linear-gradient(0deg, var(--background), transparent)";
 
-    const textContent = LX.makeContainer( [`${mobile? "auto" : "30%"}`, "auto"], `flex justify-center ${mobile? "w-screen" : ""}`,`<p class="text-2xl font-light text-center p-5" >Animics is an online application to create and
+    const textContent = LX.makeContainer( [`${mobile? "auto" : "30%"}`, "auto"], ` pb-4 flex justify-center ${mobile? "w-screen" : ""}`,`<p class="text-xl font-light text-center p-5" >Animics is an online application to create and
     edit animations for 3D humanoid characters,
     focused in Sign Language synthesis.</p>` , infoContainer );
 
-    const techContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 text-foreground font-bold", "" , infoContainer);
+    const techContent = LX.makeContainer(["auto", "auto"], "flex flex-col items-center gap-4 my-6 py-6 text-secondary-foreground text-lg font-bold", "" , infoContainer);
     const techText = LX.makeContainer(["auto","auto"], "py-6", `<p>Developed using</p>`, techContent);
 
-    const techLinksContent = LX.makeContainer(["auto", "auto"], `flex ${mobile? "flex-col" : "flex-row"} justify-center items-center gap-12`, `
+    const techLinksContent = LX.makeContainer(["auto", "auto"], `flex ${mobile? "flex-col" : "flex-row"} justify-center items-center gap-12 pb-4`, `
     <a class="h-full" href="https://chuoling.github.io/mediapipe/"><img class="hover:scale" style="height:60px; filter:grayscale(1) invert(0.5) brightness(1);" src="https://images.viblo.asia/d70d57f3-6756-47cd-a942-249cc1a7da82.png" alt="Mediapipe"></a>
-    <a class="h-full" href="https://threejs.org/"><img class="hover:scale" style="height:60px;filter:invert(0.5);" src="https://needle.tools/_nuxt/logo-three.CiaNm32y.png" alt="Threejs"></a>
+    <a class="h-full" href="https://threejs.org/"><img class="hover:scale" style="height:60px;filter:invert(0.5);" src="https://needle.tools/assets/logo-three.CiaNm32y.png" alt="Threejs"></a>
     <a class="h-full" href="https://github.com/jxarco/lexgui.js"><img class="hover:scale" style="height:60px; filter:grayscale(1) invert(0.5) brightness(1);" src="data/imgs/logos/lexgui.png" alt="Lexgui"></a>`, techContent)
 
-    const fundingContent = LX.makeContainer(["40%", "auto"], "flex flex-col items-center gap-4 my-10 text-foreground font-bold", "" , infoContainer);
+    const fundingContent = LX.makeContainer(["auto", "auto"], "flex flex-col items-center gap-4 my-6 py-6 text-secondary-foreground text-lg font-bold", "" , infoContainer);
     const fundingText = LX.makeContainer(["auto","auto"], "py-6", `<p>Funded by</p>`, fundingContent);
-    const linksContent = LX.makeContainer(["auto", "auto"], "flex flex-row justify-center gap-12", `
-    <a class="h-full" href="https://signon-project.eu/"><img class="hover:scale" style="height:80px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_SignON.png" alt="SignON"></a>
-    <a class="h-full" href="https://www.upf.edu/web/emerald"><img class="hover:scale" style="height:80px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_EMERALD.png" alt="EMERALD"></a>
-    <a class="h-full" href="https://www.upf.edu/web/gti"><img class="py-5 hover:scale" style="height:80px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/GTIlogo.png" alt="UPF-GTI"></a>`, fundingContent);
+    const linksContent = LX.makeContainer(["auto", "auto"], "flex flex-row justify-center gap-12 pb-4", `
+    <a class="h-full" href="https://signon-project.eu/"><img class="hover:scale" style="height:70px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_SignON.png" alt="SignON"></a>
+    <a class="h-full" href="https://www.upf.edu/web/emerald"><img class="hover:scale" style="height:70px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/marco_EMERALD.png" alt="EMERALD"></a>
+    <a class="h-full" href="https://www.upf.edu/web/gti" style="align-content:center"><img class="py-5 hover:scale" style="height:50px; filter:grayscale(1) invert(1) brightness(0.8);" src="./data/imgs/logos/GTIlogo.png" alt="UPF-GTI"></a>`, fundingContent);
 
-    const devContent = LX.makeContainer(["100%", "auto"], "flex flex-col items-center py-10 bg-primary font-bold", "<h3>Implemented by</h3>" , container);
-    const peopleItems = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-5 p-10 overflow-scroll items-end justify-center",'' , devContent );
+    const devContent = LX.makeContainer(["100%", "auto"], "flex flex-col items-center py-8 bg-background text-secondary-foreground text-lg font-bold", "<h3>Implemented by</h3>" , container);
+    const peopleItems = LX.makeContainer( ["100%", "auto"], "flex flex-row gap-4 my-6 p-8 overflow-scroll items-end justify-center",'' , devContent );
 
     _makePersonItem({name: "Víctor Ubieto Nogales", img: "https://www.upf.edu/documents/115100603/264407312/Victor_cropped.jpg/dd5ee7db-580d-c51c-b499-bbbacbbfbb9e?t=1679569197124", avatar:"./docs/imgs/RPM_Victor.png", email: "victoremilio.ubieto@upf.edu", url:"https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/victor-ubieto-nogales/maximized"}, peopleItems);
     _makePersonItem({name: "Eva Valls Garolera", img: "https://www.upf.edu/documents/115100603/264407312/unnamed.png/9e17f242-5800-b95d-af77-dd03dbc91b7d?t=1679568161101", avatar:"./docs/imgs/RPM_Eva.png", email: "eva.valls@upf.edu", url: "https://www.upf.edu/web/gti/people/-/asset_publisher/PrrUzDqdWrKt/content/eva-valls-garolera/maximized"}, peopleItems);
@@ -299,7 +301,7 @@ function _makeProjectItem( item ) {
             break;
     }
     let div = `<div class="rounded-xl w-full flex justify-center items-center overflow-hidden justify-center hover:scale" style="min-height: 130px;background: var(--background-blur);">
-       <p class="text-2xl font-extrabold text-foreground" style="text-shadow: 1px 1px 0px var(${color});">.${extension.toUpperCase()}</p>
+       <p class="text-2xl font-extrabold text-secondary-foreground" style="text-shadow: 1px 1px 0px var(${color});">.${extension.toUpperCase()}</p>
     </div>`
    if( item.img ) {
        div = `<img class="w-full hover:scale" style="object-fit:cover" src="${ item.img || "./docs/imgs/editStation.png"} ">`               
@@ -344,9 +346,9 @@ function _makePersonItem( item, container ) {
         </div>
     </div>
     <div class="flex flex-row justify-center px-1">
-        <div class="flex flex-col items-center gap-0.5">
+        <div class="flex flex-col items-center gap-0.5 text-sm">
             <p>${ item.name }</p>
-            <p class="text-sm text-tertiary"> ${ item.email }</p>
+            <p class="text-xs text-muted-foreground"> ${ item.email }</p>
         </div>
     </div>
     `, container );
@@ -360,7 +362,7 @@ function createFooter() {
     const footer = new LX.Footer( {
         className: "left-0 bottom-0 absolute",
         parent: content,
-        credits: `2021-${ new Date().getUTCFullYear() } GTI - UPF | Developed within <a href="https://signon-project.eu/" target="_blank">SignON</a> and EMERALD EU H2020 projects. Released under the Apache 2.0 License.`,
+        credits: `2021-${ new Date().getUTCFullYear() } GTI - UPF | Developed within <a href="https://signon-project.eu/" target="_blank">SignON</a> and <a href="https://www.upf.edu/web/emerald" target="_blank">EMERALD EU H2020</a> projects. Released under the Apache 2.0 License.`,
         socials: [
             { title: "Github", link: "https://github.com/upf-gti/", icon: `Github@solid` },
             { title: "X/Twitter", link: "https://x.com/gti_upf/", icon: `X-Twitter` },
