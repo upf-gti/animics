@@ -156,7 +156,7 @@ class VideoProcessor {
         videoArea.root.classList.add( "items-center" );
         // const [leftArea, rightArea] = area.split({sizes:["75%","25%"], minimizable: true});
 
-        this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo, crop: true, loop: true, controlsLayout: 1});
+        this.videoEditor = new LX.VideoEditor(area, {videoArea, inputVideo, crop: true, loop: true, controlsLayout: {type: 1, height: "15%", l1TimelineHeight: "3.5rem"}});
         this.videoEditor.hideControls();
         this.videoEditor.onResize = (size) => {
             let width = size[0];

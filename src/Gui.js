@@ -2369,23 +2369,22 @@ class KeyframesGui extends Gui {
             this.createSidePanel();
         }
 
-        this.globalTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
-            switch( event.type ){
-                case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
-                        if ( event.node.trackData ){
-                            if ( !event.node.trackData.isSelected ){
-                                this.globalTimeline.deselectAllTracks( false ); // no need to update left panel
-                                this.globalTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
-                            }
+        this.globalTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{
+            //TODO remove settimeout once the Lexgui.NodeTree contextMenu event is fixed. Currently Lexgui.NodeTree always creates a contextmenu regardless of what the user does
+            setTimeout( ()=>{
+                LX.addContextMenu("Selected Tracks", treeEvent.domEvent, (menu) => {
+                    if ( treeEvent.from.trackData ){
+                        if ( !treeEvent.from.trackData.isSelected ){
+                            this.globalTimeline.deselectAllTracks( false ); // no need to update left panel
+                            this.globalTimeline.setTrackSelection( treeEvent.from.trackData.trackIdx, true ); // call callback and update left panel
                         }
+                    }
 
-                        menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
-                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
-                    });
-                    break;
-            }
-        }
+                    menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
+                    menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
+                });
+            }, 1);
+        });
 
         this.globalTimeline.showContextMenu = ( e ) => {
 
@@ -2537,27 +2536,28 @@ class KeyframesGui extends Gui {
 
         const that = this;
 
-        this.skeletonTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
-             switch( event.type ){
-                case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
-                        if ( event.node.trackData ){
-                            if ( !event.node.trackData.isSelected ){
-                                this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
-                                this.editor.activeTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
-                            }
+        this.skeletonTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{ 
+            // REUSED IN BSTimeline
+            
+            //TODO remove settimeout once the Lexgui.NodeTree contextMenu event is fixed. Currently Lexgui.NodeTree always creates a contextmenu regardless of what the user does
+            setTimeout( ()=>{
+                LX.addContextMenu("Selected Tracks", treeEvent.domEvent, (menu) => {
+                    if ( treeEvent.from.trackData ){
+                        if ( !treeEvent.from.trackData.isSelected ){
+                            this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                            this.editor.activeTimeline.setTrackSelection( treeEvent.from.trackData.trackIdx, true ); // call callback and update left panel
                         }
+                    }
 
-                        that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+                    that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
 
-                        menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
-                        menu.add( "Optimize", that.menubar.getItem("Edit/Optimize/Selected Tracks").callback);
-                        menu.add( "Add Keyframes",  (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline ); } );
-                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
-                    });
-                break;
-            }
-        }
+                    menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
+                    menu.add( "Optimize", that.menubar.getItem("Edit/Optimize/Selected Tracks").callback);
+                    menu.add( "Add Keyframes",  (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline ); } );
+                    menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
+                });
+            }, 1);
+        });
 
         // OVERWRITE function to add buttons ("remove from timeline" and "pin to timeline") to the tree elements
         this.skeletonTimeline._generateSelectedItemsTreeData = this.skeletonTimeline.generateSelectedItemsTreeData; 
@@ -3243,7 +3243,7 @@ class KeyframesGui extends Gui {
             }
         };
 
-        this.bsTimeline.onTrackTreeEvent = this.skeletonTimeline.onTrackTreeEvent; //reusing function
+        this.bsTimeline.setTrackTreeEventListener( "contextMenu", this.skeletonTimeline.trackTreesEvents["contextMenu"] ); //reusing function
         this.bsTimeline.originalDrawTrack = this.bsTimeline.drawTrackWithCurves;
         this.bsTimeline.bulkAdditionDrawTrack = this.skeletonTimeline.bulkAdditionDrawTrack; // reuse function
         this.bsTimeline.showContextMenu = function( e ) {
@@ -5889,34 +5889,34 @@ class ScriptGui extends Gui {
             return clipsToReturn;
         }
 
-        this.clipsTimeline.onTrackTreeEvent = (event) =>{
-            switch( event.type ){
-                case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
-                        if ( event.node.trackData ){
-                            if ( !event.node.trackData.isSelected ){
-                                this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
-                                this.editor.activeTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
-                            }
-                        }
+        this.clipsTimeline.setTrackTreeEventListener("contextMenu", (treeEvent) =>{
+            
+            //TODO remove settimeout once the Lexgui.NodeTree contextMenu event is fixed. Currently Lexgui.NodeTree always creates a contextmenu regardless of what the user does
+            setTimeout( ()=>{ LX.addContextMenu("Selected Tracks", treeEvent.domEvent, (menu) => {
+                if ( treeEvent.from.trackData ){
+                    if ( !treeEvent.from.trackData.isSelected ){
+                        this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                        this.editor.activeTimeline.setTrackSelection( treeEvent.from.trackData.trackIdx, true ); // call callback and update left panel
+                    }
+                }
 
-                        menu.add( "Clear", (e)=>{
-                            const activeTimeline = this.editor.activeTimeline;
-                            const selectedTracks = activeTimeline.selectedTracks;
+                menu.add( "Clear", (e)=>{
+                    const activeTimeline = this.editor.activeTimeline;
+                    const selectedTracks = activeTimeline.selectedTracks;
 
-                            let indices = [];
-                            for( let i = 0; i < selectedTracks.length; ++i ){
-                                indices.push( selectedTracks[i].trackIdx );
-                            }
-                            this.editor.clearTracks( indices );
-                        });
+                    let indices = [];
+                    for( let i = 0; i < selectedTracks.length; ++i ){
+                        indices.push( selectedTracks[i].trackIdx );
+                    }
+                    this.editor.clearTracks( indices );
+                });
 
-                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
+                menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
+            });
 
-                    });
-                    break;
-            }
-        }
+            }, 1);
+
+        });
 
         this.clipsTimeline.showContextMenu = ( e ) => {
 
