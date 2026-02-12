@@ -416,8 +416,7 @@ class VideoProcessor {
 
         if( blendshapesResults ) {
 
-            for(let i in blendshapesResults)
-            {                
+            for( let i in blendshapesResults ) {                
                 let value = blendshapesResults[i];
                 value = value.toFixed(2);
                 const widget = this.sidePanel.get(i);

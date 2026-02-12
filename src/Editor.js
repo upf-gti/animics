@@ -2701,10 +2701,10 @@ class KeyframeEditor extends Editor {
                 if( !animation.retargetedToEva ){
                     animation.retargetedToEva = this.createBodyAnimationFromWorldLandmarks( animation.bodyAnimation, this.evaCharacter.skeletonHelper.skeleton );
                 }
-                
-                // Retarget from Eva to current character
-                bodyAnimation = this.retargetAnimation(this.evaCharacter.skeletonHelper.skeleton, animation.retargetedToEva);  
-                bodyAnimation.duration = animation.retargetedToEva.duration;
+                bodyAnimation = animation.retargetedToEva;
+                // // Retarget from Eva to current character
+                // bodyAnimation = this.retargetAnimation(this.evaCharacter.skeletonHelper.skeleton, animation.retargetedToEva);  
+                // bodyAnimation.duration = animation.retargetedToEva.duration;
             } 
             else { // bvh (and old ML system) retarget an existing animation
                 const tracks = [];
@@ -2722,28 +2722,28 @@ class KeyframeEditor extends Editor {
                 }
 
                 bodyAnimation.tracks = tracks;
-                let skeleton = animation.skeleton ?? this.nnSkeleton;
+                // let skeleton = animation.skeleton ?? this.nnSkeleton;
                 
-                // Retarget NN animation              
+                // // Retarget NN animation              
                 const oldDuration = bodyAnimation.duration;
-                bodyAnimation = this.retargetAnimation(skeleton, bodyAnimation);
+                // bodyAnimation = this.retargetAnimation(skeleton, bodyAnimation);
                 bodyAnimation.duration = oldDuration;
             }
 
-            this.validateBodyAnimationClip(bodyAnimation);
+            // this.validateBodyAnimationClip(bodyAnimation);
 
-            // set track value dimensions. Necessary for the timeline
-            for( let i = 0; i < bodyAnimation.tracks.length; ++i ){
-                let t = bodyAnimation.tracks[i]; 
-                if ( t.name.endsWith(".quaternion") ){ t.dim = 4; }
-                else{ t.dim = 3; }
-            }
+            // // set track value dimensions. Necessary for the timeline
+            // for( let i = 0; i < bodyAnimation.tracks.length; ++i ){
+            //     let t = bodyAnimation.tracks[i]; 
+            //     if ( t.name.endsWith(".quaternion") ){ t.dim = 4; }
+            //     else{ t.dim = 3; }
+            // }
 
-            // Set keyframe animation to the timeline and get the timeline-formated one
-            skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( bodyAnimation );
+            // // Set keyframe animation to the timeline and get the timeline-formated one
+            // skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( bodyAnimation );
 
-            bodyAnimation.name = "bodyAnimation";   // mixer
-            skeletonAnimation.name = "bodyAnimation";  // timeline
+            // bodyAnimation.name = "bodyAnimation";   // mixer
+            // skeletonAnimation.name = "bodyAnimation";  // timeline
 
             if(otherTracks.length) { // comes from a bvhe
                 faceAnimation = new THREE.AnimationClip("faceAnimation", bodyAnimation.duration, otherTracks);
@@ -2759,7 +2759,7 @@ class KeyframeEditor extends Editor {
         if(faceAnimation) {
             const faceDuration = faceAnimation.duration;
             if(animation.type == "video") {
-                const parsedAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes); // Mediapipe outputs AU (although the attribute is named blendshapes)
+                const parsedAnimation = this.currentCharacter.blendshapesManager.createThreejsAnimation(animation.blendshapes, true); // Mediapipe outputs AU (although the attribute is named blendshapes)
                 faceAnimation = parsedAnimation.bsAnimation;
                 bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromMorphTargets( faceAnimation );
             }
@@ -2791,6 +2791,18 @@ class KeyframeEditor extends Editor {
                 }
             }
 
+            // update head and eyes tracks rotations from pose estimation with face blendshapes
+            for( let i = 0; i < faceAnimation.tracks.length; i++ ) {
+                const track = faceAnimation.tracks[i];
+                if( track.constructor == THREE.QuaternionKeyframeTrack ) {
+                    for( let j = 0; j < bodyAnimation.tracks.length; j++ ) {
+                        if( track.name == bodyAnimation.tracks[j].name ) {
+                            bodyAnimation.tracks[j].values = track.values;
+                            bodyAnimation.tracks[j].times = track.times;
+                        }
+                    }
+                }
+            }
             this.validateBlendshapeAnimationClip(bsAnimation); // adds missing tracks
             faceAnimation = this.currentCharacter.blendshapesManager.createMorphTargetsAnimationFromBlendshapes( bsAnimation );
             bsAnimation = this.currentCharacter.blendshapesManager.createBlendshapesAnimationFromMorphTargets( faceAnimation ); // this also links blendshape tracks with the morphtargets tracks, necessary for updateMixer
@@ -2801,6 +2813,38 @@ class KeyframeEditor extends Editor {
             bsAnimation.duration = faceDuration;
         }
         
+        // do this step here to take into account rotation tracks updated with blendshapes intensities (head and eyes)
+        if( bodyAnimation ) {
+
+            if(animation.type == "video" && this.inferenceMode == this.animationInferenceModes.M3D ) {
+                bodyAnimation = this.retargetAnimation(this.evaCharacter.skeletonHelper.skeleton, bodyAnimation);  
+                bodyAnimation.duration = animation.retargetedToEva.duration;
+            }
+            else {
+                let skeleton = animation.skeleton ?? this.nnSkeleton;
+                    
+                // Retarget NN animation              
+                const oldDuration = bodyAnimation.duration;
+                bodyAnimation = this.retargetAnimation(skeleton, bodyAnimation);
+                bodyAnimation.duration = oldDuration;
+            }
+
+            this.validateBodyAnimationClip(bodyAnimation);
+
+            // set track value dimensions. Necessary for the timeline
+            for( let i = 0; i < bodyAnimation.tracks.length; ++i ){
+                let t = bodyAnimation.tracks[i]; 
+                if ( t.name.endsWith(".quaternion") ){ t.dim = 4; }
+                else{ t.dim = 3; }
+            }
+
+            // Set keyframe animation to the timeline and get the timeline-formated one
+            skeletonAnimation = this.gui.skeletonTimeline.instantiateAnimationClip( bodyAnimation );
+
+            bodyAnimation.name = "bodyAnimation";   // mixer
+            skeletonAnimation.name = "bodyAnimation";  // timeline
+        }
+
         const boundAnimation = {
             uid: this.generateClipUniqueID(), // do not change this value
             source: animation,
