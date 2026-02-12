@@ -2,7 +2,7 @@ import { LFS } from './libs/litefileserver.js';
 import { UTILS } from './Utils.js';
 class FileSystem {
     
-    constructor( callback, folders = []) {
+    constructor( callback, onError, folders = []) {
         this.session = null;
 
         this.host = "https://dev-lfs.gti.upf.edu/";
@@ -26,8 +26,8 @@ class FileSystem {
                     callback( this.session );
                 // }
                 
-            }, (error) => callback(error)); 
-        }, (error) => callback(error));        
+            }, (error) => onError(error)); 
+        }, (error) => onError(error));        
     }
     
     _setSession( session ) {

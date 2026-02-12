@@ -8,7 +8,7 @@ UTILS.makeLoading("Loading application, please wait");
 let limit = 10, offset = 0;
 
 const animics = new Animics();
-await animics.loadSession();		
+const connected = await animics.loadSession();
 
 const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
 LX.setThemeColor( 'blue' );
@@ -35,6 +35,9 @@ UTILS.hideLoading();
 const body = area.root;
 body.classList.remove("hidden");
 
+if( !connected ) {
+LX.popup( "Unable to connect to the database. Login and saving animations are currently unavailable. Please export and download your animations before closing to avoid losing your work.", `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "TriangleAlert@solid", { svgClass: "text-orange-500" } ).innerHTML } Database Connection Error!</span>`, {closable: true, position: ["calc(30%)", "40%"], size: ["40%", "auto"], timeout: 50000 } );
+}
 
 function createMenuBar( area ) {
     
@@ -59,7 +62,7 @@ function createMenuBar( area ) {
     loginButton.id = "login-button";
     loginButton.style.minWidth = "100px";
 
-    const userButton = LX.makeContainer( ["auto", "auto"], "max-w-3xl text-md font-medium rounded-lg p-2 ml-auto bg-primary text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none", animics.fileSystem.session.user.username, buttonsContainer );
+    const userButton = LX.makeContainer( ["auto", "auto"], "max-w-3xl text-md font-medium rounded-lg p-2 ml-auto bg-primary text-white hover:bg-mix self-center content-center text-center cursor-pointer select-none",  animics.fileSystem.session ? animics.fileSystem.session.user.username : "", buttonsContainer );
     userButton.tabIndex = "1";
     userButton.role = "button";
     userButton.style.minWidth = "100px";
