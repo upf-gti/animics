@@ -64,6 +64,12 @@ class BlendshapesManager {
                     clipData["mixamorig_LeftEye"].length = data.length;
                     clipData["mixamorig_LeftEye"] = clipData["mixamorig_LeftEye"].fill(null).map(() => new THREE.Euler( 0, 0, 0, 'XYZ' ));
                 }
+                if(!clipData["mixamorig_RightEye"])
+                {
+                    clipData["mixamorig_RightEye"] = [];
+                    clipData["mixamorig_RightEye"].length = data.length;
+                    clipData["mixamorig_RightEye"] = clipData["mixamorig_RightEye"].fill(null).map(() => new THREE.Euler( 0, 0, 0, 'XYZ' ));
+                }
                 if(!clipData["mixamorig_Head"])
                 {
                     clipData["mixamorig_Head"] = [];
@@ -77,16 +83,11 @@ class BlendshapesManager {
                 clipData["mixamorig_RightEye"][idx].x = data[idx]["RightEyePitch"];
                 clipData["mixamorig_RightEye"][idx].y = data[idx]["RightEyeYaw"];
 
-                data[idx]["HeadPitch"];
-                data[idx]["HeadRoll"];
-                data[idx]["HeadYaw"];
-
-                clipData["mixamorig_Head"][idx].x = data[idx]["HeadPitch"];
-                clipData["mixamorig_Head"][idx].y = data[idx]["HeadYaw"];
-                clipData["mixamorig_Head"][idx].z = data[idx]["HeadRoll"];
+                clipData["mixamorig_Head"][idx].x = 2*Math.PI - data[idx]["HeadPitch"]-0.2; //data[idx]["HeadPitch"];
+                clipData["mixamorig_Head"][idx].y = 2*Math.PI - data[idx]["HeadYaw"]; //data[idx]["HeadYaw"];
+                clipData["mixamorig_Head"][idx].z = 2*Math.PI - data[idx]["HeadRoll"]; //data[idx]["HeadRoll"];
             }
         }
-
 
         const bsTracks = [];
         const auTracks = [];
@@ -104,7 +105,7 @@ class BlendshapesManager {
                     animData.push(q.z);
                     animData.push(q.w);
                 }, animData)
-                bsTracks.push( new THREE.QuaternionKeyframeTrack(au + '.quaternion', times, data ));
+                bsTracks.push( new THREE.QuaternionKeyframeTrack(au + '.quaternion', times, animData ));
             }
             else
             {
@@ -304,8 +305,12 @@ class BlendshapesManager {
             else
                 times.push(dt);
                 
-            for(let i in weights)
-            {
+            if(!weights["Head"] && weights["HeadPitch"] != undefined && weights["HeadYaw"] != undefined && weights["HeadRoll"] != undefined) {
+                const rotation = new THREE.Euler( 2*Math.PI - weights["HeadPitch"]-0.2, 2*Math.PI - weights["HeadYaw"], 2*Math.PI - weights["HeadRoll"] , 'XYZ' );
+                weights["Head"] = new THREE.Quaternion().setFromEuler(rotation);
+            }
+            
+            for(let i in weights) {
                 var value = weights[i];
                 if(!auValues[i])
                     auValues[i] = [value];
@@ -318,7 +323,12 @@ class BlendshapesManager {
         for(let bs in auValues) {
             let bsname = this.getFormattedTrackName(bs);
             if ( bsname.length ){
-                auTracks.push( new THREE.NumberKeyframeTrack(bsname, times, auValues[bs] ));
+                if( auValues[bs][0].constructor == THREE.Quaternion ) {
+                    auTracks.push( new THREE.QuaternionKeyframeTrack(bsname, times, auValues[bs] ));
+                }
+                else {
+                    auTracks.push( new THREE.NumberKeyframeTrack(bsname, times, auValues[bs] ));
+                }
             }
         }
     
@@ -387,6 +397,10 @@ class BlendshapesManager {
             
            const { propertyIndex, nodeName } = THREE.PropertyBinding.parseTrackName( track.name );
            
+            if( !propertyIndex ) {
+                continue;
+            }
+
            if(allMorphTargetDictionary[propertyIndex]) {
                allMorphTargetDictionary[propertyIndex].skinnedMeshes.push(nodeName);
                allMorphTargetDictionary[propertyIndex].tracksIds.push(i);
