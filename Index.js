@@ -30,11 +30,54 @@ const about = createAbout( content );
 createFooter();
 bindEvents( area );
 
+// try to load system warnings (file). If non existant, just continue as if nothing happened.
+// It makes it easy to display warnings without having to rebuild animics
+fetch("systemWarnings/warnings.json")
+    .then((Response)=>{ return Response.json() })
+    .then( json => {
+        if ( Array.isArray( json ) ){
+            showSystemWarnings( json, 0 );
+        }
+    } )
+    .catch( (e)=>{} );
+
 UTILS.hideLoading();
 
 const body = area.root;
 body.classList.remove("hidden");
 
+// displays system warnings as modals, one at a time. 
+function showSystemWarnings( systemWarningsArray, index ){
+    const warning = systemWarningsArray[index];
+    let titleIcon = "";
+    if ( warning.titleIcon ){
+        titleIcon = LX.makeIcon(warning.titleIcon).innerHTML + "&nbsp;";
+    }
+    if ( warning.titleSvg ){
+        const iconName = `_system_warning_${index}_`;
+        LX.registerIcon( iconName, warning.titleSvg );
+        titleIcon = LX.makeIcon(iconName).innerHTML + "&nbsp;";
+    }
+
+    const dialog = new LX.Dialog( titleIcon + warning.title, p => {
+        p.addTextArea(null, warning.txt , null, {disabled: true, fitHeight: true });
+        p.addButton( null, "Continue", ()=>{
+            dialog.destroy();
+
+            // display next queued warning
+            index++;
+            if ( systemWarningsArray.length > index ){
+                // timeout so user notices a change of warning
+                setTimeout( ()=>{
+                    showSystemWarnings(systemWarningsArray, index);
+                }, 200 );
+            }
+        }, { buttonClass: 'primary' });        
+    }, {modal: true, closable: false, size: ["50%", "fit-content"], icon: "Trash"});
+    dialog.root.style.border = "1px solid var(--foreground)";
+    const dialogtitle = dialog.root.querySelector(".lexdialogtitle");
+    dialogtitle.className = LX.mergeClass( dialogtitle.className, "justify-start");
+}
 
 function createMenuBar( area ) {
     
