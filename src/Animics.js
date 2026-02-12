@@ -21,18 +21,18 @@ class Animics {
                     this.fileSystem.login("guest", "guest", (session) => {
                         
                         this.fileSystem.loadUnits();
-                        resolve();
+                        resolve(true);
                         return;
                     });
                 }
                 else if( this.editor ) {
                     this.editor.gui.changeLoginButton( session.user.username );
                 }
-                resolve();
+                resolve(true);
                 
             }, (error) => {
                 console.error("Server error. Can't connect to the FileSystem")
-                resolve()
+                resolve(false)
             });   
         })
     }
@@ -51,7 +51,7 @@ class Animics {
                         prompt = null;
                     }
                     else {
-                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "fg-error" } ).innerHTML }Error</span>`, response.msg || "Can't connect to the server. Try again!", { position: "top-center" } );
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Error</span>`, response.msg || "Can't connect to the server. Try again!", { position: "top-center" } );
                     }
                 });
             }, {
