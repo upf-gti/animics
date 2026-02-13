@@ -51,17 +51,18 @@ function showSystemWarnings( systemWarningsArray, index ){
     const warning = systemWarningsArray[index];
     let titleIcon = "";
     if ( warning.titleIcon ){
-        titleIcon = LX.makeIcon(warning.titleIcon).innerHTML + "&nbsp;";
+        titleIcon = LX.makeIcon(warning.titleIcon, { svgClass: warning.svgClass }).innerHTML + "&nbsp;";
     }
     if ( warning.titleSvg ){
         const iconName = `_system_warning_${index}_`;
         LX.registerIcon( iconName, warning.titleSvg );
-        titleIcon = LX.makeIcon(iconName).innerHTML + "&nbsp;";
+        titleIcon = LX.makeIcon(iconName,  { svgClass: warning.svgClass }).innerHTML + "&nbsp;";
     }
 
     const dialog = new LX.Dialog( titleIcon + warning.title, p => {
         p.addTextArea(null, warning.txt , null, {disabled: true, fitHeight: true });
-        p.addButton( null, "Continue", ()=>{
+        p.sameLine(1, 'justify-end')
+        p.addButton( null, warning.txtButton || "Continue", ()=>{
             dialog.destroy();
 
             // display next queued warning
@@ -72,7 +73,7 @@ function showSystemWarnings( systemWarningsArray, index ){
                     showSystemWarnings(systemWarningsArray, index);
                 }, 200 );
             }
-        }, { buttonClass: 'primary' });        
+        }, { buttonClass: 'primary', width: "100px" });        
     }, {modal: true, closable: false, size: ["50%", "fit-content"], icon: "Trash"});
     dialog.root.style.border = "1px solid var(--foreground)";
     const dialogtitle = dialog.root.querySelector(".lexdialogtitle");
@@ -80,13 +81,11 @@ function showSystemWarnings( systemWarningsArray, index ){
 }
 
 if( !connected ) {
-    LX.popup( "Unable to connect to the database. Login and saving animations are currently unavailable. Please export and download your animations before closing to avoid losing your work.", `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "TriangleAlert@solid", { svgClass: "text-orange-500" } ).innerHTML } Database Connection Error!</span>`, {closable: true, position: ["calc(30%)", "40%"], size: ["40%", "auto"], timeout: 50000 } );
+    showSystemWarnings( [{ title: "Database Connection Error!", titleIcon: "TriangleAlert@solid", svgClass: "text-orange-500", txt: "Unable to connect to the database. Login and saving animations are currently unavailable. Please export and download your animations before closing to avoid losing your work." }], 0)
 }
 
 function createMenuBar( area ) {
     
-    // const menubar = area.addMenubar( [] );
-
     buttonsContainer = LX.makeContainer( ["auto", "auto"], "flex flex-row gap-2 ml-auto", "", menubar.root);
 
     const signupButton = LX.makeContainer( ["100px", "auto"], "text-md font-medium rounded-lg p-2 ml-auto text-primary border hover:bg-accent self-center content-center text-center cursor-pointer select-none", "Sign Up", buttonsContainer );
