@@ -599,14 +599,8 @@ class VideoProcessor {
 
         this.mediaRecorder = null;
         this.mediapipeOnlineVideo = this.inputVideo; 
+        let animation = null;
 
-
-        const on_error = (err = null) => {
-            alert("Cannot access the camera. Check it is properly connected and not being used by any other application. You may want to upload a video instead.")
-            console.error("Error  " + err.name + ": " + err.message);            
-            window.location.reload();
-        } 
-        
         if( this.mediaRecorder && this.recording ) {
             this.mediaRecorder.stop();
             this.recording = false;
@@ -614,40 +608,53 @@ class VideoProcessor {
 
         this.mediapipe.stopVideoProcessing();
 
-        // prepare the device to capture the video
-        if (navigator.mediaDevices) {
-            console.log("UserMedia supported");
-            UTILS.makeLoading("Loading webcam...");
+        const onError = async (err = null) => {
+            // LX.toast("Cannot access the camera. Check it is properly connected and not being used by any other application. You may want to upload a video instead.")
+            console.error("Error: " + err);
+            return new Promise( resolve => {
+                new LX.prompt( "Can't access the camera. Check it's properly connected and not being used by any other application, or if the site has permissions You may want to upload a video instead", err || "Webcam Error", 
+                    async () => { animation = await generateAnimation(); resolve(animation)}, {
+                    on_cancel: () => { resolve() }, accept: "Retry", input: false})
+            })
+        } 
+        
+        const generateAnimation = async () => {
+            // prepare the device to capture the video
+            if (navigator.mediaDevices) {
+                console.log("UserMedia supported");
+                UTILS.makeLoading("Loading webcam...");
 
-            try {
-                await this.prepareWebcamRecording();
+                try {
+                    await this.prepareWebcamRecording();
+                    
+                    animation = await this.onWebcamCaptured();
+                                
+                    // If user cancelled process
+                    if( !animation ) {
+                        return null;
+                    }
+                    const cropRectNormCoords = this.videoEditor.cropArea.normCoords;
                 
-                const animation = await this.onWebcamCaptured();
-                              
-                // If user cancelled process
-                if( !animation ) {
-                    return null;
-                }
-                const cropRectNormCoords = this.videoEditor.cropArea.normCoords;
-            
-                animation.rect = {
-                    left: cropRectNormCoords.x,
-                    right: cropRectNormCoords.x + cropRectNormCoords.w,
-                    top: cropRectNormCoords.y,
-                    bottom: cropRectNormCoords.y + cropRectNormCoords.h,
-                    width: cropRectNormCoords.w,
-                    height: cropRectNormCoords.h
-                };
-                UTILS.hideLoading();
-                return animation;              
-            } 
-            catch( error ) {
-                on_error();
-            }            
+                    animation.rect = {
+                        left: cropRectNormCoords.x,
+                        right: cropRectNormCoords.x + cropRectNormCoords.w,
+                        top: cropRectNormCoords.y,
+                        bottom: cropRectNormCoords.y + cropRectNormCoords.h,
+                        width: cropRectNormCoords.w,
+                        height: cropRectNormCoords.h
+                    };
+                    UTILS.hideLoading();
+                    return animation;              
+                } 
+                catch( error ) {
+                    return await onError(error);
+                }            
+            }
+            else {
+                return await onError();
+            }
         }
-        else {
-            on_error();
-        }
+        return await generateAnimation();
     }
     
     /** Internal function
@@ -656,10 +663,10 @@ class VideoProcessor {
     async prepareWebcamRecording() {
 
         this.createCaptureArea();
-        this.enable();
-
+        
         const constraints = { video: true, audio: false, width: 1280, height: 720 };
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        this.enable();
         
         const inputVideo = this.inputVideo; // this video will hold the camera stream
         const canvasVideo = this.canvasVideo; // this canvas will output image, landmarks (and edges)

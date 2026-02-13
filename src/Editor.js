@@ -106,21 +106,20 @@ class Editor {
             status: false, // if there is a window, whether it is ready to receive data properly
             pendingData: [],
         }
-        
+
         this.characterOptions = {
-            "Eva": [Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.glb', Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.json', 0, Editor.RESOURCES_PATH+'Eva_Low/Eva_Low.png'],
-            "Witch": [Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.glb', Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.json', 0, Editor.RESOURCES_PATH+'Eva_Witch/Eva_Witch.png'],
-            "Kevin": [Editor.RESOURCES_PATH+'Kevin/Kevin.glb', Editor.RESOURCES_PATH+'Kevin/Kevin.json', 0, Editor.RESOURCES_PATH+'Kevin/Kevin.png'],
-            "Ada": [Editor.RESOURCES_PATH+'Ada/Ada.glb', Editor.RESOURCES_PATH+'Ada/Ada.json', 0, Editor.RESOURCES_PATH+'Ada/Ada.png'],
-            "Victor": [Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.glb', Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.json', 0, Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.png'],
-            "Ready Eva": [Editor.RESOURCES_PATH+'ReadyEva/ReadyEva.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva.json', 0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
-            "Sara": [Editor.RESOURCES_PATH+'Sara/Sara.glb', Editor.RESOURCES_PATH+'Sara/Sara.json', 0, Editor.RESOURCES_PATH+'Sara/Sara.png'],
-            "Nia": [Editor.RESOURCES_PATH+'Nia/Nia.glb', Editor.RESOURCES_PATH+'Nia/Nia.json', 0, Editor.RESOURCES_PATH+'Nia/Nia.png'],
-            "Joan": [Editor.RESOURCES_PATH+'Joan/Joan.glb', Editor.RESOURCES_PATH+'Joan/Joan.json', 0, Editor.RESOURCES_PATH+'Joan/Joan.png'],
-            "David": [Editor.RESOURCES_PATH+'David/David.glb', Editor.RESOURCES_PATH+'David/David.json', 0, Editor.RESOURCES_PATH+'David/David.png'],
-            "Alex": [Editor.RESOURCES_PATH+'Alex/Alex.glb', Editor.RESOURCES_PATH+'Alex/Alex.json', 0, Editor.RESOURCES_PATH+'Alex/Alex.png'],
-            "Noa": [Editor.RESOURCES_PATH+'Noa/Noa.glb', Editor.RESOURCES_PATH+'Noa/Noa.json', 0, Editor.RESOURCES_PATH+'Noa/Noa.png'],
-            // "Ready Eva": ['https://models.readyplayer.me/66e30a18eca8fb70dcadde68.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva_v3.json',0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
+            "EvaLow": [ `${Editor.RESOURCES_PATH}Eva_Low/Eva_Low.glb`, `${Editor.RESOURCES_PATH}Eva_Low/Eva_Low.json`, 0, `${Editor.RESOURCES_PATH}Eva_Low/Eva_Low.png`  ],
+            "Witch": [ `${Editor.RESOURCES_PATH}Eva_Witch/Eva_Witch.glb`, `${Editor.RESOURCES_PATH}Eva_Witch/Eva_Witch.json`, 0, `${Editor.RESOURCES_PATH}Eva_Witch/Eva_Witch.png` ],
+            "Kevin": [ `${Editor.RESOURCES_PATH}Kevin/Kevin.glb`, `${Editor.RESOURCES_PATH}Kevin/Kevin.json`, 0, `${Editor.RESOURCES_PATH}Kevin/Kevin.png`  ],
+            "Ada": [ `${Editor.RESOURCES_PATH}Ada/Ada.glb`, `${Editor.RESOURCES_PATH}Ada/Ada.json`, 0, `${Editor.RESOURCES_PATH}Ada/Ada.png`  ],
+            "Eva": [ `${Editor.RESOURCES_PATH}ReadyEva/ReadyEva_v4.glb`, `${Editor.RESOURCES_PATH}ReadyEva/ReadyEva_v3.json`, 0,`${Editor.RESOURCES_PATH}ReadyEva/ReadyEva.png` ],
+            "Victor": [`${Editor.RESOURCES_PATH}Victor/Victor.glb`, `${Editor.RESOURCES_PATH}Victor/Victor.json`, 0, `${Editor.RESOURCES_PATH}Victor/Victor.png`  ],
+            "Sara": [ `${Editor.RESOURCES_PATH}Sara/Sara.glb`, `${Editor.RESOURCES_PATH}Sara/Sara.json`, 0, `${Editor.RESOURCES_PATH}Sara/Sara.png`  ],
+            "Nia": [ `${Editor.RESOURCES_PATH}Nia/Nia.glb`, `${Editor.RESOURCES_PATH}Nia/Nia.json`, 0, `${Editor.RESOURCES_PATH}Nia/Nia.png`  ],
+            "Joan": [ `${Editor.RESOURCES_PATH}Joan/Joan.glb`, `${Editor.RESOURCES_PATH}Joan/Joan.json`, 0, `${Editor.RESOURCES_PATH}Joan/Joan.png`  ],
+            "David": [ `${Editor.RESOURCES_PATH}David/David.glb`, `${Editor.RESOURCES_PATH}David/David.json`, 0, `${Editor.RESOURCES_PATH}David/David.png`  ],
+            "Alex": [ `${Editor.RESOURCES_PATH}Alex/Alex.glb`, `${Editor.RESOURCES_PATH}Alex/Alex.json`, 0, `${Editor.RESOURCES_PATH}Alex/Alex.png`  ],
+            "Noa": [ `${Editor.RESOURCES_PATH}Noa/Noa.glb`, `${Editor.RESOURCES_PATH}Noa/Noa.json`, 0, `${Editor.RESOURCES_PATH}Noa/Noa.png` ]
         }
 
         this.mapNames = {characterMap: json.faceController.blendshapeMap, mediapipeMap: MapNames.mediapipe, parts: MapNames.parts};
