@@ -112,7 +112,7 @@ class Editor {
             "Witch": [ `${Editor.RESOURCES_PATH}Eva_Witch/Eva_Witch.glb`, `${Editor.RESOURCES_PATH}Eva_Witch/Eva_Witch.json`, 0, `${Editor.RESOURCES_PATH}Eva_Witch/Eva_Witch.png` ],
             "Kevin": [ `${Editor.RESOURCES_PATH}Kevin/Kevin.glb`, `${Editor.RESOURCES_PATH}Kevin/Kevin.json`, 0, `${Editor.RESOURCES_PATH}Kevin/Kevin.png`  ],
             "Ada": [ `${Editor.RESOURCES_PATH}Ada/Ada.glb`, `${Editor.RESOURCES_PATH}Ada/Ada.json`, 0, `${Editor.RESOURCES_PATH}Ada/Ada.png`  ],
-            "Eva": [ `${Editor.RESOURCES_PATH}ReadyEva/ReadyEva_v4.glb`, `${Editor.RESOURCES_PATH}ReadyEva/ReadyEva_v3.json`, 0,`${Editor.RESOURCES_PATH}ReadyEva/ReadyEva.png` ],
+            "ReadyEva": [ `${Editor.RESOURCES_PATH}ReadyEva/ReadyEva.glb`, `${Editor.RESOURCES_PATH}ReadyEva/ReadyEva_v3.json`, 0,`${Editor.RESOURCES_PATH}ReadyEva/ReadyEva.png` ],
             "Victor": [`${Editor.RESOURCES_PATH}Victor/Victor.glb`, `${Editor.RESOURCES_PATH}Victor/Victor.json`, 0, `${Editor.RESOURCES_PATH}Victor/Victor.png`  ],
             "Sara": [ `${Editor.RESOURCES_PATH}Sara/Sara.glb`, `${Editor.RESOURCES_PATH}Sara/Sara.json`, 0, `${Editor.RESOURCES_PATH}Sara/Sara.png`  ],
             "Nia": [ `${Editor.RESOURCES_PATH}Nia/Nia.glb`, `${Editor.RESOURCES_PATH}Nia/Nia.json`, 0, `${Editor.RESOURCES_PATH}Nia/Nia.png`  ],
