@@ -135,7 +135,7 @@ function createMenuBar( area ) {
     LX.listen( userButton, "click", () => {
         new LX.DropdownMenu( userButton, [
             
-            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://dev-lfs.gti.upf.edu/src/", "_blank")} },
+            { name: "Go to Database", icon: "Server", callback: () => { window.open("https://animics-lfs.gti.upf.edu/src/", "_blank")} },
             { name: "Refresh", icon: "RotateCcw", callback: () => {
                 offset = 0;
                 appendAnimationFiles( true );

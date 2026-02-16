@@ -5,7 +5,7 @@ class FileSystem {
     constructor( callback, onError, folders = []) {
         this.session = null;
 
-        this.host = "https://dev-lfs.gti.upf.edu/";
+        this.host = "https://animics-lfs.gti.upf.edu/";
         this.root = this.host + "files/";
         
         // this.repository = {signs:[], presets: [], clips:[]};
