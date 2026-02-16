@@ -51,7 +51,7 @@ class Animics {
                         prompt = null;
                     }
                     else {
-                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Error</span>`, response.msg || "Can't connect to the server. Try again!", { position: "top-center" } );
+                        LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Error</span>`, response.msg || "Can't connect to the server. Try again or use it without login!", { position: "top-center" } );
                     }
                 });
             }, {

@@ -1230,16 +1230,25 @@ class Editor {
             const exists = await this.fileSystem.checkFolderExists( path );
             
             if( exists ) {
+                //const name = toFolder.fullpath.split("/").pop();
                 return new Promise ((resolve, reject) => {
-                    const p = LX.prompt("Do you want to rename it?", "Folder already exists", async ( v ) => {
+                    const p = LX.prompt("Do you want to rename it?", `Folder already exists`, async ( v ) => {
                         if(v === "" || !v) {
+                           
                             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Rename</span>`, "You have to write a name.", { position: "top-center" } );
                         }
                         else if( v == asset.id ) {
                             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Rename</span>`, "You have to write a different name.", { position: "top-center" } );                                
                         }
                         else {
-                            moved = await this.fileSystem.moveFolder(asset.asset_id, toFolder.unit, toFolder.fullpath+"/"+ v);
+                            //toFolder.fullpath+"/"+ v;
+                            const orignal = asset.id;
+                            asset.id = v;
+                            moved = await this.moveAsset(asset, fromFolder, toFolder, callback);
+                            if(!moved) {
+                                asset.id = orignal;
+                            }
+                            //moved = await this.fileSystem.moveFolder(asset.asset_id, toFolder.unit, toFolder.fullpath+"/"+ v);
                             resolve(moved);
                             close(p);
                         }
@@ -1278,7 +1287,13 @@ class Editor {
                                 LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Rename</span>`, "You have to write a different name.", { position: "top-center" } );
                             }
                             else {
-                                moved = await this.fileSystem.moveFile(asset.asset_id, toFolder.fullpath+"/"+ v);
+                                const orignal = asset.id;
+                                asset.id = v;
+                                moved = await this.moveAsset(asset, fromFolder, toFolder, callback);
+                                if(!moved) {
+                                    asset.id = orignal;
+                                }
+                                // moved = await this.fileSystem.moveFile(asset.asset_id, toFolder.fullpath+"/"+ v);
                                 resolve(moved);
                                 close(p);
                             }

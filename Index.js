@@ -59,25 +59,20 @@ function showSystemWarnings( systemWarningsArray, index ){
         titleIcon = LX.makeIcon(iconName,  { svgClass: warning.svgClass }).innerHTML + "&nbsp;";
     }
 
-    const dialog = new LX.Dialog( titleIcon + warning.title, p => {
-        p.addTextArea(null, warning.txt , null, {disabled: true, fitHeight: true });
-        p.sameLine(1, 'justify-end')
-        p.addButton( null, warning.txtButton || "Continue", ()=>{
-            dialog.destroy();
-
-            // display next queued warning
-            index++;
-            if ( systemWarningsArray.length > index ){
-                // timeout so user notices a change of warning
-                setTimeout( ()=>{
-                    showSystemWarnings(systemWarningsArray, index);
-                }, 200 );
-            }
-        }, { buttonClass: 'primary', width: "100px" });        
-    }, {modal: true, closable: false, size: ["50%", "fit-content"], icon: "Trash"});
-    dialog.root.style.border = "1px solid var(--foreground)";
-    const dialogtitle = dialog.root.querySelector(".lexdialogtitle");
-    dialogtitle.className = LX.mergeClass( dialogtitle.className, "justify-start");
+    const alertDialog = new LX.AlertDialog( titleIcon + warning.title, warning.txt, () => {
+        // display next queued warning
+        index++;
+        if ( systemWarningsArray.length > index ){
+            // timeout so user notices a change of warning
+            setTimeout( ()=>{
+                showSystemWarnings(systemWarningsArray, index);
+            }, 200 );
+        }
+    } , { modal: true, closable: false, size: ["40%", "fit-content"], icon: "Trash", className: "justify-start", continueText: warning.txtButton, cancelText: warning.cancelButton}, );
+    alertDialog.root.querySelector(".lexcontainer").classList.add("flex");
+    alertDialog.root.querySelector(".lexcontainer").classList.add("items-center");
+    alertDialog.root.style.border = "1px solid var(--foreground)";
+    
 }
 
 if( !connected ) {

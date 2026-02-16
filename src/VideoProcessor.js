@@ -611,10 +611,10 @@ class VideoProcessor {
         const onError = async (err = null) => {
             // LX.toast("Cannot access the camera. Check it is properly connected and not being used by any other application. You may want to upload a video instead.")
             console.error("Error: " + err);
+            
             return new Promise( resolve => {
-                new LX.prompt( "Can't access the camera. Check it's properly connected and not being used by any other application, or if the site has permissions You may want to upload a video instead", err || "Webcam Error", 
-                    async () => { animation = await generateAnimation(); resolve(animation)}, {
-                    on_cancel: () => { resolve() }, accept: "Retry", input: false})
+                return new LX.AlertDialog( err || "Webcam Error", "Can't access the camera. Check it's properly connected and not being used by any other application, or if the site has permissions You may want to upload a video instead",  async () => { animation = await generateAnimation(); resolve(animation)}, {
+                    cancelCallback: () => { resolve() }, continueText: "Retry" })
             })
         } 
         

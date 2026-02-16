@@ -282,7 +282,9 @@ class Gui {
                 const assets = await this.editor.fileSystem.loadFoldersAndFiles(item.unit, item.asset_id, item.id, allowFolders, restrictFolders);
                                     
                 item.children = assets ? assets : [];
-                assetViewer._previewAsset(item);
+                setTimeout( () => {
+                    assetViewer._previewAsset(item);
+                }, 100)
             
                 assetViewer.parent.loadingArea.hide();
                 return true;
@@ -406,7 +408,8 @@ class Gui {
                 renamed = await this.editor.fileSystem.moveFile( item.asset_id, newPath ); //TO DO: lexgui doesnt return item for now
             }
             if( renamed ) {
-                //item.filename = item.id;
+                item.id = e.newName;
+                item.fullpath = newPath;
                 resolve();
                 console.log(e.oldName + " is now called " + e.newName);
             }
