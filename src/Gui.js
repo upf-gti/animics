@@ -282,7 +282,7 @@ class Gui {
                 const assets = await this.editor.fileSystem.loadFoldersAndFiles(item.unit, item.asset_id, item.id, allowFolders, restrictFolders);
                                     
                 item.children = assets ? assets : [];
-                //assetViewer._previewAsset(item);
+                assetViewer._previewAsset(item);
             
                 assetViewer.parent.loadingArea.hide();
                 return true;
@@ -2368,24 +2368,23 @@ class KeyframesGui extends Gui {
         this.globalTimeline.onSelectClip = (clip) => {
             this.createSidePanel();
         }
-
-        this.globalTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
-            switch( event.type ){
-                case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
-                        if ( event.node.trackData ){
-                            if ( !event.node.trackData.isSelected ){
-                                this.globalTimeline.deselectAllTracks( false ); // no need to update left panel
-                                this.globalTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
-                            }
-                        }
-
-                        menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
-                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
-                    });
-                    break;
+        this.globalTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{
+            this.globalTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
+            this.globalTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
+            //TODO remove settimeout once the Lexgui.NodeTree contextMenu event is fixed. Currently Lexgui.NodeTree always creates a contextmenu regardless of what the user does
+            if ( treeEvent.from.trackData ){
+                if ( !treeEvent.from.trackData.isSelected ){
+                    this.globalTimeline.deselectAllTracks( false ); // no need to update left panel
+                    this.globalTimeline.setTrackSelection( treeEvent.from.trackData.trackIdx, true ); // call callback and update left panel
+                }
             }
-        }
+
+            const items = [];
+            items.push ({ name: "Clear", callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback });
+            items.push({ name: "Deselect Tracks", callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true)} });
+            return items;
+           
+        });
 
         this.globalTimeline.showContextMenu = ( e ) => {
 
@@ -2537,27 +2536,27 @@ class KeyframesGui extends Gui {
 
         const that = this;
 
-        this.skeletonTimeline.onTrackTreeEvent = (event) =>{ // function reused in bsTimeline
-             switch( event.type ){
-                case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
-                        if ( event.node.trackData ){
-                            if ( !event.node.trackData.isSelected ){
-                                this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
-                                this.editor.activeTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
-                            }
-                        }
+        this.skeletonTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{ 
+            // REUSED IN BSTimeline
+            this.skeletonTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
+            this.skeletonTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
 
-                        that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
-
-                        menu.add( "Clear", that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback );
-                        menu.add( "Optimize", that.menubar.getItem("Edit/Optimize/Selected Tracks").callback);
-                        menu.add( "Add Keyframes",  (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline ); } );
-                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
-                    });
-                break;
+            if ( treeEvent.from.trackData ){
+                if ( !treeEvent.from.trackData.isSelected ){
+                    this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                    this.editor.activeTimeline.setTrackSelection( treeEvent.from.trackData.trackIdx, true ); // call callback and update left panel
+                }
             }
-        }
+            that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+
+            const items = [];
+            items.push({ name: "Clear", callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback  });
+            items.push({ name: "Optimize", callback: that.menubar.getItem("Edit/Optimize/Selected Tracks").callback });
+            items.push({ name: "Add Keyframes", callback: (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline );} });
+            items.push({ name: "Deselect Tracks", callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); } });
+
+            return items;
+        });
 
         // OVERWRITE function to add buttons ("remove from timeline" and "pin to timeline") to the tree elements
         this.skeletonTimeline._generateSelectedItemsTreeData = this.skeletonTimeline.generateSelectedItemsTreeData; 
@@ -3243,7 +3242,28 @@ class KeyframesGui extends Gui {
             }
         };
 
-        this.bsTimeline.onTrackTreeEvent = this.skeletonTimeline.onTrackTreeEvent; //reusing function
+        this.bsTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{ 
+            // REUSED IN BSTimeline
+            this.bsTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
+            this.bsTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
+
+            if ( treeEvent.from.trackData ){
+                if ( !treeEvent.from.trackData.isSelected ){
+                    this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                    this.editor.activeTimeline.setTrackSelection( treeEvent.from.trackData.trackIdx, true ); // call callback and update left panel
+                }
+            }
+            that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+
+            const items = [];
+            items.push({ name: "Clear", callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback  });
+            items.push({ name: "Optimize", callback: that.menubar.getItem("Edit/Optimize/Selected Tracks").callback });
+            items.push({ name: "Add Keyframes", callback: (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline );} });
+            items.push({ name: "Deselect Tracks", callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); } });
+
+            return items;
+        });
+        
         this.bsTimeline.originalDrawTrack = this.bsTimeline.drawTrackWithCurves;
         this.bsTimeline.bulkAdditionDrawTrack = this.skeletonTimeline.bulkAdditionDrawTrack; // reuse function
         this.bsTimeline.showContextMenu = function( e ) {
@@ -4668,14 +4688,14 @@ class KeyframesGui extends Gui {
         });
 
         this.treeWidget.on( "select", (event) => {
-            if(event.multiple)
+            if(event.items.length)
                 console.log("Selected: ", event.node); 
             else {
                 if(!this.editor){
                     throw("No editor attached");
                 }
                 
-                const itemSelected = event.node.id;
+                const itemSelected = event.items[0].id;
                 if ( itemSelected != this.editor.selectedBone ){
                     this.editor.setSelectedBone( itemSelected );
                 }
@@ -5889,34 +5909,31 @@ class ScriptGui extends Gui {
             return clipsToReturn;
         }
 
-        this.clipsTimeline.onTrackTreeEvent = (event) =>{
-            switch( event.type ){
-                case LX.TreeEvent.NODE_CONTEXTMENU:
-                    LX.addContextMenu("Selected Tracks", event.event, (menu) => {
-                        if ( event.node.trackData ){
-                            if ( !event.node.trackData.isSelected ){
-                                this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
-                                this.editor.activeTimeline.setTrackSelection( event.node.trackData.trackIdx, true ); // call callback and update left panel
-                            }
-                        }
+        this.clipsTimeline.setTrackTreeEventListener("contextMenu", (treeEvent) =>{
+            this.clipsTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
+            this.clipsTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
 
-                        menu.add( "Clear", (e)=>{
-                            const activeTimeline = this.editor.activeTimeline;
-                            const selectedTracks = activeTimeline.selectedTracks;
-
-                            let indices = [];
-                            for( let i = 0; i < selectedTracks.length; ++i ){
-                                indices.push( selectedTracks[i].trackIdx );
-                            }
-                            this.editor.clearTracks( indices );
-                        });
-
-                        menu.add( "Deselect Tracks", (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); });
-
-                    });
-                    break;
+            if ( treeEvent.from.trackData ){
+                if ( !treeEvent.from.trackData.isSelected ){
+                    this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                    this.editor.activeTimeline.setTrackSelection( treeEvent.from.trackData.trackIdx, true ); // call callback and update left panel
+                }
             }
-        }
+
+            const items = [];
+            items.push({ name: "Clear", callback: (e)=>{
+                const activeTimeline = this.editor.activeTimeline;
+                const selectedTracks = activeTimeline.selectedTracks;
+
+                let indices = [];
+                for( let i = 0; i < selectedTracks.length; ++i ){
+                    indices.push( selectedTracks[i].trackIdx );
+                }
+                this.editor.clearTracks( indices );
+            } });
+            items.push({ name: "Deselect Tracks", callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true);} });
+            return items;
+        });
 
         this.clipsTimeline.showContextMenu = ( e ) => {
 
