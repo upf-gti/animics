@@ -113,7 +113,7 @@ class Editor {
             "Kevin": [Editor.RESOURCES_PATH+'Kevin/Kevin.glb', Editor.RESOURCES_PATH+'Kevin/Kevin.json', 0, Editor.RESOURCES_PATH+'Kevin/Kevin.png'],
             "Ada": [Editor.RESOURCES_PATH+'Ada/Ada.glb', Editor.RESOURCES_PATH+'Ada/Ada.json', 0, Editor.RESOURCES_PATH+'Ada/Ada.png'],
             "Victor": [Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.glb', Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.json', 0, Editor.RESOURCES_PATH+'ReadyVictor/ReadyVictor.png'],
-            "Ready Eva": [Editor.RESOURCES_PATH+'ReadyEva/ReadyEva.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva.json', 0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
+            "Ready Eva": [Editor.RESOURCES_PATH+'ReadyEva/ReadyEva.glb', Editor.RESOURCES_PATH+'ReadyEva/ReadyEva_v3.json', 0, 'https://models.readyplayer.me/66e30a18eca8fb70dcadde68.png?background=68,68,68'],
             "Sara": [Editor.RESOURCES_PATH+'Sara/Sara.glb', Editor.RESOURCES_PATH+'Sara/Sara.json', 0, Editor.RESOURCES_PATH+'Sara/Sara.png'],
             "Nia": [Editor.RESOURCES_PATH+'Nia/Nia.glb', Editor.RESOURCES_PATH+'Nia/Nia.json', 0, Editor.RESOURCES_PATH+'Nia/Nia.png'],
             "Joan": [Editor.RESOURCES_PATH+'Joan/Joan.glb', Editor.RESOURCES_PATH+'Joan/Joan.json', 0, Editor.RESOURCES_PATH+'Joan/Joan.png'],

@@ -3242,7 +3242,28 @@ class KeyframesGui extends Gui {
             }
         };
 
-        this.bsTimeline.setTrackTreeEventListener( "contextMenu", this.skeletonTimeline.trackTreesEvents["contextMenu"] ); //reusing function
+        this.bsTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{ 
+            // REUSED IN BSTimeline
+            this.bsTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
+            this.bsTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
+
+            if ( treeEvent.from.trackData ){
+                if ( !treeEvent.from.trackData.isSelected ){
+                    this.editor.activeTimeline.deselectAllTracks( false ); // no need to update left panel
+                    this.editor.activeTimeline.setTrackSelection( treeEvent.from.trackData.trackIdx, true ); // call callback and update left panel
+                }
+            }
+            that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback
+
+            const items = [];
+            items.push({ name: "Clear", callback: that.menubar.getItem("Edit/Clear Tracks/Selected Tracks").callback  });
+            items.push({ name: "Optimize", callback: that.menubar.getItem("Edit/Optimize/Selected Tracks").callback });
+            items.push({ name: "Add Keyframes", callback: (e) =>{ this.bulkKeyframeAddition.createDialog( this.editor.activeTimeline == this.bsTimeline );} });
+            items.push({ name: "Deselect Tracks", callback: (e)=>{ this.editor.activeTimeline.deselectAllTracks(true); } });
+
+            return items;
+        });
+        
         this.bsTimeline.originalDrawTrack = this.bsTimeline.drawTrackWithCurves;
         this.bsTimeline.bulkAdditionDrawTrack = this.skeletonTimeline.bulkAdditionDrawTrack; // reuse function
         this.bsTimeline.showContextMenu = function( e ) {
