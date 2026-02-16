@@ -12,8 +12,8 @@ const connected = await animics.loadSession();
 
 const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
 LX.setThemeColor( 'blue' );
-const area = await LX.init( { rootClass: "" } );
-
+const mainArea = await LX.init( { rootClass: "" } );
+const [warningArea, area] = mainArea.split( { sizes: ["2.5rem", null], type: "vertical", minimizable: false, resize: false});
 const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-neutral-800 z-1","", LX.mainArea.root );
 dropOver.classList.add("hidden");
 
@@ -35,11 +35,26 @@ bindEvents( area );
 fetch("systemWarnings/warnings.json")
     .then((Response)=>{ return Response.json() })
     .then( json => {
-        if ( Array.isArray( json ) ){
-            showSystemWarnings( json, 0 );
+        if ( Array.isArray( json ) && json.length ) {
+            if( json[0].type == 0 ) {
+                const warning = json[0];
+                const container = LX.makeContainer( ["auto", "100%"], "flex flex-row gap-2 ml-auto bg-primary items-center justify-center italic", `<p>${warning.message}</p>`, warningArea);
+                if( warning.button || json.length > 1 ) {
+                    
+                    const button = new LX.Button("more-info", warning.button || "More info", () => { showSystemWarnings( json, 1 ); }, {hideName: true, width: "100px", buttonClass: "warning"});
+                    container.appendChild(button.root);
+                }
+            }
+          }
+        else {
+            mainArea._moveSplit(100);
         }
     } )
-    .catch( (e)=>{} );
+    .catch( (e)=>{ 
+        mainArea._moveSplit(100);
+        console.warn(e)
+    } 
+    );
 
 UTILS.hideLoading();
 
@@ -48,35 +63,48 @@ body.classList.remove("hidden");
 
 // displays system warnings as modals, one at a time. 
 function showSystemWarnings( systemWarningsArray, index ){
+    
     const warning = systemWarningsArray[index];
+    
     let titleIcon = "";
     if ( warning.titleIcon ){
-        titleIcon = LX.makeIcon(warning.titleIcon, { svgClass: warning.svgClass }).innerHTML + "&nbsp;";
+        titleIcon = LX.makeIcon(warning.titleIcon, { svgClass: warning.svgClass }).innerHTML + "&nbsp;&nbsp;";
     }
     if ( warning.titleSvg ){
         const iconName = `_system_warning_${index}_`;
         LX.registerIcon( iconName, warning.titleSvg );
-        titleIcon = LX.makeIcon(iconName,  { svgClass: warning.svgClass }).innerHTML + "&nbsp;";
+        titleIcon = LX.makeIcon(iconName,  { svgClass: warning.svgClass }).innerHTML + "&nbsp;&nbsp;";
     }
+    const container = document.createElement("div")
+    LX.makeContainer(["auto", "auto"], "flex flex-row justify-start items-center", titleIcon + warning.title, container);
 
-    const alertDialog = new LX.AlertDialog( titleIcon + warning.title, warning.txt, () => {
-        // display next queued warning
-        index++;
-        if ( systemWarningsArray.length > index ){
-            // timeout so user notices a change of warning
-            setTimeout( ()=>{
-                showSystemWarnings(systemWarningsArray, index);
-            }, 200 );
-        }
-    } , { modal: true, closable: false, size: ["40%", "fit-content"], icon: "Trash", className: "justify-start", continueText: warning.txtButton, cancelText: warning.cancelButton}, );
-    alertDialog.root.querySelector(".lexcontainer").classList.add("flex");
-    alertDialog.root.querySelector(".lexcontainer").classList.add("items-center");
-    alertDialog.root.style.border = "1px solid var(--foreground)";
+    const dialog = new LX.Dialog( container.innerHTML, p => {
+        p.root.classList.remove("overflow-y-scroll");
+        p.root.classList.add("overflow-hidden");
+        const textarea = p.addTextArea(null, warning.message , null, {disabled: true, fitHeight: true }).root.querySelector("textarea");
+        textarea.className = LX.mergeClass( textarea.className, "bg-none text-primary");
+        p.sameLine(1, 'justify-end')
+        p.addButton( null, warning.txtButton || "Continue", ()=>{
+            dialog.destroy();
+
+            // display next queued warning
+            index++;
+            if ( systemWarningsArray.length > index ){
+                // timeout so user notices a change of warning
+                setTimeout( ()=>{
+                    showSystemWarnings(systemWarningsArray, index);
+                }, 200 );
+            }
+        }, { buttonClass: 'primary', width: "100px" });
+    }, {modal: true, closable: true, size: ["40%", "fit-content"], icon: "Trash", className: "overflow-none"});
+
+    dialog.root.style.border = "1px solid var(--foreground)";
+    dialog.root.style.maxHeight = "80%";
     
 }
 
 if( !connected ) {
-    showSystemWarnings( [{ title: "Database Connection Error!", titleIcon: "TriangleAlert@solid", svgClass: "text-orange-500", txt: "Unable to connect to the database. Login and saving animations are currently unavailable. Please export and download your animations before closing to avoid losing your work." }], 0)
+    showSystemWarnings( [{title: "Database Connection Error!", titleIcon: "TriangleAlert@solid", svgClass: "text-orange-500", txt: "Unable to connect to the database. Login and saving animations are currently unavailable. Please export and download your animations before closing to avoid losing your work." }], 0)
 }
 
 function createMenuBar( area ) {
@@ -166,11 +194,12 @@ function createSideBar( area ) {
         });
         // m.add( "TÀNDEM", { callback: () => {} } );      
     };
+
     const sidebarOptions = { 
         /* collapseToIcons: false, skipFooter: true, skipHeader: true,*/
         filter: false,
-        headerTitle: "ANIMICS",
-        // headerSubtitle: LX.version,
+        headerTitle: `ANIMICS`,
+        headerSubtitle: `v${ Animics.version }`,
         headerImage: "./data/imgs/animics_monster.png",
         // header: customHeader,
         footerTitle: "TÀNDEM",
