@@ -2538,8 +2538,8 @@ class KeyframesGui extends Gui {
 
         this.skeletonTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{ 
             // REUSED IN BSTimeline
-            this.globalTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
-            this.globalTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
+            this.skeletonTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
+            this.skeletonTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
 
             if ( treeEvent.from.trackData ){
                 if ( !treeEvent.from.trackData.isSelected ){
@@ -5889,8 +5889,8 @@ class ScriptGui extends Gui {
         }
 
         this.clipsTimeline.setTrackTreeEventListener("contextMenu", (treeEvent) =>{
-            this.globalTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
-            this.globalTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
+            this.clipsTimeline.trackTreesComponent.innerTree.options.useDefaultContextMenuItems = false;
+            this.clipsTimeline.trackTreesComponent.innerTree.options.contextMenuTitle = "Selected Tracks";
 
             if ( treeEvent.from.trackData ){
                 if ( !treeEvent.from.trackData.isSelected ){
