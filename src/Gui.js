@@ -8,17 +8,21 @@ import { Gizmo } from "./Gizmo.js";
 import { KeyframeEditor } from "./Editor.js";
 import { findIndexOfBoneByName } from "./retargeting.js";
 
+// import {Performs, PERFORMS, THREE as THREE_MODULE } from './libs/performs.nogui.module.js';
+// console.log("THREE main:", THREE);
+// console.log("THREE inside module:", PERFORMS ? THREE_MODULE : null); // si expone THREE
+// console.log("same instance?", THREE === THREE_MODULE);
+
 LX.registerIcon( "arrow-up-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 4-4 4 4 M7 4v16 M11 12h4 M11 16h7 M11 20h10"/></svg>' );
 LX.registerIcon( "arrow-down-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4 M7 20V4 M11 4h4 M11 8h7 M11 12h10"/></svg>' );
 
 class Gui {
 
     static THUMBNAIL = "data/imgs/animics_monster.png";
-
+    
     constructor( editor)  {
        
         this.editor = editor;
-
         this.timelineVisible = false;
 
         // Create menu bar
@@ -372,6 +376,25 @@ class Gui {
                 }
             }
             
+            // const iframe = document.createElement('iframe');
+            // iframe.src = 'https://performs.gti.upf.edu/?color=0x000000&autoplay=true?srcReferencePose=2&trgReferencePose=2';
+            
+            const container = LX.makeContainer(["200px", "200px"], "absolute", `<iframe id='performs-iframe' src ='https://performs.gti.upf.edu/?color=0x000000&autoplay=true?srcReferencePose=2&trgReferencePose=2&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}","data": "{type:"bml", data:${item.content}"}]'></iframe>`, assetViewer.previewPanel.root);
+
+            const iframe = document.getElementById("performs-iframe");
+            iframe.onload = () => {
+                // const data = JSON.stringify(item.content);
+                // iframe.contentWindow.postMessage(data)
+            }
+            // const onload = () => {
+            //     if( !iframe.contentWindow ) {
+            //         setTimeout(onload.bind(this), 100 );
+            //         return;
+            //     }
+            //     const data = JSON.stringify(item.content);
+            //     iframe.contentWindow.postMessage(data)
+            // }
+            // setTimeout(onload.bind(this), 100 );
             if( e.items.length > 1 ) {
                 console.log("Selected: ", e.items);
             }
@@ -460,27 +483,7 @@ class Gui {
         assetViewer.on( "beforeDelete", async ( e, resolve ) => {
             const item = e.items[0];
             const deleted = await this.editor.deleteAsset(item);
-            // const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-            // const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-            // if( restricted.indexOf(item.id) > -1 ) {
-            //     LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${item.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
-            //     return;
-            // }
-
-            // this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
-            //     let deleted = false;
-            //     if( item.type == "folder" ) {
-            //         deleted = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
-            //     }
-            //     else {
-            //         deleted = await this.editor.fileSystem.deleteFile( item.asset_id );
-            //     }
-            //     // assetViewer._refreshContent();
-            //     if( deleted ) {
-            //         resolve();
-            //         console.log(item.id + " deleted"); 
-            //     }
-            // }, {input: false} )
+          
             if( deleted ) {
                 resolve();
             }
@@ -558,19 +561,6 @@ class Gui {
             const toFolder = e.to;
             let moved = await this.editor.moveAsset(node, node, toFolder);
             
-            // let moved = false;
-            // if( node.type == "folder" ) {
-            //     const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-            //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-            //     if( restricted.indexOf(node.id) > -1 ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
-            //         return;
-            //     }
-            //     moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
-            // }
-            // else {
-            //     moved = await this.editor.fileSystem.moveFile( node.asset_id, toFolder.fullpath + "/" + node.id);
-            // }
             if(moved) {
                 resolve();
             }
@@ -579,23 +569,7 @@ class Gui {
             }
             return moved;
         });
-        // assetViewer.onItemDragged = async ( node, value) => {
-        //     let moved = false;
-        //     if( node.type == "folder" ) {
-        //         const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-        //         const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-        //         if( restricted.indexOf(node.id) > -1 ) {
-        //             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
-        //             return;
-        //         }
-        //         moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
-        //     }
-        //     else {
-        //         moved = await this.editor.fileSystem.moveFile( node.asset_id, value.fullpath + "/" + node.id);
-        //     }
-        //     return moved;
-        // }
-        
+       
         // Create a new dialog
         const dialog = this.prompt = new LX.Dialog(title, async (p) => {  
 
