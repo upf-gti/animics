@@ -103,7 +103,7 @@ class Animics {
                         refresh(p, "Please confirm password");
                         console.error("Wrong pass confirmation");
                     }
-                }, { buttonClass: "accent" })
+                }, { buttonClass: "primary" })
             }
             refresh(p);
         }, {modal: true, closable: true});
@@ -225,7 +225,7 @@ class Animics {
                         const files = await this.fileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
                         overwriteDialog.close();
                         callback(filename, files);
-                    }, {hideName: true, buttonClass: "error", width: "50%"} );
+                    }, {hideName: true, buttonClass: "warning outline", width: "50%"} );
                     overwritePanel.addButton("ok", "Rename", async () => {
                         let extensionIdx = filename.lastIndexOf(".");
                         if ( extensionIdx == -1 ){ 
@@ -245,12 +245,12 @@ class Animics {
                                 if ( !nameWithoutExtension.length ){ return; }
                                 this.uploadFile(nameWithoutExtension + extension, data, location, callback);
                                 renameDialog.close(); 
-                            }, {hideName: true, buttonClass: "accent", width: "50%"} );
+                            }, {hideName: true, buttonClass: "primary", width: "50%"} );
                         }, { modal: true, size: ["33%", "fit-content"] });
                         // end of renameDialog
                         overwriteDialog.close(); 
     
-                    }, {hideName: true, buttonClass: "accent", width: "50%"} );
+                    }, {hideName: true, buttonClass: "primary", width: "50%"} );
                 }, { modal: true, size: ["33%", "fit-content"]});      
             }
             else {

@@ -2491,7 +2491,7 @@ class HandshapeClip extends BaseClip {
 
 		panel.addSeparator();
 	
-		addBendSplay("mainSplay", "Main Splay", true, { className: "accent" });
+		addBendSplay("mainSplay", "Main Splay", true, { className: "primary" });
 		addBendSplay("splay2", "Splay Index", true, { title: "Overrides any splaying defined explicitly or implicitly by earlier attributes to this finger" });
 		addBendSplay("splay3", "Splay Middle", true, { title: "Overrides any splaying defined explicitly or implicitly by earlier attributes to this finger" });
 		addBendSplay("splay4", "Splay Ring", true, { title: "Overrides any splaying defined explicitly or implicitly by earlier attributes to this finger" });

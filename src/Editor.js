@@ -4107,7 +4107,7 @@ class ScriptEditor extends Editor {
                                     prompt.close();
                                     resolve(file.animation);
                                     UTILS.hideLoading();
-                                }, { buttonClass: "accent", width: "33%" });
+                                }, { buttonClass: "primary", width: "33%" });
 
                                 panel.addButton(null, "Concatenate", () => { 
                                     this.gui.loadBMLClip( animation, this.gui.clipsTimeline.currentTime );
@@ -4117,7 +4117,7 @@ class ScriptEditor extends Editor {
                                     resolve(file.animation);
                                     UTILS.hideLoading();
 
-                                }, { buttonClass: "accent", width: "33%" });
+                                }, { buttonClass: "primary", width: "33%" });
 
                                 panel.addButton(null, "Cancel", () => { 
                                     prompt.close();

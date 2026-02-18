@@ -393,7 +393,10 @@ class Gui {
             }
             const container = LX.makeContainer(["100%", "300px"], "flex flex-row outline-none justify-center items-center text-foreground text-sm overflow-hidden min-h-8 pad-sm my-2", `<iframe id='performs-iframe' class="rounded h-full" style="background:transparent;" src ='https://performs.gti.upf.edu/${params}'></iframe>`, null);
             assetViewer.previewPanel.branches[0].content.prepend(container);
+            const iframe = document.getElementById('performs-iframe');
+            iframe.onresize = () => {
 
+            }
             if( e.items.length > 1 ) {
                 console.log("Selected: ", e.items);
             }
@@ -2362,7 +2365,7 @@ class KeyframesGui extends Gui {
            
         });
 
-        this.globalTimeline.showContextMenu = ( e ) => {
+        this.globalTimeline.onShowContextMenu = ( e ) => {
 
             e.preventDefault();
             e.stopPropagation();
@@ -2935,7 +2938,7 @@ class KeyframesGui extends Gui {
             }
         }
 
-        this.skeletonTimeline.showContextMenu = function( e ) {
+        this.skeletonTimeline.onShowContextMenu = function( e ) {
             // THIS here means the timeline, not the GUI
             e.preventDefault();
             e.stopPropagation();
@@ -3242,7 +3245,7 @@ class KeyframesGui extends Gui {
         
         this.bsTimeline.originalDrawTrack = this.bsTimeline.drawTrackWithCurves;
         this.bsTimeline.bulkAdditionDrawTrack = this.skeletonTimeline.bulkAdditionDrawTrack; // reuse function
-        this.bsTimeline.showContextMenu = function( e ) {
+        this.bsTimeline.onShowContextMenu = function( e ) {
             // THIS here means the timeline, not the GUI
             e.preventDefault();
             e.stopPropagation();
@@ -5911,7 +5914,7 @@ class ScriptGui extends Gui {
             return items;
         });
 
-        this.clipsTimeline.showContextMenu = ( e ) => {
+        this.clipsTimeline.onShowContextMenu = ( e ) => {
 
             e.preventDefault();
             e.stopPropagation();
