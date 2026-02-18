@@ -8,17 +8,21 @@ import { Gizmo } from "./Gizmo.js";
 import { KeyframeEditor } from "./Editor.js";
 import { findIndexOfBoneByName } from "./retargeting.js";
 
+// import {Performs, PERFORMS, THREE as THREE_MODULE } from './libs/performs.nogui.module.js';
+// console.log("THREE main:", THREE);
+// console.log("THREE inside module:", PERFORMS ? THREE_MODULE : null); // si expone THREE
+// console.log("same instance?", THREE === THREE_MODULE);
+
 LX.registerIcon( "arrow-up-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 4-4 4 4 M7 4v16 M11 12h4 M11 16h7 M11 20h10"/></svg>' );
 LX.registerIcon( "arrow-down-narrow-wide", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4 M7 20V4 M11 4h4 M11 8h7 M11 12h10"/></svg>' );
 
 class Gui {
 
     static THUMBNAIL = "data/imgs/animics_monster.png";
-
+    
     constructor( editor)  {
        
         this.editor = editor;
-
         this.timelineVisible = false;
 
         // Create menu bar
@@ -372,6 +376,24 @@ class Gui {
                 }
             }
             
+            let params = `?color=transparent&autoplay=true&controls=false&avatar=${this.editor.currentCharacter.name}`;
+            if(item.type == "bvhe" || item.type == "bvh") {
+                params += `&srcReferencePose=2&trgReferencePose=2&animations=[{"name":"${this.editor.fileSystem.root+item.fullpath}"}]`
+            }
+            else if( item.type == "sigml" ) {
+                params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}", "type":"${item.type}"}]`;
+            }
+            else if( item.type == "bml" ) {
+                if( item.content.length < 500) {
+                    params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}", "type":"${item.type}", "data": ${item.content}}]`;
+                }
+                else {
+                    params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}"}]`;
+                }
+            }
+            const container = LX.makeContainer(["100%", "300px"], "flex flex-row outline-none justify-center items-center text-foreground text-sm overflow-hidden min-h-8 pad-sm my-2", `<iframe id='performs-iframe' class="rounded h-full" style="background:transparent;" src ='https://performs.gti.upf.edu/${params}'></iframe>`, null);
+            assetViewer.previewPanel.branches[0].content.prepend(container);
+
             if( e.items.length > 1 ) {
                 console.log("Selected: ", e.items);
             }
@@ -460,27 +482,7 @@ class Gui {
         assetViewer.on( "beforeDelete", async ( e, resolve ) => {
             const item = e.items[0];
             const deleted = await this.editor.deleteAsset(item);
-            // const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-            // const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-            // if( restricted.indexOf(item.id) > -1 ) {
-            //     LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${item.id} can't be deleted.</span>`, null, { position: "bottom-center" } );
-            //     return;
-            // }
-
-            // this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
-            //     let deleted = false;
-            //     if( item.type == "folder" ) {
-            //         deleted = await this.editor.fileSystem.deleteFolder( item.asset_id, item.unit );
-            //     }
-            //     else {
-            //         deleted = await this.editor.fileSystem.deleteFile( item.asset_id );
-            //     }
-            //     // assetViewer._refreshContent();
-            //     if( deleted ) {
-            //         resolve();
-            //         console.log(item.id + " deleted"); 
-            //     }
-            // }, {input: false} )
+          
             if( deleted ) {
                 resolve();
             }
@@ -558,19 +560,6 @@ class Gui {
             const toFolder = e.to;
             let moved = await this.editor.moveAsset(node, node, toFolder);
             
-            // let moved = false;
-            // if( node.type == "folder" ) {
-            //     const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-            //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-            //     if( restricted.indexOf(node.id) > -1 ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
-            //         return;
-            //     }
-            //     moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
-            // }
-            // else {
-            //     moved = await this.editor.fileSystem.moveFile( node.asset_id, toFolder.fullpath + "/" + node.id);
-            // }
             if(moved) {
                 resolve();
             }
@@ -579,23 +568,7 @@ class Gui {
             }
             return moved;
         });
-        // assetViewer.onItemDragged = async ( node, value) => {
-        //     let moved = false;
-        //     if( node.type == "folder" ) {
-        //         const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-        //         const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-        //         if( restricted.indexOf(node.id) > -1 ) {
-        //             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }${node.id} can't be moved.</span>`, null, { position: "bottom-center" } );
-        //             return;
-        //         }
-        //         moved = await this.editor.fileSystem.moveFolder(node.asset_id, node.unit, value.fullpath+"/"+node.id);
-        //     }
-        //     else {
-        //         moved = await this.editor.fileSystem.moveFile( node.asset_id, value.fullpath + "/" + node.id);
-        //     }
-        //     return moved;
-        // }
-        
+       
         // Create a new dialog
         const dialog = this.prompt = new LX.Dialog(title, async (p) => {  
 
@@ -5554,7 +5527,7 @@ class KeyframesGui extends Gui {
             asset.content = parsedFile.content;
         }
         codeEditor.setText( asset.content );
-        codeEditor._changeLanguage( "JSON" );
+        codeEditor.setLanguage( "JSON" );
 
 
         this.sourceCodeDialog = new LX.PocketDialog("Editor", p => {
@@ -7055,7 +7028,7 @@ class ScriptGui extends Gui {
                 type: type,
                 // path: "@/"+ child.fullpath,
                 name: 'View source', 
-                callback: ( item )=> {
+                callback: ( item, value )=> {
                     this.showSourceCode( item );
                 }
             } );
@@ -7063,9 +7036,9 @@ class ScriptGui extends Gui {
             actions.push( {
                 type: type,
                 // path: "@/"+ child.fullpath,
-                name: 'Add as a signle clip', 
-                callback: ( item )=> {
-                    this.onSelectFile( item );
+                name: 'Add as single clip', 
+                callback: ( item, value )=> {
+                    this.onSelectFile( item, value );
                 }
             } );
 
@@ -7073,8 +7046,8 @@ class ScriptGui extends Gui {
                 type: type,
                 // path: "@/"+ child.fullpath,
                 name: 'Breakdown into glosses', 
-                callback: ( item )=> {
-                    this.onSelectFile( item );
+                callback: ( item, value )=> {
+                    this.onSelectFile( item, value );
                 }
             } );
 
@@ -7082,8 +7055,8 @@ class ScriptGui extends Gui {
                 type: type,
                 // path: "@/"+ child.fullpath,
                 name: 'Breakdown into action clips', 
-                callback: ( item )=> {
-                    this.onSelectFile( item );
+                callback: ( item, value )=> {
+                    this.onSelectFile( item, value );
                 }
             } );
         }
@@ -7144,14 +7117,14 @@ class ScriptGui extends Gui {
             case "Add as single clip":
                 insertMode = ClipModes.Phrase;
                 break;
-                case "Breakdown into glosses":
-                    insertMode = ClipModes.Glosses;
-                    break;
-                    case "New folder":
-                        break;
-                    }
-                    this.clipsTimeline.deselectAllClips();
-                    asset.animation.name = asset.id;
+            case "Breakdown into glosses":
+                insertMode = ClipModes.Glosses;
+                break;
+            case "New folder":
+                break;
+        }
+        this.clipsTimeline.deselectAllClips();
+        asset.animation.name = asset.id;
                     
         if( this.prompt ) {
             this.prompt.panel.loadingArea.show();
@@ -7225,7 +7198,7 @@ class ScriptGui extends Gui {
             // codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
             codeEditor.addTab("bml", false, name, { language: "JSON", codeLines: JSON.stringify(obj, void 0, 4).split('\n') } );
             // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
-            codeEditor._changeLanguage( "XML" );
+            codeEditor.setLanguage( "XML" );
         }
         else {
             codeEditor.addTab("bml", true, name, { language: "JSON" } );
@@ -7233,7 +7206,7 @@ class ScriptGui extends Gui {
             
             codeEditor.setText(JSON.stringify(obj, void 0, 4));
             // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
-            codeEditor._changeLanguage( "JSON" );
+            codeEditor.setLanguage( "JSON" );
         }
         
         // open dialog
