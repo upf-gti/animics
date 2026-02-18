@@ -376,25 +376,24 @@ class Gui {
                 }
             }
             
-            // const iframe = document.createElement('iframe');
-            // iframe.src = 'https://performs.gti.upf.edu/?color=0x000000&autoplay=true?srcReferencePose=2&trgReferencePose=2';
-            
-            const container = LX.makeContainer(["200px", "200px"], "absolute", `<iframe id='performs-iframe' src ='https://performs.gti.upf.edu/?color=0x000000&autoplay=true?srcReferencePose=2&trgReferencePose=2&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}","data": "{type:"bml", data:${item.content}"}]'></iframe>`, assetViewer.previewPanel.root);
-
-            const iframe = document.getElementById("performs-iframe");
-            iframe.onload = () => {
-                // const data = JSON.stringify(item.content);
-                // iframe.contentWindow.postMessage(data)
+            let params = `?color=transparent&autoplay=true&controls=false&avatar=${this.editor.currentCharacter.name}`;
+            if(item.type == "bvhe" || item.type == "bvh") {
+                params += `&srcReferencePose=2&trgReferencePose=2&animations=[{"name":"${this.editor.fileSystem.root+item.fullpath}"}]`
             }
-            // const onload = () => {
-            //     if( !iframe.contentWindow ) {
-            //         setTimeout(onload.bind(this), 100 );
-            //         return;
-            //     }
-            //     const data = JSON.stringify(item.content);
-            //     iframe.contentWindow.postMessage(data)
-            // }
-            // setTimeout(onload.bind(this), 100 );
+            else if( item.type == "sigml" ) {
+                params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}", "type":"${item.type}"}]`;
+            }
+            else if( item.type == "bml" ) {
+                if( item.content.length < 500) {
+                    params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}", "type":"${item.type}", "data": ${item.content}}]`;
+                }
+                else {
+                    params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}"}]`;
+                }
+            }
+            const container = LX.makeContainer(["100%", "300px"], "flex flex-row outline-none justify-center items-center text-foreground text-sm overflow-hidden min-h-8 pad-sm my-2", `<iframe id='performs-iframe' class="rounded h-full" style="background:transparent;" src ='https://performs.gti.upf.edu/${params}'></iframe>`, null);
+            assetViewer.previewPanel.branches[0].content.prepend(container);
+
             if( e.items.length > 1 ) {
                 console.log("Selected: ", e.items);
             }
@@ -5528,7 +5527,7 @@ class KeyframesGui extends Gui {
             asset.content = parsedFile.content;
         }
         codeEditor.setText( asset.content );
-        codeEditor._changeLanguage( "JSON" );
+        codeEditor.setLanguage( "JSON" );
 
 
         this.sourceCodeDialog = new LX.PocketDialog("Editor", p => {
@@ -7029,7 +7028,7 @@ class ScriptGui extends Gui {
                 type: type,
                 // path: "@/"+ child.fullpath,
                 name: 'View source', 
-                callback: ( item )=> {
+                callback: ( item, value )=> {
                     this.showSourceCode( item );
                 }
             } );
@@ -7037,9 +7036,9 @@ class ScriptGui extends Gui {
             actions.push( {
                 type: type,
                 // path: "@/"+ child.fullpath,
-                name: 'Add as a signle clip', 
-                callback: ( item )=> {
-                    this.onSelectFile( item );
+                name: 'Add as single clip', 
+                callback: ( item, value )=> {
+                    this.onSelectFile( item, value );
                 }
             } );
 
@@ -7047,8 +7046,8 @@ class ScriptGui extends Gui {
                 type: type,
                 // path: "@/"+ child.fullpath,
                 name: 'Breakdown into glosses', 
-                callback: ( item )=> {
-                    this.onSelectFile( item );
+                callback: ( item, value )=> {
+                    this.onSelectFile( item, value );
                 }
             } );
 
@@ -7056,8 +7055,8 @@ class ScriptGui extends Gui {
                 type: type,
                 // path: "@/"+ child.fullpath,
                 name: 'Breakdown into action clips', 
-                callback: ( item )=> {
-                    this.onSelectFile( item );
+                callback: ( item, value )=> {
+                    this.onSelectFile( item, value );
                 }
             } );
         }
@@ -7118,14 +7117,14 @@ class ScriptGui extends Gui {
             case "Add as single clip":
                 insertMode = ClipModes.Phrase;
                 break;
-                case "Breakdown into glosses":
-                    insertMode = ClipModes.Glosses;
-                    break;
-                    case "New folder":
-                        break;
-                    }
-                    this.clipsTimeline.deselectAllClips();
-                    asset.animation.name = asset.id;
+            case "Breakdown into glosses":
+                insertMode = ClipModes.Glosses;
+                break;
+            case "New folder":
+                break;
+        }
+        this.clipsTimeline.deselectAllClips();
+        asset.animation.name = asset.id;
                     
         if( this.prompt ) {
             this.prompt.panel.loadingArea.show();
@@ -7199,7 +7198,7 @@ class ScriptGui extends Gui {
             // codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
             codeEditor.addTab("bml", false, name, { language: "JSON", codeLines: JSON.stringify(obj, void 0, 4).split('\n') } );
             // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
-            codeEditor._changeLanguage( "XML" );
+            codeEditor.setLanguage( "XML" );
         }
         else {
             codeEditor.addTab("bml", true, name, { language: "JSON" } );
@@ -7207,7 +7206,7 @@ class ScriptGui extends Gui {
             
             codeEditor.setText(JSON.stringify(obj, void 0, 4));
             // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
-            codeEditor._changeLanguage( "JSON" );
+            codeEditor.setLanguage( "JSON" );
         }
         
         // open dialog
