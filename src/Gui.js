@@ -7194,14 +7194,14 @@ class ScriptGui extends Gui {
         }
 
         if( asset.type == "sigml" ) {
-            codeEditor.addTab("sigml", true, name, { language: "XML", codeLines: asset.content.split('\n') } );
+            codeEditor.addTab(asset.id, { title: name, name: asset.type, language: "XML", text: asset.content, selected: true } );
             // codeEditor.openedTabs["sigml"].lines = asset.content.split('\n');
-            codeEditor.addTab("bml", false, name, { language: "JSON", codeLines: JSON.stringify(obj, void 0, 4).split('\n') } );
+            codeEditor.addTab(name+".bml", { title: name, name: asset.type, language: "JSON", text: JSON.stringify(obj, void 0, 4), selected: false } );
             // codeEditor.openedTabs["bml"].lines = codeEditor.toJSONFormat(text).split('\n');
             codeEditor.setLanguage( "XML" );
         }
         else {
-            codeEditor.addTab("bml", true, name, { language: "JSON" } );
+            codeEditor.addTab(asset.id, { title: name, name: asset.type, language: "JSON",  } );
             
             
             codeEditor.setText(JSON.stringify(obj, void 0, 4));
