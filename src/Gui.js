@@ -5532,7 +5532,7 @@ class KeyframesGui extends Gui {
 
         this.sourceCodeDialog = new LX.PocketDialog("Editor", p => {
             p.attach( area );                     
-        }, { size: ["40%", "600px"], closable: true, className: "z-1000", onBeforeClose: (dialog)=>{
+        }, { size: ["40%", "600px"], closable: true, draggable: true, className: "z-1000", onBeforeClose: (dialog)=>{
             codeEditor.clear();
             this.sourceCodeDialog = null;
         } });
@@ -7212,7 +7212,7 @@ class ScriptGui extends Gui {
         // open dialog
         this.sourceCodeDialog = new LX.PocketDialog("Editor", p => {
             p.attach( area );
-        }, { size: ["40%", "600px"], closable: true, className: "z-1000", onBeforeClose: (dialog)=>{
+        }, { size: ["40%", "600px"], closable: true, draggable: true, className: "z-1000", onBeforeClose: (dialog)=>{
             codeEditor.clear();
             this.sourceCodeDialog = null;
         } });
