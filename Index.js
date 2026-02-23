@@ -14,9 +14,8 @@ const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
 LX.setThemeColor( 'blue' );
 const mainArea = await LX.init( { rootClass: "" } );
 const [warningArea, area] = mainArea.split( { sizes: ["2.5rem", null], type: "vertical", minimizable: false, resize: false});
-const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-neutral-800 z-1","", LX.mainArea.root );
-dropOver.classList.add("hidden");
-
+const dropOver = LX.makeContainer(["100%", "100%"], "border-dashed overlay-top bg-neutral-800 z-100 data-[disabled=true]:opacity-50 content-center text-center text-4xl text-muted-foreground hidden","Drop files here", LX.mainArea.root );
+dropOver.setAttribute("data-disabled", true);
 // Menubar
 let menubar = null;
 let buttonsContainer = null;
