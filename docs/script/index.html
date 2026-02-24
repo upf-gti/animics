@@ -26,7 +26,7 @@
         import 'lexgui/extensions/CodeEditor.js';
 
         window.LX = LX;
-
+        LX.setThemeColor( 'blue' );
         const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
         const content = document.getElementById('content');
         const oldScripts = [];
@@ -49,7 +49,7 @@
                     scripts.forEach(script => script.remove());
 
                     content.innerHTML = tempDiv.innerHTML;
-
+                    
                     scripts.forEach(script => {
                         const newScript = document.createElement("script");
                         newScript.type = script.type;
@@ -65,6 +65,14 @@
 
                     if (addToHistory) {
                         history.pushState({ page }, "", `?p=${page.replace(".html", "")}`);
+                    }
+                    let id = page.split("#");
+                    if( id.length > 1 ) {
+                        id = id.pop();
+                        const el = document.getElementById( id );
+                        if( el ) {
+                            el.scrollIntoView();
+                        }
                     }
                 })
                 .catch(() => content.innerHTML = "<p>Error loading content.</p>");
@@ -122,7 +130,7 @@
                 title: "Change Theme",
                 icon: starterTheme == "dark" ? "Moon" : "Sun",
                 swap: starterTheme == "dark" ? "Sun" : "Moon",
-                callback:  (value, event) => { LX.switchTheme() }
+                callback:  (value, event) => { LX.getMode() }
             }
         ];
 
@@ -177,14 +185,26 @@
         }
 
         const sidebarCallback = m => {
+            m.group("Modes");
+            m.add("Keyframe mode", {callback: () => { 
+                if(window.location.pathname != "/docs/keyframe/") {
+                    window.location.href= window.location.origin+"/docs/keyframe";
+                }
+            } });
+            m.add("Script mode", {callback: () => { 
+                if(window.location.pathname != "/docs/script/") {
+                    window.location.href= window.location.origin+"/docs/script";
+                }
+            }, className: "bg-accent" });
+
             m.group("Manual");
             m.add("Getting Started", { callback: open.bind(this, "getting-started.html", null) });
             m.add("Generate Animations", { callback: open.bind(this, "generate-animations.html", null) });
-            // for (const w of ["Face Lexeme", "Mouthing"]) {
-            //     const url = w.toLowerCase().replace(/\s/g, '-') + ".html";
-            //     m.add("Behaviour Clips/" + w, { callback: open.bind(this, "clips/" + url, null) });
-            //     LX.registerCommandbarEntry(w, open.bind(this, "clips/" + url, null));
-            // }
+            for (const w of ["Head behaviours", "Body behaviours", "Hand behaviours", "Arm behaviours"]) {
+                const params = "#"+ w.toLowerCase().replace(" ", "-");
+                m.add("Generate Animations/" + w, { callback: open.bind(this, "generate-animations.html"+params, null) });
+                LX.registerCommandbarEntry(w, open.bind(this, "generate-animations.html"+params, null));
+            }
             // m.add("Upload Animations", { callback: open.bind(this, "upload-animations.html", null) });
             m.add("Edit Animations", { callback: open.bind(this, "edit-animations.html", null) });
             for (const w of ["Top Menu", "3D Scene", "Timeline", "Side Panel"]) {

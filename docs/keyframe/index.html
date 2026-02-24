@@ -4,15 +4,15 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>Animics Docs</title>
-    <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui@8.2.0/build/lexgui.css">
+    <link rel="stylesheet" href="https://cdn.skypack.dev/lexgui@8.3.0/build/lexgui.css">
     <link rel="stylesheet" href="../style.css">
     <script type="text/javascript" src="../docmaker.js"></script>
     <link rel="icon" type="image/x-icon" href="../data/imgs/logos/animics_favicon.png" />
     <script type="importmap">
         {
           "imports": {
-            "lexgui": "https://cdn.jsdelivr.net/npm/lexgui@8.2.0/build/lexgui.module.js",
-            "lexgui/extensions/": "https://cdn.jsdelivr.net/npm/lexgui@8.2.0/build/extensions/"
+            "lexgui": "https://cdn.jsdelivr.net/npm/lexgui@8.3.0/build/lexgui.module.js",
+            "lexgui/extensions/": "https://cdn.jsdelivr.net/npm/lexgui@8.3.0/build/extensions/"
           }
         }
     </script>
@@ -26,7 +26,7 @@
         import 'lexgui/extensions/CodeEditor.js';
 
         window.LX = LX;
-
+        LX.setThemeColor( 'blue' );
         const mobile = navigator && /Android|iPhone/i.test(navigator.userAgent);
         const content = document.getElementById('content');
         const oldScripts = [];
@@ -122,7 +122,7 @@
                 title: "Change Theme",
                 icon: starterTheme == "dark" ? "Moon" : "Sun",
                 swap: starterTheme == "dark" ? "Sun" : "Moon",
-                callback:  (value, event) => { LX.switchTheme() }
+                callback:  (value, event) => { LX.switchMode() }
             }
         ];
 
@@ -138,7 +138,9 @@
             headerImage: "../../data/imgs/animics_monster.png",
             footerTitle: "TÀNDEM",
             footerImage: "../../data/imgs/tandem_monster.png",
-            onHeaderPressed: (e) => { console.log("onHeaderPressed") },
+            onHeaderPressed: (e) => { 
+                
+            },
             onFooterPressed: (e, element) => {
                 new LX.DropdownMenu(element, [
                     "Pages",
@@ -177,6 +179,19 @@
         }
 
         const sidebarCallback = m => {
+            m.group("Modes");
+            m.group("Modes");
+            m.add("Keyframe mode", {callback: () => { 
+                if(window.location.pathname != "/docs/keyframe/") {
+                    window.location.href= window.location.origin+"/docs/keyframe";
+                }
+            }, className: "bg-accent" });
+            m.add("Script mode", {callback: () => { 
+                if(window.location.pathname != "/docs/script/") {
+                    window.location.href= window.location.origin+"/docs/script";
+                }
+            } });
+
             m.group("Manual");
             m.add("Getting Started", { callback: open.bind(this, "getting-started.html", null) });
             m.add("Generate Animations", { callback: open.bind(this, "generate-animations.html", null) });

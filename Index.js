@@ -195,16 +195,12 @@ function createSideBar( area ) {
     };
 
     const sidebarOptions = { 
-        /* collapseToIcons: false, skipFooter: true, skipHeader: true,*/
         filter: false,
         headerTitle: `ANIMICS`,
         headerSubtitle: `v${ Animics.version }`,
         headerImage: "./data/imgs/animics_monster.png",
-        // header: customHeader,
         footerTitle: "TÀNDEM",
-        // footerSubtitle: "alexroco.30@gmail.com",
         footerImage: "./data/imgs/tandem_monster.png",
-        // footer: customFooter,
         onHeaderPressed: (e) => { console.log( "onHeaderPressed" ) }, 
         onFooterPressed: (e, element) => {
             new LX.DropdownMenu( element, [

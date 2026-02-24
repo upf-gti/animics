@@ -212,6 +212,7 @@ function MAKE_BULLET_LIST( list )
 {
     console.assert(list && list.length > 0);
     let ul = document.createElement('ul');
+    ul.classList.add("ml-4");
     for( var el of list ) {
         let li = document.createElement('li');
         li.innerHTML = el;

@@ -9,9 +9,9 @@
     MAKE_PARAGRAPH(`The color of a clip depends on its type behaviour. Upon selecting a clip, its highlighter and name color shift to white. The <i>fade-in</i> and <i>fade-out</i> animations of the clip are denoted by intensified colors. The <i>fade-in</i> signifies when the action is achieved, while the <i>fade-out</i> marks the point when the character begins returning to their default state.`);
 
     MAKE_HEADER("Clip types", "h2", "clips-list");
-    MAKE_HEADER(`<p class="pl-2"> Non Manual Features</p></span>`, "h4", "");
+    MAKE_HEADER(`<p class="text-xl"> Non Manual Features</p></span>`, "h4", "");
     let i = LX.makeIcon("Smile");
-    MAKE_HEADER(`<span class="flex">${i.outerHTML} <p class="pl-2"> Head behaviours</p></span>`, "h5", "");
+    MAKE_HEADER(`<span class="flex">${i.outerHTML} <p class="px-4 font-bold"> Head behaviours</p></span>`, "h5", "");
     MAKE_BULLET_LIST([
         `<a href="#face-lexeme">Face Lexeme</a>`,
         `<a href="#mouthing">Mouthing</a>`,
@@ -19,7 +19,7 @@
         `<a href="#head-movement">Head Movement</a>`,
     ]);
     i = LX.makeIcon("PersonWalkingArrowLoopLeft");
-    MAKE_HEADER(`<span class="flex">${i.outerHTML} <p class="pl-2"> Body behaviours</p></span>`, "h5", "");
+    MAKE_HEADER(`<span class="flex">${i.outerHTML} <p class="px-4 font-bold"> Body behaviours</p></span>`, "h5", "");
     MAKE_BULLET_LIST([
         `<a href="#elbow-raise">Elbow Raise</a>`,
         `<a href="#shoulder-movement">Shoulder Raise</a>`,
@@ -27,18 +27,18 @@
         `<a href="#body-movement">Body Movement</a>`
     ]);
 
-    MAKE_HEADER(`<p class="pl-2"> Manual Features</p></span>`, "h4", "");
+    MAKE_HEADER(`<p class="text-xl"> Manual Features</p></span>`, "h4", "");
     i = LX.makeIcon("HandsAslInterpreting");
-    MAKE_HEADER(`<span class="flex">${i.outerHTML} <p class="pl-2"> Hand behaviours</p></span>`, "h5", "");
+    MAKE_HEADER(`<span class="flex">${i.outerHTML} <p class="px-4 font-bold"> Hand behaviours</p></span>`, "h5", "");
     MAKE_BULLET_LIST([
-        `Palm Orientation`,
-        `Hand Orientation`,
-        `Handshape`,
-        `Wrist Motion`,
-        `Fingerplay Motion`
+        `<a href="#palm-orientation">Palm Orientation</a>`,
+        `<a href="#hand-orientation">Hand Orientation</a>`,
+        `<a href="#handshape">Handshape</a>`,
+        `<a href="#wrist-motion">Wrist Motion</a>`,
+        `<a href="#fingerplay-motion">Fingerplay Motion</a>n`
     ]);
     i = LX.makeIcon("ChildReaching");
-    MAKE_HEADER(`<span class="flex">${i.outerHTML} <p class="pl-2"> Arm behaviours</p></span>`, "h5", "");
+    MAKE_HEADER(`<span class="flex">${i.outerHTML} <p class="px-4 font-bold"> Arm behaviours</p></span>`, "h5", "");
     MAKE_BULLET_LIST([
         `<a href="#hand-constellation">Hand Constellation</a>`,
         `<a href="#directed-motion">Directed Motion</a>`,
@@ -48,6 +48,8 @@
     
 
     let faceContainer = document.createElement('div');
+    i = LX.makeIcon("Smile");
+    MAKE_HEADER(`<span class="flex gap-2">${i.outerHTML} Head behaviours</span>`, "h2", "head-behaviours");
     MAKE_HEADER("Face Lexeme", "h3", "face-lexeme");
     MAKE_PARAGRAPH("Show a (partial) face expression from a predefined lexicon. This behavior offers a range of predefined expressions. Each lexeme is a convenience shorthand for combinations of more detailed low level face controls. The provided set of core lexemes allows one to perform face expressions using meaningful lexeme names.");
     
@@ -299,6 +301,9 @@
     containerD.appendChild(img);
     LX.makeContainer(["auto", "auto"], "", `<details><summary class="pl-4" ><b class="cursor-pointer text-l italic">Details</b></summary>${headContainer.outerHTML}`, mainContainer)
 
+    i = LX.makeIcon("PersonWalkingArrowLoopLeft");
+    MAKE_HEADER(`<span class="flex gap-2">${i.outerHTML} Body behaviours</span>`, "h2", "body-behaviours");
+
     /** ELBOW RAISE **/
     MAKE_HEADER("Elbow Raise", "h3", "elbow-raise");
     MAKE_PARAGRAPH(`<p>Raises the elbow (added to the elbow raise automatically computed while moving the arm).</p>`);
@@ -424,6 +429,26 @@
     containerD.appendChild(img);
     LX.makeContainer(["auto", "auto"], "", `<details><summary class="pl-4" ><b class="cursor-pointer text-l italic">Details</b></summary>${bodyContainer.outerHTML}`, mainContainer)
     
+    i = LX.makeIcon("HandsAslInterpreting");
+    MAKE_HEADER(`<span class="flex gap-2">${i.outerHTML} Hand behaviours</span>`, "h2", "hand-behaviours");
+
+    /** PALM ORIENTATION **/
+    MAKE_HEADER("Palm Orientation", "h3", "palm-constellation");
+
+    /** HAND ORIENTATION **/
+    MAKE_HEADER("Hand Orientation", "h3", "hand-constellation");
+ 
+    /** HANDSHAPE **/
+    MAKE_HEADER("Handshape", "h3", "handshape");
+
+    /** WRIST MOTION **/
+    MAKE_HEADER("Wrist Motion", "h3", "wrist-motion");
+ 
+    /** FINGER MOTION **/
+    MAKE_HEADER("Fingerplay Motion", "h3", "fingerplay-motion");
+ 
+    i = LX.makeIcon("ChildReaching");
+    MAKE_HEADER(`<span class="flex gap-2">${i.outerHTML} Arm behaviours</span>`, "h2", "arm-behaviours");
     
     /** HAND CONSTELLATION **/
     MAKE_HEADER("Hand Constellation", "h3", "hand-constellation");
