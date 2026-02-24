@@ -283,6 +283,7 @@ class Gui {
                     restrictFolders.push("scripts");
                 }
 
+                assetViewer._paginator.setPage(1);
                 const assets = await this.editor.fileSystem.loadFoldersAndFiles(item.unit, item.asset_id, item.id, allowFolders, restrictFolders);
                                     
                 item.children = assets ? assets : [];
@@ -291,8 +292,8 @@ class Gui {
                 }, 100)
             
                 assetViewer.parent.loadingArea.hide();
-                return true;
             }
+            return true;
         });
 
         assetViewer.on( "beforeCreateFolder", async ( e, resolve ) => {
@@ -306,34 +307,6 @@ class Gui {
             if( data ) {
                 resolve( data.foldername, data.data)
             }
-            // LX.prompt("Folder name", "New folder", async ( foldername ) => {
-            //     if( !foldername ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, "You must write a name.", { position: "bottom-center" } );
-            //         return;
-            //     }
-            
-            //     const units = this.editor.fileSystem.repository.map( folder => {return folder.id})
-            //     const restricted = ["scripts", "presets", "signs", "clips", "animics", "Local", "public", ...units];
-            //     if( restricted.indexOf(foldername) > -1 ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, `"${foldername}" is a reserved word`, null, { position: "bottom-center" } );
-            //         return;
-            //     }
-            //     try {
-            //         const data = await this.editor.fileSystem.createFolder( from.fullpath + "/" + foldername);
-            //         if(data) {
-            //             LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
-            //             resolve(foldername, data)
-            //         }
-            //         else {
-            //             // TO DO: RETURN EXACT ERROR
-            //             LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
-            //         }
-            //     }
-            //     catch( err ) {
-            //         LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
-            //     }
-                
-            // })
         });
 
         assetViewer.on( "createFolder", async ( e, foldername, data ) => {
@@ -350,14 +323,14 @@ class Gui {
                 return;
             }
             
-            if( !item.lastModified ) {
-                const info = await this.editor.fileSystem.getFileInfo( item.asset_id);
-                if( !info ) {
-                    return;
+            let info = item.lastModified?? false;
+            if( !info ) {
+                info = await this.editor.fileSystem.getFileInfo( item.asset_id);
+                if( info ) {
+                    item.lastModified = info.timestamp;
+                    item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
+                    item.filename = info.filename;
                 }
-                item.lastModified = info.timestamp;
-                item.lastModifiedDate = assetViewer._lastModifiedToStringDate(info.timestamp);
-                item.filename = info.filename;
                 assetViewer._previewAsset( item );
                 if(!item.animation) {
                     const promise = new Promise((resolve) => {
@@ -377,18 +350,20 @@ class Gui {
             }
             
             let params = `?color=transparent&autoplay=true&controls=false&avatar=${this.editor.currentCharacter.name}`;
-            if(item.type == "bvhe" || item.type == "bvh") {
-                params += `&srcReferencePose=2&trgReferencePose=2&animations=[{"name":"${this.editor.fileSystem.root+item.fullpath}"}]`
-            }
-            else if( item.type == "sigml" ) {
-                params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}", "type":"${item.type}"}]`;
-            }
-            else if( item.type == "bml" ) {
-                if( item.content.length < 500) {
-                    params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}", "type":"${item.type}", "data": ${item.content}}]`;
+            if( item.fullpath ) {
+                if(item.type == "bvhe" || item.type == "bvh") {
+                    params += `&srcReferencePose=2&trgReferencePose=2&animations=[{"name":"${this.editor.fileSystem.root+item.fullpath}"}]`
                 }
-                else {
-                    params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}"}]`;
+                else if( item.type == "sigml" ) {
+                    params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}", "type":"${item.type}"}]`;
+                }
+                else if( item.type == "bml" ) {
+                    if( item.content.length < 500) {
+                        params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}", "type":"${item.type}", "data": ${item.content}}]`;
+                    }
+                    else {
+                        params += `&scripts=[{"name":"${this.editor.fileSystem.root+item.fullpath}"}]`;
+                    }
                 }
             }
             const container = LX.makeContainer(["100%", "300px"], "flex flex-row outline-none justify-center items-center text-foreground text-sm overflow-hidden min-h-8 pad-sm my-2", `<iframe id='performs-iframe' class="rounded h-full" style="background:transparent;" src ='https://performs.gti.upf.edu/${params}'></iframe>`, null);
@@ -396,6 +371,28 @@ class Gui {
             const iframe = document.getElementById('performs-iframe');
             iframe.onresize = () => {
 
+            }
+            iframe.onload = (e) => {
+                if(!info) {
+                    window.onmessage = (event) =>{ 
+                    // if (event.origin == Editor.PERFORMS_PATH){
+                            if ( typeof(event.data) == "object" && event.data.appStatus ){
+
+                                for( let i = 0; i < this._realizer.pendingData.length; ++i){
+                                    iframe.contentWindow.postMessage(iframe.contentWindow.pendingData[i], "*");
+                                }
+
+                                iframe.contentWindow.focus();
+                                iframe.contentWindow.pendingData.length = 0;
+                                iframe.contentWindow.status = true;
+                                window.onmessage = null;
+                            }
+                        }
+                    // }
+
+                    // iframe.contentWindow.focus();
+                    iframe.contentWindow.postMessage(JSON.stringify({type: item.type, name: item.id, data:item.content}), "*")
+                }
             }
             if( e.items.length > 1 ) {
                 console.log("Selected: ", e.items);
@@ -443,7 +440,6 @@ class Gui {
         assetViewer.on( "beforeClone", async ( e, resolve ) => {
             const item = e.items[0];
             const folder = item.fullpath.replace( `/${item.id}`, "");
-            // item.id = item.filename = item.id.replace(`.${item.type}`, ` copy`);
             const filename = assetViewer._getClonedName(item.id, item.dir);
             const path = `${folder}/${filename}`;
             const exists = await this.editor.fileSystem.checkFileExists( path );
@@ -452,8 +448,7 @@ class Gui {
                 return;
             }
             const cloned = await this.editor.fileSystem.copyFile(item.asset_id, path )
-            //const cloned = await this.editor.fileSystem.uploadFile( item.unit, item.asset_id, item.id, item.content);
-            // assetViewer._refreshContent();
+            
             if( cloned ) {
                 resolve( cloned.id );    
                 console.log(item.id + " cloned"); 
@@ -557,7 +552,42 @@ class Gui {
                 this.addFileLocalActions( localRepository[0], types, previewActions);
         }
         
-        const assetViewer = this.assetViewer = new LX.AssetView({ allowedTypes: types,  previewActions: previewActions, contextMenu: false});
+        const itemContextMenuOptions = [{
+            icon: 'HardDriveDownload@solid',
+            name: 'Download', 
+            callback: async ( items )=> {
+                const item = items[0];
+                if( item.type == 'sigml' ) {
+                        const alertDialog = new LX.AlertDialog( "Select type file?", null, () => {
+                            LX.downloadURL( this.editor.fileSystem.root+item.fullpath, item.id);
+                        }, {cancelText: "BML", continueText: "SiGML", cancelCallback: async () => {
+                            const filename = item.id.replace("."+LX.getExtension(item.id), "");
+                            if( !item.content ) {
+                                const promise = new Promise((resolve) => {
+                                    this.editor.fileToAnimation(item, (file) => {
+                                        if( file ) {
+                                            resolve(file);
+                                        }
+                                        else {
+                                            resolve( null );
+                                        }
+                                    });
+                                })
+                                const parsedFile = await promise;
+                                item.animation = parsedFile.animation;
+                                item.content = parsedFile.content;
+                            }
+                            LX.downloadFile( filename+".bml", item.content);
+                        }} );
+                }
+                else {
+                    LX.downloadURL( this.editor.fileSystem.root+item.fullpath, item.id);
+                }
+                
+            }
+        }]
+    
+        const assetViewer = this.assetViewer = new LX.AssetView({ allowedTypes: types,  previewActions: previewActions, itemContextMenuOptions});
         assetViewer.on( "beforeNodeDragged", async ( e, resolve) => {
             const node = e.items[0];
             const toFolder = e.to;
@@ -613,6 +643,7 @@ class Gui {
 
         for( let i = 0; i < folder.children.length; i++ ) {
             const child = folder.children[i];
+
             if( child.type == "folder" ) {
                 // New Folder action 
                 actions.push( {
@@ -681,9 +712,10 @@ class Gui {
         for( let i = 0; i < folder.children.length; i++ ) {
             const child = folder.children[i];
 
-            // Delete File action
             for( let j = 0; j < types.length; j++ ) {
                 const type = types[j];
+
+                // Delete File action
                 actions.push( {
                     type: type,
                     path: "@/"+ child.fullpath,
@@ -695,22 +727,8 @@ class Gui {
                             this.assetViewer._deleteItem(item);
                             this.assetViewer._refreshContent();
                         }
-                        // this.prompt = LX.prompt("You won't be able to revert this!", `Are you sure you want to delete "${item.id}"?`, async () => {
-
-                        //     const deleted = await this.editor.fileSystem.deleteFile( item.asset_id);
-                        //     if(deleted) {
-                        //         LX.popup('"' + item.filename + '"' + " deleted successfully.", "Clip removed!", {position: [ "10px", "50px"], timeout: 5000});
-                                
-                        //         this.assetViewer._deleteItem(item);
-                        //         this.assetViewer._refreshContent();
-                        //     }
-                        //     else {
-                        //         LX.popup('"' + item.filename + '"' + " couldn't be removed.", "Error", {position: [ "10px", "50px"], timeout: 5000});
-                        //     }
-                        // }, { input: false});
                     }
                 } );
-    
             }
             this.addFileActions(child, types, actions);
         }
@@ -720,8 +738,6 @@ class Gui {
 
         for( let i = 0; i < folder.children.length; i++ ) {
             const child = folder.children[i];
-
-            // Delete File action
 
             for( let j = 0; j < types.length; j++ ) {
                 const type = types[j];
@@ -1211,45 +1227,7 @@ class Gui {
         this.characterPanel.root.classList.add("showScrollBar");
 
         p.clear();
-        // p.branch('Characters');
-
-        // p.addButton( "Upload yours", "Upload Character", (v) => {
-        //     this.uploadCharacter((value, config) => {
-                    
-        //         if ( !this.editor.loadedCharacters[value] ) {
-        //             UTILS.makeLoading( `Loading character [ ${value} ]...`);
-        //             let modelFilePath = this.editor.characterOptions[value][0];                    
-        //             let configFilePath = this.editor.characterOptions[value][1];
-        //             let modelRotation = (new THREE.Quaternion()).setFromAxisAngle( new THREE.Vector3(1,0,0), this.editor.characterOptions[value][2] ); 
-        //             this.editor.loadCharacter(modelFilePath, config || configFilePath, modelRotation, value, ()=>{ 
-        //                 this.editor.changeCharacter(value);
-        //                 this.createCharactersPanel(p);
-        //                 if(this.editor.currentCharacter.config) {
-                          
-                            
-        //                     const resetBtn = this.mainArea.sections[0].panels[2].root.querySelector("button[title='Reset pose']");
-        //                     if(resetBtn) {
-        //                         resetBtn.classList.remove("hidden");
-        //                     }
-        //                 }
-        //                 UTILS.hideLoading();
-        //             }, (err) => {
-        //                 UTILS.hideLoading();
-        //                 LX.popup("There was an error loading the character", "Character not loaded", {width: "30%"});
-        //             } );
-        //             return;
-        //         } 
-
-        //         // use controller if it has been already loaded in the past
-        //         this.editor.changeCharacter(value);
-        //         this.createCharactersPanel(p);
-        //     });
-        // } ,{ nameWidth: "100px", icon: "CloudUpload" } );        
-      
-        // p.addSeparator();
-
-
-        // p.sameLine();
+   
         let characters = [];
         const _makeProjectOptionItem = ( icon, outerText, id, selected = false ) => {
             const item = LX.makeContainer( ["100%", "auto"], `flex flex-col gap-3 p-3 items-center text-md rounded-lg hover:bg-accent cursor-pointer ${selected ? "bg-secondary" : ""}`, ``, null );
