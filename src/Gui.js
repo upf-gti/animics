@@ -374,23 +374,6 @@ class Gui {
             }
             iframe.onload = (e) => {
                 if(!info) {
-                    window.onmessage = (event) =>{ 
-                    // if (event.origin == Editor.PERFORMS_PATH){
-                            if ( typeof(event.data) == "object" && event.data.appStatus ){
-
-                                for( let i = 0; i < this._realizer.pendingData.length; ++i){
-                                    iframe.contentWindow.postMessage(iframe.contentWindow.pendingData[i], "*");
-                                }
-
-                                iframe.contentWindow.focus();
-                                iframe.contentWindow.pendingData.length = 0;
-                                iframe.contentWindow.status = true;
-                                window.onmessage = null;
-                            }
-                        }
-                    // }
-
-                    // iframe.contentWindow.focus();
                     iframe.contentWindow.postMessage(JSON.stringify({type: item.type, name: item.id, data:item.content}), "*")
                 }
             }
@@ -972,23 +955,6 @@ class Gui {
             }));
         };
 
-
-        const _createFolder = async (from, foldername) => {
-            try {
-                const data = await this.editor.fileSystem.createFolder( from.fullpath + "/" + foldername);
-                if(data) {
-                    LX.popup('"' + foldername + '"' + " created successfully.", "Folder created!", {position: [ "10px", "50px"], timeout: 5000});
-                    resolve(foldername, data)
-                }
-                else {
-                    // TO DO: RETURN EXACT ERROR
-                    LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, "You don't have permission to create a folder here.", { position: "bottom-center" } );
-                }
-            }
-            catch( err ) {
-                LX.toast( `<span class="flex flex-row items-center gap-1">${ LX.makeIcon( "X", { svgClass: "text-destructive" } ).innerHTML }Can't create folder</span>`, err, { position: "bottom-center" } );
-            }
-        }
         return new Promise((resolve, reject) => {
 
             this.saveInFolderDialog = new LX.Dialog( `Saving in:`, ( p ) =>
@@ -1020,24 +986,15 @@ class Gui {
                 _openFolder( folders, content );
     
                 {
-                    // const footerPanel2 = area.addPanel({ className: "py-2 px-6 border-top flex flex-auto justify-end", height: "auto" });
-                    // footerPanel2.addContent( "", sfContainer, { className: "text-muted-foreground flex justify-end" } );
                     const footerPanel = area.addPanel({ className: "p-2 border-top flex flex-auto justify-between", height: "auto" });
                     footerPanel.addContent( "", sfContainer, { className: "text-muted-foreground" } );
-                    // footerPanel.addButton( null, "NewFolderButton", async () => {
-                    //     const data = await this.editor.createFolder(targetFolder);
-                    //     if( data ) {
-                    //         //resolve( data.foldername, data.data)
-                    //     }
-                        
-                    // }, { width: "auto", icon: "FolderPlus", title: "Create Folder", tooltip: true, className: "ml-2", buttonClass: "bg-none hover:bg-secondary" } );
+                 
                     footerPanel.sameLine( 2, "mr-2" );
                     footerPanel.addButton( null, "Cancel", () => {
                         this.saveInFolderDialog.close();
                         resolve(false);
                     }, { buttonClass: "bg-none text-destructive" } );
                     footerPanel.addButton( null, "Select", () => {
-                        //this._requestMoveItemToFolder( item, targetFolder );
                         resolve(targetFolder);
                         this.saveInFolderDialog.close();
                     }, { className: "", buttonClass: "contrast" } );
@@ -1049,42 +1006,16 @@ class Gui {
     }
 
     showSavingLocallyDialog( callback ) {
-        this.prompt = new LX.Dialog("Alert", 
-            (p) => {
-                p.addTextArea(null, 'The animation will be saved locally. You must be logged in to save it into server.', null, { disabled: true, fitHeight: true, inputClass: 'bg-none fg-tertiary' });
-                p.addButton(null, 'Login', () => {
-                    this.prompt.close();
-                    this.showLoginModal();
-                }, { buttonClass: 'contrast', width: "100px", class: "justify-end" })
-            }, 
-            { 
-                onBeforeClose: () => {
-                    this.prompt = null;
-                    if( callback ) {
-                        callback();
-                    }
-                },
-                closable: true, modal: true, size: ["30%", "fit-content"]
-            })   
-
-        // this.prompt = new LX.prompt("The animation will be saved locally. You must be logged in to save it into server.", "Alert", d => {
-        //     this.prompt.close();
-        //     this.showLoginModal();
-        // },
-        // {
-        //     on_cancel: () => { 
-        //         if( onCancel ) {
-        //             onCancel();
-        //         }
-        //         if(this.prompt) {
-        //             this.prompt.close();
-        //         }
-        //     },
-        //     // 
-            
-        //     closable: true, modal: true, size: ["30%", "fit-content"],
-        //     accept: "Login", input: false
-        // });
+        this.prompt = new LX.AlertDialog("Not logged", "The animation will be saved locally. You must be logged in to save it into server.", () => {
+                this.prompt.close();
+                this.showLoginModal();
+            }, {continueText: "Login", cancelText: "Save locally", cancelCallback: () => {
+                this.prompt = null;
+                if( callback ) {
+                    callback();
+                }
+            }, closable: true, modal: true, size: ["30%", "fit-content"]}
+        )
     }
 
     updateLoopModeGui( loop ){

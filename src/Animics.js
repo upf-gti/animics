@@ -7,7 +7,7 @@ import { LX } from 'lexgui';
 
 class Animics {
     static Modes = {KEYFRAME: 0, SCRIPT: 1};
-    static version = "2.1.3";
+    static version = "2.2.3";
     constructor() {
         this.fileSystem = null;    
     }
