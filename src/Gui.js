@@ -214,7 +214,7 @@ class Gui {
         LX.listen( userButton, "click", () => {
             new LX.DropdownMenu( userButton, [
                 
-                { name: "Go to Database", icon: "Server", callback: () => { window.open("https://signon-lfs.gti.sb.upf.edu/src/", "_blank")} },
+                { name: "Go to Database", icon: "Server", callback: () => { window.open("https://animics-lfs.gti.sb.upf.edu/src/", "_blank")} },
                 { name: "Logout", icon: "LogOut", callback: () => {
                     this.editor.ANIMICS._logout( async () => {
                         const folders = this.constructor == KeyframesGui ? ["clips"] : ["scripts"];
