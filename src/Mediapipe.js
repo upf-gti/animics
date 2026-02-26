@@ -1,4 +1,4 @@
-import { DrawingUtils, HolisticLandmarker, FaceLandmarker, PoseLandmarker, HandLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13';
+import { DrawingUtils, HolisticLandmarker, FaceLandmarker, PoseLandmarker, HandLandmarker, FilesetResolver } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32';
 import * as THREE from 'three'
 
 class MediaPipe {
@@ -33,7 +33,7 @@ class MediaPipe {
 
         const initImage = await createImageBitmap(this.canvas);
         const loadingPromises = [];
-        const vision = await FilesetResolver.forVisionTasks( "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.13/wasm" );
+        const vision = await FilesetResolver.forVisionTasks( "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm" );
         
         if(!this.faceLandmarker) {
             const p = FaceLandmarker.createFromOptions(
@@ -46,7 +46,8 @@ class MediaPipe {
                     outputFaceBlendshapes: true,
                     outputFacialTransformationMatrixes: true,
                     runningMode: 'VIDEO',
-                    numFaces: 1
+                    numFaces: 1,
+                    minFaceDetectionConfidence: 0.1
                 }
             ).then(
                 (faceLandmarker) =>{

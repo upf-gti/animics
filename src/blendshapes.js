@@ -56,7 +56,10 @@ class BlendshapesManager {
             isFirst = false;
         }
 
-        if(applyRotation) {
+        const dataAvailalbe = data.filter((d) => Object.keys(d).length > 1);
+
+        if(applyRotation && dataAvailalbe.length > times.length/2) {
+
             for (let idx = 0; idx < data.length; idx++) {
                 if(!clipData["mixamorig_LeftEye"])
                 {
@@ -77,15 +80,15 @@ class BlendshapesManager {
                     clipData["mixamorig_Head"] = clipData["mixamorig_Head"].fill(null).map(() => new THREE.Euler( 0, 0, 0, 'XYZ' ));
                 }
 
-                clipData["mixamorig_LeftEye"][idx].x = data[idx]["LeftEyePitch"];
-                clipData["mixamorig_LeftEye"][idx].y = data[idx]["LeftEyeYaw"];
+                clipData["mixamorig_LeftEye"][idx].x = data[idx]["LeftEyePitch"] == undefined ? 0 : data[idx]["LeftEyePitch"];
+                clipData["mixamorig_LeftEye"][idx].y = data[idx]["LeftEyeYaw"] == undefined ? 0 : data[idx]["LeftEyeYaw"];
 
-                clipData["mixamorig_RightEye"][idx].x = data[idx]["RightEyePitch"];
-                clipData["mixamorig_RightEye"][idx].y = data[idx]["RightEyeYaw"];
+                clipData["mixamorig_RightEye"][idx].x = data[idx]["RightEyePitch"] == undefined ? 0 : data[idx]["RightEyePitch"];
+                clipData["mixamorig_RightEye"][idx].y = data[idx]["RightEyeYaw"] == undefined ? 0 : data[idx]["RightEyeYaw"];
 
-                clipData["mixamorig_Head"][idx].x = 2*Math.PI - data[idx]["HeadPitch"]-0.2; //data[idx]["HeadPitch"];
-                clipData["mixamorig_Head"][idx].y = 2*Math.PI - data[idx]["HeadYaw"]; //data[idx]["HeadYaw"];
-                clipData["mixamorig_Head"][idx].z = 2*Math.PI - data[idx]["HeadRoll"]; //data[idx]["HeadRoll"];
+                clipData["mixamorig_Head"][idx].x = data[idx]["HeadPitch"] == undefined ? 0 : 2*Math.PI - data[idx]["HeadPitch"]-0.2; //data[idx]["HeadPitch"];
+                clipData["mixamorig_Head"][idx].y = data[idx]["HeadYaw"] == undefined ? 0 : 2*Math.PI - data[idx]["HeadYaw"]; //data[idx]["HeadYaw"];
+                clipData["mixamorig_Head"][idx].z = data[idx]["HeadRoll"] == undefined ? 0 : 2*Math.PI - data[idx]["HeadRoll"]; //data[idx]["HeadRoll"];
             }
         }
 
