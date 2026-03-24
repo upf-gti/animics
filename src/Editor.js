@@ -15,6 +15,7 @@ import { BMLController } from "./controller.js"
 import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
+import pako from 'https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs';
 
 import { LX } from "lexgui"
 
@@ -511,10 +512,20 @@ class Editor {
     fileToAnimation (data, callback)  {
         
         if(data.fullpath) {
-            const extension = UTILS.getExtension(data.fullpath).toLowerCase();
+            let extension = UTILS.getExtension(data.fullpath).toLowerCase();
             // TODO: request should be with Control-Cache= no-cache (it means "file must be validated by the server before reusing from cache" ). Necessary to avoid some browsers not updating files when overwriting
             // as it is now, multiple windows of animics might see diferent versions of the same file. No-cache would solve this.
-            LX.request({ url: this.fileSystem.root + data.fullpath, dataType: 'text/plain', success: ( content ) => {
+            let compressed = extension.includes("gz");
+            if( compressed ) {
+                extension = UTILS.getExtension(data.fullpath.replace(".gz","")).toLowerCase();
+            }
+            
+            LX.request({ url: this.fileSystem.root + data.fullpath, dataType: compressed ? 'binary' : 'text/plain', success: async ( content ) => {
+                if(compressed) {
+                    // const buffer = await content.arrayBuffer();
+                    content = pako.ungzip(new Uint8Array(content), { to: 'string' });
+                    extension.replace(".gz", "");
+                }
                 if( content == "{}" )  {
                     callback({content});
                     return;
@@ -1090,11 +1101,16 @@ class Editor {
             return;
         }
         folder.toServer = toServer;
-        for( let i = 0; i < animations.length; i++ ) {   
+        for( let i = 0; i < animations.length; i++ ) {
+            let compress = false;
+            if(format == "BVH" || format == "BVH extended")
+            {
+                compress = true;
+            }
             this.uploadData(animations[i].name, animations[i].data, folder, (newFilename) => {
                 this.gui.closeDialogs();
                 LX.popup('"' + newFilename + '"' + " uploaded successfully.", "New clip!", {position: [ "10px", "50px"], timeout: 5000});
-            })
+            }, compress)
         }
     }
     
@@ -1105,7 +1121,7 @@ class Editor {
      * @param {Object} location where the file has to be saved: it can be "server" or "local"
      * @param {*} callback 
      */
-    uploadData(filename, data, location, callback) {
+    uploadData(filename, data, location, callback, compress = false) {
 
         if(data.constructor.name == "Object") {
             data = JSON.stringify(data, null, 4);
@@ -1117,10 +1133,10 @@ class Editor {
             if( callback ) {
                 callback(newFilename, files);
             }
-        });
+        }, compress);
     }
 
-    uploadFileToServer(unit, folder, filename, data, folder_id, callback = () => {}) {
+    uploadFileToServer(unit, folder, filename, data, folder_id, callback = () => {}, compress = false) {
         const session = this.fileSystem.session;
         const username = session.user.username;
         //const folder = "animics/"+ type;
@@ -1132,7 +1148,7 @@ class Editor {
             if( file ) {
               
                 LX.prompt("Do you want to overwrite the file?", "File already exists", async () => {
-                        const files = await this.fileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), []);
+                        const files = await this.fileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), [], compress);
                         callback(files);
                     }, 
                     {
@@ -1150,7 +1166,7 @@ class Editor {
                 } )                
             }
             else {
-                const files = await this.fileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), []);
+                const files = await this.fileSystem.uploadFile(unit, folder_id, filename, new File([data], filename ), [], compress);
                 callback(files);
             }
         },
@@ -1937,7 +1953,12 @@ class KeyframeEditor extends Editor {
                 continue;
             }
             // other valid file formats
-            const extension = UTILS.getExtension(files[i].name).toLowerCase();                   
+            let extension = UTILS.getExtension(files[i].name).toLowerCase();
+            let compressed = extension.includes("gz");
+            if( compressed ) {
+                extension = UTILS.getExtension(files[i].name.replace(".gz","")).toLowerCase();
+            }
+                             
             if( animExtensions.includes(extension) ) {
                     const promise = new Promise((resolve) => {
                         // files[i].name = files[i].name.replace(`.${extension}`, "");

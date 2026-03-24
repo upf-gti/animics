@@ -5,7 +5,7 @@ class FileSystem {
     constructor( callback, onError, folders = []) {
         this.session = null;
 
-        this.host = "https://animics-lfs.gti.upf.edu/";
+        this.host = "https://animics-lfs.gti.upf.edu/";//"http://dev-lfs.gti.upf.edu/"
         this.root = this.host + "files/";
         
         // this.repository = {signs:[], presets: [], clips:[]};
@@ -15,6 +15,8 @@ class FileSystem {
         
         this.refreshRepository = true;
 
+        this.compressor = new Worker(new URL('./compress.js', import.meta.url), { type: 'module' });
+        
         // init server this.onReady.bind(this, user, pass, (s) => {this.session = s; callback;})
         LFS.setup(this.host + "src/", () => {
             LFS.checkExistingSession( (session ) => {
@@ -130,7 +132,7 @@ class FileSystem {
         });
     }
 
-    async uploadFile(unit, folder_id, filename, data, metadata){
+    async uploadFile(unit, folder_id, filename, data, metadata, compress = false){
 
 
         return new Promise((resolve, reject) => {
@@ -140,49 +142,89 @@ class FileSystem {
             // const path = unit + "/" + folder + "/" + filename;
            // const path = folder + "/" + filename;
 
-            session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata }, 
-                async (e) => {
-                    try {
-                        console.log("complete", e);
-                        const files = await this.getFiles( unit, folder_id);
-                        
-                        const files_data = [];
-                        if( files ) {                                        
-                            for( let f = 0; f < files.length; f++ ) {
-                                let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
-                                files[f].asset_id = files[f].id;
-                                files[f].id = files[f].filename;
-                                // files[f].folder = folder.replace("animics/", "");
-                                files[f].type = extension;
-                                if(files[f].type == "txt")
-                                    continue;
-                                files_data.push(files[f]);
+           if( compress )  {
+               this.compressor.postMessage(data);
+               this.compressor.onmessage = (e) => {
+                    data = e.data;
+                    session.uploadFile( unit, folder_id, filename+".gz", data, { "metadata": metadata }, 
+                        async (e) => {
+                            try {
+                                console.log("complete", e);
+                                const files = await this.getFiles( unit, folder_id);
+                                
+                                const files_data = [];
+                                if( files ) {                                        
+                                    for( let f = 0; f < files.length; f++ ) {
+                                        let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
+                                        files[f].asset_id = files[f].id;
+                                        files[f].id = files[f].filename;
+                                        // files[f].folder = folder.replace("animics/", "");
+                                        files[f].type = extension;
+                                        if(files[f].type == "txt")
+                                            continue;
+                                        files_data.push(files[f]);
+                                    }
+                                }
+                                resolve( files_data );
                             }
+                            catch(err) {
+                                console.error(err);
+                                resolve( false );
+                            }
+                        },
+                        (e) => {
+                            console.log("error", e);
+                            reject(e);
                         }
-                        resolve( files_data );
-                    }
-                    catch(err) {
-                        console.error(err);
-                        resolve( false );
-                    }
-                },
-                (e) => {
-                    console.log("error", e);
-                    reject(e);
-                }
-            );
+                    );
+               }
+           }
+           else {
+
+               session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata },  
+                   async (e) => {
+                       try {
+                           console.log("complete", e);
+                           const files = await this.getFiles( unit, folder_id);
+                           
+                           const files_data = [];
+                           if( files ) {                                        
+                               for( let f = 0; f < files.length; f++ ) {
+                                   let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
+                                   files[f].asset_id = files[f].id;
+                                   files[f].id = files[f].filename;
+                                   // files[f].folder = folder.replace("animics/", "");
+                                   files[f].type = extension;
+                                   if(files[f].type == "txt")
+                                       continue;
+                                   files_data.push(files[f]);
+                               }
+                           }
+                           resolve( files_data );
+                       }
+                       catch(err) {
+                           console.error(err);
+                           resolve( false );
+                       }
+                   },
+                   (e) => {
+                       console.log("error", e);
+                       reject(e);
+                   }
+               );
+           }
         });
                 //                    e => console.log("progress",e));
     }
 
-    async uploadData(unit, folder_id, data, filename, metadata){
+    async uploadData(unit, folder_id, data, filename, metadata, compress = false){
 
         return new Promise((resolve, reject) => {
 
             var session = this.session;
             //let path = session.user.username + "/" + folder + "/" + filename;
 
-			session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata }, 
+			session.uploadFile( unit, folder_id, filename, data, { "metadata": metadata },
                 async (e) => {
                     try {
                         console.log("complete", e);

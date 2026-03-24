@@ -559,8 +559,11 @@ function onLoadFiles( files ) {
         }
 
         // other valid file formats
-        const extension = UTILS.getExtension(files[i].name).toLowerCase();
-
+        let extension = UTILS.getExtension(files[i].name).toLowerCase();
+        if(extension) {
+            extension = UTILS.getExtension(files[i].name.replace(".gz","")).toLowerCase();
+        }
+        
         if( animExtensions.includes(extension) ) {
             if ( !mode ) {
                 mode = "keyframe";

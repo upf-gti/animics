@@ -202,7 +202,7 @@ class Animics {
      */
         // await this.editor.fileSystem.uploadFile( e.item.unit, e.item.asset_id, e.item.id, e.item.content);
 
-    async uploadFile(filename, data, location, callback = () => {}) {
+    async uploadFile(filename, data, location, callback = () => {}, compress = false) {
         const fullpath = location.fullpath + "/" + filename;
         if( location.toServer ) {
 
@@ -243,7 +243,7 @@ class Animics {
                             p.addButton("cancel", "Omit", () => { renameDialog.close(); }, {hideName: true, buttonClass: "warning", width: "50%"} );
                             p.addButton("ok", "Rename", async () => {
                                 if ( !nameWithoutExtension.length ){ return; }
-                                this.uploadFile(nameWithoutExtension + extension, data, location, callback);
+                                this.uploadFile(nameWithoutExtension + extension, data, location, callback, compress);
                                 renameDialog.close(); 
                             }, {hideName: true, buttonClass: "primary", width: "50%"} );
                         }, { modal: true, size: ["33%", "fit-content"] });
@@ -254,7 +254,7 @@ class Animics {
                 }, { modal: true, size: ["33%", "fit-content"]});      
             }
             else {
-                const files = await this.fileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), []);
+                const files = await this.fileSystem.uploadFile(location.unit, location.asset_id, filename, new File([data], filename), [], compress);
                 callback(filename, files);
             }
         }

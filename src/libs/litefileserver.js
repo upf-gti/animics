@@ -1140,7 +1140,7 @@ Session.prototype.uploadFile = function( unit, folder_id, filename, data, extra,
 			var fileReader = new FileReader();
 			fileReader.onload = function() {
 				var arrayBuffer = this.result;
-				that.uploadFile( unit, folder_id, filename, arrayBuffer, extra, on_complete, on_error, on_progress );
+				that.uploadFile( fullpath, arrayBuffer, extra, on_complete, on_error, on_progress );
 			};
 			fileReader.readAsArrayBuffer( data );
 			return null;
