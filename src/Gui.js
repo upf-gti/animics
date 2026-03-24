@@ -1715,7 +1715,7 @@ class KeyframesGui extends Gui {
 
             // Export (download) animation
             { name: "Export Global Animations", icon: "Download", kbd: "CTRL+E", callback: () => {
-                this.showExportAnimationsDialog("Export Animations", ( info ) => this.editor.export( info.selectedAnimations, info.format ), { formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
+                this.showExportAnimationsDialog("Export Animations", { callback:( info ) => this.editor.export( info.selectedAnimations, info.format ), formats: ["BVH", "BVH extended", "GLB"], selectedFormat: "BVH extended"});
             } },
             { name: "Export Videos and Landmarks", icon: "FileVideo", callback: () => this.showExportVideosDialog() },
             // Save animation in server
