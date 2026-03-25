@@ -559,10 +559,7 @@ function onLoadFiles( files ) {
         }
 
         // other valid file formats
-        let extension = UTILS.getExtension(files[i].name).toLowerCase();
-        if(extension) {
-            extension = UTILS.getExtension(files[i].name.replace(".gz","")).toLowerCase();
-        }
+        const extension = UTILS.getExtension(files[i].name.replace(".gz","")).toLowerCase();
         
         if( animExtensions.includes(extension) ) {
             if ( !mode ) {

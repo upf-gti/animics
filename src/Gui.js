@@ -267,7 +267,7 @@ class Gui {
 
     loadAssets( assetViewer, repository ) {
 
-        assetViewer.on( "enterFolder", async ( e ) => {
+        assetViewer.on( "beforeEnterFolder", async ( e, resolve ) => {
             const item = e.to;
             if( item.unit && item.unit != item.id ) { 
 
@@ -285,15 +285,15 @@ class Gui {
 
                 assetViewer._paginator.setPage(1);
                 const assets = await this.editor.fileSystem.loadFoldersAndFiles(item.unit, item.asset_id, item.id, allowFolders, restrictFolders);
-                                    
+
                 item.children = assets ? assets : [];
                 setTimeout( () => {
                     assetViewer._previewAsset(item);
                 }, 100)
-            
+                
                 assetViewer.parent.loadingArea.hide();
             }
-            return true;
+            resolve(true);
         });
 
         assetViewer.on( "beforeCreateFolder", async ( e, resolve ) => {
@@ -6139,7 +6139,8 @@ class ScriptGui extends Gui {
 
     loadBMLClip(clip, timeOffset = 0, mode = ClipModes.Actions) {         
         let {clips, duration} = this.dataToBMLClips(clip, mode);
-        this.clipsTimeline.addClips(clips, timeOffset);
+        const baseTrackId = this.clipsTimeline.addClips(clips, timeOffset);
+        this.clipsTimeline.scrollToTrack(baseTrackId);
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
@@ -6806,9 +6807,8 @@ class ScriptGui extends Gui {
                     break;    
             }
 
-            that.clipsTimeline.addClip( new ANIM[asset.type](config), -1, that.clipsTimeline.currentTime);
-            asset_browser.clear();
-            dialog.close();
+            const {id, trackId} = that.clipsTimeline.addClip( new ANIM[asset.type](config), -1, that.clipsTimeline.currentTime);
+            that.clipsTimeline.scrollToTrack(trackId);
         }
 
         const createPreviewActionClipType = ( type ) =>{
@@ -6999,18 +6999,12 @@ class ScriptGui extends Gui {
                 p.addTextArea(null, "How do you want to insert the clip?", null, {disabled:true, className: "nobg"});
                 p.sameLine(3);
                 p.addButton(null, "Add as single clip", (v) => {
-                    dialog.close();
-                    this.closeDialogs();
                     this.onSelectFile(asset, v);
                 }, {width: "33%"});
                 p.addButton(null, "Breakdown into glosses", (v) => {
-                    dialog.close();
-                    this.closeDialogs();
                     this.onSelectFile(asset, v);
                 }, {width: "33%"});
                 p.addButton(null, "Breakdown into action clips", (v) => {
-                    dialog.close();
-                    this.closeDialogs();
                     this.onSelectFile(asset, v);
                 }, {width: "33%"});
             }, {modal:true, closable: true, id: "choice-insert-mode", size:["50%", "fit-content"]});
@@ -7044,11 +7038,6 @@ class ScriptGui extends Gui {
         this.loadBMLClip(asset.animation, this.clipsTimeline.currentTime, insertMode);
         if( this.prompt ) {
             this.prompt.panel.loadingArea.hide();
-            this.prompt.close();
-        }
-
-        if( this.assetViewer ) {
-            this.assetViewer.clear();
         }
     }
 

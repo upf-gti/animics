@@ -504,7 +504,8 @@ class FileSystem {
                     const files_data = [];
                     if( files ) {                                        
                         for( let f = 0; f < files.length; f++ ) {
-                            let extension = files[f].filename.substr(files[f].filename.lastIndexOf(".") + 1);
+                            let extension = UTILS.getExtension(files[f].filename.replace(".gz",""));
+                            
                             files[f].asset_id = files[f].id;
                             files[f].id = files[f].filename;
                             // files[f].folder = files[f].folder;
@@ -643,7 +644,7 @@ class FileSystem {
         }
         else {
             name = asset.filename;
-            type = UTILS.getExtension( name );
+            type = UTILS.getExtension( name.replace(".gz","") );
         }
 
         data.type = type;
