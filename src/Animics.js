@@ -136,7 +136,7 @@ class Animics {
             //     callback = this.onScriptProject.bind(this, settings.pendingResources );
                 break;
             default:                  
-                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml'\n\tKeyframe animation: 'bvh', 'bvhe', 'json'");
+                alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi', 'mov'\n\tScript animation: 'bml', 'sigml'\n\tKeyframe animation: 'bvh', 'bvhe', 'json'");
                 return false;  
         }
         let allowFolders = []

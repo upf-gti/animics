@@ -1947,13 +1947,13 @@ class KeyframeEditor extends Editor {
 
         for(let i = 0; i < files.length; ++i){
             UTILS.makeLoading("Loading animation: " + files[i].name );
+            let extension = UTILS.getExtension(files[i].name).toLowerCase();
             // MIME type is video
-            if( files[i].type.startsWith("video/") ) {
+            if( files[i].type.startsWith("video/") || extension.includes("mov")) {
                 resultFiles.push( files[i] );
                 continue;
             }
             // other valid file formats
-            let extension = UTILS.getExtension(files[i].name).toLowerCase();
             let compressed = extension.includes("gz");
             if( compressed ) {
                 extension = UTILS.getExtension(files[i].name.replace(".gz","")).toLowerCase();

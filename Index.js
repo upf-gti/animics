@@ -541,7 +541,7 @@ function onLoadFiles( files ) {
     let mode = null;
     let resultFiles = [];
     
-    const animExtensions = ['bvh','bvhe', 'glb', 'json'];
+    const animExtensions = ['bvh','bvhe', 'glb', 'json', 'mov'];
     const scriptExtensions = ['bml', 'sigml'];
 
     // First valid file will determine the mode. Following files must be of the same format
@@ -586,7 +586,7 @@ function onLoadFiles( files ) {
         return startAnimics({ mode, pendingResources: resultFiles});
     }	
         
-    alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi'\n\tScript animation: 'bml', 'sigml'\n\tKeyframe animation: 'bvh', 'bvhe', 'json'");
+    alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi', 'mov'\n\tScript animation: 'bml', 'sigml'\n\tKeyframe animation: 'bvh', 'bvhe', 'json'");
     return null;
 }
 
