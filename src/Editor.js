@@ -16,7 +16,7 @@ import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
 import pako from 'https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs';
-
+import { TrajectoriesHelper } from './TrajectoriesHelper.js';
 import { LX } from "lexgui"
 
 
@@ -237,7 +237,7 @@ class Editor {
 
         // Create 3D renderer
         const pixelRatio = CANVAS_WIDTH / CANVAS_HEIGHT;
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(pixelRatio);
         renderer.setSize(CANVAS_WIDTH, CANVAS_HEIGHT);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -325,6 +325,21 @@ class Editor {
                         {
                             morphTargets[o.name] = o.morphTargetDictionary;
                             skinnedMeshes[o.name] = o;
+                            o.material.defines.MORPHTARGETS_TEXTURE = " ";
+                          
+                            const depthMat = new THREE.MeshDepthMaterial({
+                                depthPacking: THREE.RGBADepthPacking
+                            });
+                            if(!depthMat.defines) {
+                                depthMat.defines = {};
+                            }
+                            depthMat.defines.USE_MORPHTARGETS = '';
+                            depthMat.defines.MORPHTARGETS_TEXTURE = '';
+                            depthMat.defines.MORPHTARGETS_COUNT = o.morphTargetInfluences.length; 
+                            depthMat.defines.USE_SKINNING = '';
+                             
+                            o.customDepthMaterial = depthMat;
+                            o.customDepthMaterial.needsUpdate = true;
                         }
                         if(o.name == "Classic_short") {
                             if( o.children.length > 1 ){ 
@@ -1523,7 +1538,7 @@ class KeyframeEditor extends Editor {
         }
 
         this.retargeting = null;
-
+        this.trajectoriesHelper = null;
         // Create GUI
         this.gui = new KeyframesGui(this);
 
@@ -1696,7 +1711,7 @@ class KeyframeEditor extends Editor {
             await new Promise(r => setTimeout(r, 1000));            
         }        
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
-        this.setBoneSize(0.12);
+        this.setBoneSize(0.08);
     }
     
     loadNNSkeleton() {
@@ -1716,7 +1731,7 @@ class KeyframeEditor extends Editor {
         // Gizmo stuff
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);
-            this.setBoneSize(0.12);
+            this.setBoneSize(0.08);
         }
 
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
@@ -1727,6 +1742,12 @@ class KeyframeEditor extends Editor {
             break;
         }
 
+        if ( this.trajectoriesHelper ){
+            this.trajectoriesHelper.dispose();
+        }
+        this.trajectoriesHelper = new TrajectoriesHelper( this.currentCharacter.model,  this.currentCharacter.mixer );
+        this.trajectoriesComputationPending = true;
+        
         const tab = this.gui.panelTabs ? this.gui.panelTabs.selected : null;
         if ( !avatarFirstBoundAnimation ){
             this.createGlobalAnimation( "New Animation" );
@@ -1871,7 +1892,9 @@ class KeyframeEditor extends Editor {
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
         this.setTime(this.currentTime); // update mixer
 		this.gui.globalTimeline.visualOriginTime = - ( this.gui.globalTimeline.xToTime(100) - this.gui.globalTimeline.xToTime(0) ); // set horizontal scroll to 100 pixels 
-
+        
+        this.trajectoriesComputationPending = true;
+        this.hideTrajectories();
         return alreadyExisted;
     }
 
@@ -3917,6 +3940,50 @@ class KeyframeEditor extends Editor {
 
         return bvhPose + bvhFace;
     }
+
+    async computeTrajectories( animation, currentTime = 0 ) {
+        if( !this.trajectoriesHelper || !animation ) {
+            return;
+        }
+        await this.trajectoriesHelper.computeTrajectories( animation, currentTime );
+        this.trajectoriesComputationPending = false;
+    }
+
+    updateTrajectories( start, end ) {
+        if( ! this.trajectoriesHelper ) {
+            return;
+        }
+
+        this.trajectoriesStart = start;
+        this.trajectoriesEnd = end;
+        this.trajectoriesHelper.updateTrajectories(start, end);
+    }
+
+    showTrajectories( trajectory, currentTime = 0 ) {
+        if( !this.trajectoriesHelper ) {
+            return;
+        }
+        this.trajectoriesHelper.show( trajectory );
+        this.trajectoriesActive = true;
+
+        // window.localStorage.setItem("trajectories", this.trajectoriesActive);
+        if( !this.boundAnimations[this.currentCharacter.name][this.currentAnimation].tracks.length ) {
+            return;
+        }
+        if( this.trajectoriesComputationPending ) {
+            const boundAnim = this.boundAnimations[this.currentCharacter.name][this.currentAnimation].tracks[0].clips[0];
+            this.computeTrajectories( boundAnim, currentTime );
+        }
+    }
+
+    hideTrajectories( trajectory ) {
+        if( ! this.trajectoriesHelper ) {
+            return;
+        }
+        this.trajectoriesHelper.hide( trajectory);
+        this.trajectoriesActive = false;
+        // window.localStorage.setItem("trajectories", this.trajectoriesActive);
+    }
 }
 
 /**
@@ -4025,7 +4092,6 @@ class ScriptEditor extends Editor {
         this.gui.createSidePanel();
         this.gui.clipsTimeline.updateHeader();
         this.gui.clipsTimeline.visualOriginTime = - ( this.gui.clipsTimeline.xToTime(100) - this.gui.clipsTimeline.xToTime(0) ); // set horizontal scroll to 100 pixels 
-
 
         return true;
     }

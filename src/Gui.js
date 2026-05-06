@@ -2414,14 +2414,30 @@ class KeyframesGui extends Gui {
         this.propagationWindow = new PropagationWindow( this.skeletonTimeline );
         this.propagationWindow.onSetEnabler = (v)=>{
             if ( this.editor.activeTimeline == this.skeletonTimeline ){
+  
                 if ( this.propagationWindow.enabler || this.skeletonTimeline.lastKeyFramesSelected.length ){
                     this.editor.gizmo.enableTransform();
+                    this.editor.showTrajectories( this.editor.selectedBone.replace("mixamorig_","").replace("mixamorig:",""), this.propagationWindow.time );
+                }
+                else {
+                    this.editor.hideTrajectories( this.editor.selectedBone.replace("mixamorig_","").replace("mixamorig:","") );
                     return;
                 }
             }
             this.editor.gizmo.disableTransform();
         };
 
+        this.propagationWindow.onSetSize = ()=> {
+            if( this.editor.trajectoriesActive ) {
+                this.editor.trajectoriesHelper.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide);
+            }
+        }
+
+        this.propagationWindow.onSetTime = (time)=> {
+            if( this.editor.trajectoriesActive ) {
+                this.editor.trajectoriesHelper.updateTrajectories(  time - this.propagationWindow.leftSide, time + this.propagationWindow.rightSide )
+            }
+        }
         const that = this;
 
         this.skeletonTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{ 
@@ -2522,7 +2538,7 @@ class KeyframesGui extends Gui {
                 }
             }
             this.editor.setTime(this.editor.startTimeOffset + t, true);
-            this.propagationWindow.setTime(t);
+            this.propagationWindow.setTime(t);            
         }
 
         this.skeletonTimeline.onSetDuration = (t) => { 
@@ -3012,7 +3028,12 @@ class KeyframesGui extends Gui {
     
         }
 
-        this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.disableTransform(); } }
+        this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { 
+            if (currentItems.length == 0){ this.editor.gizmo.disableTransform(); }
+            const trajectoriesActive = this.editor.trajectoriesActive;
+            this.editor.hideTrajectories();
+            if (trajectoriesActive) { for(let i = 0; i < currentItems.length; i++) {this.editor.showTrajectories(currentItems[i].replace("mixamorig_","").replace("mixamorig:",""))}}
+         }
         this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
         this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );}
         this.skeletonTimeline.onOptimizeTracks = (idx = -1) => { 
@@ -3350,7 +3371,7 @@ class KeyframesGui extends Gui {
         this.editor.activeTimeline = this.globalTimeline;
     }
 
-    setKeyframeClip(clip){
+   async setKeyframeClip(clip){
         if (!clip){
             this.editor.currentKeyFrameClip = null; // this before any setTime.
             if ( !this.skeletonTimeline.historyUndo.length && !this.bsTimeline.historyUndo.length ){
@@ -3361,6 +3382,7 @@ class KeyframesGui extends Gui {
             this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
 
+            this.editor.hideTrajectories();
             const menubarEdit = this.menubar.getItem("Edit");
             menubarEdit._setMode(0);
             const menubarView = this.menubar.getItem("View");
@@ -3417,8 +3439,8 @@ class KeyframesGui extends Gui {
             this.editor.video.sync = false;
             this.editor.setVideoVisibility(false);
         }
-        this.createSidePanel();
-        
+
+        this.createSidePanel();        
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
@@ -7474,11 +7496,19 @@ class PropagationWindow {
         if( this.visualState > PropagationWindow.STATE_BASE ){
             this.updateCurve(true);
         }
+
+        if( this.onSetSize ) {
+            this.onSetSize();
+        }
     }
 
     setTime( time ){
         this.time = time;
         this.updateCurve(); // update only position
+        
+        if(this.onSetTime) {
+            this.onSetTime(time);
+        }
     }
 
     onOpenConfig(dialog){
