@@ -1592,6 +1592,10 @@ class KeyframeEditor extends Editor {
         const lastSelection = this.gui.globalTimeline.lastClipsSelected.length == 1 ? this.gui.globalTimeline.lastClipsSelected[0] : null;
 
         this.activeTimeline.undo();
+        if ( this.gui.propagationWindow.enabler ){
+            this.computeTrajectories(this.activeTimeline.animationClip, this.activeTimeline.currentTime);
+            this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
+        }
         if( this.activeTimeline == this.gui.globalTimeline && this.activeTimeline.historyRedo.length ){
             const mixer = this.currentCharacter.mixer;
             while(mixer._actions.length){
@@ -3949,14 +3953,14 @@ class KeyframeEditor extends Editor {
         this.trajectoriesComputationPending = false;
     }
 
-    updateTrajectories( start, end ) {
-        if( ! this.trajectoriesHelper ) {
+    updateTrajectories( start, end, gradient = false ) {
+        if( ! this.trajectoriesHelper || !this.trajectoriesActive ) {
             return;
         }
 
         this.trajectoriesStart = start;
         this.trajectoriesEnd = end;
-        this.trajectoriesHelper.updateTrajectories(start, end);
+        this.trajectoriesHelper.updateTrajectories(start, end, gradient);
     }
 
     showTrajectories( trajectory, currentTime = 0 ) {

@@ -602,6 +602,12 @@ class Gizmo {
 
                 // Update animation interpolants
                 this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
+                if ( propWindow.enabler ){
+                    let startFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide);
+                    let endFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide);
+                    this.editor.trajectoriesHelper.recomputeTrajectory(bone.name.replace("mixamorig_",""), track, {startFrame, endFrame, currentTime : effectorFrameTime, gradient: this.editor.gui.propagationWindow.gradient, mixer: this.editor.currentCharacter.mixer });
+                    // this.editor.updateTrajectories(this.editor.propagationWindow.time - this.editor.propagationWindow.leftSide, this.editor.propagationWindow.time + this.editor.propagationWindow.rightSide, this.editor.propagationWindow.gradient);
+                }
             }
         }
         else{

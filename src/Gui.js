@@ -2418,6 +2418,7 @@ class KeyframesGui extends Gui {
                 if ( this.propagationWindow.enabler || this.skeletonTimeline.lastKeyFramesSelected.length ){
                     this.editor.gizmo.enableTransform();
                     this.editor.showTrajectories( this.editor.selectedBone.replace("mixamorig_","").replace("mixamorig:",""), this.propagationWindow.time );
+                    this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
                 }
                 else {
                     this.editor.hideTrajectories( this.editor.selectedBone.replace("mixamorig_","").replace("mixamorig:","") );
@@ -2428,16 +2429,15 @@ class KeyframesGui extends Gui {
         };
 
         this.propagationWindow.onSetSize = ()=> {
-            if( this.editor.trajectoriesActive ) {
-                this.editor.trajectoriesHelper.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide);
-            }
+            this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
+        }
+        this.propagationWindow.onSetTime = (time)=> {
+            this.editor.updateTrajectories(  time - this.propagationWindow.leftSide, time + this.propagationWindow.rightSide, this.propagationWindow.gradient );
+        }
+        this.propagationWindow.onSetGradient = () => {
+            this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
         }
 
-        this.propagationWindow.onSetTime = (time)=> {
-            if( this.editor.trajectoriesActive ) {
-                this.editor.trajectoriesHelper.updateTrajectories(  time - this.propagationWindow.leftSide, time + this.propagationWindow.rightSide )
-            }
-        }
         const that = this;
 
         this.skeletonTimeline.setTrackTreeEventListener( "contextMenu", (treeEvent) =>{ 
@@ -7237,6 +7237,9 @@ class PropagationWindow {
                     this.curveWidget.curveInstance.element.value = this.gradient = [[0.5,1]];
                     this.curveWidget.curveInstance.redraw();
                 }
+                if(this.onSetGradient) {
+                    this.onSetGradient();
+                }
             },
             {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor } 
         );
@@ -7254,6 +7257,9 @@ class PropagationWindow {
                 if ( v.length <= 0){
                     this.curveWidget.curveInstance.element.value = this.gradient = [[0.5,1]];
                     this.curveWidget.curveInstance.redraw();
+                    if(this.onSetGradient) {
+                        this.onSetGradient();
+                    }
                 }
             },
             {xrange: [0,1], yrange: [0,1], disabled: true, bgColor, pointsColor:"#0003C2FF", lineColor } 
@@ -7448,6 +7454,9 @@ class PropagationWindow {
     setGradient( newGradient ){
         this.curveWidget.curveInstance.element.value = this.gradient = newGradient;
         this.curveWidget.curveInstance.redraw();
+        if(this.onSetGradient) {
+            this.onSetGradient();
+        }
     }
 
     /**
@@ -7713,8 +7722,6 @@ class PropagationWindow {
                 this.panelCurves.root.style.maxHeight = areaRect.bottom - (areaRect.y + windowRect.rectPosY) - 20 + "px"
             }
         }
-
-
     }
 
     _getBoundingRectInnerWindow(){
