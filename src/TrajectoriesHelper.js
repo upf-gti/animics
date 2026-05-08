@@ -55,7 +55,7 @@ class TrajectoriesHelper {
         return new Promise((resolve, reject) => {
             const mixer = this.mixer;
             // Use the first track to determine time keyframes
-            const rootTrack = animation.mixerBodyAnimation.tracks[0];
+            const rootTrack = animation.tracks[0];
             this.trajectoryEnd = rootTrack.times.length;
 
             // 1. Setup Phase: Map trajectories to their respective bones and roots
@@ -64,7 +64,7 @@ class TrajectoriesHelper {
 
             for (let trajectory of trajectoryKeys) {
                 // Find the bone name from animation tracks if not already set
-                for (let track of animation.mixerBodyAnimation.tracks) {
+                for (let track of animation.tracks) {
                     if (track.name.includes(trajectory + ".") || track.name.includes(trajectory.replace("4", "EndSite") + ".")) {
                         this.trajectories[trajectory].name = track.name.replace(".quaternion", "");
                         break;
