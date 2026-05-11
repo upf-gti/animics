@@ -1900,6 +1900,7 @@ class KeyframeEditor extends Editor {
         
         this.trajectoriesComputationPending = true;
         this.hideTrajectories();
+        this.armSpace = characterBoundAnimations[name].armSpace;
         return alreadyExisted;
     }
 
@@ -2925,7 +2926,8 @@ class KeyframeEditor extends Editor {
             clipColor: LX.getCSSVariable("color-info"),
             blendMode: THREE.NormalAnimationBlendMode,
             active: true,
-            speed: 1
+            speed: 1,
+            armSpace: 0
         }
 
         if ( targetGlobalAnimation ){
@@ -3051,6 +3053,9 @@ class KeyframeEditor extends Editor {
 
         if ( this.currentCharacter.mixer && this.state ) {
 
+            if (this._lastArmSpaceOffset) {
+                this.revertArmSpace(this._lastArmSpaceOffset);
+            }
             const tracks = this.gui.globalTimeline.animationClip.tracks;
             for(let i = 0; i < tracks.length; ++i ){
                 const clips = tracks[i].clips;
@@ -3062,6 +3067,7 @@ class KeyframeEditor extends Editor {
             this.currentCharacter.mixer.update( dt );
             this.currentTime = this.currentCharacter.mixer.time;
             this.activeTimeline.setTime( this.currentTime - this.startTimeOffset, true );
+            this.updateArmSpace();
         }
 
 
@@ -3823,19 +3829,21 @@ class KeyframeEditor extends Editor {
         // LEFT ARM: Create offset and multiply
         const leftArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.LArm);
         const leftParentRot = leftArm.parent.getWorldQuaternion(new THREE.Quaternion());
-        armSpaceRotation.setFromAxisAngle(rotationAxis, angle*0.8);
-        shoulderRotation.setFromAxisAngle(rotationAxis, angle*0.2);
-        shoulderRotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2));
-        leftParentRot.premultiply(shoulderRotation);
         const leftArmRotation = leftArm.getWorldQuaternion(new THREE.Quaternion());
+        armSpaceRotation.setFromAxisAngle(rotationAxis, angle*0.8);
+        // shoulderRotation.setFromAxisAngle(rotationAxis, angle*0.2);
+        // shoulderRotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2));
+        shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+        leftParentRot.premultiply(shoulderRotation);
         leftArmRotation.premultiply(armSpaceRotation);
         leftArm.quaternion.copy(leftArmRotation.premultiply(leftParentRot.clone().invert()));
         leftArm.parent.quaternion.copy(leftParentRot.premultiply(leftArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
 
         // RIGHT ARM: Opposite direction (negative angle)
         armSpaceRotation.setFromAxisAngle(rotationAxis, -angle*0.8);
-        shoulderRotation.setFromAxisAngle(rotationAxis, -angle*0.2);
-        shoulderRotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2));
+        // shoulderRotation.setFromAxisAngle(rotationAxis, -angle*0.2);
+        // shoulderRotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2));
+        shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
 
         const rightArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.RArm);
         const rightParentRot = rightArm.parent.getWorldQuaternion(new THREE.Quaternion());

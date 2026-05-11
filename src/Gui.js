@@ -3372,12 +3372,17 @@ class KeyframesGui extends Gui {
     }
 
    async setKeyframeClip(clip){
+        const boundAnimation = this.editor.getCurrentBoundAnimation();
+        
         if (!clip){
+            
+            this.editor.currentKeyFrameClip.armSpace = this.editor.armSpace;
             this.editor.currentKeyFrameClip = null; // this before any setTime.
             if ( !this.skeletonTimeline.historyUndo.length && !this.bsTimeline.historyUndo.length ){
                 this.globalTimeline.historyUndo.pop(); // nothing was changed, duplication was unnecessary
             }
-            this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation());
+            
+            this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, boundAnimation);
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
             this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
@@ -3391,6 +3396,7 @@ class KeyframesGui extends Gui {
         }
 
         const sourceAnimation = clip.source; // might not exist
+        this.editor.armSpace = clip.armSpace;
 
         const menubarEdit = this.menubar.getItem("Edit");
         menubarEdit._setMode(1);
@@ -3398,7 +3404,7 @@ class KeyframesGui extends Gui {
         menubarView._setMode( sourceAnimation && sourceAnimation.type == "video" );
         
         this.editor.currentKeyFrameClip = clip;
-        this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation()); // now that there is a currentKeyframeClip, update mixer actions
+        this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, boundAnimation); // now that there is a currentKeyframeClip, update mixer actions
         this.globalTimeline.saveState( clip.trackIdx ); // cloneClips must have a currentKeyFrameClip to duplicate, which is waht we need now
         
         const localTime = Math.max(0, Math.min( clip.duration, this.editor.currentTime - clip.start ) );
@@ -3411,6 +3417,7 @@ class KeyframesGui extends Gui {
         this.bsTimeline.setTime(localTime, true);
         
         this.editor.animationMode = this.editor.animationModes.BODY;
+
         this.editor.setTime( clip.start + localTime );
         this.editor.setTimeline(this.editor.animationModes.BODY);
         this.propagationWindow.setTimeline( this.skeletonTimeline );
