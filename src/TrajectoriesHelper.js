@@ -65,8 +65,9 @@ class TrajectoriesHelper {
             for (let trajectory of trajectoryKeys) {
                 // Find the bone name from animation tracks if not already set
                 for (let track of animation.tracks) {
-                    if (track.name.includes(trajectory + ".") || track.name.includes(trajectory.replace("4", "EndSite") + ".")) {
-                        this.trajectories[trajectory].name = track.name.replace(".quaternion", "");
+                    const name = track.name || track.groupId;
+                    if (name.includes(trajectory + ".") || name.includes(trajectory.replace("4", "EndSite") + ".") || name.replace("mixamorig_", "") == trajectory) {
+                        this.trajectories[trajectory].name = name.replace(".quaternion", "");
                         break;
                     }
                 }

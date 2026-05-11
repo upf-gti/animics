@@ -4678,7 +4678,7 @@ class KeyframesGui extends Gui {
 
         // Hack lexgui. Tree behaviour works for the timeline's left panel, but not for the skeleton panel
         // make only the hierarchy scrollable
-        this.treeWidget.root.style.height = "100%";
+        this.treeWidget.root.style.height = "calc(100% - 65px)";
         const ul = this.treeWidget.root.getElementsByTagName("ul")[0];
         ul.style.minWidth = "fit-content";
         ul.style.width = "100%";
@@ -4692,6 +4692,17 @@ class KeyframesGui extends Gui {
         ul.remove();
         newUlParent.appendChild(ul);
         oldUlParent.appendChild(newUlParent);
+
+        skeletonPanel.addNumber("Arm space", this.editor.armSpace, (v) => {
+            if(!this.editor.state) {
+                this.editor.revertArmSpace( this._lastArmSpaceOffset || this.editor.armSpace);
+                this.editor.currentCharacter.mixer.setTime(this.editor.currentTime/ this.editor.currentCharacter.mixer.timeScale);
+                this.editor.currentCharacter.mixer.update(0);
+            }
+            this.editor.armSpace = v;
+            this.editor.updateArmSpace();
+            this.editor.gizmo.updateBones( );
+        }, {min: -1, max:1, step:0.001})
     }
 
     updateNodeTree() {

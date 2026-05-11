@@ -1545,6 +1545,7 @@ class KeyframeEditor extends Editor {
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", icon: "ClapperboardClosed", children: []}]}];
 
         this._clipsUniqueIDSeed = 0;
+        this.armSpace = 0;
     }
 
     generateClipUniqueID(){
@@ -1974,13 +1975,13 @@ class KeyframeEditor extends Editor {
 
         for(let i = 0; i < files.length; ++i){
             UTILS.makeLoading("Loading animation: " + files[i].name );
+            let extension = UTILS.getExtension(files[i].name).toLowerCase();
             // MIME type is video
-            if( files[i].type.startsWith("video/") ) {
+            if( files[i].type.startsWith("video/") || extension.includes("mov")) {
                 resultFiles.push( files[i] );
                 continue;
             }
             // other valid file formats
-            let extension = UTILS.getExtension(files[i].name).toLowerCase();
             let compressed = extension.includes("gz");
             if( compressed ) {
                 extension = UTILS.getExtension(files[i].name.replace(".gz","")).toLowerCase();
@@ -3116,6 +3117,9 @@ class KeyframeEditor extends Editor {
             return;
         }
 
+        if (this._lastArmSpaceOffset) {
+            this.revertArmSpace(this._lastArmSpaceOffset);
+        }
         const duration = this.activeTimeline.animationClip.duration;
         t = Math.clamp( t, this.startTimeOffset, this.startTimeOffset + duration - 0.001 );
 
@@ -3130,7 +3134,7 @@ class KeyframeEditor extends Editor {
         if( this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video" ) {
             this.video.currentTime = this.video.startTime + t - this.currentKeyFrameClip.start;
         }
-        
+        this.updateArmSpace();
         this.gizmo.updateBones();
     }
 
@@ -3807,6 +3811,46 @@ class KeyframeEditor extends Editor {
         }
     }
 
+    updateArmSpace(value = this.armSpace) {
+        if( !value ) {
+            return;
+        }
+        const angle = value * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+        const rotationAxis = new THREE.Vector3(0, 0, 1);
+        const armSpaceRotation = new THREE.Quaternion();
+        const shoulderRotation = new THREE.Quaternion();
+
+        // LEFT ARM: Create offset and multiply
+        const leftArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.LArm);
+        const leftParentRot = leftArm.parent.getWorldQuaternion(new THREE.Quaternion());
+        armSpaceRotation.setFromAxisAngle(rotationAxis, angle*0.8);
+        shoulderRotation.setFromAxisAngle(rotationAxis, angle*0.2);
+        shoulderRotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2));
+        leftParentRot.premultiply(shoulderRotation);
+        const leftArmRotation = leftArm.getWorldQuaternion(new THREE.Quaternion());
+        leftArmRotation.premultiply(armSpaceRotation);
+        leftArm.quaternion.copy(leftArmRotation.premultiply(leftParentRot.clone().invert()));
+        leftArm.parent.quaternion.copy(leftParentRot.premultiply(leftArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+
+        // RIGHT ARM: Opposite direction (negative angle)
+        armSpaceRotation.setFromAxisAngle(rotationAxis, -angle*0.8);
+        shoulderRotation.setFromAxisAngle(rotationAxis, -angle*0.2);
+        shoulderRotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2));
+
+        const rightArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.RArm);
+        const rightParentRot = rightArm.parent.getWorldQuaternion(new THREE.Quaternion());
+        rightParentRot.premultiply(shoulderRotation);
+        const rightArmRotation = rightArm.getWorldQuaternion(new THREE.Quaternion());
+        rightArmRotation.premultiply(armSpaceRotation);
+        rightArm.quaternion.copy(rightArmRotation.premultiply(rightParentRot.clone().invert()));
+        rightArm.parent.quaternion.copy(rightParentRot.premultiply(rightArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+        this._lastArmSpaceOffset = value;
+    }
+
+    revertArmSpace(value = this._lastArmSpaceOffset) {
+        this.updateArmSpace(-1*value);
+    }
+
     /** ------------------------ Generate formatted data --------------------------*/
 
     /**
@@ -3971,11 +4015,11 @@ class KeyframeEditor extends Editor {
         this.trajectoriesActive = true;
 
         // window.localStorage.setItem("trajectories", this.trajectoriesActive);
-        if( !this.boundAnimations[this.currentCharacter.name][this.currentAnimation].tracks.length ) {
+        if( !this.activeTimeline.animationClip ) {
             return;
         }
         if( this.trajectoriesComputationPending ) {
-            const boundAnim = this.boundAnimations[this.currentCharacter.name][this.currentAnimation].tracks[0].clips[0];
+            const boundAnim = this.activeTimeline.animationClip;
             this.computeTrajectories( boundAnim, currentTime );
         }
     }
