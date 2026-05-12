@@ -4703,12 +4703,19 @@ class KeyframesGui extends Gui {
         skeletonPanel.addNumber("Arm space", this.editor.armSpace, (v) => {
             if(!this.editor.state) {
                 this.editor.revertArmSpace( this._lastArmSpaceOffset || this.editor.armSpace);
-                this.editor.currentCharacter.mixer.setTime(this.editor.currentTime/ this.editor.currentCharacter.mixer.timeScale);
+                this.editor.currentCharacter.mixer.setTime(this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale);
                 this.editor.currentCharacter.mixer.update(0);
             }
             this.editor.armSpace = v;
+            this.editor.currentKeyFrameClip.armSpace = this.editor.armSpace;
             this.editor.updateArmSpace();
             this.editor.gizmo.updateBones( );
+            if ( this.propagationWindow.enabler ){
+                    // let startFrame = timeline.getNearestKeyFrame(track, this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide);
+                    // let endFrame = timeline.getNearestKeyFrame(track, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide);
+                    // // this.editor.computeTrajectories(this.editor.currentKeyFrameClip, this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale);
+                    // this.editor.recomputeTrajectory( "LeftArm", this.editor.currentKeyFrameClip);
+                }
         }, {min: -1, max:1, step:0.001})
     }
 

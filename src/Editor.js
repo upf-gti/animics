@@ -3051,23 +3051,26 @@ class KeyframeEditor extends Editor {
             this.onAnimationEnded();
         }
 
+        let armSpace = this.armSpace;
         if ( this.currentCharacter.mixer && this.state ) {
 
             if (this._lastArmSpaceOffset) {
                 this.revertArmSpace(this._lastArmSpaceOffset);
             }
             const tracks = this.gui.globalTimeline.animationClip.tracks;
+            armSpace = 0;
             for(let i = 0; i < tracks.length; ++i ){
                 const clips = tracks[i].clips;
                 for(let c = 0; c < clips.length; ++c ){
-                    this.computeKeyframeClipWeight(clips[c], this.currentTime);
+                    const weight = this.computeKeyframeClipWeight(clips[c], this.currentTime);
+                    armSpace += clips[c].armSpace * weight;
                 }
             }
-
+            console.log(armSpace)
             this.currentCharacter.mixer.update( dt );
             this.currentTime = this.currentCharacter.mixer.time;
             this.activeTimeline.setTime( this.currentTime - this.startTimeOffset, true );
-            this.updateArmSpace();
+            this.updateArmSpace(armSpace);
         }
 
 
@@ -3368,6 +3371,7 @@ class KeyframeEditor extends Editor {
         }
         this.currentCharacter.mixer.clipAction( clip.mixerBodyAnimation ).setEffectiveWeight( weight * clip.weight );
         this.currentCharacter.mixer.clipAction( clip.mixerFaceAnimation ).setEffectiveWeight( weight * clip.weight );
+        return weight * clip.weight;
     }
 
     setKeyframeClipBlendMode(clip, threejsBlendMode, updateMixer = true){
@@ -3818,6 +3822,8 @@ class KeyframeEditor extends Editor {
     }
 
     updateArmSpace(value = this.armSpace) {
+        this._lastArmSpaceOffset = value;
+
         if( !value ) {
             return;
         }
@@ -3852,7 +3858,6 @@ class KeyframeEditor extends Editor {
         rightArmRotation.premultiply(armSpaceRotation);
         rightArm.quaternion.copy(rightArmRotation.premultiply(rightParentRot.clone().invert()));
         rightArm.parent.quaternion.copy(rightParentRot.premultiply(rightArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
-        this._lastArmSpaceOffset = value;
     }
 
     revertArmSpace(value = this._lastArmSpaceOffset) {
