@@ -4010,6 +4010,11 @@ class KeyframeEditor extends Editor {
         this.trajectoriesComputationPending = false;
     }
 
+    async recomputeTrajectory( trajectoryName, animation = this.currentKeyFrameClip.mixerBodyAnimation, data = {}) {
+
+        await this.trajectoriesHelper.recomputeTrajectory(trajectoryName, animation.tracks[0].times, data)
+    }
+
     updateTrajectories( start, end, gradient = false ) {
         if( ! this.trajectoriesHelper || !this.trajectoriesActive || this.activeTimeline.timelineTitle == "Blendshapes" ) {
             return;

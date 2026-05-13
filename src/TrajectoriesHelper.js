@@ -181,110 +181,158 @@ class TrajectoriesHelper {
         });
     }
 
-    recomputeTrajectory( trajectoryName, track, data = {}) {
+    async recomputeTrajectory( trajectoryName, times, data = {}) {
         const trajectory = this.trajectories[trajectoryName];
         if(!trajectory)
         {
             return;
         }
-        
-        const startFrame = data.startFrame || 0;
-        const startTime = data.startTime || track.times[startFrame];
-        const endFrame = data.endFrame || track.times.length - 1;
-        const endTime = data.endTime || track.times[endFrame];
-        const line = trajectory.children.pop();
-        trajectory.clear();
-        // trajectory.traverse((o)=> {
-            //     if(o.name != "line") {
-                //         o.removeFromParent();
-                //     }
-                // })
-        const bone = this.object.getObjectByName(trajectory.name);
-        const isHand = trajectoryName === "LeftHand" || trajectoryName === "RightHand";
-        const mat4 = new THREE.Matrix4();
-        const pos = new THREE.Vector3();
-        const lastPos = new THREE.Vector3(trajectory.positions[startFrame*3 - 3], trajectory.positions[startFrame*3 - 2], trajectory.positions[startFrame*3 - 1]);
-        
-        let gradIdx = -1;
-        let maxGradient=[1.0001, 0];
-        let g0 = [0,0];
-        let g1 = data.gradient ? data.gradient[0] : 0;
-        const mixer = data.mixer || this.mixer;
-        mixer.update(0.1);
-        mixer.setTime( 0 );
-        for (let t = startFrame; t < endFrame; t++) {
-            const time = track.times[t];
+        return new Promise((resolve, reject) => {
+            const startFrame = data.startFrame || 0;
+            const startTime = data.startTime || times[startFrame];
+            const endFrame = data.endFrame || times.length - 1;
+            const endTime = data.endTime || times[endFrame];
+            const line = trajectory.children.pop();
+            trajectory.clear();
+            // trajectory.traverse((o)=> {
+                //     if(o.name != "line") {
+                    //         o.removeFromParent();
+                    //     }
+                    // })
+            const bone = this.object.getObjectByName(trajectory.name);
+            const isHand = trajectoryName === "LeftHand" || trajectoryName === "RightHand";
+            const mat4 = new THREE.Matrix4();
+            const pos = new THREE.Vector3();
+            const lastPos = new THREE.Vector3(trajectory.positions[startFrame*3 - 3], trajectory.positions[startFrame*3 - 2], trajectory.positions[startFrame*3 - 1]);
             
-            // Update mixer and force a full skeleton matrix update
-            mixer.setTime(time/mixer.timeScale);
+            let gradIdx = -1;
+            let maxGradient=[1.0001, 0];
+            let g0 = [0,0];
+            let g1 = data.gradient ? data.gradient[0] : 0;
+            const mixer = data.mixer || this.mixer;
+            mixer.setTime( 0 );
+            mixer.update(0);
             
-            if (!bone) continue;
-            bone.updateWorldMatrix(true, true);
-
-            if (isHand) {
-                // Global position for hands
-                pos.setFromMatrixPosition(bone.matrixWorld);
-            } else {
-                // Local position relative to the first finger joint
-                if (!trajectory.rootFinger) continue;
-                mat4.copy(trajectory.rootFinger.matrixWorld).invert().multiply(bone.matrixWorld);
-                pos.setFromMatrixPosition(mat4);
-            }
-
-            trajectory.positions[t*3] = pos.x;
-            trajectory.positions[t*3 + 1] = pos.y;
-            trajectory.positions[t*3 + 2] = pos.z;
-
-            // there will be, at most, track.times.length-1 arrows. Building arrows for t-1
-            if (t > 0) {
-                const c = trajectory.color || new THREE.Color(`hsl(${180 * Math.sin(time / Math.PI)}, 100%, 50%)`);
-                let alpha = 0.8;
-                if (data.gradient){
-                    let value = (track.times[t] - startTime) / (endTime - startTime); // normalize time in window 
-                    
-                    // find next valid data.gradient interval
-                    while( value > g1[0] ){
-                        g0 = g1;
-                        g1 = data.gradient[++gradIdx]
-                        if ( !g1 ){ g1 = maxGradient; break; }
-                    }
-
-                    // compute delta factor
-                    value = (value - g0[0]) / (g1[0]-g0[0]);
-                    value = g0[1] * (1-value) + g1[1] * value;
-                    alpha = value;
-                }
-                const opacity = Math.max(0,Math.min(1,alpha));
-
-                // trajectory.colors[t*8] = c.r;
-                // trajectory.colors[t*8 + 1] = c.g;
-                // trajectory.colors[t*8 + 2] = c.b;
-                // trajectory.colors[t*8 + 3] = opacity;
-                // trajectory.colors[t*8 + 4] = c.r;
-                // trajectory.colors[t*8 + 5] = c.g;
-                // trajectory.colors[t*8 + 6] = c.b;
-                // trajectory.colors[t*8 + 7] = opacity;
+            for (let t = startFrame; t < endFrame; t++) {
+                const time = times[t];
                 
-                const arrow = customArrow(pos.x, pos.y, pos.z, lastPos.x, lastPos.y, lastPos.z, trajectory.thickness * 0.0002, c);
-                if (arrow) {
-                    arrow.name = t - 1;
-                    arrow.layers.set(2);  // to avoid intersections with arrows
-                    trajectory.add(arrow);
+                // Update mixer and force a full skeleton matrix update
+                mixer.setTime(time/mixer.timeScale);
+                
+                if (!bone) continue;
+                
+                bone.updateWorldMatrix(true, true);
+                let parentRot = bone.parent.parent.parent.getWorldQuaternion(new THREE.Quaternion());
+                if(data.offsetRotParent) {
+                    parentRot.premultiply(data.offsetRotParent);
+                    bone.parent.parent.parent.quaternion.copy(parentRot.clone().premultiply(bone.parent.parent.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
                 }
+                
+                bone.updateWorldMatrix(true, true);
+                if(data.offsetRot) {
+                    const rotation = bone.parent.parent.getWorldQuaternion(new THREE.Quaternion());
+                    rotation.premultiply(data.offsetRot);
+                    bone.parent.parent.quaternion.copy(rotation.premultiply(parentRot.clone().invert()));
+                }
+                bone.updateWorldMatrix(true, true);
+    
+                if (isHand) {
+                    // Global position for hands
+                    pos.setFromMatrixPosition(bone.matrixWorld);
+                } else {
+                    // Local position relative to the first finger joint
+                    if (!trajectory.rootFinger) continue;
+                    mat4.copy(trajectory.rootFinger.matrixWorld).invert().multiply(bone.matrixWorld);
+                    pos.setFromMatrixPosition(mat4);
+                }
+    
+                trajectory.positions[t*3] = pos.x;
+                trajectory.positions[t*3 + 1] = pos.y;
+                trajectory.positions[t*3 + 2] = pos.z;
+    
+                // there will be, at most, track.times.length-1 arrows. Building arrows for t-1
+                if (t > 0) {
+                    const c = trajectory.color || new THREE.Color(`hsl(${180 * Math.sin(time / Math.PI)}, 100%, 50%)`);
+                    let alpha = 0.8;
+                    if (data.gradient){
+                        let value = (track.times[t] - startTime) / (endTime - startTime); // normalize time in window 
+                        
+                        // find next valid data.gradient interval
+                        while( value > g1[0] ){
+                            g0 = g1;
+                            g1 = data.gradient[++gradIdx]
+                            if ( !g1 ){ g1 = maxGradient; break; }
+                        }
+    
+                        // compute delta factor
+                        value = (value - g0[0]) / (g1[0]-g0[0]);
+                        value = g0[1] * (1-value) + g1[1] * value;
+                        alpha = value;
+                    }
+                    const opacity = Math.max(0,Math.min(1,alpha));
+    
+                    // trajectory.colors[t*8] = c.r;
+                    // trajectory.colors[t*8 + 1] = c.g;
+                    // trajectory.colors[t*8 + 2] = c.b;
+                    // trajectory.colors[t*8 + 3] = opacity;
+                    // trajectory.colors[t*8 + 4] = c.r;
+                    // trajectory.colors[t*8 + 5] = c.g;
+                    // trajectory.colors[t*8 + 6] = c.b;
+                    // trajectory.colors[t*8 + 7] = opacity;
+                    
+                    const arrow = customArrow(pos.x, pos.y, pos.z, lastPos.x, lastPos.y, lastPos.z, trajectory.thickness * 0.0002, c);
+                    if (arrow) {
+                        arrow.name = t - 1;
+                        arrow.layers.set(2);  // to avoid intersections with arrows
+                        trajectory.add(arrow);
+                    }
+                }
+                
+                lastPos.copy(pos);
+                
+                bone.updateWorldMatrix(true, true);
+                parentRot = bone.parent.parent.parent.getWorldQuaternion(new THREE.Quaternion());
+                if(data.offsetRotParent) {
+                    parentRot.premultiply(data.offsetRotParent.clone().invert());
+                    bone.parent.parent.parent.quaternion.copy(parentRot.clone().premultiply(bone.parent.parent.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+                }
+                
+                bone.updateWorldMatrix(true, true);
+                if(data.offsetRot) {
+                    const rotation = bone.parent.parent.getWorldQuaternion(new THREE.Quaternion());
+                    rotation.premultiply(data.offsetRot.clone().invert());
+                    bone.parent.parent.quaternion.copy(rotation.premultiply(parentRot.clone().invert()));
+                }
+                bone.updateWorldMatrix(true, true);
             }
+            line.geometry.setPositions(trajectory.positions);
+            line.geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( trajectory.colors, 4 ) );
+            line.geometry.setColors(trajectory.colors);
+            line.needsUpdate = true;
+            trajectory.add(line);
             
-            lastPos.copy(pos);
-        }
-        line.geometry.setPositions(trajectory.positions);
-        line.geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( trajectory.colors, 4 ) );
-        line.geometry.setColors(trajectory.colors);
-        line.needsUpdate = true;
-        trajectory.add(line);
+            // bone.updateWorldMatrix(true, true);
+            // let parentRot = bone.parent.parent.parent.getWorldQuaternion(new THREE.Quaternion());
+            // if(data.offsetRotParent) {
+            //     parentRot.premultiply(data.offsetRotParent.clone().invert());
+            //     bone.parent.parent.parent.quaternion.copy(parentRot.clone().premultiply(bone.parent.parent.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+            // }
+            
+            // bone.updateWorldMatrix(true, true);
+            // if(data.offsetRot) {
+            //     const rotation = bone.parent.parent.getWorldQuaternion(new THREE.Quaternion());
+            //     rotation.premultiply(data.offsetRot.clone().invert());
+            //     bone.parent.parent.quaternion.copy(rotation.premultiply(parentRot.clone().invert()));
+            // }
+            // bone.updateWorldMatrix(true, true);
 
-        if(data.currentTime) {
-            this.mixer.setTime(data.currentTime);
-            this.object.updateWorldMatrix(true, true);
-        }
+            if(data.currentTime) {
+                this.mixer.setTime(data.currentTime);
+                this.object.updateWorldMatrix(true, true);
+            }
+
+            resolve();
+        })
     }
 
     updateTrajectories( startTime, endTime, gradient = false ) {
