@@ -3837,9 +3837,8 @@ class KeyframeEditor extends Editor {
         const leftParentRot = leftArm.parent.getWorldQuaternion(new THREE.Quaternion());
         const leftArmRotation = leftArm.getWorldQuaternion(new THREE.Quaternion());
         armSpaceRotation.setFromAxisAngle(rotationAxis, angle*0.8);
-        // shoulderRotation.setFromAxisAngle(rotationAxis, angle*0.2);
-        // shoulderRotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2));
-        shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+        
+        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
         leftParentRot.premultiply(shoulderRotation);
         leftArmRotation.premultiply(armSpaceRotation);
         leftArm.quaternion.copy(leftArmRotation.premultiply(leftParentRot.clone().invert()));
@@ -3847,9 +3846,8 @@ class KeyframeEditor extends Editor {
 
         // RIGHT ARM: Opposite direction (negative angle)
         armSpaceRotation.setFromAxisAngle(rotationAxis, -angle*0.8);
-        // shoulderRotation.setFromAxisAngle(rotationAxis, -angle*0.2);
-        // shoulderRotation.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2));
-        shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
+       
+        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
 
         const rightArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.RArm);
         const rightParentRot = rightArm.parent.getWorldQuaternion(new THREE.Quaternion());

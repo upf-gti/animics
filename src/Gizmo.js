@@ -504,7 +504,7 @@ class Gizmo {
      * Commits current selected bone changes with propagation (if enabled)
      * @returns 
      */
-    updateTracks() {
+    async updateTracks() {
 
         const timeline = this.editor.gui.skeletonTimeline;
         const propWindow = this.editor.gui.propagationWindow;
@@ -536,7 +536,6 @@ class Gizmo {
             
             const deltaQuat = new THREE.Quaternion();
             const tempQuat = new THREE.Quaternion();
-
             for( let i = 1; i < chain.length; ++i ){
                 const boneToProcess = this.skeleton.bones[chain[i]];
                 deltaQuat.copy(this.mouseDownState[i].quaternion).invert().multiply(boneToProcess.quaternion);
@@ -602,12 +601,21 @@ class Gizmo {
 
                 // Update animation interpolants
                 this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
-                if ( propWindow.enabler ){
-                    let startFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide);
-                    let endFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide);
-                    this.editor.trajectoriesHelper.recomputeTrajectory(bone.name.replace("mixamorig_",""), track, {startFrame, endFrame, currentTime : effectorFrameTime, gradient: this.editor.gui.propagationWindow.gradient, mixer: this.editor.currentCharacter.mixer });
-                    // this.editor.updateTrajectories(this.editor.propagationWindow.time - this.editor.propagationWindow.leftSide, this.editor.propagationWindow.time + this.editor.propagationWindow.rightSide, this.editor.propagationWindow.gradient);
-                }
+            }
+            if ( propWindow.enabler ){
+                
+                let startFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide);
+                let endFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide);
+                
+                const trajectoryName = bone.name.replace("mixamorig_","");
+                const angle = trajectoryName.includes("Left") ? this.editor.armSpace * Math.PI / 4 : -this.editor.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+                const armSpaceRotation = new THREE.Quaternion();
+                const shoulderRotation = new THREE.Quaternion();
+                armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
+                shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+
+                await this.editor.recomputeTrajectory(trajectoryName, this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime : effectorFrameTime, offsetRotParent:0, offsetRot: armSpaceRotation});
+                this.editor.updateTrajectories(this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide, this.editor.gui.propagationWindow.gradient);   
             }
         }
         else{
@@ -642,7 +650,8 @@ class Gizmo {
             // Update animation interpolants
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
-
+        this.editor.updateArmSpace( this.editor.armSpace);
+        this.updateBones();
     }
 
     setBone( name ) {

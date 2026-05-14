@@ -4724,10 +4724,10 @@ class KeyframesGui extends Gui {
                 armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
                 shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
                 const currentTime = this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale;
-                await this.editor.recomputeTrajectory( "LeftHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: shoulderRotation, offsetRot: armSpaceRotation});
+                await this.editor.recomputeTrajectory( "LeftHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
                 armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle*0.8);
                 shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
-                await this.editor.recomputeTrajectory( "RightHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: shoulderRotation, offsetRot: armSpaceRotation});
+                await this.editor.recomputeTrajectory( "RightHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
             }
             this.editor.updateArmSpace();
             this.editor.gizmo.updateBones( );

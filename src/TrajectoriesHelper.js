@@ -255,7 +255,7 @@ class TrajectoriesHelper {
                     const c = trajectory.color || new THREE.Color(`hsl(${180 * Math.sin(time / Math.PI)}, 100%, 50%)`);
                     let alpha = 0.8;
                     if (data.gradient){
-                        let value = (track.times[t] - startTime) / (endTime - startTime); // normalize time in window 
+                        let value = (times[t] - startTime) / (endTime - startTime); // normalize time in window 
                         
                         // find next valid data.gradient interval
                         while( value > g1[0] ){
