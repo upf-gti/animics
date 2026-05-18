@@ -339,6 +339,7 @@ class Gizmo {
             const intersection = intersections.length > 0 ? intersections[ 0 ] : null;
 
             if(intersection) {
+                e.preventDefault();
                 if ( e.button == 0 && intersection.index != this.selectedBone ){
                     this.setBoneByIdx( intersection.index );    
                     this.editor.setSelectedBone( this.skeleton.bones[this.selectedBone].name );
@@ -388,17 +389,23 @@ class Gizmo {
                     this.setTool( Gizmo.Tools.IK );
                     this.editor.gui.updateBonePanel();
                     break;
+                case 'Control':
+                    this.disableTransform();
+                    break;
             }
 
         });
 
-        window.addEventListener( 'keyup', function ( event ) {
+        window.addEventListener( 'keyup', e => {
 
-            switch ( event.key ) {
+            switch ( e.key ) {
 
                 case 'Shift': // Shift
                     transform.setTranslationSnap( null );
                     transform.setRotationSnap( null );
+                    break;
+                case 'Control':
+                    this.enableTransform();
                     break;
             }
         });

@@ -3577,6 +3577,25 @@ class KeyframeEditor extends Editor {
         this.gui.updateBonePanel();
         if ( this.gui.treeWidget ){ 
             this.gui.treeWidget.innerTree.select(this.selectedBone);
+            
+            const changeVisibility = (node) => {
+                for( let i = 0; i < node.children.length; i++ ) {
+                    if( node.id == this.selectedBone ) {
+                        node.closed = false;
+                        return false;
+                    }
+                    else {
+                        node.closed = changeVisibility(node.children[i]);
+                        if( !node.closed )
+                        {
+                            return node.closed;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            changeVisibility(this.gui.treeWidget.innerTree.data);
         }
     }
 
@@ -4008,6 +4027,21 @@ class KeyframeEditor extends Editor {
         this.trajectoriesComputationPending = false;
     }
 
+    recomputeHandsTrajectories( animation = this.currentKeyFrameClip.mixerBodyAnimation, data = {} ) {
+         const angle = this.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+        const armSpaceRotation = new THREE.Quaternion();
+        const shoulderRotation = new THREE.Quaternion();
+
+        // LEFT ARM: Create offset and multiply
+        armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
+        shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+        const currentTime = this.gui.skeletonTimeline.currentTime/ this.currentCharacter.mixer.timeScale;
+        this.recomputeTrajectory( "LeftHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+        armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle*0.8);
+        shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
+        this.recomputeTrajectory( "RightHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+        
+    }
     async recomputeTrajectory( trajectoryName, animation = this.currentKeyFrameClip.mixerBodyAnimation, data = {}) {
 
         await this.trajectoriesHelper.recomputeTrajectory(trajectoryName, animation.tracks[0].times, data)

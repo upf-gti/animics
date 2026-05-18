@@ -2417,14 +2417,14 @@ class KeyframesGui extends Gui {
   
                 if ( this.propagationWindow.enabler || this.skeletonTimeline.lastKeyFramesSelected.length ){
                     this.editor.gizmo.enableTransform();
-                    this.editor.showTrajectories( this.editor.selectedBone.replace("mixamorig_","").replace("mixamorig:",""), this.propagationWindow.time );
+                    for( let i = 0; i < this.skeletonTimeline.selectedItems.length; i++ ) {
+                        this.editor.showTrajectories( this.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""), this.propagationWindow.time );
+                    }
                     const currentTime = this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale;
-                    this.editor.recomputeTrajectory("LeftHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime})
-                    this.editor.recomputeTrajectory("RightHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime})
-                    this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
+                    this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime});
                 }
                 else {
-                    this.editor.hideTrajectories( this.editor.selectedBone.replace("mixamorig_","").replace("mixamorig:","") );
+                    this.editor.hideTrajectories();
                     return;
                 }
             }
@@ -3450,7 +3450,7 @@ class KeyframesGui extends Gui {
             this.editor.setVideoVisibility(false);
         }
 
-        this.createSidePanel();        
+        this.createSidePanel();      
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
@@ -4626,6 +4626,26 @@ class KeyframesGui extends Gui {
 
         this.treeWidget.innerTree.select(this.editor.selectedBone);
 
+        const changeVisibility = (node) => {
+            
+            for( let i = 0; i < node.children.length; i++ ) {
+                 if( node.id == this.selectedBone ) {
+                        node.closed = false;
+                        return false;
+                    }
+                    else {
+                        node.closed = changeVisibility(node.children[i]);
+                        if( !node.closed )
+                        {
+                            return node.closed;
+                        }
+                    }
+            }
+            return true;
+        }
+
+        changeVisibility(this.treeWidget.innerTree.data);
+
         this.treeWidget._fixedSelection = lastFixedSelection;
         this.treeWidget._tour = new LX.Tour([
             {
@@ -4716,18 +4736,7 @@ class KeyframesGui extends Gui {
                 // let startFrame = timeline.getNearestKeyFrame(track, this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide);
                 // let endFrame = timeline.getNearestKeyFrame(track, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide);
                 // // this.editor.computeTrajectories(this.editor.currentKeyFrameClip, this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale);
-                const angle = this.editor.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
-                const armSpaceRotation = new THREE.Quaternion();
-                const shoulderRotation = new THREE.Quaternion();
-        
-                // LEFT ARM: Create offset and multiply
-                armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
-                shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
-                const currentTime = this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale;
-                await this.editor.recomputeTrajectory( "LeftHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
-                armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle*0.8);
-                shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
-                await this.editor.recomputeTrajectory( "RightHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+                await this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
             }
             this.editor.updateArmSpace();
             this.editor.gizmo.updateBones( );
