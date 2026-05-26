@@ -4736,7 +4736,7 @@ class KeyframesGui extends Gui {
                 // let startFrame = timeline.getNearestKeyFrame(track, this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide);
                 // let endFrame = timeline.getNearestKeyFrame(track, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide);
                 // // this.editor.computeTrajectories(this.editor.currentKeyFrameClip, this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale);
-                await this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+                await this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime: this.skeletonTimeline.currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
             }
             this.editor.updateArmSpace();
             this.editor.gizmo.updateBones( );
