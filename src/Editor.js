@@ -1696,7 +1696,7 @@ class KeyframeEditor extends Editor {
             await new Promise(r => setTimeout(r, 1000));            
         }        
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
-        this.setBoneSize(0.12);
+        this.setBoneSize(0.1);
     }
     
     loadNNSkeleton() {
@@ -1716,7 +1716,7 @@ class KeyframeEditor extends Editor {
         // Gizmo stuff
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);
-            this.setBoneSize(0.12);
+            this.setBoneSize(0.1);
         }
 
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
@@ -3536,6 +3536,25 @@ class KeyframeEditor extends Editor {
         this.gui.updateBonePanel();
         if ( this.gui.treeWidget ){ 
             this.gui.treeWidget.innerTree.select(this.selectedBone);
+            
+            const changeVisibility = (node) => {
+                for( let i = 0; i < node.children.length; i++ ) {
+                    if( node.id == this.selectedBone ) {
+                        node.closed = false;
+                        return false;
+                    }
+                    else {
+                        node.closed = changeVisibility(node.children[i]);
+                        if( !node.closed )
+                        {
+                            return node.closed;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            changeVisibility(this.gui.treeWidget.innerTree.data);
         }
     }
 
