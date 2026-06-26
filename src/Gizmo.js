@@ -609,21 +609,7 @@ class Gizmo {
                 // Update animation interpolants
                 this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
             }
-            if ( propWindow.enabler ){
-                
-                let startFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide);
-                let endFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide);
-                
-                const trajectoryName = bone.name.replace("mixamorig_","");
-                const angle = trajectoryName.includes("Left") ? this.editor.armSpace * Math.PI / 4 : -this.editor.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
-                const armSpaceRotation = new THREE.Quaternion();
-                const shoulderRotation = new THREE.Quaternion();
-                armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
-                shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
-
-                await this.editor.recomputeTrajectory(trajectoryName, this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime : effectorFrameTime, offsetRotParent:0, offsetRot: armSpaceRotation});
-                this.editor.updateTrajectories(this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide, this.editor.gui.propagationWindow.gradient);   
-            }
+            
         }
         else{
             
@@ -658,6 +644,22 @@ class Gizmo {
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
         this.editor.updateArmSpace( this.editor.armSpace);
+        if ( propWindow.enabler ){
+                
+            let startFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide);
+            let endFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide);
+            
+            const trajectoryName = bone.name.replace("mixamorig_","");
+            const angle = trajectoryName.includes("Left") ? this.editor.armSpace * Math.PI / 4 : -this.editor.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+            const armSpaceRotation = new THREE.Quaternion();
+            const shoulderRotation = new THREE.Quaternion();
+            armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
+            shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+
+            const effectorFrameTime = propWindow.enabler ? propWindow.time : track.times[ keyFrameIndex ];
+            await this.editor.recomputeTrajectory(trajectoryName, this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime : effectorFrameTime, offsetRotParent:0, offsetRot: armSpaceRotation});
+            this.editor.updateTrajectories(this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide, this.editor.gui.propagationWindow.gradient);   
+        }
         this.updateBones();
     }
 

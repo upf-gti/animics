@@ -3086,6 +3086,9 @@ class KeyframeEditor extends Editor {
      
         this.gui.setBoneInfoState( false );
         this.gui.propagationWindow.setVisualState( 0 );
+        if(this.gui.propagationWindow.enabler) {
+            this.hideTrajectories();
+        }
         if( this.video.sync ) {
             try {
                 this.video.paused ? this.video.play() : 0;    
@@ -3100,6 +3103,11 @@ class KeyframeEditor extends Editor {
     onStop() {
 
         this.gizmo.updateBones();
+        if(this.gui.propagationWindow.enabler) {
+            for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
+                this.showTrajectories( this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""), this.gui.propagationWindow.time );
+            }
+        }
         if( this.video.sync ) {
             this.video.pause();
             this.video.currentTime = this.video.startTime;
@@ -3108,6 +3116,11 @@ class KeyframeEditor extends Editor {
 
     onPause() {
         this.state = false;
+        if(this.gui.propagationWindow.enabler) {
+            for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
+                this.showTrajectories( this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""), this.gui.propagationWindow.time );
+            }
+        }
         if( this.video.sync ) {
             try{
                 !this.video.paused ? this.video.pause() : 0;    
@@ -3208,6 +3221,9 @@ class KeyframeEditor extends Editor {
                 this.activeTimeline = this.gui.bsTimeline;
                 this.animationMode = this.animationModes.FACEBS;
                 this.gizmo.disableAll();
+                if(this.gui.propagationWindow.enabler) {
+                    this.trajectoriesHelper.hide();
+                }
                 break;
 
             case this.animationModes.FACEAU:
@@ -3215,7 +3231,9 @@ class KeyframeEditor extends Editor {
                 this.animationMode = this.animationModes.FACEAU;
                 this.setSelectedActionUnit(this.selectedAU);           
                 this.gizmo.disableAll();
-                
+                if(this.gui.propagationWindow.enabler) {
+                    this.trajectoriesHelper.hide();
+                }
                 break;
                
             case this.animationModes.BODY:
@@ -3225,6 +3243,7 @@ class KeyframeEditor extends Editor {
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
                 }
+               
                 this.gizmo.enableRaycast();
 
                 break;
@@ -4053,7 +4072,7 @@ class KeyframeEditor extends Editor {
         if(!this.trajectoriesActive) {
             return;
         }
-        // await this.trajectoriesHelper.recomputeTrajectory(trajectoryName, animation.tracks[0].times, data)
+        await this.trajectoriesHelper.recomputeTrajectory(trajectoryName, animation.tracks[0].times, data)
     }
 
     updateTrajectories( start, end, gradient = false ) {
@@ -4066,12 +4085,22 @@ class KeyframeEditor extends Editor {
         this.trajectoriesHelper.updateTrajectories(start, end, gradient);
     }
 
-    showTrajectories( trajectory, currentTime = 0 ) {
+    showTrajectories( trajectory, currentTime) {
         
         if( !this.trajectoriesHelper || this.activeTimeline.timelineTitle == "Blendshapes" ) {
             return;
         }
-        this.trajectoriesHelper.show( trajectory );
+        if( !trajectory ) {
+            for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
+                this.trajectoriesHelper.show( this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""));
+            }
+        }
+        else {
+            this.trajectoriesHelper.show( trajectory);
+        }
+        if(currentTime != null) {
+            this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, currentTime + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
+        }
         this.trajectoriesActive = true;
 
         // window.localStorage.setItem("trajectories", this.trajectoriesActive);
@@ -4080,7 +4109,7 @@ class KeyframeEditor extends Editor {
         }
         if( this.trajectoriesComputationPending ) {
             const boundAnim = this.activeTimeline.animationClip;
-            this.computeTrajectories( boundAnim, currentTime );
+            this.computeTrajectories( boundAnim, currentTime ||0 );
         }
     }
 
