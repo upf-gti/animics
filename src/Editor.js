@@ -3243,7 +3243,9 @@ class KeyframeEditor extends Editor {
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
                 }
-               
+               if(this.gui.propagationWindow.enabler) {
+                    this.showTrajectories(this.selectedBone.replace("mixamorig_","").replace("mixamorig:",""), this.gui.propagationWindow.time );
+                }
                 this.gizmo.enableRaycast();
 
                 break;

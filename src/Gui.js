@@ -4610,7 +4610,7 @@ class KeyframesGui extends Gui {
         });
 
         this.treeWidget.on( "select", (event) => {
-            if(event.items.length)
+            if(!event.items.length)
                 console.log("Selected: ", event.node); 
             else {
                 if(!this.editor){
