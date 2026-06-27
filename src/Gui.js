@@ -2422,6 +2422,7 @@ class KeyframesGui extends Gui {
                     this.editor.recomputeTrajectory("LeftHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime})
                     this.editor.recomputeTrajectory("RightHand", this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime})
                     this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
+                    this.editor.updateArmSpace();
                 }
                 else {
                     this.editor.hideTrajectories( this.editor.selectedBone.replace("mixamorig_","").replace("mixamorig:","") );
