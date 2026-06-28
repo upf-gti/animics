@@ -2420,8 +2420,8 @@ class KeyframesGui extends Gui {
                     // for( let i = 0; i < this.skeletonTimeline.selectedItems.length; i++ ) {
                     //     this.editor.showTrajectories( this.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""), this.propagationWindow.time );
                     // }
-                    this.editor.showTrajectories(null, this.propagationWindow.time);
-                    this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
+                    this.editor.showTrajectories(null, this.propagationWindow.time, true);
+                    //this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
                     const currentTime = this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale;
                     this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime});
                 }

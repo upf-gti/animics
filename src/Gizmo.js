@@ -657,8 +657,8 @@ class Gizmo {
             shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
 
             const effectorFrameTime = propWindow.enabler ? propWindow.time : track.times[ keyFrameIndex ];
-            await this.editor.recomputeTrajectory(trajectoryName, this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime : effectorFrameTime, offsetRotParent:0, offsetRot: armSpaceRotation});
-            this.editor.updateTrajectories(this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide, this.editor.gui.propagationWindow.gradient);   
+            await this.editor.recomputeTrajectory(trajectoryName, this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime : effectorFrameTime, offsetRotParent:0, offsetRot: armSpaceRotation, gradient: this.editor.gui.propagationWindow.gradient, startTime: this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, endTime: this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
+            // this.editor.updateTrajectories(this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide, this.editor.gui.propagationWindow.gradient);   
         }
         this.updateBones();
     }

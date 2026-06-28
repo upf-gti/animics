@@ -192,6 +192,7 @@ class TrajectoriesHelper {
             const startTime = data.startTime || times[startFrame];
             const endFrame = data.endFrame || times.length - 1;
             const endTime = data.endTime || times[endFrame];
+            const totalFrames = trajectory.positions.length / 3;
             const line = trajectory.children.pop();
             trajectory.clear();
             // trajectory.traverse((o)=> {
@@ -213,7 +214,7 @@ class TrajectoriesHelper {
             mixer.setTime( 0 );
             mixer.update(0);
             
-            for (let t = startFrame; t < endFrame; t++) {
+            for (let t = 0; t < totalFrames; t++) {
                 const time = times[t];
                 
                 // Update mixer and force a full skeleton matrix update
@@ -254,6 +255,7 @@ class TrajectoriesHelper {
                 if (t > 0) {
                     const c = trajectory.color || new THREE.Color(`hsl(${180 * Math.sin(time / Math.PI)}, 100%, 50%)`);
                     let alpha = 0.8;
+                    
                     if (data.gradient){
                         let value = (times[t] - startTime) / (endTime - startTime); // normalize time in window 
                         
@@ -271,19 +273,21 @@ class TrajectoriesHelper {
                     }
                     const opacity = Math.max(0,Math.min(1,alpha));
     
-                    // trajectory.colors[t*8] = c.r;
-                    // trajectory.colors[t*8 + 1] = c.g;
-                    // trajectory.colors[t*8 + 2] = c.b;
-                    // trajectory.colors[t*8 + 3] = opacity;
-                    // trajectory.colors[t*8 + 4] = c.r;
-                    // trajectory.colors[t*8 + 5] = c.g;
-                    // trajectory.colors[t*8 + 6] = c.b;
-                    // trajectory.colors[t*8 + 7] = opacity;
+                    trajectory.colors[t*8] = c.r;
+                    trajectory.colors[t*8 + 1] = c.g;
+                    trajectory.colors[t*8 + 2] = c.b;
+                    trajectory.colors[t*8 + 3] = opacity;
+                    trajectory.colors[t*8 + 4] = c.r;
+                    trajectory.colors[t*8 + 5] = c.g;
+                    trajectory.colors[t*8 + 6] = c.b;
+                    trajectory.colors[t*8 + 7] = opacity;
                     
                     const arrow = customArrow(pos.x, pos.y, pos.z, lastPos.x, lastPos.y, lastPos.z, trajectory.thickness * 0.0002, c);
                     if (arrow) {
                         arrow.name = t - 1;
                         arrow.layers.set(2);  // to avoid intersections with arrows
+                        arrow.visible = opacity > 0;
+                        arrow.children[0].material.opacity = opacity;
                         trajectory.add(arrow);
                     }
                 }
@@ -306,9 +310,9 @@ class TrajectoriesHelper {
                 bone.updateWorldMatrix(true, true);
             }
             line.geometry.setPositions(trajectory.positions);
-            line.geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( trajectory.colors, 4 ) );
+            //line.geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( trajectory.colors, 4 ) );
             line.geometry.setColors(trajectory.colors);
-            line.needsUpdate = true;
+            line.material.needsUpdate = true;
             trajectory.add(line);
             
             // bone.updateWorldMatrix(true, true);

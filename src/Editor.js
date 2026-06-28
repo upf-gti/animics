@@ -3545,6 +3545,18 @@ class KeyframeEditor extends Editor {
 
                 }
             }
+            // const trajectoryName = track.name.replace("mixamorig_","");
+            // if(trajectoryName.includes("Shoulder") || trajectoryName.includes("Arm")) {
+            //     const isLeft = trajectoryName.includes("Left");
+            //     const angle = isLeft ? this.armSpace * Math.PI / 4 : -this.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+            //     const armSpaceRotation = new THREE.Quaternion();
+            //     const shoulderRotation = new THREE.Quaternion();
+            //     armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
+            //     shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+            //     this.recomputeTrajectory(`${isLeft ? "Left" : "Right"}Arm`, this.currentKeyFrameClip.mixerBodyAnimation, {currentTime : this.currentTime, offsetRotParent:0, offsetRot: armSpaceRotation});
+            //     this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);            }
+            //     this.editor.updateArmSpace();
+            // }
         }
     
         if ( callSetTime ){
@@ -4087,20 +4099,27 @@ class KeyframeEditor extends Editor {
         this.trajectoriesHelper.updateTrajectories(start, end, gradient);
     }
 
-    showTrajectories( trajectory, currentTime) {
+    showTrajectories( trajectory, currentTime, recompute = false) {
         
         if( !this.trajectoriesHelper || this.activeTimeline.timelineTitle == "Blendshapes" ) {
             return;
         }
         if( !trajectory ) {
             for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
-                this.trajectoriesHelper.show( this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""));
+                trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
+                this.trajectoriesHelper.show( trajectory );
+                if( recompute ) {
+                    this.recomputeTrajectory(trajectory, this.currentKeyFrameClip.mixerBodyAnimation, {currentTime : currentTime, offsetRotParent:0, offsetRot: armSpaceRotation, gradient: this.gui.propagationWindow.gradient, startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, endTime: this.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
+                }
             }
         }
         else {
-            this.trajectoriesHelper.show( trajectory);
+            this.trajectoriesHelper.show( trajectory );
+            if( recompute ) {
+                this.recomputeTrajectory(trajectory, this.currentKeyFrameClip.mixerBodyAnimation, {currentTime : currentTime, offsetRotParent:0, offsetRot: armSpaceRotation, gradient: this.gui.propagationWindow.gradient, startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, endTime: this.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
+            }
         }
-        if(currentTime != null) {
+        if(currentTime != null && !recompute) {
             this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, currentTime + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
         }
         this.trajectoriesActive = true;
