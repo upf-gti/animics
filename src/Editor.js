@@ -1595,7 +1595,7 @@ class KeyframeEditor extends Editor {
         this.activeTimeline.undo();
         if ( this.gui.propagationWindow.enabler ){
             this.computeTrajectories(this.currentKeyFrameClip.mixerBodyAnimation, this.activeTimeline.currentTime);
-            this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
+            //this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
         }
         if( this.activeTimeline == this.gui.globalTimeline && this.activeTimeline.historyRedo.length ){
             const mixer = this.currentCharacter.mixer;
@@ -4059,7 +4059,17 @@ class KeyframeEditor extends Editor {
         if( !this.trajectoriesHelper || !animation || this.activeTimeline.timelineTitle == "Blendshapes" ) {
             return;
         }
-        this.trajectoriesHelper.computeTrajectories( animation.mixerBodyAnimation? animation.mixerBodyAnimation : animation , currentTime );
+        let armSpaceRotation = new THREE.Quaternion();
+        const data = {
+            currentTime,
+            offsetRotParent:0,
+            offsetRot: armSpaceRotation,
+            gradient: this.gui.propagationWindow.gradient,
+            startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide,
+            endTime: this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide
+        };
+
+        this.trajectoriesHelper.computeTrajectories( animation.mixerBodyAnimation? animation.mixerBodyAnimation : animation , data );
         this.trajectoriesComputationPending = false;
     }
 
@@ -4104,23 +4114,32 @@ class KeyframeEditor extends Editor {
         if( !this.trajectoriesHelper || this.activeTimeline.timelineTitle == "Blendshapes" ) {
             return;
         }
+        let armSpaceRotation = new THREE.Quaternion();
+        const data = {
+            currentTime,
+            offsetRotParent:0,
+            offsetRot: armSpaceRotation,
+            gradient: this.gui.propagationWindow.gradient,
+            startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide,
+            endTime: this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide
+        };
         if( !trajectory ) {
             for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
                 trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
                 this.trajectoriesHelper.show( trajectory );
                 if( recompute ) {
-                    this.recomputeTrajectory(trajectory, this.currentKeyFrameClip.mixerBodyAnimation, {currentTime : currentTime, offsetRotParent:0, offsetRot: armSpaceRotation, gradient: this.gui.propagationWindow.gradient, startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, endTime: this.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
+                    this.recomputeTrajectory(trajectory, this.currentKeyFrameClip.mixerBodyAnimation, data);
                 }
             }
         }
         else {
             this.trajectoriesHelper.show( trajectory );
             if( recompute ) {
-                this.recomputeTrajectory(trajectory, this.currentKeyFrameClip.mixerBodyAnimation, {currentTime : currentTime, offsetRotParent:0, offsetRot: armSpaceRotation, gradient: this.gui.propagationWindow.gradient, startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, endTime: this.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
+                this.recomputeTrajectory(trajectory, this.currentKeyFrameClip.mixerBodyAnimation, data);
             }
         }
         if(currentTime != null && !recompute) {
-            this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, currentTime + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
+            this.updateTrajectories(data.startTime, data.endTime, this.gui.propagationWindow.gradient);
         }
         this.trajectoriesActive = true;
 
@@ -4130,7 +4149,7 @@ class KeyframeEditor extends Editor {
         }
         if( this.trajectoriesComputationPending ) {
             const boundAnim = this.activeTimeline.animationClip;
-            this.computeTrajectories( boundAnim, currentTime ||0 );
+            this.computeTrajectories( boundAnim, currentTime );
         }
     }
 
