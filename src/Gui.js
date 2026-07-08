@@ -4753,6 +4753,7 @@ class KeyframesGui extends Gui {
             }
             this.editor.updateArmSpace();
             this.editor.gizmo.updateBones( );
+           
         }, {min: -1, max:1, step:0.001})
 
         skeletonPanel.addToggle("Trajectories", this.editor.trajectoriesActive, (v) => {
