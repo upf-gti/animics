@@ -1539,6 +1539,8 @@ class KeyframeEditor extends Editor {
 
         this.retargeting = null;
         this.trajectoriesHelper = null;
+        this.trajectoriesActive = true;
+
         // Create GUI
         this.gui = new KeyframesGui(this);
 
@@ -1551,7 +1553,6 @@ class KeyframeEditor extends Editor {
     generateClipUniqueID(){
         return this._clipsUniqueIDSeed++;
     }
-
 
     onKeyDown( event ) {
         switch( event.key ) {
@@ -3104,9 +3105,7 @@ class KeyframeEditor extends Editor {
 
         this.gizmo.updateBones();
         if(this.gui.propagationWindow.enabler) {
-            for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
-                this.showTrajectories( this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""), this.gui.propagationWindow.time );
-            }
+            this.showTrajectories( this.gui.propagationWindow.time, []);
         }
         if( this.video.sync ) {
             this.video.pause();
@@ -3117,9 +3116,7 @@ class KeyframeEditor extends Editor {
     onPause() {
         this.state = false;
         if(this.gui.propagationWindow.enabler) {
-            for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
-                this.showTrajectories( this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""), this.gui.propagationWindow.time );
-            }
+            this.showTrajectories( this.gui.propagationWindow.time, [] );
         }
         if( this.video.sync ) {
             try{
@@ -3243,9 +3240,14 @@ class KeyframeEditor extends Editor {
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
                 }
-               if(this.gui.propagationWindow.enabler) {
-                    this.showTrajectories(this.selectedBone.replace("mixamorig_","").replace("mixamorig:",""), this.gui.propagationWindow.time );
+                if(this.gui.propagationWindow.enabler) {
+                    const trajectory = this.selectedBone.replace("mixamorig_","").replace("mixamorig:","");
+                    this.showTrajectories( this.gui.propagationWindow.time, [trajectory] );
+                    this.updateTrajectories()
                 }
+                // else {
+                //     this.hideTrajectories();
+                // }
                 this.gizmo.enableRaycast();
 
                 break;
@@ -3553,7 +3555,7 @@ class KeyframeEditor extends Editor {
             //     const shoulderRotation = new THREE.Quaternion();
             //     armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
             //     shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
-            //     this.recomputeTrajectory(`${isLeft ? "Left" : "Right"}Arm`, this.currentKeyFrameClip.mixerBodyAnimation, {currentTime : this.currentTime, offsetRotParent:0, offsetRot: armSpaceRotation});
+            //     this.recomputeTrajectories(`${isLeft ? "Left" : "Right"}Arm`, this.currentKeyFrameClip.mixerBodyAnimation, {currentTime : this.currentTime, offsetRotParent:0, offsetRot: armSpaceRotation});
             //     this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);            }
             //     this.editor.updateArmSpace();
             // }
@@ -4085,36 +4087,53 @@ class KeyframeEditor extends Editor {
         // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
         // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
         // const currentTime = this.gui.skeletonTimeline.currentTime/ this.currentCharacter.mixer.timeScale;
-        // this.recomputeTrajectory( "LeftHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+        // this.recomputeTrajectories( "LeftHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
         // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle*0.8);
         // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
-        // this.recomputeTrajectory( "RightHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+        // this.recomputeTrajectories( "RightHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
         
     }
-    async recomputeTrajectory( trajectoryName, animation = this.currentKeyFrameClip.mixerBodyAnimation, data = {}) {
+
+    recomputeTrajectories( trajectories, data = {}) {
 
         if(!this.trajectoriesActive) {
             return;
         }
-        await this.trajectoriesHelper.recomputeTrajectory(trajectoryName, animation.tracks[0].times, data)
+        const animation = this.currentKeyFrameClip.mixerBodyAnimation;
+        this.trajectoriesHelper.recomputeTrajectories(trajectories, animation.tracks[0].times, data)
     }
 
-    updateTrajectories( start, end, gradient = false ) {
+    updateTrajectories() {
         if( ! this.trajectoriesHelper || !this.trajectoriesActive || this.activeTimeline.timelineTitle == "Blendshapes" ) {
             return;
         }
 
-        this.trajectoriesStart = start;
-        this.trajectoriesEnd = end;
-        this.trajectoriesHelper.updateTrajectories(start, end, gradient);
+        this.trajectoriesStart = this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide;
+        this.trajectoriesEnd = this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide;
+        let armSpaceRotation = new THREE.Quaternion();
+        const data = {
+            currentTime: this.gui.propagationWindow.time,
+            offsetRotParent:0,
+            offsetRot: armSpaceRotation,
+            gradient: this.gui.propagationWindow.gradient,
+            startTime: this.trajectoriesStart,
+            endTime: this.trajectoriesEnd
+        };
+        const trajectories = [];
+        for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
+            let trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
+            trajectories.push(trajectory);
+        }
+        this.trajectoriesHelper.updateTrajectories(this.trajectoriesStart, this.trajectoriesEnd , data.gradient);
     }
 
-    showTrajectories( trajectory, currentTime, recompute = false) {
+    showTrajectories( currentTime = 0, trajectoriesNames = [], recompute = false) {
         
-        if( !this.trajectoriesHelper || this.activeTimeline.timelineTitle == "Blendshapes" ) {
+        if( !this.trajectoriesHelper || !this.trajectoriesActive || this.activeTimeline.timelineTitle == "Blendshapes" ) {
             return;
         }
         let armSpaceRotation = new THREE.Quaternion();
+
         const data = {
             currentTime,
             offsetRotParent:0,
@@ -4123,27 +4142,36 @@ class KeyframeEditor extends Editor {
             startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide,
             endTime: this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide
         };
-        if( !trajectory ) {
+        if( !this.activeTimeline.animationClip ) {
+            return;
+        }
+        if( this.trajectoriesComputationPending ) {
+            const boundAnim = this.activeTimeline.animationClip;
+
+            this.computeTrajectories( boundAnim, currentTime );
+        }
+
+        if( !trajectoriesNames.length ) {
+            
             for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
-                trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
+                let trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
                 this.trajectoriesHelper.show( trajectory );
-                if( recompute ) {
-                    this.recomputeTrajectory(trajectory, this.currentKeyFrameClip.mixerBodyAnimation, data);
-                }
+                trajectoriesNames.push( trajectory );
+            }
+            if( recompute ) {
+                this.recomputeTrajectories(trajectoriesNames, data);
             }
         }
         else {
-            this.trajectoriesHelper.show( trajectory );
+            trajectoriesNames.forEach( trajectory => {
+                this.trajectoriesHelper.show( trajectory );
+            });
+
             if( recompute ) {
-                this.recomputeTrajectory(trajectory, this.currentKeyFrameClip.mixerBodyAnimation, data);
+                this.recomputeTrajectories(trajectoriesNames, data);
             }
         }
-        if(currentTime != null && !recompute) {
-            this.updateTrajectories(data.startTime, data.endTime, this.gui.propagationWindow.gradient);
-        }
-        this.trajectoriesActive = true;
-
-        // window.localStorage.setItem("trajectories", this.trajectoriesActive);
+      
         if( !this.activeTimeline.animationClip ) {
             return;
         }
@@ -4158,8 +4186,6 @@ class KeyframeEditor extends Editor {
             return;
         }
         this.trajectoriesHelper.hide( trajectory);
-        this.trajectoriesActive = false;
-        // window.localStorage.setItem("trajectories", this.trajectoriesActive);
     }
 }
 

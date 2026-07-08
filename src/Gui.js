@@ -2417,30 +2417,28 @@ class KeyframesGui extends Gui {
   
                 if ( this.propagationWindow.enabler || this.skeletonTimeline.lastKeyFramesSelected.length ){
                     this.editor.gizmo.enableTransform();
-                    // for( let i = 0; i < this.skeletonTimeline.selectedItems.length; i++ ) {
-                    //     this.editor.showTrajectories( this.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:",""), this.propagationWindow.time );
-                    // }
-                    this.editor.showTrajectories(null, this.propagationWindow.time, true);
-                    //this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
+
+                    this.editor.showTrajectories(this.propagationWindow.time, [], true);
                     const currentTime = this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale;
-                    this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime});
+                    //this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime});
                 }
                 else {
                     this.editor.hideTrajectories();
                     return;
                 }
             }
+
             this.editor.gizmo.disableTransform();
         };
 
         this.propagationWindow.onSetSize = ()=> {
-            this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
+            this.editor.updateTrajectories();
         }
         this.propagationWindow.onSetTime = (time)=> {
-            this.editor.updateTrajectories(  time - this.propagationWindow.leftSide, time + this.propagationWindow.rightSide, this.propagationWindow.gradient );
+            this.editor.updateTrajectories();
         }
         this.propagationWindow.onSetGradient = () => {
-            this.editor.updateTrajectories(this.propagationWindow.time - this.propagationWindow.leftSide, this.propagationWindow.time + this.propagationWindow.rightSide, this.propagationWindow.gradient);
+            this.editor.updateTrajectories();
         }
 
         const that = this;
@@ -3037,7 +3035,15 @@ class KeyframesGui extends Gui {
             if (currentItems.length == 0){ this.editor.gizmo.disableTransform(); }
             const trajectoriesActive = this.editor.trajectoriesActive;
             this.editor.hideTrajectories();
-            if (trajectoriesActive) { for(let i = 0; i < currentItems.length; i++) {this.editor.showTrajectories(currentItems[i].replace("mixamorig_","").replace("mixamorig:",""))}}
+            let trajectories = [];
+            if (trajectoriesActive && this.propagationWindow.enabler) {
+            
+                for(let i = 0; i < currentItems.length; i++) {
+                    const trajectory = currentItems[i].replace("mixamorig_","").replace("mixamorig:","");
+                    trajectories.push( trajectory );
+                }
+                this.editor.showTrajectories( this.propagationWindow.time, trajectories);
+            }
          }
         this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
         this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );}
@@ -4748,6 +4754,17 @@ class KeyframesGui extends Gui {
             this.editor.updateArmSpace();
             this.editor.gizmo.updateBones( );
         }, {min: -1, max:1, step:0.001})
+
+        skeletonPanel.addToggle("Trajectories", this.editor.trajectoriesActive, (v) => {
+            this.editor.trajectoriesActive = v;
+            if( v ) {
+                this.editor.showTrajectories(null, [], true);
+            }
+            else {
+                this.editor.hideTrajectories();
+            }
+
+        }, { className: "success", label: "" })
     }
 
     updateNodeTree() {

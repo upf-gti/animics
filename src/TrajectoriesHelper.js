@@ -60,158 +60,253 @@ class TrajectoriesHelper {
         this.trajectoryStart = 0;
         this.trajectoryEnd = 100;
     }
+    
+    buildTrajectories( trajectoriesNames, times, data = {}, isRecompute = false) {
+        const mixer = data.mixer || this.mixer;
+        const startFrame = data.startFrame || 0;
+        const endFrame = data.endFrame || times.length - 1;
+        const startTime = data.startTime || times[startFrame];
+        const endTime = data.endTime || times[endFrame];
+        const originalTime = data.currentTime || mixer.time;
+
+        let totalFramesLoop = 0;
         
-    computeTrajectories(animation, data = {}) {
-        this.dispose(); 
+        const trajectoryData = {};
         
-        return new Promise((resolve) => {
-            const mixer = this.mixer;
-            // Use the first track to determine time keyframes
-            const rootTrack = animation.tracks[0];
-            this.trajectoryEnd = rootTrack.times.length;
-          
-
-            // 1. Setup Phase: Map trajectories to their respective bones and roots
-            const trajectoryKeys = Object.keys(this.trajectories);
-            const trajectoryData = {};
-
-            for (let trajectory of trajectoryKeys) {
-                // Find the bone name from animation tracks if not already set
-                for (let track of animation.tracks) {
-                    const name = track.name || track.groupId;
-                    if (name.includes(trajectory + ".") || name.includes(trajectory.replace("4", "EndSite") + ".") || name.replace("mixamorig_", "") == trajectory) {
-                        this.trajectories[trajectory].name = name.replace(".quaternion", "");
-                        break;
-                    }
+        trajectoriesNames.forEach( name => {
+            
+            const trajectory = this.trajectories[name];
+            if( !trajectory ) {
+                return;
+            }
+  
+            const bone = this.object.getObjectByName(trajectory.name);
+            const isHand = name === "LeftHand" || name === "RightHand";
+            
+            let rootFinger = trajectory.rootFinger || null;
+            if (!isHand && bone && !rootFinger) {
+                let current = bone;
+                let n = current.name.replace("mixamorig", "").replaceAll("_", "").replaceAll(":", "");
+                while (current && !n.includes("1")) {
+                    current = current.parent;
+                    if (current) n = current.name.replace("mixamorig", "").replaceAll("_", "").replaceAll(":", "");
                 }
-
-                const boneName = this.trajectories[trajectory].name;
-                const bone = this.object.getObjectByName(boneName);
-                const isHand = trajectory === "LeftHand" || trajectory === "RightHand";
-                
-                let rootFinger = null;
-                if (!isHand && bone) {
-                    // Get the first joint of the finger as reference (root)
-                    let current = bone;
-                    while (current) {
-                        let name = current.name.replace("mixamorig", "").replaceAll("_", "").replaceAll(":", "");
-                        if (name.includes("1")) {
-                            break;
-                        } 
-                        current = current.parent;
-                    }
-                    rootFinger = current;
-                    // Add the trajectory object to the first joint (local space)
-                    if (rootFinger) {
-                        rootFinger.add(this.trajectories[trajectory]);
-                    }
-                }
-                else if (isHand) {
-                    // Add hand trajectory to the model root (global space)
-                    this.object.add(this.trajectories[trajectory]);
-                }
-
-                trajectoryData[trajectory] = {
-                    bone: bone,
-                    rootFinger: rootFinger,
-                    isHand: isHand,
-                    positions: [],
-                    colors: [],
-                    lastPos: new THREE.Vector3()
-                };
+                rootFinger = current;
+                trajectory.rootFinger = rootFinger;
             }
 
-            // 2. Processing Phase: Single loop through time
-            const mat4 = this._tmpMat4;
-            const pos = this._tmpPos;
+            // Add trajectories to the scene objects
+            if (rootFinger && !trajectory.parent) {
+                rootFinger.add(trajectory);
+            }
+            else if (isHand && !trajectory.parent) {
+                this.object.add(trajectory);
+            }
 
-            const times = rootTrack.times;
-            const startFrame = data.startFrame || 0;
-            const startTime = data.startTime || times[startFrame];
-            const endFrame = data.endFrame || times.length - 1;
-            const endTime = data.endTime || times[endFrame];
-            let gradIdx = -1;
-            let maxGradient = [1.0001, 0];
-            let g0 = [0, 0];
-            let g1 = data.gradient ? data.gradient[0] : 0;
-
-            for (let t = 0; t < times.length - 1; t++) {
-                const time = times[t];
-                
-                // Update mixer and force a full skeleton matrix update
-                mixer.setTime(time);
-                this.object.updateWorldMatrix(true, true);
-
-                for (let trajectory of trajectoryKeys) {
-                    const tData = trajectoryData[trajectory];
-                    if (!tData.bone) continue;
-
-                    if (tData.isHand) {
-                        // Global position for hands
-                        pos.setFromMatrixPosition(tData.bone.matrixWorld);
-                    } else {
-                        // Local position relative to the first finger joint
-                        if (!tData.rootFinger) {
-                            continue;
-                        }
-                        mat4.copy(tData.rootFinger.matrixWorld).invert().multiply(tData.bone.matrixWorld);
-                        pos.setFromMatrixPosition(mat4);
+            const arrowMap = {};
+            if (isRecompute) {
+                const childrenCopy = [...trajectory.children];
+                for (let i = 0; i < childrenCopy.length; i++) {
+                    if (childrenCopy[i].name !== "line") {
+                        arrowMap[childrenCopy[i].name] = childrenCopy[i];
                     }
+                }
+            }
 
-                    tData.positions.push(pos.x, pos.y, pos.z);
+            trajectoryData[name] = {
+                bone: bone,
+                rootFinger: rootFinger,
+                isHand: isHand,
+                positions: isRecompute ? trajectory.positions : [],
+                colors: isRecompute ? trajectory.colors : [],
+                arrowMap: arrowMap,
+                p3: bone?.parent?.parent?.parent,
+                p2: bone?.parent?.parent,
+                lastPos: isRecompute 
+                    ? this._tmpLastPos.set(trajectory.positions[startFrame * 3 - 3] || 0, trajectory.positions[startFrame * 3 - 2] || 0, trajectory.positions[startFrame * 3 - 1] || 0)
+                    : new THREE.Vector3()
+            };
+            totalFramesLoop = isRecompute ? (trajectory.positions.length / 3) : (times.length - 1);
+        })
 
-                    // there will be, at most, track.times.length-1 arrows. Building arrows for t-1
-                    if (t > 0) {
-                        
-                        let alpha = 0.8;
+        if (isRecompute) {
+            mixer.setTime(0);
+            mixer.update(0);
+        }
+
+        let gradIdx = -1;
+        let maxGradient = [1.0001, 0];
+        let g0 = [0, 0];
+        let g1 = data.gradient ? data.gradient[0] : 0;
+
+        // Processing Phase
+        const mat4 = this._tmpMat4;
+        const pos = this._tmpPos;
+        const parentRot = new THREE.Quaternion();
+        const boneRot = new THREE.Quaternion();
+
+        for (let t = 0; t < totalFramesLoop; t++) {
+            const time = times[t];
+            
+            // Update mixer and force a full skeleton matrix update
+            mixer.setTime(time / mixer.timeScale);
+
+            this.object.updateWorldMatrix(true, true);
+
+            trajectoriesNames.forEach( name => {
+                const trajectory = trajectoryData[name];
+                if (!trajectory.bone) {
+                    return;
+                }
+
+                // Compute paret ortation offsets
+                if (isRecompute && data.offsetRotParent && trajectory.p3) {
+                    trajectory.p3.updateWorldMatrix(true, false);
+                    trajectory.p3.getWorldQuaternion(this._tmpQuat1);
+                    this._tmpQuat1.premultiply(data.offsetRotParent);
                     
-                        if (data.gradient){
-                            let value = (times[t] - startTime) / (endTime - startTime); // normalize time in window 
-                            // find next valid data.gradient interval
-                            while( value > g1[0] ){
-                                g0 = g1;
-                                g1 = data.gradient[++gradIdx];
-                                if ( !g1 ){ g1 = maxGradient; break; }
-                            }
-                            // compute delta factor
-                            value = (value - g0[0]) / (g1[0]-g0[0]);
-                            value = g0[1] * (1-value) + g1[1] * value;
-                            alpha = value;
-                        }
-                        const opacity = Math.max(0, Math.min(1, alpha));
+                    trajectory.p3.parent.updateWorldMatrix(true, false);
+                    trajectory.p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
+                    trajectory.p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
+                }
+                
+                // Compute rotation offsets
+                if (isRecompute && data.offsetRot && trajectory.p2 && trajectory.p3) {
+                    trajectory.p2.updateWorldMatrix(true, false);
+                    trajectory.p2.getWorldQuaternion(this._tmpQuat1);
+                    this._tmpQuat1.premultiply(data.offsetRot);
+                    
+                    trajectory.p3.updateWorldMatrix(true, false);
+                    trajectory.p3.getWorldQuaternion(this._tmpQuat2).invert();
+                    trajectory.p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
+                }
+                
+                trajectory.bone.updateWorldMatrix(true, false);
 
-                        let c = tData.color;
-                        if(!c) {
-                            c = this._tmpColor.set(`hsl(${180 * Math.sin(time / Math.PI)}, 100%, 50%)`)//.setHSL(180 * Math.sin(time / Math.PI), 1.0, 0.5);
-                        }
-                        tData.colors.push(c.r, c.g, c.b, opacity);
-                        tData.colors.push(c.r, c.g, c.b, opacity);
-                        
-                        const arrow = customArrow(pos.x, pos.y, pos.z, tData.lastPos.x, tData.lastPos.y, tData.lastPos.z, this.trajectories[trajectory].thickness * 0.0002, c);
+                // Convert world to local positions
+                if (trajectory.isHand) {
+                    pos.setFromMatrixPosition(trajectory.bone.matrixWorld);
+                } else {
+                    if (!trajectory.rootFinger) return;
+                    mat4.copy(trajectory.rootFinger.matrixWorld).invert().multiply(trajectory.bone.matrixWorld);
+                    pos.setFromMatrixPosition(mat4);
+                }
+
+                // Save positions
+                if (isRecompute) {
+                    const t3 = t * 3;
+                    this.trajectories[name].positions[t3] = pos.x;
+                    this.trajectories[name].positions[t3 + 1] = pos.y;
+                    this.trajectories[name].positions[t3 + 2] = pos.z;
+                } else {
+                    trajectory.positions.push(pos.x, pos.y, pos.z);
+                }
+
+                // Compute opacity given a gradient
+                let alpha = 0.8;
+                if (data.gradient) {
+                    let value = (times[t] - startTime) / (endTime - startTime); 
+                    while (value > g1[0]) {
+                        g0 = g1;
+                        g1 = data.gradient[++gradIdx];
+                        if (!g1) { g1 = maxGradient; break; }
+                    }
+                    value = (value - g0[0]) / (g1[0] - g0[0]);
+                    value = g0[1] * (1 - value) + g1[1] * value;
+                    alpha = value;
+                }
+                const opacity = Math.max(0, Math.min(1, alpha));
+
+                let c = this.trajectories[name].color;
+                if (!c) {
+                    c = this._tmpColor.set(`hsl(${180 * Math.sin(time / Math.PI)}, 100%, 50%)`);
+                }
+
+                if (isRecompute) {
+                    const t8 = t * 8;
+                    this.trajectories[name].colors[t8] = c.r;     this.trajectories[name].colors[t8 + 1] = c.g; this.trajectories[name].colors[t8 + 2] = c.b; this.trajectories[name].colors[t8 + 3] = opacity;
+                    this.trajectories[name].colors[t8 + 4] = c.r; this.trajectories[name].colors[t8 + 5] = c.g; this.trajectories[name].colors[t8 + 6] = c.b; this.trajectories[name].colors[t8 + 7] = opacity;
+                    if (t > 0) {
+                        // Reuse arrows intances
+                        let arrow = trajectory.arrowMap[t - 1];
                         if (arrow) {
-                            arrow.name = t - 1;
-                            arrow.layers.set(2); // to avoid intersections with arrows
+                            arrow.position.set(trajectory.lastPos.x, trajectory.lastPos.y, trajectory.lastPos.z);
+                            arrow.lookAt(pos.x, pos.y, pos.z);
                             arrow.visible = opacity > 0;
                             arrow.children[0].material.opacity = opacity;
-                            this.trajectories[trajectory].add(arrow);
+                        } else {
+                            arrow = customArrow(pos.x, pos.y, pos.z, trajectory.lastPos.x, trajectory.lastPos.y, trajectory.lastPos.z, this.trajectories[name].thickness * 0.0002, c);
+                            if (arrow) {
+                                arrow.name = t - 1;
+                                arrow.layers.set(2);
+                                arrow.visible = opacity > 0;
+                                arrow.children[0].material.opacity = opacity;
+                                this.trajectories[name].add(arrow);
+                            }
                         }
                     }
-                    tData.lastPos.copy(pos);
+                } else {
+                    trajectory.colors.push(c.r, c.g, c.b, opacity);
+                    trajectory.colors.push(c.r, c.g, c.b, opacity);
+                    
+                    if (t > 0) {
+                        const arrow = customArrow(pos.x, pos.y, pos.z, trajectory.lastPos.x, trajectory.lastPos.y, trajectory.lastPos.z, this.trajectories[name].thickness * 0.0002, c);
+                        if (arrow) {
+                            arrow.name = t - 1;
+                            arrow.layers.set(2);
+                            arrow.visible = opacity > 0;
+                            arrow.children[0].material.opacity = opacity;
+                            this.trajectories[name].add(arrow);
+                        }
+                    }
+                }
+
+                trajectory.lastPos.copy(pos);
+
+                // Recompute quaternions
+                if (isRecompute && data.offsetRotParent && trajectory.p3) {
+                    trajectory.p3.updateWorldMatrix(true, false);
+                    trajectory.p3.getWorldQuaternion(this._tmpQuat1);
+                    this._tmpQuat1.premultiply(data.offsetRotParent.clone().invert()); 
+                    trajectory.p3.parent.updateWorldMatrix(true, false);
+                    trajectory.p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
+                    trajectory.p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
+                }
+                if (isRecompute && data.offsetRot && trajectory.p2 && trajectory.p3) {
+                    trajectory.p2.updateWorldMatrix(true, false);
+                    trajectory.p2.getWorldQuaternion(this._tmpQuat1);
+                    this._tmpQuat1.premultiply(data.offsetRot.clone().invert());
+                    trajectory.p3.updateWorldMatrix(true, false);
+                    trajectory.p3.getWorldQuaternion(this._tmpQuat2).invert();
+                    trajectory.p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
+                }
+            })
+        }
+
+        // Create/Update line meshes (trajectories): geometries
+        trajectoriesNames.forEach( name => {
+            const trajectory = this.trajectories[name];
+            if( !trajectory ) {
+                return;
+            }
+            if (isRecompute) {
+                const line = trajectory.getObjectByName("line");
+                if (line) {
+                    line.geometry.setPositions(trajectory.positions);
+                    line.geometry.setColors(trajectory.colors);
+                    line.material.needsUpdate = true;
                 }
             }
-
-            // 3. Finalization Phase: Create geometries
-            for (let trajectory of trajectoryKeys) {
-                const data = trajectoryData[trajectory];
+            else {
+                const tData = trajectoryData[name];
                 const geometry = new MagicLineGeometry();
-                geometry.setPositions(data.positions);
-                // geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( data.colors, 4 ) );
-                geometry.setColors(data.colors);
+                geometry.setPositions(tData.positions);
+                geometry.setColors(tData.colors);
                 
                 const material = new LineMaterial({
                     vertexColors: true,
                     alphaToCoverage: true,
-                    linewidth: this.trajectories[trajectory].thickness,
+                    linewidth: trajectory.thickness,
                     vertexShader: vertexShader,
                     fragmentShader: fragmentShader,
                     transparent: true
@@ -222,193 +317,39 @@ class TrajectoriesHelper {
 
                 const line = new Line2(geometry, material);
                 line.name = "line";
-                this.trajectories[trajectory].add(line);
-                this.trajectories[trajectory].positions = data.positions;
-                this.trajectories[trajectory].colors = data.colors;
+                trajectory.add(line);
+                
+                trajectory.positions = tData.positions;
+                trajectory.colors = tData.colors;
             }
-            const currentTime = data.currentTime != undefined ? data.currentTime : 0;
-            mixer.setTime(currentTime);
-            this.object.updateWorldMatrix(true, true);
-            resolve();
-        });
+        })
+        
+        // Restore animation state
+        mixer.setTime(originalTime);
+        this.object.updateWorldMatrix(true, true);
     }
 
-    async recomputeTrajectory( trajectoryName, times, data = {}) {
-        const trajectory = this.trajectories[trajectoryName];
-        if(!trajectory) {
-            return;
+    computeTrajectories(animation, data = {}) {
+        this.dispose(); 
+        const rootTrack = animation.tracks[0];
+        this.trajectoryEnd = rootTrack.times.length;
+        const trajectoryKeys = Object.keys(this.trajectories);
+
+        // Init map tracks-bones
+        for (let trajectory of trajectoryKeys) {
+            for (let track of animation.tracks) {
+                const name = track.name || track.groupId;
+                if (name.includes(trajectory + ".") || name.includes(trajectory.replace("4", "EndSite") + ".") || name.replace("mixamorig_", "") == trajectory) {
+                    this.trajectories[trajectory].name = name.replace(".quaternion", "");
+                    break;
+                }
+            }
         }
+        this.buildTrajectories(trajectoryKeys, rootTrack.times, data, false);
+    }
 
-        return new Promise((resolve) => {
-            const startFrame = data.startFrame || 0;
-            const startTime = data.startTime || times[startFrame];
-            const endFrame = data.endFrame || times.length - 1;
-            const endTime = data.endTime || times[endFrame];
-            const totalFrames = trajectory.positions.length / 3;
-            
-            // separate line to no delete it and lost the optimized arrow instances
-            const line = trajectory.getObjectByName("line");
-            
-            const bone = this.object.getObjectByName(trajectory.name);
-            const isHand = trajectoryName === "LeftHand" || trajectoryName === "RightHand";
-            
-            const mat4 = this._tmpMat4;
-            const pos = this._tmpPos;
-            const lastPos = this._tmpLastPos.set(
-                trajectory.positions[startFrame*3 - 3] || 0, 
-                trajectory.positions[startFrame*3 - 2] || 0, 
-                trajectory.positions[startFrame*3 - 1] || 0
-            );
-            
-            let gradIdx = -1;
-            let maxGradient = [1.0001, 0];
-            let g0 = [0, 0];
-            let g1 = data.gradient ? data.gradient[0] : 0;
-            const mixer = data.mixer || this.mixer;
-            mixer.setTime( 0 );
-            mixer.update(0);
-            
-            // Caching references to bone parents to avoid lookups
-            const p3 = bone?.parent?.parent?.parent;
-            const p2 = bone?.parent?.parent;
-
-            // Caching existing arrows
-            const arrowMap = {};
-            const childrenCopy = [...trajectory.children];
-            for(let i=0; i<childrenCopy.length; i++) {
-                if(childrenCopy[i].name !== "line") {
-                    arrowMap[childrenCopy[i].name] = childrenCopy[i];
-                }
-            }
-            
-            for (let t = 0; t < totalFrames; t++) {
-                const time = times[t];
-                // Update mixer and force a full skeleton matrix update
-                mixer.setTime(time / mixer.timeScale);
-                if (!bone) continue;
-                
-                // --- OFFSET ROTATION PARENT (Optimized) ---
-                if (data.offsetRotParent && p3) {
-                    p3.updateWorldMatrix(true, false);
-                    p3.getWorldQuaternion(this._tmpQuat1);
-                    this._tmpQuat1.premultiply(data.offsetRotParent);
-                    
-                    p3.parent.updateWorldMatrix(true, false);
-                    p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
-                    p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                }
-                
-                // --- OFFSET ROTATION (Optimized) ---
-                if (data.offsetRot && p2 && p3) {
-                    p2.updateWorldMatrix(true, false);
-                    p2.getWorldQuaternion(this._tmpQuat1);
-                    this._tmpQuat1.premultiply(data.offsetRot);
-                    
-                    p3.updateWorldMatrix(true, false);
-                    p3.getWorldQuaternion(this._tmpQuat2).invert();
-                    p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                }
-                
-                bone.updateWorldMatrix(true, false);
-    
-                if (isHand) {
-                    pos.setFromMatrixPosition(bone.matrixWorld);
-                } else {
-                    if (!trajectory.rootFinger) continue;
-                    mat4.copy(trajectory.rootFinger.matrixWorld).invert().multiply(bone.matrixWorld);
-                    pos.setFromMatrixPosition(mat4);
-                }
-    
-                const t3 = t * 3;
-                trajectory.positions[t3] = pos.x;
-                trajectory.positions[t3 + 1] = pos.y;
-                trajectory.positions[t3 + 2] = pos.z;
-    
-                // there will be, at most, track.times.length-1 arrows. Building arrows for t-1
-                if (t > 0) {
-                    let c = trajectory.color;
-                    if(!c) {
-                        c = this._tmpColor.set(`hsl(${180 * Math.sin(time / Math.PI)}, 100%, 50%)`)
-                    }
-                    let alpha = 0.8;
-                    
-                    if (data.gradient){
-                        let value = (times[t] - startTime) / (endTime - startTime); // normalize time in window 
-                        // find next valid data.gradient interval
-                        while( value > g1[0] ){
-                            g0 = g1;
-                            g1 = data.gradient[++gradIdx];
-                            if ( !g1 ){ g1 = maxGradient; break; }
-                        }
-                        // compute delta factor
-                        value = (value - g0[0]) / (g1[0]-g0[0]);
-                        value = g0[1] * (1-value) + g1[1] * value;
-                        alpha = value;
-                    }
-                    const opacity = Math.max(0, Math.min(1, alpha));
-    
-                    const t8 = t * 8;
-                    trajectory.colors[t8] = c.r;
-                    trajectory.colors[t8 + 1] = c.g;
-                    trajectory.colors[t8 + 2] = c.b;
-                    trajectory.colors[t8 + 3] = opacity;
-                    trajectory.colors[t8 + 4] = c.r;
-                    trajectory.colors[t8 + 5] = c.g;
-                    trajectory.colors[t8 + 6] = c.b;
-                    trajectory.colors[t8 + 7] = opacity;
-                    
-                    // Reuse arrow if it already exists
-                    let arrow = arrowMap[t - 1];
-                    if (arrow) {
-                        arrow.position.set(lastPos.x, lastPos.y, lastPos.z);
-                        arrow.lookAt(pos.x, pos.y, pos.z);
-                        arrow.visible = opacity > 0;
-                        arrow.children[0].material.opacity = opacity;
-                    } else {
-                        arrow = customArrow(pos.x, pos.y, pos.z, lastPos.x, lastPos.y, lastPos.z, trajectory.thickness * 0.0002, c);
-                        if (arrow) {
-                            arrow.name = t - 1;
-                            arrow.layers.set(2);
-                            arrow.visible = opacity > 0;
-                            arrow.children[0].material.opacity = opacity;
-                            trajectory.add(arrow);
-                        }
-                    }
-                }
-                
-                lastPos.copy(pos);
-                
-                // Revert rotations (Optimitzed)
-                if (data.offsetRotParent && p3) {
-                    p3.updateWorldMatrix(true, false);
-                    p3.getWorldQuaternion(this._tmpQuat1);
-                    this._tmpQuat1.premultiply(data.offsetRotParent.clone().invert()); 
-                    p3.parent.updateWorldMatrix(true, false);
-                    p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
-                    p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                }
-                if (data.offsetRot && p2 && p3) {
-                    p2.updateWorldMatrix(true, false);
-                    p2.getWorldQuaternion(this._tmpQuat1);
-                    this._tmpQuat1.premultiply(data.offsetRot.clone().invert());
-                    p3.updateWorldMatrix(true, false);
-                    p3.getWorldQuaternion(this._tmpQuat2).invert();
-                    p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                }
-            }
-
-            if(line) {
-                line.geometry.setPositions(trajectory.positions);
-                line.geometry.setColors(trajectory.colors);
-                line.material.needsUpdate = true;
-            }
-
-            if(data.currentTime) {
-                this.mixer.setTime(data.currentTime);
-                this.object.updateWorldMatrix(true, true);
-            }
-            resolve();
-        })
+    recomputeTrajectories( trajectories, times, data = {}) {      
+        this.buildTrajectories(trajectories, times, data, true);
     }
 
     updateTrajectories( startTime, endTime, gradient = false ) {
@@ -461,13 +402,13 @@ class TrajectoriesHelper {
                 }
                 else if (gradient){
                     let t = (times[frame] - startTime) / (endTime - startTime); // normalize time in window
-                    // find next valid gradient interval
+                    // Find next valid gradient interval
                     while( t > g1[0] ){
                         g0 = g1;
                         g1 = gradient[++gradIdx];
                         if ( !g1 ){ g1 = maxGradient; break; }
                     }
-                    // compute delta factor
+                    // Compute delta factor
                     t = (t - g0[0]) / (g1[0] - g0[0]);
                     alpha = g0[1] * (1 - t) + g1[1] * t;
                 }
@@ -478,7 +419,7 @@ class TrajectoriesHelper {
                 colors[f8 + 7] = opacity;
                 
                 const arrow = arrowMap[frame];
-                // update arrow visibility
+                // Update arrow visibility
                 if (arrow) {
                     arrow.children[0].material.opacity = opacity;
                     arrow.visible = opacity > 0;
