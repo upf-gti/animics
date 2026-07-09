@@ -1594,10 +1594,7 @@ class KeyframeEditor extends Editor {
         const lastSelection = this.gui.globalTimeline.lastClipsSelected.length == 1 ? this.gui.globalTimeline.lastClipsSelected[0] : null;
 
         this.activeTimeline.undo();
-        if ( this.gui.propagationWindow.enabler ){
-            this.computeTrajectories(this.currentKeyFrameClip.mixerBodyAnimation, this.activeTimeline.currentTime);
-            //this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
-        }
+
         if( this.activeTimeline == this.gui.globalTimeline && this.activeTimeline.historyRedo.length ){
             const mixer = this.currentCharacter.mixer;
             while(mixer._actions.length){
@@ -1640,7 +1637,11 @@ class KeyframeEditor extends Editor {
                 }
             }
         }
-
+        
+        if ( this.gui.propagationWindow.enabler ){
+            this.recomputeTrajectories();
+            //this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
+        }
         this.setTime(this.currentTime);
     }
 
@@ -3546,17 +3547,6 @@ class KeyframeEditor extends Editor {
                     } 
 
                 }
-                const trajectoryName = track.name.replace("mixamorig_","");
-                if(trajectoryName.includes("Shoulder") || trajectoryName.includes("Arm")) {
-                    const isLeft = trajectoryName.includes("Left");
-                    const angle = isLeft ? this.armSpace * Math.PI / 4 : -this.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
-                    const armSpaceRotation = new THREE.Quaternion();
-                    const shoulderRotation = new THREE.Quaternion();
-                    // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
-                    // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
-                    this.recomputeTrajectories([`${isLeft ? "Left" : "Right"}Arm`], {currentTime : this.currentTime, offsetRotParent:0, offsetRot: armSpaceRotation});
-                    // this.updateArmSpace();
-                }
             }
             
         }
@@ -4126,11 +4116,19 @@ class KeyframeEditor extends Editor {
         
     }
 
-    recomputeTrajectories( trajectories, data = {}) {
+    recomputeTrajectories( trajectories = [], data = {}) {
 
         if(!this.trajectoriesActive) {
             return;
         }
+
+        if( !trajectories || !trajectories.length ) {
+            for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
+                let trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
+                trajectories.push(trajectory);
+            }
+        }
+
         const animation = this.currentKeyFrameClip.mixerBodyAnimation;
         this.trajectoriesHelper.recomputeTrajectories(trajectories, animation.tracks[0].times, data);
 

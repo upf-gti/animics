@@ -643,7 +643,6 @@ class Gizmo {
             // Update animation interpolants
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
-        this.editor.updateArmSpace( this.editor.armSpace);
         if ( propWindow.enabler ){
                 
             let startFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide);
@@ -659,6 +658,7 @@ class Gizmo {
             const effectorFrameTime = propWindow.enabler ? propWindow.time : track.times[ keyFrameIndex ];
             this.editor.recomputeTrajectories([trajectoryName], {currentTime : effectorFrameTime, offsetRotParent:0, offsetRot: armSpaceRotation, gradient: this.editor.gui.propagationWindow.gradient, startTime: this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, endTime: this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
         }
+        this.editor.updateArmSpace( this.editor.armSpace);
         this.updateBones();
     }
 
