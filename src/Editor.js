@@ -1638,11 +1638,14 @@ class KeyframeEditor extends Editor {
             }
         }
         
+        const t = this.currentTime;
         if ( this.gui.propagationWindow.enabler ){
-            this.recomputeTrajectories();
+            //this.recomputeTrajectories();
             //this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
+            this.setTime(0)
         }
-        this.setTime(this.currentTime);
+        this.gizmo.mustUpdate = true;
+        this.setTime(t);
     }
 
     redo() {
@@ -1699,7 +1702,14 @@ class KeyframeEditor extends Editor {
             }
         }
 
-        this.setTime(this.currentTime);
+        const t = this.currentTime;
+        if ( this.gui.propagationWindow.enabler ){
+            //this.recomputeTrajectories();
+            //this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
+            this.setTime(0)
+        }
+        this.gizmo.mustUpdate = true;
+        this.setTime(t);
     }
 
     async initCharacters( modelToLoad ) {
@@ -3155,7 +3165,7 @@ class KeyframeEditor extends Editor {
             this.video.currentTime = this.video.startTime + t - this.currentKeyFrameClip.start;
         }
         this.updateArmSpace();
-        this.gizmo.updateBones();
+        this.gizmo.update(true, 0);
     }
 
     clearTracks( trackIndices = null ) {
@@ -3474,7 +3484,9 @@ class KeyframeEditor extends Editor {
         if( !mixer._actions.length ) {
             return;
         }
-    
+        const trajectoriesToUpdate = [];
+        const regex = /^.*(Left|Right)(Hand|Arm|ForeArm)((Thumb|Index|Middle|Ring|Pinky)(1|4))?$/;
+
         const action = mixer.clipAction(mixerAnimation);
         const isFaceAnim =  mixerAnimation.name != "bodyAnimation";
 
@@ -3483,6 +3495,11 @@ class KeyframeEditor extends Editor {
         for( let i = 0; i < numEditedTracks; i++ ) {
             const eIdx = editedTracksIdxs ? editedTracksIdxs[i] : i;
             const eTrack = editedAnimation.tracks[eIdx]; // track of the edited animation
+            const nameInfo = regex.exec(eTrack.groupId);
+            if( nameInfo ) {
+                const name = eTrack.groupId.replace("mixamorig_", "").replace("ForeArm", "Hand").replace("Arm", "Hand").replace("1", "4");
+                trajectoriesToUpdate.push(name);
+            }
             
             if( eTrack.locked ) {
                 continue;
@@ -3502,6 +3519,7 @@ class KeyframeEditor extends Editor {
                 // _clip is the same clip (pointer) sent in mixer.clipAction. 
 
                 const track = mixerAnimation.tracks[trackId];
+
                 if( eTrack.active && eTrack.times.length ) {
                     interpolant.parameterPositions = track.times = eTrack.times;
                     interpolant.sampleValues = track.values = eTrack.values;
@@ -3548,10 +3566,10 @@ class KeyframeEditor extends Editor {
 
                 }
             }
-            
         }
     
         if ( callSetTime ){
+            this.recomputeTrajectories(trajectoriesToUpdate);
             this.setTime( this.currentTime );
         }
 
@@ -3914,7 +3932,9 @@ class KeyframeEditor extends Editor {
         
         leftParentRot.premultiply(shoulderRotation);
         leftArmRotation.premultiply(armSpaceRotation);
+        let leftDelta = leftArm.quaternion.clone();
         leftArm.quaternion.copy(leftArmRotation.premultiply(leftParentRot.clone().invert()));
+        leftDelta.premultiply(leftArm.quaternion.clone().invert());
         leftArm.parent.quaternion.copy(leftParentRot.premultiply(leftArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
         updateTrajectory("LeftHand", leftArm, armSpaceRotation);            
         
@@ -3927,7 +3947,9 @@ class KeyframeEditor extends Editor {
         rightParentRot.premultiply(shoulderRotation);
         const rightArmRotation = rightArm.getWorldQuaternion(new THREE.Quaternion());
         rightArmRotation.premultiply(armSpaceRotation);
+        let rightDelta = rightArm.quaternion.clone();
         rightArm.quaternion.copy(rightArmRotation.premultiply(rightParentRot.clone().invert()));
+        rightDelta.premultiply(rightArm.quaternion.clone().invert());
         rightArm.parent.quaternion.copy(rightParentRot.premultiply(rightArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
         updateTrajectory("RightHand", rightArm, armSpaceRotation);
         
@@ -3935,11 +3957,11 @@ class KeyframeEditor extends Editor {
         //     this.trajectoriesHelper.trajectories["RightHand"].quaternion.multiply(armSpaceRotation);
         //     this.trajectoriesHelper.trajectories["LeftHand"].quaternion.multiply(armSpaceRotation);
         // }
-       
+       return {leftDelta, rightDelta};
     }
 
     revertArmSpace(value = this._lastArmSpaceOffset) {
-        this.updateArmSpace(-1*value);
+        return this.updateArmSpace(-1*value);
     }
 
     /** ------------------------ Generate formatted data --------------------------*/
@@ -4119,7 +4141,7 @@ class KeyframeEditor extends Editor {
         
     }
 
-    recomputeTrajectories( trajectories = [], data = {}) {
+    recomputeTrajectories( trajectories = [], data) {
 
         if(!this.trajectoriesActive) {
             return;
@@ -4132,13 +4154,21 @@ class KeyframeEditor extends Editor {
             }
         }
 
+        if(!data) {
+            data = {
+                currentTime: this.gui.propagationWindow.time,
+                offsetRotParent:0,
+                gradient: this.gui.propagationWindow.gradient,
+                startTime: this.trajectoriesStart,
+                endTime: this.trajectoriesEnd
+            };
+        }
         const animation = this.currentKeyFrameClip.mixerBodyAnimation;
         this.trajectoriesHelper.recomputeTrajectories(trajectories, animation.tracks[0].times, data);
 
         const angle = this.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
         const armSpaceRotation = new THREE.Quaternion();
         const shoulderRotation = new THREE.Quaternion();
-        
         // // Left
         // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
         // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);

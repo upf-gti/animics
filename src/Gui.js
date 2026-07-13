@@ -2420,6 +2420,7 @@ class KeyframesGui extends Gui {
 
                     this.editor.showTrajectories(this.propagationWindow.time, [], true);
                     const currentTime = this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale;
+                    this.editor.updateArmSpace();
                     //this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime});
                 }
                 else {
@@ -3045,8 +3046,12 @@ class KeyframesGui extends Gui {
                 this.editor.showTrajectories( this.propagationWindow.time, trajectories);
             }
          }
-        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
-        this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );}
+        this.skeletonTimeline.onUpdateTrack = (indices) => {
+            this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
+        }
+        this.skeletonTimeline.onSetTrackState = (track, oldState) => {
+            this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
+        }
         this.skeletonTimeline.onOptimizeTracks = (idx = -1) => { 
             this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, idx == -1 ? null : [idx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
