@@ -520,6 +520,8 @@ class Gizmo {
         let track = null;
         let keyFrameIndex = -1; // only used if no propagation 
 
+        this.editor.revertArmSpace(this._lastArmSpaceOffset);
+
         if ( propWindow.enabler ){
             track = timeline.getTrack(keyType, bone.name);
             if ( !track ){ return; }
@@ -656,7 +658,7 @@ class Gizmo {
             shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
 
             const effectorFrameTime = propWindow.enabler ? propWindow.time : track.times[ keyFrameIndex ];
-            this.editor.recomputeTrajectories([trajectoryName], {currentTime : effectorFrameTime, offsetRotParent:0, offsetRot: armSpaceRotation, gradient: this.editor.gui.propagationWindow.gradient, startTime: this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, endTime: this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
+            this.editor.recomputeTrajectories([trajectoryName], {currentTime : effectorFrameTime, gradient: this.editor.gui.propagationWindow.gradient, startTime: this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, endTime: this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
         }
         this.editor.updateArmSpace( this.editor.armSpace);
         this.updateBones();

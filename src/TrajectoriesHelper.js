@@ -108,7 +108,8 @@ class TrajectoriesHelper {
                 const childrenCopy = [...trajectory.children];
                 for (let i = 0; i < childrenCopy.length; i++) {
                     if (childrenCopy[i].name !== "line") {
-                        arrowMap[childrenCopy[i].name] = childrenCopy[i];
+                        trajectory.remove(childrenCopy[i]);
+                        // arrowMap[childrenCopy[i].name] = childrenCopy[i];
                     }
                 }
             }
@@ -159,34 +160,35 @@ class TrajectoriesHelper {
                     return;
                 }
 
-                // Compute paret ortation offsets
-                if (isRecompute && data.offsetRotParent && trajectory.p3) {
-                    trajectory.p3.updateWorldMatrix(true, false);
-                    trajectory.p3.getWorldQuaternion(this._tmpQuat1);
-                    this._tmpQuat1.premultiply(data.offsetRotParent);
+                // // Compute paret ortation offsets
+                // if (isRecompute && data.offsetRotParent && trajectory.p3) {
+                //     trajectory.p3.updateWorldMatrix(true, false);
+                //     trajectory.p3.getWorldQuaternion(this._tmpQuat1);
+                //     this._tmpQuat1.premultiply(data.offsetRotParent);
                     
-                    trajectory.p3.parent.updateWorldMatrix(true, false);
-                    trajectory.p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
-                    trajectory.p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                }
+                //     trajectory.p3.parent.updateWorldMatrix(true, false);
+                //     trajectory.p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
+                //     trajectory.p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
+                // }
                 
-                // Compute rotation offsets
-                if (isRecompute && data.offsetRot && trajectory.p2 && trajectory.p3) {
-                    trajectory.p2.updateWorldMatrix(true, false);
-                    trajectory.p2.getWorldQuaternion(this._tmpQuat1);
-                    this._tmpQuat1.premultiply(data.offsetRot);
+                // // Compute rotation offsets
+                // if (isRecompute && data.offsetRot && trajectory.p2 && trajectory.p3) {
+                //     trajectory.p2.updateWorldMatrix(true, false);
+                //     trajectory.p2.getWorldQuaternion(this._tmpQuat1);
+                //     this._tmpQuat1.premultiply(data.offsetRot);
                     
-                    trajectory.p3.updateWorldMatrix(true, false);
-                    trajectory.p3.getWorldQuaternion(this._tmpQuat2).invert();
-                    trajectory.p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                }
+                //     trajectory.p3.updateWorldMatrix(true, false);
+                //     trajectory.p3.getWorldQuaternion(this._tmpQuat2).invert();
+                //     trajectory.p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
+                // }
                 
                 trajectory.bone.updateWorldMatrix(true, false);
 
                 // Convert world to local positions
                 if (trajectory.isHand) {
                     pos.setFromMatrixPosition(trajectory.bone.matrixWorld);
-                } else {
+                }
+                else {
                     if (!trajectory.rootFinger) return;
                     mat4.copy(trajectory.rootFinger.matrixWorld).invert().multiply(trajectory.bone.matrixWorld);
                     pos.setFromMatrixPosition(mat4);
@@ -198,7 +200,8 @@ class TrajectoriesHelper {
                     this.trajectories[name].positions[t3] = pos.x;
                     this.trajectories[name].positions[t3 + 1] = pos.y;
                     this.trajectories[name].positions[t3 + 2] = pos.z;
-                } else {
+                }
+                else {
                     trajectory.positions.push(pos.x, pos.y, pos.z);
                 }
 
@@ -224,17 +227,29 @@ class TrajectoriesHelper {
 
                 if (isRecompute) {
                     const t8 = t * 8;
-                    this.trajectories[name].colors[t8] = c.r;     this.trajectories[name].colors[t8 + 1] = c.g; this.trajectories[name].colors[t8 + 2] = c.b; this.trajectories[name].colors[t8 + 3] = opacity;
-                    this.trajectories[name].colors[t8 + 4] = c.r; this.trajectories[name].colors[t8 + 5] = c.g; this.trajectories[name].colors[t8 + 6] = c.b; this.trajectories[name].colors[t8 + 7] = opacity;
+                    this.trajectories[name].colors[t8] = c.r;
+                    this.trajectories[name].colors[t8 + 1] = c.g;
+                    this.trajectories[name].colors[t8 + 2] = c.b;
+                    this.trajectories[name].colors[t8 + 3] = opacity;
+                    this.trajectories[name].colors[t8 + 4] = c.r;
+                    this.trajectories[name].colors[t8 + 5] = c.g;
+                    this.trajectories[name].colors[t8 + 6] = c.b;
+                    this.trajectories[name].colors[t8 + 7] = opacity;
+
                     if (t > 0) {
                         // Reuse arrows intances
                         let arrow = trajectory.arrowMap[t - 1];
                         if (arrow) {
+                            const ix = trajectory.lastPos.x, iy = trajectory.lastPos.y, iz = trajectory.lastPos.z;
+                            const fx = pos.x, fy = pos.y, fz = pos.z;
+                            const length = Math.sqrt( (ix-fx)**2 + (iy-fy)**2 + (iz-fz)**2 );
                             arrow.position.set(trajectory.lastPos.x, trajectory.lastPos.y, trajectory.lastPos.z);
                             arrow.lookAt(pos.x, pos.y, pos.z);
                             arrow.visible = opacity > 0;
                             arrow.children[0].material.opacity = opacity;
-                        } else {
+                            arrow.children[0].position.set(0, 0, length);
+                        }
+                        else {
                             arrow = customArrow(pos.x, pos.y, pos.z, trajectory.lastPos.x, trajectory.lastPos.y, trajectory.lastPos.z, this.trajectories[name].thickness * 0.0002, c);
                             if (arrow) {
                                 arrow.name = t - 1;
@@ -245,7 +260,8 @@ class TrajectoriesHelper {
                             }
                         }
                     }
-                } else {
+                }
+                else {
                     trajectory.colors.push(c.r, c.g, c.b, opacity);
                     trajectory.colors.push(c.r, c.g, c.b, opacity);
                     
@@ -263,23 +279,23 @@ class TrajectoriesHelper {
 
                 trajectory.lastPos.copy(pos);
 
-                // Recompute quaternions
-                if (isRecompute && data.offsetRotParent && trajectory.p3) {
-                    trajectory.p3.updateWorldMatrix(true, false);
-                    trajectory.p3.getWorldQuaternion(this._tmpQuat1);
-                    this._tmpQuat1.premultiply(data.offsetRotParent.clone().invert()); 
-                    trajectory.p3.parent.updateWorldMatrix(true, false);
-                    trajectory.p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
-                    trajectory.p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                }
-                if (isRecompute && data.offsetRot && trajectory.p2 && trajectory.p3) {
-                    trajectory.p2.updateWorldMatrix(true, false);
-                    trajectory.p2.getWorldQuaternion(this._tmpQuat1);
-                    this._tmpQuat1.premultiply(data.offsetRot.clone().invert());
-                    trajectory.p3.updateWorldMatrix(true, false);
-                    trajectory.p3.getWorldQuaternion(this._tmpQuat2).invert();
-                    trajectory.p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                }
+            //     // Recompute quaternions
+            //     if (isRecompute && data.offsetRotParent && trajectory.p3) {
+            //         trajectory.p3.updateWorldMatrix(true, false);
+            //         trajectory.p3.getWorldQuaternion(this._tmpQuat1);
+            //         this._tmpQuat1.premultiply(data.offsetRotParent.clone().invert()); 
+            //         trajectory.p3.parent.updateWorldMatrix(true, false);
+            //         trajectory.p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
+            //         trajectory.p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
+            //     }
+            //     if (isRecompute && data.offsetRot && trajectory.p2 && trajectory.p3) {
+            //         trajectory.p2.updateWorldMatrix(true, false);
+            //         trajectory.p2.getWorldQuaternion(this._tmpQuat1);
+            //         this._tmpQuat1.premultiply(data.offsetRot.clone().invert());
+            //         trajectory.p3.updateWorldMatrix(true, false);
+            //         trajectory.p3.getWorldQuaternion(this._tmpQuat2).invert();
+            //         trajectory.p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
+            //     }
             })
         }
 

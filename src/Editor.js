@@ -1902,7 +1902,7 @@ class KeyframeEditor extends Editor {
         
         // this.trajectoriesComputationPending = false;
         this.hideTrajectories();
-        this.armSpace = characterBoundAnimations[name].armSpace;
+        this.armSpace = characterBoundAnimations[name].armSpace || 0;
         return alreadyExisted;
     }
 
@@ -3056,7 +3056,7 @@ class KeyframeEditor extends Editor {
         let armSpace = this.armSpace;
         if ( this.currentCharacter.mixer && this.state ) {
 
-            if (this._lastArmSpaceOffset) {
+            if (this._lastArmSpaceOffset != undefined) {
                 this.revertArmSpace(this._lastArmSpaceOffset);
             }
             const tracks = this.gui.globalTimeline.animationClip.tracks;
@@ -3868,13 +3868,17 @@ class KeyframeEditor extends Editor {
     updateArmSpace(value = this.armSpace) {
         this._lastArmSpaceOffset = value;
 
-        if( !value ) {
-            return;
-        }
+        // if( !value ) {
+        //     return;
+        // }
 
         const updateTrajectory = ( name, arm, offsetRotation ) => {
             // Compute pivot position
             const trajectory = this.trajectoriesHelper.trajectories[name];
+            if( !trajectory || !trajectory.parent ) {
+                return;
+            }
+
             arm.updateWorldMatrix(true, false); 
             const pivotPosition = new THREE.Vector3().setFromMatrixPosition(arm.matrixWorld);
 
@@ -4086,8 +4090,7 @@ class KeyframeEditor extends Editor {
         let armSpaceRotation = new THREE.Quaternion();
         const data = {
             currentTime,
-            offsetRotParent:0,
-            offsetRot: armSpaceRotation,
+           
             gradient: this.gui.propagationWindow.gradient,
             startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide,
             endTime: this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide
