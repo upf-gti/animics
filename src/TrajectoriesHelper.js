@@ -156,31 +156,9 @@ class TrajectoriesHelper {
 
             trajectoriesNames.forEach( name => {
                 const trajectory = trajectoryData[name];
-                if (!trajectory.bone) {
+                if (!trajectory || !trajectory.bone) {
                     return;
                 }
-
-                // // Compute paret ortation offsets
-                // if (isRecompute && data.offsetRotParent && trajectory.p3) {
-                //     trajectory.p3.updateWorldMatrix(true, false);
-                //     trajectory.p3.getWorldQuaternion(this._tmpQuat1);
-                //     this._tmpQuat1.premultiply(data.offsetRotParent);
-                    
-                //     trajectory.p3.parent.updateWorldMatrix(true, false);
-                //     trajectory.p3.parent.getWorldQuaternion(this._tmpQuat2).invert();
-                //     trajectory.p3.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                // }
-                
-                // // Compute rotation offsets
-                // if (isRecompute && data.offsetRot && trajectory.p2 && trajectory.p3) {
-                //     trajectory.p2.updateWorldMatrix(true, false);
-                //     trajectory.p2.getWorldQuaternion(this._tmpQuat1);
-                //     this._tmpQuat1.premultiply(data.offsetRot);
-                    
-                //     trajectory.p3.updateWorldMatrix(true, false);
-                //     trajectory.p3.getWorldQuaternion(this._tmpQuat2).invert();
-                //     trajectory.p2.quaternion.copy(this._tmpQuat1.premultiply(this._tmpQuat2));
-                // }
                 
                 trajectory.bone.updateWorldMatrix(true, false);
 

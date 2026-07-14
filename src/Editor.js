@@ -792,7 +792,7 @@ class Editor {
                 case 'z': case 'Z': // Undo
                     if( e.ctrlKey ) {
                         e.preventDefault();
-                        e.stopImmediatePropagation();
+                        // e.stopImmediatePropagation();
 
                         this.undo();
                     }
@@ -801,7 +801,7 @@ class Editor {
                 case 'y': case 'Y': // Redo
                     if( e.ctrlKey ) {
                         e.preventDefault();
-                        e.stopImmediatePropagation();
+                        // e.stopImmediatePropagation();
 
                         this.redo();
                     }
@@ -1637,15 +1637,7 @@ class KeyframeEditor extends Editor {
                 }
             }
         }
-        
-        const t = this.currentTime;
-        if ( this.gui.propagationWindow.enabler ){
-            //this.recomputeTrajectories();
-            //this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
-            this.setTime(0)
-        }
-        this.gizmo.mustUpdate = true;
-        this.setTime(t);
+        this.gui.updateBonePanel();
     }
 
     redo() {
@@ -1701,15 +1693,7 @@ class KeyframeEditor extends Editor {
                 }
             }
         }
-
-        const t = this.currentTime;
-        if ( this.gui.propagationWindow.enabler ){
-            //this.recomputeTrajectories();
-            //this.updateTrajectories(this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide, this.gui.propagationWindow.gradient);
-            this.setTime(0)
-        }
-        this.gizmo.mustUpdate = true;
-        this.setTime(t);
+        this.gui.updateBonePanel();
     }
 
     async initCharacters( modelToLoad ) {
@@ -1907,12 +1891,13 @@ class KeyframeEditor extends Editor {
         this.setTimeline(this.animationModes.GLOBAL);
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
+        this.armSpace = characterBoundAnimations[name].armSpace || 0;
         this.setTime(this.currentTime); // update mixer
 		this.gui.globalTimeline.visualOriginTime = - ( this.gui.globalTimeline.xToTime(100) - this.gui.globalTimeline.xToTime(0) ); // set horizontal scroll to 100 pixels 
         
         // this.trajectoriesComputationPending = false;
         this.hideTrajectories();
-        this.armSpace = characterBoundAnimations[name].armSpace || 0;
+  
         return alreadyExisted;
     }
 
@@ -3348,6 +3333,7 @@ class KeyframeEditor extends Editor {
     }
 
     globalAnimMixerManagementSingleClip(mixer, clip){
+        
         const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
         const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
         
@@ -3356,7 +3342,7 @@ class KeyframeEditor extends Editor {
             actionFace.stop();
             return;
         }
-
+        
         actionBody.reset().play();
         actionBody.clampWhenFinished = false;
         actionBody.loop = THREE.LoopOnce;
@@ -3966,6 +3952,121 @@ class KeyframeEditor extends Editor {
 
     /** ------------------------ Generate formatted data --------------------------*/
 
+    applyArmSpaceToAnimation(mixer, animation, remove = false) {
+        let armSpace = animation.armSpace;
+        if( !armSpace || !animation.mixerBodyAnimation ) {
+            return;
+        }
+
+        if( remove ) {
+            armSpace *= -1; 
+        }
+        const animationAction = mixer.clipAction(animation.mixerBodyAnimation);
+        const clip = animationAction.getClip();
+
+        const angle = armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+        const rotationAxis = new THREE.Vector3(0, 0, 1);
+        const armSpaceRotation = new THREE.Quaternion();
+        const shoulderRotation = new THREE.Quaternion();
+
+        const leftParentArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.LArm).parent;
+        const rightParentArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.RArm).parent;
+        
+        let lArmTrack = null;
+        let lParentArmTrack = null;
+        let rArmTrack = null;
+        let rParentArmTrack = null;
+        for( let i = 0; i < clip.tracks.length; i++ ) {
+            const track = clip.tracks[i];
+            if( track.name.includes(`${this.currentCharacter.config.boneMap.LArm}.quaternion`) ) {
+                lArmTrack = i;
+                if( rArmTrack != null && rParentArmTrack != null && lParentArmTrack != null ) {
+                    break;
+                }
+            }
+            if( track.name.includes(`${leftParentArm.name}.quaternion`) ) {
+                lParentArmTrack = i;
+                if( rArmTrack != null && rParentArmTrack != null && lArmTrack != null ) {
+                    break;
+                }
+            }
+            if( track.name.includes(`${this.currentCharacter.config.boneMap.RArm}.quaternion`) ) {
+                rArmTrack = i;
+                if( lArmTrack != null && lParentArmTrack != null && rParentArmTrack != null ) {
+                    break;
+                }
+            }
+            if( track.name.includes(`${rightParentArm.name}.quaternion`) ) {
+                rParentArmTrack = i;
+                if( lArmTrack != null && lParentArmTrack != null && rArmTrack != null ) {
+                    break;
+                }
+            }
+        }
+        
+        animationAction.reset().play();
+        const lArmInterpolant = animationAction._interpolants[lArmTrack]; 
+        const rArmInterpolant = animationAction._interpolants[rArmTrack]; 
+        const lParentArmInterpolant = animationAction._interpolants[lParentArmTrack]; 
+        const rParentArmInterpolant = animationAction._interpolants[rParentArmTrack]; 
+
+        for( let i = 0; i < clip.tracks[0].times.length; i++ ) {
+            const time = clip.tracks[0].times[i];
+            mixer.setTime(time);
+
+            // LEFT ARM: Create offset and multiply
+            const leftArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.LArm);
+            const leftParentRot = leftArm.parent.getWorldQuaternion(new THREE.Quaternion());
+            const leftArmRotation = leftArm.getWorldQuaternion(new THREE.Quaternion());
+            armSpaceRotation.setFromAxisAngle(rotationAxis, angle*0.8);
+            // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+            
+            leftParentRot.premultiply(shoulderRotation);
+            leftArmRotation.premultiply(armSpaceRotation);
+            let leftDelta = leftArm.quaternion.clone();
+            leftArm.quaternion.copy(leftArmRotation.premultiply(leftParentRot.clone().invert()));
+            leftDelta.premultiply(leftArm.quaternion.clone().invert());
+            leftArm.parent.quaternion.copy(leftParentRot.premultiply(leftArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+            
+            lArmInterpolant.sampleValues[i*4] = clip.tracks[lArmTrack].values[i*4] = leftArm.quaternion.x;
+            lArmInterpolant.sampleValues[i*4+1] = clip.tracks[lArmTrack].values[i*4+1] = leftArm.quaternion.y;
+            lArmInterpolant.sampleValues[i*4+2] = clip.tracks[lArmTrack].values[i*4+2] = leftArm.quaternion.z;
+            lArmInterpolant.sampleValues[i*4+3] = clip.tracks[lArmTrack].values[i*4+3] = leftArm.quaternion.w;
+
+            lParentArmInterpolant.sampleValues[i*4] = clip.tracks[lParentArmTrack].values[i*4] = leftArm.parent.quaternion.x;
+            lParentArmInterpolant.sampleValues[i*4+1] = clip.tracks[lParentArmTrack].values[i*4+1] = leftArm.parent.quaternion.y;
+            lParentArmInterpolant.sampleValues[i*4+2] = clip.tracks[lParentArmTrack].values[i*4+2] = leftArm.parent.quaternion.z;
+            lParentArmInterpolant.sampleValues[i*4+3] = clip.tracks[lParentArmTrack].values[i*4+3] = leftArm.parent.quaternion.w;
+
+            
+            // RIGHT ARM: Opposite direction (negative angle)
+            armSpaceRotation.setFromAxisAngle(rotationAxis, -angle*0.8);
+    
+            const rightArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.RArm);
+            const rightParentRot = rightArm.parent.getWorldQuaternion(new THREE.Quaternion());
+            rightParentRot.premultiply(shoulderRotation);
+            const rightArmRotation = rightArm.getWorldQuaternion(new THREE.Quaternion());
+            rightArmRotation.premultiply(armSpaceRotation);
+            let rightDelta = rightArm.quaternion.clone();
+            rightArm.quaternion.copy(rightArmRotation.premultiply(rightParentRot.clone().invert()));
+            rightDelta.premultiply(rightArm.quaternion.clone().invert());
+            rightArm.parent.quaternion.copy(rightParentRot.premultiply(rightArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+
+            rArmInterpolant.sampleValues[i*4] = clip.tracks[rArmTrack].values[i*4] = rightArm.quaternion.x;
+            rArmInterpolant.sampleValues[i*4+1] = clip.tracks[rArmTrack].values[i*4+1] = rightArm.quaternion.y;
+            rArmInterpolant.sampleValues[i*4+2] = clip.tracks[rArmTrack].values[i*4+2] = rightArm.quaternion.z;
+            rArmInterpolant.sampleValues[i*4+3] = clip.tracks[rArmTrack].values[i*4+3] = rightArm.quaternion.w;
+
+            rParentArmInterpolant.sampleValues[i*4] = clip.tracks[rParentArmTrack].values[i*4] = rightArm.parent.quaternion.x;
+            rParentArmInterpolant.sampleValues[i*4+1] = clip.tracks[rParentArmTrack].values[i*4+1] = rightArm.parent.quaternion.y;
+            rParentArmInterpolant.sampleValues[i*4+2] = clip.tracks[rParentArmTrack].values[i*4+2] = rightArm.parent.quaternion.z;
+            rParentArmInterpolant.sampleValues[i*4+3] = clip.tracks[rParentArmTrack].values[i*4+3] = rightArm.parent.quaternion.w;
+
+        }
+        mixer.setTime(0);
+        animationAction.stop();
+    }
+
     /**
      * Computes the AnimationClip that would result from boundAnim through the animationFrameRate
      * Removes all clips from the mixer. User should call setGlobalAnimation(this.currentAnimation) after this funciton is called
@@ -3980,12 +4081,25 @@ class KeyframeEditor extends Editor {
     generateExportAnimationData( boundAnim, flags = 0x03 ){
         const mixer = this.currentCharacter.mixer;
         mixer.stopAllAction();
+        
+        for( let t = 0; t < boundAnim.tracks.length; ++t ){
+            const track = boundAnim.tracks[t];
+            for( let c = 0; c < track.clips.length; ++c ){
+                const clip = track.clips[c];
+                if( !clip.mixerBodyAnimation ) {
+                    continue;
+                }
+                this.applyArmSpaceToAnimation(mixer, clip )
+            }
+        }
+
         while( mixer._actions.length ){
             mixer.uncacheClip( mixer._actions[0]._clip );
         }
 
         this.currentCharacter.skeletonHelper.skeleton.pose(); // set default pose for the mixer
 
+        
 		this.currentTime = 0; // manual set of time for clip management. WARNING: this creates a mismatch with UI
         this.globalAnimMixerManagement( mixer, boundAnim, false ); // set clips. Ignore currentSelecteKeyframeClip
 
@@ -4073,7 +4187,16 @@ class KeyframeEditor extends Editor {
         }
 
         mixer.timeScale = this.playbackRate;
-        
+        for( let t = 0; t < boundAnim.tracks.length; ++t ){
+            const track = boundAnim.tracks[t];
+            for( let c = 0; c < track.clips.length; ++c ){
+                const clip = track.clips[c];
+                if( !clip.mixerBodyAnimation ) {
+                    continue;
+                }
+                this.applyArmSpaceToAnimation(mixer, clip, true )
+            }
+        }
         // better to do this outside, so exporting several animations is more efficient
         // this.setGlobalAnimation( this.currentAnimation );
 
@@ -4143,7 +4266,7 @@ class KeyframeEditor extends Editor {
 
     recomputeTrajectories( trajectories = [], data) {
 
-        if(!this.trajectoriesActive) {
+        if(!this.trajectoriesActive || this.trajectoriesComputationPending) {
             return;
         }
 
@@ -4205,7 +4328,7 @@ class KeyframeEditor extends Editor {
 
     showTrajectories( currentTime = 0, trajectoriesNames = [], recompute = false) {
         
-        if( !this.trajectoriesHelper || !this.trajectoriesActive || this.activeTimeline.timelineTitle == "Blendshapes" ) {
+        if( !this.trajectoriesHelper || !this.trajectoriesActive || this.activeTimeline.timelineTitle == "Blendshapes" || !this.gui.propagationWindow.enabler ) {
             return;
         }
         let armSpaceRotation = new THREE.Quaternion();
