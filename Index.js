@@ -586,7 +586,8 @@ function onLoadFiles( files ) {
         return startAnimics({ mode, pendingResources: resultFiles});
     }	
         
-    alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi', 'mov'\n\tScript animation: 'bml', 'sigml'\n\tKeyframe animation: 'bvh', 'bvhe', 'json'");    return null;
+    alert("Format not supported.\n\nFormats accepted:\n\tVideo: 'webm','mp4','ogv','avi', 'mov'\n\tScript animation: 'bml', 'sigml'\n\tKeyframe animation: 'bvh', 'bvhe', 'json'");
+    return null;
 }
 
 function _checkSession() {
