@@ -1030,6 +1030,10 @@ class Editor {
                     options.animations.push( new THREE.AnimationClip( animationName, -1, tracks ) );
                 }
                 let model = this.currentCharacter.mixer._root.getObjectByName('Armature');
+                if( this.trajectoriesHelper ) {
+                    this.trajectoriesHelper.dispose();
+                    this.trajectoriesComputationPending = true;
+                }
 
                 this.GLTFExporter.parse(model, 
                     ( gltf ) => UTILS.download(gltf, (name || "animations") + '.glb', 'arraybuffer' ), // called when the gltf has been generated
