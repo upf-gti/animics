@@ -75,7 +75,8 @@ class Gizmo {
         if(this.selectedBone == -1){
             return;
         }
-        this.updateTracks();
+        const trajectories = this.updateTracks();
+        this.editor.showTrajectories(null, trajectories);
     }
 
     _onTransformMouseDown(){
@@ -103,6 +104,7 @@ class Gizmo {
         }
 
         this.mouseDownState = mouseDownState;
+        this.editor.hideTrajectories();
     }
 
     begin(skeletonHelper) {
@@ -520,6 +522,8 @@ class Gizmo {
         let track = null;
         let keyFrameIndex = -1; // only used if no propagation 
 
+        //const {leftDelta, rightDelta} = this.editor.revertArmSpace();
+
         if ( propWindow.enabler ){
             track = timeline.getTrack(keyType, bone.name);
             if ( !track ){ return; }
@@ -534,16 +538,21 @@ class Gizmo {
             keyFrameIndex = keyFrame;
         }
 
-       
+        const trajectoriesToUpdate = [];
+        const regex = /^.*(Left|Right)(Hand|Arm|ForeArm)((Thumb|Index|Middle|Ring|Pinky)(1|4))?$/;
+        
         if ( this.toolSelected == Gizmo.Tools.IK ){
             if ( !this.ikSelectedChain ){ return; }
             
             const effectorFrameTime = propWindow.enabler ? propWindow.time : track.times[ keyFrameIndex ];
             const chain = this.ikSelectedChain.chain;
-            
+            const nameInfo = regex.exec(chain[0].name);
+            if( nameInfo ) {
+                const name = chain.name.replace("mixamorig_", "").replace("ForeArm", "Hand").replace("Arm", "Hand").replace("1", "4");
+                trajectoriesToUpdate.push(name);
+            }
             const deltaQuat = new THREE.Quaternion();
             const tempQuat = new THREE.Quaternion();
-
             for( let i = 1; i < chain.length; ++i ){
                 const boneToProcess = this.skeleton.bones[chain[i]];
                 deltaQuat.copy(this.mouseDownState[i].quaternion).invert().multiply(boneToProcess.quaternion);
@@ -608,11 +617,16 @@ class Gizmo {
                 }
 
                 // Update animation interpolants
-                this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
+                this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation, i == chain.length - 1 );
             }
+            
         }
         else{
-            
+            const nameInfo = regex.exec(track.name);
+            if( nameInfo ) {
+                const name = chain.name.replace("mixamorig_", "").replace("ForeArm", "Hand").replace("Arm", "Hand").replace("1", "4");
+                trajectoriesToUpdate.push(name);
+            }
             this.editor.gui.skeletonTimeline.saveState( track.trackIdx );
 
             let deltaValue;
@@ -643,7 +657,28 @@ class Gizmo {
             // Update animation interpolants
             this.editor.updateMixerAnimation(this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
+        // if ( propWindow.enabler ){
+                
+        //     let startFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide);
+        //     let endFrame = timeline.getNearestKeyFrame(track, this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide);
+            
+        //     const trajectoryName = bone.name.replace("mixamorig_","");
+        //     const angle = trajectoryName.includes("Left") ? this.editor.armSpace * Math.PI / 4 : -this.editor.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+        //     const armSpaceRotation = new THREE.Quaternion();
+        //     const shoulderRotation = new THREE.Quaternion();
+        //     armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
+        //     shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
 
+        //     const effectorFrameTime = propWindow.enabler ? propWindow.time : track.times[ keyFrameIndex ];
+        //     this.editor.recomputeTrajectories([trajectoryName], {currentTime : effectorFrameTime, gradient: this.editor.gui.propagationWindow.gradient, startTime: this.editor.gui.propagationWindow.time - this.editor.gui.propagationWindow.leftSide, endTime: this.editor.gui.propagationWindow.time + this.editor.gui.propagationWindow.rightSide});
+        // }
+        //this.editor.updateArmSpace( this.editor.armSpace);
+        
+        this.updateBones();
+        const t = this.editor.currentTime;
+        this.editor.setTime(0);
+        this.editor.setTime(t);
+        return trajectoriesToUpdate;
     }
 
     setBone( name ) {

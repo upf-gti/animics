@@ -505,9 +505,11 @@ class AnimationRetargeting {
                     if(srcBoneMap.idxMap[i] < 0) {
                         continue;
                     }
-                    result.idxMap[ srcBoneMap.idxMap[i]] = trgBoneMap.idxMap[i];
+                    result.idxMap[srcBoneMap.idxMap[i]] = trgBoneMap.idxMap[i];
                     result.nameMap[ srcBoneMap.nameMap[name]] = trgBoneMap.nameMap[name]; 
                 }
+                result.srcBoneMap = srcBoneMap;
+                result.trgBoneMap = trgBoneMap;
             }
         }
 
@@ -551,8 +553,10 @@ class AnimationRetargeting {
 
             let resultQuat = new THREE.Quaternion(0,0,0,1);
             resultQuat.copy( this.trgBindPose.transformsWorld[ trgIndex ].q ); // bindTrgWorld
-            if ( this.trgBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.forward.q ); } // trgEmbedded
-            if ( this.srcBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.inverse.q ); } // invSrcEmbedded
+            // if ( this.trgBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.forward.q ); } // trgEmbedded
+            // if ( this.srcBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.inverse.q ); } // invSrcEmbedded
+            // if ( this.trgBindPose.transformsWorldEmbedded && srcIndex == 0 ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.inverse.q ); } // trgEmbedded
+            // if ( this.srcBindPose.transformsWorldEmbedded && srcIndex == 0 ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.forward.q ); } // invSrcEmbedded
             resultQuat.premultiply( this.srcBindPose.transformsWorldInverses[ srcIndex ].q ); // invBindSrcWorld
             right[ srcIndex ] = resultQuat;
 
@@ -563,8 +567,10 @@ class AnimationRetargeting {
                 resultQuat.premultiply( this.srcBindPose.transformsWorld[ parentIdx ].q ); 
             }
 
-            if ( this.srcBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.forward.q ); } // srcEmbedded
-            if ( this.trgBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.inverse.q ); } // invTrgEmbedded
+            // if ( this.srcBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.forward.q ); } // srcEmbedded
+            // if ( this.trgBindPose.transformsWorldEmbedded ) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.inverse.q ); } // invTrgEmbedded
+            if ( this.srcBindPose.transformsWorldEmbedded && srcIndex == 0) { resultQuat.premultiply( this.srcBindPose.transformsWorldEmbedded.forward.q ); } // srcEmbedded
+            if ( this.trgBindPose.transformsWorldEmbedded && srcIndex == 0) { resultQuat.premultiply( this.trgBindPose.transformsWorldEmbedded.inverse.q ); } // invTrgEmbedded
 
             // invBindTrgWorldParent
             if ( this.trgBindPose.bones[ trgIndex ].parent ){ 
@@ -628,32 +634,34 @@ class AnimationRetargeting {
 
             let trgBindPos = this.trgBindPose.bones[boneIndex].getWorldPosition(new THREE.Vector3());
             let srcBindPos = this.srcBindPose.bones[boneIndex].getWorldPosition(new THREE.Vector3());
-						
-            let pos = new THREE.Vector3();
+            let srcCurrentPos = new THREE.Vector3();
 
             for( let i = 0; i < srcValues.length; i+=3 ){
                 
-                pos.set( srcValues[i], srcValues[i+1], srcValues[i+2]);
-                let diffPosition = new THREE.Vector3();
-                diffPosition.subVectors(pos, srcBindPos);
+                srcCurrentPos.set( srcValues[i], srcValues[i+1], srcValues[i+2]);
+                let diffPosition = new THREE.Vector3().copy(srcBindPos);
+                const ratio = trgBindPos.y/diffPosition.y
 
-                // Scale the animation difference position with the scale diff between source and target and add it to the the Target Bind Position of the bone
-                diffPosition.multiplyScalar(this.proportionRatio);
                 if(this.srcBindPose.transformsWorldEmbedded) {
-                    diffPosition.applyQuaternion(this.srcBindPose.transformsWorldEmbedded.forward.q);
+                srcCurrentPos.applyQuaternion(this.srcBindPose.transformsWorldEmbedded.forward.q);
+                   srcCurrentPos.multiply(this.srcBindPose.transformsWorldEmbedded.forward.s);
                 }
                 if(this.trgBindPose.transformsWorldEmbedded) {
-                    diffPosition.applyQuaternion(this.trgBindPose.transformsWorldEmbedded.inverse.q);
+                    srcCurrentPos.applyQuaternion(this.trgBindPose.transformsWorldEmbedded.inverse.q);
+                    srcCurrentPos.multiply(this.trgBindPose.transformsWorldEmbedded.inverse.s);
                 }
-			    diffPosition.add(trgBindPos);
                 
-                trgValues[i]   = diffPosition.x ;
-                trgValues[i+1] = diffPosition.y ;
-                trgValues[i+2] = diffPosition.z ;            
+                diffPosition.subVectors(srcCurrentPos, diffPosition);
+                // Scale the animation difference position with the scale diff between source and target and add it to the the Target Bind Position of the bone
+			    diffPosition.multiplyScalar(ratio).add(trgBindPos);
+
+                trgValues[i]   = diffPosition.x;
+                trgValues[i+1] = diffPosition.y;
+                trgValues[i+2] = diffPosition.z;     
             }
         }
         // TODO missing interpolation mode. Assuming always linear. Also check if arrays are copied or referenced
-        return new THREE.VectorKeyframeTrack( this.boneMap.nameMap[ boneName ] + ".position", srcTrack.times.slice(), trgValues ); 
+        return new THREE.VectorKeyframeTrack( this.boneMap.nameMap[ boneName ] + ".position", srcTrack.times, trgValues ); 
     }
     
     /**
@@ -681,26 +689,42 @@ class AnimationRetargeting {
         }
 
         // TODO missing interpolation mode. Assuming always linear
-        return new THREE.QuaternionKeyframeTrack( this.boneMap.nameMap[ boneName ] + ".quaternion", srcTrack.times.slice(), trgValues ); 
+        return new THREE.QuaternionKeyframeTrack( this.boneMap.nameMap[ boneName ] + ".quaternion", srcTrack.times, trgValues ); 
     }
 
     /**
-     * NOT IMPLEMENTEED
      * assumes srcTrack IS a scale track (VectorKeyframeTrack) with the proper values array and name (boneName.scale) 
      * @param {THREE.VectorKeyframeTrack} srcTrack 
      * @returns {THREE.VectorKeyframeTrack}
      */
     retargetScaleTrack( srcTrack ){
-        let boneName = srcTrack.name.slice(0, srcTrack.name.length - 6 ); // remove the ".scale"
-        let boneIndex = findIndexOfBoneByName( this.srcSkeleton, boneName );
+        const boneName = srcTrack.name.slice(0, srcTrack.name.length - 6 ); // remove the ".scale"
+        const boneIndex = findIndexOfBoneByName( this.srcSkeleton, boneName );
         if ( boneIndex < 0 || this.boneMap.idxMap[ boneIndex ] < 0 ){
             return null;
         } 
-        // TODO
+        const srcScale = this.srcBindPose.bones[boneIndex].scale;
+        const trgScale = this.trgBindPose.bones[ this.boneMap.idxMap[ boneIndex ] ].scale;
+        const scaleRatio = trgScale.clone().divide(srcScale);
+        if(this.srcBindPose.transformsWorldEmbedded && boneIndex == 0) {
+            scaleRatio.multiply(this.srcBindPose.transformsWorldEmbedded.forward.s);
+        }
+        if(this.trgBindPose.transformsWorldEmbedded && boneIndex == 0) {
+            scaleRatio.multiply(this.trgBindPose.transformsWorldEmbedded.inverse.s);
+        }
+        const srcValues = srcTrack.values;
+        let trgValues = new Float32Array( srcValues.length );
+        for( let i = 0; i < srcValues.length; i+=3 ){
+            trgValues[i] = srcValues[i] * scaleRatio.x;
+            trgValues[i+1] = srcValues[i+1] * scaleRatio.y;
+            trgValues[i+2] = srcValues[i+2] * scaleRatio.z;
+        }
+
 
         // TODO missing interpolation mode. Assuming always linear. Also check if arrays are copied or referenced
-        return new THREE.VectorKeyframeTrack( this.boneMap.nameMap[ boneName ] + ".scale", srcTrack.times.slice(), srcTrack.values.slice() ); 
+        return new THREE.VectorKeyframeTrack( this.boneMap.nameMap[ boneName ] + ".scale", srcTrack.times.slice(), trgValues ); 
     }
+
 
     /**
      * Given a clip, all tracks with a mapped bone are retargeted.
@@ -722,7 +746,350 @@ class AnimationRetargeting {
         } 
 
         // negative duration: automatically computes proper duration of animation based on tracks
-        return new THREE.AnimationClip( anim.name, -1, trgTracks, anim.blendMode ); 
+        const trgAnim =  new THREE.AnimationClip( anim.name, -1, trgTracks, anim.blendMode );
+        return trgAnim;
+    }
+
+    async applyIKPose(ikSolver) {
+        const computeTargetLocation = ( chainName, referenceBone, xScale = 0) => {
+                const chain = ikSolver.getChain(chainName);
+                const scaleF = chain.length/chain.srcLength;
+                const endEffector = this.srcSkeleton.bones[chain.chain[0]];
+                endEffector.updateWorldMatrix( true, false );
+                
+                this.srcSkeleton.bones[0].updateWorldMatrix( true, true );
+                const srcEndPos = endEffector.getWorldPosition(new THREE.Vector3());
+                referenceBone.updateMatrixWorld();
+                const srcReferenceWM = referenceBone.matrixWorld.clone();
+                const position = new THREE.Vector3();
+                const quaternion = new THREE.Quaternion();
+                const scale = new THREE.Vector3();
+                srcReferenceWM.decompose(position, quaternion, scale);
+                // srcReferenceWM.compose(new THREE.Vector3(0,0,0), quaternion, new THREE.Vector3(1,1,1));
+                srcReferenceWM.compose(position, quaternion, new THREE.Vector3(1,1,1));
+
+                // const originBone = this.srcSkeleton.bones[chain.chain[chain.chain.length - 1]];
+                // originBone.updateWorldMatrix( true, false );
+                // const srcOriginPos = originBone.getWorldPosition(new THREE.Vector3());
+                // Vector hand respect shoulder (uparm) in chest space (reference space)
+                // const srcPos = srcEndPos.sub(srcOriginPos).applyMatrix4(srcReferenceWM.invert());
+                // srcEndPos.copy(srcPos);
+                srcEndPos.applyMatrix4(srcReferenceWM.invert());
+                srcEndPos.x= xScale > 0 ? srcEndPos.x*xScale : srcEndPos.x * scaleF;
+                srcEndPos.y*= scaleF;
+                srcEndPos.z*= scaleF;
+                
+                // srcEndPos.multiplyScalar(scaleF);
+
+                this.trgSkeleton.bones[0].updateWorldMatrix( true, true );
+
+                const trgReferenceName = this.boneMap.nameMap[referenceBone.name];
+                const trgReferenceBone = this.trgSkeleton.getBoneByName(trgReferenceName);
+                trgReferenceBone.updateMatrixWorld();
+                
+                // const trgOriginBone = this.trgSkeleton.bones[chain.chain[chain.chain.length - 1]];
+                // trgOriginBone.updateWorldMatrix( true, false );
+                // const trgOriginPos = trgOriginBone.getWorldPosition(new THREE.Vector3());
+                
+                const trgReferenceWM = trgReferenceBone.matrixWorld.clone();
+                trgReferenceWM.decompose(position, quaternion, scale);
+                // trgReferenceWM.compose(new THREE.Vector3(0,0,), quaternion, new THREE.Vector3(1,1,1));
+                trgReferenceWM.compose(position, quaternion, new THREE.Vector3(1,1,1));
+                
+                // srcEndPos.applyMatrix4(trgReferenceWM);
+                // srcEndPos.add(trgOriginPos);
+                srcEndPos.applyMatrix4(trgReferenceWM);
+                chain.target.position.copy(srcEndPos);
+                const target = chain.target.clone();
+                target.material = chain.target.material.clone();
+                target.position.copy(srcEndPos);
+                this.trgSkeleton.bones[0].parent.parent.parent.add(target);
+                ikSolver.setChainEnabler( chainName, true );
+
+                ikSolver.update();
+                
+                this.trgSkeleton.bones[0].updateWorldMatrix( true, true );
+                
+                ikSolver.setChainEnabler( chainName, false );
+            }
+
+            const srcBoneMap = this.boneMap.srcBoneMap;
+            const trgBoneMap = this.boneMap.trgBoneMap;
+            
+            const trgLArm = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.LArm);
+            const trgLElbow = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.LElbow);
+            const trgLWrist = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.LWrist);
+
+
+            const trgRArm = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.RArm);
+            const trgRElbow = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.RElbow);
+            const trgRWrist = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.RWrist);
+
+            const geometry = new THREE.SphereGeometry(0.001)
+            const material = new THREE.MeshBasicMaterial( { color: 0xffff00, depthTest: false } );
+            const LArmTarget = new THREE.Mesh( geometry, material );
+            const RArmTarget = new THREE.Mesh( geometry, material );
+            this.trgSkeleton.bones[0].parent.parent.parent.add(LArmTarget);
+            ikSolver.createChain([findIndexOfBone( this.trgSkeleton, trgLWrist), findIndexOfBone( this.trgSkeleton, trgLElbow), findIndexOfBone( this.trgSkeleton, trgLArm)], null, LArmTarget, "LArm");
+            ikSolver.setChainEnabler( "LArm", false );
+            let chain = ikSolver.getChain("LArm");
+            chain.length = 0;
+            chain.srcLength = 0;
+            
+            ikSolver.createChain([findIndexOfBone( this.trgSkeleton, trgRWrist), findIndexOfBone( this.trgSkeleton, trgRElbow), findIndexOfBone( this.trgSkeleton, trgRArm)], null, RArmTarget, "RArm");
+            ikSolver.setChainEnabler( "RArm", false );
+            chain = ikSolver.getChain("RArm");
+            chain.length = 0;
+            chain.srcLength = 0;
+
+            // Compute chain lengths
+            for(let i = 0; i < ikSolver.chains.length; i++) {
+                let bonesIndices = [...ikSolver.chains[i].chain];
+                // bonesIndices.push(bonesIndices[bonesIndices.length - 1] - 1)
+                // bonesIndices.push(bonesIndices[bonesIndices.length - 1] - 1)
+                bonesIndices = [bonesIndices[0] + 4, bonesIndices[0] + 3, bonesIndices[0] + 2, bonesIndices[0] + 1 , ...bonesIndices]
+
+                for( let b = 0; b < bonesIndices.length -1; b++) {
+                    let parentPos = this.trgBindPose.bones[bonesIndices[b]].parent.getWorldPosition(new THREE.Vector3());
+                    let pos = this.trgBindPose.bones[bonesIndices[b]].getWorldPosition(new THREE.Vector3());
+                    ikSolver.chains[i].length += parentPos.distanceTo(pos);
+
+                    const srcIdx = this.boneMap.idxMap.indexOf(bonesIndices[b]);
+                    if( srcIdx > -1 ) {
+                        parentPos = this.srcBindPose.bones[srcIdx].parent.getWorldPosition(new THREE.Vector3());
+                        pos = this.srcBindPose.bones[srcIdx].getWorldPosition(new THREE.Vector3());
+                        ikSolver.chains[i].srcLength += parentPos.distanceTo(pos);
+                    }
+                }
+                ikSolver.chains[i].scaleF = ikSolver.chains[i].length/ikSolver.chains[i].srcLength;
+            }
+
+            const srcShouldersUnion = this.srcSkeleton.getBoneByName(srcBoneMap.nameMap.ShouldersUnion);
+            
+            const trgBindShouldersUnion = this.trgBindPose.getBoneByName(trgBoneMap.nameMap.ShouldersUnion);
+            const LArmSrc = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { color: 0xff00ff, depthTest: false }) );
+            srcShouldersUnion.add(LArmSrc);
+
+            const LArmChain = ikSolver.getChain("LArm");
+            const RArmChain = ikSolver.getChain("RArm");
+            const trgLBase = this.trgBindPose.bones[LArmChain.chain[LArmChain.chain.length - 1]];
+            const trgRBase = this.trgBindPose.bones[RArmChain.chain[RArmChain.chain.length - 1]];
+
+            const trgLBasePos = trgLBase.getWorldPosition(new THREE.Vector3());
+            const trgRBasePos = trgRBase.getWorldPosition(new THREE.Vector3());
+            const trgShouldersLength = trgRBasePos.distanceTo(trgLBasePos);
+
+            const srcLBase = this.srcBindPose.bones[this.boneMap.idxMap.indexOf(LArmChain.chain[LArmChain.chain.length - 1])];
+            const srcRBase = this.srcBindPose.bones[this.boneMap.idxMap.indexOf(RArmChain.chain[RArmChain.chain.length - 1])];
+
+            const srcLBasePos = srcLBase.getWorldPosition(new THREE.Vector3());
+            const srcRBasePos = srcRBase.getWorldPosition(new THREE.Vector3());
+            const srcShouldersLength = srcRBasePos.distanceTo(srcLBasePos);
+
+            const shouldersScaleF = trgShouldersLength/srcShouldersLength;
+
+  
+            const srcReferenceBone = srcShouldersUnion//this.srcSkeleton.getBoneByName(srcBoneMap.nameMap.Neck);
+            
+            computeTargetLocation("LArm", srcReferenceBone, shouldersScaleF )
+            computeTargetLocation("RArm", srcReferenceBone, shouldersScaleF )
+                
+            
+    }
+    async applyIKrefinement( srcAnim, trgAnim, ikSolver) {
+        return new Promise( (resolve, reject) => {
+
+            const computeTargetLocation = ( chainName, referenceBone, timeIdx, xScale = 0) => {
+                const chain = ikSolver.getChain(chainName);
+                const scaleF = chain.length/chain.srcLength;
+                const endEffector = this.srcSkeleton.bones[chain.chain[0]];
+                endEffector.updateWorldMatrix( true, false );
+                
+                const srcEndPos = endEffector.getWorldPosition(new THREE.Vector3());
+                referenceBone.updateMatrixWorld();
+                const srcReferenceWM = referenceBone.matrixWorld.clone();
+                const position = new THREE.Vector3();
+                const quaternion = new THREE.Quaternion();
+                const scale = new THREE.Vector3();
+                srcReferenceWM.decompose(position, quaternion, scale);
+                // srcReferenceWM.compose(new THREE.Vector3(0,0,0), quaternion, new THREE.Vector3(1,1,1));
+                srcReferenceWM.compose(position, quaternion, new THREE.Vector3(1,1,1));
+
+                const originBone = this.srcSkeleton.bones[chain.chain[chain.chain.length - 1]];
+                originBone.updateWorldMatrix( true, false );
+                const srcOriginPos = originBone.getWorldPosition(new THREE.Vector3());
+                // Vector hand respect shoulder (uparm) in chest space (reference space)
+                // const srcPos = srcEndPos.sub(srcOriginPos).applyMatrix4(srcReferenceWM.invert());
+                // srcEndPos.copy(srcPos);
+                srcEndPos.applyMatrix4(srcReferenceWM.invert());
+                srcEndPos.x= xScale > 0 ? srcEndPos.x*xScale : srcEndPos.x * scaleF;
+                srcEndPos.y*= scaleF;
+                srcEndPos.z*= scaleF;
+                
+                // srcEndPos.multiplyScalar(scaleF);
+
+                ikSolver.setChainEnabler( chainName, true );
+                
+                const trgReferenceName = this.boneMap.nameMap[referenceBone.name];
+                const trgReferenceBone = this.trgSkeleton.getBoneByName(trgReferenceName);
+                trgReferenceBone.updateMatrixWorld();
+                
+                const trgOriginBone = this.trgSkeleton.bones[chain.chain[chain.chain.length - 1]];
+                trgOriginBone.updateWorldMatrix( true, false );
+                const trgOriginPos = trgOriginBone.getWorldPosition(new THREE.Vector3());
+
+                const trgReferenceWM = trgReferenceBone.matrixWorld.clone();
+                trgReferenceWM.decompose(position, quaternion, scale);
+                // trgReferenceWM.compose(new THREE.Vector3(0,0,), quaternion, new THREE.Vector3(1,1,1));
+                trgReferenceWM.compose(position, quaternion, new THREE.Vector3(1,1,1));
+
+                // srcEndPos.applyMatrix4(trgReferenceWM);
+                // srcEndPos.add(trgOriginPos);
+                srcEndPos.applyMatrix4(trgReferenceWM);
+                chain.target.position.copy(srcEndPos);
+                const target = chain.target.clone();
+                target.material = chain.target.material.clone();
+                target.position.copy(srcEndPos);
+                target.material.color.lerp(new THREE.Color(0,0,0), timeIdx/ srcAnim.tracks[0].times.length )
+                this.trgSkeleton.bones[0].parent.parent.parent.add(target);
+
+                ikSolver.update();
+                
+                this.trgSkeleton.bones[0].updateWorldMatrix( true, true );
+                for(let i = 0; i < chain.chain.length; i++) {
+                    const boneIdx = chain.chain[i];
+                    if(!tracks[chainName][i]) {
+                        continue;
+                    }
+                    let q = this.trgSkeleton.bones[boneIdx].quaternion;
+                    tracks[chainName][i].values[timeIdx*4] = q.x;
+                    tracks[chainName][i].values[timeIdx*4+1] = q.y;
+                    tracks[chainName][i].values[timeIdx*4+2] = q.z;
+                    tracks[chainName][i].values[timeIdx*4+3] = q.w;
+                }
+                
+                ikSolver.setChainEnabler( chainName, false );
+            }
+
+
+            const srcBoneMap = this.boneMap.srcBoneMap;
+            const trgBoneMap = this.boneMap.trgBoneMap;
+
+            const srcMixer = new THREE.AnimationMixer(this.srcSkeleton.bones[0].parent.parent);
+            srcMixer.clipAction(srcAnim).play();
+            const trgMixer = new THREE.AnimationMixer(this.trgSkeleton.bones[0].parent.parent);
+            trgMixer.clipAction(trgAnim).play();
+            
+            const trgLArm = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.LArm);
+            const trgLElbow = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.LElbow);
+            const trgLWrist = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.LWrist);
+
+            const srcRArm = this.srcSkeleton.getBoneByName(srcBoneMap.nameMap.RArm);
+            const srcRElbow = this.srcSkeleton.getBoneByName(srcBoneMap.nameMap.RElbow);
+            const srcRWrist = this.srcSkeleton.getBoneByName(srcBoneMap.nameMap.RWrist);
+
+            const trgRArm = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.RArm);
+            const trgRElbow = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.RElbow);
+            const trgRWrist = this.trgSkeleton.getBoneByName(trgBoneMap.nameMap.RWrist);
+
+            const geometry = new THREE.SphereGeometry(0.001)
+            const material = new THREE.MeshBasicMaterial( { color: 0xffff00, depthTest: false } );
+            const LArmTarget = new THREE.Mesh( geometry, material );
+            const RArmTarget = new THREE.Mesh( geometry, material );
+            this.trgSkeleton.bones[0].parent.parent.parent.add(LArmTarget);
+            ikSolver.createChain([findIndexOfBone( this.trgSkeleton, trgLWrist), findIndexOfBone( this.trgSkeleton, trgLElbow), findIndexOfBone( this.trgSkeleton, trgLArm)], null, LArmTarget, "LArm");
+            ikSolver.setChainEnabler( "LArm", false );
+            let chain = ikSolver.getChain("LArm");
+            chain.length = 0;
+            chain.srcLength = 0;
+            
+            ikSolver.createChain([findIndexOfBone( this.trgSkeleton, trgRWrist), findIndexOfBone( this.trgSkeleton, trgRElbow), findIndexOfBone( this.trgSkeleton, trgRArm)], null, RArmTarget, "RArm");
+            ikSolver.setChainEnabler( "RArm", false );
+            chain = ikSolver.getChain("RArm");
+            chain.length = 0;
+            chain.srcLength = 0;
+
+            // Get tracks affected by chains
+            let tracks = { "LArm": [null, null, null], "RArm": [null, null, null]}; // save tracks that modifies bones in chains
+            for(let i = 0; i < trgAnim.tracks.length; i++ ) {
+                const track = trgAnim.tracks[i];
+                for(let j = 0; j < ikSolver.chains.length; j++) {
+                    const bonesIndices = ikSolver.chains[j].chain;
+                    for( let b = 0; b < bonesIndices.length; b++) {
+                        const bone = this.trgSkeleton.bones[bonesIndices[b]];
+                        if(track.name.includes(`${bone.name}.quaternion`)) {
+                            tracks[ikSolver.chains[j].name][b] = track;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // Compute chain lengths
+            for(let i = 0; i < ikSolver.chains.length; i++) {
+                let bonesIndices = [...ikSolver.chains[i].chain];
+                // bonesIndices.push(bonesIndices[bonesIndices.length - 1] - 1)
+                // bonesIndices.push(bonesIndices[bonesIndices.length - 1] - 1)
+                bonesIndices = [bonesIndices[0] + 4, bonesIndices[0] + 3, bonesIndices[0] + 2, bonesIndices[0] + 1 , ...bonesIndices]
+
+                for( let b = 0; b < bonesIndices.length -1; b++) {
+                    let parentPos = this.trgBindPose.bones[bonesIndices[b]].parent.getWorldPosition(new THREE.Vector3());
+                    let pos = this.trgBindPose.bones[bonesIndices[b]].getWorldPosition(new THREE.Vector3());
+                    ikSolver.chains[i].length += parentPos.distanceTo(pos);
+
+                    const srcIdx = this.boneMap.idxMap.indexOf(bonesIndices[b]);
+                    if( srcIdx > -1 ) {
+                        parentPos = this.srcBindPose.bones[srcIdx].parent.getWorldPosition(new THREE.Vector3());
+                        pos = this.srcBindPose.bones[srcIdx].getWorldPosition(new THREE.Vector3());
+                        ikSolver.chains[i].srcLength += parentPos.distanceTo(pos);
+                    }
+                }
+                ikSolver.chains[i].scaleF = ikSolver.chains[i].length/ikSolver.chains[i].srcLength;
+            }
+
+            const srcShouldersUnion = this.srcSkeleton.getBoneByName(srcBoneMap.nameMap.ShouldersUnion);
+            
+            const trgBindShouldersUnion = this.trgBindPose.getBoneByName(trgBoneMap.nameMap.ShouldersUnion);
+            const LArmSrc = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { color: 0xff00ff, depthTest: false }) );
+            srcShouldersUnion.add(LArmSrc);
+
+            const LArmChain = ikSolver.getChain("LArm");
+            const RArmChain = ikSolver.getChain("RArm");
+            const trgLBase = this.trgBindPose.bones[LArmChain.chain[LArmChain.chain.length - 1]];
+            const trgRBase = this.trgBindPose.bones[RArmChain.chain[RArmChain.chain.length - 1]];
+
+            const trgLBasePos = trgLBase.getWorldPosition(new THREE.Vector3());
+            const trgRBasePos = trgRBase.getWorldPosition(new THREE.Vector3());
+            const trgShouldersLength = trgRBasePos.distanceTo(trgLBasePos);
+
+            const srcLBase = this.srcBindPose.bones[this.boneMap.idxMap.indexOf(LArmChain.chain[LArmChain.chain.length - 1])];
+            const srcRBase = this.srcBindPose.bones[this.boneMap.idxMap.indexOf(RArmChain.chain[RArmChain.chain.length - 1])];
+
+            const srcLBasePos = srcLBase.getWorldPosition(new THREE.Vector3());
+            const srcRBasePos = srcRBase.getWorldPosition(new THREE.Vector3());
+            const srcShouldersLength = srcRBasePos.distanceTo(srcLBasePos);
+
+            const shouldersScaleF = trgShouldersLength/srcShouldersLength;
+
+            srcMixer.update(0.01);
+            trgMixer.update(0.01);
+            
+            const srcReferenceBone = this.srcSkeleton.getBoneByName(srcBoneMap.nameMap.Neck);
+            const times = srcAnim.tracks[0].times;
+            for(let i = 0; i < times.length; i++) {
+                const t = times[i];
+                srcMixer.setTime(t);
+                trgMixer.setTime(t);
+                computeTargetLocation("LArm", srcReferenceBone, i, shouldersScaleF )
+                computeTargetLocation("RArm", srcReferenceBone, i, shouldersScaleF )
+                
+            }
+            srcMixer.uncacheRoot(this.srcSkeleton.bones[0].parent.parent);
+            trgMixer.uncacheRoot(this.trgSkeleton.bones[0].parent.parent);
+            srcMixer.uncacheClip(srcAnim);
+            trgMixer.uncacheClip(trgAnim);
+            resolve();
+        })
     }
 }
 
@@ -802,6 +1169,7 @@ function applyTPose(skeleton, map) {
 	extendChain( resultSkeleton, map.RUpLeg, map.RFoot); // Right Leg
 	extendChain( resultSkeleton, map.LArm, map.LWrist); // Left Arm
 	extendChain( resultSkeleton, map.RArm, map.RWrist); // Right Arm
+    extendChain( resultSkeleton, map.ShouldersUnion, map.Head); // Head
     
     const leftHand = resultSkeleton.getBoneByName(map.LWrist);
     for(let i = 0; i < leftHand.children.length; i++) { // Left Fingers
@@ -1014,7 +1382,6 @@ function alignBoneToAxis(resultSkeleton, origin, end = null, axis ) {
         oBone.updateMatrixWorld(false, true);
     }
 }
-
 /**
  * Maps automatically bones from the skeleton to an auxiliar map. 
  * Given a null bonemap, an automap is performed
@@ -1125,5 +1492,4 @@ function sameBoneInfo(a, b) {
     //a.descendantCount === b.descendantCount
   )
 }
-
 export { AnimationRetargeting, findIndexOfBone, findIndexOfBoneByName, forceBindPoseQuats, applyTPose, computeAutoBoneMap };

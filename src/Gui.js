@@ -2414,13 +2414,33 @@ class KeyframesGui extends Gui {
         this.propagationWindow = new PropagationWindow( this.skeletonTimeline );
         this.propagationWindow.onSetEnabler = (v)=>{
             if ( this.editor.activeTimeline == this.skeletonTimeline ){
+  
                 if ( this.propagationWindow.enabler || this.skeletonTimeline.lastKeyFramesSelected.length ){
                     this.editor.gizmo.enableTransform();
+
+                    this.editor.showTrajectories(this.propagationWindow.time, [], true);
+                    const currentTime = this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale;
+                    this.editor.updateArmSpace();
+                    //this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime});
+                }
+                else {
+                    this.editor.hideTrajectories();
                     return;
                 }
             }
+
             this.editor.gizmo.disableTransform();
         };
+
+        this.propagationWindow.onSetSize = ()=> {
+            this.editor.updateTrajectories();
+        }
+        this.propagationWindow.onSetTime = (time)=> {
+            this.editor.updateTrajectories();
+        }
+        this.propagationWindow.onSetGradient = () => {
+            this.editor.updateTrajectories();
+        }
 
         const that = this;
 
@@ -2522,7 +2542,7 @@ class KeyframesGui extends Gui {
                 }
             }
             this.editor.setTime(this.editor.startTimeOffset + t, true);
-            this.propagationWindow.setTime(t);
+            this.propagationWindow.setTime(t);            
         }
 
         this.skeletonTimeline.onSetDuration = (t) => { 
@@ -3012,9 +3032,26 @@ class KeyframesGui extends Gui {
     
         }
 
-        this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { if (currentItems.length == 0){ this.editor.gizmo.disableTransform(); } }
-        this.skeletonTimeline.onUpdateTrack = (indices) => this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
-        this.skeletonTimeline.onSetTrackState = (track, oldState) => {this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );}
+        this.skeletonTimeline.onItemSelected = (currentItems, addedItems, removedItems) => { 
+            if (currentItems.length == 0){ this.editor.gizmo.disableTransform(); }
+            const trajectoriesActive = this.editor.trajectoriesActive;
+            this.editor.hideTrajectories();
+            let trajectories = [];
+            if (trajectoriesActive && this.propagationWindow.enabler) {
+            
+                for(let i = 0; i < currentItems.length; i++) {
+                    const trajectory = currentItems[i].replace("mixamorig_","").replace("mixamorig:","");
+                    trajectories.push( trajectory );
+                }
+                this.editor.showTrajectories( this.propagationWindow.time, trajectories);
+            }
+         }
+        this.skeletonTimeline.onUpdateTrack = (indices) => {
+            this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, indices.length == 1 ? [indices[0]] : null, this.editor.currentKeyFrameClip.skeletonAnimation);
+        }
+        this.skeletonTimeline.onSetTrackState = (track, oldState) => {
+            this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, [track.trackIdx], this.editor.currentKeyFrameClip.skeletonAnimation );
+        }
         this.skeletonTimeline.onOptimizeTracks = (idx = -1) => { 
             this.editor.updateMixerAnimation( this.editor.currentKeyFrameClip.mixerBodyAnimation, idx == -1 ? null : [idx], this.editor.currentKeyFrameClip.skeletonAnimation);
         }
@@ -3350,17 +3387,23 @@ class KeyframesGui extends Gui {
         this.editor.activeTimeline = this.globalTimeline;
     }
 
-    setKeyframeClip(clip){
+   async setKeyframeClip(clip){
+        const boundAnimation = this.editor.getCurrentBoundAnimation();
+        
         if (!clip){
+            
+            this.editor.currentKeyFrameClip.armSpace = this.editor.armSpace;
             this.editor.currentKeyFrameClip = null; // this before any setTime.
             if ( !this.skeletonTimeline.historyUndo.length && !this.bsTimeline.historyUndo.length ){
                 this.globalTimeline.historyUndo.pop(); // nothing was changed, duplication was unnecessary
             }
-            this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation());
+            
+            this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, boundAnimation);
             this.editor.setTimeline(this.editor.animationModes.GLOBAL);
             this.editor.setTime(this.editor.currentTime);
             this.createSidePanel();
 
+            this.editor.hideTrajectories();
             const menubarEdit = this.menubar.getItem("Edit");
             menubarEdit._setMode(0);
             const menubarView = this.menubar.getItem("View");
@@ -3369,6 +3412,7 @@ class KeyframesGui extends Gui {
         }
 
         const sourceAnimation = clip.source; // might not exist
+        this.editor.armSpace = clip.armSpace;
 
         const menubarEdit = this.menubar.getItem("Edit");
         menubarEdit._setMode(1);
@@ -3376,7 +3420,7 @@ class KeyframesGui extends Gui {
         menubarView._setMode( sourceAnimation && sourceAnimation.type == "video" );
         
         this.editor.currentKeyFrameClip = clip;
-        this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, this.editor.getCurrentBoundAnimation()); // now that there is a currentKeyframeClip, update mixer actions
+        this.editor.globalAnimMixerManagement(this.editor.currentCharacter.mixer, boundAnimation); // now that there is a currentKeyframeClip, update mixer actions
         this.globalTimeline.saveState( clip.trackIdx ); // cloneClips must have a currentKeyFrameClip to duplicate, which is waht we need now
         
         const localTime = Math.max(0, Math.min( clip.duration, this.editor.currentTime - clip.start ) );
@@ -3389,6 +3433,7 @@ class KeyframesGui extends Gui {
         this.bsTimeline.setTime(localTime, true);
         
         this.editor.animationMode = this.editor.animationModes.BODY;
+
         this.editor.setTime( clip.start + localTime );
         this.editor.setTimeline(this.editor.animationModes.BODY);
         this.propagationWindow.setTimeline( this.skeletonTimeline );
@@ -3417,8 +3462,8 @@ class KeyframesGui extends Gui {
             this.editor.video.sync = false;
             this.editor.setVideoVisibility(false);
         }
-        this.createSidePanel();
-        
+
+        this.createSidePanel();      
     }
 
     /** -------------------- SIDE PANEL (editor) -------------------- */
@@ -4576,7 +4621,7 @@ class KeyframesGui extends Gui {
         });
 
         this.treeWidget.on( "select", (event) => {
-            if(event.items.length)
+            if(!event.items.length)
                 console.log("Selected: ", event.node); 
             else {
                 if(!this.editor){
@@ -4593,6 +4638,26 @@ class KeyframesGui extends Gui {
         } );
 
         this.treeWidget.innerTree.select(this.editor.selectedBone);
+
+        const changeVisibility = (node) => {
+            
+            for( let i = 0; i < node.children.length; i++ ) {
+                 if( node.id == this.selectedBone ) {
+                        node.closed = false;
+                        return false;
+                    }
+                    else {
+                        node.closed = changeVisibility(node.children[i]);
+                        if( !node.closed )
+                        {
+                            return node.closed;
+                        }
+                    }
+            }
+            return true;
+        }
+
+        changeVisibility(this.treeWidget.innerTree.data);
 
         this.treeWidget._fixedSelection = lastFixedSelection;
         this.treeWidget._tour = new LX.Tour([
@@ -4656,7 +4721,7 @@ class KeyframesGui extends Gui {
 
         // Hack lexgui. Tree behaviour works for the timeline's left panel, but not for the skeleton panel
         // make only the hierarchy scrollable
-        this.treeWidget.root.style.height = "100%";
+        this.treeWidget.root.style.height = "calc(100% - 65px)";
         const ul = this.treeWidget.root.getElementsByTagName("ul")[0];
         ul.style.minWidth = "fit-content";
         ul.style.width = "100%";
@@ -4670,6 +4735,42 @@ class KeyframesGui extends Gui {
         ul.remove();
         newUlParent.appendChild(ul);
         oldUlParent.appendChild(newUlParent);
+
+        skeletonPanel.addNumber("Arm space", this.editor.armSpace, async (v) => {
+            if(!this.editor.state) {
+                this.editor.revertArmSpace( this._lastArmSpaceOffset || this.editor.armSpace);
+                this.editor.currentCharacter.mixer.setTime(this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale);
+                this.editor.currentCharacter.mixer.update(0);
+            }
+            this.editor.armSpace = v;
+            this.editor.currentKeyFrameClip.armSpace = this.editor.armSpace;
+           
+            if ( this.propagationWindow.enabler ){
+                // let startFrame = timeline.getNearestKeyFrame(track, this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide);
+                // let endFrame = timeline.getNearestKeyFrame(track, this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide);
+                // // this.editor.computeTrajectories(this.editor.currentKeyFrameClip, this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale);
+                /*const angle = trajectoryName.includes("Left") ? this.editor.armSpace * Math.PI / 4 : -this.editor.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+                                const armSpaceRotation = new THREE.Quaternion();
+                                const shoulderRotation = new THREE.Quaternion();
+                                armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
+                                shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);*/
+               // await this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime: this.skeletonTimeline.currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+            }
+            this.editor.updateArmSpace();
+            this.editor.gizmo.updateBones( );
+           
+        }, {min: -1, max:1, step:0.001})
+
+        skeletonPanel.addToggle("Trajectories", this.editor.trajectoriesActive, (v) => {
+            this.editor.trajectoriesActive = v;
+            if( v ) {
+                this.editor.showTrajectories(null, [], true);
+            }
+            else {
+                this.editor.hideTrajectories();
+            }
+
+        }, { className: "success", label: "" })
     }
 
     updateNodeTree() {
@@ -7215,6 +7316,9 @@ class PropagationWindow {
                     this.curveWidget.curveInstance.element.value = this.gradient = [[0.5,1]];
                     this.curveWidget.curveInstance.redraw();
                 }
+                if(this.onSetGradient) {
+                    this.onSetGradient();
+                }
             },
             {xrange: [0,1], yrange: [0,1], allowAddValues: true, moveOutAction: LX.CURVE_MOVEOUT_DELETE, smooth: 0, signal: "@propW_gradient", width: rpos-lpos -0.5, height: 25, bgColor, pointsColor, lineColor } 
         );
@@ -7232,6 +7336,9 @@ class PropagationWindow {
                 if ( v.length <= 0){
                     this.curveWidget.curveInstance.element.value = this.gradient = [[0.5,1]];
                     this.curveWidget.curveInstance.redraw();
+                    if(this.onSetGradient) {
+                        this.onSetGradient();
+                    }
                 }
             },
             {xrange: [0,1], yrange: [0,1], disabled: true, bgColor, pointsColor:"#0003C2FF", lineColor } 
@@ -7426,6 +7533,9 @@ class PropagationWindow {
     setGradient( newGradient ){
         this.curveWidget.curveInstance.element.value = this.gradient = newGradient;
         this.curveWidget.curveInstance.redraw();
+        if(this.onSetGradient) {
+            this.onSetGradient();
+        }
     }
 
     /**
@@ -7474,11 +7584,19 @@ class PropagationWindow {
         if( this.visualState > PropagationWindow.STATE_BASE ){
             this.updateCurve(true);
         }
+
+        if( this.onSetSize ) {
+            this.onSetSize();
+        }
     }
 
     setTime( time ){
         this.time = time;
         this.updateCurve(); // update only position
+        
+        if(this.onSetTime) {
+            this.onSetTime(time);
+        }
     }
 
     onOpenConfig(dialog){
@@ -7683,8 +7801,6 @@ class PropagationWindow {
                 this.panelCurves.root.style.maxHeight = areaRect.bottom - (areaRect.y + windowRect.rectPosY) - 20 + "px"
             }
         }
-
-
     }
 
     _getBoundingRectInnerWindow(){

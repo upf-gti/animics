@@ -16,7 +16,7 @@ import { BlendshapesManager } from "./blendshapes.js"
 import { sigmlStringToBML } from './libs/bml/SigmlToBML.js';
 import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
 import pako from 'https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs';
-
+import { TrajectoriesHelper } from './TrajectoriesHelper.js';
 import { LX } from "lexgui"
 
 
@@ -237,7 +237,7 @@ class Editor {
 
         // Create 3D renderer
         const pixelRatio = CANVAS_WIDTH / CANVAS_HEIGHT;
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(pixelRatio);
         renderer.setSize(CANVAS_WIDTH, CANVAS_HEIGHT);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -325,6 +325,21 @@ class Editor {
                         {
                             morphTargets[o.name] = o.morphTargetDictionary;
                             skinnedMeshes[o.name] = o;
+                            o.material.defines.MORPHTARGETS_TEXTURE = " ";
+                          
+                            const depthMat = new THREE.MeshDepthMaterial({
+                                depthPacking: THREE.RGBADepthPacking
+                            });
+                            if(!depthMat.defines) {
+                                depthMat.defines = {};
+                            }
+                            depthMat.defines.USE_MORPHTARGETS = '';
+                            depthMat.defines.MORPHTARGETS_TEXTURE = '';
+                            depthMat.defines.MORPHTARGETS_COUNT = o.morphTargetInfluences.length; 
+                            depthMat.defines.USE_SKINNING = '';
+                             
+                            o.customDepthMaterial = depthMat;
+                            o.customDepthMaterial.needsUpdate = true;
                         }
                         if(o.name == "Classic_short") {
                             if( o.children.length > 1 ){ 
@@ -777,7 +792,7 @@ class Editor {
                 case 'z': case 'Z': // Undo
                     if( e.ctrlKey ) {
                         e.preventDefault();
-                        e.stopImmediatePropagation();
+                        // e.stopImmediatePropagation();
 
                         this.undo();
                     }
@@ -786,7 +801,7 @@ class Editor {
                 case 'y': case 'Y': // Redo
                     if( e.ctrlKey ) {
                         e.preventDefault();
-                        e.stopImmediatePropagation();
+                        // e.stopImmediatePropagation();
 
                         this.redo();
                     }
@@ -1015,6 +1030,10 @@ class Editor {
                     options.animations.push( new THREE.AnimationClip( animationName, -1, tracks ) );
                 }
                 let model = this.currentCharacter.mixer._root.getObjectByName('Armature');
+                if( this.trajectoriesHelper ) {
+                    this.trajectoriesHelper.dispose();
+                    this.trajectoriesComputationPending = true;
+                }
 
                 this.GLTFExporter.parse(model, 
                     ( gltf ) => UTILS.download(gltf, (name || "animations") + '.glb', 'arraybuffer' ), // called when the gltf has been generated
@@ -1523,6 +1542,8 @@ class KeyframeEditor extends Editor {
         }
 
         this.retargeting = null;
+        this.trajectoriesHelper = null;
+        this.trajectoriesActive = true;
 
         // Create GUI
         this.gui = new KeyframesGui(this);
@@ -1530,12 +1551,12 @@ class KeyframeEditor extends Editor {
         this.localStorage = [{ id: "Local", type:"folder", children: [ {id: "clips", type:"folder", icon: "ClapperboardClosed", children: []}]}];
 
         this._clipsUniqueIDSeed = 0;
+        this.armSpace = 0;
     }
 
     generateClipUniqueID(){
         return this._clipsUniqueIDSeed++;
     }
-
 
     onKeyDown( event ) {
         switch( event.key ) {
@@ -1577,6 +1598,7 @@ class KeyframeEditor extends Editor {
         const lastSelection = this.gui.globalTimeline.lastClipsSelected.length == 1 ? this.gui.globalTimeline.lastClipsSelected[0] : null;
 
         this.activeTimeline.undo();
+
         if( this.activeTimeline == this.gui.globalTimeline && this.activeTimeline.historyRedo.length ){
             const mixer = this.currentCharacter.mixer;
             while(mixer._actions.length){
@@ -1619,8 +1641,7 @@ class KeyframeEditor extends Editor {
                 }
             }
         }
-
-        this.setTime(this.currentTime);
+        this.gui.updateBonePanel();
     }
 
     redo() {
@@ -1676,8 +1697,7 @@ class KeyframeEditor extends Editor {
                 }
             }
         }
-
-        this.setTime(this.currentTime);
+        this.gui.updateBonePanel();
     }
 
     async initCharacters( modelToLoad ) {
@@ -1696,7 +1716,7 @@ class KeyframeEditor extends Editor {
             await new Promise(r => setTimeout(r, 1000));            
         }        
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
-        this.setBoneSize(0.1);
+        this.setBoneSize(0.08);
     }
     
     loadNNSkeleton() {
@@ -1716,7 +1736,7 @@ class KeyframeEditor extends Editor {
         // Gizmo stuff
         if(this.gizmo) {
             this.gizmo.begin(this.currentCharacter.skeletonHelper);
-            this.setBoneSize(0.1);
+            this.setBoneSize(0.08);
         }
 
         this.selectedBone = this.currentCharacter.skeletonHelper.bones[0].name;
@@ -1727,6 +1747,12 @@ class KeyframeEditor extends Editor {
             break;
         }
 
+        if ( this.trajectoriesHelper ){
+            this.trajectoriesHelper.dispose();
+        }
+        this.trajectoriesHelper = new TrajectoriesHelper( this.currentCharacter.model,  this.currentCharacter.mixer );
+        this.trajectoriesComputationPending = true;
+        
         const tab = this.gui.panelTabs ? this.gui.panelTabs.selected : null;
         if ( !avatarFirstBoundAnimation ){
             this.createGlobalAnimation( "New Animation" );
@@ -1869,9 +1895,13 @@ class KeyframeEditor extends Editor {
         this.setTimeline(this.animationModes.GLOBAL);
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
+        this.armSpace = characterBoundAnimations[name].armSpace || 0;
         this.setTime(this.currentTime); // update mixer
 		this.gui.globalTimeline.visualOriginTime = - ( this.gui.globalTimeline.xToTime(100) - this.gui.globalTimeline.xToTime(0) ); // set horizontal scroll to 100 pixels 
-
+        
+        // this.trajectoriesComputationPending = false;
+        this.hideTrajectories();
+  
         return alreadyExisted;
     }
 
@@ -1947,13 +1977,13 @@ class KeyframeEditor extends Editor {
 
         for(let i = 0; i < files.length; ++i){
             UTILS.makeLoading("Loading animation: " + files[i].name );
+            let extension = UTILS.getExtension(files[i].name).toLowerCase();
             // MIME type is video
-            if( files[i].type.startsWith("video/") ) {
+            if( files[i].type.startsWith("video/") || extension.includes("mov")) {
                 resultFiles.push( files[i] );
                 continue;
             }
             // other valid file formats
-            let extension = UTILS.getExtension(files[i].name).toLowerCase();
             let compressed = extension.includes("gz");
             if( compressed ) {
                 extension = UTILS.getExtension(files[i].name.replace(".gz","")).toLowerCase();
@@ -2897,7 +2927,8 @@ class KeyframeEditor extends Editor {
             clipColor: LX.getCSSVariable("color-info"),
             blendMode: THREE.NormalAnimationBlendMode,
             active: true,
-            speed: 1
+            speed: 1,
+            armSpace: 0
         }
 
         if ( targetGlobalAnimation ){
@@ -3021,19 +3052,26 @@ class KeyframeEditor extends Editor {
             this.onAnimationEnded();
         }
 
+        let armSpace = this.armSpace;
         if ( this.currentCharacter.mixer && this.state ) {
 
+            if (this._lastArmSpaceOffset != undefined) {
+                this.revertArmSpace(this._lastArmSpaceOffset);
+            }
             const tracks = this.gui.globalTimeline.animationClip.tracks;
+            armSpace = 0;
             for(let i = 0; i < tracks.length; ++i ){
                 const clips = tracks[i].clips;
                 for(let c = 0; c < clips.length; ++c ){
-                    this.computeKeyframeClipWeight(clips[c], this.currentTime);
+                    const weight = this.computeKeyframeClipWeight(clips[c], this.currentTime);
+                    armSpace += clips[c].armSpace * weight;
                 }
             }
-
+            console.log(armSpace)
             this.currentCharacter.mixer.update( dt );
             this.currentTime = this.currentCharacter.mixer.time;
             this.activeTimeline.setTime( this.currentTime - this.startTimeOffset, true );
+            this.updateArmSpace(armSpace);
         }
 
 
@@ -3049,6 +3087,9 @@ class KeyframeEditor extends Editor {
      
         this.gui.setBoneInfoState( false );
         this.gui.propagationWindow.setVisualState( 0 );
+        if(this.gui.propagationWindow.enabler) {
+            this.hideTrajectories();
+        }
         if( this.video.sync ) {
             try {
                 this.video.paused ? this.video.play() : 0;    
@@ -3063,6 +3104,9 @@ class KeyframeEditor extends Editor {
     onStop() {
 
         this.gizmo.updateBones();
+        if(this.gui.propagationWindow.enabler) {
+            this.showTrajectories( this.gui.propagationWindow.time, []);
+        }
         if( this.video.sync ) {
             this.video.pause();
             this.video.currentTime = this.video.startTime;
@@ -3071,6 +3115,9 @@ class KeyframeEditor extends Editor {
 
     onPause() {
         this.state = false;
+        if(this.gui.propagationWindow.enabler) {
+            this.showTrajectories( this.gui.propagationWindow.time, [] );
+        }
         if( this.video.sync ) {
             try{
                 !this.video.paused ? this.video.pause() : 0;    
@@ -3089,6 +3136,9 @@ class KeyframeEditor extends Editor {
             return;
         }
 
+        if (this._lastArmSpaceOffset) {
+            this.revertArmSpace(this._lastArmSpaceOffset);
+        }
         const duration = this.activeTimeline.animationClip.duration;
         t = Math.clamp( t, this.startTimeOffset, this.startTimeOffset + duration - 0.001 );
 
@@ -3103,8 +3153,8 @@ class KeyframeEditor extends Editor {
         if( this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video" ) {
             this.video.currentTime = this.video.startTime + t - this.currentKeyFrameClip.start;
         }
-        
-        this.gizmo.updateBones();
+        this.updateArmSpace();
+        this.gizmo.update(true, 0);
     }
 
     clearTracks( trackIndices = null ) {
@@ -3168,6 +3218,9 @@ class KeyframeEditor extends Editor {
                 this.activeTimeline = this.gui.bsTimeline;
                 this.animationMode = this.animationModes.FACEBS;
                 this.gizmo.disableAll();
+                if(this.gui.propagationWindow.enabler) {
+                    this.trajectoriesHelper.hide();
+                }
                 break;
 
             case this.animationModes.FACEAU:
@@ -3175,7 +3228,9 @@ class KeyframeEditor extends Editor {
                 this.animationMode = this.animationModes.FACEAU;
                 this.setSelectedActionUnit(this.selectedAU);           
                 this.gizmo.disableAll();
-                
+                if(this.gui.propagationWindow.enabler) {
+                    this.trajectoriesHelper.hide();
+                }
                 break;
                
             case this.animationModes.BODY:
@@ -3185,6 +3240,14 @@ class KeyframeEditor extends Editor {
                 if( this.gui.canvasAreaOverlayButtons ) {
                     this.gui.canvasAreaOverlayButtons.buttons["Skeleton"].setState(true);
                 }
+                if(this.gui.propagationWindow.enabler) {
+                    const trajectory = this.selectedBone.replace("mixamorig_","").replace("mixamorig:","");
+                    this.showTrajectories( this.gui.propagationWindow.time, [trajectory] );
+                    this.updateTrajectories()
+                }
+                // else {
+                //     this.hideTrajectories();
+                // }
                 this.gizmo.enableRaycast();
 
                 break;
@@ -3274,6 +3337,7 @@ class KeyframeEditor extends Editor {
     }
 
     globalAnimMixerManagementSingleClip(mixer, clip){
+        
         const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
         const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
         
@@ -3282,7 +3346,7 @@ class KeyframeEditor extends Editor {
             actionFace.stop();
             return;
         }
-
+        
         actionBody.reset().play();
         actionBody.clampWhenFinished = false;
         actionBody.loop = THREE.LoopOnce;
@@ -3331,6 +3395,7 @@ class KeyframeEditor extends Editor {
         }
         this.currentCharacter.mixer.clipAction( clip.mixerBodyAnimation ).setEffectiveWeight( weight * clip.weight );
         this.currentCharacter.mixer.clipAction( clip.mixerFaceAnimation ).setEffectiveWeight( weight * clip.weight );
+        return weight * clip.weight;
     }
 
     setKeyframeClipBlendMode(clip, threejsBlendMode, updateMixer = true){
@@ -3409,7 +3474,9 @@ class KeyframeEditor extends Editor {
         if( !mixer._actions.length ) {
             return;
         }
-    
+        const trajectoriesToUpdate = [];
+        const regex = /^.*(Left|Right)(Hand|Arm|ForeArm)((Thumb|Index|Middle|Ring|Pinky)(1|4))?$/;
+
         const action = mixer.clipAction(mixerAnimation);
         const isFaceAnim =  mixerAnimation.name != "bodyAnimation";
 
@@ -3418,6 +3485,11 @@ class KeyframeEditor extends Editor {
         for( let i = 0; i < numEditedTracks; i++ ) {
             const eIdx = editedTracksIdxs ? editedTracksIdxs[i] : i;
             const eTrack = editedAnimation.tracks[eIdx]; // track of the edited animation
+            const nameInfo = regex.exec(eTrack.groupId);
+            if( nameInfo ) {
+                const name = eTrack.groupId.replace("mixamorig_", "").replace("ForeArm", "Hand").replace("Arm", "Hand").replace("1", "4");
+                trajectoriesToUpdate.push(name);
+            }
             
             if( eTrack.locked ) {
                 continue;
@@ -3437,6 +3509,7 @@ class KeyframeEditor extends Editor {
                 // _clip is the same clip (pointer) sent in mixer.clipAction. 
 
                 const track = mixerAnimation.tracks[trackId];
+
                 if( eTrack.active && eTrack.times.length ) {
                     interpolant.parameterPositions = track.times = eTrack.times;
                     interpolant.sampleValues = track.values = eTrack.values;
@@ -3486,6 +3559,7 @@ class KeyframeEditor extends Editor {
         }
     
         if ( callSetTime ){
+            this.recomputeTrajectories(trajectoriesToUpdate);
             this.setTime( this.currentTime );
         }
 
@@ -3799,7 +3873,203 @@ class KeyframeEditor extends Editor {
         }
     }
 
+    updateArmSpace(value = this.armSpace) {
+        this._lastArmSpaceOffset = value;
+
+        // if( !value ) {
+        //     return;
+        // }
+
+        const updateTrajectory = ( name, arm, offsetRotation ) => {
+            // Compute pivot position
+            const trajectory = this.trajectoriesHelper.trajectories[name];
+            if( !trajectory || !trajectory.parent ) {
+                return;
+            }
+
+            arm.updateWorldMatrix(true, false); 
+            const pivotPosition = new THREE.Vector3().setFromMatrixPosition(arm.matrixWorld);
+
+            // Reset trajectory
+            trajectory.position.set(0, 0, 0);
+            trajectory.quaternion.set(0, 0, 0, 1);
+            trajectory.scale.set(1, 1, 1);
+            trajectory.updateMatrixWorld(true);
+            const totalTrajectoryOffsetRot = offsetRotation// shoulderRotation.clone().premultiply(armSpaceRotation);
+
+            // Apply rotation relative to pivot (arm)
+            trajectory.position.sub(pivotPosition);
+            // Apply rotation offset to position vector (change direction)
+            trajectory.position.applyQuaternion(totalTrajectoryOffsetRot);
+            trajectory.quaternion.premultiply(totalTrajectoryOffsetRot);
+            // Put in the global space
+            trajectory.position.add(pivotPosition);
+
+            trajectory.parent.worldToLocal(trajectory.position);    
+        }
+
+        const angle = value * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+        const rotationAxis = new THREE.Vector3(0, 0, 1);
+        const armSpaceRotation = new THREE.Quaternion();
+        const shoulderRotation = new THREE.Quaternion();
+
+        // LEFT ARM: Create offset and multiply
+        const leftArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.LArm);
+        const leftParentRot = leftArm.parent.getWorldQuaternion(new THREE.Quaternion());
+        const leftArmRotation = leftArm.getWorldQuaternion(new THREE.Quaternion());
+        armSpaceRotation.setFromAxisAngle(rotationAxis, angle*0.8);
+        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+        
+        leftParentRot.premultiply(shoulderRotation);
+        leftArmRotation.premultiply(armSpaceRotation);
+        let leftDelta = leftArm.quaternion.clone();
+        leftArm.quaternion.copy(leftArmRotation.premultiply(leftParentRot.clone().invert()));
+        leftDelta.premultiply(leftArm.quaternion.clone().invert());
+        leftArm.parent.quaternion.copy(leftParentRot.premultiply(leftArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+        updateTrajectory("LeftHand", leftArm, armSpaceRotation);            
+        
+        // RIGHT ARM: Opposite direction (negative angle)
+        armSpaceRotation.setFromAxisAngle(rotationAxis, -angle*0.8);
+        //shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
+
+        const rightArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.RArm);
+        const rightParentRot = rightArm.parent.getWorldQuaternion(new THREE.Quaternion());
+        rightParentRot.premultiply(shoulderRotation);
+        const rightArmRotation = rightArm.getWorldQuaternion(new THREE.Quaternion());
+        rightArmRotation.premultiply(armSpaceRotation);
+        let rightDelta = rightArm.quaternion.clone();
+        rightArm.quaternion.copy(rightArmRotation.premultiply(rightParentRot.clone().invert()));
+        rightDelta.premultiply(rightArm.quaternion.clone().invert());
+        rightArm.parent.quaternion.copy(rightParentRot.premultiply(rightArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+        updateTrajectory("RightHand", rightArm, armSpaceRotation);
+        
+        // if ( this.gui.propagationWindow.enabler ) {
+        //     this.trajectoriesHelper.trajectories["RightHand"].quaternion.multiply(armSpaceRotation);
+        //     this.trajectoriesHelper.trajectories["LeftHand"].quaternion.multiply(armSpaceRotation);
+        // }
+       return {leftDelta, rightDelta};
+    }
+
+    revertArmSpace(value = this._lastArmSpaceOffset) {
+        return this.updateArmSpace(-1*value);
+    }
+
     /** ------------------------ Generate formatted data --------------------------*/
+
+    applyArmSpaceToAnimation(mixer, animation, remove = false) {
+        let armSpace = animation.armSpace;
+        if( !armSpace || !animation.mixerBodyAnimation ) {
+            return;
+        }
+
+        if( remove ) {
+            armSpace *= -1; 
+        }
+        const animationAction = mixer.clipAction(animation.mixerBodyAnimation);
+        const clip = animationAction.getClip();
+
+        const angle = armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+        const rotationAxis = new THREE.Vector3(0, 0, 1);
+        const armSpaceRotation = new THREE.Quaternion();
+        const shoulderRotation = new THREE.Quaternion();
+
+        const leftParentArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.LArm).parent;
+        const rightParentArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.RArm).parent;
+        
+        let lArmTrack = null;
+        let lParentArmTrack = null;
+        let rArmTrack = null;
+        let rParentArmTrack = null;
+        for( let i = 0; i < clip.tracks.length; i++ ) {
+            const track = clip.tracks[i];
+            if( track.name.includes(`${this.currentCharacter.config.boneMap.LArm}.quaternion`) ) {
+                lArmTrack = i;
+                if( rArmTrack != null && rParentArmTrack != null && lParentArmTrack != null ) {
+                    break;
+                }
+            }
+            if( track.name.includes(`${leftParentArm.name}.quaternion`) ) {
+                lParentArmTrack = i;
+                if( rArmTrack != null && rParentArmTrack != null && lArmTrack != null ) {
+                    break;
+                }
+            }
+            if( track.name.includes(`${this.currentCharacter.config.boneMap.RArm}.quaternion`) ) {
+                rArmTrack = i;
+                if( lArmTrack != null && lParentArmTrack != null && rParentArmTrack != null ) {
+                    break;
+                }
+            }
+            if( track.name.includes(`${rightParentArm.name}.quaternion`) ) {
+                rParentArmTrack = i;
+                if( lArmTrack != null && lParentArmTrack != null && rArmTrack != null ) {
+                    break;
+                }
+            }
+        }
+        
+        animationAction.reset().play();
+        const lArmInterpolant = animationAction._interpolants[lArmTrack]; 
+        const rArmInterpolant = animationAction._interpolants[rArmTrack]; 
+        const lParentArmInterpolant = animationAction._interpolants[lParentArmTrack]; 
+        const rParentArmInterpolant = animationAction._interpolants[rParentArmTrack]; 
+
+        for( let i = 0; i < clip.tracks[0].times.length; i++ ) {
+            const time = clip.tracks[0].times[i];
+            mixer.setTime(time);
+
+            // LEFT ARM: Create offset and multiply
+            const leftArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.LArm);
+            const leftParentRot = leftArm.parent.getWorldQuaternion(new THREE.Quaternion());
+            const leftArmRotation = leftArm.getWorldQuaternion(new THREE.Quaternion());
+            armSpaceRotation.setFromAxisAngle(rotationAxis, angle*0.8);
+            // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+            
+            leftParentRot.premultiply(shoulderRotation);
+            leftArmRotation.premultiply(armSpaceRotation);
+            let leftDelta = leftArm.quaternion.clone();
+            leftArm.quaternion.copy(leftArmRotation.premultiply(leftParentRot.clone().invert()));
+            leftDelta.premultiply(leftArm.quaternion.clone().invert());
+            leftArm.parent.quaternion.copy(leftParentRot.premultiply(leftArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+            
+            lArmInterpolant.sampleValues[i*4] = clip.tracks[lArmTrack].values[i*4] = leftArm.quaternion.x;
+            lArmInterpolant.sampleValues[i*4+1] = clip.tracks[lArmTrack].values[i*4+1] = leftArm.quaternion.y;
+            lArmInterpolant.sampleValues[i*4+2] = clip.tracks[lArmTrack].values[i*4+2] = leftArm.quaternion.z;
+            lArmInterpolant.sampleValues[i*4+3] = clip.tracks[lArmTrack].values[i*4+3] = leftArm.quaternion.w;
+
+            lParentArmInterpolant.sampleValues[i*4] = clip.tracks[lParentArmTrack].values[i*4] = leftArm.parent.quaternion.x;
+            lParentArmInterpolant.sampleValues[i*4+1] = clip.tracks[lParentArmTrack].values[i*4+1] = leftArm.parent.quaternion.y;
+            lParentArmInterpolant.sampleValues[i*4+2] = clip.tracks[lParentArmTrack].values[i*4+2] = leftArm.parent.quaternion.z;
+            lParentArmInterpolant.sampleValues[i*4+3] = clip.tracks[lParentArmTrack].values[i*4+3] = leftArm.parent.quaternion.w;
+
+            
+            // RIGHT ARM: Opposite direction (negative angle)
+            armSpaceRotation.setFromAxisAngle(rotationAxis, -angle*0.8);
+    
+            const rightArm = this.currentCharacter.model.getObjectByName(this.currentCharacter.config.boneMap.RArm);
+            const rightParentRot = rightArm.parent.getWorldQuaternion(new THREE.Quaternion());
+            rightParentRot.premultiply(shoulderRotation);
+            const rightArmRotation = rightArm.getWorldQuaternion(new THREE.Quaternion());
+            rightArmRotation.premultiply(armSpaceRotation);
+            let rightDelta = rightArm.quaternion.clone();
+            rightArm.quaternion.copy(rightArmRotation.premultiply(rightParentRot.clone().invert()));
+            rightDelta.premultiply(rightArm.quaternion.clone().invert());
+            rightArm.parent.quaternion.copy(rightParentRot.premultiply(rightArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
+
+            rArmInterpolant.sampleValues[i*4] = clip.tracks[rArmTrack].values[i*4] = rightArm.quaternion.x;
+            rArmInterpolant.sampleValues[i*4+1] = clip.tracks[rArmTrack].values[i*4+1] = rightArm.quaternion.y;
+            rArmInterpolant.sampleValues[i*4+2] = clip.tracks[rArmTrack].values[i*4+2] = rightArm.quaternion.z;
+            rArmInterpolant.sampleValues[i*4+3] = clip.tracks[rArmTrack].values[i*4+3] = rightArm.quaternion.w;
+
+            rParentArmInterpolant.sampleValues[i*4] = clip.tracks[rParentArmTrack].values[i*4] = rightArm.parent.quaternion.x;
+            rParentArmInterpolant.sampleValues[i*4+1] = clip.tracks[rParentArmTrack].values[i*4+1] = rightArm.parent.quaternion.y;
+            rParentArmInterpolant.sampleValues[i*4+2] = clip.tracks[rParentArmTrack].values[i*4+2] = rightArm.parent.quaternion.z;
+            rParentArmInterpolant.sampleValues[i*4+3] = clip.tracks[rParentArmTrack].values[i*4+3] = rightArm.parent.quaternion.w;
+
+        }
+        mixer.setTime(0);
+        animationAction.stop();
+    }
 
     /**
      * Computes the AnimationClip that would result from boundAnim through the animationFrameRate
@@ -3815,12 +4085,25 @@ class KeyframeEditor extends Editor {
     generateExportAnimationData( boundAnim, flags = 0x03 ){
         const mixer = this.currentCharacter.mixer;
         mixer.stopAllAction();
+        
+        for( let t = 0; t < boundAnim.tracks.length; ++t ){
+            const track = boundAnim.tracks[t];
+            for( let c = 0; c < track.clips.length; ++c ){
+                const clip = track.clips[c];
+                if( !clip.mixerBodyAnimation ) {
+                    continue;
+                }
+                this.applyArmSpaceToAnimation(mixer, clip )
+            }
+        }
+
         while( mixer._actions.length ){
             mixer.uncacheClip( mixer._actions[0]._clip );
         }
 
         this.currentCharacter.skeletonHelper.skeleton.pose(); // set default pose for the mixer
 
+        
 		this.currentTime = 0; // manual set of time for clip management. WARNING: this creates a mismatch with UI
         this.globalAnimMixerManagement( mixer, boundAnim, false ); // set clips. Ignore currentSelecteKeyframeClip
 
@@ -3908,7 +4191,16 @@ class KeyframeEditor extends Editor {
         }
 
         mixer.timeScale = this.playbackRate;
-        
+        for( let t = 0; t < boundAnim.tracks.length; ++t ){
+            const track = boundAnim.tracks[t];
+            for( let c = 0; c < track.clips.length; ++c ){
+                const clip = track.clips[c];
+                if( !clip.mixerBodyAnimation ) {
+                    continue;
+                }
+                this.applyArmSpaceToAnimation(mixer, clip, true )
+            }
+        }
         // better to do this outside, so exporting several animations is more efficient
         // this.setGlobalAnimation( this.currentAnimation );
 
@@ -3935,6 +4227,168 @@ class KeyframeEditor extends Editor {
         bvhFace += BVHExporter.exportMorphTargets(faceAction, this.currentCharacter.morphTargets, this.animationFrameRate);            
 
         return bvhPose + bvhFace;
+    }
+
+    computeTrajectories( animation, currentTime = 0 ) {
+        if(!this.trajectoriesActive) {
+            return;
+        }
+        if( !this.trajectoriesHelper || !animation || this.activeTimeline.timelineTitle == "Blendshapes" ) {
+            return;
+        }
+        let armSpaceRotation = new THREE.Quaternion();
+        const data = {
+            currentTime,
+           
+            gradient: this.gui.propagationWindow.gradient,
+            startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide,
+            endTime: this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide
+        };
+
+        this.trajectoriesHelper.computeTrajectories( animation.mixerBodyAnimation? animation.mixerBodyAnimation : animation , data );
+        this.trajectoriesComputationPending = false;
+    }
+
+    recomputeHandsTrajectories( animation = this.currentKeyFrameClip.mixerBodyAnimation, data = {} ) {
+        // if(!this.trajectoriesActive) {
+        //     return;
+        // }
+        // const angle = this.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+        // const armSpaceRotation = new THREE.Quaternion();
+        // const shoulderRotation = new THREE.Quaternion();
+
+        // // LEFT ARM: Create offset and multiply
+        // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
+        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+        // const currentTime = this.gui.skeletonTimeline.currentTime/ this.currentCharacter.mixer.timeScale;
+        // this.recomputeTrajectories( "LeftHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+        // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle*0.8);
+        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
+        // this.recomputeTrajectories( "RightHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
+        
+    }
+
+    recomputeTrajectories( trajectories = [], data) {
+
+        if(!this.trajectoriesActive || this.trajectoriesComputationPending) {
+            return;
+        }
+
+        if( !trajectories || !trajectories.length ) {
+            for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
+                let trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
+                trajectories.push(trajectory);
+            }
+        }
+
+        if(!data) {
+            data = {
+                currentTime: this.gui.propagationWindow.time,
+                offsetRotParent:0,
+                gradient: this.gui.propagationWindow.gradient,
+                startTime: this.trajectoriesStart,
+                endTime: this.trajectoriesEnd
+            };
+        }
+        const animation = this.currentKeyFrameClip.mixerBodyAnimation;
+        this.trajectoriesHelper.recomputeTrajectories(trajectories, animation.tracks[0].times, data);
+
+        const angle = this.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
+        const armSpaceRotation = new THREE.Quaternion();
+        const shoulderRotation = new THREE.Quaternion();
+        // // Left
+        // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
+        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
+        // this.trajectoriesHelper.trajectories["LeftHand"].quaternion.multiply(armSpaceRotation);
+        // // Right
+        // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle*0.8);
+        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
+        // this.trajectoriesHelper.trajectories["RightHand"].quaternion.multiply(armSpaceRotation);
+    }
+
+    updateTrajectories() {
+        if( ! this.trajectoriesHelper || !this.trajectoriesActive || this.activeTimeline.timelineTitle == "Blendshapes" ) {
+            return;
+        }
+
+        this.trajectoriesStart = this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide;
+        this.trajectoriesEnd = this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide;
+        let armSpaceRotation = new THREE.Quaternion();
+        const data = {
+            currentTime: this.gui.propagationWindow.time,
+            offsetRotParent:0,
+            offsetRot: armSpaceRotation,
+            gradient: this.gui.propagationWindow.gradient,
+            startTime: this.trajectoriesStart,
+            endTime: this.trajectoriesEnd
+        };
+        const trajectories = [];
+        for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
+            let trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
+            trajectories.push(trajectory);
+        }
+        this.trajectoriesHelper.updateTrajectories(this.trajectoriesStart, this.trajectoriesEnd , data.gradient);
+    }
+
+    showTrajectories( currentTime = 0, trajectoriesNames = [], recompute = false) {
+        
+        if( !this.trajectoriesHelper || !this.trajectoriesActive || this.activeTimeline.timelineTitle == "Blendshapes" || !this.gui.propagationWindow.enabler ) {
+            return;
+        }
+        let armSpaceRotation = new THREE.Quaternion();
+
+        const data = {
+            currentTime,
+            offsetRotParent:0,
+            offsetRot: armSpaceRotation,
+            gradient: this.gui.propagationWindow.gradient,
+            startTime: this.gui.propagationWindow.time - this.gui.propagationWindow.leftSide,
+            endTime: this.gui.propagationWindow.time + this.gui.propagationWindow.rightSide
+        };
+        if( !this.activeTimeline.animationClip ) {
+            return;
+        }
+        if( this.trajectoriesComputationPending ) {
+            const boundAnim = this.activeTimeline.animationClip;
+
+            this.computeTrajectories( boundAnim, currentTime );
+        }
+
+        if( !trajectoriesNames.length ) {
+            
+            for( let i = 0; i < this.gui.skeletonTimeline.selectedItems.length; i++ ) {
+                let trajectory = this.gui.skeletonTimeline.selectedItems[i].replace("mixamorig_","").replace("mixamorig:","");
+                this.trajectoriesHelper.show( trajectory );
+                trajectoriesNames.push( trajectory );
+            }
+            if( recompute ) {
+                this.recomputeTrajectories(trajectoriesNames, data);
+            }
+        }
+        else {
+            trajectoriesNames.forEach( trajectory => {
+                this.trajectoriesHelper.show( trajectory );
+            });
+
+            if( recompute ) {
+                this.recomputeTrajectories(trajectoriesNames, data);
+            }
+        }
+      
+        if( !this.activeTimeline.animationClip ) {
+            return;
+        }
+        if( this.trajectoriesComputationPending ) {
+            const boundAnim = this.activeTimeline.animationClip;
+            this.computeTrajectories( boundAnim, currentTime );
+        }
+    }
+
+    hideTrajectories( trajectory ) {
+        if( ! this.trajectoriesHelper ) {
+            return;
+        }
+        this.trajectoriesHelper.hide( trajectory);
     }
 }
 
@@ -4044,7 +4498,6 @@ class ScriptEditor extends Editor {
         this.gui.createSidePanel();
         this.gui.clipsTimeline.updateHeader();
         this.gui.clipsTimeline.visualOriginTime = - ( this.gui.clipsTimeline.xToTime(100) - this.gui.clipsTimeline.xToTime(0) ); // set horizontal scroll to 100 pixels 
-
 
         return true;
     }
