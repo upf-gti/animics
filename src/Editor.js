@@ -1891,11 +1891,11 @@ class KeyframeEditor extends Editor {
         this.gui.globalTimeline.setAnimationClip( characterBoundAnimations[name], false );
         this.currentAnimation = name;
         this.currentKeyFrameClip = null;
+        // this.armSpace = 0;
         this.globalAnimMixerManagement(mixer, characterBoundAnimations[name], false);
         this.setTimeline(this.animationModes.GLOBAL);
         this.gui.createSidePanel();
         this.gui.globalTimeline.updateHeader(); // a bit of an overkill
-        this.armSpace = characterBoundAnimations[name].armSpace || 0;
         this.setTime(this.currentTime); // update mixer
 		this.gui.globalTimeline.visualOriginTime = - ( this.gui.globalTimeline.xToTime(100) - this.gui.globalTimeline.xToTime(0) ); // set horizontal scroll to 100 pixels 
         
@@ -3153,7 +3153,7 @@ class KeyframeEditor extends Editor {
         if( this.currentKeyFrameClip && this.currentKeyFrameClip.source && this.currentKeyFrameClip.source.type == "video" ) {
             this.video.currentTime = this.video.startTime + t - this.currentKeyFrameClip.start;
         }
-        this.updateArmSpace();
+        this.updateArmSpace(this.armSpace);
         this.gizmo.update(true, 0);
     }
 
@@ -3279,6 +3279,7 @@ class KeyframeEditor extends Editor {
 
     globalAnimMixerManagement(mixer, animation, useCurrentKeyframeClipRules = true){
 
+        this.armSpace = 0;
         // when selecting a clip, only overlapping animations should be played alongside the current one
         if ( useCurrentKeyframeClipRules && this.currentKeyFrameClip ){
             const currentClip = this.currentKeyFrameClip;
@@ -3322,7 +3323,6 @@ class KeyframeEditor extends Editor {
                 this.globalAnimMixerManagementSingleClip(mixer, currentClip);
                 currentClip.weight = weight; // end hack
             }
-
             return;
         }
 
@@ -3357,7 +3357,8 @@ class KeyframeEditor extends Editor {
         actionFace.loop = THREE.LoopOnce;
         actionFace.startAt(clip.start);
         
-        this.computeKeyframeClipWeight(clip);
+        const weight = this.computeKeyframeClipWeight(clip);
+        this.armSpace += clip.armSpace * weight;
     }
 
     static FADETYPE_NONE = 0;
@@ -3962,6 +3963,7 @@ class KeyframeEditor extends Editor {
             return;
         }
 
+        this._lastArmSpaceOffset = 0;
         if( remove ) {
             armSpace *= -1; 
         }
@@ -4032,17 +4034,26 @@ class KeyframeEditor extends Editor {
             leftDelta.premultiply(leftArm.quaternion.clone().invert());
             leftArm.parent.quaternion.copy(leftParentRot.premultiply(leftArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
             
-            lArmInterpolant.sampleValues[i*4] = clip.tracks[lArmTrack].values[i*4] = leftArm.quaternion.x;
-            lArmInterpolant.sampleValues[i*4+1] = clip.tracks[lArmTrack].values[i*4+1] = leftArm.quaternion.y;
-            lArmInterpolant.sampleValues[i*4+2] = clip.tracks[lArmTrack].values[i*4+2] = leftArm.quaternion.z;
-            lArmInterpolant.sampleValues[i*4+3] = clip.tracks[lArmTrack].values[i*4+3] = leftArm.quaternion.w;
+            // lArmInterpolant.sampleValues[i*4] = clip.tracks[lArmTrack].values[i*4] = leftArm.quaternion.x;
+            // lArmInterpolant.sampleValues[i*4+1] = clip.tracks[lArmTrack].values[i*4+1] = leftArm.quaternion.y;
+            // lArmInterpolant.sampleValues[i*4+2] = clip.tracks[lArmTrack].values[i*4+2] = leftArm.quaternion.z;
+            // lArmInterpolant.sampleValues[i*4+3] = clip.tracks[lArmTrack].values[i*4+3] = leftArm.quaternion.w;
 
-            lParentArmInterpolant.sampleValues[i*4] = clip.tracks[lParentArmTrack].values[i*4] = leftArm.parent.quaternion.x;
-            lParentArmInterpolant.sampleValues[i*4+1] = clip.tracks[lParentArmTrack].values[i*4+1] = leftArm.parent.quaternion.y;
-            lParentArmInterpolant.sampleValues[i*4+2] = clip.tracks[lParentArmTrack].values[i*4+2] = leftArm.parent.quaternion.z;
-            lParentArmInterpolant.sampleValues[i*4+3] = clip.tracks[lParentArmTrack].values[i*4+3] = leftArm.parent.quaternion.w;
+            // lParentArmInterpolant.sampleValues[i*4] = clip.tracks[lParentArmTrack].values[i*4] = leftArm.parent.quaternion.x;
+            // lParentArmInterpolant.sampleValues[i*4+1] = clip.tracks[lParentArmTrack].values[i*4+1] = leftArm.parent.quaternion.y;
+            // lParentArmInterpolant.sampleValues[i*4+2] = clip.tracks[lParentArmTrack].values[i*4+2] = leftArm.parent.quaternion.z;
+            // lParentArmInterpolant.sampleValues[i*4+3] = clip.tracks[lParentArmTrack].values[i*4+3] = leftArm.parent.quaternion.w;
 
-            
+            clip.tracks[lArmTrack].values[i*4] = leftArm.quaternion.x;
+            clip.tracks[lArmTrack].values[i*4+1] = leftArm.quaternion.y;
+            clip.tracks[lArmTrack].values[i*4+2] = leftArm.quaternion.z;
+            clip.tracks[lArmTrack].values[i*4+3] = leftArm.quaternion.w;
+
+            clip.tracks[lParentArmTrack].values[i*4] = leftArm.parent.quaternion.x;
+            clip.tracks[lParentArmTrack].values[i*4+1] = leftArm.parent.quaternion.y;
+            clip.tracks[lParentArmTrack].values[i*4+2] = leftArm.parent.quaternion.z;
+            clip.tracks[lParentArmTrack].values[i*4+3] = leftArm.parent.quaternion.w;
+
             // RIGHT ARM: Opposite direction (negative angle)
             armSpaceRotation.setFromAxisAngle(rotationAxis, -angle*0.8);
     
@@ -4056,15 +4067,25 @@ class KeyframeEditor extends Editor {
             rightDelta.premultiply(rightArm.quaternion.clone().invert());
             rightArm.parent.quaternion.copy(rightParentRot.premultiply(rightArm.parent.parent.getWorldQuaternion(new THREE.Quaternion()).invert()));
 
-            rArmInterpolant.sampleValues[i*4] = clip.tracks[rArmTrack].values[i*4] = rightArm.quaternion.x;
-            rArmInterpolant.sampleValues[i*4+1] = clip.tracks[rArmTrack].values[i*4+1] = rightArm.quaternion.y;
-            rArmInterpolant.sampleValues[i*4+2] = clip.tracks[rArmTrack].values[i*4+2] = rightArm.quaternion.z;
-            rArmInterpolant.sampleValues[i*4+3] = clip.tracks[rArmTrack].values[i*4+3] = rightArm.quaternion.w;
+            // rArmInterpolant.sampleValues[i*4] = clip.tracks[rArmTrack].values[i*4] = rightArm.quaternion.x;
+            // rArmInterpolant.sampleValues[i*4+1] = clip.tracks[rArmTrack].values[i*4+1] = rightArm.quaternion.y;
+            // rArmInterpolant.sampleValues[i*4+2] = clip.tracks[rArmTrack].values[i*4+2] = rightArm.quaternion.z;
+            // rArmInterpolant.sampleValues[i*4+3] = clip.tracks[rArmTrack].values[i*4+3] = rightArm.quaternion.w;
 
-            rParentArmInterpolant.sampleValues[i*4] = clip.tracks[rParentArmTrack].values[i*4] = rightArm.parent.quaternion.x;
-            rParentArmInterpolant.sampleValues[i*4+1] = clip.tracks[rParentArmTrack].values[i*4+1] = rightArm.parent.quaternion.y;
-            rParentArmInterpolant.sampleValues[i*4+2] = clip.tracks[rParentArmTrack].values[i*4+2] = rightArm.parent.quaternion.z;
-            rParentArmInterpolant.sampleValues[i*4+3] = clip.tracks[rParentArmTrack].values[i*4+3] = rightArm.parent.quaternion.w;
+            // rParentArmInterpolant.sampleValues[i*4] = clip.tracks[rParentArmTrack].values[i*4] = rightArm.parent.quaternion.x;
+            // rParentArmInterpolant.sampleValues[i*4+1] = clip.tracks[rParentArmTrack].values[i*4+1] = rightArm.parent.quaternion.y;
+            // rParentArmInterpolant.sampleValues[i*4+2] = clip.tracks[rParentArmTrack].values[i*4+2] = rightArm.parent.quaternion.z;
+            // rParentArmInterpolant.sampleValues[i*4+3] = clip.tracks[rParentArmTrack].values[i*4+3] = rightArm.parent.quaternion.w;
+
+            clip.tracks[rArmTrack].values[i*4] = rightArm.quaternion.x;
+            clip.tracks[rArmTrack].values[i*4+1] = rightArm.quaternion.y;
+            clip.tracks[rArmTrack].values[i*4+2] = rightArm.quaternion.z;
+            clip.tracks[rArmTrack].values[i*4+3] = rightArm.quaternion.w;
+
+            clip.tracks[rParentArmTrack].values[i*4] = rightArm.parent.quaternion.x;
+            clip.tracks[rParentArmTrack].values[i*4+1] = rightArm.parent.quaternion.y;
+            clip.tracks[rParentArmTrack].values[i*4+2] = rightArm.parent.quaternion.z;
+            clip.tracks[rParentArmTrack].values[i*4+3] = rightArm.parent.quaternion.w;
 
         }
         mixer.setTime(0);
@@ -4086,14 +4107,16 @@ class KeyframeEditor extends Editor {
         const mixer = this.currentCharacter.mixer;
         mixer.stopAllAction();
         
-        for( let t = 0; t < boundAnim.tracks.length; ++t ){
-            const track = boundAnim.tracks[t];
-            for( let c = 0; c < track.clips.length; ++c ){
-                const clip = track.clips[c];
-                if( !clip.mixerBodyAnimation ) {
-                    continue;
+        if( flags != 0x02 ) {
+            for( let t = 0; t < boundAnim.tracks.length; ++t ){
+                const track = boundAnim.tracks[t];
+                for( let c = 0; c < track.clips.length; ++c ){
+                    const clip = track.clips[c];
+                    if( !clip.mixerBodyAnimation ) {
+                        continue;
+                    }
+                    this.applyArmSpaceToAnimation(mixer, clip )
                 }
-                this.applyArmSpaceToAnimation(mixer, clip )
             }
         }
 
@@ -4106,7 +4129,7 @@ class KeyframeEditor extends Editor {
         
 		this.currentTime = 0; // manual set of time for clip management. WARNING: this creates a mismatch with UI
         this.globalAnimMixerManagement( mixer, boundAnim, false ); // set clips. Ignore currentSelecteKeyframeClip
-
+        //this.armSpace = 0;
         mixer.setTime( 0 );
         mixer.timeScale = 1;
         // remove unnecessary clips. 
@@ -4191,14 +4214,17 @@ class KeyframeEditor extends Editor {
         }
 
         mixer.timeScale = this.playbackRate;
-        for( let t = 0; t < boundAnim.tracks.length; ++t ){
-            const track = boundAnim.tracks[t];
-            for( let c = 0; c < track.clips.length; ++c ){
-                const clip = track.clips[c];
-                if( !clip.mixerBodyAnimation ) {
-                    continue;
+
+        if( flags != 0x02 ) {
+            for( let t = 0; t < boundAnim.tracks.length; ++t ){
+                const track = boundAnim.tracks[t];
+                for( let c = 0; c < track.clips.length; ++c ){
+                    const clip = track.clips[c];
+                    if( !clip.mixerBodyAnimation ) {
+                        continue;
+                    }
+                    this.applyArmSpaceToAnimation(mixer, clip, true )
                 }
-                this.applyArmSpaceToAnimation(mixer, clip, true )
             }
         }
         // better to do this outside, so exporting several animations is more efficient
@@ -4249,25 +4275,6 @@ class KeyframeEditor extends Editor {
         this.trajectoriesComputationPending = false;
     }
 
-    recomputeHandsTrajectories( animation = this.currentKeyFrameClip.mixerBodyAnimation, data = {} ) {
-        // if(!this.trajectoriesActive) {
-        //     return;
-        // }
-        // const angle = this.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
-        // const armSpaceRotation = new THREE.Quaternion();
-        // const shoulderRotation = new THREE.Quaternion();
-
-        // // LEFT ARM: Create offset and multiply
-        // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
-        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
-        // const currentTime = this.gui.skeletonTimeline.currentTime/ this.currentCharacter.mixer.timeScale;
-        // this.recomputeTrajectories( "LeftHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
-        // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle*0.8);
-        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
-        // this.recomputeTrajectories( "RightHand", this.currentKeyFrameClip.mixerBodyAnimation, {currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
-        
-    }
-
     recomputeTrajectories( trajectories = [], data) {
 
         if(!this.trajectoriesActive || this.trajectoriesComputationPending) {
@@ -4292,18 +4299,6 @@ class KeyframeEditor extends Editor {
         }
         const animation = this.currentKeyFrameClip.mixerBodyAnimation;
         this.trajectoriesHelper.recomputeTrajectories(trajectories, animation.tracks[0].times, data);
-
-        const angle = this.armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
-        const armSpaceRotation = new THREE.Quaternion();
-        const shoulderRotation = new THREE.Quaternion();
-        // // Left
-        // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
-        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);
-        // this.trajectoriesHelper.trajectories["LeftHand"].quaternion.multiply(armSpaceRotation);
-        // // Right
-        // armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -angle*0.8);
-        // shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle*0.2);
-        // this.trajectoriesHelper.trajectories["RightHand"].quaternion.multiply(armSpaceRotation);
     }
 
     updateTrajectories() {

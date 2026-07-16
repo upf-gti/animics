@@ -2421,7 +2421,6 @@ class KeyframesGui extends Gui {
                     this.editor.showTrajectories(this.propagationWindow.time, [], true);
                     const currentTime = this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale;
                     this.editor.updateArmSpace();
-                    //this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime});
                 }
                 else {
                     this.editor.hideTrajectories();
@@ -4754,7 +4753,6 @@ class KeyframesGui extends Gui {
                                 const shoulderRotation = new THREE.Quaternion();
                                 armSpaceRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle*0.8);
                                 shoulderRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle*0.2);*/
-               // await this.editor.recomputeHandsTrajectories(this.editor.currentKeyFrameClip.mixerBodyAnimation, {currentTime: this.skeletonTimeline.currentTime, offsetRotParent: 0, offsetRot: armSpaceRotation});
             }
             this.editor.updateArmSpace();
             this.editor.gizmo.updateBones( );
