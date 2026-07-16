@@ -3288,6 +3288,9 @@ class KeyframeEditor extends Editor {
                 // add all animations
                 for( let t = 0; t < animation.tracks.length; ++t ){
                     const track = animation.tracks[t];
+                    if( !track.active ) {
+                        continue;
+                    }
                     for( let c = 0; c < track.clips.length; ++c ){
                         const clip = track.clips[c];
                         this.globalAnimMixerManagementSingleClip(mixer, clip);
@@ -3329,6 +3332,9 @@ class KeyframeEditor extends Editor {
         // Displaying globalTimeline. Show all animations in their natural order and state
         for( let t = 0; t < animation.tracks.length; ++t ){
             const track = animation.tracks[t];
+            if( !track.active ) {
+                continue;
+            }
             for( let c = 0; c < track.clips.length; ++c ){
                 const clip = track.clips[c];
                 this.globalAnimMixerManagementSingleClip(mixer, clip);
@@ -3341,7 +3347,7 @@ class KeyframeEditor extends Editor {
         const actionBody = mixer.clipAction(clip.mixerBodyAnimation); // either create or fetch
         const actionFace = mixer.clipAction(clip.mixerFaceAnimation); // either create or fetch
         
-        if ( !clip.active || !this.gui.globalTimeline.animationClip.tracks[clip.trackIdx].active ){
+        if ( !clip.active || this.gui.globalTimeline.animationClip.tracks[clip.trackIdx] && !this.gui.globalTimeline.animationClip.tracks[clip.trackIdx].active ){
             actionBody.stop();
             actionFace.stop();
             return;
@@ -3967,7 +3973,7 @@ class KeyframeEditor extends Editor {
         if( remove ) {
             armSpace *= -1; 
         }
-        const animationAction = mixer.clipAction(animation.mixerBodyAnimation);
+        const animationAction = mixer.clipAction(animation.mixerBodyAnimation).setEffectiveWeight(1.0);
         const clip = animationAction.getClip();
 
         const angle = armSpace * Math.PI / 4; // Map slider [-1, 1] to [-45, 45] degrees
@@ -4106,7 +4112,14 @@ class KeyframeEditor extends Editor {
     generateExportAnimationData( boundAnim, flags = 0x03 ){
         const mixer = this.currentCharacter.mixer;
         mixer.stopAllAction();
-        
+       
+        while( mixer._actions.length ){
+            mixer.uncacheClip( mixer._actions[0]._clip );
+        }
+
+        this.currentCharacter.skeletonHelper.skeleton.pose(); // set default pose for the mixer
+
+         
         if( flags != 0x02 ) {
             for( let t = 0; t < boundAnim.tracks.length; ++t ){
                 const track = boundAnim.tracks[t];
@@ -4120,16 +4133,9 @@ class KeyframeEditor extends Editor {
             }
         }
 
-        while( mixer._actions.length ){
-            mixer.uncacheClip( mixer._actions[0]._clip );
-        }
-
-        this.currentCharacter.skeletonHelper.skeleton.pose(); // set default pose for the mixer
-
-        
 		this.currentTime = 0; // manual set of time for clip management. WARNING: this creates a mismatch with UI
         this.globalAnimMixerManagement( mixer, boundAnim, false ); // set clips. Ignore currentSelecteKeyframeClip
-        //this.armSpace = 0;
+        this.armSpace = 0;
         mixer.setTime( 0 );
         mixer.timeScale = 1;
         // remove unnecessary clips. 

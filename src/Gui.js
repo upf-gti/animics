@@ -3391,7 +3391,7 @@ class KeyframesGui extends Gui {
         
         if (!clip){
             
-            this.editor.currentKeyFrameClip.armSpace = this.editor.armSpace;
+            //this.editor.currentKeyFrameClip.armSpace = this.editor.armSpace;
             this.editor.currentKeyFrameClip = null; // this before any setTime.
             if ( !this.skeletonTimeline.historyUndo.length && !this.bsTimeline.historyUndo.length ){
                 this.globalTimeline.historyUndo.pop(); // nothing was changed, duplication was unnecessary
@@ -4735,7 +4735,7 @@ class KeyframesGui extends Gui {
         newUlParent.appendChild(ul);
         oldUlParent.appendChild(newUlParent);
 
-        skeletonPanel.addNumber("Arm space", this.editor.armSpace, async (v) => {
+        skeletonPanel.addNumber("Arm space", this.editor.currentKeyFrameClip.armSpace, async (v) => {
             if(!this.editor.state) {
                 this.editor.revertArmSpace( this._lastArmSpaceOffset || this.editor.armSpace);
                 this.editor.currentCharacter.mixer.setTime(this.skeletonTimeline.currentTime/ this.editor.currentCharacter.mixer.timeScale);
