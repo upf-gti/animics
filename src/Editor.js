@@ -2290,6 +2290,28 @@ class KeyframeEditor extends Editor {
             return outTwist;
         }
 
+        // Variables de control (ajusta-les segons necessitis)
+        const minCutoff = 1.0;  // Suavitzat quan està parat (valors més baixos = més suau)
+        const beta = 0.5;       // Sensibilitat a la velocitat (valors més alts = reacciona abans als moviments ràpids)
+
+        function filterQuaternionAdaptive(qCurrent, qPrevious, deltaTime) {
+            if (!qPrevious) return qCurrent.clone();
+
+            // 1. Calcular la velocitat angular aproximada (radiants per segon)
+            const angleDiff = qPrevious.angleTo(qCurrent);
+            const angularVelocity = angleDiff / deltaTime;
+
+            // 2. Calcular la freqüència de tall adaptativa (Lògica 1€ Filter)
+            const cutoff = minCutoff + beta * angularVelocity;
+            
+            // 3. Calcular el factor Alpha d'un filtre de pas baix tradicional
+            const tau = 1.0 / (2 * Math.PI * cutoff);
+            let alpha = deltaTime / (deltaTime + tau);
+            alpha = THREE.MathUtils.clamp(alpha, 0.0, 1.0);
+
+            // 4. Interpolació dinàmica: si es mou ràpid, alpha s'apropa a 1 (segueix el moviment real)
+            return qPrevious.clone().slerp(qCurrent, alpha);
+        }
         function computeSpine( skeleton, bindQuats, bodyLandmarks ){
             if ( !bodyLandmarks ){ return; }
             //bodyLandmarks is an array of {x,y,z,visiblity} (mediapipe)
@@ -2452,7 +2474,38 @@ class KeyframeEditor extends Editor {
             }
         }
 
-        function computeQuatHand( skeleton, handLandmarks, isLeft = false ){
+        const _vDefaultDir = new THREE.Vector3(0, 1, 0); // Direcció de repòs de la mà (eix Y del braç)
+        const _vCurrentDir = new THREE.Vector3();
+        const _qCorrection = new THREE.Quaternion();
+
+        function clampWristRotations(qLocal) {
+            // 1. Aïllem la direcció cap on apunta la mà actualment aplicant el quaternió a l'eix base
+            _vCurrentDir.copy(_vDefaultDir).applyQuaternion(qLocal).normalize();
+
+            // 2. Calculem l'angle total de desviació respecte al braç (l'angle del con)
+            const totalAngle = _vDefaultDir.angleTo(_vCurrentDir);
+
+            // Límit màxim global del con (ex: 75 graus màxim en qualsevol direcció)
+            const maxConeAngle = THREE.MathUtils.degToRad(75);
+
+            if (totalAngle > maxConeAngle) {
+                // Calculem l'eix perpendicular sobre el qual s'ha passat de llarg
+                const crossAxis = new THREE.Vector3().crossVectors(_vDefaultDir, _vCurrentDir).normalize();
+                
+                // Creem la rotació corregida permesa com a màxim
+                _qCorrection.setFromAxisAngle(crossAxis, maxConeAngle);
+                
+                // Extraiem la torsió original (Y) per no perdre-la
+                let twistY = qLocal.y;
+                let twistW = qLocal.w;
+                const qTwist = new THREE.Quaternion(0, twistY, 0, twistW).normalize();
+
+                // Ajuntem el con corregit amb la torsió original
+                qLocal.multiplyQuaternions(qTwist, _qCorrection).normalize();
+            }
+        }
+
+        function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime){
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
@@ -2463,7 +2516,8 @@ class KeyframeEditor extends Editor {
             const boneIndex = isLeft? skeleton.bones[ 17 ] : skeleton.bones[ 49 ];
     
             boneHand.updateWorldMatrix( true, false );
-    
+            const originalRotation = boneHand.quaternion.clone();
+
             let _ignoreVec3 = new THREE.Vector3();
             let invWorldQuat = new THREE.Quaternion();
             boneHand.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 ); // get L to W quat
@@ -2487,8 +2541,48 @@ class KeyframeEditor extends Editor {
             let palmDirPred = (new THREE.Vector3()).crossVectors(mcPinkyPred, mcIndexPred).normalize(); // world space
             palmDirPred.applyQuaternion( invWorldQuat ).normalize(); // local space
             let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
-            qq.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
-            boneHand.quaternion.multiply( qq ).normalize();
+            let qTwist = new THREE.Quaternion();
+            qTwist.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
+            
+            if(palmDirBone.dot(palmDirPred) < -0.85) {
+                qTwist.setFromUnitVectors( palmDirBone, palmDirPred.negate() ).normalize();
+                // qTwist.conjugate();
+            }
+            let angleTwist = 2 * Math.acos(Math.abs(qTwist.w));
+            const maxTwistRad = THREE.MathUtils.degToRad(30);
+            // if(angleTwist > 2*maxTwistRad ) {
+            //     console.log("angleTwist", angleTwist)
+            //     boneHand.quaternion.multiply(qq.invert());
+            //     return false;
+            // }
+
+            // const rot = boneHand.quaternion.clone();
+            // const angle = originalRotation.angleTo(rot.clone().multiply( qTwist ));
+
+            // if(Math.abs(angle) > THREE.MathUtils.degToRad(100)) {
+            //     console.log("angle", THREE.MathUtils.radToDeg(angle))
+            //     boneHand.quaternion.copy(originalRotation);
+            //     return false;
+            // }
+            // if (angleTwist > maxTwistRad) {
+            //     // Smooth twist for natural movement
+            //     qTwist.slerp(new THREE.Quaternion(), 1 - (maxTwistRad / angleTwist));
+            //     const newRot = rot.clone().multiply( qTwist ).normalize();
+            //     const dot = rot.dot(newRot);
+                
+            //     if (dot < 0.0) {
+            //         qTwist.conjugate();
+            //     }
+            // }
+            boneHand.quaternion.multiply( qTwist ).normalize();
+            clampWristRotations(boneHand.quaternion)
+            // boneHand.quaternion.copy(filterQuaternionAdaptive(boneHand.quaternion, originalRotation, deltaTime));
+            // const euler = new THREE.Euler().setFromQuaternion( boneHand.quaternion );
+            // const limit = THREE.MathUtils.degToRad(180);
+            // console.log("Euler y:", THREE.MathUtils.radToDeg(euler.y))
+            // euler.y = THREE.MathUtils.clamp( euler.y, -limit, limit);
+            // boneHand.quaternion.setFromEuler(euler).normalize();
+            return true;
         }
 
         /* TODO
@@ -2703,15 +2797,24 @@ class KeyframeEditor extends Editor {
             // right arm-hands
             computeQuatArm( skeleton, body, false );
             if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
-                computeQuatHand( skeleton, rightHand, false); 
-                computeQuatPhalange( skeleton, bindQuats, rightHand, false );
+                if(computeQuatHand( skeleton, rightHand, false,  worldLandmarksArray[i].dt/1000)) {
+
+                    computeQuatPhalange( skeleton, bindQuats, rightHand, false );
+                }
+                else {
+                    console.log("hand:", "rightHand", "time:", timeAcc, "frame:", i)
+                }
             }
             
             // left arm-hands
             computeQuatArm( skeleton, body, true );
             if(worldLandmarksArray[i].leftHandVisibility > 0.4) {
-                computeQuatHand( skeleton, leftHand, true ); 
-                computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+                if(computeQuatHand( skeleton, leftHand, true, worldLandmarksArray[i].dt/1000 )) {
+                    computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+                }
+                else {
+                    console.log("hand:", "leftHand", "time:", timeAcc, "frame:", i)
+                }
             }
 
             // remove hips delta rotation from legs (children of hips). Hardcoded for EVA 

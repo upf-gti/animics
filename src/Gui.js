@@ -2052,9 +2052,9 @@ class KeyframesGui extends Gui {
 
                     // prepare videos so they can be downloaded
                     const promise = fetch( animation.videoURL )
-                    .then( r => r.blob() )
-                    .then( blob => UTILS.blobToBase64(blob) )
-                    .then( binaryData => zip.file(saveName, binaryData, {base64:true} ) );
+                    // .then( r => r.blob() )
+                    // .then( blob => UTILS.blobToBase64(blob) )
+                    // .then( binaryData => zip.file(saveName, binaryData, {base64:true} ) );
 
                     promises.push( promise );
 
@@ -2080,7 +2080,20 @@ class KeyframesGui extends Gui {
                 dialog.close();
 
                 // wait until all videos have been added to the zip before downloading
-                await Promise.all( promises );
+                const results = await Promise.all( promises );
+                for ( let i = 0; i < results.length; i++ ) {
+                    const r = results[i];
+                    try{
+                        const blob = await r.blob();
+                        const binaryData = await UTILS.blobToBase64(blob);
+                        
+                        zip.file(saveName, binaryData, {base64:true} )
+                    }
+                    catch(err) {
+                        console.error(err);
+                    }
+                  
+                }
 
                 const base64 = await zip.generateAsync({type:"base64"});
                 const el = document.createElement("a"); 
