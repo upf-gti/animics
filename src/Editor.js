@@ -2469,8 +2469,8 @@ class KeyframeEditor extends Editor {
                 // move bone to predicted direction
                 qq.setFromUnitVectors( dirBone, dirPred );
                 boneSrc.quaternion.multiply( qq );
-                getTwistQuaternion( qq, dirBone, twist ); // remove undesired twist from bone
-                boneSrc.quaternion.multiply( twist.invert() ).normalize();
+                // getTwistQuaternion( qq, dirBone, twist ); // remove undesired twist from bone
+                // boneSrc.quaternion.multiply( twist.invert() ).normalize();
             }
         }
 
@@ -2504,7 +2504,34 @@ class KeyframeEditor extends Editor {
                 qLocal.multiplyQuaternions(qTwist, _qCorrection).normalize();
             }
         }
+        let __vec3_1 = new THREE.Vector3();
+        function applyConstraintSwing( swingPos, polar = [0, Math.PI/2], azimuth = [0, Math.PI/2], front = new THREE.Vector3(0,0,1), right = new THREE.Vector3(1,0,0), up = new THREE.Vector3(0,1,0) ){
+            if ( !polar && !azimuth ){ return; }
+            let swingPolarAngle = 0;
+            let swingAzimuthAngle = 0; // XY plane where +X is 0º
+            
+            let xy = __vec3_1; 
+            xy.copy( front );
+            xy.subVectors( swingPos, xy.multiplyScalar( front.dot( swingPos ) ) ); // rejection of swingPos
 
+            // compute polar and azimuth angles
+            swingPolarAngle = front.angleTo( swingPos );
+            swingAzimuthAngle = right.angleTo( xy );
+            if( up.dot( xy ) < 0 ){ swingAzimuthAngle = -swingAzimuthAngle + Math.PI * 2; }
+
+            // constrain angles
+            if ( polar ){ swingPolarAngle = _constraintAngle( swingPolarAngle, polar[0], polar[1] );           }
+            if ( azimuth ){ swingAzimuthAngle = _constraintAngle( swingAzimuthAngle, azimuth[0], azimuth[1] ); }
+
+            // regenerate point with fixed angles
+            swingPos.set( right.x, right.y, right.z );
+            swingPos.applyAxisAngle( front, swingAzimuthAngle );
+            __vec3_1.crossVectors( swingPos, front ); // find perpendicular vector
+            __vec3_1.normalize();
+            swingPos.applyAxisAngle( __vec3_1, Math.PI * 0.5 - swingPolarAngle ); //cross product starts at swingPos. Polar is angle from front -> a = 90 - a
+            return swingPos;
+        }
+        
         function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime){
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
@@ -2532,9 +2559,13 @@ class KeyframeEditor extends Editor {
             let dirBone = boneMid.position.clone().normalize();
             let qq = new THREE.Quaternion();
             qq.setFromUnitVectors( dirBone, mcMidPred );
+            let swingPos = dirBone.clone().applyQuaternion(qq);
+            
+            let newQuat = boneHand.quaternion.clone();
             boneHand.quaternion.multiply( qq );
+            newQuat.multiply(qq);
             invWorldQuat.premultiply( qq.invert() ); // update hand's world to local quat
-    
+            let twist = applyConstraint(boneHand, dirBone, newQuat, null);
             // twist
             let mcPinkyPred = (new THREE.Vector3()).subVectors( handLandmarks[17], handLandmarks[0] );
             let mcIndexPred = (new THREE.Vector3()).subVectors( handLandmarks[5], handLandmarks[0] );
@@ -2543,13 +2574,12 @@ class KeyframeEditor extends Editor {
             let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
             let qTwist = new THREE.Quaternion();
             qTwist.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
-            
-            if(palmDirBone.dot(palmDirPred) < -0.85) {
-                qTwist.setFromUnitVectors( palmDirBone, palmDirPred.negate() ).normalize();
-                // qTwist.conjugate();
-            }
-            let angleTwist = 2 * Math.acos(Math.abs(qTwist.w));
-            const maxTwistRad = THREE.MathUtils.degToRad(30);
+            // if(palmDirBone.dot(palmDirPred) < -0.85) {
+            //     qTwist.setFromUnitVectors( palmDirBone, palmDirPred.negate() ).normalize();
+            //     // qTwist.conjugate();
+            // }
+            // let angleTwist = 2 * Math.acos(Math.abs(qTwist.w));
+            const maxTwistRad = THREE.MathUtils.degToRad(45);
             // if(angleTwist > 2*maxTwistRad ) {
             //     console.log("angleTwist", angleTwist)
             //     boneHand.quaternion.multiply(qq.invert());
@@ -2574,8 +2604,26 @@ class KeyframeEditor extends Editor {
             //         qTwist.conjugate();
             //     }
             // }
-            boneHand.quaternion.multiply( qTwist ).normalize();
-            clampWristRotations(boneHand.quaternion)
+            // boneHand.quaternion.multiply( qTwist ).normalize();
+            // newQuat.multiply( qTwist ).normalize();
+            // boneHand.quaternion.multiply(qq.clone().invert()).normalize();
+            // boneHand.quaternion.multiply(qq).multiply(qTwist).normalize();
+            
+            const twistConstraint = [-maxTwistRad, maxTwistRad];
+            if( twistConstraint ){
+                boneHand.quaternion.multiply(twist.invert())
+                dirBone.copy(boneHand.position).normalize();
+                let twistAngle = Math.min( 1, Math.max(-1, qTwist.w ) );
+                _vec3_3.set( qTwist.x,qTwist.y,qTwist.z)
+                if ( _vec3_3.dot( dirBone ) < 0 ){
+                    twistAngle = -twistAngle; // quat == -quat
+                }
+                twistAngle = Math.min(Math.PI*2, Math.max( 0, 2 * Math.acos( twistAngle ) ) ); 
+                twistAngle = _constraintAngle( twistAngle, twistConstraint[0], twistConstraint[1] );            
+                qTwist.setFromAxisAngle( dirBone, twistAngle );
+                boneHand.quaternion.multiply(qTwist.normalize());
+            }
+            // clampWristRotations(boneHand.quaternion)
             // boneHand.quaternion.copy(filterQuaternionAdaptive(boneHand.quaternion, originalRotation, deltaTime));
             // const euler = new THREE.Euler().setFromQuaternion( boneHand.quaternion );
             // const limit = THREE.MathUtils.degToRad(180);
@@ -2585,6 +2633,139 @@ class KeyframeEditor extends Editor {
             return true;
         }
 
+        // needed for applying a constraint. range of constraint and angle >= 0
+        function _snapToClosestAngle ( angle, minConstraint = 0, maxConstraint = 360 ){
+            // needed to ensure boundaries when constraint crosses the 0º/360º (discontinuity)
+            let min = Math.min ( Math.abs( minConstraint - angle), Math.min( Math.abs( minConstraint - ( angle - Math.PI * 2 ) ), Math.abs( minConstraint - ( angle + Math.PI * 2 ) ) ) );
+            let max = Math.min ( Math.abs( maxConstraint - angle), Math.min( Math.abs( maxConstraint - ( angle - Math.PI * 2 ) ), Math.abs( maxConstraint - ( angle + Math.PI * 2 ) ) ) );
+            
+            if ( min < max ){ return minConstraint; } 
+            return maxConstraint;
+        }
+
+        // angle && minConstraint && maxConstraint = [0,360]
+        function _constraintAngle ( angle, minConstraint = 0, maxConstraint = 360 ){
+            if ( angle < 0 ){ angle += Math.PI * 2; }
+            if ( minConstraint > maxConstraint ){ // range crosses 0º (like range [300º, 45º] )
+                if ( angle > maxConstraint && angle < minConstraint ){ // out of boundaries
+                    angle = _snapToClosestAngle( angle, minConstraint, maxConstraint ); 
+                }
+            }else{ // normal range (like [0º, 135º] )
+                if ( !( angle > minConstraint && angle < maxConstraint ) ){ // out of boundaries
+                    angle = _snapToClosestAngle( angle, minConstraint, maxConstraint );
+                }    
+            }
+            return angle;
+        }
+        let _quat1 = new THREE.Quaternion();
+        let _quat2 = new THREE.Quaternion();
+        let _quat3 = new THREE.Quaternion();
+        let _quat4 = new THREE.Quaternion();
+        let _vec3_2 = new THREE.Vector3();
+        let _vec3_3 = new THREE.Vector3();
+        let temp1 = new THREE.Vector3();
+        let temp2 = new THREE.Vector3();
+        let _mat4 = new THREE.Matrix4();
+        let _mat3 = new THREE.Matrix3();
+        
+        function applyConstraint( bone, boneDir, newQuat, twistConstraint ){
+            let wrongTwistInv = _quat2; // twist from newQuat derived from ik
+            let twist = _quat3; // twist related to the incoming pose
+            let swing = _quat4;
+            
+            
+            // in a twist-before-swing scheme
+            // TwistQuat = [ WR,  proj_VTwist( VRot ) ]
+            // SwingQuat = R*inv(T)
+
+            // twist given by the incoming pose (before the ik update)
+            _vec3_2.set( bone.quaternion.x, bone.quaternion.y, bone.quaternion.z );
+            _vec3_2.projectOnVector( boneDir );
+            twist.set( _vec3_2.x, _vec3_2.y, _vec3_2.z, bone.quaternion.w );
+            twist.normalize(); // if quaternion == 0,0,0,0 -> normalize automatically sets to 0,0,0,1
+            
+            // ik adds some undesired twist
+            _vec3_2.set( newQuat.x, newQuat.y, newQuat.z );
+            _vec3_2.projectOnVector( boneDir );
+            wrongTwistInv.set( _vec3_2.x, _vec3_2.y, _vec3_2.z, newQuat.w );
+            wrongTwistInv.normalize(); // if quaternion == 0,0,0,0 -> normalize automatically sets to 0,0,0,1
+            wrongTwistInv.invert();
+            
+            swing.copy( newQuat );
+            swing.multiply( wrongTwistInv );
+            swing.normalize(); 
+
+            //actual twist-swing constraint
+
+            let swingPos = _vec3_2;
+            let swingCorrectedAxis = _vec3_3;
+
+            // swing bone
+            swingPos.copy( boneDir );
+            swingPos.applyQuaternion( swing );
+
+            // -------- actual SWING pos constraint. Specific of each class
+            let polar = [0, THREE.MathUtils.degToRad(220)];
+            let azimuth = [0, THREE.MathUtils.degToRad(220)];
+            bone.parent.getWorldQuaternion(_quat1)
+            let front = new THREE.Vector3(0,1,0);
+            let up = new THREE.Vector3(0,1,0);
+            let right = new THREE.Vector3(1,0,0);
+            right.crossVectors( up, front ).normalize();
+            up.crossVectors( front, right ); // Y = cross( Z, X )
+            up.normalize();
+            // transform front, right, up from '+z == boneDir' space to bone space
+            temp1.set( 0,0,0 );
+            temp2.set( 0,1,0 ); // default up
+            _mat4.lookAt( boneDir, temp1, temp2 ); // apparently it does not set the translation... threejs...
+            // let lookAtMat = _mat3; // L -> W
+            // lookAtMat.setFromMatrix4(_mat4);
+            
+            // front.applyMatrix3( lookAtMat );
+            // right.applyMatrix3( lookAtMat );
+            // up.applyMatrix3( lookAtMat );
+            front.applyQuaternion(_quat1).normalize();
+            right.applyQuaternion(_quat1).normalize();
+            up.applyQuaternion(_quat1).normalize();
+
+            swingPos = applyConstraintSwing( swingPos, polar, azimuth, front, right, up  );
+
+            // compute corrected swing. 
+            swingCorrectedAxis.crossVectors( boneDir, swingPos );
+
+            if ( swingCorrectedAxis.lengthSq() < 0.00001 ){ // swing corrected Position is parallel to twist axis
+                if  ( boneDir.dot( swingPos ) < -0.9999){  // opposite side -> rotation = 180º
+                    swingCorrectedAxis.set( -boneDir.y, boneDir.x, boneDir.z ); 
+                    swingCorrectedAxis.crossVectors( swingCorrectedAxis, boneDir ); // find any axis perpendicular to bone
+                    swingCorrectedAxis.normalize();
+                    swing.setFromAxisAngle( swingCorrectedAxis, Math.PI ); // rotate 180º
+                    swing.normalize();
+                }
+                else{ swing.set(0,0,0,1); } // same vector as twist. No swing required
+            }
+            else{ 
+                swingCorrectedAxis.normalize();
+                swing.setFromAxisAngle( swingCorrectedAxis, boneDir.angleTo( swingPos ) );
+                swing.normalize();
+            }
+
+            // -------- actual TWIST constraint
+            if( twistConstraint ){
+                let twistAngle = Math.min( 1, Math.max(-1, twist.w ) );
+                _vec3_3.set( twist.x,twist.y,twist.z)
+                if ( _vec3_3.dot( boneDir ) < 0 ){
+                    twistAngle = -twistAngle; // quat == -quat
+                }
+                twistAngle = Math.min(Math.PI*2, Math.max( 0, 2 * Math.acos( twistAngle ) ) ); 
+                twistAngle = _constraintAngle( twistAngle, twistConstraint[0], twistConstraint[1] );            
+                twist.setFromAxisAngle( boneDir, twistAngle );
+            }
+
+            // commit results
+            _quat2.multiplyQuaternions( swing, twist );
+            bone.quaternion.copy( _quat2 );
+            return twist;
+        }
         /* TODO
             Consider moving the constraints direclty into the mediapipe landmarks. 
             This would avoid unnecessary recomputations of constraints between different characters.
