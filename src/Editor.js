@@ -2545,37 +2545,42 @@ class KeyframeEditor extends Editor {
             qTwist.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
             
             if(palmDirBone.dot(palmDirPred) < -0.85) {
-                qTwist.setFromUnitVectors( palmDirBone, palmDirPred.negate() ).normalize();
-                // qTwist.conjugate();
+                // qTwist.setFromUnitVectors( palmDirBone, palmDirPred.negate() ).normalize();
+                // // qTwist.conjugate();
+
+                qTwist.set(0,0,0,1);
             }
+            // else if (palmDirBone.dot(palmDirPred) < -0.95 ){
+            //     qTwist.set(0,0,0,1);
+            // }
             let angleTwist = 2 * Math.acos(Math.abs(qTwist.w));
             const maxTwistRad = THREE.MathUtils.degToRad(30);
-            // if(angleTwist > 2*maxTwistRad ) {
-            //     console.log("angleTwist", angleTwist)
-            //     boneHand.quaternion.multiply(qq.invert());
-            //     return false;
-            // }
+            if(angleTwist > 2*maxTwistRad ) {
+                console.log("angleTwist", angleTwist)
+                boneHand.quaternion.multiply(qq.invert());
+                return false;
+            }
 
-            // const rot = boneHand.quaternion.clone();
-            // const angle = originalRotation.angleTo(rot.clone().multiply( qTwist ));
+            const rot = boneHand.quaternion.clone();
+            const angle = originalRotation.angleTo(rot.clone().multiply( qTwist ));
 
-            // if(Math.abs(angle) > THREE.MathUtils.degToRad(100)) {
-            //     console.log("angle", THREE.MathUtils.radToDeg(angle))
-            //     boneHand.quaternion.copy(originalRotation);
-            //     return false;
-            // }
-            // if (angleTwist > maxTwistRad) {
-            //     // Smooth twist for natural movement
-            //     qTwist.slerp(new THREE.Quaternion(), 1 - (maxTwistRad / angleTwist));
-            //     const newRot = rot.clone().multiply( qTwist ).normalize();
-            //     const dot = rot.dot(newRot);
+            if(Math.abs(angle) > THREE.MathUtils.degToRad(100)) {
+                console.log("angle", THREE.MathUtils.radToDeg(angle))
+                boneHand.quaternion.copy(originalRotation);
+                return false;
+            }
+            if (angleTwist > maxTwistRad) {
+                // Smooth twist for natural movement
+                qTwist.slerp(new THREE.Quaternion(), 1 - (maxTwistRad / angleTwist));
+                const newRot = rot.clone().multiply( qTwist ).normalize();
+                const dot = rot.dot(newRot);
                 
-            //     if (dot < 0.0) {
-            //         qTwist.conjugate();
-            //     }
-            // }
+                if (dot < 0.0) {
+                    qTwist.conjugate();
+                }
+            }
             boneHand.quaternion.multiply( qTwist ).normalize();
-            clampWristRotations(boneHand.quaternion)
+            // clampWristRotations(boneHand.quaternion)
             // boneHand.quaternion.copy(filterQuaternionAdaptive(boneHand.quaternion, originalRotation, deltaTime));
             // const euler = new THREE.Euler().setFromQuaternion( boneHand.quaternion );
             // const limit = THREE.MathUtils.degToRad(180);
