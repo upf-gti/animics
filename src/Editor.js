@@ -2474,119 +2474,184 @@ class KeyframeEditor extends Editor {
             }
         }
 
-        const _vDefaultDir = new THREE.Vector3(0, 1, 0); // Direcció de repòs de la mà (eix Y del braç)
+        const _vDefaultDir = new THREE.Vector3(0, 1, 0); // rest direction of the hand (world)
         const _vCurrentDir = new THREE.Vector3();
         const _qCorrection = new THREE.Quaternion();
 
         function clampWristRotations(qLocal) {
-            // 1. Aïllem la direcció cap on apunta la mà actualment aplicant el quaternió a l'eix base
+            // 1. Isolate direction where hand points applying quaternion of base axis
             _vCurrentDir.copy(_vDefaultDir).applyQuaternion(qLocal).normalize();
 
-            // 2. Calculem l'angle total de desviació respecte al braç (l'angle del con)
+            // 2. Compute total deviation angle respect to the arm (cone angle)
             const totalAngle = _vDefaultDir.angleTo(_vCurrentDir);
 
-            // Límit màxim global del con (ex: 75 graus màxim en qualsevol direcció)
+            // Maximum global limit of the cone (ex: 75º max in any direction)
             const maxConeAngle = THREE.MathUtils.degToRad(75);
 
             if (totalAngle > maxConeAngle) {
-                // Calculem l'eix perpendicular sobre el qual s'ha passat de llarg
+                // Compute perpendicular aixis
                 const crossAxis = new THREE.Vector3().crossVectors(_vDefaultDir, _vCurrentDir).normalize();
                 
-                // Creem la rotació corregida permesa com a màxim
+                // Create corrected rotation
                 _qCorrection.setFromAxisAngle(crossAxis, maxConeAngle);
                 
-                // Extraiem la torsió original (Y) per no perdre-la
+                // Extract original twist (Y)
                 let twistY = qLocal.y;
                 let twistW = qLocal.w;
                 const qTwist = new THREE.Quaternion(0, twistY, 0, twistW).normalize();
 
-                // Ajuntem el con corregit amb la torsió original
+                // Merge corrected con with original twist
                 qLocal.multiplyQuaternions(qTwist, _qCorrection).normalize();
             }
         }
 
-        function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime){
-            if ( !handLandmarks ){ return; }
-            //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
+        function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
+            if ( !handLandmarks ){ return false; }
 
-            const boneHand = isLeft? skeleton.bones[ 12 ] : skeleton.bones[ 36 ];
-            const boneMid = isLeft? skeleton.bones[ 21 ] : skeleton.bones[ 45 ];
-            // const boneThumbd = isLeft? skeleton.bones[ 13 ] : skeleton.bones[ 53 ];
-            const bonePinky = isLeft? skeleton.bones[ 29 ] : skeleton.bones[ 37 ];
-            const boneIndex = isLeft? skeleton.bones[ 17 ] : skeleton.bones[ 49 ];
-    
+            const boneHand = isLeft ? skeleton.bones[ 12 ] : skeleton.bones[ 36 ];
+            const boneMid = isLeft ? skeleton.bones[ 21 ] : skeleton.bones[ 45 ];
+            const bonePinky = isLeft ? skeleton.bones[ 29 ] : skeleton.bones[ 37 ];
+            const boneIndex = isLeft ? skeleton.bones[ 17 ] : skeleton.bones[ 49 ];
+            const boneForearm = boneHand.parent;
             boneHand.updateWorldMatrix( true, false );
-            const originalRotation = boneHand.quaternion.clone();
 
-            let _ignoreVec3 = new THREE.Vector3();
-            let invWorldQuat = new THREE.Quaternion();
-            boneHand.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 ); // get L to W quat
-            invWorldQuat.invert(); // W to L
-    
-            // metacarpian middle finger 
-            let mcMidPred = new THREE.Vector3(); 
-            mcMidPred.subVectors( handLandmarks[9], handLandmarks[0] ); // world
-            mcMidPred.applyQuaternion( invWorldQuat ).normalize(); // hand local space
-            
-            //swing (with unwanted twist)
-            let dirBone = boneMid.position.clone().normalize();
-            let qq = new THREE.Quaternion();
-            qq.setFromUnitVectors( dirBone, mcMidPred );
-            boneHand.quaternion.multiply( qq );
-            invWorldQuat.premultiply( qq.invert() ); // update hand's world to local quat
-    
-            // twist
-            let mcPinkyPred = (new THREE.Vector3()).subVectors( handLandmarks[17], handLandmarks[0] );
-            let mcIndexPred = (new THREE.Vector3()).subVectors( handLandmarks[5], handLandmarks[0] );
-            let palmDirPred = (new THREE.Vector3()).crossVectors(mcPinkyPred, mcIndexPred).normalize(); // world space
-            palmDirPred.applyQuaternion( invWorldQuat ).normalize(); // local space
-            let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
-            let qTwist = new THREE.Quaternion();
-            qTwist.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
-            
-            if(palmDirBone.dot(palmDirPred) < -0.85) {
-                // qTwist.setFromUnitVectors( palmDirBone, palmDirPred.negate() ).normalize();
-                // // qTwist.conjugate();
+            // 1. Get bind pose if its not saved
+            if (!boneHand.userData.bindPoseData) {
+                // Matrius World Inverses originals
+                let invHandMat = isLeft ? skeleton.boneInverses[ 12 ].clone() : skeleton.boneInverses[ 36 ].clone();
+                let invParentMat = isLeft ? skeleton.boneInverses[ 11 ].clone() : skeleton.boneInverses[ 35 ].clone();
+                let invMidMat = isLeft ? skeleton.boneInverses[ 21 ].clone() : skeleton.boneInverses[ 45 ].clone();
 
-                qTwist.set(0,0,0,1);
-            }
-            // else if (palmDirBone.dot(palmDirPred) < -0.95 ){
-            //     qTwist.set(0,0,0,1);
-            // }
-            let angleTwist = 2 * Math.acos(Math.abs(qTwist.w));
-            const maxTwistRad = THREE.MathUtils.degToRad(30);
-            if(angleTwist > 2*maxTwistRad ) {
-                console.log("angleTwist", angleTwist)
-                boneHand.quaternion.multiply(qq.invert());
-                return false;
-            }
+                // Local rotation of the hand in bind pose respect to parent (forearm)
+                let handBindMatLocal = invParentMat.clone().multiply( invHandMat.clone().invert() );
+                let dummyPos = new THREE.Vector3(), dummyScale = new THREE.Vector3();
+                let bindPoseQuat = new THREE.Quaternion();
+                handBindMatLocal.decompose(dummyPos, bindPoseQuat, dummyScale);
 
-            const rot = boneHand.quaternion.clone();
-            const angle = originalRotation.angleTo(rot.clone().multiply( qTwist ));
-
-            if(Math.abs(angle) > THREE.MathUtils.degToRad(100)) {
-                console.log("angle", THREE.MathUtils.radToDeg(angle))
-                boneHand.quaternion.copy(originalRotation);
-                return false;
-            }
-            if (angleTwist > maxTwistRad) {
-                // Smooth twist for natural movement
-                qTwist.slerp(new THREE.Quaternion(), 1 - (maxTwistRad / angleTwist));
-                const newRot = rot.clone().multiply( qTwist ).normalize();
-                const dot = rot.dot(newRot);
+                // Local position of the middle finger in bind pose respect to the hand
+                // World matrix of the hand in bind pose
+                let handWorldBindMat = invHandMat.clone().invert(); 
+                // World matrix of the middle finger in bind pose
+                let midWorldBindMat = invMidMat.clone().invert();   
                 
-                if (dot < 0.0) {
-                    qTwist.conjugate();
+                // Local matrix of the middle finger respect to the hand in bind pose
+                let midLocalBindMat = invHandMat.clone().multiply( midWorldBindMat );
+                
+                let bindMidLocalPos = new THREE.Vector3();
+                let bindMidLocalQuat = new THREE.Quaternion();
+                midLocalBindMat.decompose(bindMidLocalPos, bindMidLocalQuat, dummyScale);
+
+                // Save pure data of bind pose
+                boneHand.userData.bindPoseData = {
+                    bindPoseQuat: bindPoseQuat,                             // local neutral rotation of hand
+                    dirMidBoneBind: bindMidLocalPos.clone().normalize(),     // original direcction vector of the middle finger in bind pose
+                    bindMidLocalQuat: bindMidLocalQuat,
+                    lastRawTwist: 0
+                };
+            }
+
+            const bindData = boneHand.userData.bindPoseData;
+            const { bindPoseQuat, dirMidBoneBind } = bindData;
+
+            // 2. Parent in world space (forearm)
+            boneForearm.updateWorldMatrix(true, false);
+            let forearmWorldQuat = new THREE.Quaternion();
+            let _dummy = new THREE.Vector3();
+            boneForearm.matrixWorld.decompose(_dummy, forearmWorldQuat, _dummy);
+            let invForearmWorldQuat = forearmWorldQuat.clone().invert();
+
+            // 3. Compute swing respect to bind pose
+            let dirMidBindInParent = dirMidBoneBind.clone().applyQuaternion(bindPoseQuat).normalize();
+
+            let mcMidPred = new THREE.Vector3().subVectors(handLandmarks[9], handLandmarks[0]);
+            mcMidPred.applyQuaternion(invForearmWorldQuat).normalize();
+
+            let qSwingBind = new THREE.Quaternion();
+            qSwingBind.setFromUnitVectors(dirMidBindInParent, mcMidPred);
+            if (qSwingBind.w < 0) qSwingBind.negate();
+
+            let swingAngleReq = 2 * Math.acos(Math.min(Math.abs(qSwingBind.w), 1.0));
+
+            // 3. Restrict asymetric swing rotation (up/down vs sides)
+            // Anathomic limits in rad 
+            const maxPitchUp = THREE.MathUtils.degToRad(90);   // Up (felxion) ~75°
+            const maxPitchDown = THREE.MathUtils.degToRad(90); // Down (extension) ~65°
+            const maxYawSide = THREE.MathUtils.degToRad(45);   // Sides (lateral deviation) ~25°
+
+            // Get rotation axis of swing in local space
+            let swingAxis = new THREE.Vector3(qSwingBind.x, qSwingBind.y, qSwingBind.z);
+            let swingAxisLen = swingAxis.length();
+
+            let swingAngleApplied = swingAngleReq;
+
+            if (swingAxisLen > 0.0001 && swingAngleReq > 0.0001) {
+                swingAxis.normalize();
+
+                // Project axis over local components (Pitch = X/Z, Yaw = Y)
+                // Compute angle components
+                let pitchComponent = swingAxis.x * swingAngleReq; // up/dopwn
+                let yawComponent = swingAxis.z * swingAngleReq;   // sides
+
+                // Vertical limit depending of up or down 
+                let limitPitch = (pitchComponent >= 0) ? maxPitchUp : maxPitchDown;
+                let limitYaw = maxYawSide;
+
+                // Elipse equation: (pitch/limitP)^2 + (yaw/limitY)^2
+                let normPitch = pitchComponent / limitPitch;
+                let normYaw = yawComponent / limitYaw;
+                let ellipseDistance = Math.sqrt(normPitch * normPitch + normYaw * normYaw);
+
+                // If its outside of elipse (distance > 1.0), clampem angle
+                if (ellipseDistance > 1.0) {
+                    let scaleFactor = 1.0 / ellipseDistance;
+                    swingAngleApplied = swingAngleReq * scaleFactor;
+
+                    // Recompute swing quaternion
+                    qSwingBind.slerp(new THREE.Quaternion(), 1.0 - (swingAngleApplied / swingAngleReq));
                 }
             }
-            boneHand.quaternion.multiply( qTwist ).normalize();
-            // clampWristRotations(boneHand.quaternion)
-            // boneHand.quaternion.copy(filterQuaternionAdaptive(boneHand.quaternion, originalRotation, deltaTime));
-            // const euler = new THREE.Euler().setFromQuaternion( boneHand.quaternion );
-            // const limit = THREE.MathUtils.degToRad(180);
-            // console.log("Euler y:", THREE.MathUtils.radToDeg(euler.y))
-            // euler.y = THREE.MathUtils.clamp( euler.y, -limit, limit);
-            // boneHand.quaternion.setFromEuler(euler).normalize();
+
+            let qSwingApplied = qSwingBind.clone().multiply(bindPoseQuat);
+
+            // 4. Compute twist in post-swing space (unwrap & antiflip)
+            let invWorldQuatForTwist = invForearmWorldQuat.clone().premultiply(qSwingApplied.clone().invert());
+
+            let mcPinkyPred = new THREE.Vector3().subVectors(handLandmarks[17], handLandmarks[0]);
+            let mcIndexPred = new THREE.Vector3().subVectors(handLandmarks[5], handLandmarks[0]);
+            
+            let palmDirPred = new THREE.Vector3().crossVectors(mcPinkyPred, mcIndexPred).normalize();
+            palmDirPred.applyQuaternion(invWorldQuatForTwist);
+
+            let palmDirBone = new THREE.Vector3().crossVectors(bonePinky.position, boneIndex.position).normalize();
+
+            // Projection of orthogonal plane to finger
+            palmDirPred.addScaledVector(dirMidBoneBind, -palmDirPred.dot(dirMidBoneBind)).normalize();
+            palmDirBone.addScaledVector(dirMidBoneBind, -palmDirBone.dot(dirMidBoneBind)).normalize();
+
+            let twistCos = THREE.MathUtils.clamp(palmDirBone.dot(palmDirPred), -1.0, 1.0);
+            let twistSin = new THREE.Vector3().crossVectors(palmDirBone, palmDirPred).dot(dirMidBoneBind);
+            let rawTwistAngle = Math.atan2(twistSin, twistCos);
+
+            // Continuity filter (unwrap)
+            let deltaTwist = rawTwistAngle - bindData.lastRawTwist;
+            while (deltaTwist > Math.PI) deltaTwist -= Math.PI * 2;
+            while (deltaTwist < -Math.PI) deltaTwist += Math.PI * 2;
+
+            let continuousTwistAngle = bindData.lastRawTwist + deltaTwist;
+            bindData.lastRawTwist = continuousTwistAngle;
+
+            // 5. Anatomic twsit limit (75°)
+            const maxAbsoluteTwistRad = THREE.MathUtils.degToRad(75);
+            let twistApplied = THREE.MathUtils.clamp(continuousTwistAngle, -maxAbsoluteTwistRad, maxAbsoluteTwistRad);
+
+            let qTwistFinal = new THREE.Quaternion().setFromAxisAngle(dirMidBoneBind, twistApplied);
+            let qTarget = qSwingApplied.clone().multiply(qTwistFinal).normalize();
+
+            if (boneHand.quaternion.dot(qTarget) < 0) {
+                qTarget.negate();
+            }
+
+            boneHand.quaternion.copy(qTarget);
             return true;
         }
 
@@ -2804,7 +2869,7 @@ class KeyframeEditor extends Editor {
             if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
                 if(computeQuatHand( skeleton, rightHand, false,  worldLandmarksArray[i].dt/1000)) {
 
-                    computeQuatPhalange( skeleton, bindQuats, rightHand, false );
+                    // computeQuatPhalange( skeleton, bindQuats, rightHand, false );
                 }
                 else {
                     console.log("hand:", "rightHand", "time:", timeAcc, "frame:", i)
@@ -2815,7 +2880,7 @@ class KeyframeEditor extends Editor {
             computeQuatArm( skeleton, body, true );
             if(worldLandmarksArray[i].leftHandVisibility > 0.4) {
                 if(computeQuatHand( skeleton, leftHand, true, worldLandmarksArray[i].dt/1000 )) {
-                    computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+                    // computeQuatPhalange( skeleton, bindQuats, leftHand, true );
                 }
                 else {
                     console.log("hand:", "leftHand", "time:", timeAcc, "frame:", i)

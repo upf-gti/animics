@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo hand rotations (Swing & Twist)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: Arial, sans-serif;
+            color: #fff;
+        }
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 360px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            font-size: 13px;
+            line-height: 1.4;
+            z-index: 10;
+        }
+        .metric {
+            margin: 8px 0;
+            font-weight: bold;
+        }
+        .warn {
+            color: #ff5555;
+        }
+        .ok {
+            color: #55ff55;
+        }
+        .control-group {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #444;
+        }
+        input[type=range] {
+            width: 100%;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/ml-matrix@6.12.1/matrix.umd.min.js"></script> <!-- Matrix library to do SVD inverse -->
+	
+	<script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+					"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+				}
+			}
+	</script>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script> -->
+</head>
+<body>
+
+<div id="info-panel">
+    <h3>Simulador de Canell 3D (Swing + Twist)</h3>
+    <p>Arrossega el <b>target vermell</b> per provar el Swing (Màx 60°).<br>Mou el <b>slider</b> per provar el Twist (Màx 35°).</p>
+    
+    <div class="control-group">
+        <label><b>Torsió del palmell (Simulació Twist):</b></label>
+        <input type="range" id="twistSlider" min="-360" max="360" value="0">
+    </div>
+
+    <div class="control-group">
+        <div class="metric">Angle Swing Demanat: <span id="valSwingReq">0</span>°</div>
+        <div class="metric">Angle Swing Aplicat: <span id="valSwingReal" class="ok">0</span>° (Màx: 60°)</div>
+        <div class="metric">Angle Twist Demanat: <span id="valTwistReq">0</span>°</div>
+        <div class="metric">Angle Twist Aplicat: <span id="valTwistReal" class="ok">0</span>° (Màx: 35°)</div>
+    </div>
+</div>
+
+<script type="module">
+
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TransformControls } from "three/addons/controls/TransformControls.js";
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1e1e24);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.2, 3.2);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enableDamping = true;
+
+const grid = new THREE.GridHelper(10, 20, 0x444444, 0x222222);
+grid.position.y = -0.5;
+scene.add(grid);
+
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(2, 4, 3);
+scene.add(light, new THREE.AmbientLight(0xffffff, 0.4));
+
+let skeleton = null;
+const loader = new GLTFLoader();
+
+async function init () {
+
+    const gltf = await loader.loadAsync( 'https://resources.gti.upf.edu/3Dcharacters/Eva_Low/Eva_Low.glb' );
+    const model = gltf.scene;
+    model.traverse( o => {
+        if (o.isMesh || o.isSkinnedMesh) {
+            o.castShadow = true;
+            o.receiveShadow = true;
+            o.frustumCulled = false;
+            if ( o.skeleton ){ 
+                skeleton = o.skeleton;
+            }
+            if (o.name == "Body") {
+                o.name == "BodyMesh";
+            }
+            
+            if(o.name == "Classic_short") {
+                if( o.children.length > 1 ){ 
+                    o.children[1].renderOrder = 1; 
+                }
+            }
+            if(o.name.includes("Eyelashes")) {
+                o.castShadow = false;
+            }
+            o.material.side = THREE.FrontSide;                    
+        }
+    } );
+    scene.add( model );
+    
+    // Skeleton and geometry
+    
+    boneHand = isLeft ? skeleton.bones[ 12 ] : skeleton.bones[ 36 ];
+    boneMid = isLeft ? skeleton.bones[ 21 ] : skeleton.bones[ 45 ];
+    bonePinky = isLeft ? skeleton.bones[ 29 ] : skeleton.bones[ 37 ];
+    boneIndex = isLeft ? skeleton.bones[ 17 ] : skeleton.bones[ 49 ];
+    boneForearm = boneHand.parent;
+    // boneHand.add(handGroup);
+
+    boneMid.getWorldPosition(targetMesh.position);
+    targetMesh.position.x+=0.1
+    targetMesh.position.y-=0.1
+    animate();
+}
+
+let isLeft = true;
+let boneHand = null;
+let boneMid = null;
+let bonePinky = null;
+let boneIndex = null;
+let boneForearm = null
+
+
+// Hand helper (normal yellow arrow)
+const handGroup = new THREE.Group();
+const arrowFront = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(0,0.2,0), 0.35, 0xffff00);
+handGroup.add(arrowFront);
+
+const SKEL_FOREARM = 0, SKEL_HAND = 1, SKEL_MID = 2, SKEL_PINKY = 3, SKEL_INDEX = 4;
+
+// Interactive Target (MEDIAPIPE)
+const targetMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07),
+    new THREE.MeshBasicMaterial({ color: 0xff2222 })
+);
+scene.add(targetMesh);
+
+const transformControls = new TransformControls(camera, renderer.domElement);
+transformControls.attach(targetMesh);
+transformControls.setSize(0.7);
+transformControls.addEventListener('dragging-changed', (e) => orbit.enabled = !e.value);
+const gizmo = transformControls.getHelper();
+scene.add( gizmo );
+
+const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const targetLine = new THREE.Line(lineGeom, new THREE.LineBasicMaterial({ color: 0x00ff00 }));
+scene.add(targetLine);
+
+// "Mediapipe landmarks" helpers
+const geometry = new THREE.BoxGeometry( 0.01, 0.01, 0.01 );
+const material = new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest:false } );
+const handWorld = new THREE.Mesh( geometry, material );
+scene.add( handWorld );
+const midWorld = new THREE.Mesh( geometry, material );
+scene.add( midWorld );
+const indexWorld = new THREE.Mesh( geometry, material );
+scene.add( indexWorld );
+const pinkyWorld = new THREE.Mesh( geometry, material );
+scene.add( pinkyWorld );
+
+// Compute and restric hand rotations 
+function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
+    if ( !handLandmarks ){ return false; }
+
+    const boneHand = isLeft ? skeleton.bones[ 12 ] : skeleton.bones[ 36 ];
+    const boneMid = isLeft ? skeleton.bones[ 21 ] : skeleton.bones[ 45 ];
+    const bonePinky = isLeft ? skeleton.bones[ 29 ] : skeleton.bones[ 37 ];
+    const boneIndex = isLeft ? skeleton.bones[ 17 ] : skeleton.bones[ 49 ];
+    const boneForearm = boneHand.parent;
+    boneHand.updateWorldMatrix( true, false );
+
+    // 1. Get bind pose if its not saved
+    if (!boneHand.userData.bindPoseData) {
+        // Matrius World Inverses originals
+        let invHandMat = isLeft ? skeleton.boneInverses[ 12 ].clone() : skeleton.boneInverses[ 36 ].clone();
+        let invParentMat = isLeft ? skeleton.boneInverses[ 11 ].clone() : skeleton.boneInverses[ 35 ].clone();
+        let invMidMat = isLeft ? skeleton.boneInverses[ 21 ].clone() : skeleton.boneInverses[ 45 ].clone();
+
+        // Local rotation of the hand in bind pose respect to parent (forearm)
+        let handBindMatLocal = invParentMat.clone().multiply( invHandMat.clone().invert() );
+        let dummyPos = new THREE.Vector3(), dummyScale = new THREE.Vector3();
+        let bindPoseQuat = new THREE.Quaternion();
+        handBindMatLocal.decompose(dummyPos, bindPoseQuat, dummyScale);
+
+        // Local position of the middle finger in bind pose respect to the hand
+        // World matrix of the hand in bind pose
+        let handWorldBindMat = invHandMat.clone().invert(); 
+        // World matrix of the middle finger in bind pose
+        let midWorldBindMat = invMidMat.clone().invert();   
+        
+        // Local matrix of the middle finger respect to the hand in bind pose
+        let midLocalBindMat = invHandMat.clone().multiply( midWorldBindMat );
+        
+        let bindMidLocalPos = new THREE.Vector3();
+        let bindMidLocalQuat = new THREE.Quaternion();
+        midLocalBindMat.decompose(bindMidLocalPos, bindMidLocalQuat, dummyScale);
+
+        // Save pure data of bind pose
+        boneHand.userData.bindPoseData = {
+            bindPoseQuat: bindPoseQuat,                             // local neutral rotation of hand
+            dirMidBoneBind: bindMidLocalPos.clone().normalize(),     // original direcction vector of the middle finger in bind pose
+            bindMidLocalQuat: bindMidLocalQuat,
+            lastRawTwist: 0
+        };
+    }
+
+    const bindData = boneHand.userData.bindPoseData;
+    const { bindPoseQuat, dirMidBoneBind } = bindData;
+
+    // 2. Parent in world space (forearm)
+    boneForearm.updateWorldMatrix(true, false);
+    let forearmWorldQuat = new THREE.Quaternion();
+    let _dummy = new THREE.Vector3();
+    boneForearm.matrixWorld.decompose(_dummy, forearmWorldQuat, _dummy);
+    let invForearmWorldQuat = forearmWorldQuat.clone().invert();
+
+    // 3. Compute swing respect to bind pose
+    let dirMidBindInParent = dirMidBoneBind.clone().applyQuaternion(bindPoseQuat).normalize();
+
+    let mcMidPred = new THREE.Vector3().subVectors(handLandmarks[9], handLandmarks[0]);
+    mcMidPred.applyQuaternion(invForearmWorldQuat).normalize();
+
+    let qSwingBind = new THREE.Quaternion();
+    qSwingBind.setFromUnitVectors(dirMidBindInParent, mcMidPred);
+    if (qSwingBind.w < 0) qSwingBind.negate();
+
+    let swingAngleReq = 2 * Math.acos(Math.min(Math.abs(qSwingBind.w), 1.0));
+
+    // 3. Restrict asymetric swing rotation (up/down vs sides)
+    // Anathomic limits in rad 
+    const maxPitchUp = THREE.MathUtils.degToRad(90);   // Up (felxion) ~75°
+    const maxPitchDown = THREE.MathUtils.degToRad(90); // Down (extension) ~65°
+    const maxYawSide = THREE.MathUtils.degToRad(45);   // Sides (lateral deviation) ~25°
+
+    // Get rotation axis of swing in local space
+    let swingAxis = new THREE.Vector3(qSwingBind.x, qSwingBind.y, qSwingBind.z);
+    let swingAxisLen = swingAxis.length();
+
+    let swingAngleApplied = swingAngleReq;
+
+    if (swingAxisLen > 0.0001 && swingAngleReq > 0.0001) {
+        swingAxis.normalize();
+
+        // Project axis over local components (Pitch = X/Z, Yaw = Y)
+        // Compute angle components
+        let pitchComponent = swingAxis.x * swingAngleReq; // up/dopwn
+        let yawComponent = swingAxis.z * swingAngleReq;   // sides
+
+        // Vertical limit depending of up or down 
+        let limitPitch = (pitchComponent >= 0) ? maxPitchUp : maxPitchDown;
+        let limitYaw = maxYawSide;
+
+        // Elipse equation: (pitch/limitP)^2 + (yaw/limitY)^2
+        let normPitch = pitchComponent / limitPitch;
+        let normYaw = yawComponent / limitYaw;
+        let ellipseDistance = Math.sqrt(normPitch * normPitch + normYaw * normYaw);
+
+        // If its outside of elipse (distance > 1.0), clampem angle
+        if (ellipseDistance > 1.0) {
+            let scaleFactor = 1.0 / ellipseDistance;
+            swingAngleApplied = swingAngleReq * scaleFactor;
+
+            // Recompute swing quaternion
+            qSwingBind.slerp(new THREE.Quaternion(), 1.0 - (swingAngleApplied / swingAngleReq));
+        }
+    }
+
+    let qSwingApplied = qSwingBind.clone().multiply(bindPoseQuat);
+
+    // 4. Compute twist in post-swing space (unwrap & antiflip)
+    let invWorldQuatForTwist = invForearmWorldQuat.clone().premultiply(qSwingApplied.clone().invert());
+
+    let mcPinkyPred = new THREE.Vector3().subVectors(handLandmarks[17], handLandmarks[0]);
+    let mcIndexPred = new THREE.Vector3().subVectors(handLandmarks[5], handLandmarks[0]);
+    
+    let palmDirPred = new THREE.Vector3().crossVectors(mcPinkyPred, mcIndexPred).normalize();
+    palmDirPred.applyQuaternion(invWorldQuatForTwist);
+
+    let palmDirBone = new THREE.Vector3().crossVectors(bonePinky.position, boneIndex.position).normalize();
+
+    // Projection of orthogonal plane to finger
+    palmDirPred.addScaledVector(dirMidBoneBind, -palmDirPred.dot(dirMidBoneBind)).normalize();
+    palmDirBone.addScaledVector(dirMidBoneBind, -palmDirBone.dot(dirMidBoneBind)).normalize();
+
+    let twistCos = THREE.MathUtils.clamp(palmDirBone.dot(palmDirPred), -1.0, 1.0);
+    let twistSin = new THREE.Vector3().crossVectors(palmDirBone, palmDirPred).dot(dirMidBoneBind);
+    let rawTwistAngle = Math.atan2(twistSin, twistCos);
+
+    // Continuity filter (unwrap)
+    let deltaTwist = rawTwistAngle - bindData.lastRawTwist;
+    while (deltaTwist > Math.PI) deltaTwist -= Math.PI * 2;
+    while (deltaTwist < -Math.PI) deltaTwist += Math.PI * 2;
+
+    let continuousTwistAngle = bindData.lastRawTwist + deltaTwist;
+    bindData.lastRawTwist = continuousTwistAngle;
+
+    // 5. Anatomic twsit limit (75°)
+    const maxAbsoluteTwistRad = THREE.MathUtils.degToRad(75);
+    let twistApplied = THREE.MathUtils.clamp(continuousTwistAngle, -maxAbsoluteTwistRad, maxAbsoluteTwistRad);
+
+    let qTwistFinal = new THREE.Quaternion().setFromAxisAngle(dirMidBoneBind, twistApplied);
+    let qTarget = qSwingApplied.clone().multiply(qTwistFinal).normalize();
+
+    if (boneHand.quaternion.dot(qTarget) < 0) {
+        qTarget.negate();
+    }
+
+    boneHand.quaternion.copy(qTarget);
+
+    return {
+        swingReq: THREE.MathUtils.radToDeg(swingAngleReq).toFixed(1),
+        swingReal: THREE.MathUtils.radToDeg(swingAngleApplied).toFixed(1),
+        twistReq: THREE.MathUtils.radToDeg(continuousTwistAngle).toFixed(1),
+        twistReal: THREE.MathUtils.radToDeg(twistApplied).toFixed(1)
+    };
+}
+
+const twistSlider = document.getElementById('twistSlider');
+
+// Animation loop
+function animate() {
+    requestAnimationFrame(animate);
+
+    const handWorldPos = new THREE.Vector3();
+    boneHand.getWorldPosition(handWorldPos);
+
+    const midTargetPos = targetMesh.position.clone();
+    const mcMidDir = new THREE.Vector3().subVectors(midTargetPos, handWorldPos).normalize();
+
+    // Mediapipe twist simulation
+    // 1. Find side direction perpendicular to middle finger
+    let defaultUp = new THREE.Vector3(0, 0, 1);
+    if (Math.abs(mcMidDir.z) > 0.9) defaultUp.set(1, 0, 0);
+    
+    let baseSideDir = new THREE.Vector3().crossVectors(mcMidDir, defaultUp).normalize();
+
+    // 2. Apply twist from slider rotating side vector around finger vector
+    const twistAngleRad = THREE.MathUtils.degToRad(parseFloat(twistSlider.value));
+    let rotatedSideDir = baseSideDir.clone().applyAxisAngle(mcMidDir, twistAngleRad);
+
+    // 3. Mediapipe simulation landmarks: Index [5] and Pinky [17]
+    const simulatedHandLandmarks = {
+        0: handWorldPos,
+        9: midTargetPos,
+        5: handWorldPos.clone().add(mcMidDir.clone().multiplyScalar(0.1)).sub(rotatedSideDir.clone().multiplyScalar(0.05)),
+        17: handWorldPos.clone().add(mcMidDir.clone().multiplyScalar(0.1)).add(rotatedSideDir.clone().multiplyScalar(0.05))
+    };
+
+    handWorld.position.copy(simulatedHandLandmarks[0]);
+    midWorld.position.copy(simulatedHandLandmarks[9]);
+    indexWorld.position.copy(simulatedHandLandmarks[5]);
+    pinkyWorld.position.copy(simulatedHandLandmarks[17]);
+    // Update target line (green)
+    targetLine.geometry.setFromPoints([handWorldPos, midTargetPos]);
+
+    // Compute hand rotations
+    const metrics = computeQuatHand(skeleton, simulatedHandLandmarks, isLeft);
+
+    // Update GUI
+    if (metrics) {
+        document.getElementById('valSwingReq').innerText = metrics.swingReq;
+        
+        const elSwingReal = document.getElementById('valSwingReal');
+        elSwingReal.innerText = metrics.swingReal;
+        elSwingReal.className = (parseFloat(metrics.swingReq) > 60.1) ? "metric warn" : "metric ok";
+
+        document.getElementById('valTwistReq').innerText = metrics.twistReq;
+        
+        const elTwistReal = document.getElementById('valTwistReal');
+        elTwistReal.innerText = metrics.twistReal;
+        elTwistReal.className = (Math.abs(parseFloat(metrics.twistReq)) > 35.1) ? "metric warn" : "metric ok";
+    }
+
+    orbit.update();
+    renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+await init();
+</script>
+</body>
+</html>
