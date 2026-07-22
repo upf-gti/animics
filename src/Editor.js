@@ -2573,7 +2573,7 @@ class KeyframeEditor extends Editor {
             let swingAngleReq = 2 * Math.acos(Math.min(Math.abs(qSwingBind.w), 1.0));
 
             // 3. Restrict asymetric swing rotation (up/down vs sides)
-            // Anathomic limits in rad 
+            // Anatomic limits in rad 
             const maxPitchUp = THREE.MathUtils.degToRad(90);   // Up (felxion) ~75°
             const maxPitchDown = THREE.MathUtils.degToRad(90); // Down (extension) ~65°
             const maxYawSide = THREE.MathUtils.degToRad(45);   // Sides (lateral deviation) ~25°
