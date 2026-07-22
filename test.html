@@ -68,6 +68,7 @@
     <div class="control-group">
         <label><b>Torsió del palmell (Simulació Twist):</b></label>
         <input type="range" id="twistSlider" min="-360" max="360" value="0">
+        <input type="number" id="twistNumber" min="-360" max="360" value="0">
     </div>
 
     <div class="control-group">
@@ -88,7 +89,7 @@ import { TransformControls } from "three/addons/controls/TransformControls.js";
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1e1e24);
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
 camera.position.set(0, 1.2, 3.2);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -145,11 +146,18 @@ async function init () {
     bonePinky = isLeft ? skeleton.bones[ 29 ] : skeleton.bones[ 37 ];
     boneIndex = isLeft ? skeleton.bones[ 17 ] : skeleton.bones[ 49 ];
     boneForearm = boneHand.parent;
-    // boneHand.add(handGroup);
+    boneHand.add(handGroup);
 
+    boneHand.getWorldPosition(handWorld.position);
+    boneIndex.getWorldPosition(indexWorld.position);
+    boneMid.getWorldPosition(midWorld.position);
     boneMid.getWorldPosition(targetMesh.position);
-    targetMesh.position.x+=0.1
-    targetMesh.position.y-=0.1
+    bonePinky.getWorldPosition(pinkyWorld.position);
+    boneHand.getWorldPosition(arrowFrontComputed.position);
+
+    
+    // targetMesh.position.x+=0.1
+    // targetMesh.position.y-=0.1
     animate();
 }
 
@@ -163,14 +171,18 @@ let boneForearm = null
 
 // Hand helper (normal yellow arrow)
 const handGroup = new THREE.Group();
-const arrowFront = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(0,0.2,0), 0.35, 0xffff00);
+const arrowFront = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xffff00);
 handGroup.add(arrowFront);
 
+const arrowFrontComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xff0000);
+scene.add(arrowFrontComputed);
+const arrowFrontLocalComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xff00ff);
+handGroup.add(arrowFrontLocalComputed);
 const SKEL_FOREARM = 0, SKEL_HAND = 1, SKEL_MID = 2, SKEL_PINKY = 3, SKEL_INDEX = 4;
 
 // Interactive Target (MEDIAPIPE)
 const targetMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.07),
+    new THREE.SphereGeometry(0.03),
     new THREE.MeshBasicMaterial({ color: 0xff2222 })
 );
 scene.add(targetMesh);
@@ -187,15 +199,21 @@ const targetLine = new THREE.Line(lineGeom, new THREE.LineBasicMaterial({ color:
 scene.add(targetLine);
 
 // "Mediapipe landmarks" helpers
-const geometry = new THREE.BoxGeometry( 0.01, 0.01, 0.01 );
-const material = new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest:false } );
+const geometry = new THREE.BoxGeometry( 1, 1, 1 );
+const material = new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false, depthWrite: false, transparent: true} );
 const handWorld = new THREE.Mesh( geometry, material );
+handWorld.scale.set(0.01, 0.01, 0.01);
 scene.add( handWorld );
 const midWorld = new THREE.Mesh( geometry, material );
+midWorld.scale.set(0.01, 0.01, 0.01);
 scene.add( midWorld );
-const indexWorld = new THREE.Mesh( geometry, material );
+const indexWorld = new THREE.Mesh( geometry, material.clone() );
+indexWorld.scale.set(0.01, 0.01, 0.01);
+indexWorld.material.color.set(0xff0000);
 scene.add( indexWorld );
-const pinkyWorld = new THREE.Mesh( geometry, material );
+const pinkyWorld = new THREE.Mesh( geometry, material.clone() );
+pinkyWorld.material.color.set(0x0000ff);
+pinkyWorld.scale.set(0.01, 0.01, 0.01);
 scene.add( pinkyWorld );
 
 // Compute and restric hand rotations 
@@ -262,7 +280,10 @@ function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
 
     let qSwingBind = new THREE.Quaternion();
     qSwingBind.setFromUnitVectors(dirMidBindInParent, mcMidPred);
-    if (qSwingBind.w < 0) qSwingBind.negate();
+    if (qSwingBind.w < 0) {
+        qSwingBind.conjugate();
+        qSwingBind.w *= -1;
+    }
 
     let swingAngleReq = 2 * Math.acos(Math.min(Math.abs(qSwingBind.w), 1.0));
 
@@ -314,13 +335,15 @@ function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
     let mcIndexPred = new THREE.Vector3().subVectors(handLandmarks[5], handLandmarks[0]);
     
     let palmDirPred = new THREE.Vector3().crossVectors(mcPinkyPred, mcIndexPred).normalize();
+    arrowFrontComputed.setDirection(palmDirPred)
     palmDirPred.applyQuaternion(invWorldQuatForTwist);
-
     let palmDirBone = new THREE.Vector3().crossVectors(bonePinky.position, boneIndex.position).normalize();
-
+    arrowFront.setDirection(palmDirBone)
+    
     // Projection of orthogonal plane to finger
     palmDirPred.addScaledVector(dirMidBoneBind, -palmDirPred.dot(dirMidBoneBind)).normalize();
     palmDirBone.addScaledVector(dirMidBoneBind, -palmDirBone.dot(dirMidBoneBind)).normalize();
+    arrowFrontLocalComputed.setDirection(palmDirPred)
 
     let twistCos = THREE.MathUtils.clamp(palmDirBone.dot(palmDirPred), -1.0, 1.0);
     let twistSin = new THREE.Vector3().crossVectors(palmDirBone, palmDirPred).dot(dirMidBoneBind);
@@ -342,7 +365,8 @@ function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
     let qTarget = qSwingApplied.clone().multiply(qTwistFinal).normalize();
 
     if (boneHand.quaternion.dot(qTarget) < 0) {
-        qTarget.negate();
+        qTarget.conjugate();
+        qTarget.w *= -1;
     }
 
     boneHand.quaternion.copy(qTarget);
@@ -356,6 +380,10 @@ function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
 }
 
 const twistSlider = document.getElementById('twistSlider');
+const twistNumber = document.getElementById('twistNumber');
+twistNumber.onchange = (e) => {
+    twistSlider.value = e.target.value;
+}
 
 // Animation loop
 function animate() {
@@ -369,8 +397,8 @@ function animate() {
 
     // Mediapipe twist simulation
     // 1. Find side direction perpendicular to middle finger
-    let defaultUp = new THREE.Vector3(0, 0, 1);
-    if (Math.abs(mcMidDir.z) > 0.9) defaultUp.set(1, 0, 0);
+    let defaultUp = new THREE.Vector3(0, -1, 0);
+    if (Math.abs(mcMidDir.z) > 0.9) defaultUp.set(0, 0, 1);
     
     let baseSideDir = new THREE.Vector3().crossVectors(mcMidDir, defaultUp).normalize();
 
