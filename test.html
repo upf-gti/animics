@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Demo hand rotations (Swing & Twist)</title>
     <style>
-        body {
+    body {
             margin: 0;
             overflow: hidden;
             background-color: #1a1a1a;
@@ -43,28 +43,61 @@
         input[type=range] {
             width: 100%;
         }
-        #drop-zone {
+        /* Zona d'estat / Botó manual */
+        #drop-status-panel {
             margin-top: 10px;
-            border: 2px dashed #666;
+            padding: 10px;
+            border: 1px dashed #666;
             border-radius: 6px;
-            padding: 5px;
-            text-align: center;
             background: rgba(255, 255, 255, 0.05);
-            transition: all 0.3s ease;
+            text-align: center;
+        }
+        #file-input {
+            display: none;
+        }
+        .btn-file {
+            background: #3388ff;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
             cursor: pointer;
-            z-index: 10000;
-        }
-        #drop-zone.hover {
-            border-color: #3388ff;
-            background: rgba(51, 136, 255, 0.2);
-        }
-        #drop-zone p {
-            margin: 0 0 8px 0;
             font-size: 12px;
-            color: #ccc;
+            margin-top: 6px;
         }
-        .warning {
-            color: orange;
+        .btn-file:hover {
+            background: #2266cc;
+        }
+
+        /* Overlay visual per a tota la pantalla quan s'arrossega un fitxer */
+        #drop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(51, 136, 255, 0.3);
+            border: 4px dashed #3388ff;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            pointer-events: none; /* Deixa passar els esdeveniments de ratolí */
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        #drop-overlay.active {
+            opacity: 1;
+        }
+        #drop-overlay h2 {
+            color: #fff;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px 40px;
+            border-radius: 12px;
+            font-size: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            margin: 0;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/ml-matrix@6.12.1/matrix.umd.min.js"></script> <!-- Matrix library to do SVD inverse -->
@@ -83,33 +116,38 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script> -->
 </head>
 <body>
-
-<div id="info-panel">
-    <h3>Simulation wrist 3D (Swing + Twist)</h3>
-    <p>Move <b>red target </b> to test Swing.<br>Move the<b>slider</b> to test Twist.</p>
-    <!-- Dropfiles area -->
-    <div id="drop-zone">
-        <p id="drop-status">Drop a <b>JSON</b> file</p>
-        <input type="file" id="file-input" accept=".json">
+    <div id="drop-overlay">
+        <h2>Drag JSON file</h2>
     </div>
-    <div class="control-group">
-        <label><b>Twist simulation:</b></label>
-        <input type="range" id="twistSlider" min="-360" max="360" value="0">
-        <input type="number" id="twistNumber" min="-360" max="360" value="0">
+ 
+    <div id="info-panel">
+        <h3>Simulation wrist 3D (Swing + Twist)</h3>
+        <p>Move <b>red target </b> to test Swing.<br>Move the<b>slider</b> to test Twist.</p>
+        <!-- Dropfiles area -->
+        <div id="drop-status-panel">
+            <p id="drop-status">Drop a <b>JSON</b> file</p>
+            <input type="file" id="file-input" accept=".json">
+            <button class="btn-file" onclick="document.getElementById('file-input').click()">Select JSON file</button>
+        </div>
+        <div class="control-group">
+            <label><b>Twist simulation:</b></label>
+            <input type="range" id="twistSlider" min="-360" max="360" value="0">
+            <input type="number" id="twistNumber" min="-360" max="360" value="0">
+        </div>
+    
+        <div class="control-group">
+            <div class="metric">Angle Swing Requestes: <span id="valSwingReq">0</span>°</div>
+            <div class="metric">Angle Swing Applied: <span id="valSwingReal" class="ok">0</span>° (Max: 60°)</div>
+            <div class="metric">Angle Twist Requestes: <span id="valTwistReq">0</span>°</div>
+            <div class="metric">Angle Twist Applied: <span id="valTwistReal" class="ok">0</span>° (Max: 35°)</div>
+        </div>
+        <div class="control-group">
+            <span style="padding-right:5px;">Frame</span><input type="number" id="frame"value="0">
+            <span class="warn"></span>
+        </div>
+        <div class="metric">Time: <span id="time">0</span></div>
+        <!-- <span style="padding-right:5px;">Time</span><input text="Time" type="number" id="time"value="0" disabled> -->
     </div>
-
-    <div class="control-group">
-        <div class="metric">Angle Swing Requestes: <span id="valSwingReq">0</span>°</div>
-        <div class="metric">Angle Swing Applied: <span id="valSwingReal" class="ok">0</span>° (Max: 60°)</div>
-        <div class="metric">Angle Twist Requestes: <span id="valTwistReq">0</span>°</div>
-        <div class="metric">Angle Twist Applied: <span id="valTwistReal" class="ok">0</span>° (Max: 35°)</div>
-    </div>
-    <div class="control-group">
-        <input type="number" id="frame"value="0">
-        <span class="warning"></span>
-    </div>
-</div>
-
 <script type="module">
 
 import * as THREE from 'three'
@@ -138,15 +176,81 @@ const light = new THREE.DirectionalLight(0xffffff, 1);
 light.position.set(2, 4, 3);
 scene.add(light, new THREE.AmbientLight(0xffffff, 0.4));
 
+// Hand helper (normal yellow arrow)
+const handGroup = new THREE.Group();
+const arrowFront = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xffff00);
+handGroup.add(arrowFront);
+
+// Hand helper (normal computed red arrow)
+const arrowFrontComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xff0000);
+scene.add(arrowFrontComputed);
+// Hand helper (normal local computed pink arrow)
+const arrowFrontLocalComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xff00ff);
+handGroup.add(arrowFrontLocalComputed);
+
+// Hand helper (normal real bone local computed white arrow)
+const arrowFrontBoneLocalComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xffffff);
+handGroup.add(arrowFrontBoneLocalComputed);
+
+// Interactive Target (MEDIAPIPE)
+const targetMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.03),
+    new THREE.MeshBasicMaterial({ color: 0xff2222 })
+);
+scene.add(targetMesh);
+
+const transformControls = new TransformControls(camera, renderer.domElement);
+transformControls.attach(targetMesh);
+transformControls.setSize(0.7);
+transformControls.addEventListener('dragging-changed', (e) => orbit.enabled = !e.value);
+const gizmo = transformControls.getHelper();
+scene.add( gizmo );
+
+const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const targetLine = new THREE.Line(lineGeom, new THREE.LineBasicMaterial({ color: 0x00ff00 }));
+scene.add(targetLine);
+
+// "Mediapipe landmarks" helpers
+const geometry = new THREE.BoxGeometry( 1, 1, 1 );
+const material = new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false, depthWrite: false, transparent: true} );
+const handWorld = new THREE.Mesh( geometry, material );
+handWorld.scale.set(0.01, 0.01, 0.01);
+scene.add( handWorld );
+const midWorld = new THREE.Mesh( geometry, material.clone() );
+midWorld.scale.set(0.01, 0.01, 0.01);
+midWorld.material.color.set(0xff0000);
+scene.add( midWorld );
+const indexWorld = new THREE.Mesh( geometry, material.clone() );
+indexWorld.material.color.set(0xffff00);
+indexWorld.scale.set(0.01, 0.01, 0.01);
+scene.add( indexWorld );
+const pinkyWorld = new THREE.Mesh( geometry, material.clone() );
+pinkyWorld.material.color.set(0x0000ff);
+pinkyWorld.scale.set(0.01, 0.01, 0.01);
+scene.add( pinkyWorld );
+
 let skeleton = null;
 const loader = new GLTFLoader();
 
 let frame = 0;
+let timeAcc = 0;
+
+let isLeft = false;
+let boneHand = null;
+let boneMid = null;
+let bonePinky = null;
+let boneIndex = null;
+let boneForearm = null
+
+
+let landmarks = null;
+let bindQuats = [];
 
 async function init () {
 
     const gltf = await loader.loadAsync( 'https://resources.gti.upf.edu/3Dcharacters/Eva_Low/Eva_Low.glb' );
     const model = gltf.scene;
+    model
     model.traverse( o => {
         if (o.isMesh || o.isSkinnedMesh) {
             o.castShadow = true;
@@ -193,65 +297,96 @@ async function init () {
     animate();
 }
 
-let isLeft = false;
-let boneHand = null;
-let boneMid = null;
-let bonePinky = null;
-let boneIndex = null;
-let boneForearm = null
+// Animation loop
+function animate() {
+    requestAnimationFrame(animate);
 
+    const handWorldPos = new THREE.Vector3();
+    boneHand.getWorldPosition(handWorldPos);
 
-// Hand helper (normal yellow arrow)
-const handGroup = new THREE.Group();
-const arrowFront = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xffff00);
-handGroup.add(arrowFront);
+    const midTargetPos = targetMesh.position.clone();
+    const mcMidDir = new THREE.Vector3().subVectors(midTargetPos, handWorldPos).normalize();
 
-const arrowFrontComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xff0000);
-scene.add(arrowFrontComputed);
-const arrowFrontLocalComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xff00ff);
-handGroup.add(arrowFrontLocalComputed);
+    // Mediapipe twist simulation
+    // 1. Find side direction perpendicular to middle finger
+    let defaultUp = new THREE.Vector3(0, -1, 0);
+    if (mcMidDir.y > 0.95) defaultUp.set(1, 0, 0);
+    if (mcMidDir.y < -0.95) defaultUp.set(-1, 0, 0);
+    if (mcMidDir.x < 0 && mcMidDir.y > 0.5) defaultUp.set(0, 1, 0);
+    if (mcMidDir.x > 0 && mcMidDir.y < -0.5) defaultUp.set(0, -1, 0);
+    
+    let baseSideDir = new THREE.Vector3().crossVectors(mcMidDir, defaultUp).normalize();
 
-const arrowFrontBoneLocalComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xffffff);
-handGroup.add(arrowFrontBoneLocalComputed);
+    // 2. Apply twist from slider rotating side vector around finger vector
+    const twistAngleRad = THREE.MathUtils.degToRad(parseFloat(twistSlider.value));
+    let rotatedSideDir = baseSideDir.clone().applyAxisAngle(mcMidDir, twistAngleRad);
+
+    // 3. Mediapipe simulation landmarks: Index [5] and Pinky [17]
+    let simulatedHandLandmarks = {
+        0: handWorldPos,
+        9: midTargetPos,
+        5: handWorldPos.clone().add(mcMidDir.clone().multiplyScalar(0.1)).sub(rotatedSideDir.clone().multiplyScalar(0.05)),
+        17: handWorldPos.clone().add(mcMidDir.clone().multiplyScalar(0.1)).add(rotatedSideDir.clone().multiplyScalar(0.05))
+    };
+    if( landmarks ) {
+        simulatedHandLandmarks = landmarks;
+        if(landmarks[frame].RWLM) {
+            warning.innerText = "";
+            const handPos = boneHand.getWorldPosition(new THREE.Vector3());
+            
+            handWorld.position.copy(landmarks[frame].RWLM[0]).add(handPos)
+            midWorld.position.copy(landmarks[frame].RWLM[9]).add(handPos)
+            indexWorld.position.copy(landmarks[frame].RWLM[5]).add(handPos)
+            pinkyWorld.position.copy(landmarks[frame].RWLM[17]).add(handPos)
+        }
+        else {
+            warning.innerText = "No landmarks detected";
+        }
+    }
+    else {
+        handWorld.position.copy(simulatedHandLandmarks[0]);
+        midWorld.position.copy(simulatedHandLandmarks[9]);
+        indexWorld.position.copy(simulatedHandLandmarks[5]);
+        pinkyWorld.position.copy(simulatedHandLandmarks[17]);
+    }
+        
+    // Update target line (green)
+    targetLine.geometry.setFromPoints([handWorldPos, midTargetPos]);
+
+    // Compute hand rotations
+    // const metrics = computeQuatHand(skeleton, simulatedHandLandmarks, isLeft);
+    // const metrics = computeQuatHandOriginal(skeleton, simulatedHandLandmarks, isLeft);
+    let metrics = null;
+    if(landmarks) {
+        timeAcc = frame*(landmarks[frame].dt|| 40)/1000;
+        if(recompute) {
+            metrics = createBodyAnimationFromWorldLandmarks(landmarks, skeleton, frame, bindQuats)
+            recompute = false;
+        }
+    }
+    else {
+        metrics = computeQuatHandOriginal(skeleton, simulatedHandLandmarks, isLeft);
+    }
+    // Update GUI
+    if (metrics) {
+        document.getElementById('valSwingReq').innerText = metrics.swingReq;
+        
+        const elSwingReal = document.getElementById('valSwingReal');
+        elSwingReal.innerText = metrics.swingReal;
+        elSwingReal.className = (parseFloat(metrics.swingReq) > 60.1) ? "metric warn" : "metric ok";
+
+        document.getElementById('valTwistReq').innerText = metrics.twistReq;
+        
+        const elTwistReal = document.getElementById('valTwistReal');
+        elTwistReal.innerText = metrics.twistReal;
+        elTwistReal.className = (Math.abs(parseFloat(metrics.twistReq)) > 35.1) ? "metric warn" : "metric ok";
+    }
+
+    orbit.update();
+    renderer.render(scene, camera);
+}
 
 const SKEL_FOREARM = 0, SKEL_HAND = 1, SKEL_MID = 2, SKEL_PINKY = 3, SKEL_INDEX = 4;
-
-// Interactive Target (MEDIAPIPE)
-const targetMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.03),
-    new THREE.MeshBasicMaterial({ color: 0xff2222 })
-);
-scene.add(targetMesh);
-
-const transformControls = new TransformControls(camera, renderer.domElement);
-transformControls.attach(targetMesh);
-transformControls.setSize(0.7);
-transformControls.addEventListener('dragging-changed', (e) => orbit.enabled = !e.value);
-const gizmo = transformControls.getHelper();
-scene.add( gizmo );
-
-const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-const targetLine = new THREE.Line(lineGeom, new THREE.LineBasicMaterial({ color: 0x00ff00 }));
-scene.add(targetLine);
-
-// "Mediapipe landmarks" helpers
-const geometry = new THREE.BoxGeometry( 1, 1, 1 );
-const material = new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false, depthWrite: false, transparent: true} );
-const handWorld = new THREE.Mesh( geometry, material );
-handWorld.scale.set(0.01, 0.01, 0.01);
-scene.add( handWorld );
-const midWorld = new THREE.Mesh( geometry, material.clone() );
-midWorld.scale.set(0.01, 0.01, 0.01);
-midWorld.material.color.set(0xff0000);
-scene.add( midWorld );
-const indexWorld = new THREE.Mesh( geometry, material.clone() );
-indexWorld.material.color.set(0xffff00);
-indexWorld.scale.set(0.01, 0.01, 0.01);
-scene.add( indexWorld );
-const pinkyWorld = new THREE.Mesh( geometry, material.clone() );
-pinkyWorld.material.color.set(0x0000ff);
-pinkyWorld.scale.set(0.01, 0.01, 0.01);
-scene.add( pinkyWorld );
 
 function computeQuatHandOriginal( skeleton, handLandmarks, isLeft = false ){
     if ( !handLandmarks ){ return; }
@@ -985,7 +1120,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
     let tracks = [];
 
     let times = new Float32Array( worldLandmarksArray.length );
-    let timeAcc = 0;
+
 
     // for each frame compute and update quaternions
         let body = worldLandmarksArray[i].PWLM;
@@ -1026,155 +1161,6 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         return metrics;
 
 }
-const twistSlider = document.getElementById('twistSlider');
-const twistNumber = document.getElementById('twistNumber');
-twistNumber.onchange = (e) => {
-    twistSlider.value = e.target.value;
-}
-
-let landmarks = null;
-let bindQuats = [];
-document.getElementById("drop-zone").ondrop = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const files = e.dataTransfer.files;
-    if( !files.length ) {
-        return;
-    }
-    const file = await files[0].text();
-    try {
-        let data = JSON.parse(file);
-        data = data.data;
-        landmarks = [];
-        for( let i = 0; i < data.length; i++) {
-            landmarks.push(processLandmarks(  data[i].detectionsFace, data[i].detectionsPose, data[i].detectionsHands));
-        }
-        skeleton.pose();
-
-        for( let i = 0; i < skeleton.bones.length; ++i ){
-            // tracks.push( new Float32Array( worldLandmarksArray.length * 4 ) );
-            bindQuats.push( skeleton.bones[i].quaternion.clone() );
-        }
-    }
-    catch( erorr ){
-        console.error(error);
-    }
-}
-let recompute = false;
-document.onkeydown = (e) => {
-    if(!landmarks) {
-        return;
-    }
-    const f = document.getElementById("frame");
-    switch(e.key) {
-        case "ArrowRight":
-            frame++;
-            frame = THREE.MathUtils.clamp(frame, 0, landmarks.length)
-            f.value = frame;
-            recompute = true;
-            break;
-        case "ArrowLeft":
-                frame--;
-                frame = THREE.MathUtils.clamp(frame, 0, landmarks.length)
-            f.value = frame;
-            recompute = true;
-            break;
-    }
-}
-// Animation loop
-function animate() {
-    requestAnimationFrame(animate);
-
-    const handWorldPos = new THREE.Vector3();
-    boneHand.getWorldPosition(handWorldPos);
-
-    const midTargetPos = targetMesh.position.clone();
-    const mcMidDir = new THREE.Vector3().subVectors(midTargetPos, handWorldPos).normalize();
-
-    // Mediapipe twist simulation
-    // 1. Find side direction perpendicular to middle finger
-    let defaultUp = new THREE.Vector3(0, -1, 0);
-    if (mcMidDir.y > 0.95) defaultUp.set(1, 0, 0);
-    if (mcMidDir.y < -0.95) defaultUp.set(-1, 0, 0);
-    if (mcMidDir.x < 0 && mcMidDir.y > 0.5) defaultUp.set(0, 1, 0);
-    if (mcMidDir.x > 0 && mcMidDir.y < -0.5) defaultUp.set(0, -1, 0);
-    
-    let baseSideDir = new THREE.Vector3().crossVectors(mcMidDir, defaultUp).normalize();
-
-    // 2. Apply twist from slider rotating side vector around finger vector
-    const twistAngleRad = THREE.MathUtils.degToRad(parseFloat(twistSlider.value));
-    let rotatedSideDir = baseSideDir.clone().applyAxisAngle(mcMidDir, twistAngleRad);
-
-    // 3. Mediapipe simulation landmarks: Index [5] and Pinky [17]
-    let simulatedHandLandmarks = {
-        0: handWorldPos,
-        9: midTargetPos,
-        5: handWorldPos.clone().add(mcMidDir.clone().multiplyScalar(0.1)).sub(rotatedSideDir.clone().multiplyScalar(0.05)),
-        17: handWorldPos.clone().add(mcMidDir.clone().multiplyScalar(0.1)).add(rotatedSideDir.clone().multiplyScalar(0.05))
-    };
-    if( landmarks ) {
-        simulatedHandLandmarks = landmarks;
-        const warning = document.getElementsByClassName("warning")[0];
-        if(landmarks[frame].RWLM) {
-            warning.innerText = "";
-            const handPos = boneHand.getWorldPosition(new THREE.Vector3());
-            handWorld.position.copy(landmarks[frame].RWLM[0]).add(handPos)
-            midWorld.position.copy(landmarks[frame].RWLM[9]).add(handPos)
-            indexWorld.position.copy(landmarks[frame].RWLM[5]).add(handPos)
-            pinkyWorld.position.copy(landmarks[frame].RWLM[17]).add(handPos)
-        }
-        else {
-            warning.innerText = "No landmarks detected";
-        }
-    }
-    else {
-        handWorld.position.copy(simulatedHandLandmarks[0]);
-        midWorld.position.copy(simulatedHandLandmarks[9]);
-        indexWorld.position.copy(simulatedHandLandmarks[5]);
-        pinkyWorld.position.copy(simulatedHandLandmarks[17]);
-    }
-        
-    // Update target line (green)
-    targetLine.geometry.setFromPoints([handWorldPos, midTargetPos]);
-
-    // Compute hand rotations
-    // const metrics = computeQuatHand(skeleton, simulatedHandLandmarks, isLeft);
-    // const metrics = computeQuatHandOriginal(skeleton, simulatedHandLandmarks, isLeft);
-    let metrics = null;
-    if(landmarks) {
-        if(recompute) {
-            metrics = createBodyAnimationFromWorldLandmarks(landmarks, skeleton, frame, bindQuats)
-            recompute = false;
-        }
-    }
-    else {
-        metrics = computeQuatHandOriginal(skeleton, simulatedHandLandmarks, isLeft);
-    }
-    // Update GUI
-    if (metrics) {
-        document.getElementById('valSwingReq').innerText = metrics.swingReq;
-        
-        const elSwingReal = document.getElementById('valSwingReal');
-        elSwingReal.innerText = metrics.swingReal;
-        elSwingReal.className = (parseFloat(metrics.swingReq) > 60.1) ? "metric warn" : "metric ok";
-
-        document.getElementById('valTwistReq').innerText = metrics.twistReq;
-        
-        const elTwistReal = document.getElementById('valTwistReal');
-        elTwistReal.innerText = metrics.twistReal;
-        elTwistReal.className = (Math.abs(parseFloat(metrics.twistReq)) > 35.1) ? "metric warn" : "metric ok";
-    }
-
-    orbit.update();
-    renderer.render(scene, camera);
-}
-
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
 
 function processLandmarks( faceData, poseData, handsData, dt = 0 ) {
 
@@ -1234,6 +1220,116 @@ function processLandmarks( faceData, poseData, handsData, dt = 0 ) {
             
     return results;
 }
+
+async function handleFile( file ) {
+
+     const text = await file.text();
+    try {
+        let data = JSON.parse(text);
+        data = data.data;
+        landmarks = [];
+        for( let i = 0; i < data.length; i++) {
+            landmarks.push(processLandmarks(  data[i].detectionsFace, data[i].detectionsPose, data[i].detectionsHands));
+        }
+        skeleton.pose();
+
+        for( let i = 0; i < skeleton.bones.length; ++i ){
+            // tracks.push( new Float32Array( worldLandmarksArray.length * 4 ) );
+            bindQuats.push( skeleton.bones[i].quaternion.clone() );
+        }
+    }
+    catch( erorr ){
+        console.error(error);
+    }
+}
+
+const twistSlider = document.getElementById('twistSlider');
+const twistNumber = document.getElementById('twistNumber');
+twistNumber.onchange = (e) => {
+    twistSlider.value = e.target.value;
+}
+
+const warning = document.getElementsByClassName("warn")[0];
+const dropOverlay = document.getElementById('drop-overlay');
+const fileInput = document.getElementById('file-input');
+const dropStatus = document.getElementById('drop-status');
+
+let dragCounter = 0;
+
+// Anul·lar el comportament per defecte a nivell de document i finestra
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+// Utilitzem 'true' (fase de captura) per garantir que la finestra rebi l'esdeveniment abans que qualsevol altre element (com el canvas 3D)
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    window.addEventListener(eventName, preventDefaults, true);
+    document.addEventListener(eventName, preventDefaults, true);
+});
+
+window.addEventListener('dragenter', (e) => {
+    dragCounter++;
+    dropOverlay.classList.add('active');
+}, true);
+
+window.addEventListener('dragleave', (e) => {
+    dragCounter--;
+    if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropOverlay.classList.remove('active');
+    }
+}, true);
+
+window.addEventListener('drop', (e) => {
+    dragCounter = 0;
+    dropOverlay.classList.remove('active');
+
+    const dt = e.dataTransfer;
+    if (dt && dt.files && dt.files.length > 0) {
+        handleFile(dt.files[0]);
+    }
+}, true);
+
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) {
+        handleFile(e.target.files[0]);
+    }
+});
+
+let recompute = false;
+document.onkeydown = (e) => {
+    if(!landmarks) {
+        return;
+    }
+    switch(e.key) {
+        case "ArrowRight":
+            frame++;
+            changeFrame(frame);
+            break;
+        case "ArrowLeft":
+            frame--;
+            changeFrame(frame);
+            break;
+    }
+}
+const timeInput = document.getElementById("time");
+const frameInput = document.getElementById("frame");
+frameInput.onchange = (e) => {
+    changeFrame(e.target.value);
+}
+function changeFrame(v) {
+    frame = v;
+    frame = THREE.MathUtils.clamp(frame, 0, landmarks.length-1)
+    frameInput.value = frame;
+    recompute = true;
+    timeInput.innerText = timeAcc;
+}
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
 await init();
 </script>
 </body>
