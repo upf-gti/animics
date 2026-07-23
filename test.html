@@ -146,6 +146,8 @@
             <span class="warn"></span>
         </div>
         <div class="metric">Time: <span id="time">0</span></div>
+        <input type="checkbox" id="computeTwist" checked />
+        <span class="warn"></span>
         <!-- <span style="padding-right:5px;">Time</span><input text="Time" type="number" id="time"value="0" disabled> -->
     </div>
 <script type="module">
@@ -154,6 +156,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
+import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1e1e24);
@@ -235,7 +238,7 @@ const loader = new GLTFLoader();
 let frame = 0;
 let timeAcc = 0;
 
-let isLeft = false;
+let isLeft = true;
 let boneHand = null;
 let boneMid = null;
 let bonePinky = null;
@@ -245,6 +248,7 @@ let boneForearm = null
 
 let landmarks = null;
 let bindQuats = [];
+let computeTwist = true;
 
 async function init () {
 
@@ -358,10 +362,14 @@ function animate() {
     // const metrics = computeQuatHandOriginal(skeleton, simulatedHandLandmarks, isLeft);
     let metrics = null;
     if(landmarks) {
-        timeAcc = frame*(landmarks[frame].dt|| 40)/1000;
+        
         if(recompute) {
+                warning2.innerText = ""
             metrics = createBodyAnimationFromWorldLandmarks(landmarks, skeleton, frame, bindQuats)
             recompute = false;
+            if( !metrics ) {
+                warning2.innerText = "Discarted frame";
+            }
         }
     }
     else {
@@ -446,10 +454,10 @@ function computeQuatHandOriginal( skeleton, handLandmarks, isLeft = false ){
     // const euler = new THREE.Euler().setFromQuaternion(invWorldQuat);
     // console.log("euler", THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z) )
 
-    console.log("local", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
-    console.log("local axis", new THREE.Vector3(boneHand.quaternion.x, boneHand.quaternion.y, boneHand.quaternion.z).normalize())
+    // console.log("local", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+    // console.log("local axis", new THREE.Vector3(boneHand.quaternion.x, boneHand.quaternion.y, boneHand.quaternion.z).normalize())
     const euler = new THREE.Euler().setFromQuaternion(boneHand.quaternion);
-    console.log("euler", THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z) )
+    // console.log("euler", THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z) )
 
     invWorldQuat.invert(); // W to L
 
@@ -462,7 +470,7 @@ function computeQuatHandOriginal( skeleton, handLandmarks, isLeft = false ){
     let dirBone = boneMid.position.clone().normalize();
     let qq = new THREE.Quaternion();
     qq.setFromUnitVectors( dirBone, mcMidPred );
-    console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+    // console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
     boneHand.quaternion.multiply( qq );
     
     let swingAngleReq = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
@@ -483,9 +491,10 @@ function computeQuatHandOriginal( skeleton, handLandmarks, isLeft = false ){
     let continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
     boneHand.quaternion.multiply( qq ).normalize();
     
-    console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+    console.log("total diff angle:", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
     const q = bindPoseQuat.clone().invert().multiply( boneHand.quaternion ).normalize();
     continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(q.w), 1.0));
+    console.log("total angle (without bind):", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
     
     return {
         swingReq: THREE.MathUtils.radToDeg(swingAngleReq).toFixed(1),
@@ -871,11 +880,20 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
             // Save pure data of bind pose
             boneHand.userData.bindPoseData = {
                 bindPoseQuat: bindPoseQuat,                             // local neutral rotation of hand
-                dirMidBoneBind: bindMidLocalPos.clone().normalize(),     // original direcction vector of the middle finger in bind pose
+                dirMidBoneBind: bindMidLocalPos.clone().normalize(),     // original direction vector of the middle finger in bind pose
                 bindMidLocalQuat: bindMidLocalQuat,
                 lastRawTwist: 0
             };
         }
+        console.log("last raw twist", boneHand.userData.bindPoseData.lastRawTwist)
+        let bindTwist = new THREE.Quaternion();
+        getTwistQuaternion( boneHand.userData.bindPoseData.bindPoseQuat, boneMid.position.clone().normalize(), boneHand.userData.bindPoseData.dirMidBoneBind );
+        let bindSwing = boneHand.userData.bindPoseData.bindPoseQuat.clone();
+        bindSwing.multiply(bindTwist.clone().invert());
+        let prevTwist = new THREE.Quaternion();
+        getTwistQuaternion( boneHand.quaternion, boneMid.position.clone().normalize(), prevTwist );
+        let prevSwing = boneHand.quaternion.clone();
+        prevSwing.multiply(prevTwist.clone().invert());
 
         const bindData = boneHand.userData.bindPoseData;
         const { bindPoseQuat, dirMidBoneBind } = bindData;
@@ -888,10 +906,10 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         // const euler = new THREE.Euler().setFromQuaternion(invWorldQuat);
         // console.log("euler", THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z) )
 
-        console.log("local", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
-        console.log("local axis", new THREE.Vector3(boneHand.quaternion.x, boneHand.quaternion.y, boneHand.quaternion.z).normalize())
-        const euler = new THREE.Euler().setFromQuaternion(boneHand.quaternion);
-        console.log("euler", THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z) )
+        // console.log("local", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+        // console.log("local axis", new THREE.Vector3(boneHand.quaternion.x, boneHand.quaternion.y, boneHand.quaternion.z).normalize())
+        // const euler = new THREE.Euler().setFromQuaternion(boneHand.quaternion);
+        // console.log("euler", THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z) )
 
         invWorldQuat.invert(); // W to L
 
@@ -904,25 +922,100 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         let dirBone = boneMid.position.clone().normalize();
         let qq = new THREE.Quaternion();
         qq.setFromUnitVectors( dirBone, mcMidPred );
-        console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+        
+        const diff = THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0)));
+        const euler = new THREE.Euler().setFromQuaternion(qq);
+        console.log(THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z))
+        // 1. Calculate the dot product
+        const qNew = boneHand.quaternion.clone().multiply( qq );
+        const qOld = boneHand.quaternion.clone();
+        let dot = qOld.x*qNew.x + qOld.y*qNew.y + qOld.z*qNew.z + qOld.w*qNew.w;
+
+        // 2. Handle the double-cover property (q and -q represent the same rotation)
+        let targetQ = qNew.clone()
+        if (dot < 0) {
+            dot = -dot;
+            targetQ.conjugate();
+            targetQ.w*=-1;
+        }
+
+        // 3. Clamp dot product to avoid NaN errors due to floating-point precision
+        dot = Math.max(-1.0, Math.min(1.0, dot));
+
+        // 4. Calculate the angular difference in radians
+        let angleDiff = 2 * Math.acos(dot);
+        angleDiff = THREE.MathUtils.radToDeg(angleDiff);
+        if( Math.abs(angleDiff) >= 55) {
+            console.log("discarted", angleDiff)
+            return
+        }
+        // console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+        
         boneHand.quaternion.multiply( qq );
+        
+        let currentSwing = boneHand.quaternion.clone();
         let swingAngleReq = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
         invWorldQuat.premultiply( qq.invert() ); // update hand's world to local quat
+        
+        let continuousTwistAngle = 0
+        if( computeTwist ) {
+            // twist
+            let mcPinkyPred = (new THREE.Vector3()).subVectors( handLandmarks[17], handLandmarks[0] );
+            let mcIndexPred = (new THREE.Vector3()).subVectors( handLandmarks[5], handLandmarks[0] );
+            let palmDirPred = (new THREE.Vector3()).crossVectors(mcPinkyPred, mcIndexPred).normalize(); // world space
+            
+            arrowFrontComputed.setDirection(palmDirPred)
+            
+            palmDirPred.applyQuaternion( invWorldQuat ).normalize(); // local space
+            
+            arrowFrontLocalComputed.setDirection(palmDirPred)
+            
+            let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
+            qq.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
+            const qNew = boneHand.quaternion.clone().multiply( qq );
+            const qOld = boneHand.quaternion.clone();
+            let dot = qOld.x*qNew.x + qOld.y*qNew.y + qOld.z*qNew.z + qOld.w*qNew.w;
 
-        // twist
-        let mcPinkyPred = (new THREE.Vector3()).subVectors( handLandmarks[17], handLandmarks[0] );
-        let mcIndexPred = (new THREE.Vector3()).subVectors( handLandmarks[5], handLandmarks[0] );
-        let palmDirPred = (new THREE.Vector3()).crossVectors(mcPinkyPred, mcIndexPred).normalize(); // world space
-        arrowFrontComputed.setDirection(palmDirPred)
-        palmDirPred.applyQuaternion( invWorldQuat ).normalize(); // local space
-        arrowFrontLocalComputed.setDirection(palmDirPred)
-        let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
-        qq.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
-        let continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
-        boneHand.quaternion.multiply( qq ).normalize();
-        console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+            // 2. Handle the double-cover property (q and -q represent the same rotation)
+            let targetQ = qNew.clone()
+            if (dot < 0) {
+                dot = -dot;
+                targetQ.conjugate();
+                targetQ.w*=-1;
+            }
+
+            // 3. Clamp dot product to avoid NaN errors due to floating-point precision
+            dot = Math.max(-1.0, Math.min(1.0, dot))
+            let angleDiff = 2 * Math.acos(dot);
+            angleDiff = THREE.MathUtils.radToDeg(angleDiff);
+            console.log("DIFF TWIST", angleDiff)
+            if( Math.abs(angleDiff) >= 55) {
+                console.log("discarted twist", angleDiff)
+                return;
+            }
+            continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
+            
+            boneHand.quaternion.multiply( qq ).normalize();
+        }
+        
+        let currentTwist = new THREE.Quaternion();
+        getTwistQuaternion( boneHand.quaternion, boneMid.position.clone().normalize(), currentTwist );
+        boneHand.userData.bindPoseData.lastRawTwist = currentTwist;
+
+        console.log("total diff angle:", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
         const q = bindPoseQuat.clone().invert().multiply( boneHand.quaternion ).normalize();
-        continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(q.w), 1.0));
+        //continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(q.w), 1.0));
+        console.log("total angle (without bind):", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(q.w), 1.0))))
+        console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+
+        console.log("bind Swing:" , bindSwing, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(bindSwing.w), 1.0))))
+        console.log("bind twist:" , bindTwist, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(bindTwist.w), 1.0))))
+        console.log("prev Swing:" , prevSwing, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(prevSwing.w), 1.0))))
+        console.log("prev twist:" , prevTwist, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(prevTwist.w), 1.0))))
+        currentSwing.multiply(currentTwist.clone().invert())
+        console.log("current Swing:" , currentSwing, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(currentSwing.w), 1.0))))        
+        console.log("current twist:" , currentTwist, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(currentTwist.w), 1.0))))
+
         return {
             swingReq: THREE.MathUtils.radToDeg(swingAngleReq).toFixed(1),
             swingReal: 0,//THREE.MathUtils.radToDeg(swingAngleApplied).toFixed(1),
@@ -1132,32 +1225,36 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
 
         // // right arm-hands
         let metrics = null;
-        computeQuatArm( skeleton, body, false );
-        if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
-            metrics = computeQuatHandOriginal( skeleton, rightHand, false, worldLandmarksArray[i].dt/1000 );
-            computeQuatPhalange( skeleton, bindQuats, rightHand, false );
-        //     if(computeQuatHandOriginal( skeleton, rightHand, false,  worldLandmarksArray[i].dt/1000)) {
-
-        //         // computeQuatPhalange( skeleton, bindQuats, rightHand, false );
+        // computeQuatArm( skeleton, body, false );
+        // if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
+        //     metrics = computeQuatHandOriginal( skeleton, rightHand, false, worldLandmarksArray[i].dt/1000 );
+        //     if( metrics ) {
+        //         computeQuatPhalange( skeleton, bindQuats, rightHand, false );
         //     }
-        //     else {
-        //         console.log("hand:", "rightHand", "time:", timeAcc, "frame:", i)
-        //     }
-        }
-        
-        // // left arm-hands
-        // computeQuatArm( skeleton, body, true );
-        // if(worldLandmarksArray[i].leftHandVisibility > 0.4) {
-        //     computeQuatHandOriginal( skeleton, leftHand, true, worldLandmarksArray[i].dt/1000 );
-        //     computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+        // //     if(computeQuatHandOriginal( skeleton, rightHand, false,  worldLandmarksArray[i].dt/1000)) {
 
-        //     // if(computeQuatHandOriginal( skeleton, leftHand, true, worldLandmarksArray[i].dt/1000 )) {
-        //     //     // computeQuatPhalange( skeleton, bindQuats, leftHand, true );
-        //     // }
-        //     // else {
-        //     //     console.log("hand:", "leftHand", "time:", timeAcc, "frame:", i)
-        //     // }
+        // //         // computeQuatPhalange( skeleton, bindQuats, rightHand, false );
+        // //     }
+        // //     else {
+        // //         console.log("hand:", "rightHand", "time:", timeAcc, "frame:", i)
+        // //     }
         // }
+        
+        // left arm-hands
+        computeQuatArm( skeleton, body, true );
+        if(worldLandmarksArray[i].leftHandVisibility > 0.4) {
+            metrics = computeQuatHandOriginal( skeleton, leftHand, true, worldLandmarksArray[i].dt/1000 );
+            if( metrics ) {
+                computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+            }
+
+            // if(computeQuatHandOriginal( skeleton, leftHand, true, worldLandmarksArray[i].dt/1000 )) {
+            //     // computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+            // }
+            // else {
+            //     console.log("hand:", "leftHand", "time:", timeAcc, "frame:", i)
+            // }
+        }
         return metrics;
 
 }
@@ -1221,6 +1318,64 @@ function processLandmarks( faceData, poseData, handsData, dt = 0 ) {
     return results;
 }
 
+function smoothMediapipeLandmarks( inLandmarks  ){
+    let outLandmarks = JSON.parse(JSON.stringify(inLandmarks));
+
+    let arrayToSmoothX = new Array( inLandmarks.length );
+    let arrayToSmoothY = new Array( inLandmarks.length );
+    let arrayToSmoothZ = new Array( inLandmarks.length );
+
+    let attributesToSmooth = [ "PWLM", "LWLM", "RWLM" ];
+    
+    for( let group of attributesToSmooth ){
+
+        let initialValues = null;
+        for( let f = 0; f < inLandmarks.length; ++f ){
+            if ( !inLandmarks[f][group] ){ continue; }
+            initialValues = inLandmarks[f][group];
+            break;
+        }
+        if ( !initialValues ){
+            return outLandmarks;
+        }
+
+        // for each landmark
+        for(let l = 0; l < initialValues.length; ++l ){
+
+            
+            //for each frame get the value to smooth (or a default one)
+            let values = initialValues[l]; // default values in case there is no landmark estimation for a frame
+            for( let f = 0; f < inLandmarks.length; ++f ){
+
+                if (outLandmarks[f] && outLandmarks[f][group] ){
+                    values = outLandmarks[f][group][l];  // found a valid landmark, set it as default
+                }
+                arrayToSmoothX[f] = values.x;
+                arrayToSmoothY[f] = values.y;
+                arrayToSmoothZ[f] = values.z;
+
+            }
+
+            const smoothX = mlSavitzkyGolay(arrayToSmoothX, 1, { windowSize: 9, polynomial: 3, derivative: 0, pad: 'pre', padValue: 'replicate' }); //https://www.skypack.dev/view/ml-savitzky-golay
+            const smoothY = mlSavitzkyGolay(arrayToSmoothY, 1, { windowSize: 9, polynomial: 3, derivative: 0, pad: 'pre', padValue: 'replicate' }); //https://www.skypack.dev/view/ml-savitzky-golay
+            const smoothZ = mlSavitzkyGolay(arrayToSmoothZ, 1, { windowSize: 9, polynomial: 3, derivative: 0, pad: 'pre', padValue: 'replicate' }); //https://www.skypack.dev/view/ml-savitzky-golay
+
+            //for each frame, set smoothed values
+            for( let f = 0; f < inLandmarks.length; ++f ){
+                if (outLandmarks[f] && outLandmarks[f][group] ){
+                    let values = outLandmarks[f][group][l];
+                    values.x = smoothX[f];
+                    values.y = smoothY[f];
+                    values.z = smoothZ[f];
+                }
+
+            } 
+        } // end of landmark
+    } // end of attribute
+
+    return outLandmarks;
+}
+
 async function handleFile( file ) {
 
      const text = await file.text();
@@ -1231,6 +1386,7 @@ async function handleFile( file ) {
         for( let i = 0; i < data.length; i++) {
             landmarks.push(processLandmarks(  data[i].detectionsFace, data[i].detectionsPose, data[i].detectionsHands));
         }
+        landmarks = smoothMediapipeLandmarks(landmarks);
         skeleton.pose();
 
         for( let i = 0; i < skeleton.bones.length; ++i ){
@@ -1250,10 +1406,11 @@ twistNumber.onchange = (e) => {
 }
 
 const warning = document.getElementsByClassName("warn")[0];
+const warning2 = document.getElementsByClassName("warn")[1];
 const dropOverlay = document.getElementById('drop-overlay');
 const fileInput = document.getElementById('file-input');
 const dropStatus = document.getElementById('drop-status');
-
+const twistCheckbox = document.getElementById("computeTwist");
 let dragCounter = 0;
 
 // Anul·lar el comportament per defecte a nivell de document i finestra
@@ -1311,6 +1468,9 @@ document.onkeydown = (e) => {
             frame--;
             changeFrame(frame);
             break;
+        case "T": case "t":
+            computeTwist = !computeTwist;
+            changeTwistComputationsState( computeTwist );
     }
 }
 const timeInput = document.getElementById("time");
@@ -1323,8 +1483,16 @@ function changeFrame(v) {
     frame = THREE.MathUtils.clamp(frame, 0, landmarks.length-1)
     frameInput.value = frame;
     recompute = true;
-    timeInput.innerText = timeAcc;
+    timeInput.innerText = timeAcc = frame*(landmarks[frame].dt|| 40)/1000;;
 }
+twistCheckbox.onchange = (e) => {
+    changeTwistComputationsState(e.target.checked);
+}
+function changeTwistComputationsState( v ) {
+    computeTwist = v;
+    twistCheckbox.checked = v;
+}
+
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
