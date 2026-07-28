@@ -2452,6 +2452,97 @@ class KeyframeEditor extends Editor {
             }
         }
 
+        /**
+         * Apply wrist rotation with anatomic movements restrictions
+         * @param {THREE.Bone} boneHand
+         * @param {THREE.Quaternion} qTargetLocal - wrist target local rotation (computed from mediapipe landmarks)
+         * @param {THREE.Quaternion} qBindPose - wrist bind pose local rotation
+         */
+        function applyWristLimitsWithBindPose(boneHand, qTargetLocal, qBindPose) {
+            // Compute delta rotation between bind pose and current pose
+            // qDelta = qTargetLocal * inverse(qBindPose)
+            const invBind = qBindPose.clone().invert();
+            const qDelta = qTargetLocal.clone().multiply(invBind);
+
+            // Decompose swing and twist rotatio based on the bone axis ( local Z )
+            const boneAxis = new THREE.Vector3(0, 0, 1);
+            const qParent = boneHand.parent.getWorldQuaternion(new THREE.Quaternion());
+            boneAxis.applyQuaternion(qParent);
+
+            // Swing vector of qDelta
+            const swingVector = new THREE.Vector3(qDelta.x, qDelta.y, qDelta.z);
+            // Project swing vector into local bone axis to extract twist
+            const twistProjection = swingVector.dot(boneAxis);
+
+            // Twist quaternion
+            const qTwist = new THREE.Quaternion( boneAxis.x * twistProjection, boneAxis.y * twistProjection, boneAxis.z * twistProjection, qDelta.w ).normalize();
+
+            // Swing quaterion
+            // qSwing = qDelta * inverse(qTwist)
+            const qSwing = qDelta.clone().multiply(qTwist.clone().invert()).normalize();
+
+            // --------------- SWING RESTRICTION (Ellipse) ---------------
+
+            // Compute total Swing angle
+            let swingAngle = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(qSwing.w), 0, 1));
+            
+            // Anatomic limits of the wrist
+            const maxFlexion = THREE.MathUtils.degToRad(75);   // Flexion (down)
+            const maxExtension = THREE.MathUtils.degToRad(70); // Extension (up)
+            const maxRadial = THREE.MathUtils.degToRad(20);    // Deviation to thumb
+            const maxUlnar = THREE.MathUtils.degToRad(30);     // Deviation to pinky
+
+            if (swingAngle > 0.0001) {
+                // Swing direction perpendicular to bone plane
+                const swingAxis = new THREE.Vector3(qSwing.x, qSwing.y, qSwing.z).normalize();
+                
+                // Separate swing flexion and deviation
+                const pitchComponent = swingAxis.x * swingAngle; //flexion
+                const yawComponent = swingAxis.y * swingAngle; //deviation
+
+                const limitPitch = (pitchComponent >= 0) ? maxFlexion : maxExtension;
+                const limitYaw = (yawComponent >= 0) ? maxRadial : maxUlnar;
+
+                // Restrict movement using ellipse equation (normalized elliptic distance)
+                // d = sqrt((x/a)^2 + (y/b)^2) 
+                const normPitch = pitchComponent / limitPitch;
+                const normYaw = yawComponent / limitYaw;
+                const ellipseDist = Math.sqrt(normPitch * normPitch + normYaw * normYaw);
+
+                // If the distance is greater than 1, the movement its out of the ellipse
+                if (ellipseDist > 1.0) {
+                    // Reudce swing angle
+                    const scaleFactor = 1.0 / ellipseDist;
+                    const clampedSwingAngle = swingAngle * scaleFactor;
+                    
+                    // Recompunte restricted qSwing
+                    qSwing.slerp(new THREE.Quaternion(), 1.0 - scaleFactor);
+                }
+            }
+
+            // --------------- TWIST RESTRICTION ---------------
+            let twistAngle = 2 * Math.atan2(twistProjection, qDelta.w);
+            
+            // Normalize angle between -PI i PI
+            while (twistAngle > Math.PI) twistAngle -= Math.PI * 2;
+            while (twistAngle < -Math.PI) twistAngle += Math.PI * 2;
+
+            // Restrict wrist twist
+            const maxTwist = THREE.MathUtils.degToRad(35);
+            const clampedTwistAngle = THREE.MathUtils.clamp(twistAngle, -maxTwist, maxTwist);
+
+            const qTwistClamped = new THREE.Quaternion().setFromAxisAngle(boneAxis, clampedTwistAngle);
+
+            // --------------- COMPOSE FINAL DELTA ROTATION ---------------
+            // qFinalDelta = qSwingClamped * qTwistClamped
+            const qDeltaFinal = qSwing.multiply(qTwistClamped);
+
+            // Recompute final rotation based on Bind Pose: qFinal = qDeltaFinal * qBindPose
+            const qFinal = qDeltaFinal.multiply(qBindPose);
+
+            boneHand.quaternion.copy(qFinal);
+        }
+
         function computeQuatHand( skeleton, handLandmarks, isLeft = false ){
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
@@ -2464,6 +2555,20 @@ class KeyframeEditor extends Editor {
     
             boneHand.updateWorldMatrix( true, false );
     
+            if (!boneHand.userData.bindPoseData) {
+                // Matrius World Inverses originals
+                let invHandMat = isLeft ? skeleton.boneInverses[ 12 ].clone() : skeleton.boneInverses[ 36 ].clone();
+                let invParentMat = isLeft ? skeleton.boneInverses[ 11 ].clone() : skeleton.boneInverses[ 35 ].clone();
+
+                // Local rotation of the hand in bind pose respect to parent (forearm)
+                const handBindMatLocal = invParentMat.clone().multiply( invHandMat.clone().invert() );
+                let bindPoseQuat = new THREE.Quaternion();
+                handBindMatLocal.decompose(new THREE.Vector3(), bindPoseQuat, new THREE.Vector3());
+
+                // Save pure data of bind pose
+                boneHand.userData.bindPoseQuat = bindPoseQuat; // inverted local neutral rotation of hand
+            }
+
             let _ignoreVec3 = new THREE.Vector3();
             let invWorldQuat = new THREE.Quaternion();
             boneHand.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 ); // get L to W quat
@@ -2474,7 +2579,7 @@ class KeyframeEditor extends Editor {
             mcMidPred.subVectors( handLandmarks[9], handLandmarks[0] ); // world
             mcMidPred.applyQuaternion( invWorldQuat ).normalize(); // hand local space
             
-            //swing (with unwanted twist)
+            // SWING (with unwanted twist)
             let dirBone = boneMid.position.clone().normalize();
             let qq = new THREE.Quaternion();
             qq.setFromUnitVectors( dirBone, mcMidPred );
@@ -2495,20 +2600,20 @@ class KeyframeEditor extends Editor {
             // clamp dot product to avoid NaN errors due to floating-point precision
             dot = Math.max(-1.0, Math.min(1.0, dot));
 
-            // calculate the angular difference in radians
+            // calculate the angular difference in degrees
             let angleDiff = 2 * Math.acos(dot);
             angleDiff = THREE.MathUtils.radToDeg(angleDiff);
-            
-            if( Math.abs(angleDiff) >= 55) { // more than 55º means error/noise in landmarks
+
+            const maxAngleDiff = 55; // more than 55º means error/noise in landmarks
+            if( Math.abs(angleDiff) >= maxAngleDiff) { 
                 console.log("discarted", angleDiff);
                 return;
             }
             // ------------
-
             boneHand.quaternion.multiply( qq );
             invWorldQuat.premultiply( qq.invert() ); // update hand's world to local quat
 
-            // twist
+            // TWIST
             let mcPinkyPred = (new THREE.Vector3()).subVectors( handLandmarks[17], handLandmarks[0] );
             let mcIndexPred = (new THREE.Vector3()).subVectors( handLandmarks[5], handLandmarks[0] );
             let palmDirPred = (new THREE.Vector3()).crossVectors(mcPinkyPred, mcIndexPred).normalize(); // world space
@@ -2520,7 +2625,7 @@ class KeyframeEditor extends Editor {
             qOld = boneHand.quaternion.clone();
             dot = qOld.x*qNew.x + qOld.y*qNew.y + qOld.z*qNew.z + qOld.w*qNew.w;
 
-            // 2. Handle the double-cover property (q and -q represent the same rotation)
+            // handle the double-cover property (q and -q represent the same rotation)
             targetQ = qNew.clone()
             if (dot < 0) {
                 dot = -dot;
@@ -2528,17 +2633,19 @@ class KeyframeEditor extends Editor {
                 targetQ.w*=-1;
             }
 
-            // 3. Clamp dot product to avoid NaN errors due to floating-point precision
+            // clamp dot product to avoid NaN errors due to floating-point precision
             dot = Math.max(-1.0, Math.min(1.0, dot))
             angleDiff = 2 * Math.acos(dot);
             angleDiff = THREE.MathUtils.radToDeg(angleDiff);
             console.log("DIFF TWIST", angleDiff)
-            if( Math.abs(angleDiff) >= 55) {
+            if( Math.abs(angleDiff) >= maxAngleDiff ) { // more than max angle difference means error/noise in landmarks
                 console.log("discarted twist", angleDiff)
                 return;
             }
 
             boneHand.quaternion.multiply( qq ).normalize();
+            applyWristLimitsWithBindPose(boneHand, boneHand.quaternion, boneHand.userData.bindPoseQuat);
+
             return true;
         }
 

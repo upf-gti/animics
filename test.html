@@ -146,7 +146,7 @@
             <span class="warn"></span>
         </div>
         <div class="metric">Time: <span id="time">0</span></div>
-        <input type="checkbox" id="computeTwist" checked />
+        <div class="metric">Compute twist<input type="checkbox" id="computeTwist" checked /></div>
         <span class="warn"></span>
         <!-- <span style="padding-right:5px;">Time</span><input text="Time" type="number" id="time"value="0" disabled> -->
     </div>
@@ -157,11 +157,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import mlSavitzkyGolay from 'https://cdn.skypack.dev/ml-savitzky-golay';
-
+import { FaceLandmarker, PoseLandmarker, HandLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32';
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1e1e24);
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 1000);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 10000);
 camera.position.set(0, 1.2, 3.2);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -179,21 +179,68 @@ const light = new THREE.DirectionalLight(0xffffff, 1);
 light.position.set(2, 4, 3);
 scene.add(light, new THREE.AmbientLight(0xffffff, 0.4));
 
+const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+
 // Hand helper (normal yellow arrow)
 const handGroup = new THREE.Group();
-const arrowFront = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xffff00);
+const arrowFront = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0xffff00 }));
+arrowFront.visible = false;
 handGroup.add(arrowFront);
 
 // Hand helper (normal computed red arrow)
-const arrowFrontComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xff0000);
+const arrowFrontComputed = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0xff0000 }));
 scene.add(arrowFrontComputed);
+arrowFrontComputed.visible = false;
 // Hand helper (normal local computed pink arrow)
-const arrowFrontLocalComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xff00ff);
+const arrowFrontLocalComputed = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0xff00ff }));
 handGroup.add(arrowFrontLocalComputed);
+arrowFrontLocalComputed.visible = false;
 
+const arrowFrontLocalComputedBody = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0x00000f }));
+arrowFrontLocalComputedBody.visible = false;
+handGroup.add(arrowFrontLocalComputedBody);
 // Hand helper (normal real bone local computed white arrow)
-const arrowFrontBoneLocalComputed = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0.02,0), 0.1, 0xffffff);
+const arrowFrontBoneLocalComputed = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0xffffff }));
+arrowFrontBoneLocalComputed.visible = false;
 handGroup.add(arrowFrontBoneLocalComputed);
+
+const axisUpLocal = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0x00ff00 }));
+axisUpLocal.geometry.setFromPoints([ new THREE.Vector3(),  new THREE.Vector3(0.1,0,0)]);
+axisUpLocal.visible = false;
+handGroup.add(axisUpLocal);
+const axisFrontLocal = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0x0000ff }));
+axisFrontLocal.geometry.setFromPoints([ new THREE.Vector3(),  new THREE.Vector3(0,0.1,0)]);
+axisFrontLocal.visible = false;
+handGroup.add(axisFrontLocal);
+const axisRightLocal = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0xff0000 }));
+axisRightLocal.geometry.setFromPoints([ new THREE.Vector3(),  new THREE.Vector3(0,0,0.1)]);
+axisRightLocal.visible = false;
+handGroup.add(axisRightLocal);
+
+const axisUpGlobal = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0x00af00 }));
+axisUpGlobal.geometry.setFromPoints([ new THREE.Vector3(),  new THREE.Vector3(0.1,0,0)]);
+scene.add(axisUpGlobal);
+const axisFrontGlobal = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0x0000af }));
+axisFrontGlobal.geometry.setFromPoints([ new THREE.Vector3(),  new THREE.Vector3(0,0.1,0)]);
+scene.add(axisFrontGlobal);
+const axisRightGlobal = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0xaf0000 }));
+axisRightGlobal.geometry.setFromPoints([ new THREE.Vector3(),  new THREE.Vector3(0,0,0.1)]);
+scene.add(axisRightGlobal);
+
+const pointCloudGroup = new THREE.Object3D();
+pointCloudGroup.position.set(1,0.9,0.1);
+pointCloudGroup.visible = false;
+scene.add( pointCloudGroup );
+
+const arrowFrontComputedBody = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }));
+arrowFrontLocalComputed.visible = false;
+scene.add(arrowFrontComputedBody);
+const arrowIndexComputedBody = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 }));
+arrowIndexComputedBody.visible = false;
+scene.add(arrowIndexComputedBody);
+const arrowPinkyComputedBody = new THREE.Line(lineGeom.clone(), new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 }));
+arrowPinkyComputedBody.visible = false;
+scene.add(arrowPinkyComputedBody);
 
 // Interactive Target (MEDIAPIPE)
 const targetMesh = new THREE.Mesh(
@@ -202,6 +249,9 @@ const targetMesh = new THREE.Mesh(
 );
 scene.add(targetMesh);
 
+const targetLine = new THREE.Line(lineGeom, new THREE.LineBasicMaterial({ color: 0x00ff00 }));
+scene.add(targetLine);
+
 const transformControls = new TransformControls(camera, renderer.domElement);
 transformControls.attach(targetMesh);
 transformControls.setSize(0.7);
@@ -209,28 +259,104 @@ transformControls.addEventListener('dragging-changed', (e) => orbit.enabled = !e
 const gizmo = transformControls.getHelper();
 scene.add( gizmo );
 
-const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-const targetLine = new THREE.Line(lineGeom, new THREE.LineBasicMaterial({ color: 0x00ff00 }));
-scene.add(targetLine);
+
 
 // "Mediapipe landmarks" helpers
-const geometry = new THREE.BoxGeometry( 1, 1, 1 );
+const geometry = new THREE.BoxGeometry(0.005, 0.005, 0.005 );
 const material = new THREE.MeshBasicMaterial( { color: 0x00ff00, depthTest: false, depthWrite: false, transparent: true} );
 const handWorld = new THREE.Mesh( geometry, material );
-handWorld.scale.set(0.01, 0.01, 0.01);
+// handWorld.scale.set(0.01, 0.01, 0.01);
 scene.add( handWorld );
 const midWorld = new THREE.Mesh( geometry, material.clone() );
-midWorld.scale.set(0.01, 0.01, 0.01);
+// midWorld.scale.set(0.01, 0.01, 0.01);
 midWorld.material.color.set(0xff0000);
 scene.add( midWorld );
 const indexWorld = new THREE.Mesh( geometry, material.clone() );
 indexWorld.material.color.set(0xffff00);
-indexWorld.scale.set(0.01, 0.01, 0.01);
+// indexWorld.scale.set(0.01, 0.01, 0.01);
 scene.add( indexWorld );
 const pinkyWorld = new THREE.Mesh( geometry, material.clone() );
-pinkyWorld.material.color.set(0x0000ff);
-pinkyWorld.scale.set(0.01, 0.01, 0.01);
+pinkyWorld.material.color.set(0xff00ff);
+// pinkyWorld.scale.set(0.01, 0.01, 0.01);
 scene.add( pinkyWorld );
+
+const handLines = [];
+const bodyPoints = [];
+const leftHandPoints = [];
+const rightHandPoints = [];
+const bodyLines = [];
+const leftHandLines = [];
+const rightHandLines = [];
+
+
+
+const spheregeometry = new THREE.SphereGeometry(0.0009, 16, 16);
+
+let mat = new THREE.MeshBasicMaterial({ color: 0xffffbf, opacity: 0.6, depthTest: false, depthWrite: false, transparent: true });
+for( let i = 0; i< 33; ++i ){
+    let g = new THREE.Mesh( spheregeometry, mat );
+    pointCloudGroup.add(g)
+    bodyPoints.push(g)
+}
+
+mat = new THREE.MeshBasicMaterial({ color: 0x0000ff, depthTest: false, depthWrite: false, transparent: true });
+for( let i = 0; i< 21; ++i ){
+    let m = mat.clone();
+    if( i == 9 ) {
+        m.color.set(0xff0000);
+    }
+    else if( i == 5 ) {
+        m.color.set(0xffff00);
+    }
+    else if( i == 17 ) {
+        m.color.set(0xff00ff);
+    }
+    else {
+        m.color.set(0x0000ff);
+    }
+    let g = new THREE.Mesh( spheregeometry, m );
+    pointCloudGroup.add(g)
+    leftHandPoints.push(g)
+}  
+
+mat = new THREE.MeshBasicMaterial({ color: 0x00ff00, depthTest: false, depthWrite: false, transparent: true });
+for( let i = 0; i< 21; ++i ){
+    let g = new THREE.Mesh( spheregeometry, mat );
+    pointCloudGroup.add(g)
+    rightHandPoints.push(g)
+}
+
+
+// POSE_CONNECTIONS & HAND_CONNECTIONS come from mediapipe drawutils import
+let lineMaterial = new THREE.LineBasicMaterial( { color: 0xffffff, depthTest: false, depthWrite: false, transparent: true } );
+const points = [ new THREE.Vector3(0,0,0), new THREE.Vector3(1,1,1) ];
+for( let i = 0; i < PoseLandmarker.POSE_CONNECTIONS.length; ++i ){
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints( points );
+    let line = new THREE.Line( lineGeometry, lineMaterial );
+    bodyLines.push( line );
+    pointCloudGroup.add( line );
+}
+
+let lineMaterialRight = new THREE.LineBasicMaterial( { color: 0x00ff00, depthTest: false, depthWrite: false, transparent: true } );
+let lineMaterialLeft = new THREE.LineBasicMaterial( { color: 0x0000ff, depthTest: false, depthWrite: false, transparent: true } );
+for( let i = 0; i < HandLandmarker.HAND_CONNECTIONS.length; ++i ){
+    let lineGeometry = new THREE.BufferGeometry().setFromPoints( points );
+    let line = new THREE.Line( lineGeometry, lineMaterialRight );
+    rightHandLines.push( line );
+    pointCloudGroup.add( line );
+    lineGeometry = new THREE.BufferGeometry().setFromPoints( points );
+    line = new THREE.Line( lineGeometry, lineMaterialLeft );
+    leftHandLines.push( line );
+    pointCloudGroup.add( line );
+}
+
+for( let i = 0; i < 3; ++i ){
+    let lineGeometry = new THREE.BufferGeometry().setFromPoints( points );
+    let line = new THREE.Line( lineGeometry, lineMaterial );
+    handLines.push( line );
+    scene.add( line );
+   
+}
 
 let skeleton = null;
 const loader = new GLTFLoader();
@@ -249,6 +375,46 @@ let boneForearm = null
 let landmarks = null;
 let bindQuats = [];
 let computeTwist = true;
+
+/**
+ * Draws visual helper ellipse of wrist restriction
+**/
+function createWristLimitEllipseHelper(maxFlexion, maxExtension, maxRadial, maxUlnar, radius = 0.08) {
+    const points = [];
+    const segments = 64; // Curve resolution
+
+    for (let i = 0; i <= segments; i++) {
+       // Angle
+        const theta = (i / segments) * Math.PI * 2;
+        
+        const cosT = Math.cos(theta);
+        const sinT = Math.sin(theta);
+
+        const limitX = (cosT >= 0) ? maxFlexion : maxExtension;
+        const limitY = (sinT >= 0) ? maxRadial : maxUlnar;
+
+        const swingAngle = Math.sqrt(Math.pow(cosT * limitX, 2) + Math.pow(sinT * limitY, 2));
+        const x = radius * Math.sin(swingAngle) * cosT;
+        const z = radius * Math.sin(swingAngle) * sinT;
+        const y = radius * Math.cos(swingAngle);
+
+        points.push(new THREE.Vector3(x, y, z));
+    }
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    
+    const material = new THREE.LineBasicMaterial({ 
+        color: 0x00ffcc, 
+        linewidth: 2,
+        depthTest: false, 
+        transparent: true,
+        opacity: 0.85
+    });
+
+    const ellipseLine = new THREE.LineLoop(geometry, material);
+    ellipseLine.renderOrder = 999;
+    return ellipseLine;
+}
 
 async function init () {
 
@@ -295,18 +461,46 @@ async function init () {
     boneMid.getWorldPosition(targetMesh.position);
     bonePinky.getWorldPosition(pinkyWorld.position);
     boneHand.getWorldPosition(arrowFrontComputed.position);
+    // boneHand.getWorldPosition(arrowFrontComputedBody.position);
+    // Afegeix eixos visuals a l'os de la mà (mida de 0.2 unitats)
+    const axesHelper = new THREE.AxesHelper(0.2);
+    boneHand.add(axesHelper);
+
+    // Matrius World Inverses originals
+    let invHandMat = isLeft ? skeleton.boneInverses[ 12 ].clone() : skeleton.boneInverses[ 36 ].clone();
+    let invParentMat = isLeft ? skeleton.boneInverses[ 11 ].clone() : skeleton.boneInverses[ 35 ].clone();
+    let invMidMat = isLeft ? skeleton.boneInverses[ 21 ].clone() : skeleton.boneInverses[ 45 ].clone();
+
+    // Local rotation of the hand in bind pose respect to parent (forearm)
+    let handBindMatLocal = invParentMat.clone().multiply( invHandMat.clone().invert() );
+    let dummyPos = new THREE.Vector3(), dummyScale = new THREE.Vector3();
+    let bindPoseQuat = new THREE.Quaternion();
+    handBindMatLocal.decompose(dummyPos, bindPoseQuat, dummyScale);
+
+    if(!scene.getObjectByName("ellipse")) {
+        boneHand.parent.add(ellipseHelper);
+        ellipseHelper.position.copy(boneHand.position);
+        ellipseHelper.position.y-=0.08
+    }
+    ellipseHelper.quaternion.copy(bindPoseQuat)
+
     
     // targetMesh.position.x+=0.1
     // targetMesh.position.y-=0.1
     animate();
 }
-
+let discarted = 0;
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
 
     const handWorldPos = new THREE.Vector3();
     boneHand.getWorldPosition(handWorldPos);
+    arrowFrontComputed.position.copy(handWorldPos);
+    arrowFrontComputedBody.position.copy(handWorldPos); 
+    arrowIndexComputedBody.position.copy(handWorldPos); 
+    arrowPinkyComputedBody.position.copy(handWorldPos); 
+    arrowFrontComputedBody.position.copy(handWorldPos)
 
     const midTargetPos = targetMesh.position.clone();
     const mcMidDir = new THREE.Vector3().subVectors(midTargetPos, handWorldPos).normalize();
@@ -333,21 +527,71 @@ function animate() {
         17: handWorldPos.clone().add(mcMidDir.clone().multiplyScalar(0.1)).add(rotatedSideDir.clone().multiplyScalar(0.05))
     };
     if( landmarks ) {
+        pointCloudGroup.visible = true;
+        targetMesh.visible = false;
+        targetLine.visible = false;
+        transformControls.visible = false;
+        gizmo.visible = false;
+
         simulatedHandLandmarks = landmarks;
-        if(landmarks[frame].RWLM) {
+
+        if(landmarks[frame].LWLM) {
             warning.innerText = "";
-            const handPos = boneHand.getWorldPosition(new THREE.Vector3());
             
-            handWorld.position.copy(landmarks[frame].RWLM[0]).add(handPos)
-            midWorld.position.copy(landmarks[frame].RWLM[9]).add(handPos)
-            indexWorld.position.copy(landmarks[frame].RWLM[5]).add(handPos)
-            pinkyWorld.position.copy(landmarks[frame].RWLM[17]).add(handPos)
+            handWorld.position.copy(landmarks[frame].LWLM[0]).add(handWorldPos)
+            midWorld.position.copy(landmarks[frame].LWLM[9]).add(handWorldPos)
+            indexWorld.position.copy(landmarks[frame].LWLM[5]).add(handWorldPos)
+            pinkyWorld.position.copy(landmarks[frame].LWLM[17]).add(handWorldPos)
+
+            handLines[0].geometry.setFromPoints( [ midWorld.position, handWorld.position ] );
+            handLines[1].geometry.setFromPoints( [ indexWorld.position, handWorld.position ] );
+            handLines[2].geometry.setFromPoints( [ pinkyWorld.position, handWorld.position ] );
+
+            for( let i = 0; i < landmarks[frame].LWLM.length; ++i ){
+                let p = landmarks[frame].LWLM[i];
+                let w = landmarks[frame].LWLM[0];
+                leftHandPoints[i].position.set( p.x - w.x, p.y - w.y, p.z - w.z );
+                leftHandPoints[i].position.add( bodyPoints[15].position );
+            }
         }
         else {
             warning.innerText = "No landmarks detected";
         }
+        for( let i = 0; i < landmarks[frame].PWLM.length; ++i ){
+            let p = landmarks[frame].PWLM[i];
+            bodyPoints[i].position.set( p.x, p.y, p.z );
+        }
+        
+        if(landmarks[frame].RWLM) {
+            for( let i = 0; i < landmarks[frame].RWLM.length; ++i ){
+                let p = landmarks[frame].RWLM[i];
+                let w = landmarks[frame].RWLM[0];
+                rightHandPoints[i].position.set(  p.x - w.x, p.y - w.y, p.z - w.z );
+                rightHandPoints[i].position.add( bodyPoints[16].position );
+            }
+        }      
+
+        for( let i = 0; i < PoseLandmarker.POSE_CONNECTIONS.length; ++i ){
+            let a = bodyPoints[ PoseLandmarker.POSE_CONNECTIONS[i].start ].position;
+            let b = bodyPoints[ PoseLandmarker.POSE_CONNECTIONS[i].end ].position;
+            bodyLines[i].geometry.setFromPoints( [ a,b ] );
+        }
+        for( let i = 0; i < HandLandmarker.HAND_CONNECTIONS.length; ++i ){
+            let a = rightHandPoints[ HandLandmarker.HAND_CONNECTIONS[i].start ].position;
+            let b = rightHandPoints[ HandLandmarker.HAND_CONNECTIONS[i].end ].position;
+            rightHandLines[i].geometry.setFromPoints( [ a,b ] );
+            a = leftHandPoints[ HandLandmarker.HAND_CONNECTIONS[i].start ].position;
+            b = leftHandPoints[ HandLandmarker.HAND_CONNECTIONS[i].end ].position;
+            leftHandLines[i].geometry.setFromPoints( [ a,b ] );
+        }
     }
     else {
+        pointCloudGroup.visible = false;
+        targetLine.visible = true;
+        targetMesh.visible = true;
+        transformControls.visible = true;
+        gizmo.visible = true;
+
         handWorld.position.copy(simulatedHandLandmarks[0]);
         midWorld.position.copy(simulatedHandLandmarks[9]);
         indexWorld.position.copy(simulatedHandLandmarks[5]);
@@ -364,8 +608,14 @@ function animate() {
     if(landmarks) {
         
         if(recompute) {
-                warning2.innerText = ""
+            warning2.innerText = ""
             metrics = createBodyAnimationFromWorldLandmarks(landmarks, skeleton, frame, bindQuats)
+            if(landmarks[frame].LWLM) {
+                discarted = 0;
+            }
+            else {
+                discarted++;
+            }
             recompute = false;
             if( !metrics ) {
                 warning2.innerText = "Discarted frame";
@@ -481,12 +731,12 @@ function computeQuatHandOriginal( skeleton, handLandmarks, isLeft = false ){
     let mcIndexPred = (new THREE.Vector3()).subVectors( handLandmarks[5], handLandmarks[0] );
     let palmDirPred = (new THREE.Vector3()).crossVectors(mcPinkyPred, mcIndexPred).normalize(); // world space
 
-    arrowFrontComputed.setDirection(palmDirPred)
+    arrowFrontComputed.geometry.setFromPoints([ new THREE.Vector3(), palmDirPred.clone().multiplyScalar(0.1)]);
     palmDirPred.applyQuaternion( invWorldQuat ).normalize(); // local space
-    arrowFrontLocalComputed.setDirection(palmDirPred)
+    arrowFrontLocalComputed.geometry.setFromPoints([ new THREE.Vector3(), palmDirPred.clone().multiplyScalar(0.1)]);
 
     let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
-    arrowFrontBoneLocalComputed.setDirection(palmDirBone)
+    arrowFrontBoneLocalComputed.geometry.setFromPoints([ new THREE.Vector3(), palmDirBone.clone().multiplyScalar(0.1)]);
     qq.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
     let continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
     boneHand.quaternion.multiply( qq ).normalize();
@@ -598,12 +848,12 @@ function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
         let limitPitch = (pitchComponent >= 0) ? maxPitchUp : maxPitchDown;
         let limitYaw = maxYawSide;
 
-        // Elipse equation: (pitch/limitP)^2 + (yaw/limitY)^2
+        // Ellipse equation: (pitch/limitP)^2 + (yaw/limitY)^2
         let normPitch = pitchComponent / limitPitch;
         let normYaw = yawComponent / limitYaw;
         let ellipseDistance = Math.sqrt(normPitch * normPitch + normYaw * normYaw);
 
-        // If its outside of elipse (distance > 1.0), clampem angle
+        // If its outside of ellipse (distance > 1.0), clampem angle
         if (ellipseDistance > 1.0) {
             let scaleFactor = 1.0 / ellipseDistance;
             swingAngleApplied = swingAngleReq * scaleFactor;
@@ -622,15 +872,15 @@ function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
     let mcIndexPred = new THREE.Vector3().subVectors(handLandmarks[5], handLandmarks[0]);
     
     let palmDirPred = new THREE.Vector3().crossVectors(mcPinkyPred, mcIndexPred).normalize();
-    arrowFrontComputed.setDirection(palmDirPred)
+    arrowFrontComputed.geometry.setFromPoints([ new THREE.Vector3(), palmDirPred]);
     palmDirPred.applyQuaternion(invWorldQuatForTwist);
     let palmDirBone = new THREE.Vector3().crossVectors(bonePinky.position, boneIndex.position).normalize();
-    arrowFront.setDirection(palmDirBone)
+    arrowFront.geometry.setFromPoints([ new THREE.Vector3(), palmDirBone]);
     
     // Projection of orthogonal plane to finger
     palmDirPred.addScaledVector(dirMidBoneBind, -palmDirPred.dot(dirMidBoneBind)).normalize();
     palmDirBone.addScaledVector(dirMidBoneBind, -palmDirBone.dot(dirMidBoneBind)).normalize();
-    arrowFrontLocalComputed.setDirection(palmDirPred)
+    arrowFrontLocalComputed.geometry.setFromPoints([ new THREE.Vector3(), palmDirPred]);
 
     let twistCos = THREE.MathUtils.clamp(palmDirBone.dot(palmDirPred), -1.0, 1.0);
     let twistSin = new THREE.Vector3().crossVectors(palmDirBone, palmDirPred).dot(dirMidBoneBind);
@@ -665,6 +915,18 @@ function computeQuatHand( skeleton, handLandmarks, isLeft = false, deltaTime ){
         twistReal: THREE.MathUtils.radToDeg(twistApplied).toFixed(1)
     };
 }
+
+const maxFlexion = THREE.MathUtils.degToRad(75);   // Flexion (down)
+const maxExtension = THREE.MathUtils.degToRad(70); // Extension (up)
+const maxRadial = THREE.MathUtils.degToRad(45);    // Deviation to thumb
+const maxUlnar = THREE.MathUtils.degToRad(45);     // Deviation to pinky
+const ellipseHelper = createWristLimitEllipseHelper(
+            maxFlexion, 
+            maxExtension, 
+            maxRadial, 
+            maxUlnar
+        );
+ellipseHelper.name = "ellipse";
 
 function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i, bindQuats ){
     function getTwistQuaternion( q, normAxis, outTwist ){
@@ -839,7 +1101,104 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
     const _vDefaultDir = new THREE.Vector3(0, 1, 0); // rest direction of the hand (world)
     const _vCurrentDir = new THREE.Vector3();
     const _qCorrection = new THREE.Quaternion();
-    function computeQuatHandOriginal( skeleton, handLandmarks, isLeft = false ){
+
+    /**
+     * Apply wrist rotation with anatomic movements restrictions
+     * @param {THREE.Bone} boneHand
+     * @param {THREE.Quaternion} qTargetLocal - wrist target local rotation (computed from mediapipe landmarks)
+     * @param {THREE.Quaternion} qBindPose - wrist bind pose local rotation
+     */
+    function applyWristLimitsWithBindPose(boneHand, qTargetLocal, qBindPose, boneAxis) {
+        // Compute delta rotation between bind pose and current pose
+        // qDelta = qTargetLocal * inverse(qBindPose)
+        const invBind = qBindPose.clone().invert();
+        const qDelta = qTargetLocal.clone().multiply(invBind);
+
+        // Decompose swing and twist rotatio based on the bone axis ( local Z )
+        // const boneAxis = boneMid.position.clone().normalize()//new THREE.Vector3(0, 1, 0);
+        // const qParent = boneHand.parent.getWorldQuaternion(new THREE.Quaternion());
+        // boneAxis.applyQuaternion(qParent);
+
+        // Swing vector of qDelta
+        const swingVector = new THREE.Vector3(qDelta.x, qDelta.y, qDelta.z);
+        // Project swing vector into local bone axis to extract twist
+        const twistProjection = swingVector.dot(boneAxis);
+
+        // Twist quaternion
+        const qTwist = new THREE.Quaternion( boneAxis.x * twistProjection, boneAxis.y * twistProjection, boneAxis.z * twistProjection, qDelta.w ).normalize();
+
+        // Swing quaterion
+        // qSwing = qDelta * inverse(qTwist)
+        const qSwing = qDelta.clone().multiply(qTwist.clone().invert()).normalize();
+
+        // --------------- SWING RESTRICTION (Ellipse) ---------------
+
+        // Compute total Swing angle
+        let swingAngle = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(qSwing.w), 0, 1));
+        
+        // Anatomic limits of the wrist
+        const maxFlexion = THREE.MathUtils.degToRad(75);   // Flexion (down)
+        const maxExtension = THREE.MathUtils.degToRad(70); // Extension (up)
+        const maxRadial = THREE.MathUtils.degToRad(45);    // Deviation to thumb
+        const maxUlnar = THREE.MathUtils.degToRad(45);     // Deviation to pinky
+
+        
+        ellipseHelper.quaternion.copy(qBindPose.clone().premultiply(qTwist))
+
+        if (swingAngle > 0.0001) {
+            // Swing direction perpendicular to bone plane
+            const swingAxis = new THREE.Vector3(qSwing.x, qSwing.y, qSwing.z).normalize();
+            
+            // Separate swing flexion and deviation
+            const pitchComponent = swingAxis.x * swingAngle; //flexion
+            const yawComponent = swingAxis.z * swingAngle; //deviation
+
+            const limitPitch = (pitchComponent >= 0) ? maxFlexion : maxExtension;
+            const limitYaw = (yawComponent >= 0) ? maxRadial : maxUlnar;
+
+            // Restrict movement using ellipse equation (normalized elliptic distance)
+            // d = sqrt((x/a)^2 + (y/b)^2) 
+            const normPitch = pitchComponent / limitPitch;
+            const normYaw = yawComponent / limitYaw;
+            const ellipseDist = Math.sqrt(normPitch * normPitch + normYaw * normYaw);
+
+            // If the distance is greater than 1, the movement its out of the ellipse
+            if (ellipseDist > 1.0) {
+                // Reudce swing angle
+                const scaleFactor = 1.0 / ellipseDist;
+                const clampedSwingAngle = swingAngle * scaleFactor;
+                
+                // Recompunte restricted qSwing
+                qSwing.slerp(new THREE.Quaternion(), 1.0 - scaleFactor);
+            }
+        }
+
+        // --------------- TWIST RESTRICTION ---------------
+        let twistAngle = 2 * Math.atan2(twistProjection, qDelta.w);
+        
+        // Normalize angle between -PI i PI
+        while (twistAngle > Math.PI) twistAngle -= Math.PI * 2;
+        while (twistAngle < -Math.PI) twistAngle += Math.PI * 2;
+
+        // Restrict wrist twist
+        console.log("TWIST ANGLE BEFORE LIMIT IT", THREE.MathUtils.radToDeg(twistAngle));
+        const minTwist = THREE.MathUtils.degToRad(-35);
+        const maxTwist = THREE.MathUtils.degToRad(80);
+        const clampedTwistAngle = THREE.MathUtils.clamp(twistAngle, minTwist, maxTwist);
+
+        const qTwistClamped = new THREE.Quaternion().setFromAxisAngle(boneAxis, clampedTwistAngle);
+
+        // --------------- COMPOSE FINAL DELTA ROTATION ---------------
+        // qFinalDelta = qSwingClamped * qTwistClamped
+        const qDeltaFinal = qSwing.multiply(qTwistClamped);
+
+        // Recompute final rotation based on Bind Pose: qFinal = qDeltaFinal * qBindPose
+        const qFinal = qDeltaFinal.multiply(qBindPose);
+
+       boneHand.quaternion.copy(qFinal);
+    }
+    
+    function computeQuatHandOriginal( skeleton, handLandmarks, bodyLandmarks, isLeft = false ){
         if ( !handLandmarks ){ return; }
         //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
             
@@ -885,7 +1244,6 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
                 lastRawTwist: 0
             };
         }
-        console.log("last raw twist", boneHand.userData.bindPoseData.lastRawTwist)
         let bindTwist = new THREE.Quaternion();
         getTwistQuaternion( boneHand.userData.bindPoseData.bindPoseQuat, boneMid.position.clone().normalize(), boneHand.userData.bindPoseData.dirMidBoneBind );
         let bindSwing = boneHand.userData.bindPoseData.bindPoseQuat.clone();
@@ -901,16 +1259,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         let _ignoreVec3 = new THREE.Vector3();
         let invWorldQuat = new THREE.Quaternion();
         boneHand.matrixWorld.decompose( _ignoreVec3, invWorldQuat, _ignoreVec3 ); // get L to W quat
-        // console.log("world", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(invWorldQuat.w), 1.0))))
-        // console.log("world axis", new THREE.Vector3(invWorldQuat.x, invWorldQuat.y, invWorldQuat.z).normalize())
-        // const euler = new THREE.Euler().setFromQuaternion(invWorldQuat);
-        // console.log("euler", THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z) )
-
-        // console.log("local", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
-        // console.log("local axis", new THREE.Vector3(boneHand.quaternion.x, boneHand.quaternion.y, boneHand.quaternion.z).normalize())
-        // const euler = new THREE.Euler().setFromQuaternion(boneHand.quaternion);
-        // console.log("euler", THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z) )
-
+        
         invWorldQuat.invert(); // W to L
 
         // metacarpian middle finger 
@@ -918,20 +1267,17 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         mcMidPred.subVectors( handLandmarks[9], handLandmarks[0] ); // world
         mcMidPred.applyQuaternion( invWorldQuat ).normalize(); // hand local space
         
-        //swing (with unwanted twist)
+        // SWING (with unwanted twist)
         let dirBone = boneMid.position.clone().normalize();
         let qq = new THREE.Quaternion();
         qq.setFromUnitVectors( dirBone, mcMidPred );
         
-        const diff = THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0)));
-        const euler = new THREE.Euler().setFromQuaternion(qq);
-        console.log(THREE.MathUtils.radToDeg(euler.x), THREE.MathUtils.radToDeg(euler.y), THREE.MathUtils.radToDeg(euler.z))
-        // 1. Calculate the dot product
-        const qNew = boneHand.quaternion.clone().multiply( qq );
-        const qOld = boneHand.quaternion.clone();
+        // ------ check abrupt rotation ------
+        let qNew = boneHand.quaternion.clone().multiply( qq );
+        let qOld = boneHand.quaternion.clone();
         let dot = qOld.x*qNew.x + qOld.y*qNew.y + qOld.z*qNew.z + qOld.w*qNew.w;
 
-        // 2. Handle the double-cover property (q and -q represent the same rotation)
+        // handle the double-cover property (q and -q represent the same rotation)
         let targetQ = qNew.clone()
         if (dot < 0) {
             dot = -dot;
@@ -939,36 +1285,44 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
             targetQ.w*=-1;
         }
 
-        // 3. Clamp dot product to avoid NaN errors due to floating-point precision
+        // clamp dot product to avoid NaN errors due to floating-point precision
         dot = Math.max(-1.0, Math.min(1.0, dot));
 
-        // 4. Calculate the angular difference in radians
+        // calculate the angular difference in degrees
         let angleDiff = 2 * Math.acos(dot);
         angleDiff = THREE.MathUtils.radToDeg(angleDiff);
-        if( Math.abs(angleDiff) >= 55) {
-            console.log("discarted", angleDiff)
-            return
+
+        let maxAngleDiff = 55; // more than 55º means error/noise in landmarks
+        if( Math.abs(angleDiff) >= maxAngleDiff) { 
+            console.log("discarted", angleDiff);
+            return;
         }
-        // console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
-        
+        // ------------
         boneHand.quaternion.multiply( qq );
-        
-        let currentSwing = boneHand.quaternion.clone();
-        let swingAngleReq = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
         invWorldQuat.premultiply( qq.invert() ); // update hand's world to local quat
         
+        // TWIST
         let continuousTwistAngle = 0
         if( computeTwist ) {
-            // twist
             let mcPinkyPred = (new THREE.Vector3()).subVectors( handLandmarks[17], handLandmarks[0] );
             let mcIndexPred = (new THREE.Vector3()).subVectors( handLandmarks[5], handLandmarks[0] );
             let palmDirPred = (new THREE.Vector3()).crossVectors(mcPinkyPred, mcIndexPred).normalize(); // world space
             
-            arrowFrontComputed.setDirection(palmDirPred)
+            let mcPinkyPredBody = isLeft ? (new THREE.Vector3()).subVectors( bodyLandmarks[17], bodyLandmarks[15] ) : (new THREE.Vector3()).subVectors( bodyLandmarks[18], bodyLandmarks[16] )
+            let mcIndexPredBody = isLeft ? (new THREE.Vector3()).subVectors( bodyLandmarks[19], bodyLandmarks[15] ) : (new THREE.Vector3()).subVectors( bodyLandmarks[20], bodyLandmarks[16] )
+            let palmDirPredBody = (new THREE.Vector3()).crossVectors(mcPinkyPredBody.normalize(), mcIndexPredBody.normalize()).normalize(); // world space
+
+            arrowFrontComputed.geometry.setFromPoints([ new THREE.Vector3(), palmDirPred.clone().multiplyScalar(0.1)]);
+            const handBodyLandmark = isLeft ? new THREE.Vector3( bodyLandmarks[15].x, bodyLandmarks[15].y, bodyLandmarks[15].z) : new THREE.Vector3( bodyLandmarks[16].x, bodyLandmarks[16].y, bodyLandmarks[16].z);
+            arrowFrontComputedBody.geometry.setFromPoints( [ new THREE.Vector3(), palmDirPredBody.clone().multiplyScalar(0.1) ])
+            arrowIndexComputedBody.geometry.setFromPoints( [ new THREE.Vector3(), mcIndexPredBody.clone().multiplyScalar(0.1) ])
+            arrowPinkyComputedBody.geometry.setFromPoints( [ new THREE.Vector3(), mcPinkyPredBody.clone().multiplyScalar(0.1) ])
             
             palmDirPred.applyQuaternion( invWorldQuat ).normalize(); // local space
+            palmDirPredBody.applyQuaternion( invWorldQuat ).normalize(); // local space
             
-            arrowFrontLocalComputed.setDirection(palmDirPred)
+            arrowFrontLocalComputed.geometry.setFromPoints([ new THREE.Vector3(), palmDirPred.clone().multiplyScalar(0.1)]);
+            arrowFrontLocalComputedBody.geometry.setFromPoints([ new THREE.Vector3(), palmDirPredBody.clone().multiplyScalar(0.1)]);
             
             let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
             qq.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
@@ -976,21 +1330,26 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
             const qOld = boneHand.quaternion.clone();
             let dot = qOld.x*qNew.x + qOld.y*qNew.y + qOld.z*qNew.z + qOld.w*qNew.w;
 
-            // 2. Handle the double-cover property (q and -q represent the same rotation)
-            let targetQ = qNew.clone()
+            // handle the double-cover property (q and -q represent the same rotation)
+            targetQ = qNew.clone()
             if (dot < 0) {
                 dot = -dot;
                 targetQ.conjugate();
                 targetQ.w*=-1;
             }
 
-            // 3. Clamp dot product to avoid NaN errors due to floating-point precision
+            // clamp dot product to avoid NaN errors due to floating-point precision
             dot = Math.max(-1.0, Math.min(1.0, dot))
-            let angleDiff = 2 * Math.acos(dot);
+            angleDiff = 2 * Math.acos(dot);
             angleDiff = THREE.MathUtils.radToDeg(angleDiff);
             console.log("DIFF TWIST", angleDiff)
-            if( Math.abs(angleDiff) >= 55) {
-                console.log("discarted twist", angleDiff)
+            maxAngleDiff = 60;
+            if( Math.abs(angleDiff) >= maxAngleDiff ) { // more than max angle difference means error/noise in landmarks
+                console.log("discarted twist from hand landmarks direction", angleDiff);
+                if( discarted > 5 ) {
+                    console.warn("should be discarded")
+                    return;
+                }
                 return;
             }
             continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
@@ -998,29 +1357,24 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
             boneHand.quaternion.multiply( qq ).normalize();
         }
         
+        applyWristLimitsWithBindPose(boneHand, boneHand.quaternion, boneHand.userData.bindPoseData.bindPoseQuat, boneMid.position.clone().normalize());
         let currentTwist = new THREE.Quaternion();
         getTwistQuaternion( boneHand.quaternion, boneMid.position.clone().normalize(), currentTwist );
         boneHand.userData.bindPoseData.lastRawTwist = currentTwist;
 
-        console.log("total diff angle:", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
-        const q = bindPoseQuat.clone().invert().multiply( boneHand.quaternion ).normalize();
-        //continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(q.w), 1.0));
-        console.log("total angle (without bind):", THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(q.w), 1.0))))
-        console.log(THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(boneHand.quaternion.w), 1.0))))
+        discarted = 0;
+        const qParent = boneHand.parent.getWorldQuaternion(new THREE.Quaternion());
+        const pParent = boneHand.getWorldPosition(new THREE.Vector3());
 
-        console.log("bind Swing:" , bindSwing, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(bindSwing.w), 1.0))))
-        console.log("bind twist:" , bindTwist, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(bindTwist.w), 1.0))))
-        console.log("prev Swing:" , prevSwing, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(prevSwing.w), 1.0))))
-        console.log("prev twist:" , prevTwist, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(prevTwist.w), 1.0))))
-        currentSwing.multiply(currentTwist.clone().invert())
-        console.log("current Swing:" , currentSwing, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(currentSwing.w), 1.0))))        
-        console.log("current twist:" , currentTwist, THREE.MathUtils.radToDeg(2 * Math.acos(Math.min(Math.abs(currentTwist.w), 1.0))))
+        axisFrontGlobal.quaternion.copy(qParent);
+        axisUpGlobal.quaternion.copy(qParent);
+        axisRightGlobal.quaternion.copy(qParent);
 
+        axisFrontGlobal.position.copy(pParent);
+        axisUpGlobal.position.copy(pParent);
+        axisRightGlobal.position.copy(pParent);
         return {
-            swingReq: THREE.MathUtils.radToDeg(swingAngleReq).toFixed(1),
-            swingReal: 0,//THREE.MathUtils.radToDeg(swingAngleApplied).toFixed(1),
-            twistReq: THREE.MathUtils.radToDeg(continuousTwistAngle).toFixed(1),
-            twistReal: 0//THREE.MathUtils.radToDeg(twistApplied).toFixed(1)
+           
         };
     }
 
@@ -1243,7 +1597,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         // left arm-hands
         computeQuatArm( skeleton, body, true );
         if(worldLandmarksArray[i].leftHandVisibility > 0.4) {
-            metrics = computeQuatHandOriginal( skeleton, leftHand, true, worldLandmarksArray[i].dt/1000 );
+            metrics = computeQuatHandOriginal( skeleton, leftHand, body, true, worldLandmarksArray[i].dt/1000 );
             if( metrics ) {
                 computeQuatPhalange( skeleton, bindQuats, leftHand, true );
             }
