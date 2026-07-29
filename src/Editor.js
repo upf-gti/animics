@@ -2457,17 +2457,18 @@ class KeyframeEditor extends Editor {
          * @param {THREE.Bone} boneHand
          * @param {THREE.Quaternion} qTargetLocal - wrist target local rotation (computed from mediapipe landmarks)
          * @param {THREE.Quaternion} qBindPose - wrist bind pose local rotation
+         * @param {THREE.Vector3} boneAxis - bone hand local direction
          */
-        function applyWristLimitsWithBindPose(boneHand, qTargetLocal, qBindPose) {
+        function applyWristLimitsWithBindPose(boneHand, qTargetLocal, qBindPose, boneAxis) {
             // Compute delta rotation between bind pose and current pose
             // qDelta = qTargetLocal * inverse(qBindPose)
             const invBind = qBindPose.clone().invert();
             const qDelta = qTargetLocal.clone().multiply(invBind);
 
-            // Decompose swing and twist rotatio based on the bone axis ( local Z )
-            const boneAxis = new THREE.Vector3(0, 0, 1);
-            const qParent = boneHand.parent.getWorldQuaternion(new THREE.Quaternion());
-            boneAxis.applyQuaternion(qParent);
+            // // Decompose swing and twist rotatio based on the bone axis ( local Z )
+            // const boneAxis = new THREE.Vector3(0, 0, 1);
+            // const qParent = boneHand.parent.getWorldQuaternion(new THREE.Quaternion());
+            // boneAxis.applyQuaternion(qParent);
 
             // Swing vector of qDelta
             const swingVector = new THREE.Vector3(qDelta.x, qDelta.y, qDelta.z);
@@ -2489,8 +2490,8 @@ class KeyframeEditor extends Editor {
             // Anatomic limits of the wrist
             const maxFlexion = THREE.MathUtils.degToRad(75);   // Flexion (down)
             const maxExtension = THREE.MathUtils.degToRad(70); // Extension (up)
-            const maxRadial = THREE.MathUtils.degToRad(20);    // Deviation to thumb
-            const maxUlnar = THREE.MathUtils.degToRad(30);     // Deviation to pinky
+            const maxRadial = THREE.MathUtils.degToRad(45);    // Deviation to thumb
+            const maxUlnar = THREE.MathUtils.degToRad(45);     // Deviation to pinky
 
             if (swingAngle > 0.0001) {
                 // Swing direction perpendicular to bone plane
@@ -2528,8 +2529,9 @@ class KeyframeEditor extends Editor {
             while (twistAngle < -Math.PI) twistAngle += Math.PI * 2;
 
             // Restrict wrist twist
-            const maxTwist = THREE.MathUtils.degToRad(35);
-            const clampedTwistAngle = THREE.MathUtils.clamp(twistAngle, -maxTwist, maxTwist);
+            const minTwist = THREE.MathUtils.degToRad(-100);
+            const maxTwist = THREE.MathUtils.degToRad(70);
+            const clampedTwistAngle = THREE.MathUtils.clamp(twistAngle, minTwist, maxTwist);
 
             const qTwistClamped = new THREE.Quaternion().setFromAxisAngle(boneAxis, clampedTwistAngle);
 
@@ -2543,7 +2545,7 @@ class KeyframeEditor extends Editor {
             boneHand.quaternion.copy(qFinal);
         }
 
-        function computeQuatHand( skeleton, handLandmarks, isLeft = false ){
+        function computeQuatHand( skeleton, handLandmarks, isLeft = false, interpolate = false ){
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
@@ -2555,7 +2557,7 @@ class KeyframeEditor extends Editor {
     
             boneHand.updateWorldMatrix( true, false );
     
-            if (!boneHand.userData.bindPoseData) {
+            if (!boneHand.userData.bindPoseQuat) {
                 // Matrius World Inverses originals
                 let invHandMat = isLeft ? skeleton.boneInverses[ 12 ].clone() : skeleton.boneInverses[ 36 ].clone();
                 let invParentMat = isLeft ? skeleton.boneInverses[ 11 ].clone() : skeleton.boneInverses[ 35 ].clone();
@@ -2605,7 +2607,7 @@ class KeyframeEditor extends Editor {
             angleDiff = THREE.MathUtils.radToDeg(angleDiff);
 
             const maxAngleDiff = 55; // more than 55º means error/noise in landmarks
-            if( Math.abs(angleDiff) >= maxAngleDiff) { 
+            if( Math.abs(angleDiff) >= maxAngleDiff && !interpolate) { 
                 console.log("discarted", angleDiff);
                 return;
             }
@@ -2621,12 +2623,12 @@ class KeyframeEditor extends Editor {
             let palmDirBone = (new THREE.Vector3()).crossVectors(bonePinky.position, boneIndex.position).normalize(); // local space. Cross product "does not care" about input sizes
             qq.setFromUnitVectors( palmDirBone, palmDirPred ).normalize();
 
-            qNew = boneHand.quaternion.clone().multiply( qq );
-            qOld = boneHand.quaternion.clone();
-            dot = qOld.x*qNew.x + qOld.y*qNew.y + qOld.z*qNew.z + qOld.w*qNew.w;
+            let qNewSwing = boneHand.quaternion.clone().multiply( qq );
+            let qNewSwingTwist = boneHand.quaternion.clone();
+            dot = qNewSwing.x*qNewSwingTwist.x + qNewSwing.y*qNewSwingTwist.y + qNewSwing.z*qNewSwingTwist.z + qNewSwing.w*qNewSwingTwist.w;
 
             // handle the double-cover property (q and -q represent the same rotation)
-            targetQ = qNew.clone()
+            targetQ = qNewSwingTwist.clone()
             if (dot < 0) {
                 dot = -dot;
                 targetQ.conjugate();
@@ -2638,14 +2640,17 @@ class KeyframeEditor extends Editor {
             angleDiff = 2 * Math.acos(dot);
             angleDiff = THREE.MathUtils.radToDeg(angleDiff);
             console.log("DIFF TWIST", angleDiff)
-            if( Math.abs(angleDiff) >= maxAngleDiff ) { // more than max angle difference means error/noise in landmarks
+            if( Math.abs(angleDiff) >= maxAngleDiff && !interpolate) { // more than max angle difference means error/noise in landmarks
                 console.log("discarted twist", angleDiff)
                 return;
             }
 
             boneHand.quaternion.multiply( qq ).normalize();
-            applyWristLimitsWithBindPose(boneHand, boneHand.quaternion, boneHand.userData.bindPoseQuat);
-
+            applyWristLimitsWithBindPose(boneHand, boneHand.quaternion, boneHand.userData.bindPoseQuat, boneMid.position.clone().normalize());
+           
+            if( interpolate ) {
+                boneHand.quaternion.slerp(qOld, 0.5);
+            }
             return true;
         }
 
@@ -2861,7 +2866,14 @@ class KeyframeEditor extends Editor {
             // right arm-hands
             computeQuatArm( skeleton, body, false );
             if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
-                if(computeQuatHand( skeleton, rightHand, false)) {
+                let missing = false;
+                if( i - 1 >= 0 && worldLandmarksArray[i -1 ].rightHandVisibility <= 0.4 ) {
+                    missing = true;
+                }
+                if( i + 1 < worldLandmarksArray.length && worldLandmarksArray[i +1 ].rightHandVisibility <= 0.4 ) {
+                    missing = true;
+                }
+                if(computeQuatHand( skeleton, rightHand, false, missing) && !missing) {
                     computeQuatPhalange( skeleton, bindQuats, rightHand, false );
                 }
             }
@@ -2869,7 +2881,14 @@ class KeyframeEditor extends Editor {
             // left arm-hands
             computeQuatArm( skeleton, body, true );
             if(worldLandmarksArray[i].leftHandVisibility > 0.4) {
-                if(computeQuatHand( skeleton, leftHand, true )) {
+                let missing = false;
+                if( i - 1 >= 0 && worldLandmarksArray[i -1 ].leftHandVisibility <= 0.4 ) {
+                    missing = true;
+                }
+                if( i + 1 < worldLandmarksArray.length && worldLandmarksArray[i +1 ].leftHandVisibility <= 0.4 ) {
+                    missing = true;
+                }
+                if(computeQuatHand( skeleton, leftHand, true, missing ) && !missing ) {
                     computeQuatPhalange( skeleton, bindQuats, leftHand, true );
                 }
             }
