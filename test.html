@@ -321,7 +321,20 @@ for( let i = 0; i< 21; ++i ){
 
 mat = new THREE.MeshBasicMaterial({ color: 0x00ff00, depthTest: false, depthWrite: false, transparent: true });
 for( let i = 0; i< 21; ++i ){
-    let g = new THREE.Mesh( spheregeometry, mat );
+    let m = mat.clone();
+    if( i == 9 ) {
+        m.color.set(0xff0000);
+    }
+    else if( i == 5 ) {
+        m.color.set(0xffff00);
+    }
+    else if( i == 17 ) {
+        m.color.set(0xff00ff);
+    }
+    else {
+        m.color.set(0x00ff00);
+    }
+    let g = new THREE.Mesh( spheregeometry, m );
     pointCloudGroup.add(g)
     rightHandPoints.push(g)
 }
@@ -364,7 +377,7 @@ const loader = new GLTFLoader();
 let frame = 0;
 let timeAcc = 0;
 
-let isLeft = true;
+let isLeft = false;
 let boneHand = null;
 let boneMid = null;
 let bonePinky = null;
@@ -492,6 +505,7 @@ async function init () {
 let discarted = 0;
 let missing = false;
 // Animation loop
+let hisotry = {};
 function animate() {
     requestAnimationFrame(animate);
 
@@ -611,12 +625,7 @@ function animate() {
         if(recompute) {
             warning2.innerText = ""
             metrics = createBodyAnimationFromWorldLandmarks(landmarks, skeleton, frame, bindQuats)
-            if(landmarks[frame].LWLM) {
-                discarted = 0;
-            }
-            else {
-                discarted++;
-            }
+            
             recompute = false;
             if( !metrics ) {
                 warning2.innerText = "Discarted frame";
@@ -1202,7 +1211,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
        boneHand.quaternion.copy(qFinal);
     }
     
-    function computeQuatHandOriginal( skeleton, handLandmarks, bodyLandmarks, isLeft = false, dt = 0,  interpolate = false ){
+    function computeQuatHandOriginal( skeleton, handLandmarks, bodyLandmarks, isLeft = false, dt = 0,  interpolate = 0 ){
         if ( !handLandmarks ){ return; }
         //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
             
@@ -1214,7 +1223,12 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         
         // boneHand has a ~90º local rotation on the bindPose
         boneHand.updateWorldMatrix( true, false );
-
+        if(!boneHand.userData.twistHistory) {
+            let qTwistCurr = new THREE.Quaternion();
+            getTwistQuaternion( boneHand.quaternion, boneMid.position.clone().normalize(), qTwistCurr );
+            boneHand.userData.twistHistory = [{twist: qTwistCurr, deltaAngle: 0}]
+            boneHand.userData.accumulatedAngle = 0;
+        }
         if (!boneHand.userData.bindPoseData) {
             // Matrius World Inverses originals
             let invHandMat = isLeft ? skeleton.boneInverses[ 12 ].clone() : skeleton.boneInverses[ 36 ].clone();
@@ -1346,16 +1360,41 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
             // clamp dot product to avoid NaN errors due to floating-point precision
             dot = Math.max(-1.0, Math.min(1.0, dot))
             angleDiff = 2 * Math.acos(dot);
-            angleDiff = THREE.MathUtils.radToDeg(angleDiff);
-            console.log("DIFF TWIST", angleDiff)
+            boneHand.userData.accumulatedAngle += angleDiff;
+            let angleDiffD = THREE.MathUtils.radToDeg(angleDiff);
+            console.log("DIFF TWIST", angleDiffD)
             maxAngleDiff = 60;
-            if( Math.abs(angleDiff) >= maxAngleDiff && !interpolate) { // more than max angle difference means error/noise in landmarks
-                console.log("discarted twist from hand landmarks direction", angleDiff);
-                if( discarted > 5 ) {
-                    console.warn("should be discarded")
-                    return;
+
+            let qTwistCurr = new THREE.Quaternion();
+            getTwistQuaternion(qNewSwingTwist, boneMid.position.clone().normalize(), qTwistCurr);
+            boneHand.userData.twistHistory.push({twist: qTwistCurr, deltaAngle: angleDiff});
+            if(boneHand.userData.twistHistory.length > 5) {
+                const removed = boneHand.userData.twistHistory.shift();
+                boneHand.userData.accumulatedAngle -= removed.deltaAngle;
+            }
+            
+            if( Math.abs(angleDiffD) >= maxAngleDiff && !interpolate) { // more than max angle difference means error/noise in landmarks
+                console.log("discarted twist from hand landmarks direction", angleDiffD);
+                if (boneHand.userData.accumulatedAngle >= Math.PI * 2) {
+                    console.warn("+360º!!!")
+                    // computeTwist = false;
+                    // qq.premultiply(qq.clone().invert());
                 }
-                return;
+                else {
+                    interpolate = Math.abs(angleDiffD) - maxAngleDiff;
+                    if( interpolate ) {
+                        interpolate = 1 - Math.max(Math.min(interpolate/maxAngleDiff, 1), 0); 
+                        if( !interpolate ) {
+                            console.warn ("discarted")
+                            return;
+                        }
+                        console.warn("should be discarded:", interpolate)
+                    }
+                    else {
+                        return;
+                    }
+
+                }
             }
             continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
             
@@ -1364,14 +1403,18 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         if( computeTwist ) {
             applyWristLimitsWithBindPose(boneHand, boneHand.quaternion, boneHand.userData.bindPoseData.bindPoseQuat, boneMid.position.clone().normalize());
         }
+        computeTwist = true;
         if( interpolate ) {
-            boneHand.quaternion.slerp(qOld, 0.5);
+            interpolate = typeof(interpolate) == 'number' ? interpolate : 0.5;
+            boneHand.quaternion.slerp(qOld, interpolate);
+        }
+        else {
+            interpolate = true;
         }
         let currentTwist = new THREE.Quaternion();
         getTwistQuaternion( boneHand.quaternion, boneMid.position.clone().normalize(), currentTwist );
         boneHand.userData.bindPoseData.lastRawTwist = currentTwist;
 
-        discarted = 0;
         const qParent = boneHand.parent.getWorldQuaternion(new THREE.Quaternion());
         const pParent = boneHand.getWorldPosition(new THREE.Vector3());
 
@@ -1382,9 +1425,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         axisFrontGlobal.position.copy(pParent);
         axisUpGlobal.position.copy(pParent);
         axisRightGlobal.position.copy(pParent);
-        return {
-           
-        };
+        return interpolate;
     }
 
     function computeQuatPhalange( skeleton, bindQuats, handLandmarks, isLeft = false, interpolate = false ){
@@ -1419,7 +1460,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
 
         // for each finger (and thumb)
         for( let f = 1; f < handLandmarks.length; f+=4){
-
+            const qOld = {};
             // fingers can slightly move laterally. Compute the mean lateral movement of the finger
             let meanSideDeviation = 0;
             tempVec3_1.subVectors(handLandmarks[f+1], handLandmarks[f+0]).normalize();
@@ -1448,11 +1489,8 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
                 const boneSrc = skeleton.bones[ bonePhalanges[ f + i-1 ] ];
                 const boneTrg = skeleton.bones[ bonePhalanges[ f + i ] ];
 
-                if( !boneSrc.userData ) {
-                    boneSrc.userData = { lastRawQuat : boneSrc.quaternion.clone() };
-                }
                 const landmark = f + i;
-                const qOld = boneSrc.quaternion.clone();
+                qOld[i] = boneSrc.quaternion.clone();
                 boneSrc.quaternion.copy( bindQuats[ bonePhalanges[ f+i-1 ] ] );
                 boneSrc.updateWorldMatrix( true, false );
             
@@ -1561,10 +1599,6 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
                 rot.setFromUnitVectors( phalange_p, v_phalange );
                 getTwistQuaternion( rot, phalange_p, twist ); // remove undesired twist from phalanges
                 boneSrc.quaternion.multiply( rot ).multiply( twist.invert() ).normalize();
-                if( interpolate ) {
-                    boneSrc.quaternion.slerp( qOld, 0.5);
-                }
-                boneSrc.userData.lastRawQuat = boneSrc.quaternion.clone();
             }// end of phalange for
 
             // add lateral deviation for fingers, only on the base bone. Right now, fingers are all in the plane ( Normal x Forward )
@@ -1576,10 +1610,13 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
                 latDevNormal.applyQuaternion( q.invert() );
                 latDevQuat.setFromAxisAngle( latDevNormal, (Math.PI-Math.acos(meanSideDeviation)) - Math.PI*0.5);
                 boneSrc.quaternion.multiply(latDevQuat);
-                // if( interpolate ) {
-                //     boneSrc.quaternion.slerp( qOld, 0.5);
-                // }
-                boneSrc.userData.lastRawQuat = boneSrc.quaternion.clone();
+            }
+
+            for( let i = 0; i < 3; ++i){
+                const boneSrc = skeleton.bones[ bonePhalanges[ f + i-1 ] ];
+                if( interpolate ) {
+                    boneSrc.quaternion.slerp( qOld[i], interpolate);
+                }
             }
         } // end of finger 'for'
     };
@@ -1601,43 +1638,39 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
 
         // // right arm-hands
         let metrics = null;
-        // computeQuatArm( skeleton, body, false );
-        // if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
-        //     metrics = computeQuatHandOriginal( skeleton, rightHand, false, worldLandmarksArray[i].dt/1000 );
-        //     if( metrics ) {
-        //         computeQuatPhalange( skeleton, bindQuats, rightHand, false );
-        //     }
-        // //     if(computeQuatHandOriginal( skeleton, rightHand, false,  worldLandmarksArray[i].dt/1000)) {
-
-        // //         // computeQuatPhalange( skeleton, bindQuats, rightHand, false );
-        // //     }
-        // //     else {
-        // //         console.log("hand:", "rightHand", "time:", timeAcc, "frame:", i)
-        // //     }
-        // }
+        computeQuatArm( skeleton, body, false );
+        if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
+            let missing = false;
+            if( i - 1 >= 0 && worldLandmarksArray[i -1 ].rightHandVisibility <= 0.4 ) {
+                missing = true;
+            }
+            if( i + 1 < worldLandmarksArray.length && worldLandmarksArray[i +1 ].rightHandVisibility <= 0.4 ) {
+                missing = true;
+            }
+            let interpolate = computeQuatHandOriginal( skeleton, rightHand, body, false, worldLandmarksArray[i].dt/1000, missing );
+            if( interpolate ) {
+                interpolate = interpolate === true ? false : interpolate;
+                computeQuatPhalange( skeleton, bindQuats, rightHand, false, interpolate );
+            }
+        }
         
         // left arm-hands
         computeQuatArm( skeleton, body, true );
         if(worldLandmarksArray[i].leftHandVisibility > 0.4) {
-            if( missing &&  i+1 < worldLandmarksArray.length && worldLandmarksArray[i+1].leftHandVisibility <= 0.4 ) {
+            let missing = false;
+            if( i - 1 >= 0 && worldLandmarksArray[i -1 ].leftHandVisibility <= 0.4 ) {
                 missing = true;
-                return metrics;
             }
-            metrics = computeQuatHandOriginal( skeleton, leftHand, body, true, worldLandmarksArray[i].dt/1000, missing );
-            if( metrics && !missing ) {
-                computeQuatPhalange( skeleton, bindQuats, leftHand, true, missing );
+            if( i + 1 < worldLandmarksArray.length && worldLandmarksArray[i +1 ].leftHandVisibility <= 0.4 ) {
+                missing = true;
             }
-            missing = false;
-            // if(computeQuatHandOriginal( skeleton, leftHand, true, worldLandmarksArray[i].dt/1000 )) {
-            //     // computeQuatPhalange( skeleton, bindQuats, leftHand, true );
-            // }
-            // else {
-            //     console.log("hand:", "leftHand", "time:", timeAcc, "frame:", i)
-            // }
+            let interpolate= computeQuatHandOriginal( skeleton, leftHand, body, true, worldLandmarksArray[i].dt/1000, missing );
+            if( interpolate ) {
+                interpolate = interpolate === true ? false : interpolate;
+                computeQuatPhalange( skeleton, bindQuats, leftHand, true, interpolate );
+            }
         }
-        else {
-            missing = true;
-        }
+        
         return metrics;
 
 }

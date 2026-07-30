@@ -2609,7 +2609,17 @@ class KeyframeEditor extends Editor {
             const maxAngleDiff = 55; // more than 55º means error/noise in landmarks
             if( Math.abs(angleDiff) >= maxAngleDiff && !interpolate) { 
                 console.log("discarted", angleDiff);
-                return;
+                interpolate = Math.abs(angleDiff) - maxAngleDiff;
+                if( interpolate ) {
+                    console.warn("should be discarded")
+                    interpolate = 1 - Math.max(Math.min(interpolate/maxAngleDiff, 1), 0); 
+                    if( !interpolate ) {
+                        return;
+                    }
+                }
+                else {
+                    return;
+                }
             }
             // ------------
             boneHand.quaternion.multiply( qq );
@@ -2649,7 +2659,9 @@ class KeyframeEditor extends Editor {
             applyWristLimitsWithBindPose(boneHand, boneHand.quaternion, boneHand.userData.bindPoseQuat, boneMid.position.clone().normalize());
            
             if( interpolate ) {
-                boneHand.quaternion.slerp(qOld, 0.5);
+                interpolate = typeof(interpolate) == 'number' ? interpolate : 0.5;
+                boneHand.quaternion.slerp(qOld, interpolate);
+                return interpolate;
             }
             return true;
         }
@@ -2659,18 +2671,18 @@ class KeyframeEditor extends Editor {
             This would avoid unnecessary recomputations of constraints between different characters.
             Changes would be baked already in the mediapipe landmarks
         */       
-        function computeQuatPhalange( skeleton, bindQuats, handLandmarks, isLeft = false ){
+        function computeQuatPhalange( skeleton, bindQuats, handLandmarks, isLeft = false, interpolate = false ){
             if ( !handLandmarks ){ return; }
             //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
 
             const bonePhalanges = isLeft ? 
             [ 13,14,15,16,    17,18,19,20,    21,22,23,24,    25,26,27,28,    29,30,31,32 ] :
             [ 53,54,55,56,    49,50,51,52,    45,46,47,48,    41,42,43,44,    37,38,39,40 ];
-    
+
             let tempVec3_1 = new THREE.Vector3();
             let tempVec3_2 = new THREE.Vector3();
             const invWorldQuat = new THREE.Quaternion();
-    
+
             tempVec3_1.subVectors(handLandmarks[5], handLandmarks[0]).normalize();
             tempVec3_2.subVectors(handLandmarks[17], handLandmarks[0]).normalize();
             const handForward = (new THREE.Vector3()).addScaledVector(tempVec3_1,0.5).addScaledVector(tempVec3_2,0.5); // direction of fingers
@@ -2680,18 +2692,18 @@ class KeyframeEditor extends Editor {
                 handNormal.multiplyScalar(-1);
                 handSide.multiplyScalar(-1);
             }
-    
+
             const prevForward = new THREE.Vector3();
             const prevNormal = new THREE.Vector3();
             const prevSide = new THREE.Vector3();
-    
+
             const maxLateralDeviation = Math.cos(60 * Math.PI/180);
             const latDevQuat = new THREE.Quaternion();
             const latDevNormal = new THREE.Vector3();
 
             // for each finger (and thumb)
             for( let f = 1; f < handLandmarks.length; f+=4){
-    
+                const qOld = {};
                 // fingers can slightly move laterally. Compute the mean lateral movement of the finger
                 let meanSideDeviation = 0;
                 tempVec3_1.subVectors(handLandmarks[f+1], handLandmarks[f+0]).normalize();
@@ -2709,24 +2721,26 @@ class KeyframeEditor extends Editor {
                     meanSideDeviation *= 1+fingerBend;
                 }
                 // end of lateral computations
-    
+
                 // phalanges can bend. Thus, reference vectors need to be with respect to the last phalange (or the base of the hand)
                 prevForward.copy(handForward);
                 prevSide.copy(handSide);
                 prevNormal.copy(handNormal);
-    
+
                 // for each phalange of each finger (and thumb)
                 for( let i = 0; i < 3; ++i){
                     const boneSrc = skeleton.bones[ bonePhalanges[ f + i-1 ] ];
                     const boneTrg = skeleton.bones[ bonePhalanges[ f + i ] ];
+
                     const landmark = f + i;
+                    qOld[i] = boneSrc.quaternion.clone();
                     boneSrc.quaternion.copy( bindQuats[ bonePhalanges[ f+i-1 ] ] );
                     boneSrc.updateWorldMatrix( true, false );
                 
                     // world mediapipe phalange direction
                     let v_phalange = new THREE.Vector3();
                     v_phalange.subVectors( handLandmarks[landmark+1], handLandmarks[landmark] ).normalize();
-    
+
                     // fingers (no thumb). All lateral deviation is removed and added later on
                     if ( f > 4 ){
                         // remove all lateral deviation (later will add the allowed one)
@@ -2736,7 +2750,7 @@ class KeyframeEditor extends Editor {
                         }else{
                             v_phalange.normalize();
                         }
-    
+
                         // prevForward and prevNormal do not have any lateral deviation
                         const dotForward = v_phalange.dot(prevForward);
                         const dotNormal = v_phalange.dot(prevNormal);
@@ -2794,7 +2808,7 @@ class KeyframeEditor extends Editor {
                                 v_phalange.addScaledVector(prevNormal, -dotNormal)
                             }        
                         }
-    
+
                         v_phalange.normalize();
         
                         if (v_phalange.length() < 0.0001 ){
@@ -2812,7 +2826,7 @@ class KeyframeEditor extends Editor {
                             prevForward.copy(v_phalange);
                         }
                     }
-    
+
 
                     boneSrc.matrixWorld.decompose( tempVec3_1, invWorldQuat, tempVec3_1 );
                     invWorldQuat.invert();
@@ -2832,14 +2846,21 @@ class KeyframeEditor extends Editor {
 
                 // add lateral deviation for fingers, only on the base bone. Right now, fingers are all in the plane ( Normal x Forward )
                 if( f > 4 ){
-					const boneSrc = skeleton.bones[ bonePhalanges[ f-1 ] ];
-					boneSrc.updateMatrixWorld(true);
-					let q = new THREE.Quaternion();
-					boneSrc.matrixWorld.decompose(tempVec3_1, q, tempVec3_1);
-					latDevNormal.applyQuaternion( q.invert() );
-					latDevQuat.setFromAxisAngle( latDevNormal, (Math.PI-Math.acos(meanSideDeviation)) - Math.PI*0.5);
-					boneSrc.quaternion.multiply(latDevQuat);
-				}
+                    const boneSrc = skeleton.bones[ bonePhalanges[ f-1 ] ];
+                    boneSrc.updateMatrixWorld(true);
+                    let q = new THREE.Quaternion();
+                    boneSrc.matrixWorld.decompose(tempVec3_1, q, tempVec3_1);
+                    latDevNormal.applyQuaternion( q.invert() );
+                    latDevQuat.setFromAxisAngle( latDevNormal, (Math.PI-Math.acos(meanSideDeviation)) - Math.PI*0.5);
+                    boneSrc.quaternion.multiply(latDevQuat);
+                }
+
+                for( let i = 0; i < 3; ++i){
+                    const boneSrc = skeleton.bones[ bonePhalanges[ f + i-1 ] ];
+                    if( interpolate ) {
+                        boneSrc.quaternion.slerp( qOld[i], interpolate);
+                    }
+                }
             } // end of finger 'for'
         };
 
@@ -2873,8 +2894,10 @@ class KeyframeEditor extends Editor {
                 if( i + 1 < worldLandmarksArray.length && worldLandmarksArray[i +1 ].rightHandVisibility <= 0.4 ) {
                     missing = true;
                 }
-                if(computeQuatHand( skeleton, rightHand, false, missing) && !missing) {
-                    computeQuatPhalange( skeleton, bindQuats, rightHand, false );
+                let interpolate = computeQuatHand( skeleton, rightHand, false, missing);
+                if( interpolate ) {
+                    interpolate = interpolate === true ? false : interpolate;
+                    computeQuatPhalange( skeleton, bindQuats, rightHand, false, interpolate );
                 }
             }
             
@@ -2888,8 +2911,10 @@ class KeyframeEditor extends Editor {
                 if( i + 1 < worldLandmarksArray.length && worldLandmarksArray[i +1 ].leftHandVisibility <= 0.4 ) {
                     missing = true;
                 }
-                if(computeQuatHand( skeleton, leftHand, true, missing ) && !missing ) {
-                    computeQuatPhalange( skeleton, bindQuats, leftHand, true );
+                let interpolate = computeQuatHand( skeleton, leftHand, true, missing )
+                if( interpolate ) {
+                    interpolate = interpolate === true ? false : interpolate;
+                    computeQuatPhalange( skeleton, bindQuats, leftHand, true, interpolate );
                 }
             }
 
