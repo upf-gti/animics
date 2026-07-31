@@ -2557,6 +2557,12 @@ class KeyframeEditor extends Editor {
     
             boneHand.updateWorldMatrix( true, false );
     
+            if(!boneHand.userData.twistHistory) {
+                let qTwistCurr = new THREE.Quaternion();
+                getTwistQuaternion( boneHand.quaternion, boneMid.position.clone().normalize(), qTwistCurr );
+                boneHand.userData.twistHistory = [{twist: qTwistCurr, deltaAngle: 0}]
+                boneHand.userData.accumulatedAngle = 0;
+            }
             if (!boneHand.userData.bindPoseQuat) {
                 // Matrius World Inverses originals
                 let invHandMat = isLeft ? skeleton.boneInverses[ 12 ].clone() : skeleton.boneInverses[ 36 ].clone();
@@ -2609,17 +2615,7 @@ class KeyframeEditor extends Editor {
             const maxAngleDiff = 55; // more than 55º means error/noise in landmarks
             if( Math.abs(angleDiff) >= maxAngleDiff && !interpolate) { 
                 console.log("discarted", angleDiff);
-                interpolate = Math.abs(angleDiff) - maxAngleDiff;
-                if( interpolate ) {
-                    console.warn("should be discarded")
-                    interpolate = 1 - Math.max(Math.min(interpolate/maxAngleDiff, 1), 0); 
-                    if( !interpolate ) {
-                        return;
-                    }
-                }
-                else {
-                    return;
-                }
+                return;
             }
             // ------------
             boneHand.quaternion.multiply( qq );
@@ -2648,12 +2644,67 @@ class KeyframeEditor extends Editor {
             // clamp dot product to avoid NaN errors due to floating-point precision
             dot = Math.max(-1.0, Math.min(1.0, dot))
             angleDiff = 2 * Math.acos(dot);
-            angleDiff = THREE.MathUtils.radToDeg(angleDiff);
-            console.log("DIFF TWIST", angleDiff)
-            if( Math.abs(angleDiff) >= maxAngleDiff && !interpolate) { // more than max angle difference means error/noise in landmarks
-                console.log("discarted twist", angleDiff)
-                return;
+            let angleDiffD = THREE.MathUtils.radToDeg(angleDiff);
+            console.log("DIFF TWIST", angleDiffD)
+            if( Math.abs(angleDiffD) >= maxAngleDiff && !interpolate) { // more than max angle difference means error/noise in landmarks
+                if (boneHand.userData.accumulatedAngle >= Math.PI * 2) {
+                    console.warn("+360º!!!")
+                    // computeTwist = false;
+                    
+                    qq.conjugate();
+                    qq.w *=-1;
+
+                    boneHand.userData.accumulatedAngle -= angleDiff;
+                    // boneHand.userData.twistHistory.pop();
+
+                    let qNewSwingTwist = boneHand.quaternion.clone().multiply( qq );
+                    let qNewSwing = boneHand.quaternion.clone();
+                    //boneHand.userData.bindPoseData.lastRawQuat.copy(boneHand.quaternion.clone());
+                    dot = qNewSwing.x*qNewSwingTwist.x + qNewSwing.y*qNewSwingTwist.y + qNewSwing.z*qNewSwingTwist.z + qNewSwing.w*qNewSwingTwist.w;
+
+                    // handle the double-cover property (q and -q represent the same rotation)
+                    targetQ = qNewSwingTwist.clone()
+                    if (dot < 0) {
+                        dot = -dot;
+                        targetQ.conjugate();
+                        targetQ.w*=-1;
+                    }
+
+                    // clamp dot product to avoid NaN errors due to floating-point precision
+                    dot = Math.max(-1.0, Math.min(1.0, dot))
+                    angleDiff = 2 * Math.acos(dot);
+                    //boneHand.userData.accumulatedAngle += angleDiff;
+                    let angleDiffD = THREE.MathUtils.radToDeg(angleDiff);
+                    console.log("DIFF TWIST", angleDiffD)
+
+                    // let qTwistCurr = new THREE.Quaternion();
+                    // getTwistQuaternion(qNewSwingTwist, boneMid.position.clone().normalize(), qTwistCurr);
+                    // boneHand.userData.twistHistory.push({twist: qTwistCurr, deltaAngle: angleDiff});
+                }
+                else {
+                    interpolate = Math.abs(angleDiffD) - maxAngleDiff;
+                    if( interpolate ) {
+                        interpolate = 1 - Math.max(Math.min(interpolate/(maxAngleDiff*0.8), 1), 0); 
+                        if( !interpolate ) {
+                            console.warn ("discarted")
+                            return;
+                        }
+                        console.warn("should be discarded:", interpolate)
+                    }
+                    else {
+                        return;
+                    }   
+                }
             }
+
+            let qTwistCurr = new THREE.Quaternion();
+            getTwistQuaternion(qNewSwingTwist, boneMid.position.clone().normalize(), qTwistCurr);
+            boneHand.userData.twistHistory.push({twist: qTwistCurr, deltaAngle: angleDiff});
+            if(boneHand.userData.twistHistory.length > 5) {
+                const removed = boneHand.userData.twistHistory.shift();
+                boneHand.userData.accumulatedAngle -= removed.deltaAngle;
+            }
+            boneHand.userData.accumulatedAngle += angleDiff;
 
             boneHand.quaternion.multiply( qq ).normalize();
             applyWristLimitsWithBindPose(boneHand, boneHand.quaternion, boneHand.userData.bindPoseQuat, boneMid.position.clone().normalize());

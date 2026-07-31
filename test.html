@@ -129,25 +129,48 @@
             <input type="file" id="file-input" accept=".json">
             <button class="btn-file" onclick="document.getElementById('file-input').click()">Select JSON file</button>
         </div>
-        <div class="control-group">
-            <label><b>Twist simulation:</b></label>
-            <input type="range" id="twistSlider" min="-360" max="360" value="0">
-            <input type="number" id="twistNumber" min="-360" max="360" value="0">
+        <div id="gizmo-controls">
+            <div class="control-group">
+                <label><b>Twist simulation:</b></label>
+                <input type="range" id="twistSlider" min="-360" max="360" value="0">
+                <input type="number" id="twistNumber" min="-360" max="360" value="0">
+            </div>
+        
+            <div class="control-group">
+                <div class="metric">Angle Swing Requestes: <span id="valSwingReq">0</span>°</div>
+                <div class="metric">Angle Swing Applied: <span id="valSwingReal" class="ok">0</span>° (Max: 60°)</div>
+                <div class="metric">Angle Twist Requestes: <span id="valTwistReq">0</span>°</div>
+                <div class="metric">Angle Twist Applied: <span id="valTwistReal" class="ok">0</span>° (Max: 35°)</div>
+            </div>
         </div>
-    
-        <div class="control-group">
-            <div class="metric">Angle Swing Requestes: <span id="valSwingReq">0</span>°</div>
-            <div class="metric">Angle Swing Applied: <span id="valSwingReal" class="ok">0</span>° (Max: 60°)</div>
-            <div class="metric">Angle Twist Requestes: <span id="valTwistReq">0</span>°</div>
-            <div class="metric">Angle Twist Applied: <span id="valTwistReal" class="ok">0</span>° (Max: 35°)</div>
+        <div id="file-controls" style="display: none;">
+            <div class="control-group">
+                <span><b>LEFT</b></span>
+                <span id= "leftDiscarted" class="warn"></span>
+                <span id= "leftLandmarks" class="warn"></span>
+                <div class="metric">Angle Swing Diff: <span id="LswingDiff">0</span>° (Max: 55)</div>
+                <div class="metric">Angle Twist Diff: <span id="LtwistDiff" class="ok">0</span>° (Max: 60°)</div>
+                <div class="metric">Final Twist: <span id="LfinalTwist">0</span>°</div>
+                <div class="metric">Accumulated Angle: <span id="LaccAngle">0</span>°</div>
+                <div class="metric">Interpolation: <span id="Linterpolation" class="">0</span></div>
+            </div>
+            <div class="control-group">
+                <span><b>RIGHT</b></span>
+                <span id= "rightDiscarted" class="warn"></span>
+                <span id= "rightLandmarks" class="warn"></span>
+                <div class="metric">Angle Swing Diff: <span id="RswingDiff">0</span>° (Max: 55)</div>
+                <div class="metric">Angle Twist Diff: <span id="RtwistDiff" class="ok">0</span>° (Max: 60°)</div>
+                <div class="metric">Final Twist: <span id="RfinalTwist">0</span>°</div>
+                <div class="metric">Accumulated Angle: <span id="RaccAngle">0</span>°</div>
+                <div class="metric">Interpolation: <span id="Rinterpolation" class="">0</span></div>
+            </div>
+        <div class="metric">Time: <span id="time">0</span></div>
         </div>
         <div class="control-group">
             <span style="padding-right:5px;">Frame</span><input type="number" id="frame"value="0">
             <span class="warn"></span>
         </div>
-        <div class="metric">Time: <span id="time">0</span></div>
         <div class="metric">Compute twist<input type="checkbox" id="computeTwist" checked /></div>
-        <span class="warn"></span>
         <!-- <span style="padding-right:5px;">Time</span><input text="Time" type="number" id="time"value="0" disabled> -->
     </div>
 <script type="module">
@@ -228,7 +251,7 @@ axisRightGlobal.geometry.setFromPoints([ new THREE.Vector3(),  new THREE.Vector3
 scene.add(axisRightGlobal);
 
 const pointCloudGroup = new THREE.Object3D();
-pointCloudGroup.position.set(1,0.9,0.1);
+pointCloudGroup.position.set(0,0.9,0.1);
 pointCloudGroup.visible = false;
 scene.add( pointCloudGroup );
 
@@ -502,7 +525,6 @@ async function init () {
     // targetMesh.position.y-=0.1
     animate();
 }
-let discarted = 0;
 let missing = false;
 // Animation loop
 let hisotry = {};
@@ -551,7 +573,7 @@ function animate() {
         simulatedHandLandmarks = landmarks;
 
         if(landmarks[frame].LWLM) {
-            warning.innerText = "";
+            leftLandmarksWarn.innerText = "";
             
             handWorld.position.copy(landmarks[frame].LWLM[0]).add(handWorldPos)
             midWorld.position.copy(landmarks[frame].LWLM[9]).add(handWorldPos)
@@ -570,7 +592,7 @@ function animate() {
             }
         }
         else {
-            warning.innerText = "No landmarks detected";
+            leftLandmarksWarn.innerText = "No landmarks detected";
         }
         for( let i = 0; i < landmarks[frame].PWLM.length; ++i ){
             let p = landmarks[frame].PWLM[i];
@@ -578,6 +600,7 @@ function animate() {
         }
         
         if(landmarks[frame].RWLM) {
+            rightLandmarksWarn.innerText = "";
             for( let i = 0; i < landmarks[frame].RWLM.length; ++i ){
                 let p = landmarks[frame].RWLM[i];
                 let w = landmarks[frame].RWLM[0];
@@ -585,7 +608,9 @@ function animate() {
                 rightHandPoints[i].position.add( bodyPoints[16].position );
             }
         }      
-
+        else {
+            rightLandmarksWarn.innerText = "No landmarks detected";
+        }
         for( let i = 0; i < PoseLandmarker.POSE_CONNECTIONS.length; ++i ){
             let a = bodyPoints[ PoseLandmarker.POSE_CONNECTIONS[i].start ].position;
             let b = bodyPoints[ PoseLandmarker.POSE_CONNECTIONS[i].end ].position;
@@ -620,34 +645,75 @@ function animate() {
     // const metrics = computeQuatHand(skeleton, simulatedHandLandmarks, isLeft);
     // const metrics = computeQuatHandOriginal(skeleton, simulatedHandLandmarks, isLeft);
     let metrics = null;
-    if(landmarks) {
-        
+    if(landmarks) {      
         if(recompute) {
-            warning2.innerText = ""
+            warningLeft.innerText = ""
+            warningRight.innerText = ""
             metrics = createBodyAnimationFromWorldLandmarks(landmarks, skeleton, frame, bindQuats)
             
             recompute = false;
-            if( !metrics ) {
-                warning2.innerText = "Discarted frame";
+            if( !metrics.leftHand ) {
+                warningLeft.innerText = "Discarted frame";
+            }
+            if( !metrics.rightHand ) {
+                warningRight.innerText = "Discarted frame";
+            }
+        }
+        // Update GUI
+        if (metrics) {
+            if(metrics.leftHand) {
+                // LEFT
+                document.getElementById('Linterpolation').innerText = metrics.leftHand.interpolated;
+                document.getElementById('LfinalTwist').innerText = metrics.leftHand.limitedTwist;
+                
+                const elSwingDiff = document.getElementById('LswingDiff');
+                elSwingDiff.innerText = metrics.leftHand.swingDiff;
+                elSwingDiff.className = (parseFloat(metrics.leftHand.swingDiff) > 55.1) ? "metric warn" : "metric ok";
+        
+                const elTwistDiff = document.getElementById('LtwistDiff');
+                elTwistDiff.innerText = metrics.leftHand.twistDiff;
+                elTwistDiff.className = (parseFloat(metrics.leftHand.twistDiff) > 60.1) ? "metric warn" : "metric ok";
+                
+                const elAccAngle = document.getElementById('LaccAngle');
+                elAccAngle.innerText = metrics.leftHand.accumulatedAngle;
+                elAccAngle.className = (Math.abs(parseFloat(metrics.leftHand.accumulatedAngle)) > 320) ? "metric warn" : "metric ok";
+            }
+
+            if(metrics.rightHand) {
+                // RIGHT
+                document.getElementById('Rinterpolation').innerText = metrics.rightHand.interpolated;
+                document.getElementById('RfinalTwist').innerText = metrics.rightHand.limitedTwist;
+                
+                const LelSwingDiff = document.getElementById('RswingDiff');
+                LelSwingDiff.innerText = metrics.rightHand.swingDiff;
+                LelSwingDiff.className = (parseFloat(metrics.rightHand.swingDiff) > 55.1) ? "metric warn" : "metric ok";
+        
+                const RelTwistDiff = document.getElementById('RtwistDiff');
+                RelTwistDiff.innerText = metrics.rightHand.twistDiff;
+                RelTwistDiff.className = (parseFloat(metrics.rightHand.twistDiff) > 60.1) ? "metric warn" : "metric ok";
+                
+                const RelAccAngle = document.getElementById('RaccAngle');
+                RelAccAngle.innerText = metrics.rightHand.accumulatedAngle;
+                RelAccAngle.className = (Math.abs(parseFloat(metrics.rightHand.accumulatedAngle)) > 320) ? "metric warn" : "metric ok";
             }
         }
     }
     else {
         metrics = computeQuatHandOriginal(skeleton, simulatedHandLandmarks, isLeft);
-    }
-    // Update GUI
-    if (metrics) {
-        document.getElementById('valSwingReq').innerText = metrics.swingReq;
-        
-        const elSwingReal = document.getElementById('valSwingReal');
-        elSwingReal.innerText = metrics.swingReal;
-        elSwingReal.className = (parseFloat(metrics.swingReq) > 60.1) ? "metric warn" : "metric ok";
-
-        document.getElementById('valTwistReq').innerText = metrics.twistReq;
-        
-        const elTwistReal = document.getElementById('valTwistReal');
-        elTwistReal.innerText = metrics.twistReal;
-        elTwistReal.className = (Math.abs(parseFloat(metrics.twistReq)) > 35.1) ? "metric warn" : "metric ok";
+        // Update GUI
+        if (metrics) {
+            document.getElementById('valSwingReq').innerText = metrics.swingReq;
+            
+            const elSwingReal = document.getElementById('valSwingReal');
+            elSwingReal.innerText = metrics.swingReal;
+            elSwingReal.className = (parseFloat(metrics.swingReq) > 60.1) ? "metric warn" : "metric ok";
+    
+            document.getElementById('valTwistReq').innerText = metrics.twistReq;
+            
+            const elTwistReal = document.getElementById('valTwistReal');
+            elTwistReal.innerText = metrics.twistReal;
+            elTwistReal.className = (Math.abs(parseFloat(metrics.twistReq)) > 35.1) ? "metric warn" : "metric ok";
+        }
     }
 
     orbit.update();
@@ -1214,7 +1280,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
     function computeQuatHandOriginal( skeleton, handLandmarks, bodyLandmarks, isLeft = false, dt = 0,  interpolate = 0 ){
         if ( !handLandmarks ){ return; }
         //handlandmarks is an array of {x,y,z,visiblity} (mediapipe)
-            
+        const metrics = {}    ;
         const boneHand = isLeft? skeleton.bones[ 12 ] : skeleton.bones[ 36 ];
         const boneMid = isLeft? skeleton.bones[ 21 ] : skeleton.bones[ 45 ];
         // const boneThumbd = isLeft? skeleton.bones[ 13 ] : skeleton.bones[ 53 ];
@@ -1309,7 +1375,8 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         // calculate the angular difference in degrees
         let angleDiff = 2 * Math.acos(dot);
         angleDiff = THREE.MathUtils.radToDeg(angleDiff);
-
+        
+        metrics.swingDiff = angleDiff;
         let maxAngleDiff = 55; // more than 55º means error/noise in landmarks
         if( Math.abs(angleDiff) >= maxAngleDiff && !interpolate) { 
             console.log("discarted", angleDiff);
@@ -1360,30 +1427,51 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
             // clamp dot product to avoid NaN errors due to floating-point precision
             dot = Math.max(-1.0, Math.min(1.0, dot))
             angleDiff = 2 * Math.acos(dot);
-            boneHand.userData.accumulatedAngle += angleDiff;
             let angleDiffD = THREE.MathUtils.radToDeg(angleDiff);
             console.log("DIFF TWIST", angleDiffD)
             maxAngleDiff = 60;
 
-            let qTwistCurr = new THREE.Quaternion();
-            getTwistQuaternion(qNewSwingTwist, boneMid.position.clone().normalize(), qTwistCurr);
-            boneHand.userData.twistHistory.push({twist: qTwistCurr, deltaAngle: angleDiff});
-            if(boneHand.userData.twistHistory.length > 5) {
-                const removed = boneHand.userData.twistHistory.shift();
-                boneHand.userData.accumulatedAngle -= removed.deltaAngle;
-            }
             
             if( Math.abs(angleDiffD) >= maxAngleDiff && !interpolate) { // more than max angle difference means error/noise in landmarks
                 console.log("discarted twist from hand landmarks direction", angleDiffD);
                 if (boneHand.userData.accumulatedAngle >= Math.PI * 2) {
                     console.warn("+360º!!!")
                     // computeTwist = false;
-                    // qq.premultiply(qq.clone().invert());
+                    
+                    qq.conjugate();
+                    qq.w *=-1;
+
+                    boneHand.userData.accumulatedAngle -= angleDiff;
+                    // boneHand.userData.twistHistory.pop();
+
+                    let qNewSwingTwist = boneHand.quaternion.clone().multiply( qq );
+                    let qNewSwing = boneHand.quaternion.clone();
+                    //boneHand.userData.bindPoseData.lastRawQuat.copy(boneHand.quaternion.clone());
+                    dot = qNewSwing.x*qNewSwingTwist.x + qNewSwing.y*qNewSwingTwist.y + qNewSwing.z*qNewSwingTwist.z + qNewSwing.w*qNewSwingTwist.w;
+
+                    // handle the double-cover property (q and -q represent the same rotation)
+                    targetQ = qNewSwingTwist.clone()
+                    if (dot < 0) {
+                        dot = -dot;
+                        targetQ.conjugate();
+                        targetQ.w*=-1;
+                    }
+
+                    // clamp dot product to avoid NaN errors due to floating-point precision
+                    dot = Math.max(-1.0, Math.min(1.0, dot))
+                    angleDiff = 2 * Math.acos(dot);
+                    //boneHand.userData.accumulatedAngle += angleDiff;
+                    let angleDiffD = THREE.MathUtils.radToDeg(angleDiff);
+                    console.log("DIFF TWIST", angleDiffD)
+
+                    // let qTwistCurr = new THREE.Quaternion();
+                    // getTwistQuaternion(qNewSwingTwist, boneMid.position.clone().normalize(), qTwistCurr);
+                    // boneHand.userData.twistHistory.push({twist: qTwistCurr, deltaAngle: angleDiff});
                 }
                 else {
                     interpolate = Math.abs(angleDiffD) - maxAngleDiff;
                     if( interpolate ) {
-                        interpolate = 1 - Math.max(Math.min(interpolate/maxAngleDiff, 1), 0); 
+                        interpolate = 1 - Math.max(Math.min(interpolate/(maxAngleDiff*0.8), 1), 0); 
                         if( !interpolate ) {
                             console.warn ("discarted")
                             return;
@@ -1392,10 +1480,20 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
                     }
                     else {
                         return;
-                    }
-
+                    }   
                 }
             }
+            
+            let qTwistCurr = new THREE.Quaternion();
+            getTwistQuaternion(qNewSwingTwist, boneMid.position.clone().normalize(), qTwistCurr);
+            boneHand.userData.twistHistory.push({twist: qTwistCurr, deltaAngle: angleDiff});
+            if(boneHand.userData.twistHistory.length > 5) {
+                const removed = boneHand.userData.twistHistory.shift();
+                boneHand.userData.accumulatedAngle -= removed.deltaAngle;
+            }
+            boneHand.userData.accumulatedAngle += angleDiff;
+            metrics.twistDiff = angleDiffD;
+            metrics.accumulatedAngle = boneHand.userData.accumulatedAngle;
             continuousTwistAngle = 2 * Math.acos(Math.min(Math.abs(qq.w), 1.0));
             
             boneHand.quaternion.multiply( qq ).normalize();
@@ -1411,10 +1509,12 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         else {
             interpolate = true;
         }
+        metrics.interpolated = interpolate;
+
         let currentTwist = new THREE.Quaternion();
         getTwistQuaternion( boneHand.quaternion, boneMid.position.clone().normalize(), currentTwist );
         boneHand.userData.bindPoseData.lastRawTwist = currentTwist;
-
+        metrics.limitedTwist = currentTwist;
         const qParent = boneHand.parent.getWorldQuaternion(new THREE.Quaternion());
         const pParent = boneHand.getWorldPosition(new THREE.Vector3());
 
@@ -1425,7 +1525,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         axisFrontGlobal.position.copy(pParent);
         axisUpGlobal.position.copy(pParent);
         axisRightGlobal.position.copy(pParent);
-        return interpolate;
+        return metrics;
     }
 
     function computeQuatPhalange( skeleton, bindQuats, handLandmarks, isLeft = false, interpolate = false ){
@@ -1637,7 +1737,7 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
         computeQuatHead( skeleton, bindQuats, body );
 
         // // right arm-hands
-        let metrics = null;
+        let metrics = {leftHand: null, rightHand: null};
         computeQuatArm( skeleton, body, false );
         if(worldLandmarksArray[i].rightHandVisibility > 0.4) {
             let missing = false;
@@ -1647,11 +1747,12 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
             if( i + 1 < worldLandmarksArray.length && worldLandmarksArray[i +1 ].rightHandVisibility <= 0.4 ) {
                 missing = true;
             }
-            let interpolate = computeQuatHandOriginal( skeleton, rightHand, body, false, worldLandmarksArray[i].dt/1000, missing );
-            if( interpolate ) {
-                interpolate = interpolate === true ? false : interpolate;
-                computeQuatPhalange( skeleton, bindQuats, rightHand, false, interpolate );
+            let data = computeQuatHandOriginal( skeleton, rightHand, body, false, worldLandmarksArray[i].dt/1000, missing );
+            if( data && data.interpolated ) {
+                data.interpolated = data.interpolated === true ? false : data.interpolated;
+                computeQuatPhalange( skeleton, bindQuats, rightHand, false, data.interpolated );
             }
+            metrics.rightHand = data
         }
         
         // left arm-hands
@@ -1664,11 +1765,12 @@ function createBodyAnimationFromWorldLandmarks( worldLandmarksArray, skeleton, i
             if( i + 1 < worldLandmarksArray.length && worldLandmarksArray[i +1 ].leftHandVisibility <= 0.4 ) {
                 missing = true;
             }
-            let interpolate= computeQuatHandOriginal( skeleton, leftHand, body, true, worldLandmarksArray[i].dt/1000, missing );
-            if( interpolate ) {
-                interpolate = interpolate === true ? false : interpolate;
-                computeQuatPhalange( skeleton, bindQuats, leftHand, true, interpolate );
+            let data = computeQuatHandOriginal( skeleton, leftHand, body, true, worldLandmarksArray[i].dt/1000, missing );
+            if( data && data.interpolated ) {
+                data.interpolated = data.interpolated === true ? false : data.interpolated;
+                computeQuatPhalange( skeleton, bindQuats, leftHand, true, data.interpolated );
             }
+            metrics.leftHand = data;
         }
         
         return metrics;
@@ -1809,6 +1911,8 @@ async function handleFile( file ) {
             // tracks.push( new Float32Array( worldLandmarksArray.length * 4 ) );
             bindQuats.push( skeleton.bones[i].quaternion.clone() );
         }
+        document.getElementById("gizmo-controls").style.display = "none";
+        document.getElementById("file-controls").style.display = "";
     }
     catch( erorr ){
         console.error(error);
@@ -1822,7 +1926,10 @@ twistNumber.onchange = (e) => {
 }
 
 const warning = document.getElementsByClassName("warn")[0];
-const warning2 = document.getElementsByClassName("warn")[1];
+const warningLeft = document.getElementById("leftDiscarted");
+const warningRight = document.getElementById("rightDiscarted");
+const leftLandmarksWarn = document.getElementById("leftLandmarks");
+const rightLandmarksWarn = document.getElementById("rightLandmarks");
 const dropOverlay = document.getElementById('drop-overlay');
 const fileInput = document.getElementById('file-input');
 const dropStatus = document.getElementById('drop-status');
