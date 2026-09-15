@@ -23,20 +23,21 @@ class MediaPipe {
 
         this.mirrorCanvas = false;
         this.cropRect = null; //{ x:0, y:0, width: 1, height: 1 }; normalized coordinates
+        this.mode = "IMAGE";
     }
 
     async init () {
 
-        if( this.loaded ) {
-            return new Promise(resolve => resolve());
-        }
+        // if( this.loaded ) {
+        //     return new Promise(resolve => resolve());
+        // }
 
         const initImage = await createImageBitmap(this.canvas);
         const loadingPromises = [];
         const vision = await FilesetResolver.forVisionTasks( "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm" );
         
-        if(!this.faceLandmarker) {
-            const p = FaceLandmarker.createFromOptions(
+        // if(!this.faceLandmarker) {
+            let p = FaceLandmarker.createFromOptions(
                 vision, 
                 {
                     baseOptions: {
@@ -45,22 +46,23 @@ class MediaPipe {
                     },
                     outputFaceBlendshapes: true,
                     outputFacialTransformationMatrixes: true,
-                    runningMode: 'VIDEO',
+                    runningMode: this.mode,
                     numFaces: 1,
                     minFaceDetectionConfidence: 0.1
                 }
             ).then(
                 (faceLandmarker) =>{
                     this.faceLandmarker = faceLandmarker;
-                    return this.faceLandmarker.detectForVideo(initImage, performance.now());
+                    return true;
+                    // return this.faceLandmarker.detectForVideo(initImage, 0)//performance.now());
                 }
             );
             loadingPromises.push(p);
 
-        }
+        // }
 
-        if(!this.handDetector){
-            const p = HandLandmarker.createFromOptions(
+        // if(!this.handDetector){
+            p = HandLandmarker.createFromOptions(
                 vision,
                 {
                     baseOptions: {
@@ -68,7 +70,7 @@ class MediaPipe {
                         delegate: "GPU"
                     },
                     numHands: 2,
-                    runningMode: "VIDEO",
+                    runningMode: this.mode,
                     // minTrackingConfidence: 0.001,
                     // minPosePresenceConfidence: 0.001,
                     // minPoseDetectionConfidence: 0.001
@@ -76,21 +78,22 @@ class MediaPipe {
             ).then( 
                 (handDetector)=>{
                     this.handDetector = handDetector;
-                    return this.handDetector.detectForVideo(initImage, performance.now());
+                    return true;
+                    // return this.handDetector.detectForVideo(initImage, 0)//performance.now());
                 } 
             );
             loadingPromises.push(p);
-        }
+        // }
             
-        if(!this.poseDetector){
-            const p = PoseLandmarker.createFromOptions(
+        // if(!this.poseDetector){
+            p = PoseLandmarker.createFromOptions(
                 vision,
                 {
                     baseOptions: {
                         modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
                         delegate:"GPU"
                     },
-                    runningMode: "VIDEO",
+                    runningMode: this.mode,
                 // minTrackingConfidence: 0.001,
                 // minPosePresenceConfidence: 0.001,
                 // minPoseDetectionConfidence: 0.001
@@ -98,11 +101,12 @@ class MediaPipe {
             ).then(
                 (poseDetector) => {
                     this.poseDetector = poseDetector;
-                    return this.poseDetector.detectForVideo(initImage, performance.now());
+                    return true;
+                    // return this.poseDetector.detectForVideo(initImage, 0)//performance.now());
                 }
             );
             loadingPromises.push(p);
-        }
+        // }
 
         await Promise.all( loadingPromises );
 
@@ -248,17 +252,27 @@ class MediaPipe {
             rect = {x, y, width, height};
             croppedImage = await createImageBitmap( videoElement, x, y, width, height, {resizeWidth: width, resizeHeight: height, resizeQuality:"high"} );
         }
-
-        const time = performance.now()//Date.now();
-
-        // it would probably be more optimal to use hollistic. But it does not return certain types of values 
-        const detectionsFace = this.faceLandmarker.detectForVideo(croppedImage, time);
-        const detectionsPose = this.poseDetector.detectForVideo(croppedImage, time);
-        const detectionsHands = this.handDetector.detectForVideo(croppedImage, time);
-        // let holistic_results = this.holisticLandmarker.detectForVideo(videoElement,time);
         
         //miliseconds
-        const dt = this.currentResults ? Math.max( ( videoElement.currentTime - this.currentResults.currentTime ) * 1000, 0 ) : 0; 
+        const dt = this.currentResults ? Math.max( ( videoElement.currentTime - this.currentResults.currentTime ) * 1000, 0 ) : 0;
+        const time = videoElement.currentTime || 0;//performance.now()//Date.now();
+
+        // it would probably be more optimal to use hollistic. But it does not return certain types of values
+        let detectionsFace = null;
+        let detectionsPose = null;
+        let detectionsHands = null;
+
+        if( this.mode == "IMAGE") {
+            detectionsFace = this.faceLandmarker.detect(croppedImage);
+            detectionsPose = this.poseDetector.detect(croppedImage);
+            detectionsHands = this.handDetector.detect(croppedImage);
+        }
+        else {
+            detectionsFace = this.faceLandmarker.detectForVideo(croppedImage, time*1000);
+            detectionsPose = this.poseDetector.detectForVideo(croppedImage, time*1000);
+            detectionsHands = this.handDetector.detectForVideo(croppedImage, time*1000);
+        }
+        // let holistic_results = this.holisticLandmarker.detectForVideo(videoElement,time);
         
         const results = {
             dt: dt, // miliseconds
@@ -467,7 +481,7 @@ class MediaPipe {
      * @param {HTMLVideoElement*} videoElement
      * @param {Object} [options={}] :
      * @param {Number} startTime seconds
-     * @param {Number} endTime seconds
+     * @param {Number} endTime seconds777777777777777777777777777777777777777777777777777
      * @param {Number} dt seconds. Default to 0.04 = 1/25 = 25 fps
      * @param {Function} callback
      * @param {Boolean} mirror whether to flip horizontally (mirroring) the canvas. Useful for seeing correctly a webcam video
@@ -568,6 +582,12 @@ class MediaPipe {
         // Correct first dt of landmarks
         if ( this.landmarks.length ){ this.landmarks[0].dt = 0; }
         if ( this.blendshapes.length ){ this.blendshapes[0].dt = 0; }
+    }
+
+    unbind() {
+        this.stopRecording();
+        this.stopVideoProcessing();
+        this.loaded = false;
     }
 }
 

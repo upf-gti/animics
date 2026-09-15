@@ -199,7 +199,7 @@ class VideoProcessor {
             UTILS.hideLoading();
 
             this.mediapipe.setOptions( { autoDraw: true } );
-            if ( this.mediapipeOnlineEnabler ) { 
+            if ( this.mediapipeOnlineEnabler ) {
                 this.mediapipe.processVideoOnline(video) //this.mode == "webcam"); 
             }            
         }
@@ -263,21 +263,25 @@ class VideoProcessor {
     }
 
     // online Mediapipe might make the pc slow. Allow user to disable it. (video processing is not affected. It is offline Mediapipe)
-    enableMediapipeOnline( bool ){
+    async enableMediapipeOnline( bool ){
         // check app stage
         if ( !this.mediapipeOnlineVideo ) {
             this.mediapipeOnlineEnabler = false;
             return;
         }
-        
+        this.mediapipe.unbind();
         // still in video recording or trimming stages. Online toggle is allowed
         this.mediapipeOnlineEnabler = !!bool;
         if ( this.mediapipeOnlineEnabler ) {
+            UTILS.makeLoading("Loading Pose Estimator...");
+            await this.mediapipe.init();
+            UTILS.hideLoading();
             this.mediapipe.processVideoOnline( this.mediapipeOnlineVideo, { mirror: this.mediapipeOnlineVideo == this.inputVideo && this.mode == "webcam" } );
             this.canvasVideo.classList.remove("hidden");
         }
         else{
             this.mediapipe.stopVideoProcessing();
+            this.mediapipe.unbind();
             this.canvasVideo.classList.add("hidden");
         }
 
@@ -330,10 +334,13 @@ class VideoProcessor {
             
             this.buttonsPanel.clear();
             this.videoEditor.hideControls();
-            
+            recordedVideo.currentTime = 0;
+            this.mediapipe.unbind();
             const animation = await this.generateRawAnimation(recordedVideo, this.videoEditor.getTrimedTimes())
             
             this.videoEditor.unbind();
+            this.mediapipe.unbind();
+
             this.processorArea.reduce();
             this.currentResolve(animation);
             this.currentResolve = null;
@@ -511,10 +518,12 @@ class VideoProcessor {
                 video.style.width = width + "px";
                 video.style.height = height + "px";
 
-                if( !this.mediapipe.loaded ) {
+               // if( !this.mediapipe.loaded ) {
                     UTILS.makeLoading("Loading Pose Estimator...");
+                    this.mediapipe.mode = "IMAGE";
                     await this.mediapipe.init();
-                }
+                    UTILS.hideLoading();
+                //}
                 
                 if(trimStage) {
                     // directly to trim stage
@@ -540,7 +549,11 @@ class VideoProcessor {
      * @param { VideoElement } video 
      * @param { Object } [times={}] {start: , end:} Trimmed times
     */
-    generateRawAnimation( video, times = {} ) {
+    async generateRawAnimation( video, times = {} ) {
+        this.mediapipe.mode = "VIDEO";
+        UTILS.makeLoading("Loading Pose Estimator...");
+        await this.mediapipe.init();
+        UTILS.hideLoading();
         UTILS.makeLoading("Processing video [ " + video.name + " ]", 0.7 )
 
         const animationData = {
@@ -556,13 +569,13 @@ class VideoProcessor {
 
         this.mediapipeOnlineVideo = null;
 
-        this.mediapipe.setOptions( { autoDraw: true } );
+        // this.mediapipe.setOptions( { autoDraw: true, runningMode: "VIDEO" } );
+
 
         const promise = new Promise( resolve => {
             let cropRectCoords = this.videoEditor.cropArea.normCoords;
 
             const rect = {x: cropRectCoords.x, y: cropRectCoords.y, width: cropRectCoords.w, height: cropRectCoords.h};
-
             this.mediapipe.processVideoOffline( video, { startTime: animationData.startTime, endTime: animationData.endTime, dt: animationData.dt, callback: () =>{
                 animationData.landmarks = this.mediapipe.landmarks;
                 animationData.blendshapes = this.mediapipe.blendshapes;
@@ -578,6 +591,7 @@ class VideoProcessor {
     
                 resolve(animationData);
                 UTILS.hideLoading();
+                this.mediapipe.unbind();
     
             }, mirror: false /*animationData.live*/, rect} )
            
@@ -591,11 +605,11 @@ class VideoProcessor {
     async processWebcam() {
         this.mode = "webcam";
 
-        if( !this.mediapipe.loaded ) {
-            UTILS.makeLoading("Loading Pose Estimator...");
-            await this.mediapipe.init();
-            UTILS.hideLoading();
-        }
+        // if( !this.mediapipe.loaded ) {
+        //     UTILS.makeLoading("Loading Pose Estimator...");
+        //     await this.mediapipe.init();
+        //     UTILS.hideLoading();
+        // }
 
         this.mediaRecorder = null;
         this.mediapipeOnlineVideo = this.inputVideo; 
@@ -611,7 +625,7 @@ class VideoProcessor {
         const onError = async (err = null) => {
             // LX.toast("Cannot access the camera. Check it is properly connected and not being used by any other application. You may want to upload a video instead.")
             console.error("Error: " + err);
-            
+            this.mediapipe.unbind();
             return new Promise( resolve => {
                 return new LX.AlertDialog( err || "Webcam Error", "Can't access the camera. Check it's properly connected and not being used by any other application, or if the site has permissions You may want to upload a video instead",  async () => { animation = await generateAnimation(); resolve(animation)}, {
                     cancelCallback: () => { resolve() }, continueText: "Retry" })
@@ -748,6 +762,14 @@ class VideoProcessor {
                     inputVideo.srcObject.getTracks().forEach(a => a.stop());
                 }
                 inputVideo.srcObject = null;
+                
+                // this.mediapipe.mode = "VIDEO";
+
+                // // if( !this.mediapipe.loaded ) {
+                //     UTILS.makeLoading("Loading Pose Estimator...");
+                //     await this.mediapipe.init();
+                //     UTILS.hideLoading();
+                // // }
                 
                 if(trimStage) {
                     // directly to trim stage
