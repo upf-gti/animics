@@ -6178,8 +6178,14 @@ class ScriptGui extends Gui {
                                 clipClass = ANIM.ShoulderClip;
                             else if(data.behaviours[i].locationBodyArm)
                                 clipClass = ANIM.ArmLocationClip;
-                            else if(data.behaviours[i].palmor)
+                            else if(data.behaviours[i].palmor) {
                                 clipClass = ANIM.PalmOrientationClip;
+                                if(data.behaviours[i].extfidir) {
+                                    const handOrientation = Object.assign({}, data.behaviours[i]);
+                                    delete handOrientation.palmor;
+                                    data.behaviours.push(handOrientation);
+                                }
+                            }
                             else if(data.behaviours[i].extfidir)
                                 clipClass = ANIM.HandOrientationClip;
                             else if(data.behaviours[i].handshape)
