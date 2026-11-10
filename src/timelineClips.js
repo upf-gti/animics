@@ -3200,7 +3200,23 @@ ANIM.registerClipType( CircularMotionClip );
 class WristMotionClip extends BaseClip {
 	static type = "gesture";
 	static hands = ["Left", "Right", "Both"];
-	static modes = ["Nod", "Swing", "Twist", "Stir CW", "Stir CCW", "All"];
+	static modes = [
+		"Twisting",
+		"Twist",
+		"Pronation",
+		"Supination",
+		"Nodding",
+		"Nod",
+		"Extension",
+		"Flexion",
+		"Swinging",
+		"Swing",
+		"Swing_ulnar",
+		"Swing_radial",
+		"Stir_cw",
+		"Stir_ccw",
+		"All"
+	];
 	
 	static id = ANIM.WRISTMOTION ? ANIM.WRISTMOTION: ANIM.clipTypes.length;
 	static clipColor = "#72c157";

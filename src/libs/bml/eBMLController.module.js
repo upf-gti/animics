@@ -8,7 +8,7 @@ import * as THREE from 'three';
 */
 
 const EBMLC = {
-    version: "0.1.2",
+    version: "1.3.0",
     extensions: []
 };
 
@@ -40,6 +40,23 @@ function nlerpQuats( destQuat, qa, qb, t ){
     destQuat.normalize();
 }
 
+// decompose a quaternion into twist and swing quaternions. (Twist before swing decomposition). Arguments cannot be the same instance of quaternion
+function getTwistSwingQuaternions( q, normAxis, outTwist, outSwing ){
+    //  R = [ Wr, Vr ] = S * T  source rotation
+    // T = norm( [ Wr, proj(Vr) ] ) twist 
+    // S = R * inv(T)
+    let dot =  q.x * normAxis.x + q.y * normAxis.y + q.z * normAxis.z;
+    outTwist.set( dot * normAxis.x, dot * normAxis.y, dot * normAxis.z, q.w );
+    outTwist.normalize(); // already manages (0,0,0,0) quaternions by setting identity
+
+    outSwing.copy( outTwist );
+    outSwing.invert(); // actually computes the conjugate so quite cheap
+    outSwing.premultiply( q );
+    outSwing.normalize();
+}
+
+EBMLC.getTwistSwingQuaternions = getTwistSwingQuaternions;
+
 function getTwistQuaternion( q, normAxis, outTwist ){
     let dot =  q.x * normAxis.x + q.y * normAxis.y + q.z * normAxis.z;
     outTwist.set( dot * normAxis.x, dot * normAxis.y, dot * normAxis.z, q.w );
@@ -47,8 +64,15 @@ function getTwistQuaternion( q, normAxis, outTwist ){
     return outTwist;
 }
 
+EBMLC.getTwistQuaternion = getTwistQuaternion;
+
+const E_FLAG_SYMMETRY_NONE = 0x00;
+const E_FLAG_SYMMETRY_LR = 0x01;
+const E_FLAG_SYMMETRY_UD = 0x02;
+const E_FLAG_SYMMETRY_IO = 0x04;
+const E_FLAG_SYMMETRY_ALL = E_FLAG_SYMMETRY_LR | E_FLAG_SYMMETRY_UD | E_FLAG_SYMMETRY_IO;
 // symmetry bit0 = left-right, bit1 = up-down, bit2 = in-out symmetry
-function stringToDirection( str, outV, symmetry = 0x00, accumulate = false ){
+function stringToDirection( str, outV, symmetry = E_FLAG_SYMMETRY_NONE, accumulate = false ){
     outV.set(0,0,0);
     if ( typeof( str ) != "string" ){ return false; }
 
@@ -63,9 +87,9 @@ function stringToDirection( str, outV, symmetry = 0x00, accumulate = false ){
     if ( str.includes( "O" ) ){ outV.z += 1 * ( accumulate ? ( str.split("O").length -1 ): 1 ); success = true; } 
     if ( str.includes( "I" ) ){ outV.z -= 1 * ( accumulate ? ( str.split("I").length -1 ): 1 ); success = true; }
  
-    if ( symmetry & 0x01 ){ outV.x *= -1; }
-    if ( symmetry & 0x02 ){ outV.y *= -1; }
-    if ( symmetry & 0x04 ){ outV.z *= -1; }
+    if ( symmetry & E_FLAG_SYMMETRY_LR ){ outV.x *= -1; }
+    if ( symmetry & E_FLAG_SYMMETRY_UD ){ outV.y *= -1; }
+    if ( symmetry & E_FLAG_SYMMETRY_IO ){ outV.z *= -1; }
 
     if ( !success ){ outV.set(0,0,0); }
     else if ( !accumulate ){ outV.normalize(); }
@@ -85,6 +109,8 @@ function findIndexOfBone( skeleton, bone ){
     return -1;
 }
 
+EBMLC.findIndexOfBone = findIndexOfBone;
+
 // O(nm)
 function findIndexOfBoneByName( skeleton, name ){
     if ( !name ){ return -1; }
@@ -94,6 +120,8 @@ function findIndexOfBoneByName( skeleton, name ){
     }
     return -1;
 }
+
+EBMLC.findIndexOfBoneByName = findIndexOfBoneByName;
 
 function getBindQuaternion( skeleton, boneIdx, outQuat ){
     let m1 = skeleton.boneInverses[ boneIdx ].clone().invert(); 
@@ -105,6 +133,8 @@ function getBindQuaternion( skeleton, boneIdx, outQuat ){
     outQuat.setFromRotationMatrix( m1 ).normalize();
     return outQuat;
 }
+
+EBMLC.getBindQuaternion = getBindQuaternion;
 
 // sets bind quaternions only. Warning: Not the best function to call every frame.
 function forceBindPoseQuats( skeleton, skipRoot = false ){
@@ -129,6 +159,8 @@ function forceBindPoseQuats( skeleton, skipRoot = false ){
         bones[i].quaternion.normalize(); 
     }
 }
+
+EBMLC.forceBindPoseQuats = forceBindPoseQuats;
 
 const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
@@ -4482,12 +4514,6 @@ class LocationBodyArm {
     _newGestureLocationComposer( bml, symmetry, resultPos, isSecond = false ){
         let location = isSecond ? bml.secondLocationBodyArm : bml.locationBodyArm;
 
-        // Symmetry should be only for sides
-        // for symmetry - the left and right must be swapped
-        // if ( ( symmetry & 0x01 ) && location ){ 
-        //     if ( location[location.length-1] == "L" ){ location = location.slice(0, location.length-1) + "R"; } 
-        //     else if( location[location.length-1] == "R" ){ location = location.slice(0, location.length-1) + "L"; } 
-        // }
         if ( typeof( location ) != "string" ){ return false; }
         location = location.toUpperCase();
 
@@ -4556,7 +4582,7 @@ class LocationBodyArm {
      *                       set to true; contact tip of index; reach destination. Afterwards, changing index finger state (handshape) will make the location change depending on where the tip of the index is  
      * shift does not use contact locations
      */
-    newGestureBML( bml, symmetry = 0x00, lastFrameWorldPosition = null ) {
+    newGestureBML( bml, symmetry = E_FLAG_SYMMETRY_NONE, lastFrameWorldPosition = null ) {
         this.keepUpdatingContact = !!bml.keepUpdatingContact;
         this.contactUpdateDone = false;
 
@@ -5737,7 +5763,7 @@ class ExtfidirPalmor {
      * extfidir: string from sides
      * secondExtfidir: (optional) string from sides. Will compute midpoint between extifidir and secondExtfidir
     */
-    newGestureBMLExtfidir( bml, symmetry = false ){
+    newGestureBMLExtfidir( bml, symmetry = E_FLAG_SYMMETRY_NONE ){
         if( !bml.extfidir ){ return; }
         
         if( !stringToDirection( bml.extfidir, this.extfidir.trgDir, symmetry, true ) ){ 
@@ -5763,7 +5789,7 @@ class ExtfidirPalmor {
      * palmor: string from palmorRightTable
      * secondPalmor: (optional)
     */
-    newGestureBMLPalmor( bml, symmetry = 0x00 ){
+    newGestureBMLPalmor( bml, symmetry = E_FLAG_SYMMETRY_NONE ){
         if( !bml.palmor ){ return; }
 
         // TODO (?): solve atan2(0,-0) == up    
@@ -5796,7 +5822,7 @@ class ExtfidirPalmor {
         return true;
     }
 
-    newGestureBML( bml, symmetry = 0x00 ){
+    newGestureBML( bml, symmetry = E_FLAG_SYMMETRY_NONE ){
 
         this.srcQuat.copy( this.curQuat );
         this.palmor.srcAngle = this.curAproxPalmor;
@@ -5805,7 +5831,9 @@ class ExtfidirPalmor {
             if ( this.time > this.relax ){ this.extfidir.trgDir.copy( this.extfidir.defDir ); }
             // this.extfidir.trgDir.copy( this.extfidir.defDir );
         }
-        symmetry = (symmetry & 0xfe) | ( ( symmetry & 0x01 ) ^ ( this.extfidir.trgDir.z < 0 ? 0x01 : 0x00 ) );
+
+        // symmetry lr. If direction is inwards, undo any symmetry
+        symmetry = (symmetry & (~E_FLAG_SYMMETRY_LR)) | ( ( symmetry & E_FLAG_SYMMETRY_LR ) ^ ( this.extfidir.trgDir.z < 0 ? E_FLAG_SYMMETRY_LR : 0x00 ) );
         if ( !this.newGestureBMLPalmor( bml, symmetry ) ){
             if ( this.time > this.relax ){ this.palmor.trgAngle = this.palmor.defAngle; }
             // this.palmor.trgAngle = this.palmor.defAngle;
@@ -6271,25 +6299,135 @@ class FingerPlay {
 }
 EBMLC.FingerPlay = FingerPlay;
 
-class WristMotion {
-    constructor( config, skeleton, isLeftHand = false ){
-        this.skeleton = skeleton;
-        this.config = config;
-        
+
+
+const E_WRISTMOTION_MODE_TWIST = 0x01;
+const E_WRISTMOTION_MODE_NOD = 0x02;
+const E_WRISTMOTION_MODE_SWING = 0x04;
+
+class WristMotionThrowable{
+    constructor(isLeftHand = false){
         this.time = 0;
         this.start = 0;
         this.attackPeak = 0;
         this.relax = 0;
         this.end = 0;
-        this.transition = false;
 
-        this.clock = 0; // using cos operations. if a wristmotion overwrites another in play, need to be in the same phase  
-        this.curUpdateIntensity = [0,0,0]; // [ twist, nod, swing ]
-        this.srcUpdateIntensity = [0,0,0];
-        
-        this.mode = 0; // FLAGS 0=NONE, 1=TWIST, 2=NOD, 4=SWING 
+        this.mode = 0; // FLAGS 0=NONE, 1=TWIST, 2=NOD, 4=SWING
         this.intensity = 1;
-        this.speed = 1;
+        this.speed = 0; // if 0 do not repete
+
+        this.repDisplace = 0.5; // [0,1]
+        this.repPhase = 0;
+        this.curValue = [0,0,0]; // [ twist, nod, swing]
+        this.isLeftHand = isLeftHand;
+    }
+    /**
+    * bml info
+    * start, attackPeak, relax, end
+    * mode = either a: 
+    *          - string from [ "NOD", "NODDING", "SWING", "SWINGING", "TWIST", "TWISTING", "STIR_CW", "STIR_CCW", "ALL" ]
+    *          - or a value from [ 0 = None, 1 = TWIST, 2 = NOD, SWING = 4 ]. 
+    *            Several values can co-occur by using the OR (|) operator. I.E. ( 2 | 4 ) = STIR_CW
+    *            Several values can co-occur by summing the values. I.E. ( 2 + 4 ) = STIR_CW
+    * cycles = (optional) oscillations between end and start. Negative values are valid. Default 3. 
+    * intensity = (optional) [0,1]. Default 0.3
+    */
+    setBML( bml, symmetry ){
+        // check and set timings
+        this.start = bml.start;
+        this.attackPeak = bml.attackPeak;
+        this.relax = bml.relax;
+        this.end = bml.end;
+        this.time = 0; 
+
+        this.speed = (isNaN( bml.cycles ) ? 3 : bml.cycles) / (this.end-this.start + 0.000001);
+        if ( symmetry & E_FLAG_SYMMETRY_ALL ){ this.speed *= -1; }
+        this.intensity = isNaN( bml.intensity ) ? 0.3 : bml.intensity;
+        
+        if ( typeof( bml.mode ) == "string" ){
+            switch( bml.mode.toLowerCase() ){
+                case "twisting": this.mode = E_WRISTMOTION_MODE_TWIST; break; // repetition
+                case "twist": this.mode = E_WRISTMOTION_MODE_TWIST; this.speed = 0; this.intensity *= symmetry & E_FLAG_SYMMETRY_IO ? -1 : 1; break;
+                case "pronation" : this.mode = E_WRISTMOTION_MODE_TWIST; this.intensity *= this.isLeftHand ? 1 : -1; this.speed = 0; break;
+                case "supination" : this.mode = E_WRISTMOTION_MODE_TWIST; this.intensity *= this.isLeftHand ? -1 : 1; this.speed = 0; break;
+                
+                case "nodding": this.mode = E_WRISTMOTION_MODE_NOD; break; // reptition
+                case "nod": this.mode = E_WRISTMOTION_MODE_NOD; this.speed = 0; this.intensity *= symmetry & E_FLAG_SYMMETRY_UD ? -1 : 1; break
+                case "extension": this.mode = E_WRISTMOTION_MODE_NOD; this.intensity *= -1; this.speed = 0; break;
+                case "flexion": this.mode = E_WRISTMOTION_MODE_NOD; this.speed = 0; break;
+
+                case "swinging": this.mode = E_WRISTMOTION_MODE_SWING; break; // repetition
+                case "swing": this.mode = E_WRISTMOTION_MODE_SWING; this.intensity *= symmetry & E_FLAG_SYMMETRY_LR ? -1 : 1; this.speed = 0; break; // simple left right, regardless of hand
+                case "swing_ulnar" : this.mode = E_WRISTMOTION_MODE_SWING; this.intensity *= this.isLeftHand ? 1 : -1; this.speed = 0; break;
+                case "swing_radial" : this.mode = E_WRISTMOTION_MODE_SWING; this.intensity *= this.isLeftHand ? -1 : 1; this.speed = 0; break;
+
+                case "stir_cw": this.mode = E_WRISTMOTION_MODE_NOD | E_WRISTMOTION_MODE_SWING; break;
+                case "stir_ccw": this.mode = E_WRISTMOTION_MODE_NOD | E_WRISTMOTION_MODE_SWING; this.speed *= -1; break;
+                case "all": this.mode = E_WRISTMOTION_MODE_NOD | E_WRISTMOTION_MODE_SWING | E_WRISTMOTION_MODE_TWIST; break;
+                default:
+                    console.warn( "Gesture: No wrist motion called \"", bml.mode, "\" found" );
+                    return false;
+            }
+        }
+        else if ( isNaN( bml.mode ) ) {
+            console.warn( "Gesture: No wrist motion called \"", bml.mode, "\" found" );
+            return false;
+        }
+        else {
+            this.mode = bml.mode & (E_WRISTMOTION_MODE_NOD | E_WRISTMOTION_MODE_SWING | E_WRISTMOTION_MODE_TWIST); // take only the necessary bits
+        }
+
+        return true;
+    
+    }
+
+    update( dt ){
+        this.time += dt;
+        let interpolator = 0;
+        if ( this.time < this.start ){ interpolator = 0; }
+        else if ( this.time < this.attackPeak ){ interpolator = ( this.time - this.start ) / ( this.attackPeak - this.start );}
+        else if ( this.time < this.relax ){ interpolator = 1; }
+        else if ( this.time < this.end ){ interpolator = ( this.end - this.time ) / ( this.end - this.relax ); }
+        else {
+            interpolator = 0; 
+            this.mode = 0x00;
+        }
+        
+        let val = interpolator * this.intensity * ( Math.PI * 0.5 );
+
+        if ( this.mode & E_WRISTMOTION_MODE_TWIST){
+            this.curValue[0] = val;
+            if ( this.speed ){
+                let f = Math.cos( 2 * Math.PI * this.speed * this.time + this.repPhase );
+                this.curValue[0] *= (0.5 + 0.5 * f) - this.repDisplace;
+            }
+        }
+        if ( this.mode & E_WRISTMOTION_MODE_NOD){
+            this.curValue[1] = val;
+            if ( this.speed ){
+                let f = Math.cos( 2 * Math.PI * this.speed * this.time + this.repPhase );
+                this.curValue[1] *= (0.5 + 0.5 * f) - this.repDisplace;
+            }
+        }
+        if ( this.mode & E_WRISTMOTION_MODE_SWING){
+            this.curValue[2] = val;
+            if ( this.speed ){
+                let f = Math.sin( 2 * Math.PI * this.speed * this.time + this.repPhase ); // swing should be offseted from nod
+                this.curValue[2] *= (0.5 + 0.5 * f) - this.repDisplace;
+            }
+        }
+    }
+}
+
+class WristMotionManager {
+    constructor( config, skeleton, isLeftHand = false ){
+        this.skeleton = skeleton;
+        this.config = config;
+        this.isLeftHand = isLeftHand;
+      
+        this.transition = false;
+        this.bmlstack = [];
         
         let handName = isLeftHand ? "L" : "R";
         this.wristBone = this.skeleton.bones[ config.boneMap[ handName + "Wrist" ] ];
@@ -6307,6 +6445,7 @@ class WristMotion {
         let indexBindDir = (new THREE.Vector3()).setFromMatrixPosition( indexBindMat.clone().invert() ).sub( wristBindPos ).normalize();
         let ringBindDir = (new THREE.Vector3()).setFromMatrixPosition( ringBindMat.clone().invert() ).sub( wristBindPos ).normalize();
 
+        // compute world 
         this.axes[0].copy( middleBindDir ); // twist
         this.axes[2].crossVectors( ringBindDir, indexBindDir ).multiplyScalar( isLeftHand ? -1 : 1 ).normalize(); // temporal swing
         this.axes[1].crossVectors( this.axes[2], this.axes[0] ).normalize(); // nod
@@ -6316,114 +6455,65 @@ class WristMotion {
         this.axes[0].applyMatrix3( wristBindWtoL ).normalize();
         this.axes[1].applyMatrix3( wristBindWtoL ).normalize();
         this.axes[2].applyMatrix3( wristBindWtoL ).normalize();
-        
     }
 
     reset(){
         this.time = 0;
-        this.mode = 0;
         this.transition = false;
+        this.bmlstack = [];
     }
 
     update( dt ){
-        if ( !this.transition ){ return; }
 
-        this.clock += dt;
-        this.time += dt;
-        let interpolator = 0;
-        let introInterpolator = 0;
-        if ( this.time < this.start ){ interpolator = 0; }
-        else if ( this.time < this.attackPeak ){ interpolator = ( this.time - this.start ) / ( this.attackPeak - this.start ); introInterpolator = 1.0-interpolator; }
-        else if ( this.time < this.relax ){ interpolator = 1; }
-        else if ( this.time < this.end ){ interpolator = ( this.end - this.time ) / ( this.end - this.relax ); }
-        else {
-            interpolator = 0; 
-            this.mode = 0x00;
-            this.transition = false;
+        let nod = 0, swing = 0, twist = 0;
+        for( let i = this.bmlstack.length-1; i > -1 ; --i){
+            let bml = this.bmlstack[i];
+            bml.update(dt);
+
+            twist += bml.curValue[0];
+            nod += bml.curValue[1];
+            swing += bml.curValue[2];
+
+            if ( bml.time >= bml.end ){
+                this.bmlstack.splice(i,1);
+            }
         }
-        
-        let intensity = 0;
+
         let axis = _tempVec3_0;
 
         // TWIST
         axis.copy( this.axes[0] ).applyQuaternion( this.wristBone.quaternion ); // apply other rotations to ensure correct axis direction
-        intensity = this.srcUpdateIntensity[0] * introInterpolator;
-        if ( this.mode & 0x01 ){ intensity += this.intensity * interpolator; }        this.curUpdateIntensity[0] = intensity;
-        _tempQuat_0.setFromAxisAngle( axis, Math.cos( 2 * Math.PI * this.speed * this.clock ) * intensity * ( Math.PI * 0.5 ) );
+        _tempQuat_0.setFromAxisAngle( axis, twist );
         this.wristBone.quaternion.premultiply( _tempQuat_0 );
 
         // NOD
         axis.copy( this.axes[1] ).applyQuaternion( this.wristBone.quaternion ); // apply other rotations to ensure correct axis direction
-        intensity = this.srcUpdateIntensity[1] * introInterpolator;
-        if ( this.mode & 0x02 ){ intensity += this.intensity * interpolator; }        this.curUpdateIntensity[1] = intensity;
-        _tempQuat_0.setFromAxisAngle( axis, Math.cos( 2 * Math.PI * this.speed * this.clock ) * intensity * ( Math.PI * 0.5 ) );
+        _tempQuat_0.setFromAxisAngle( axis, nod );
         this.wristBone.quaternion.premultiply( _tempQuat_0 );
         
         // SWING
         axis.copy( this.axes[2] ).applyQuaternion( this.wristBone.quaternion ); // apply other rotations to ensure correct axis direction
-        intensity = this.srcUpdateIntensity[2] * introInterpolator;
-        if ( this.mode & 0x04 ){ intensity += this.intensity * interpolator; }        this.curUpdateIntensity[2] = intensity;
-        _tempQuat_0.setFromAxisAngle( axis, Math.sin( 2 * Math.PI * this.speed * this.clock ) * intensity * ( Math.PI * 0.5 ) ); // PHASE of 90ª (sin instead of cos) with respect to NOD (see newGestureBML)
+        _tempQuat_0.setFromAxisAngle( axis, swing );
         this.wristBone.quaternion.premultiply( _tempQuat_0 );
+
+        this.transition = this.bmlstack.length > 0;
     }
 
-     /**
-     * bml info
-     * start, attackPeak, relax, end
-     * mode = either a: 
-     *          - string from [ "NOD", "NODDING", "SWING", "SWINGING", "TWIST", "TWISTING", "STIR_CW", "STIR_CCW", "ALL" ]
-     *          - or a value from [ 0 = None, 1 = TWIST, 2 = NOD, SWING = 4 ]. 
-     *            Several values can co-occur by using the OR (|) operator. I.E. ( 2 | 4 ) = STIR_CW
-     *            Several values can co-occur by summing the values. I.E. ( 2 + 4 ) = STIR_CW
-     * speed = (optional) oscillations per second. A negative values accepted. Default 3. 
-     * intensity = (optional) [0,1]. Default 0.3
-     */
     newGestureBML( bml, symmetry ){
-        
-        this.speed = isNaN( bml.speed ) ? 3 : bml.speed;
-        if ( symmetry & 0x07 ){ this.speed *= -1; }
-        this.intensity = isNaN( bml.intensity ) ? 0.3 : bml.intensity;
-        this.intensity = Math.min( 1, Math.max( 0, this.intensity ) );
-        
-        if ( typeof( bml.mode ) == "string" ){
-            switch( bml.mode.toLowerCase() ){
-                case "nod": case "nodding": this.mode = 0x02; break;
-                case "swing": case "swinging": this.mode = 0x04; break;
-                case "twist": case "twisting": this.mode = 0x01; break;
-                case "stir_cw": this.mode = 0x06; break; // 0x02 | 0x04
-                case "stir_ccw": this.mode = 0x06; this.speed *= -1; break;
-                case "all": this.mode = 0x07; break;
-                default:
-                    console.warn( "Gesture: No wrist motion called \"", bml.mode, "\" found" );
-                    return false;
-            }
-        }
-        else if ( isNaN( bml.mode ) ) {
-            console.warn( "Gesture: No wrist motion called \"", bml.mode, "\" found" );
-            return false;
-        }
-        else {
-            this.mode = bml.mode & 0x07; // take only the necessary bits
+        let wm = new WristMotionThrowable(this.isLeftHand);
+        if ( wm.setBML(bml, symmetry) ){
+            this.bmlstack.push(wm);
+            return true;
         }
 
-        // swap pointers
-        let temp = this.curUpdateIntensity;
-        this.curUpdateIntensity = this.srcUpdateIntensity;
-        this.srcUpdateIntensity = temp;
-        
-        // check and set timings
-        this.start = bml.start;
-        this.attackPeak = bml.attackPeak;
-        this.relax = bml.relax;
-        this.end = bml.end;
-        this.time = 0; 
-
-        this.transition = true;
-        
-        return true;
+        return false;        
     }
+
+
 }
-EBMLC.WristMotion = WristMotion;
+
+
+EBMLC.WristMotionManager = WristMotionManager;
 
 class HandConstellation {
     constructor( boneMap, skeleton, rightHandLocations, leftHandLocations ) {
@@ -7083,8 +7173,7 @@ class BodyController{
                     m3.setFromMatrix4( skeleton.boneInverses[ idx ] );
                     o.direction = (new THREE.Vector3()).copy( l[2] ).applyMatrix3( m3 );
                 }
-                // o.position.copy( l[1] );
-                // if ( symmetry ){ o.position.x *= -1; }
+                
                 o.name = name;
                 skeleton.bones[ idx ].add( o );
                 result[ name ] = o;
@@ -7154,7 +7243,7 @@ class BodyController{
             loc: new LocationBodyArm( this.config, this.skeleton, isLeftHand ),
             locMotions: [],
             extfidirPalmor: new ExtfidirPalmor( this.config, this.skeleton, isLeftHand ),
-            wristMotion: new WristMotion( this.config, this.skeleton, isLeftHand ),
+            wristMotion: new WristMotionManager( this.config, this.skeleton, isLeftHand ),
             handshape: new HandShape( this.config, this.skeleton, isLeftHand ),
             fingerplay: new FingerPlay(),
             elbowRaise: new ElbowRaise( this.config, this.skeleton, isLeftHand ),
@@ -7352,7 +7441,7 @@ class BodyController{
         wq.premultiply( q0.invert() ); // wrist did not know about this twist, undo it
     }
 
-    _newGestureArm( bml, arm, symmetry = 0x00 ){
+    _newGestureArm( bml, arm, symmetry = E_FLAG_SYMMETRY_NONE ){
         if ( bml.locationBodyArm ){ // when location change, cut directed and circular motions
             // this.bodyMovement.forceBindPose();
             arm.loc.newGestureBML( bml, symmetry, arm.locUpdatePoint );
@@ -7406,9 +7495,9 @@ class BodyController{
         bml.relax = bml.relax || ( (bml.end - bml.attackPeak) * 0.5 + bml.attackPeak );
 
         // symmetry: bit0 = lr, bit1 = ud, bit2 = io
-        let symmetryFlags = ( !!bml.lrSym );
-        symmetryFlags |= ( ( !!bml.udSym ) << 1 );
-        symmetryFlags |= ( ( !!bml.ioSym ) << 2 );
+        let symmetryFlags = bml.lrSym ? E_FLAG_SYMMETRY_LR : E_FLAG_SYMMETRY_NONE;
+        if (bml.udSym) { symmetryFlags |= E_FLAG_SYMMETRY_UD; }
+        if (bml.ioSym) { symmetryFlags |= E_FLAG_SYMMETRY_IO; }
 
         if ( typeof( bml.hand ) == "string" ){ bml.hand = bml.hand.toUpperCase(); }
         
@@ -7432,13 +7521,13 @@ class BodyController{
 
         switch ( bml.hand ){
             case "RIGHT" :             
-                this._newGestureArm( bml, this.right, ( this.dominant == this.right ) ? 0x00 : symmetryFlags ); 
+                this._newGestureArm( bml, this.right, ( this.dominant == this.right ) ? E_FLAG_SYMMETRY_NONE : symmetryFlags ); 
                 break;
             case "LEFT" : 
-                this._newGestureArm( bml, this.left, ( this.dominant == this.left ) ? 0x00 : symmetryFlags ); 
+                this._newGestureArm( bml, this.left, ( this.dominant == this.left ) ? E_FLAG_SYMMETRY_NONE : symmetryFlags ); 
                 break;
             case "BOTH" : 
-                this._newGestureArm( bml, this.dominant, 0x00 ); 
+                this._newGestureArm( bml, this.dominant, E_FLAG_SYMMETRY_NONE ); 
                 this._newGestureArm( bml, this.nonDominant, symmetryFlags ); 
                 break;
             case "NON_DOMINANT" : 
@@ -7446,7 +7535,7 @@ class BodyController{
                 break;
             case "DOMINANT": 
             default:
-                this._newGestureArm( bml, this.dominant, 0x00 ); 
+                this._newGestureArm( bml, this.dominant, E_FLAG_SYMMETRY_NONE ); 
                 break;
         }
 
