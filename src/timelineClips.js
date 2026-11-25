@@ -1625,7 +1625,7 @@ class ArmLocationClip extends BaseClip {
 		
 		if(o.side || o.secondSide) {
 			for(let s in ArmLocationClip.sides) {
-				if(o.side == ArmLocationClip.sides[s])
+				if(o.side.toLowerCase() == ArmLocationClip.sides[s])
 					this.properties.side = s;
 				if(o.secondSide == ArmLocationClip.sides[s])
 					this.properties.secondSide = s;

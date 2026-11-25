@@ -4597,7 +4597,7 @@ class ScriptEditor extends Editor {
                                 panel.addTextArea("", "There is already an animation. What do you want to do?", null, {hideName: true, disabled: true, resize: false, fitHeight: true, className: "nobg"});
                                 panel.sameLine(3);
                                 panel.addButton(null, "New animation", () => {
-                                    this.loadAnimation( file.name, animation );
+                                    this.loadAnimation( animation.gloss || file.name, animation );
                                     prompt.close();
                                     resolve(file.animation);
                                     UTILS.hideLoading();
